@@ -28,6 +28,17 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
   bool get _isExistingTemplate =>
       widget.sequence.isTemplate && widget.sequence.databaseId != null;
 
+  /// Instructions the user actually authored — the implicit root container
+  /// is not one, so an empty sequence counts 0 rather than 1.
+  int get _instructionCount => visibleInstructionCount(widget.sequence);
+
+  /// Creating a NEW template out of an empty sequence produces a catalogue
+  /// entry that applies nothing, so that is refused. Re-saving an existing
+  /// template row is not: the user may be there to fix its name or
+  /// description, and blocking that would strand them with no way to edit
+  /// the metadata of a template they already own.
+  bool get _blockedAsEmpty => _instructionCount == 0 && !_isExistingTemplate;
+
   @override
   void initState() {
     super.initState();
@@ -163,29 +174,35 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
                       ),
                     ),
                     const SizedBox(width: 16),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _isExistingTemplate
-                              ? 'Update Template'
-                              : 'Save as Template',
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize18,
-                            fontWeight: FontWeight.w700,
-                            color: widget.colors.textPrimary,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _isExistingTemplate
+                                ? 'Update Template'
+                                : 'Save as Template',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: NightshadeTypography.fontSize18,
+                              fontWeight: FontWeight.w700,
+                              color: widget.colors.textPrimary,
+                            ),
                           ),
-                        ),
-                        Text(
-                          _isExistingTemplate
-                              ? 'Replace the saved template with these changes'
-                              : 'Save this sequence for later reuse',
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize12,
-                            color: widget.colors.textMuted,
+                          Text(
+                            _isExistingTemplate
+                                ? 'Replace the saved template with these changes'
+                                : 'Save this sequence for later reuse',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: NightshadeTypography.fontSize12,
+                              color: widget.colors.textMuted,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -276,13 +293,17 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          _isExistingTemplate
-                              ? 'This will replace the saved template with '
-                                  '${widget.sequence.nodes.length} nodes from '
-                                  'the editor.'
-                              : 'This will save '
-                                  '${widget.sequence.nodes.length} nodes from '
-                                  'the current sequence.',
+                          _blockedAsEmpty
+                              ? 'This sequence has no instructions yet. Add '
+                                  'at least one node before saving it as a '
+                                  'template.'
+                              : _isExistingTemplate
+                                  ? 'This will replace the saved template '
+                                      'with ${countLabel(_instructionCount, 'node')} '
+                                      'from the editor.'
+                                  : 'This will save '
+                                      '${countLabel(_instructionCount, 'node')} '
+                                      'from the current sequence.',
                           style: TextStyle(
                             fontSize: NightshadeTypography.fontSize12,
                             color: widget.colors.textSecondary,
@@ -307,6 +328,9 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
                       size: ButtonSize.small,
                     ),
                     const SizedBox(width: 12),
+                    // An empty sequence produces an empty template, which
+                    // then shows up in the catalogue and applies to nothing.
+                    // The info line above states the reason in place.
                     NightshadeButton(
                       label: _isSaving
                           ? 'Saving...'
@@ -314,7 +338,8 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
                               ? 'Update Template'
                               : 'Save Template',
                       icon: _isSaving ? LucideIcons.loader : LucideIcons.save,
-                      onPressed: _isSaving ? null : _saveTemplate,
+                      onPressed:
+                          _isSaving || _blockedAsEmpty ? null : _saveTemplate,
                       size: ButtonSize.small,
                     ),
                   ],

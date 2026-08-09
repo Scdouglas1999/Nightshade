@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as ns_events;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/run_dashboard/run_dashboard_providers.dart';
+import '../../../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 /// An event's declared severity is authoritative — payload-type classification
 /// must never escalate past it.
@@ -39,7 +40,7 @@ ns_events.NightshadeEvent _event({
 List<RunDashboardEvent> _dashboardEvents(
   List<ns_events.NightshadeEvent> history,
 ) {
-  final container = ProviderContainer();
+  final container = ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
   addTearDown(container.dispose);
   // Pushing through the notifier is how the live app populates history.
   for (final event in history) {

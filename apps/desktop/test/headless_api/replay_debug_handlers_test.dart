@@ -79,6 +79,14 @@ void main() {
         get('/api/sequencer/replay-debug/decisions/count?runId=42'),
       );
       expect((jsonDecode(await count.readAsString()) as Map)['count'], 1);
+
+      // No runId: every row on the host. This is what the "Clear all replay
+      // history" confirmation asks for so it can state how much it is about to
+      // delete instead of asking for consent to an unknown quantity.
+      final total = await handlers.handleCountDecisions(
+        get('/api/sequencer/replay-debug/decisions/count'),
+      );
+      expect((jsonDecode(await total.readAsString()) as Map)['count'], 1);
     });
 
     test('rejects invalid run ids before reading the database', () async {

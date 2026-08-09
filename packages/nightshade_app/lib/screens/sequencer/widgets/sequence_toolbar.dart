@@ -5,8 +5,10 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../localization/nightshade_localizations.dart';
 import '../../../models/command_action_result.dart';
 import '../../../services/sequence_action_service.dart';
+import '../../../utils/count_label.dart';
 import '../../../utils/exported_file_reveal.dart';
 import '../../../utils/sequence_mutator_helper.dart';
 import '../../../utils/snackbar_helper.dart';
@@ -151,23 +153,41 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
           // affordance in the app.
           void openSmartNight() => showSmartNightDialog(context);
 
+          // Triggers live ON exposure nodes. A sequence with none has nowhere
+          // to store them, and the old flow let the user build a "abort if
+          // guiding RMS > 2"" trigger, press Save, get a success snackbar and
+          // keep nothing — the loop below simply had no nodes to write to.
+          final exposureNodes =
+              sequence?.nodes.values.whereType<ExposureNode>().toList() ??
+                  const <ExposureNode>[];
+
           List<ExposureTriggerConfig> currentExposureTriggers() {
-            final exposureNodes =
-                sequence?.nodes.values.whereType<ExposureNode>();
-            final exposureNode = exposureNodes == null || exposureNodes.isEmpty
-                ? null
-                : exposureNodes.first;
-            if (exposureNode == null) return const [];
-            return exposureNode.triggers
+            if (exposureNodes.isEmpty) return const [];
+            return exposureNodes.first.triggers
                 .map(ExposureTriggerConfig.fromNativeJson)
                 .toList(growable: false);
           }
 
           Future<void> openExposureTriggers() async {
+            if (exposureNodes.isEmpty) {
+              // Belt and braces: the toolbar button is disabled in this
+              // state, but the overflow menu and any future caller must not
+              // be able to open a dialog whose Save is a no-op.
+              context.showErrorSnackBar(
+                'Add an exposure node first — triggers are stored on the '
+                'exposure that runs them.',
+              );
+              return;
+            }
             final result = await showDialog<List<ExposureTriggerConfig>>(
               context: context,
               builder: (_) => TriggerConfigurationDialog(
                 initialTriggers: currentExposureTriggers(),
+                appliesTo: exposureNodes.length == 1
+                    ? 'Applies to the exposure node '
+                        '"${exposureNodes.single.name}".'
+                    : 'Applies to all ${exposureNodes.length} exposure nodes '
+                        'in this sequence.',
               ),
             );
             if (result == null) return;
@@ -181,15 +201,18 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
               notifier.updateNode(node.copyWith(triggers: nativeTriggers));
             }
             // The trigger update is in-memory only — `updateNode` mutates
-            // the editor state but doesn't write to disk. The toolbar's
-            // own Save action exports to a file via a picker dialog, so
-            // we can't silently persist here. Tell the user the truth:
-            // applied to the editor, not yet saved. Auto-save (when on)
-            // will pick it up on its next tick; otherwise the next Save
-            // Sequence press persists it.
+            // the editor state but doesn't write to disk. The toolbar's own
+            // file action EXPORTS a .nsq through a picker; it does not
+            // persist into the library, so pointing the user at it would be
+            // a lie. Auto-save (when on) picks this up on its next tick;
+            // otherwise "Save Current" in the Sequences tab is what persists.
             if (context.mounted) {
+              // Name the count so "applied" is checkable against what the
+              // user expected, not a bare claim of success.
               context.showInfoSnackBar(
-                'Exposure triggers applied — save sequence to persist.',
+                'Exposure triggers applied to '
+                '${countLabel(exposureNodes.length, 'exposure node')} — '
+                'use "Save Current" in the Sequences tab to persist.',
               );
             }
           }
@@ -363,7 +386,7 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
                   context,
                   savedPath,
                   subject: 'Nightshade sequence: ${current.name}',
-                  desktopMessage: 'Sequence "${current.name}" saved',
+                  desktopMessage: 'Sequence "${current.name}" exported',
                 );
               }
             } on SequenceValidationFailedException catch (e) {
@@ -377,7 +400,7 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
               final forceSave = await showValidationIssueDialog(
                 context,
                 issues: e.issues,
-                operationName: 'Save Sequence',
+                operationName: 'Export Sequence File',
                 forceLabel: 'Force save anyway',
               );
               if (!forceSave) return;
@@ -392,17 +415,22 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
                     context,
                     savedPath,
                     subject: 'Nightshade sequence: ${current.name}',
-                    desktopMessage: 'Sequence "${current.name}" saved (forced)',
+                    desktopMessage:
+                        'Sequence "${current.name}" exported (forced)',
                   );
                 }
               } catch (err) {
                 if (context.mounted) {
-                  context.showErrorSnackBar('Failed to save sequence: $err');
+                  context.showErrorSnackBar(
+                    'Failed to export sequence file: $err',
+                  );
                 }
               }
             } catch (e) {
               if (context.mounted) {
-                context.showErrorSnackBar('Failed to save sequence: $e');
+                context.showErrorSnackBar(
+                  'Failed to export sequence file: $e',
+                );
               }
             }
           }
@@ -429,7 +457,7 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
           }
 
           // §B: every action below that ends up mutating the sequence
-          // tree must respect canEditSequenceProvider. "Save Sequence"
+          // tree must respect canEditSequenceProvider. "Export Sequence File"
           // and "Slew to Target" are read-only/runtime operations and
           // stay enabled. "Polar Alignment" navigates to another screen
           // and is also not an edit. The disabled-button visual is
@@ -486,9 +514,13 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
             ),
             _ToolbarAction(
               icon: LucideIcons.save,
+              // This writes a .nsq FILE through the OS chooser; saving into
+              // the app's library is the Sequences tab's "Save Current". Two
+              // actions both called "Save" was a real ambiguity - the name now
+              // says which one this is.
               label: sequence == null
-                  ? 'Save Sequence (create or open a sequence first)'
-                  : 'Save Sequence',
+                  ? 'Export Sequence File… (create or open a sequence first)'
+                  : 'Export Sequence File…',
               onPressed: sequence != null && !_fileActionRunning
                   ? () => _runFileAction(saveSequenceFile)
                   : null,
@@ -501,8 +533,12 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
             ),
             _ToolbarAction(
               icon: LucideIcons.bellRing,
-              label: 'Exposure Triggers$lockedTooltipSuffix',
-              onPressed: canEdit ? openExposureTriggers : null,
+              label: exposureNodes.isEmpty
+                  ? 'Exposure Triggers (add an exposure node first)'
+                  : 'Exposure Triggers$lockedTooltipSuffix',
+              onPressed: canEdit && exposureNodes.isNotEmpty
+                  ? openExposureTriggers
+                  : null,
             ),
             const _ToolbarAction.divider(),
             if (sequence != null && sequence.targetHeaders.isNotEmpty)

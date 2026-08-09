@@ -153,6 +153,13 @@ class _ApiServerLifecycle {
   DiscoveryBroadcaster? _discoveryBroadcaster;
   MdnsServiceRegistration? _mdnsRegistration;
   StreamSubscription<dynamic>? _collaborationSubscription;
+
+  /// Feeds [WebServerState.connectedClients] from the server's socket
+  /// registry. Separate from [_collaborationSubscription] because the two
+  /// count different things: co-imaging participants versus every attached
+  /// remote client.
+  StreamSubscription<int>? _connectedClientSubscription;
+
   AppSettingsState? _queuedSettings;
   bool _isApplying = false;
 
@@ -190,6 +197,9 @@ class _ApiServerLifecycle {
   Future<void> _stop(AppSettingsState settings, {String error = ''}) async {
     await _collaborationSubscription?.cancel();
     _collaborationSubscription = null;
+
+    await _connectedClientSubscription?.cancel();
+    _connectedClientSubscription = null;
 
     _discoveryBroadcaster?.stop();
     _discoveryBroadcaster = null;
@@ -347,6 +357,19 @@ class _ApiServerLifecycle {
                 .read(webServerStateProvider.notifier)
                 .setActiveViewers(collabState.viewers.length);
           });
+
+      // "Is anyone connected?" is answered by the socket registry, not by the
+      // co-imaging viewer list — a paired phone streaming /events all night
+      // never joins a collaboration session.
+      _connectedClientSubscription = nextServer.connectedClientCountStream
+          .listen((count) {
+            container
+                .read(webServerStateProvider.notifier)
+                .setConnectedClients(count);
+          });
+      container
+          .read(webServerStateProvider.notifier)
+          .setConnectedClients(nextServer.connectedClientCount);
 
       try {
         final pushService = container.read(pushNotificationServiceProvider);

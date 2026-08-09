@@ -21,9 +21,9 @@ void main() {
     Object? errorShownByRetry;
 
     final outcome = await runAppCheckpointRecovery(
-      choose: (lastError) async {
+      choose: (lastFailure) async {
         choices++;
-        errorShownByRetry = lastError;
+        errorShownByRetry = lastFailure?.error;
         return AppCheckpointRecoveryChoice.resume;
       },
       resume: () async {
@@ -31,6 +31,7 @@ void main() {
         if (resumeAttempts == 1) throw Exception('settings unavailable');
       },
       discard: () async {},
+      checkpointStillResumable: () async => true,
     );
 
     expect(outcome, AppStartupCheckpointOutcome.resumed);
@@ -44,14 +45,15 @@ void main() {
     var discarded = false;
 
     final outcome = await runAppCheckpointRecovery(
-      choose: (lastError) async {
-        if (lastError != null) chooseDiscard = true;
+      choose: (lastFailure) async {
+        if (lastFailure != null) chooseDiscard = true;
         return chooseDiscard
             ? AppCheckpointRecoveryChoice.discard
             : AppCheckpointRecoveryChoice.resume;
       },
       resume: () async => throw Exception('resume failed'),
       discard: () async => discarded = true,
+      checkpointStillResumable: () async => true,
     );
 
     expect(outcome, AppStartupCheckpointOutcome.discarded);

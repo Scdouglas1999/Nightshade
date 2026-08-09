@@ -88,6 +88,8 @@ class _ConstraintRowState extends State<_ConstraintRow> {
         return 'Time window';
       case TargetConstraintKind.moonIlluminationMax:
         return 'Max moon illumination';
+      case TargetConstraintKind.moonSeparationMin:
+        return 'Min moon separation';
       case TargetConstraintKind.customHorizon:
         return 'Custom horizon';
       case TargetConstraintKind.scheduledWindow:

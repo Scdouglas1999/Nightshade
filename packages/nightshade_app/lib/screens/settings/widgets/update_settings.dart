@@ -15,8 +15,9 @@ import 'settings_widgets.dart';
 /// Drives the headless server's `/api/system/update/*` surface so a tablet /
 /// desktop operator can check for, stage, apply, and roll back appliance
 /// updates without SSHing into the Pi. Only meaningful on a remote
-/// (NetworkBackend) session — the local desktop updates itself through its own
-/// installer — so the page degrades to an explanatory note off-network.
+/// (NetworkBackend) session, so the page degrades to an explanatory note
+/// off-network. The local copy's own update check lives in Settings > About
+/// (`_SoftwareUpdateCard`); this page has never had anything to do with it.
 class UpdateSettings extends ConsumerStatefulWidget {
   final bool isMobile;
 
@@ -394,8 +395,14 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
           _InfoCard(
             colors: colors,
             icon: LucideIcons.info,
-            text: 'Connect to a remote appliance to manage its updates. The '
-                'local desktop app updates itself through its own installer.',
+            // The old sentence ("the local desktop app updates itself through
+            // its own installer") was not true of any shipped build: nothing
+            // configures the desktop updater's server URL, and the Linux build
+            // is a tarball with no installer at all. Point at the check that
+            // actually exists.
+            text: 'This page manages updates on a REMOTE appliance; connect to '
+                'a rig to use it. For this copy of Nightshade, use Settings > '
+                'About > Check for updates.',
           )
         else ...[
           _buildVersionCard(colors),

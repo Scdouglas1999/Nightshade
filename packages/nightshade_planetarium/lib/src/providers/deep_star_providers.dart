@@ -1,12 +1,16 @@
 import 'dart:developer' as developer;
+import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../catalogs/catalog_manager.dart';
 import '../catalogs/deep_star_store.dart';
 import '../catalogs/deep_star_tile.dart';
+import '../catalogs/hyg_depth.dart';
 import '../celestial_object.dart';
 import 'planetarium_providers.dart';
+
+export '../catalogs/hyg_depth.dart' show kHygFaintFloorMag;
 
 // ============================================================================
 // Deep-star tier — downloadable Tycho-2 / Gaia subset below the HYG floor
@@ -22,10 +26,11 @@ import 'planetarium_providers.dart';
 /// is cheapest.
 const double kDeepStarFovThresholdDegrees = 8.0;
 
-/// The bundled HYG catalog's faint floor. Deep-tier stars at or brighter than
-/// this are already drawn by the HYG path, so the store is asked to exclude
-/// them (it merges magnitude-sorted, so this is the hand-off seam).
-const double kHygFaintFloorMag = 11.5;
+// [kHygFaintFloorMag] is the HYG/deep-tier hand-off seam: deep-tier stars at
+// or brighter than it are already drawn by the HYG path, so the store is asked
+// to exclude them (it merges magnitude-sorted). It now lives in
+// catalogs/hyg_depth.dart and is re-exported above, so the settings cards and
+// the Layers panel state the same depth this seam uses.
 
 /// Whether the deep-star tier is enabled for rendering. Off by default — it
 /// only does anything once a tileset has been downloaded, and even then a user
@@ -87,8 +92,11 @@ final deepStarsInViewProvider = FutureProvider<List<Star>>((ref) async {
       centerDec,
       fov,
       maxMagnitude: starMagLimit,
-      // Hand off at the HYG floor so the two tiers never double-draw a star.
-      minMagnitude: kHygFaintFloorMag,
+      // Hand off at whichever seam is fainter: the tileset's own bright cutoff
+      // (nothing above it exists in the tiles) or HYG's real depth. Pinning it
+      // to the constant alone would silently throw away everything a tileset
+      // generated with a brighter floor was built to contribute.
+      minMagnitude: math.max(kHygFaintFloorMag, manifest.magnitudeFloor),
       maxResults: maxStars,
       aspectRatio: aspect,
     );
@@ -101,6 +109,27 @@ final deepStarsInViewProvider = FutureProvider<List<Star>>((ref) async {
     );
     return const [];
   }
+});
+
+/// True when the field of view has zoomed past the bundled catalog's real
+/// depth and no deep tier is filling in behind it.
+///
+/// At an imaging-scale field the chart is not "a dark patch of sky", it is a
+/// catalog running out: a 1 deg field carries of order 100-200 real stars to
+/// mag 12, and the shipped pack holds three or four of them. That is the
+/// framing and guide-star check this screen exists for, so the state has to say
+/// so — the fallback banner only fires when HYG is missing ENTIRELY, and stayed
+/// silent for the far more common case where HYG is installed and simply too
+/// shallow for the zoom.
+final starChartDepthLimitedProvider = Provider<bool>((ref) {
+  final fov = ref.watch(skyViewStateProvider.select((s) => s.fieldOfView));
+  if (fov >= kDeepStarFovThresholdDegrees) return false;
+  if (!ref.watch(skyRenderConfigProvider.select((c) => c.showStars))) {
+    return false;
+  }
+  final manifest = ref.watch(deepStarManifestProvider).valueOrNull;
+  if (manifest == null) return true;
+  return !ref.watch(showDeepStarsProvider);
 });
 
 /// The HYG stars plus any in-view deep-tier stars — the single list the sky

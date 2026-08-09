@@ -12,6 +12,7 @@ import 'package:nightshade_app/screens/planetarium/widgets/info_tab.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 TargetHeaderNode _target(String name) => TargetHeaderNode(
       name: name,
@@ -39,13 +40,15 @@ void main() {
 
   group('sequencedObjectIdsProvider', () {
     test('is empty with no sequence loaded', () {
-      final container = ProviderContainer();
+      final container =
+          ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
       addTearDown(container.dispose);
       expect(container.read(sequencedObjectIdsProvider), isEmpty);
     });
 
     test('tracks the target headers of the loaded sequence', () {
-      final container = ProviderContainer();
+      final container =
+          ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
       addTearDown(container.dispose);
 
       final sequencer = container.read(currentSequenceProvider.notifier);
@@ -60,7 +63,8 @@ void main() {
 
   testWidgets('InSequenceBadge only claims a target that is really planned',
       (tester) async {
-    final container = ProviderContainer();
+    final container =
+        ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
     addTearDown(container.dispose);
 
     const m31 = DeepSkyObject(

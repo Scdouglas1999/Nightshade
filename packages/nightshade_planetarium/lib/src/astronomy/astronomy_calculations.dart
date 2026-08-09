@@ -9,6 +9,45 @@ import 'dart:math' as math;
 typedef EquatorialPositionAt =
     (double raDeg, double decDeg) Function(DateTime dt);
 
+/// Canonical airmass model shared by planning and science exports.
+///
+/// Uses Pickering (2002) at true altitude >= 10 degrees and Young (1994) down
+/// to the horizon, matching `nightshade_imaging::calculate_airmass` in the FITS
+/// writer. [altitudeDegrees] is geometric altitude. Non-finite and
+/// below-horizon values return `null`; valid values are not artificially
+/// clamped.
+double? airmassForTrueAltitude(double altitudeDegrees) {
+  if (!altitudeDegrees.isFinite || altitudeDegrees < 0.0) {
+    return null;
+  }
+  // Guard numerical noise like 90.000001, which would push sin() past 1.
+  final alt = altitudeDegrees > 90.0 ? 90.0 : altitudeDegrees;
+  if (alt >= 89.9) {
+    // Both formulas converge to 1.0 here; short-circuit so floating-point
+    // jitter cannot report 0.99999999 airmass at the zenith.
+    return 1.0;
+  }
+
+  const degToRad = math.pi / 180.0;
+  final double airmass;
+  if (alt >= 10.0) {
+    final correctionDeg = 244.0 / (165.0 + 47.0 * math.pow(alt, 1.1));
+    airmass = 1.0 / math.sin((alt + correctionDeg) * degToRad);
+  } else {
+    // Young 1994, in true zenith angle z = 90 - h:
+    //   X = (1.002432 cos^2 z + 0.148386 cos z + 0.0096467) /
+    //       (cos^3 z + 0.149864 cos^2 z + 0.0102963 cos z + 0.000303978)
+    final cosZ = math.cos((90.0 - alt) * degToRad);
+    final cos2 = cosZ * cosZ;
+    final cos3 = cos2 * cosZ;
+    airmass =
+        (1.002432 * cos2 + 0.148386 * cosZ + 0.0096467) /
+        (cos3 + 0.149864 * cos2 + 0.0102963 * cosZ + 0.000303978);
+  }
+
+  return airmass.isFinite ? airmass : null;
+}
+
 /// Comprehensive astronomy calculations for astrophotography planning
 class AstronomyCalculations {
   AstronomyCalculations._();
@@ -417,6 +456,85 @@ class AstronomyCalculations {
     return (raOut, (decDate + dDec) * _rad2deg);
   }
 
+  /// Exact inverse of [precessFromJ2000ToDate]: takes apparent RA/Dec referred
+  /// to the true equator and equinox of [dt] and returns the mean J2000 place.
+  ///
+  /// The planetarium draws EVERYTHING in one frame, and that frame is J2000 —
+  /// the frame the star and DSO catalogues are published in. Ephemerides
+  /// (VSOP87D planets, the Sun, the Moon) naturally come out referred to the
+  /// equinox of date, so they are brought here before they reach the chart.
+  /// Without it the two families were drawn ~22 arcmin apart in 2026 — Jupiter
+  /// sat two thirds of a Moon diameter away from where it really is against
+  /// M44 — which is worse than either frame chosen consistently.
+  ///
+  /// Nutation is removed first (the forward transform applies it last), then
+  /// the precession rotation is inverted with Meeus eq. 21.5. Inputs and
+  /// outputs are degrees.
+  static (double raDeg, double decDeg) precessFromDateToJ2000({
+    required double raDeg,
+    required double decDeg,
+    required DateTime dt,
+  }) {
+    final jd = julianDate(dt);
+    final t = (jd - _j2000) / 36525;
+
+    // Undo nutation. The forward correction is evaluated at the MEAN place, so
+    // simply subtracting it evaluated at the apparent place leaves a
+    // second-order residual — a few milliarcseconds, amplified by tan(dec) near
+    // the pole. One fixed-point refinement (re-evaluate at the recovered mean
+    // place) drives it below a microarcsecond, which is what makes this the
+    // exact inverse of [precessFromJ2000ToDate] rather than an approximation
+    // that quietly drifts.
+    final (dPsi, dEps) = nutation(jd);
+    final eps = (meanObliquity(jd) + dEps) * _deg2rad;
+    final dPsiRad = dPsi * _deg2rad;
+    final dEpsRad = dEps * _deg2rad;
+
+    (double, double) nutationOffset(double ra, double dec) => (
+      (math.cos(eps) + math.sin(eps) * math.sin(ra) * math.tan(dec)) * dPsiRad -
+          (math.cos(ra) * math.tan(dec)) * dEpsRad,
+      (math.sin(eps) * math.cos(ra)) * dPsiRad + math.sin(ra) * dEpsRad,
+    );
+
+    final raApp = raDeg * _deg2rad;
+    final decApp = decDeg * _deg2rad;
+
+    var (dRa, dDec) = nutationOffset(raApp, decApp);
+    (dRa, dDec) = nutationOffset(raApp - dRa, decApp - dDec);
+
+    final raDate = raApp - dRa;
+    final decDate = decApp - dDec;
+
+    // Same IAU 1976 angles as the forward transform.
+    final zeta =
+        (2306.2181 * t + 0.30188 * t * t + 0.017998 * t * t * t) /
+        3600.0 *
+        _deg2rad;
+    final z =
+        (2306.2181 * t + 1.09468 * t * t + 0.018203 * t * t * t) /
+        3600.0 *
+        _deg2rad;
+    final theta =
+        (2004.3109 * t - 0.42665 * t * t - 0.041833 * t * t * t) /
+        3600.0 *
+        _deg2rad;
+
+    // Meeus eq. 21.5 — the reverse rotation.
+    final a = math.cos(decDate) * math.sin(raDate - z);
+    final b =
+        math.cos(theta) * math.cos(decDate) * math.cos(raDate - z) +
+        math.sin(theta) * math.sin(decDate);
+    final c =
+        math.cos(theta) * math.sin(decDate) -
+        math.sin(theta) * math.cos(decDate) * math.cos(raDate - z);
+
+    var raOut = (math.atan2(a, b) - zeta) * _rad2deg;
+    raOut = raOut % 360;
+    if (raOut < 0) raOut += 360;
+
+    return (raOut, math.asin(c.clamp(-1.0, 1.0)) * _rad2deg);
+  }
+
   // ============================================================================
   // Sun Calculations
   // ============================================================================
@@ -481,15 +599,37 @@ class AstronomyCalculations {
   static const double _refractionAtHorizon = -0.5667; // -34/60
 
   /// Sun rise/set altitude: -34' (refraction) - 16' (semi-diameter) = -50'
+  ///
+  /// GEOMETRIC (unrefracted) altitude of the Sun's CENTRE, the USNO/NOAA
+  /// convention — the -34' term is the refraction allowance, it is not a value
+  /// to be compared against an already-refracted altitude. See [_apparentLimb].
   static const double _sunRiseSetAltitude = -0.8333; // -50/60
 
   /// Moon rise/set altitude: -34' (refraction) - 16' (semi-diameter) + 8' (parallax) ≈ -42'
+  ///
+  /// Geometric, on the same footing as [_sunRiseSetAltitude].
   static const double _moonRiseSetAltitude = -0.7; // Approximate
 
   /// Twilight type enumeration
   static const double civilTwilightAngle = -6.0;
   static const double nauticalTwilightAngle = -12.0;
   static const double astronomicalTwilightAngle = -18.0;
+
+  /// The APPARENT altitude a body shows when its GEOMETRIC centre altitude is
+  /// [geometricAltDeg].
+  ///
+  /// Every crossing search in this file evaluates apparent altitude
+  /// ([sunAltitude] and `_apparentAltitudeOf` both add Sæmundsson refraction),
+  /// but [_sunRiseSetAltitude] / [_moonRiseSetAltitude] are geometric
+  /// conventions that already spend -34' on refraction. Comparing the two
+  /// directly counted refraction twice: sunset came out ~3.5 min late and
+  /// sunrise ~4.5 min early (symmetric, ~7.5 min of daylight invented), while
+  /// the twilight angles were unharmed only because [atmosphericRefraction] is
+  /// suppressed below -2°. Refraction is monotonic in altitude here, so
+  /// crossing `apparent == _apparentLimb(x)` is exactly crossing
+  /// `geometric == x` — which is what USNO/NOAA publish.
+  static double _apparentLimb(double geometricAltDeg) =>
+      trueToApparentAltitude(geometricAltDeg);
 
   /// Find time when sun crosses given altitude.
   ///
@@ -612,7 +752,9 @@ class AstronomyCalculations {
       sunset: _findSunAltitudeCrossing(
         startTime: eveningStart,
         endTime: eveningEnd,
-        targetAlt: _sunRiseSetAltitude, // -0.8333° (refraction + SD)
+        // Geometric -0.8333° expressed on the apparent scale the search
+        // runs on, so refraction is not counted twice.
+        targetAlt: _apparentLimb(_sunRiseSetAltitude),
         latitudeDeg: latitudeDeg,
         longitudeDeg: longitudeDeg,
         rising: false,
@@ -668,7 +810,9 @@ class AstronomyCalculations {
       sunrise: _findSunAltitudeCrossing(
         startTime: morningStart.add(const Duration(hours: 24)),
         endTime: morningEnd.add(const Duration(hours: 24)),
-        targetAlt: _sunRiseSetAltitude, // -0.8333° (refraction + SD)
+        // Geometric -0.8333° expressed on the apparent scale the search
+        // runs on, so refraction is not counted twice.
+        targetAlt: _apparentLimb(_sunRiseSetAltitude),
         latitudeDeg: latitudeDeg,
         longitudeDeg: longitudeDeg,
         rising: true,
@@ -997,10 +1141,85 @@ class AstronomyCalculations {
     );
   }
 
+  /// The rise that began the up-period already in progress at [windowStart].
+  ///
+  /// Samples backwards from [windowStart] (up to a day) for the last instant
+  /// the body was below [targetAlt], then refines the crossing. Returns null if
+  /// it never was — a circumpolar body has no rise to report.
+  static DateTime? _findRiseBefore({
+    required DateTime windowStart,
+    required Duration step,
+    required double targetAlt,
+    required EquatorialPositionAt positionAt,
+    required double latitudeDeg,
+    required double longitudeDeg,
+  }) {
+    if (_apparentAltitudeOf(
+          windowStart,
+          positionAt,
+          latitudeDeg,
+          longitudeDeg,
+        ) <
+        targetAlt) {
+      return null;
+    }
+    final searchStart = windowStart.subtract(const Duration(hours: 24));
+    var later = windowStart;
+    for (
+      var t = windowStart.subtract(step);
+      !t.isBefore(searchStart);
+      t = t.subtract(step)
+    ) {
+      if (_apparentAltitudeOf(t, positionAt, latitudeDeg, longitudeDeg) <
+          targetAlt) {
+        return _refineAltitudeCrossing(
+          start: t,
+          end: later,
+          targetAlt: targetAlt,
+          positionAt: positionAt,
+          latitudeDeg: latitudeDeg,
+          longitudeDeg: longitudeDeg,
+        );
+      }
+      later = t;
+    }
+    return null;
+  }
+
+  /// The calendar date of the night that CONTAINS [instant] — the value to pass
+  /// as `date` to [calculateObjectVisibility] when all you hold is a timestamp.
+  ///
+  /// The observing night runs local noon to local noon, so anything before noon
+  /// belongs to the night that started the previous day. Callers that handed an
+  /// instant straight to `date` silently described the FOLLOWING night whenever
+  /// that instant had crossed midnight, which is a whole sidereal day (~4 min)
+  /// of error in every rise/transit/set time they reported.
+  static DateTime nightDateOf(DateTime instant) {
+    final d = instant.hour < 12
+        ? instant.subtract(const Duration(days: 1))
+        : instant;
+    return instant.isUtc
+        ? DateTime.utc(d.year, d.month, d.day)
+        : DateTime(d.year, d.month, d.day);
+  }
+
   /// Calculate rise, transit, and set times for an object.
   ///
   /// The window scanned is the local day of [date] from noon to the following
-  /// noon (the natural span for "tonight"). The algorithm samples apparent
+  /// noon (the natural span for "tonight"). [date] is therefore the DATE of the
+  /// night, not an instant within it — only its calendar day is read. Passing a
+  /// timestamp that has already crossed local midnight (astronomical dusk in
+  /// mid-summer, say) selects the NEXT night, which is how the planetarium's
+  /// "Best Targets Tonight" list came to report transit times a sidereal day
+  /// out while the same screen's Info tab reported them correctly. Convert an
+  /// instant with [nightDateOf].
+  ///
+  /// The three times describe ONE pass of the sky: rise < transit < set, and
+  /// the rise may fall before the window when the body is already up as it
+  /// opens. Which pass is reported is decided by the transit — the window's
+  /// altitude maximum — so it is the culmination the window was opened for.
+  ///
+  /// The algorithm samples apparent
   /// altitude at a fine step, brackets each rise/set crossing, then bisects to
   /// sub-minute accuracy. Transit is located by sampling for the altitude
   /// maximum and refining it. All steps recompute the body's position via
@@ -1090,9 +1309,37 @@ class AstronomyCalculations {
     // crossing in this 24-hour window is a SET and the next RISE occurs near
     // the end of the window. Returning those two timestamps made
     // durationAboveHorizon negative and exposed an impossible negative-hours
-    // result through the scheduler API. In that ordering, continue sampling
-    // from the reported rise until its corresponding following set.
-    if (riseTime != null && setTime != null && !setTime.isAfter(riseTime)) {
+    // result through the scheduler API.
+    //
+    // Two different objects land in that ordering, and they need opposite
+    // repairs. The transit says which: it is the window's altitude maximum, so
+    // it belongs to whichever up-period actually culminates inside the window.
+    //
+    //  * Transit BEFORE the late rise — an object that culminates in the
+    //    afternoon and sets in the evening. The set found in the window is the
+    //    right one; the rise that began this period lies BEFORE the window.
+    //    Pair that set with the rise before the window.
+    //  * Transit AFTER the late rise — an object whose up-period starts late in
+    //    the window. That rise is the right one and its set lies beyond the
+    //    window, so sample forward for it.
+    if (riseTime != null &&
+        setTime != null &&
+        !setTime.isAfter(riseTime) &&
+        transitTime != null &&
+        transitTime.isBefore(riseTime)) {
+      riseTime =
+          _findRiseBefore(
+            windowStart: localNoon,
+            step: step,
+            targetAlt: crossingAlt,
+            positionAt: posAt,
+            latitudeDeg: latitudeDeg,
+            longitudeDeg: longitudeDeg,
+          ) ??
+          riseTime;
+    } else if (riseTime != null &&
+        setTime != null &&
+        !setTime.isAfter(riseTime)) {
       final searchEnd = riseTime.add(const Duration(hours: 24));
       var previousTime = riseTime;
       var previousAltitude = _apparentAltitudeOf(
@@ -1203,6 +1450,10 @@ class AstronomyCalculations {
 
   /// Sun rise/transit/set for the local day of [date], tracking the Sun's
   /// motion and using the standard -0.833° limb altitude.
+  ///
+  /// One daytime pass: rise, culmination and set all belong to [date]. For the
+  /// dusk-tonight → dawn-tomorrow span the night strip draws, use
+  /// [calculateTwilightTimes] — that pairs this sunset with the NEXT sunrise.
   static ObjectVisibility calculateSunVisibility({
     required DateTime date,
     required double latitudeDeg,
@@ -1215,7 +1466,7 @@ class AstronomyCalculations {
       date: date,
       latitudeDeg: latitudeDeg,
       longitudeDeg: longitudeDeg,
-      standardAltitude: _sunRiseSetAltitude,
+      standardAltitude: _apparentLimb(_sunRiseSetAltitude),
       positionAt: (dt) => sunPosition(dt),
     );
   }
@@ -1234,7 +1485,7 @@ class AstronomyCalculations {
       date: date,
       latitudeDeg: latitudeDeg,
       longitudeDeg: longitudeDeg,
-      standardAltitude: _moonRiseSetAltitude,
+      standardAltitude: _apparentLimb(_moonRiseSetAltitude),
       positionAt: (dt) {
         final (ra, dec, _) = moonPosition(dt);
         return (ra, dec);
@@ -1242,7 +1493,21 @@ class AstronomyCalculations {
     );
   }
 
-  /// Calculate current altitude and azimuth of an object
+  /// True (geometric) altitude and azimuth of a catalog object at [dt].
+  ///
+  /// [raDeg]/[decDeg] are J2000 catalog coordinates — what every Nightshade
+  /// catalog and target row stores — and are precessed (and nutated) to the
+  /// equinox of [dt] before the hour angle is formed, because the hour angle is
+  /// measured from the equinox of DATE. Skipping that step is not a rounding
+  /// error: a quarter-century past J2000 the equinox has moved ~22 arcmin, and
+  /// because the azimuth error is amplified by 1/cos(altitude) it reached 1.4
+  /// degrees for a near-zenith target in the audited case — enough to mis-call
+  /// an obstruction check or a meridian flip. [precessFromJ2000ToDate] existed
+  /// for exactly this and had no callers.
+  ///
+  /// Refraction is deliberately NOT applied: callers use this for pointing and
+  /// altitude limits, which are geometric. Use [trueToApparentAltitude] on the
+  /// result where the observed (refracted) altitude is what is wanted.
   static (double alt, double az) objectAltAz({
     required double raDeg,
     required double decDeg,
@@ -1250,10 +1515,15 @@ class AstronomyCalculations {
     required double latitudeDeg,
     required double longitudeDeg,
   }) {
-    final lst = localSiderealTime(dt, longitudeDeg);
-    return equatorialToHorizontal(
+    final (raOfDate, decOfDate) = precessFromJ2000ToDate(
       raDeg: raDeg,
       decDeg: decDeg,
+      dt: dt,
+    );
+    final lst = localSiderealTime(dt, longitudeDeg);
+    return equatorialToHorizontal(
+      raDeg: raOfDate,
+      decDeg: decOfDate,
       latitudeDeg: latitudeDeg,
       lstHours: lst,
     );
@@ -1321,14 +1591,20 @@ class AstronomyCalculations {
   // Airmass Calculation
   // ============================================================================
 
-  /// Calculate airmass for given altitude
-  /// Uses Pickering (2002) formula
+  /// Airmass for planning surfaces, with the scheduler's convention applied.
+  ///
+  /// The number itself comes from [airmassForTrueAltitude] — the product's one
+  /// model — so the altitude chart, the target score and the FITS `AIRMASS`
+  /// card of the frame that gets captured all describe the same atmosphere.
+  ///
+  /// The one thing layered on top is a deliberate, named CONVENTION: an object
+  /// at or below the horizon scores as `infinity` rather than "unknown", so
+  /// weighted target scoring drives it to zero instead of having to special-case
+  /// a null. This mirrors `nightshade_sequencer::scheduling::astronomy::airmass`
+  /// on the Rust side, which does the same for the same reason.
   static double airmass(double altitudeDeg) {
     if (altitudeDeg <= 0) return double.infinity;
-
-    // Pickering (2002) formula
-    final h = altitudeDeg;
-    return 1 / math.sin((h + 244 / (165 + 47 * math.pow(h, 1.1))) * _deg2rad);
+    return airmassForTrueAltitude(altitudeDeg) ?? double.infinity;
   }
 
   // ============================================================================

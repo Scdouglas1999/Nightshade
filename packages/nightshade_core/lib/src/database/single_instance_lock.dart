@@ -103,8 +103,8 @@ class SingleInstanceLock {
     Map<String, String>? environment,
   }) async {
     final env = environment ?? Platform.environment;
-    final bypass = (env[nightshadeAllowMultipleInstancesEnv] ?? '')
-        .trim()
+    final bypass = env[nightshadeAllowMultipleInstancesEnv]
+        ?.trim()
         .toLowerCase();
     if (bypass == '1' || bypass == 'true' || bypass == 'yes') {
       return SingleInstanceLock._(lockPathFor(dbFile), null);
@@ -179,8 +179,8 @@ class SingleInstanceLock {
       return e;
     } on FileSystemException {
       // Cannot even create the lockfile. That is a separate problem and the
-      // real open path will report it properly; do not block startup on a
-      // best-effort probe.
+      // real open path will report it properly; this advisory probe must not
+      // block startup.
       return null;
     }
   }

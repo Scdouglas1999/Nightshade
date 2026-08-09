@@ -466,57 +466,33 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
     );
   }
 
+  /// Six always-visible step buttons laid out as two flexible rows.
   Widget _buildRelativeMoveSection(NightshadeColors colors) {
     final canMove = _isConnected && !_isMoving && !_isCommandInFlight;
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _RelativeMoveButton(
-            label: '-15°',
-            colors: colors,
-            onPressed: canMove ? () => _moveRelative(-15) : null,
+    Widget row(List<double> steps) {
+      final cells = <Widget>[];
+      for (final step in steps) {
+        if (cells.isNotEmpty) cells.add(const SizedBox(width: 8));
+        cells.add(
+          Expanded(
+            child: _RelativeMoveButton(
+              label: '${step > 0 ? '+' : ''}${step.toInt()}°',
+              colors: colors,
+              onPressed: canMove ? () => _moveRelative(step) : null,
+            ),
           ),
-          const SizedBox(width: 8),
-          _RelativeMoveButton(
-            label: '-5°',
-            colors: colors,
-            onPressed: canMove ? () => _moveRelative(-5) : null,
-          ),
-          const SizedBox(width: 8),
-          _RelativeMoveButton(
-            label: '-1°',
-            colors: colors,
-            onPressed: canMove ? () => _moveRelative(-1) : null,
-          ),
-          const SizedBox(width: 8),
-          Container(
-            width: 1,
-            height: 24,
-            color: colors.border,
-          ),
-          const SizedBox(width: 8),
-          _RelativeMoveButton(
-            label: '+1°',
-            colors: colors,
-            onPressed: canMove ? () => _moveRelative(1) : null,
-          ),
-          const SizedBox(width: 8),
-          _RelativeMoveButton(
-            label: '+5°',
-            colors: colors,
-            onPressed: canMove ? () => _moveRelative(5) : null,
-          ),
-          const SizedBox(width: 8),
-          _RelativeMoveButton(
-            label: '+15°',
-            colors: colors,
-            onPressed: canMove ? () => _moveRelative(15) : null,
-          ),
-        ],
-      ),
+        );
+      }
+      return Row(children: cells);
+    }
+
+    return Column(
+      children: [
+        row(const [-15, -5, -1]),
+        const SizedBox(height: 8),
+        row(const [1, 5, 15]),
+      ],
     );
   }
 }
@@ -552,7 +528,10 @@ class _RelativeMoveButtonState extends State<_RelativeMoveButton> {
         onTap: widget.onPressed,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          // The buttons are laid out in flexible cells, so the box is wider
+          // than its label; centre it rather than letting it hug the left edge.
+          alignment: Alignment.center,
           decoration: _isHovered && isEnabled
               ? NightshadeDecorations.selectedSurface(
                   widget.colors.primary,
@@ -565,13 +544,24 @@ class _RelativeMoveButtonState extends State<_RelativeMoveButton> {
                       BorderRadius.circular(NightshadeTokens.radiusMd),
                   border: Border.all(color: widget.colors.border),
                 ),
-          child: Text(
-            widget.label,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              fontWeight: FontWeight.w600,
-              fontFeatures: const [FontFeature.tabularFigures()],
-              color: textColor,
+          // The cells are flexible, so the box narrows with the panel. Left as
+          // a plain Text the label word-wrapped at the hyphen below ~290 px —
+          // "-15°" became a line reading "-" over a line reading "15°" — and
+          // the imaging side panel goes down to 250 px (minPanelWidth) with the
+          // tablet split clamping as low as 220. Scale the label down instead:
+          // a step button must always read as one token.
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              widget.label,
+              maxLines: 1,
+              softWrap: false,
+              style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12,
+                fontWeight: FontWeight.w600,
+                fontFeatures: const [FontFeature.tabularFigures()],
+                color: textColor,
+              ),
             ),
           ),
         ),

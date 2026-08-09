@@ -105,10 +105,13 @@ void main() {
       find.text('Could not load the notification routing matrix.'),
       findsOneWidget,
     );
+    // The reason reaches the operator; the StateError rendering prefix does
+    // not — it is a diagnostic, not copy.
     expect(
-      find.textContaining('Bad state: routing database unavailable'),
+      find.textContaining('routing database unavailable'),
       findsOneWidget,
     );
+    expect(find.textContaining('Bad state'), findsNothing);
     expect(find.text('Notification routing enabled'), findsNothing);
     expect(_routingLoadAttempts, 1);
 

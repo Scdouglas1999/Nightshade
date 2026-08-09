@@ -13,6 +13,40 @@ typedef EquipmentProfileExportWriter = Future<void> Function(
   String json,
 );
 
+/// The importer's collision rule applied to any proposed profile name: keep
+/// [base] when it is free, otherwise `base (1)`, `base (2)`, … until one is.
+///
+/// Comparison is trimmed and case-insensitive, matching profile validation.
+String uniqueProfileName(String base, Iterable<String> taken) {
+  final names = taken.map(normalizeProfileName).toSet();
+  if (!names.contains(normalizeProfileName(base))) return base;
+  var suffix = 1;
+  while (names.contains(normalizeProfileName('$base ($suffix)'))) {
+    suffix++;
+  }
+  return '$base ($suffix)';
+}
+
+/// The form two profile names are compared in.
+String normalizeProfileName(String name) => name.trim().toLowerCase();
+
+/// What the operator is told when an import does not go through.
+///
+/// A rejected import used to surface the raw `toString()` of whatever was
+/// thrown — "Import failed: FormatException: Unexpected character (at
+/// character 1)" for a text file, "Import failed: FormatException: Profile
+/// name must be a non-empty string" for unrelated JSON. Neither names the file
+/// nor tells the operator what to do. [ProfileImportException] already carries
+/// operator-facing prose; anything else is genuinely unexpected and is kept
+/// verbatim so a real bug is still legible in the log.
+String describeProfileImportFailure(Object error, {String? fileName}) {
+  final subject = fileName == null ? 'that file' : '"$fileName"';
+  if (error is ProfileImportException) {
+    return error.message.replaceFirst('That file', subject);
+  }
+  return 'Could not import $subject: $error';
+}
+
 Future<XFile?> _pickEquipmentProfileImport() {
   const jsonGroup = XTypeGroup(
     label: 'JSON files',
@@ -75,6 +109,11 @@ class EquipmentProfilesScreen extends ConsumerStatefulWidget {
       _EquipmentProfilesScreenState();
 }
 
+/// How long to wait for a mutated row to reach the authoritative profile list
+/// before giving up on selecting it. Generous because the path crosses a Drift
+/// table stream; expiring is never reported as a failed write.
+const Duration _mutatedProfileWindow = Duration(seconds: 5);
+
 class _EquipmentProfilesScreenState
     extends ConsumerState<EquipmentProfilesScreen> {
   EquipmentProfileModel? _selectedProfile;
@@ -123,9 +162,20 @@ class _EquipmentProfilesScreenState
         ),
       ),
       data: (state) {
+        // The selection is an identity, not a snapshot. Deleting the selected
+        // profile used to leave the detail pane rendering the deleted row —
+        // with a live "Set Active" that threw "no such profile row" — beside a
+        // list that already said "No profiles yet". Resolve the selection
+        // against the authoritative list every build so no control can survive
+        // the row it acts on.
+        final selected = _selectionIn(state);
+        if (_selectedProfile != null && selected == null) {
+          _scheduleSelectionDrop(_selectedProfile!.id);
+        }
+
         // Auto-select active profile if none selected (desktop only)
         if (!widget.isMobile &&
-            _selectedProfile == null &&
+            selected == null &&
             state.activeProfile != null) {
           final authority = ref.read(backendProvider);
           final activeProfile = state.activeProfile!;
@@ -140,38 +190,70 @@ class _EquipmentProfilesScreenState
         }
 
         if (widget.isMobile) {
-          return _buildMobileLayout(state, colors);
+          return _buildMobileLayout(state, selected, colors);
         }
 
-        return _buildDesktopLayout(state, colors);
+        return _buildDesktopLayout(state, selected, colors);
       },
     );
   }
 
+  /// The selected profile as it exists in [state], or null when the row it
+  /// referred to is gone.
+  ///
+  /// Returns the locally held model (not the one from [state]) so an
+  /// optimistic post-save copy is not reverted to the pre-save row while the
+  /// authoritative refresh is still in flight; only its continued EXISTENCE is
+  /// taken from [state].
+  EquipmentProfileModel? _selectionIn(EquipmentProfilesState state) {
+    final selectedId = _selectedProfile?.id;
+    if (selectedId == null) return null;
+    for (final profile in state.profiles) {
+      if (profile.id == selectedId) return _selectedProfile;
+    }
+    return null;
+  }
+
+  /// Drop a selection whose row no longer exists, after the frame that
+  /// discovered it. Re-checked against the live provider value because this
+  /// runs a frame later and a mutation may have completed in between.
+  void _scheduleSelectionDrop(int? profileId) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _selectedProfile?.id != profileId) return;
+      final current = ref.read(equipmentProfilesProvider).valueOrNull;
+      if (current == null) return;
+      for (final profile in current.profiles) {
+        if (profile.id == profileId) return;
+      }
+      setState(() {
+        _selectedProfile = null;
+        _isEditing = false;
+        _showingDetail = false;
+      });
+    });
+  }
+
   Widget _buildMobileLayout(
-      EquipmentProfilesState state, NightshadeColors colors) {
+    EquipmentProfilesState state,
+    EquipmentProfileModel? selected,
+    NightshadeColors colors,
+  ) {
     // Show detail view if a profile is selected and we're viewing detail
-    if (_showingDetail && _selectedProfile != null) {
+    if (_showingDetail && selected != null) {
       return _ProfileDetails(
-        profile: _selectedProfile!,
-        isActive: _selectedProfile?.id == state.activeProfile?.id,
+        profile: selected,
+        isActive: selected.id == state.activeProfile?.id,
         isEditing: _isEditing,
         isMobile: true,
         onBack: () => setState(() => _showingDetail = false),
         onEdit: () => setState(() => _isEditing = true),
         onSave: _saveSelectedProfile,
         onCancel: () => setState(() => _isEditing = false),
-        onSetActive: () async {
-          if (_selectedProfile?.id != null) {
-            await ref
-                .read(equipmentProfilesProvider.notifier)
-                .setActiveProfile(_selectedProfile!.id!);
-          }
-        },
-        onDuplicate: () =>
-            _duplicateProfile(context, colors, _selectedProfile!),
-        onDelete: () => _deleteProfile(context, colors, _selectedProfile!),
-        onExport: () => _exportProfile(context, _selectedProfile!),
+        onSetActive: () => _setActiveProfile(context, selected),
+        onSetDefault: () => _setDefaultProfile(context, selected),
+        onDuplicate: () => _duplicateProfile(context, colors, selected),
+        onDelete: () => _deleteProfile(context, colors, selected),
+        onExport: () => _exportProfile(context, selected),
         onRefresh: _refreshSelectedProfile,
       );
     }
@@ -179,7 +261,7 @@ class _EquipmentProfilesScreenState
     // Show profile list
     return _ProfileList(
       profiles: state.profiles,
-      selectedProfile: _selectedProfile,
+      selectedProfile: selected,
       activeProfile: state.activeProfile,
       isMobile: true,
       onProfileSelected: (profile) {
@@ -197,13 +279,16 @@ class _EquipmentProfilesScreenState
   }
 
   Widget _buildDesktopLayout(
-      EquipmentProfilesState state, NightshadeColors colors) {
+    EquipmentProfilesState state,
+    EquipmentProfileModel? selected,
+    NightshadeColors colors,
+  ) {
     return Row(
       children: [
         // Profile list sidebar
         _ProfileList(
           profiles: state.profiles,
-          selectedProfile: _selectedProfile,
+          selectedProfile: selected,
           activeProfile: state.activeProfile,
           onProfileSelected: (profile) {
             setState(() {
@@ -219,26 +304,20 @@ class _EquipmentProfilesScreenState
 
         // Profile details
         Expanded(
-          child: _selectedProfile != null
+          child: selected != null
               ? _ProfileDetails(
-                  profile: _selectedProfile!,
-                  isActive: _selectedProfile?.id == state.activeProfile?.id,
+                  profile: selected,
+                  isActive: selected.id == state.activeProfile?.id,
                   isEditing: _isEditing,
                   onEdit: () => setState(() => _isEditing = true),
                   onSave: _saveSelectedProfile,
                   onCancel: () => setState(() => _isEditing = false),
-                  onSetActive: () async {
-                    if (_selectedProfile?.id != null) {
-                      await ref
-                          .read(equipmentProfilesProvider.notifier)
-                          .setActiveProfile(_selectedProfile!.id!);
-                    }
-                  },
+                  onSetActive: () => _setActiveProfile(context, selected),
+                  onSetDefault: () => _setDefaultProfile(context, selected),
                   onDuplicate: () =>
-                      _duplicateProfile(context, colors, _selectedProfile!),
-                  onDelete: () =>
-                      _deleteProfile(context, colors, _selectedProfile!),
-                  onExport: () => _exportProfile(context, _selectedProfile!),
+                      _duplicateProfile(context, colors, selected),
+                  onDelete: () => _deleteProfile(context, colors, selected),
+                  onExport: () => _exportProfile(context, selected),
                   onRefresh: _refreshSelectedProfile,
                 )
               : const EmptyState.compact(
@@ -299,6 +378,18 @@ class _EquipmentProfilesScreenState
     return true;
   }
 
+  /// Log a user-visible profile failure and then show it.
+  ///
+  /// Snackbar-only failures left Settings > Logs (and the exported log file)
+  /// with no record of rejected saves, imports or duplicates — a support
+  /// engineer reading the export saw a clean session.
+  void _reportProfileFailure(BuildContext context, String message) {
+    ref
+        .read(loggingServiceProvider)
+        .error(message, source: 'EquipmentProfiles');
+    if (context.mounted) context.showErrorSnackBar(message);
+  }
+
   bool _isCurrentProfileMutation(
     int generation,
     NightshadeBackend authority,
@@ -308,21 +399,114 @@ class _EquipmentProfilesScreenState
         identical(ref.read(backendProvider), authority);
   }
 
+  static EquipmentProfileModel? _findProfile(
+    EquipmentProfilesState state,
+    int profileId,
+  ) {
+    for (final profile in state.profiles) {
+      if (profile.id == profileId) return profile;
+    }
+    return null;
+  }
+
+  /// Resolve the row a mutation just wrote, once the authoritative list
+  /// actually carries it.
+  ///
+  /// The profiles provider rebuilds off Drift table streams, so the refresh a
+  /// mutation schedules can complete from a stream emission that PREDATES the
+  /// row just written. Asserting on that first snapshot reported completed
+  /// duplicates as failures — and printed the internal invariant text at the
+  /// operator, who then duplicated again. Wait for the row to appear instead,
+  /// and treat the window expiring as "not selectable yet", never as a failed
+  /// write: the mutation already returned this id, so it succeeded.
   Future<EquipmentProfileModel?> _awaitMutatedProfile({
     required int profileId,
     required int generation,
     required NightshadeBackend authority,
-    required String operation,
   }) async {
     final refreshed = await ref.read(equipmentProfilesProvider.future);
     if (!_isCurrentProfileMutation(generation, authority)) return null;
-    for (final profile in refreshed.profiles) {
-      if (profile.id == profileId) return profile;
-    }
-    throw StateError(
-      '$operation completed, but profile $profileId was absent from the '
-      'refreshed profile list.',
+    final immediate = _findProfile(refreshed, profileId);
+    if (immediate != null) return immediate;
+
+    final completer = Completer<EquipmentProfileModel?>();
+    final subscription = ref.listenManual<AsyncValue<EquipmentProfilesState>>(
+      equipmentProfilesProvider,
+      (previous, next) {
+        if (completer.isCompleted) return;
+        final value = next.valueOrNull;
+        if (value == null) return;
+        final match = _findProfile(value, profileId);
+        if (match != null) completer.complete(match);
+      },
     );
+    try {
+      final resolved = await completer.future.timeout(
+        _mutatedProfileWindow,
+        onTimeout: () => null,
+      );
+      if (!_isCurrentProfileMutation(generation, authority)) return null;
+      return resolved;
+    } finally {
+      subscription.close();
+    }
+  }
+
+  /// Activate [profile], reporting a rejected activation to the operator.
+  ///
+  /// The notifier's activation is strict — it throws when the target row is
+  /// gone — and an uncaught throw here was an unhandled zone exception with no
+  /// on-screen trace of a button that visibly did nothing.
+  Future<void> _setActiveProfile(
+    BuildContext context,
+    EquipmentProfileModel profile,
+  ) async {
+    final profileId = profile.id;
+    if (profileId == null) return;
+    final authority = ref.read(backendProvider);
+    final generation = ++_profileMutationGeneration;
+    try {
+      await ref
+          .read(equipmentProfilesProvider.notifier)
+          .setActiveProfile(profileId);
+    } catch (error) {
+      if (_isCurrentProfileMutation(generation, authority) && context.mounted) {
+        _reportProfileFailure(
+          context,
+          'Could not activate "${profile.name}": $error',
+        );
+      }
+    }
+  }
+
+  /// Pin [profile] as the startup default without changing which profile is
+  /// active — Settings > General promises auto-connect uses this row, and
+  /// before this action there was no way to see or move it.
+  Future<void> _setDefaultProfile(
+    BuildContext context,
+    EquipmentProfileModel profile,
+  ) async {
+    final profileId = profile.id;
+    if (profileId == null) return;
+    final authority = ref.read(backendProvider);
+    final generation = ++_profileMutationGeneration;
+    try {
+      await ref
+          .read(equipmentProfilesProvider.notifier)
+          .setDefaultProfile(profileId, makeActive: false);
+      if (_isCurrentProfileMutation(generation, authority) && context.mounted) {
+        context.showSuccessSnackBar(
+          '"${profile.name}" is now the startup profile',
+        );
+      }
+    } catch (error) {
+      if (_isCurrentProfileMutation(generation, authority) && context.mounted) {
+        _reportProfileFailure(
+          context,
+          'Could not set startup profile: $error',
+        );
+      }
+    }
   }
 
   Future<void> _showCreateProfileDialog(
@@ -344,7 +528,6 @@ class _EquipmentProfilesScreenState
         profileId: id,
         generation: generation,
         authority: authority,
-        operation: 'Profile creation',
       );
       if (newProfile == null) return;
       setState(() {
@@ -354,18 +537,23 @@ class _EquipmentProfilesScreenState
       });
     } catch (error) {
       if (_isCurrentProfileMutation(generation, authority) && context.mounted) {
-        context.showErrorSnackBar('Create profile failed: $error');
+        _reportProfileFailure(context, 'Create profile failed: $error');
       }
     }
   }
 
   Future<void> _duplicateProfile(BuildContext context, NightshadeColors colors,
       EquipmentProfileModel profile) async {
+    final takenNames = ref
+        .read(equipmentProfileListProvider)
+        .map((existing) => existing.name)
+        .toList(growable: false);
     final result = await showDialog<String>(
       context: context,
       builder: (dialogContext) => _DuplicateProfileDialog(
         colors: colors,
-        initialName: '${profile.name} (Copy)',
+        initialName: uniqueProfileName('${profile.name} (Copy)', takenNames),
+        takenNames: takenNames,
       ),
     );
 
@@ -381,7 +569,6 @@ class _EquipmentProfilesScreenState
         profileId: id,
         generation: generation,
         authority: authority,
-        operation: 'Profile duplication',
       );
       if (newProfile == null) return;
       setState(() {
@@ -391,7 +578,7 @@ class _EquipmentProfilesScreenState
       });
     } catch (error) {
       if (_isCurrentProfileMutation(generation, authority) && context.mounted) {
-        context.showErrorSnackBar('Duplicate profile failed: $error');
+        _reportProfileFailure(context, 'Duplicate profile failed: $error');
       }
     }
   }
@@ -420,7 +607,7 @@ class _EquipmentProfilesScreenState
       });
     } catch (error) {
       if (_isCurrentProfileMutation(generation, authority) && context.mounted) {
-        context.showErrorSnackBar('Delete profile failed: $error');
+        _reportProfileFailure(context, 'Delete profile failed: $error');
       }
     }
   }
@@ -465,7 +652,7 @@ class _EquipmentProfilesScreenState
       }
     } catch (e) {
       if (!isCurrent() || !context.mounted) return;
-      context.showErrorSnackBar('Export failed: $e');
+      _reportProfileFailure(context, 'Export failed: $e');
     } finally {
       if (mounted && generation == _exportGeneration) {
         setState(() => _isExportingProfile = false);
@@ -479,9 +666,11 @@ class _EquipmentProfilesScreenState
     final authority = ref.read(backendProvider);
     setState(() => _isImportingProfiles = true);
 
+    String? pickedFileName;
     try {
       final file = await ref.read(equipmentProfileImportPickerProvider)();
       if (file == null || !_isCurrentImport(generation, authority)) return;
+      pickedFileName = file.name.isNotEmpty ? file.name : file.path;
 
       final json = await ref.read(equipmentProfileImportReaderProvider)(file);
       if (!_isCurrentImport(generation, authority)) return;
@@ -516,7 +705,10 @@ class _EquipmentProfilesScreenState
       }
     } catch (e) {
       if (!context.mounted || !_isCurrentImport(generation, authority)) return;
-      context.showErrorSnackBar('Import failed: $e');
+      _reportProfileFailure(
+        context,
+        describeProfileImportFailure(e, fileName: pickedFileName),
+      );
     } finally {
       if (_isCurrentImport(generation, authority)) {
         setState(() => _isImportingProfiles = false);
@@ -568,6 +760,11 @@ class _CreateProfileDialogState extends State<_CreateProfileDialog> {
             TextField(
               controller: _nameController,
               autofocus: true,
+              // Return submits from the name field — description is optional,
+              // and Tab still reaches it. The description below is deliberately
+              // left alone: it is multi-line, so there Return is a newline.
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _submit(),
               onChanged: (_) {
                 if (_nameError != null) {
                   setState(() => _nameError = null);
@@ -647,9 +844,15 @@ class _DuplicateProfileDialog extends StatefulWidget {
   final NightshadeColors colors;
   final String initialName;
 
+  /// Names already in use. A copy that reuses one is indistinguishable from the
+  /// profile it collides with everywhere the app shows a profile, so the dialog
+  /// refuses it rather than writing a row the operator cannot identify.
+  final List<String> takenNames;
+
   const _DuplicateProfileDialog({
     required this.colors,
     required this.initialName,
+    this.takenNames = const [],
   });
 
   @override
@@ -685,6 +888,11 @@ class _DuplicateProfileDialogState extends State<_DuplicateProfileDialog> {
       content: TextField(
         controller: _nameController,
         autofocus: true,
+        // The dialog is one pre-filled field: Return has to be the way out of
+        // it. Without this the focused field swallowed the key and the only
+        // path to "Duplicate" was the mouse.
+        textInputAction: TextInputAction.done,
+        onSubmitted: (_) => _submit(),
         onChanged: (_) {
           if (_nameError != null) {
             setState(() => _nameError = null);
@@ -724,6 +932,15 @@ class _DuplicateProfileDialogState extends State<_DuplicateProfileDialog> {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
       setState(() => _nameError = 'Enter a profile name.');
+      return;
+    }
+    final target = normalizeProfileName(name);
+    if (widget.takenNames.any((n) => normalizeProfileName(n) == target)) {
+      // Same wording as the equipment editor's duplicate-name gate, so the two
+      // surfaces that create profiles refuse a collision the same way.
+      setState(
+        () => _nameError = 'Another profile is already called "$name"',
+      );
       return;
     }
     Navigator.pop(context, name);

@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../localization/nightshade_localizations.dart';
 import '../../../widgets/tutorial_keys/dashboard_keys.dart';
 
 class DashboardHeaderActions extends StatelessWidget {
@@ -25,6 +26,7 @@ class DashboardHeaderActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final buttonSize = compact ? ButtonSize.small : ButtonSize.medium;
 
     return Row(
@@ -32,7 +34,8 @@ class DashboardHeaderActions extends StatelessWidget {
       children: [
         NightshadeButton(
           key: DashboardTutorialKeys.editButton,
-          label: isEditing ? 'Done' : (compact ? 'Edit' : 'Edit Dashboard'),
+          label: l10n.text(
+              isEditing ? 'dbDone' : (compact ? 'dbEdit' : 'dbEditDashboard')),
           icon: isEditing ? LucideIcons.check : LucideIcons.layoutDashboard,
           variant: isEditing ? ButtonVariant.primary : ButtonVariant.outline,
           size: buttonSize,
@@ -41,7 +44,7 @@ class DashboardHeaderActions extends StatelessWidget {
         if (isEditing) ...[
           SizedBox(width: compact ? 4 : 8),
           NightshadeButton(
-            label: compact ? '' : 'Widgets',
+            label: compact ? '' : l10n.text('dbWidgets'),
             icon: LucideIcons.layoutGrid,
             variant: ButtonVariant.outline,
             size: buttonSize,
@@ -49,7 +52,7 @@ class DashboardHeaderActions extends StatelessWidget {
           ),
           SizedBox(width: compact ? 4 : 8),
           NightshadeButton(
-            label: compact ? '' : 'Reset',
+            label: compact ? '' : l10n.text('dbReset'),
             icon: LucideIcons.refreshCw,
             variant: ButtonVariant.outline,
             size: buttonSize,
@@ -95,23 +98,26 @@ class DashboardClockWidget extends ConsumerWidget {
     // Use the observationTimeProvider for both local time and LST
     // This provider already updates every second, no need for a separate timer
     final timeState = ref.watch(observationTimeProvider);
-    final now = timeState.time;
+    // Display only. `observationTimeProvider` carries the instant the sky
+    // maths is evaluated at and must stay untouched; what the operator reads
+    // has to follow Settings → Location → Timezone, which this chip ignored —
+    // it rendered the host's wall clock whatever site offset was chosen.
+    final now = ref.watch(clockProvider).fromUtc(timeState.time.toUtc());
     // Only read the LST once we know whose LST it is. `isLocationSet` is the
     // canonical model-level test for the 0/0 sentinel, so this chip and every
     // other location-gated surface cannot drift apart on the rule.
     final settings = ref.watch(appSettingsProvider).valueOrNull;
-    final siteIsSet = settings?.isLocationSet ?? false;
+    final siteIsSet = settings?.isLocationSet == true;
     final lst = siteIsSet ? ref.watch(localSiderealTimeProvider) : null;
 
     return Tooltip(
       // A dash needs to explain itself, or it reads as a bug rather than as a
       // setting the operator has not supplied yet.
-      message: settings == null
-          ? 'Loading your observing site…'
+      message: context.l10n.text(settings == null
+          ? 'statusLstLoading'
           : siteIsSet
-              ? 'Local sidereal time at your observing site'
-              : 'No observing site set — sidereal time is unknown. '
-                  'Set it in Settings → Location.',
+              ? 'statusLstTooltip'
+              : 'statusLstNoSite'),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: NightshadeDecorations.emphasisSurface(
@@ -173,7 +179,7 @@ class EditModeBanner extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Edit mode: long-press the grip handle to drag and reorder tiles.',
+              context.l10n.text('dbEditModeHint'),
               style: TextStyle(
                   fontSize: NightshadeTypography.fontSize12,
                   color: colors.textSecondary),

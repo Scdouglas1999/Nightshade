@@ -1041,6 +1041,15 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
     }
   }
 
+  /// Drop `app_settings` rows whose key no longer has an owner. Runs on every
+  /// open so a profile created by an older build stops serving (and exporting)
+  /// a value nothing maintains. See [_retiredSettingKeys].
+  Future<void> _pruneRetiredSettings() async {
+    for (final key in _retiredSettingKeys) {
+      await customStatement('DELETE FROM app_settings WHERE key = ?', [key]);
+    }
+  }
+
   Future<void> _normalizeEquipmentProfileOptics() async {
     await customStatement('''
       UPDATE equipment_profiles

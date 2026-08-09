@@ -221,6 +221,18 @@ class _SessionDetailDialog extends ConsumerWidget {
               ),
           ],
         ),
+        const SizedBox(height: 6),
+        // These counters come from the session's own light-frame tallies, while
+        // the image list below holds every frame written to disk. Unlabelled,
+        // "Total Exposures 12" over "Images (16)" reads as one count the app
+        // cannot keep straight.
+        Text(
+          l10n.text('analyticsExposureCountsLightOnly'),
+          style: TextStyle(
+            fontSize: NightshadeTypography.fontSize11,
+            color: colors.textMuted,
+          ),
+        ),
       ],
     );
   }
@@ -250,6 +262,9 @@ class _SessionDetailDialog extends ConsumerWidget {
     NightshadeColors colors,
     List<DbCapturedImage> images,
   ) {
+    final lightCount = images
+        .where((image) => image.frameType.toLowerCase() == 'light')
+        .length;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -262,6 +277,24 @@ class _SessionDetailDialog extends ConsumerWidget {
             color: colors.textPrimary,
           ),
         ),
+        // Says what the list is made of, so it can be compared with the
+        // light-only exposure counters above it.
+        if (images.isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Text(
+            context.l10n.text(
+              'analyticsFrameMix',
+              params: {
+                'light': lightCount.toString(),
+                'calibration': (images.length - lightCount).toString(),
+              },
+            ),
+            style: TextStyle(
+              fontSize: NightshadeTypography.fontSize11,
+              color: colors.textMuted,
+            ),
+          ),
+        ],
         const SizedBox(height: 8),
         ImageThumbnailStrip(images: images),
       ],

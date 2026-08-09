@@ -25,7 +25,17 @@ class EquipmentReadinessPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final report = ref.watch(readinessReportProvider);
-    final outstanding = report.blockedItems.length + report.cautionItems.length;
+
+    // The header must count what the checklist below actually SHOWS. Dismissing
+    // a row used to leave this line quoting the full total over a shorter list
+    // ("2 items are blocking first light." above a single blocking row).
+    // Blocked rows can no longer be hidden at all, so only caution rows can go
+    // missing — and those are subtracted here and reported as dismissed.
+    final dismissed = ref.watch(dismissedReadinessItemsProvider);
+    final hiddenCaution =
+        report.cautionItems.where((item) => dismissed.contains(item.id)).length;
+    final outstanding =
+        report.blockedItems.length + report.cautionItems.length - hiddenCaution;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -33,7 +43,7 @@ class EquipmentReadinessPanel extends ConsumerWidget {
       children: [
         SectionHeader(
           title: 'Ready to image',
-          subtitle: _subtitle(report, outstanding),
+          subtitle: _subtitle(report, outstanding, hiddenCaution),
         ),
         const SizedBox(height: NightshadeTokens.spaceSm),
         const SectionWell(
@@ -58,17 +68,23 @@ class EquipmentReadinessPanel extends ConsumerWidget {
     );
   }
 
-  String _subtitle(ReadinessReport report, int outstanding) {
+  String _subtitle(ReadinessReport report, int outstanding, int hiddenCaution) {
+    final dismissedNote =
+        hiddenCaution > 0 ? ' ($hiddenCaution dismissed)' : '';
     switch (report.overall) {
       case ReadinessLevel.ready:
         return 'Everything required for first light is in place.';
       case ReadinessLevel.caution:
+        if (outstanding == 0) {
+          return '$hiddenCaution ${hiddenCaution == 1 ? 'item' : 'items'} to '
+              'review, dismissed for this session.';
+        }
         return '$outstanding ${outstanding == 1 ? 'item' : 'items'} to '
-            'review before imaging.';
+            'review before imaging$dismissedNote.';
       case ReadinessLevel.blocked:
         final blocked = report.blockedItems.length;
         return '$blocked ${blocked == 1 ? 'item is' : 'items are'} blocking '
-            'first light.';
+            'first light$dismissedNote.';
     }
   }
 }

@@ -116,9 +116,13 @@ void main() {
         final masterId = await insertMaster(targetId: targetId);
 
         // Night 1: two 120s subs. Night 2: three 120s subs. Night 3: one 300s.
-        final n1 = DateTime.utc(2026, 6, 1, 23);
-        final n2 = DateTime.utc(2026, 6, 3, 0, 30); // local-night-2 group
-        final n3 = DateTime.utc(2026, 6, 5, 1);
+        // Seeded as LOCAL wall-clock instants, which is how an observer names
+        // when they were at the telescope. Nights run noon-to-noon local, so
+        // the 00:30 and 01:00 subs belong to the night that started the
+        // previous evening — not to their own calendar day.
+        final n1 = DateTime(2026, 6, 1, 23);
+        final n2 = DateTime(2026, 6, 3, 0, 30); // night of Jun 2
+        final n3 = DateTime(2026, 6, 5, 1); // night of Jun 4
 
         final ids = <int>[];
         for (final cap in [n1, n1]) {
@@ -139,9 +143,9 @@ void main() {
         expect(curve, hasLength(3));
 
         // Ascending by date.
-        expect(curve[0].date, DateTime.utc(2026, 6, 1));
-        expect(curve[1].date, DateTime.utc(2026, 6, 3));
-        expect(curve[2].date, DateTime.utc(2026, 6, 5));
+        expect(curve[0].date, DateTime(2026, 6, 1));
+        expect(curve[1].date, DateTime(2026, 6, 2));
+        expect(curve[2].date, DateTime(2026, 6, 4));
 
         // Cumulative seconds: 240 → 600 → 900.
         expect(curve[0].cumulativeIntegrationSeconds, 240.0);
@@ -198,8 +202,8 @@ void main() {
       final targetId = await insertTarget('M51');
       final masterId = await insertMaster(targetId: targetId);
 
-      final n1 = DateTime.utc(2026, 6, 1, 23);
-      final n2 = DateTime.utc(2026, 6, 3, 23);
+      final n1 = DateTime(2026, 6, 1, 23);
+      final n2 = DateTime(2026, 6, 3, 23);
 
       // Night 1 mean weight = (0.4 + 0.6)/2 = 0.5.
       final a = await insertSub(targetId: targetId, capturedAt: n1);
@@ -215,7 +219,7 @@ void main() {
 
       final best = await service.bestNight(masterId);
       expect(best, isNotNull);
-      expect(best!.date, DateTime.utc(2026, 6, 3));
+      expect(best!.date, DateTime(2026, 6, 3));
       expect(best.frameCount, 2);
       expect(best.meanWeight, closeTo(0.925, 1e-9));
     });
@@ -238,20 +242,20 @@ void main() {
         final masterId = await insertMaster(targetId: targetId);
 
         // Reference night (earliest): mean weight 0.5.
-        final ref = DateTime.utc(2026, 6, 1, 23);
+        final ref = DateTime(2026, 6, 1, 23);
         final r1 = await insertSub(targetId: targetId, capturedAt: ref);
         await fold(masterId: masterId, imageId: r1, weight: 0.5);
 
         // Later night: mean weight 0.8 → +60% over reference, above the 15%
         // default threshold.
-        final later = DateTime.utc(2026, 6, 4, 23);
+        final later = DateTime(2026, 6, 4, 23);
         final l1 = await insertSub(targetId: targetId, capturedAt: later);
         await fold(masterId: masterId, imageId: l1, weight: 0.8);
 
         final advice = await service.reReferenceAdvice(masterId);
         expect(advice.recommended, isTrue);
-        expect(advice.referenceDate, DateTime.utc(2026, 6, 1));
-        expect(advice.candidateDate, DateTime.utc(2026, 6, 4));
+        expect(advice.referenceDate, DateTime(2026, 6, 1));
+        expect(advice.candidateDate, DateTime(2026, 6, 4));
         expect(advice.gainFraction, closeTo(0.6, 1e-9));
       },
     );

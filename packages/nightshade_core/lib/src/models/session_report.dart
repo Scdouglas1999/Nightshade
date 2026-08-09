@@ -33,7 +33,7 @@ class SessionFilterReport {
   final double? meanHfr;
 
   /// Mean full-width-half-max across accepted frames, computed as
-  /// `meanHfr * 2.35` (Gaussian assumption — same factor the codebase uses
+  /// `meanHfr * 2.0` (Gaussian assumption — same factor the codebase uses
   /// elsewhere). Null when `meanHfr` is null.
   final double? meanFwhm;
 

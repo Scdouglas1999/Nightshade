@@ -32,6 +32,18 @@ void main() {
             magnitudeArcsec: 0.28,
             timestamp: DateTime.now(),
           ),
+          // An edge sample as well as a centre one: "balanced across the image"
+          // is a comparison, and the service now declines to make it when only
+          // one side of the field was sampled.
+          AstrometryResidualVectorRow(
+            id: 2,
+            x: 0.1,
+            y: 0.9,
+            dxArcsec: 0.2,
+            dyArcsec: 0.2,
+            magnitudeArcsec: 0.29,
+            timestamp: DateTime.now(),
+          ),
         ],
       );
 

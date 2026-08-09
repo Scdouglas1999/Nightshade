@@ -52,6 +52,36 @@ const MAX_DISCONNECT_RETRIES: u32 = 5;
 const RECOVERY_ENGAGE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 const RECOVERY_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(200);
 
+tokio::task_local! {
+    /// Which device-disconnect retry cycle the instruction currently running on
+    /// this task is on: 0 for the first execution, 1..=`MAX_DISCONNECT_RETRIES`
+    /// for each retry.
+    ///
+    /// Ambient rather than a parameter because the value has to reach
+    /// `InstructionResult::log_and_get_status_with_context`, which is called
+    /// from ~30 instruction nodes and only ever sees the immutable
+    /// `InstructionContext` snapshot. The retry loop awaits `execute()` inline
+    /// on this same task, so the scope is exact. Code that is NOT under the
+    /// retry wrapper (trigger-driven autofocus, one-shot bridge calls, tests)
+    /// simply reads the default 0 and behaves as it always did.
+    static DISCONNECT_RETRY_ATTEMPT: u32;
+}
+
+/// True when the instruction running right now is a re-execution of one whose
+/// failure has already been published to the operator.
+///
+/// One failed node used to produce one error entry PER ATTEMPT: a sequence
+/// whose Open Dome node failed with "No dome connected" (a message
+/// [`crate::instructions::is_device_disconnected_message`] classifies as a
+/// disconnect) ran the node six times, and the session report listed the same
+/// sentence six times with six identical Critical toasts, so the error count
+/// never matched the number of failed nodes.
+pub(crate) fn is_disconnect_retry_attempt() -> bool {
+    DISCONNECT_RETRY_ATTEMPT
+        .try_with(|attempt| *attempt > 0)
+        .is_ok_and(|is_retry| is_retry)
+}
+
 /// Execute an instruction node through the registry, retrying it if it fails
 /// because a device disconnected.
 ///
@@ -102,7 +132,9 @@ async fn execute_instruction_with_disconnect_retry(
             .recovery_generation
             .load(std::sync::atomic::Ordering::Acquire);
 
-        let result = instruction.execute(node_id, node_type, context).await;
+        let result = DISCONNECT_RETRY_ATTEMPT
+            .scope(attempt, instruction.execute(node_id, node_type, context))
+            .await;
 
         // Only a Failure that was promoted to device-disconnect recovery is
         // eligible for the wait-and-retry path. Everything else (Success,

@@ -9,6 +9,7 @@ import 'package:window_manager/window_manager.dart';
 
 import 'desktop_app_bootstrap.dart';
 import 'desktop_logging_init.dart';
+import 'frame_timing_probe.dart';
 import 'main_headless.dart' as headless;
 
 /// A remote rig the desktop GUI should drive as a thin client instead of
@@ -324,6 +325,10 @@ void main(List<String> args) async {
       appBuildNumber: appVersion.buildNumber,
     );
   }
+
+  // Inert unless NIGHTSHADE_FRAME_TIMING=1. Armed before runApp so the very
+  // first frames are counted too.
+  startFrameTimingProbe();
 
   runApp(
     UncontrolledProviderScope(

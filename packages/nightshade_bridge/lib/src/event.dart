@@ -177,6 +177,107 @@ sealed class EventPayload with _$EventPayload {
 /// Event severity levels
 enum EventSeverity { info, warning, error, critical }
 
+/// Per-frame capture truth carried across FRB on the frame events. Mirrors
+/// `nightshade_sequencer::scheduling::FrameCaptureMetadata` field for field,
+/// living in the bridge crate for the same reason [`SchedulerScoreEntry`] does.
+///
+/// Every one of these values is already in the FITS header the sequencer wrote
+/// for the same exposure. Shipping them on the event is what lets Dart write
+/// the `captured_images` row from the header's own source instead of
+/// reconstructing a second, thinner version of the frame from the sequence
+/// tree — the reconstruction that left rows with NULL gain, offset, sensor
+/// temperature, pointing, focuser position and rotator angle.
+class FrameCaptureMetadata {
+  final int? gain;
+  final int? offset;
+  final double? sensorTempC;
+  final double? coolerPowerPercent;
+
+  /// Mount right ascension in HOURS, matching `captured_images.mount_ra`.
+  /// The FITS `RA` card is degrees; do not copy this into a degrees-valued
+  /// field without multiplying by 15.
+  final double? mountRaHours;
+  final double? mountDecDegrees;
+  final double? mountAltitudeDeg;
+  final double? mountAzimuthDeg;
+
+  /// `"East"` / `"West"`, or `None` when no mount answered.
+  final String? pierSide;
+  final int? focuserPosition;
+  final double? focuserTemperatureC;
+  final double? rotatorAngleDeg;
+  final double exposureSecs;
+  final int binX;
+  final int binY;
+
+  /// "Light" / "Dark" / "Flat" / "Bias" — the FITS `IMAGETYP` string.
+  final String frameType;
+  final String? targetId;
+
+  const FrameCaptureMetadata({
+    this.gain,
+    this.offset,
+    this.sensorTempC,
+    this.coolerPowerPercent,
+    this.mountRaHours,
+    this.mountDecDegrees,
+    this.mountAltitudeDeg,
+    this.mountAzimuthDeg,
+    this.pierSide,
+    this.focuserPosition,
+    this.focuserTemperatureC,
+    this.rotatorAngleDeg,
+    required this.exposureSecs,
+    required this.binX,
+    required this.binY,
+    required this.frameType,
+    this.targetId,
+  });
+
+  @override
+  int get hashCode =>
+      gain.hashCode ^
+      offset.hashCode ^
+      sensorTempC.hashCode ^
+      coolerPowerPercent.hashCode ^
+      mountRaHours.hashCode ^
+      mountDecDegrees.hashCode ^
+      mountAltitudeDeg.hashCode ^
+      mountAzimuthDeg.hashCode ^
+      pierSide.hashCode ^
+      focuserPosition.hashCode ^
+      focuserTemperatureC.hashCode ^
+      rotatorAngleDeg.hashCode ^
+      exposureSecs.hashCode ^
+      binX.hashCode ^
+      binY.hashCode ^
+      frameType.hashCode ^
+      targetId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FrameCaptureMetadata &&
+          runtimeType == other.runtimeType &&
+          gain == other.gain &&
+          offset == other.offset &&
+          sensorTempC == other.sensorTempC &&
+          coolerPowerPercent == other.coolerPowerPercent &&
+          mountRaHours == other.mountRaHours &&
+          mountDecDegrees == other.mountDecDegrees &&
+          mountAltitudeDeg == other.mountAltitudeDeg &&
+          mountAzimuthDeg == other.mountAzimuthDeg &&
+          pierSide == other.pierSide &&
+          focuserPosition == other.focuserPosition &&
+          focuserTemperatureC == other.focuserTemperatureC &&
+          rotatorAngleDeg == other.rotatorAngleDeg &&
+          exposureSecs == other.exposureSecs &&
+          binX == other.binX &&
+          binY == other.binY &&
+          frameType == other.frameType &&
+          targetId == other.targetId;
+}
+
 @freezed
 sealed class GuidingEvent with _$GuidingEvent {
   const GuidingEvent._();
@@ -747,6 +848,13 @@ sealed class SequencerEvent with _$SequencerEvent {
     /// frames via `FrameRejected.reject_path`. `None` for legacy /
     /// non-grading emit sites that did not thread the path through.
     String? savePath,
+
+    /// Per-frame capture truth, taken from the `FrameContext` the FITS
+    /// writer stamped this frame's header from. Dart persists it straight
+    /// into `captured_images`, which is why the row and the file agree:
+    /// both are written from one struct rather than two independent
+    /// reconstructions of the same exposure.
+    required FrameCaptureMetadata capture,
   }) = SequencerEvent_FrameAccepted;
 
   /// Image Grading: a frame failed at least one
@@ -798,6 +906,11 @@ sealed class SequencerEvent with _$SequencerEvent {
 
     /// Sensor temperature (°C) at capture time.
     double? sensorTempAtCapture,
+
+    /// Per-frame capture truth — see [`SequencerEvent::FrameAccepted`].
+    /// A rejected frame is still on disk and still gets a row, so it is
+    /// stamped from the same struct.
+    required FrameCaptureMetadata capture,
   }) = SequencerEvent_FrameRejected;
 
   /// TargetScheduler decision. Mirrors

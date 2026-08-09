@@ -8,7 +8,6 @@
 //   2. it receives a live stream of real-time events from the rig,
 //   3. driving the hardware (mount slew) over REST produces live telemetry
 //      events pushed back over that same WS — i.e. the UI would update.
-import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';

@@ -27,7 +27,20 @@ class CockpitMorningReport extends ConsumerWidget {
         onRetry: () => ref.invalidate(sequenceRunsProvider),
       ),
       data: (runs) {
-        if (runs.isEmpty) return const SizedBox.shrink();
+        // An empty state, not SizedBox.shrink(): the widget picker offers
+        // "Morning Report" as a checkbox, and returning nothing made ticking it
+        // read as a broken toggle — no tile appeared anywhere on a profile that
+        // has not finished a run yet. Storage and Last Run already render their
+        // own "nothing to show" copy for exactly this reason.
+        if (runs.isEmpty) {
+          return _ReportStatusCard(
+            colors: colors,
+            icon: LucideIcons.sunrise,
+            title: 'No completed runs yet',
+            detail: "Last night's accepted and rejected frame counts appear "
+                'here once a sequence finishes.',
+          );
+        }
         return _RunReportCard(run: runs.first, colors: colors);
       },
     );

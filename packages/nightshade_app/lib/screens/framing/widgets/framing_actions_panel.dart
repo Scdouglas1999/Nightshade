@@ -39,7 +39,11 @@ import 'package:nightshade_app/utils/snackbar_helper.dart';
 import 'package:nightshade_app/widgets/plate_solver_required_banner.dart';
 import 'package:nightshade_app/widgets/slew_dropdown_button.dart';
 import '../../../widgets/tutorial_keys/framing_keys.dart';
+import '../framing_altaz.dart';
 import 'framing_controls.dart' show FramingPreviewFovSlider;
+
+/// Identifies the GoTo step's readiness pill (several steps read 'Ready').
+const framingGotoStatusKey = Key('framing.goto.status');
 
 /// Outcome of a "Solve current frame" attempt, rendered inline beneath the
 /// solve step. Exactly one of [result] / [error] / [solverMissing] is set.
@@ -142,9 +146,26 @@ class _FramingActionRailState extends ConsumerState<FramingActionRail> {
     // step's badge was driven by `hasTarget` alone — so with the mount
     // disconnected it showed a green "Ready" over a button that swallowed every
     // click in silence.
-    final isMountConnected = ref.watch(mountStateProvider).connectionState ==
-        DeviceConnectionState.connected;
-    final canSlew = hasTarget && isMountConnected;
+    final mountState = ref.watch(mountStateProvider);
+    final isMountConnected =
+        mountState.connectionState == DeviceConnectionState.connected;
+    // A PARKED mount cannot GoTo — every driver refuses, most of them without
+    // an error the UI ever sees. The rail used to show a green "Ready" and a
+    // filled primary button over a mount sitting at RA 00h00m/Dec +00,
+    // "Status Parked", and clicking it produced no dialog, no toast and not one
+    // line in the log. `isParked` defaults to true on an unknown mount, so it
+    // is only consulted once the mount is actually connected and reporting
+    // status.
+    final isMountParked = isMountConnected && mountState.isParked;
+    final canSlew = hasTarget && isMountConnected && !isMountParked;
+
+    // Altitude is advisory, not a gate: a target below the horizon now will
+    // rise, and the operator may legitimately want the mount pre-pointed. But
+    // "Ready" over a target 5.7 deg under the ground is the same lie the park
+    // state was, so the badge says which it is. Null means no configured site
+    // (the app cannot know the altitude), in which case we claim nothing.
+    final targetAltitudeDeg = _targetAltitudeDeg(target);
+    final isBelowHorizon = targetAltitudeDeg != null && targetAltitudeDeg < 0;
 
     return NightshadeCard(
       padding: NightshadeTokens.cardPadding,
@@ -263,21 +284,28 @@ class _FramingActionRailState extends ConsumerState<FramingActionRail> {
           // ---- Step 4: GoTo & Frame -------------------------------------
           _StepRow(
             number: 4,
+            statusKey: framingGotoStatusKey,
             title: 'GoTo & Frame',
-            status: canSlew
-                ? StatusPillStatus.active
-                : (hasTarget
-                    // A target but no mount: the step genuinely cannot run, and
-                    // saying so is the point. 'Ready' here was a lie.
+            status: !hasTarget
+                ? StatusPillStatus.inactive
+                : (!canSlew || isBelowHorizon
+                    // A target but no usable mount (or a target under the
+                    // ground): the step cannot run as-is, and saying so is the
+                    // point. 'Ready' here was a lie.
                     ? StatusPillStatus.warning
-                    : StatusPillStatus.inactive),
-            // 'No mount' rather than 'Mount not connected': it stays honest (the
-            // point of the finding — 'Ready' here was a lie), reads in parallel
-            // with 'No target' below it, and fits the rail without ellipsizing.
-            // The full instruction is not lost — the step body renders 'Connect
-            // the mount in Equipment to enable slewing.' directly beneath.
-            statusValue:
-                canSlew ? 'Ready' : (hasTarget ? 'No mount' : 'No target'),
+                    : StatusPillStatus.active),
+            // Terse on purpose: these read in parallel down the rail and fit
+            // without ellipsizing. The full instruction is not lost — the step
+            // body spells it out directly beneath.
+            statusValue: !hasTarget
+                ? 'No target'
+                : !isMountConnected
+                    ? 'No mount'
+                    : isMountParked
+                        ? 'Parked'
+                        : isBelowHorizon
+                            ? 'Below horizon'
+                            : 'Ready',
             colors: colors,
             child: hasTarget
                 ? Column(
@@ -295,6 +323,9 @@ class _FramingActionRailState extends ConsumerState<FramingActionRail> {
                               : null,
                           icon: NightshadeIcons.compass,
                           label: 'Slew to Target',
+                          // Without this the button stayed live over a parked
+                          // mount and every click was swallowed in silence.
+                          isEnabled: canSlew,
                         ),
                       ),
                       // The disabled button explains itself instead of
@@ -303,6 +334,28 @@ class _FramingActionRailState extends ConsumerState<FramingActionRail> {
                         const SizedBox(height: NightshadeTokens.spaceXs),
                         Text(
                           'Connect the mount in Equipment to enable slewing.',
+                          style: NightshadeTypography.caption.copyWith(
+                            color: colors.warning,
+                          ),
+                        ),
+                      ] else if (isMountParked) ...[
+                        const SizedBox(height: NightshadeTokens.spaceXs),
+                        Text(
+                          'The mount is parked. Unpark it (Imaging → Mount) '
+                          'before slewing.',
+                          style: NightshadeTypography.caption.copyWith(
+                            color: colors.warning,
+                          ),
+                        ),
+                      ],
+                      // Advisory, and shown even when the slew is allowed: the
+                      // mount will happily drive into the ground.
+                      if (isBelowHorizon) ...[
+                        const SizedBox(height: NightshadeTokens.spaceXs),
+                        Text(
+                          '${target.name.isEmpty ? 'The target' : target.name} '
+                          'is ${targetAltitudeDeg.toStringAsFixed(1)}° below '
+                          'the horizon right now.',
                           style: NightshadeTypography.caption.copyWith(
                             color: colors.warning,
                           ),
@@ -320,6 +373,27 @@ class _FramingActionRailState extends ConsumerState<FramingActionRail> {
         ],
       ),
     );
+  }
+
+  /// Current altitude of [target] in degrees, or `null` when the app has no
+  /// usable observing site.
+  ///
+  /// (0, 0) is the app's "no location set" sentinel — the same one the
+  /// coordinates card uses — and reporting an altitude from it would be
+  /// inventing a horizon in the Gulf of Guinea.
+  double? _targetAltitudeDeg(FramingTarget? target) {
+    if (target == null) return null;
+    final settings = ref.watch(appSettingsProvider).valueOrNull;
+    if (settings == null) return null;
+    if (settings.latitude == 0.0 && settings.longitude == 0.0) return null;
+    final (alt, _) = calculateCurrentAltAz(
+      raHours: target.raHours,
+      decDegrees: target.decDegrees,
+      latitudeDeg: settings.latitude,
+      longitudeDeg: settings.longitude,
+      time: DateTime.now(),
+    );
+    return alt;
   }
 
   Widget _stepDivider(NightshadeColors colors) => Padding(
@@ -417,6 +491,11 @@ class _StepRow extends StatelessWidget {
   final NightshadeColors colors;
   final Widget child;
 
+  /// Optional key on the readiness pill. Several steps share pill wording
+  /// ('Ready'), so a test that means THIS step's badge needs to be able to say
+  /// so rather than counting matches across the rail.
+  final Key? statusKey;
+
   const _StepRow({
     required this.number,
     required this.title,
@@ -424,6 +503,7 @@ class _StepRow extends StatelessWidget {
     required this.statusValue,
     required this.colors,
     required this.child,
+    this.statusKey,
   });
 
   @override
@@ -457,6 +537,7 @@ class _StepRow extends StatelessWidget {
             // only ever needed a bounded width to do the right thing.
             Flexible(
               child: StatusPill(
+                key: statusKey,
                 icon: isDone ? NightshadeIcons.check : NightshadeIcons.circle,
                 label: '',
                 value: statusValue,

@@ -40,10 +40,19 @@ class DeviceConnectionProgressState {
   /// launch knows it came from startup and not from a button they pressed.
   final String source;
 
+  /// When the sweep finished, or null while it is still running / never ran.
+  ///
+  /// The strip outlives the sweep by design (it is how a failure is reviewed),
+  /// so it MUST be able to date itself: an undated chip reading `camera
+  /// Connected` sat next to a live "No devices connected" empty state after a
+  /// Disconnect All and was read as current truth.
+  final DateTime? finishedAt;
+
   const DeviceConnectionProgressState({
     required this.isSweeping,
     required this.byDeviceType,
     this.source = 'Connect All',
+    this.finishedAt,
   });
 
   static const empty = DeviceConnectionProgressState(
@@ -51,15 +60,22 @@ class DeviceConnectionProgressState {
     byDeviceType: <String, DeviceConnectProgress>{},
   );
 
+  /// How many devices in this sweep ended up connected.
+  int get connectedCount => byDeviceType.values
+      .where((e) => e.status == DeviceConnectProgressStatus.connected)
+      .length;
+
   DeviceConnectionProgressState copyWith({
     bool? isSweeping,
     Map<String, DeviceConnectProgress>? byDeviceType,
     String? source,
+    DateTime? finishedAt,
   }) {
     return DeviceConnectionProgressState(
       isSweeping: isSweeping ?? this.isSweeping,
       byDeviceType: byDeviceType ?? this.byDeviceType,
       source: source ?? this.source,
+      finishedAt: finishedAt ?? this.finishedAt,
     );
   }
 }
@@ -91,9 +107,11 @@ class DeviceConnectionProgressNotifier
   }
 
   /// Mark the sweep as finished. The per-device snapshot is preserved so
-  /// the UI can still display the final outcome until the user clears it.
-  void endSweep() {
-    state = state.copyWith(isSweeping: false);
+  /// the UI can still display the final outcome until the user clears it,
+  /// stamped with the time it finished so it reads as a record and not as the
+  /// devices' current state.
+  void endSweep({DateTime? at}) {
+    state = state.copyWith(isSweeping: false, finishedAt: at ?? DateTime.now());
   }
 
   /// Reset to the empty state (no sweep, no per-device entries).

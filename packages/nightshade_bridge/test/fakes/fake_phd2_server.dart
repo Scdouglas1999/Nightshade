@@ -9,6 +9,8 @@
 ///   - inspect the decoded requests the client sent,
 ///   - push arbitrary event/response lines back to the client.
 
+library;
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';

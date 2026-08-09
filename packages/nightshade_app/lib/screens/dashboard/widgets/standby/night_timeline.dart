@@ -3,8 +3,15 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+// Only the clock: `TwilightTimes` exists in BOTH core and planetarium and
+// this file means the planetarium one.
+import 'package:nightshade_core/nightshade_core.dart'
+    show Clock, SystemClock, clockProvider;
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+
+import '../../../../localization/nightshade_localizations.dart';
+import '../../../../services/observing_site.dart';
 
 /// The Night Briefing showpiece: a painted band spanning sunset → sunrise that
 /// shows the twilight stages, the imaging (astronomical-dark) window, the live
@@ -20,26 +27,28 @@ class NightTimeline extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final twilight = ref.watch(twilightTimesProvider);
-    final moon = ref.watch(moonInfoProvider);
+    // Site-gated: `null` means no site is on record, so there is no night to
+    // draw. The per-field null checks below are a different question — they
+    // mean this site has no sunset tonight (polar day/night), which is a real
+    // answer for a real place.
+    final twilight = ref.watch(siteTwilightTimesProvider);
+    final moon = ref.watch(siteMoonTimesProvider);
     final now = ref.watch(observationTimeProvider.select((s) => s.time));
-    final observer = ref.watch(observerLocationProvider);
+    // Every clock face on one screen has to be in the same zone. The status
+    // bar and the header chip render Settings → Location → Timezone, so these
+    // labels must too, or a site set to UTC+09:00 reads "03:44 now" next to
+    // "Sunset 23:48" in the operator's own zone. Durations are unaffected —
+    // only the HH:MM faces move.
+    final clock = ref.watch(clockProvider);
 
-    // lat/lon both 0.0 is the "no site on record" sentinel, not a real
-    // Gulf-of-Guinea observatory. The sun does rise and set there, so the
-    // calculator happily returns a full set of Null Island twilight times — a
-    // confident-looking sunset that belongs to nobody. The null-field check
-    // below only catches polar day/night, so the sentinel needs its own guard or
-    // a first-run user reads someone else's night as their own.
-    final hasSite = observer.latitude != 0.0 || observer.longitude != 0.0;
-
-    // Without a location, or where the sun never sets at high latitude, show a
-    // quiet prompt instead of an empty painter rather than throwing.
-    if (!hasSite || twilight.sunset == null || twilight.sunrise == null) {
+    if (twilight == null ||
+        twilight.sunset == null ||
+        twilight.sunrise == null) {
       return _NoTwilight(colors: colors);
     }
 
-    final countdown = computeNightCountdown(twilight: twilight, now: now);
+    final countdown =
+        computeNightCountdown(twilight: twilight, now: now, clock: clock);
 
     return Container(
       decoration: BoxDecoration(
@@ -67,6 +76,8 @@ class NightTimeline extends ConsumerWidget {
                     twilight: twilight,
                     moon: moon,
                     now: now,
+                    clock: clock,
+                    l10n: context.l10n,
                   ),
                 );
               },
@@ -97,7 +108,7 @@ class _CountdownHeader extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                countdown.headlineLabel.toUpperCase(),
+                context.l10n.text(countdown.headlineLabelKey).toUpperCase(),
                 style: NightshadeTypography.overline.copyWith(
                   color: colors.textMuted,
                 ),
@@ -163,7 +174,7 @@ class _NoTwilight extends StatelessWidget {
           const SizedBox(width: NightshadeTokens.spaceSm),
           Expanded(
             child: Text(
-              'Set an observing location for twilight times.',
+              context.l10n.text('dbNoTwilight'),
               style: NightshadeTypography.body.copyWith(
                 color: colors.textSecondary,
               ),
@@ -181,8 +192,11 @@ class _NoTwilight extends StatelessWidget {
 
 /// The single relevant countdown fact for the night band header.
 class NightCountdown {
-  /// Quiet caps overline, e.g. "ASTRO DARK IN".
-  final String headlineLabel;
+  /// Localisation key for the quiet caps overline, e.g. `dbAstroDarkIn`.
+  /// A key rather than the English sentence: this is a pure resolver with no
+  /// BuildContext, and returning finished English is how the briefing stayed
+  /// English on a Spanish build.
+  final String headlineLabelKey;
 
   /// Large tabular value, e.g. "1h 24m" or "21:48".
   final String headlineValue;
@@ -195,7 +209,7 @@ class NightCountdown {
   final bool isDark;
 
   const NightCountdown({
-    required this.headlineLabel,
+    required this.headlineLabelKey,
     required this.headlineValue,
     required this.windowLabel,
     required this.isDark,
@@ -215,6 +229,7 @@ class NightCountdown {
 NightCountdown computeNightCountdown({
   required TwilightTimes twilight,
   required DateTime now,
+  Clock clock = const SystemClock(),
 }) {
   final dusk = twilight.astronomicalDusk;
   final dawn = twilight.astronomicalDawn;
@@ -228,7 +243,7 @@ NightCountdown computeNightCountdown({
   // Before astronomical dark: count down to dusk.
   if (dusk != null && now.isBefore(dusk)) {
     return NightCountdown(
-      headlineLabel: 'Astro dark in',
+      headlineLabelKey: 'dbAstroDarkIn',
       headlineValue: _hm(dusk.difference(now)),
       windowLabel: window,
       isDark: false,
@@ -241,7 +256,7 @@ NightCountdown computeNightCountdown({
       !now.isBefore(dusk) &&
       now.isBefore(dawn)) {
     return NightCountdown(
-      headlineLabel: 'Dark for another',
+      headlineLabelKey: 'dbDarkForAnother',
       headlineValue: _hm(dawn.difference(now)),
       windowLabel: window,
       isDark: true,
@@ -251,7 +266,7 @@ NightCountdown computeNightCountdown({
   // After astronomical dawn but still before sunrise: count down to sunrise.
   if (sunrise != null && now.isBefore(sunrise)) {
     return NightCountdown(
-      headlineLabel: 'Sunrise in',
+      headlineLabelKey: 'dbSunriseIn',
       headlineValue: _hm(sunrise.difference(now)),
       windowLabel: window,
       isDark: false,
@@ -261,8 +276,8 @@ NightCountdown computeNightCountdown({
   // Daytime (sun already up): point at the next sunset.
   if (sunset != null) {
     return NightCountdown(
-      headlineLabel: 'Sunset at',
-      headlineValue: _clock(sunset),
+      headlineLabelKey: 'dbSunsetAt',
+      headlineValue: _clock(sunset, clock),
       windowLabel: window,
       isDark: false,
     );
@@ -270,8 +285,8 @@ NightCountdown computeNightCountdown({
 
   // No astronomical twilight at all but we still have a sunset/sunrise span.
   return NightCountdown(
-    headlineLabel:
-        sunrise != null && now.isBefore(sunrise) ? 'Sunrise in' : 'Tonight',
+    headlineLabelKey:
+        sunrise != null && now.isBefore(sunrise) ? 'dbSunriseIn' : 'dbTonight',
     headlineValue: sunrise != null && now.isBefore(sunrise)
         ? _hm(sunrise.difference(now))
         : '--',
@@ -287,8 +302,13 @@ String _hm(Duration d) {
   return '${h}h ${m}m';
 }
 
-String _clock(DateTime t) =>
-    '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+/// HH:MM of [t] on the operator's chosen clock. [SystemClock] — the default
+/// everywhere "Use system time" is on — returns the host rendering unchanged.
+String _clock(DateTime t, Clock clock) {
+  final shown = clock.fromUtc(t.toUtc());
+  return '${shown.hour.toString().padLeft(2, '0')}:'
+      '${shown.minute.toString().padLeft(2, '0')}';
+}
 
 // =============================================================================
 // PAINTER
@@ -297,14 +317,25 @@ String _clock(DateTime t) =>
 class _TimelinePainter extends CustomPainter {
   final NightshadeColors colors;
   final TwilightTimes twilight;
-  final MoonTimes moon;
+
+  /// `null` when no observing site is on record — the band still draws, the
+  /// moon markers simply have nowhere truthful to sit.
+  final MoonTimes? moon;
   final DateTime now;
+  final Clock clock;
+
+  /// The axis tick labels are painted, not laid out as widgets, so the
+  /// painter needs the catalogue handed to it — a CustomPainter has no
+  /// BuildContext to reach `context.l10n` from.
+  final NightshadeLocalizations l10n;
 
   _TimelinePainter({
     required this.colors,
     required this.twilight,
     required this.moon,
     required this.now,
+    required this.clock,
+    required this.l10n,
   });
 
   // The band occupies the top portion; labels sit in the strip below it.
@@ -413,19 +444,23 @@ class _TimelinePainter extends CustomPainter {
     }
 
     // Major labeled ticks.
-    _labeledTick(canvas, size, x(sunset), 'Sunset', _clock(sunset));
+    _labeledTick(
+        canvas, size, x(sunset), l10n.text('dbSunset'), _clock(sunset, clock));
     if (dusk != null) {
-      _labeledTick(canvas, size, x(dusk), 'Astro dark', _clock(dusk));
+      _labeledTick(
+          canvas, size, x(dusk), l10n.text('dbAstroDark'), _clock(dusk, clock));
     }
     if (dawn != null) {
-      _labeledTick(canvas, size, x(dawn), 'Astro dawn', _clock(dawn));
+      _labeledTick(
+          canvas, size, x(dawn), l10n.text('dbAstroDawn'), _clock(dawn, clock));
     }
-    _labeledTick(canvas, size, x(sunrise), 'Sunrise', _clock(sunrise),
+    _labeledTick(canvas, size, x(sunrise), l10n.text('dbSunrise'),
+        _clock(sunrise, clock),
         alignEnd: true);
 
     // Moon markers (small glyph ticks) when rise/set fall inside the window.
-    _moonMarker(canvas, x, sunset, sunrise, moon.moonrise);
-    _moonMarker(canvas, x, sunset, sunrise, moon.moonset);
+    _moonMarker(canvas, x, sunset, sunrise, moon?.moonrise);
+    _moonMarker(canvas, x, sunset, sunrise, moon?.moonset);
 
     // "Now" marker: vivid primary line with a soft glow dot, only when now is
     // within the sunset→sunrise span.
@@ -554,8 +589,11 @@ class _TimelinePainter extends CustomPainter {
         old.twilight.civilDawn != twilight.civilDawn ||
         old.twilight.nauticalDusk != twilight.nauticalDusk ||
         old.twilight.nauticalDawn != twilight.nauticalDawn ||
-        old.moon.moonrise != moon.moonrise ||
-        old.moon.moonset != moon.moonset ||
+        old.moon?.moonrise != moon?.moonrise ||
+        old.moon?.moonset != moon?.moonset ||
+        // The axis labels are drawn on this clock; changing the site timezone
+        // has to redraw them.
+        old.clock != clock ||
         old.colors.primary != colors.primary;
   }
 }

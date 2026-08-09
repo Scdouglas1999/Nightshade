@@ -92,32 +92,35 @@ ScienceLadderProgress evaluateLadder({
   required bool hasPeriodResult,
   required bool hasExportableData,
 }) {
+  // Each rung is judged on its OWN evidence.
+  //
+  // The rungs used to cascade — every one computed from the state of the one
+  // above it — so a session with 80 photometry points, a Lomb-Scargle period on
+  // screen and an enabled "Export to AAVSO" button still showed rung 1 as the
+  // next action and rung 3 padlocked with "Turn on live photometry and track a
+  // star to start collecting points". One missing photometric calibration
+  // locked four rungs the user had demonstrably already climbed. A rung is now
+  // `locked` only when the thing it asks for genuinely cannot be started yet.
   final measure = hasCalibration ? RungState.done : RungState.ready;
 
-  final RungState track;
-  if (measure != RungState.done) {
-    track = RungState.locked;
-  } else if (photometryLive && hasTarget) {
-    track = RungState.done;
-  } else {
-    track = RungState.ready;
-  }
+  // Points on a curve are proof the star was tracked, whether or not the run
+  // that produced them is still going. Picking a target needs nothing first, so
+  // this rung is never locked.
+  final track = (lightCurvePoints > 0 || (photometryLive && hasTarget))
+      ? RungState.done
+      : RungState.ready;
 
   final RungState curve;
-  if (track == RungState.locked) {
-    curve = RungState.locked;
-  } else if (lightCurvePoints >= 10) {
+  if (lightCurvePoints >= 10) {
     curve = RungState.done;
-  } else if (photometryLive) {
+  } else if (photometryLive || lightCurvePoints > 0) {
     curve = RungState.ready;
   } else {
     curve = RungState.locked;
   }
 
   final RungState period;
-  if (curve == RungState.locked) {
-    period = RungState.locked;
-  } else if (hasPeriodResult) {
+  if (hasPeriodResult) {
     period = RungState.done;
   } else if (lightCurvePoints >= 10) {
     period = RungState.ready;
@@ -125,14 +128,7 @@ ScienceLadderProgress evaluateLadder({
     period = RungState.locked;
   }
 
-  final RungState contribute;
-  if (period == RungState.locked) {
-    contribute = RungState.locked;
-  } else if (hasExportableData) {
-    contribute = RungState.ready;
-  } else {
-    contribute = RungState.locked;
-  }
+  final contribute = hasExportableData ? RungState.ready : RungState.locked;
 
   return ScienceLadderProgress(<ScienceRung, RungState>{
     ScienceRung.measure: measure,

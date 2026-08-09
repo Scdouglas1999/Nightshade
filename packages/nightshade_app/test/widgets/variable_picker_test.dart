@@ -68,51 +68,61 @@ void main() {
     });
   });
 
-  group('VariablePickerField preview', () {
-    testWidgets('renders live preview when template contains placeholders',
+  group('picker preview', () {
+    testWidgets('renders a preview when the template has placeholders',
         (tester) async {
       final controller = TextEditingController(text: r'Hello ${target.name}!');
       await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: VariablePickerField(
-            controller: controller,
-            label: 'Test',
-            showPreview: true,
-          ),
-        ),
+        home: Scaffold(body: VariablePickerButton(controller: controller)),
       ));
-      await tester.pump();
+      await tester.tap(find.byIcon(Icons.code));
+      await tester.pumpAndSettle();
       expect(find.textContaining('Hello M42!'), findsOneWidget);
     });
 
-    testWidgets('hides preview when template has no placeholders',
+    testWidgets('hides the preview when the template has no placeholders',
         (tester) async {
       final controller = TextEditingController(text: 'plain literal');
       await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: VariablePickerField(
-            controller: controller,
-            label: 'Test',
-            showPreview: true,
-          ),
-        ),
+        home: Scaffold(body: VariablePickerButton(controller: controller)),
       ));
-      await tester.pump();
-      // The preview row only appears when there's a `${` in the text. If
-      // there isn't, only the input field's text is visible.
+      await tester.tap(find.byIcon(Icons.code));
+      await tester.pumpAndSettle();
       expect(find.byIcon(Icons.visibility), findsNothing);
     });
 
-    testWidgets('forwards onChanged when picker inserts a variable',
+    // The preview must speak the same vocabulary the picker offers, or it
+    // renders a sequencer example for a token the bound field cannot resolve.
+    testWidgets('previews against the supplied vocabulary, not the default',
         (tester) async {
-      String? lastChanged;
+      final controller = TextEditingController(text: r'${integration.hms}');
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: VariablePickerButton(
+            controller: controller,
+            variables: watermarkVariableCatalog,
+          ),
+        ),
+      ));
+      await tester.tap(find.byIcon(Icons.code));
+      await tester.pumpAndSettle();
+      // The preview is the dialog's only SelectableText. Against the default
+      // sequencer catalog this token is unknown and renders `${…?}`.
+      final preview = tester.widget<SelectableText>(
+        find.byType(SelectableText),
+      );
+      expect(preview.data, '2h12m');
+    });
+
+    testWidgets('forwards onChanged when the picker inserts a variable',
+        (tester) async {
+      var changed = 0;
       final controller = TextEditingController();
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(
-          body: VariablePickerField(
+          body: VariablePickerButton(
             controller: controller,
-            label: 'Test',
-            onChanged: (v) => lastChanged = v,
+            onChanged: () => changed++,
           ),
         ),
       ));
@@ -120,7 +130,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text(r'${target.name}').first);
       await tester.pumpAndSettle();
-      expect(lastChanged, r'${target.name}');
+      expect(changed, 1);
+      expect(controller.text, r'${target.name}');
     });
   });
 

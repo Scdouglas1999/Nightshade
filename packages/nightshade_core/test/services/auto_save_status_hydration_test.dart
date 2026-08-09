@@ -10,8 +10,6 @@
 /// backup files sitting on disk (observed on the Linux desktop build).
 library;
 
-import 'dart:async';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_core/src/services/auto_save_service.dart';

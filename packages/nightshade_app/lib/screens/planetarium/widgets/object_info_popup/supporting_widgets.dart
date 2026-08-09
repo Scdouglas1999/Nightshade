@@ -345,6 +345,7 @@ class _AddToListDialogState extends ConsumerState<_AddToListDialog> {
   String? get _objectType {
     final obj = widget.object;
     if (obj is DeepSkyObject) return obj.type.displayName;
+    if (obj is SolarSystemBody) return obj.kind.displayName;
     if (obj is Star) return 'Star';
     return null;
   }

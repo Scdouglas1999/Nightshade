@@ -3,6 +3,98 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../polar_alignment_error_format.dart';
+
+/// Identity for the painted reticle square, so its bounds can be compared with
+/// the caption's.
+const ValueKey<String> allSkyReticleCanvasKey =
+    ValueKey<String>('allSkyReticle.canvas');
+
+/// Radius of the error marker dot. The marker is CLAMPED to the outer ring, so
+/// an off-scale error overhangs the ring by exactly this much.
+const double _markerRadius = 6.0;
+
+/// Gap between the outer ring and the cardinal labels. Must exceed
+/// [_markerRadius] or a clamped marker lands on top of a label.
+const double _cardinalGap = 8.0;
+
+/// Inset from the widget edge to the outer ring. Must leave room for a cardinal
+/// label — [_cardinalGap] plus the label's own height — or the bottom label
+/// ('Dn') is drawn a pixel past the bottom edge.
+const double _reticleInset = 24.0;
+
+const TextStyle _cardinalTextStyle = TextStyle(
+  fontSize: NightshadeTypography.fontSize10,
+  fontWeight: FontWeight.w600,
+);
+
+/// The outer-ring radius for a reticle painted at [size].
+double allSkyReticleRadius(Size size) =>
+    (math.min(size.width, size.height) / 2) - _reticleInset;
+
+/// Where a cardinal label lands for a reticle painted at [size].
+///
+/// Exposed so the layout invariants the audit caught — a label inside the box
+/// and clear of the clamped marker — are assertable instead of eyeballed.
+Rect allSkyCardinalLabelRect({
+  required Size size,
+  required Alignment alignment,
+  required String text,
+}) {
+  final painter = _layOutCardinal(text, const Color(0xFF000000));
+  final center = Offset(size.width / 2, size.height / 2);
+  final offset = _cardinalOffset(
+    center,
+    allSkyReticleRadius(size),
+    painter.size,
+    alignment,
+  );
+  return offset & painter.size;
+}
+
+/// The area the marker dot can reach for a reticle painted at [size]: the ring
+/// it is clamped to, grown by the dot's own radius.
+Rect allSkyMarkerReach(Size size) => Rect.fromCircle(
+      center: Offset(size.width / 2, size.height / 2),
+      radius: allSkyReticleRadius(size) + _markerRadius,
+    );
+
+TextPainter _layOutCardinal(String text, Color color) => TextPainter(
+      text: TextSpan(
+          text: text, style: _cardinalTextStyle.copyWith(color: color)),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+Offset _cardinalOffset(
+  Offset center,
+  double radius,
+  Size textSize,
+  Alignment alignment,
+) {
+  if (alignment == Alignment.topCenter) {
+    return Offset(
+      center.dx - textSize.width / 2,
+      center.dy - radius - textSize.height - _cardinalGap,
+    );
+  }
+  if (alignment == Alignment.bottomCenter) {
+    return Offset(
+      center.dx - textSize.width / 2,
+      center.dy + radius + _cardinalGap,
+    );
+  }
+  if (alignment == Alignment.centerRight) {
+    return Offset(
+      center.dx + radius + _cardinalGap,
+      center.dy - textSize.height / 2,
+    );
+  }
+  return Offset(
+    center.dx - radius - textSize.width - _cardinalGap,
+    center.dy - textSize.height / 2,
+  );
+}
+
 /// Live convergence visualization for all-sky polar alignment.
 ///
 /// Renders a target reticle with a moving marker that reflects the
@@ -16,13 +108,19 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// at 25% radius, etc. Users get a direct mechanical-feedback feel for how
 /// much the bolts need to move.
 class AllSkyTargetReticle extends StatelessWidget {
-  /// Current azimuth error in arcseconds. Positive = mechanical pole east
-  /// of true pole (rotate azimuth bolt westward).
-  final double azimuthErrorArcsec;
+  /// Current azimuth error in arcseconds, or null when nothing has been
+  /// measured yet. Positive = mechanical pole east of true pole (rotate
+  /// azimuth bolt westward).
+  ///
+  /// Nullable on purpose: callers used to substitute zero, which made an
+  /// unmeasured axis indistinguishable from a perfectly aligned one and let
+  /// the idle screen claim "Within acceptance" before a single frame existed.
+  final double? azimuthErrorArcsec;
 
-  /// Current altitude error in arcseconds. Positive = mechanical pole above
-  /// true pole (lower altitude bolt).
-  final double altitudeErrorArcsec;
+  /// Current altitude error in arcseconds, or null when nothing has been
+  /// measured yet. Positive = mechanical pole above true pole (lower altitude
+  /// bolt).
+  final double? altitudeErrorArcsec;
 
   /// Acceptance threshold in arcseconds. The inner highlighted ring is
   /// drawn at this radius; once the marker is inside it, alignment is
@@ -60,99 +158,121 @@ class AllSkyTargetReticle extends StatelessWidget {
         ? outerScaleArcsec
         : math.max(acceptanceThresholdArcsec * 4.0, 60.0);
 
-    final totalError = math.sqrt(
-      azimuthErrorArcsec * azimuthErrorArcsec +
-          altitudeErrorArcsec * altitudeErrorArcsec,
+    final az = azimuthErrorArcsec;
+    final alt = altitudeErrorArcsec;
+    final measured = az != null && alt != null;
+    final totalError = measured ? math.sqrt(az * az + alt * alt) : null;
+    final withinThreshold =
+        totalError != null && totalError <= acceptanceThresholdArcsec;
+
+    // The numeric caption lives BELOW the reticle box, never inside it. Drawn
+    // inside, it landed in the same ~30px band as the bottom compass label and
+    // as an altitude-dominated marker clamped to the bottom of the rim — three
+    // elements stacked on each other with no guard.
+    final caption = Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            totalError == null ? '—' : formatPolarError(totalError),
+            style: TextStyle(
+              fontSize: NightshadeTypography.fontSize22,
+              fontWeight: FontWeight.w700,
+              color: withinThreshold ? colors.success : colors.textPrimary,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+            textAlign: TextAlign.center,
+          ),
+          Text(
+            !measured
+                ? 'Not measured'
+                : withinThreshold
+                    ? 'Within acceptance — hold steady'
+                    : 'Az ${_formatSigned(az)}   '
+                        'Alt ${_formatSigned(alt)}',
+            style: TextStyle(
+              fontSize: NightshadeTypography.fontSize11,
+              color: colors.textMuted,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
-    final withinThreshold = totalError <= acceptanceThresholdArcsec;
 
     return SizedBox(
       width: size,
-      height: size,
-      child: Stack(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          CustomPaint(
-            size: Size(size, size),
-            painter: _ReticlePainter(
-              azimuthErrorArcsec: azimuthErrorArcsec,
-              altitudeErrorArcsec: altitudeErrorArcsec,
-              acceptanceThresholdArcsec: acceptanceThresholdArcsec,
-              outerScaleArcsec: outer,
-              waitingForFirstFrame: waitingForFirstFrame,
-              colors: colors,
+          // Flexible + AspectRatio, not a fixed square: this panel is squeezed
+          // to ~160px on a short viewport, and the reticle has to give way
+          // there rather than push the numbers off the bottom.
+          Flexible(
+            child: AspectRatio(
+              aspectRatio: 1,
+              child: Stack(
+                children: [
+                  CustomPaint(
+                    key: allSkyReticleCanvasKey,
+                    size: Size(size, size),
+                    painter: _ReticlePainter(
+                      azimuthErrorArcsec: azimuthErrorArcsec,
+                      altitudeErrorArcsec: altitudeErrorArcsec,
+                      acceptanceThresholdArcsec: acceptanceThresholdArcsec,
+                      outerScaleArcsec: outer,
+                      waitingForFirstFrame: waitingForFirstFrame,
+                      colors: colors,
+                    ),
+                  ),
+                  if (waitingForFirstFrame)
+                    Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 36,
+                            height: 36,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: colors.primary,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Waiting for first plate solve...',
+                            style: TextStyle(
+                              fontSize: NightshadeTypography.fontSize13,
+                              color: colors.textMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
-          if (!waitingForFirstFrame)
-            Positioned(
-              bottom: 8,
-              left: 0,
-              right: 0,
-              child: Column(
-                children: [
-                  Text(
-                    '${totalError.toStringAsFixed(1)}″',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize22,
-                      fontWeight: FontWeight.w700,
-                      color:
-                          withinThreshold ? colors.success : colors.textPrimary,
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  Text(
-                    withinThreshold
-                        ? 'Within acceptance — hold steady'
-                        : 'Az ${_formatSigned(azimuthErrorArcsec)}″   '
-                            'Alt ${_formatSigned(altitudeErrorArcsec)}″',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: colors.textMuted,
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-          if (waitingForFirstFrame)
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: 36,
-                    height: 36,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      color: colors.primary,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Waiting for first plate solve...',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize13,
-                      color: colors.textMuted,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          if (!waitingForFirstFrame) caption,
         ],
       ),
     );
   }
 
+  /// Explicit-sign az/alt caption. The magnitude goes through
+  /// [formatPolarError] so a 3-degree residual reads "3° 20' 15\"" rather than
+  /// the 12005.0 the raw arcsecond count would print.
   static String _formatSigned(double value) {
     final sign = value >= 0 ? '+' : '−';
-    return '$sign${value.abs().toStringAsFixed(1)}';
+    return '$sign${formatPolarError(value.abs())}';
   }
 }
 
 class _ReticlePainter extends CustomPainter {
-  final double azimuthErrorArcsec;
-  final double altitudeErrorArcsec;
+  final double? azimuthErrorArcsec;
+  final double? altitudeErrorArcsec;
   final double acceptanceThresholdArcsec;
   final double outerScaleArcsec;
   final bool waitingForFirstFrame;
@@ -170,7 +290,7 @@ class _ReticlePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final maxRadius = (math.min(size.width, size.height) / 2) - 16;
+    final maxRadius = allSkyReticleRadius(size);
     final acceptanceRadius =
         maxRadius * (acceptanceThresholdArcsec / outerScaleArcsec);
 
@@ -213,7 +333,12 @@ class _ReticlePainter extends CustomPainter {
     _drawCardinal(canvas, center, maxRadius, 'E', Alignment.centerRight);
     _drawCardinal(canvas, center, maxRadius, 'W', Alignment.centerLeft);
 
-    if (waitingForFirstFrame) {
+    // No marker without a measurement: a dot on the bullseye is a claim of
+    // perfect alignment, and drawing one from a null-coalesced 0 is how the
+    // idle screen used to assert it.
+    final az = azimuthErrorArcsec;
+    final alt = altitudeErrorArcsec;
+    if (waitingForFirstFrame || az == null || alt == null) {
       return;
     }
 
@@ -237,8 +362,8 @@ class _ReticlePainter extends CustomPainter {
         ? outerScaleArcsec
         : 1.0;
     final safeRadius = maxRadius.isFinite && maxRadius > 0 ? maxRadius : 0.0;
-    final dx = (azimuthErrorArcsec / safeScale) * safeRadius;
-    final dy = -(altitudeErrorArcsec / safeScale) * safeRadius;
+    final dx = (az / safeScale) * safeRadius;
+    final dy = -(alt / safeScale) * safeRadius;
 
     // Clamp the marker to the rim so off-scale errors are still visible.
     final magnitude = math.sqrt(dx * dx + dy * dy);
@@ -255,10 +380,7 @@ class _ReticlePainter extends CustomPainter {
 
     final markerCenter = Offset(center.dx + clampedDx, center.dy + clampedDy);
 
-    final totalError = math.sqrt(
-      azimuthErrorArcsec * azimuthErrorArcsec +
-          altitudeErrorArcsec * altitudeErrorArcsec,
-    );
+    final totalError = math.sqrt(az * az + alt * alt);
     final withinThreshold = totalError <= acceptanceThresholdArcsec;
 
     // Draw a guide arrow from the center to the marker indicating the
@@ -291,13 +413,13 @@ class _ReticlePainter extends CustomPainter {
     final markerPaint = Paint()
       ..color = withinThreshold ? colors.success : colors.error
       ..style = PaintingStyle.fill;
-    canvas.drawCircle(markerCenter, 6.0, markerPaint);
+    canvas.drawCircle(markerCenter, _markerRadius, markerPaint);
 
     final markerOutline = Paint()
       ..color = colors.background
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
-    canvas.drawCircle(markerCenter, 6.0, markerOutline);
+    canvas.drawCircle(markerCenter, _markerRadius, markerOutline);
 
     // Center bullseye
     final bullseyePaint = Paint()
@@ -313,42 +435,11 @@ class _ReticlePainter extends CustomPainter {
     String text,
     Alignment alignment,
   ) {
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: text,
-        style: TextStyle(
-          color: colors.textMuted,
-          fontSize: NightshadeTypography.fontSize10,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-
-    const padding = 4.0;
-    Offset textOffset;
-    if (alignment == Alignment.topCenter) {
-      textOffset = Offset(
-        center.dx - textPainter.width / 2,
-        center.dy - radius - textPainter.height - padding,
-      );
-    } else if (alignment == Alignment.bottomCenter) {
-      textOffset = Offset(
-        center.dx - textPainter.width / 2,
-        center.dy + radius + padding,
-      );
-    } else if (alignment == Alignment.centerRight) {
-      textOffset = Offset(
-        center.dx + radius + padding,
-        center.dy - textPainter.height / 2,
-      );
-    } else {
-      textOffset = Offset(
-        center.dx - radius - textPainter.width - padding,
-        center.dy - textPainter.height / 2,
-      );
-    }
-    textPainter.paint(canvas, textOffset);
+    final textPainter = _layOutCardinal(text, colors.textMuted);
+    textPainter.paint(
+      canvas,
+      _cardinalOffset(center, radius, textPainter.size, alignment),
+    );
   }
 
   @override

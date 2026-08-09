@@ -866,28 +866,65 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
     );
   }
 
+  /// The night the subs were acquired: the imaging session's start time when
+  /// the result is attached to one. Falls back to null so the service uses the
+  /// run's own timestamp — restacking last month's data would otherwise stamp
+  /// the CSV with today.
+  ///
+  /// Awaits the session list rather than reading it synchronously: nothing on
+  /// this screen watches [allSessionsProvider], so at the moment the export
+  /// button is tapped the stream has not emitted and `.valueOrNull` is null —
+  /// which silently produced exactly the today-stamped CSV this exists to
+  /// prevent. The timeout keeps a stalled remote session poll from hanging the
+  /// export; the run timestamp is then the honest fallback.
+  Future<DateTime?> _acquisitionDate(StackAndShareResult result) async {
+    final sessionId = result.sessionId;
+    if (sessionId == null) return null;
+    final sessions = await ref.read(allSessionsProvider.future).timeout(
+          const Duration(seconds: 5),
+          onTimeout: () => const <ImagingSession>[],
+        );
+    for (final session in sessions) {
+      if (session.id == sessionId) return session.startTime;
+    }
+    return null;
+  }
+
   Future<void> _exportAstroBin(StackAndShareResult result) async {
     final picker = ref.read(stackResultSavePickerProvider);
     final share = ref.read(stackResultShareProvider);
     final service = ref.read(stackShareExportServiceProvider);
 
+    // CSV first: it is the format AstroBin's acquisition importer reads, so the
+    // button does what its name promises with one file. The picker still allows
+    // .md / .json for anyone who wants the copy-paste block or the payload, and
+    // the service honours whichever extension comes back.
     final outputPath = await picker(
       dialogTitle: 'Export AstroBin acquisition details',
-      fileName: _suggestedFileName(result, 'md'),
-      allowedExtensions: ['md'],
+      fileName: _suggestedFileName(result, 'csv'),
+      allowedExtensions: ['csv', 'md', 'json'],
     );
     if (outputPath == null) return;
     if (!mounted) return;
 
     setState(() => _exporting = true);
     try {
-      final meta = service.buildAstroBinMetadata(result: result);
-      final markdownPath = await service.exportAstroBinSidecar(
+      // Awaited, not handed over as a Future: `acquisitionDate` is a
+      // `DateTime?`, so passing the un-awaited future does not compile at all —
+      // and the shape it would have taken if it did (a truthy non-null Future)
+      // is exactly the silent today-stamped CSV this lookup exists to prevent.
+      final acquisitionDate = await _acquisitionDate(result);
+      if (!mounted) return;
+      final meta = service.buildAstroBinMetadata(
+        result: result,
+        acquisitionDate: acquisitionDate,
+      );
+      final exportedPath = await service.exportAstroBinAcquisition(
         meta: meta,
         outputPath: outputPath,
       );
       await share(
-        markdownPath,
+        exportedPath,
         text: 'AstroBin acquisition details: ${result.targetName ?? ''}',
       );
       if (!mounted) return;

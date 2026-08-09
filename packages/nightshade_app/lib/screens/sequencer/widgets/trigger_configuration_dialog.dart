@@ -212,8 +212,18 @@ class ExposureTriggerConfig {
 class TriggerConfigurationDialog extends ConsumerStatefulWidget {
   final List<ExposureTriggerConfig> initialTriggers;
 
+  /// Which nodes the saved triggers will be written to, e.g. "Applies to all
+  /// 3 exposure nodes in this sequence".
+  ///
+  /// Triggers are stored ON exposure nodes, not on the sequence, so a dialog
+  /// that names no owner let the user believe a safety trigger had been
+  /// attached to whatever they had selected. The caller resolves the owners
+  /// and states them here.
+  final String? appliesTo;
+
   const TriggerConfigurationDialog({
     this.initialTriggers = const [],
+    this.appliesTo,
     super.key,
   });
 
@@ -305,44 +315,71 @@ class _TriggerConfigurationDialogState
           ),
         ),
       ],
-      child: _triggers.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (widget.appliesTo != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+              color: colors.surfaceAlt,
+              child: Row(
                 children: [
-                  Icon(
-                    NightshadeIcons.notificationsOff,
-                    size: 64,
-                    color: colors.textSecondary.withValues(alpha: 0.3),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No triggers configured',
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      color: colors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Add a trigger to automatically respond to conditions',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colors.textSecondary,
+                  Icon(NightshadeIcons.info, size: 16, color: colors.textMuted),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      widget.appliesTo!,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: colors.textSecondary),
                     ),
                   ),
                 ],
               ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(24),
-              // ListTile w/ subtitle (~72) + 12 bottom margin = 84.
-              itemExtent: 84,
-              itemCount: _triggers.length,
-              itemBuilder: (context, index) {
-                final trigger = _triggers[index];
-                return _buildTriggerCard(trigger, index, colors, theme);
-              },
             ),
+          Expanded(child: _buildBody(colors, theme)),
+        ],
+      ),
     );
+  }
+
+  Widget _buildBody(NightshadeColors colors, ThemeData theme) {
+    return _triggers.isEmpty
+        ? Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  NightshadeIcons.notificationsOff,
+                  size: 64,
+                  color: colors.textSecondary.withValues(alpha: 0.3),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'No triggers configured',
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: colors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Add a trigger to automatically respond to conditions',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          )
+        : ListView.builder(
+            padding: const EdgeInsets.all(24),
+            // ListTile w/ subtitle (~72) + 12 bottom margin = 84.
+            itemExtent: 84,
+            itemCount: _triggers.length,
+            itemBuilder: (context, index) {
+              final trigger = _triggers[index];
+              return _buildTriggerCard(trigger, index, colors, theme);
+            },
+          );
   }
 
   Widget _buildTriggerCard(

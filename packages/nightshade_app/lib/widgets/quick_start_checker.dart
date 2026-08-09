@@ -265,11 +265,19 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
         );
       }
 
+      // What was genuinely re-applied, in the operator's words. A session row
+      // that carries no profile id, no sequence id and no equipment snapshot
+      // gives this handler nothing to do, and the old unconditional success
+      // snackbar reported "Loaded previous setup ... from frame 1" over a
+      // no-op. Report what actually happened instead.
+      final restored = <String>[];
+
       // Load the equipment profile
       if (context.profileId != null) {
         final profilesNotifier = ref.read(equipmentProfilesProvider.notifier);
         await profilesNotifier.setActiveProfile(context.profileId!);
         if (!_isCurrentAuthority(authority)) return;
+        restored.add('equipment profile');
         logger.info('Activated profile ${context.profileId}',
             source: 'QuickStart');
       }
@@ -284,6 +292,7 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
           ref
               .read(currentSequenceProvider.notifier)
               .loadSequence(sequence, discardUnsaved: true);
+          restored.add('sequence');
           logger.info(
             'Loaded sequence ${context.sequenceId}, reset to frame 1',
             source: 'QuickStart',
@@ -292,25 +301,48 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
       }
 
       // Apply equipment settings from snapshot
-      final failures = await _applyEquipmentSnapshot(
+      final snapshotResult = await _applyEquipmentSnapshot(
         context.equipmentSnapshot,
         authority,
       );
       if (!_isCurrentAuthority(authority)) return;
+      restored.addAll(snapshotResult.applied);
+      final failures = snapshotResult.failures;
+
+      if (restored.isEmpty) {
+        logger.warning(
+          'Load Previous Setup had nothing to restore for session '
+          '${context.sessionId}: no profile id, no sequence id and no usable '
+          'equipment snapshot were recorded',
+          source: 'QuickStart',
+        );
+      }
 
       final uiContext = _uiContext;
       if (mounted && uiContext != null && uiContext.mounted) {
         final colors = NightshadeColors.of(uiContext);
-        final base =
-            'Loaded previous setup for ${context.targetName ?? "previous target"} from frame 1';
+        final target = context.targetName ?? 'previous target';
+        final String message;
+        final Color background;
+        if (restored.isEmpty && failures.isEmpty) {
+          message = 'Nothing to load: that session recorded no equipment '
+              'profile, no sequence and no camera settings.';
+          background = colors.warning;
+        } else {
+          final base = restored.isEmpty
+              ? 'Could not load the previous setup for $target'
+              : 'Loaded ${restored.join(', ')} for $target from frame 1';
+          message = failures.isEmpty
+              ? base
+              : '$base, but could not restore: ${failures.join(', ')}';
+          background = failures.isEmpty && restored.isNotEmpty
+              ? colors.success
+              : colors.warning;
+        }
         ScaffoldMessenger.of(uiContext).showSnackBar(
           SnackBar(
-            content: Text(
-              failures.isEmpty
-                  ? base
-                  : '$base, but could not restore: ${failures.join(', ')}',
-            ),
-            backgroundColor: failures.isEmpty ? colors.success : colors.warning,
+            content: Text(message),
+            backgroundColor: background,
           ),
         );
       }
@@ -406,28 +438,31 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
     }
   }
 
-  /// Applies the snapshot best-effort and returns the human-readable names of
-  /// any device restores that failed (so callers can warn instead of claiming
-  /// success).
-  Future<List<String>> _applyEquipmentSnapshot(
+  /// Applies the snapshot best-effort and reports both what was restored and
+  /// what failed, so callers can describe the outcome instead of asserting one.
+  Future<_SnapshotRestore> _applyEquipmentSnapshot(
     EquipmentSnapshot? snapshot,
     NightshadeBackend authority,
   ) async {
     final logger = ref.read(loggingServiceProvider);
     if (snapshot == null || !snapshot.hasEquipmentData) {
       logger.info('No equipment snapshot to apply', source: 'QuickStart');
-      return const <String>[];
+      return const _SnapshotRestore();
     }
 
     logger.info('Applying equipment snapshot...', source: 'QuickStart');
 
+    final applied = <String>[];
     final failures = <String>[];
-    if (!_isCurrentAuthority(authority)) return failures;
+    if (!_isCurrentAuthority(authority)) {
+      return _SnapshotRestore(applied: applied, failures: failures);
+    }
 
     // Apply camera settings
     final cameraNotifier = ref.read(cameraStateProvider.notifier);
     if (snapshot.coolerTargetTemp != null) {
       cameraNotifier.setTargetTemp(snapshot.coolerTargetTemp!);
+      applied.add('cooler setpoint');
       logger.info(
         'Set cooler target temp to ${snapshot.coolerTargetTemp}',
         source: 'QuickStart',
@@ -438,11 +473,13 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
     // profile sync does not overwrite the restored values on the next build.
     if (snapshot.cameraGain != null || snapshot.cameraOffset != null) {
       final exposure = ref.read(exposureSettingsProvider);
-      ref.read(exposureSettingsProvider.notifier).state = exposure.copyWith(
-        gain: snapshot.cameraGain ?? exposure.gain,
-        offset: snapshot.cameraOffset ?? exposure.offset,
-      );
-      ref.read(exposureSettingsUserDirtyProvider.notifier).state = true;
+      ref.read(manualExposureSettingsUpdaterProvider).update(
+            exposure.copyWith(
+              gain: snapshot.cameraGain ?? exposure.gain,
+              offset: snapshot.cameraOffset ?? exposure.offset,
+            ),
+          );
+      applied.add('gain/offset');
       logger.info(
         'Restored gain ${snapshot.cameraGain} / offset ${snapshot.cameraOffset}',
         source: 'QuickStart',
@@ -451,12 +488,15 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
 
     // Apply filter position
     if (snapshot.filterPosition != null) {
-      if (!_isCurrentAuthority(authority)) return failures;
+      if (!_isCurrentAuthority(authority)) {
+        return _SnapshotRestore(applied: applied, failures: failures);
+      }
       final filterWheelState = ref.read(filterWheelStateProvider);
       if (filterWheelState.connectionState == DeviceConnectionState.connected) {
         final deviceService = ref.read(deviceServiceProvider);
         try {
           await deviceService.setFilterWheelPosition(snapshot.filterPosition!);
+          applied.add('filter position');
           logger.info(
             'Moved filter wheel to position ${snapshot.filterPosition}',
             source: 'QuickStart',
@@ -479,12 +519,15 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
 
     // Apply focus position
     if (snapshot.focuserPosition != null) {
-      if (!_isCurrentAuthority(authority)) return failures;
+      if (!_isCurrentAuthority(authority)) {
+        return _SnapshotRestore(applied: applied, failures: failures);
+      }
       final focuserState = ref.read(focuserStateProvider);
       if (focuserState.connectionState == DeviceConnectionState.connected) {
         final deviceService = ref.read(deviceServiceProvider);
         try {
           await deviceService.moveFocuserTo(snapshot.focuserPosition!);
+          applied.add('focuser position');
           logger.info(
             'Moved focuser to position ${snapshot.focuserPosition}',
             source: 'QuickStart',
@@ -504,11 +547,24 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
       }
     }
 
-    return failures;
+    return _SnapshotRestore(applied: applied, failures: failures);
   }
 
   @override
   Widget build(BuildContext context) {
     return widget.child;
   }
+}
+
+/// Outcome of applying an [EquipmentSnapshot]: what was restored, and what was
+/// attempted and failed. Both are needed — reporting only failures made an
+/// empty snapshot indistinguishable from a fully successful restore.
+class _SnapshotRestore {
+  final List<String> applied;
+  final List<String> failures;
+
+  const _SnapshotRestore({
+    this.applied = const <String>[],
+    this.failures = const <String>[],
+  });
 }

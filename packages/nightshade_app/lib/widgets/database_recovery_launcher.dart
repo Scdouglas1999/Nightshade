@@ -162,7 +162,7 @@ class _DatabaseRecoveryLauncherState
       if (!mounted) return false;
       final uiContext = resolveStartupUiContext(ref, context);
       if (uiContext == null || !uiContext.mounted) return false;
-      final canRestore = check?.canRestore ?? false;
+      final canRestore = check?.canRestore == true;
       await showDialog<void>(
         context: uiContext,
         barrierDismissible: false,

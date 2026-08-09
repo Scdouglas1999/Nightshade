@@ -148,12 +148,20 @@ extension _PlanetariumShell on _PlanetariumScreenState {
                       ),
                     ),
 
-                  // --- Star catalog fallback warning ---
+                  // --- Star catalog fallback warning + depth notice ---
+                  // Mutually exclusive by construction (the depth notice stands
+                  // down while the fallback is up), so they share one slot.
                   Positioned(
                     top: 12,
                     left: 12,
                     width: _fallbackBannerWidth(constraints.maxWidth),
-                    child: const StarCatalogFallbackBanner(),
+                    child: const Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        StarCatalogFallbackBanner(),
+                        StarChartDepthNotice(),
+                      ],
+                    ),
                   ),
 
                   // --- Sky-survey imagery credit ---
@@ -371,6 +379,7 @@ extension _PlanetariumShell on _PlanetariumScreenState {
         SearchHeader(
           colors: colors,
           controller: _searchController,
+          focusNode: _searchFocusNode,
           onSearch: (query) {
             ref.read(objectSearchProvider.notifier).search(query);
           },
@@ -378,26 +387,31 @@ extension _PlanetariumShell on _PlanetariumScreenState {
         Expanded(
           child: DefaultTabController(
             length: 5,
-            child: Column(
-              children: [
-                SidebarTabs(colors: colors),
-                Expanded(
-                  child: TabBarView(
-                    children: [
-                      TonightTab(colors: colors),
-                      CatalogTab(colors: colors),
-                      ListsTab(colors: colors),
-                      SearchResultsTab(colors: colors),
-                      Consumer(
-                        builder: (context, ref, _) => InfoTab(
-                          colors: colors,
-                          selectedObject: ref.watch(selectedObjectProvider),
+            child: _SearchCommandTarget(
+              token: _searchFocusToken,
+              tabIndex: _searchTabIndex,
+              focusNode: _searchFocusNode,
+              child: Column(
+                children: [
+                  SidebarTabs(colors: colors),
+                  Expanded(
+                    child: TabBarView(
+                      children: [
+                        TonightTab(colors: colors),
+                        CatalogTab(colors: colors),
+                        ListsTab(colors: colors),
+                        SearchResultsTab(colors: colors),
+                        Consumer(
+                          builder: (context, ref, _) => InfoTab(
+                            colors: colors,
+                            selectedObject: ref.watch(selectedObjectProvider),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -434,6 +448,13 @@ extension _PlanetariumShell on _PlanetariumScreenState {
     });
   }
 
+  /// Command-bar "Search ⌘K" (and the Ctrl/Cmd+K shortcut).
+  ///
+  /// On desktop this used to only open the panel — on whatever tab it was last
+  /// left on — and stop, so the caret was never in the field and the keystrokes
+  /// that followed the shortcut went nowhere. Bumping [_searchFocusToken] is
+  /// what makes the panel select the Search tab and focus the field; the phone
+  /// sheet already autofocuses its own field.
   void _openPlanPanelOnSearch(
       {required bool isPhone, required NightshadeColors colors}) {
     if (isPhone) {
@@ -443,6 +464,7 @@ extension _PlanetariumShell on _PlanetariumScreenState {
     _update(() {
       _planPanelOpen = true;
       _layersPanelOpen = false;
+      _searchFocusToken++;
     });
   }
 
@@ -482,6 +504,65 @@ extension _PlanetariumShell on _PlanetariumScreenState {
 }
 
 enum _ShellPanel { layers, plan }
+
+/// Index of the Search tab inside the plan panel's five-tab controller
+/// (Tonight, Catalog, Lists, Search, Info).
+const int _searchTabIndex = 3;
+
+/// Turns a Search command into what the user asked for: the Search tab
+/// selected and the caret in the search field.
+///
+/// Must sit INSIDE the panel's [DefaultTabController] — that is the only place
+/// the tab controller can be reached — while the field it focuses lives above
+/// it in the panel, hence the shared [focusNode] rather than a callback.
+class _SearchCommandTarget extends StatefulWidget {
+  const _SearchCommandTarget({
+    required this.token,
+    required this.tabIndex,
+    required this.focusNode,
+    required this.child,
+  });
+
+  /// Monotonic counter; every change is one Search command.
+  final int token;
+  final int tabIndex;
+  final FocusNode focusNode;
+  final Widget child;
+
+  @override
+  State<_SearchCommandTarget> createState() => _SearchCommandTargetState();
+}
+
+class _SearchCommandTargetState extends State<_SearchCommandTarget> {
+  @override
+  void initState() {
+    super.initState();
+    // Token 0 is "the panel was opened some other way" — do not steal focus.
+    if (widget.token > 0) _apply();
+  }
+
+  @override
+  void didUpdateWidget(_SearchCommandTarget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.token != oldWidget.token) _apply();
+  }
+
+  void _apply() {
+    // Deferred: on the frame the panel first mounts, the TabController and the
+    // field's render object do not exist yet.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final controller = DefaultTabController.maybeOf(context);
+      if (controller != null && controller.index != widget.tabIndex) {
+        controller.animateTo(widget.tabIndex);
+      }
+      widget.focusNode.requestFocus();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
 
 /// Right-docked panel container with an animated entrance.
 class _DockedPanel extends StatelessWidget {

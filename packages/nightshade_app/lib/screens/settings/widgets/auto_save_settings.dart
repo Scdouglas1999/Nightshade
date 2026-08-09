@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -28,51 +26,38 @@ class AutoSaveSettings extends ConsumerStatefulWidget {
 }
 
 class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
-  late TextEditingController _sequenceIntervalController;
-  late TextEditingController _backupIntervalController;
-  late TextEditingController _maxBackupsController;
-  StreamSubscription<AutoSaveStatus>? _statusSubscription;
-  AutoSaveStatus _currentStatus = const AutoSaveStatus();
+  // Left empty on purpose: the hydrated config is handed to each
+  // [SettingsNumberInput] as its `authoritativeValue`, and the input seeds and
+  // re-seeds the controller from that. Pre-filling here from the un-hydrated
+  // service is what put the compiled-in defaults on screen.
+  final _sequenceIntervalController = TextEditingController();
+  final _backupIntervalController = TextEditingController();
+  final _maxBackupsController = TextEditingController();
   bool _isSavingNow = false;
-
-  @override
-  void initState() {
-    super.initState();
-    final isRemoteMode = ref.read(isRemoteModeProvider);
-    final service = isRemoteMode ? null : ref.read(autoSaveServiceProvider);
-    final config = service?.config ?? const AutoSaveConfig();
-    _currentStatus = service?.status ?? const AutoSaveStatus();
-
-    _sequenceIntervalController = TextEditingController(
-      text: config.sequenceInterval.inMinutes.toString(),
-    );
-    _backupIntervalController =
-        TextEditingController(text: config.backupInterval.inHours.toString());
-    _maxBackupsController =
-        TextEditingController(text: config.maxBackups.toString());
-
-    _statusSubscription = service?.statusStream.listen((status) {
-      if (mounted) setState(() => _currentStatus = status);
-    });
-  }
 
   @override
   void dispose() {
     _sequenceIntervalController.dispose();
     _backupIntervalController.dispose();
     _maxBackupsController.dispose();
-    _statusSubscription?.cancel();
     super.dispose();
   }
 
-  Future<void> _updateConfig({
+  Future<void> _updateConfig(
+    AutoSaveService service, {
     Duration? sequenceInterval,
     bool? sequenceEnabled,
     Duration? backupInterval,
     bool? backupEnabled,
     int? maxBackups,
   }) async {
-    final service = ref.read(autoSaveServiceProvider);
+    // [service] is the instance `autoSaveLifecycleProvider` hydrated, so
+    // `config` here is what is on disk. Taking it from the raw
+    // `autoSaveServiceProvider` instead meant copyWith started from the
+    // compiled-in defaults, and `_persistAutoSaveConfig` — which rewrites all
+    // five `autosave.*` keys — then wrote those defaults over the operator's
+    // saved values: changing the backup interval silently turned sequence
+    // auto-save back off and reset the retention count.
     final newConfig = service.config.copyWith(
       sequenceInterval: sequenceInterval,
       sequenceEnabled: sequenceEnabled,
@@ -102,10 +87,9 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
     }
   }
 
-  Future<void> _saveNow() async {
+  Future<void> _saveNow(AutoSaveService service) async {
     setState(() => _isSavingNow = true);
     try {
-      final service = ref.read(autoSaveServiceProvider);
       final result = await service.backupNow();
       if (!result.success) {
         throw StateError(result.errorMessage ?? 'Backup failed');
@@ -144,7 +128,6 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = NightshadeColors.of(context);
     final isMobile = widget.isMobile;
     final isRemoteMode = ref.watch(isRemoteModeProvider);
 
@@ -176,8 +159,38 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
       );
     }
 
-    final service = ref.watch(autoSaveServiceProvider);
+    // Depend on the LIFECYCLE provider, not the raw service. Only the
+    // lifecycle provider loads the persisted `autosave.*` keys and calls
+    // `start(config, lastBackup)`; the raw `autoSaveServiceProvider` hands back
+    // whatever instance the last backend swap built, whose config is the
+    // compiled-in defaults and whose status says the machine has never been
+    // backed up. Rendering that instance is what made this page contradict
+    // Settings > Backup & Restore on the same second.
+    return ref.watch(autoSaveLifecycleProvider).when(
+          loading: () => SettingsLoadingState(
+            isMobile: isMobile,
+            scrollable: !widget.embedded,
+          ),
+          error: (error, stackTrace) => SettingsErrorState(
+            isMobile: isMobile,
+            error: error,
+            onRetry: () => ref.invalidate(autoSaveLifecycleProvider),
+          ),
+          data: (service) => _buildConfigured(context, service),
+        );
+  }
+
+  Widget _buildConfigured(BuildContext context, AutoSaveService service) {
+    final colors = NightshadeColors.of(context);
+    final isMobile = widget.isMobile;
     final config = service.config;
+    // `autoSaveStatusProvider` backfills `lastBackup` from the persisted
+    // `autosave.last_backup_at` whenever the live instance does not know it —
+    // the same source Backup & Restore reads, so the two surfaces cannot
+    // disagree. Until its first event arrives, the hydrated service's own
+    // status is already truthful.
+    final status =
+        ref.watch(autoSaveStatusProvider).valueOrNull ?? service.status;
 
     return SettingsPage(
       title: 'Automatic Backups',
@@ -196,7 +209,8 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
               subtitle: 'Persist local sequence edits in the background',
               trailing: SettingsSwitch(
                 value: config.sequenceEnabled,
-                onChanged: (value) => _updateConfig(sequenceEnabled: value),
+                onChanged: (value) =>
+                    _updateConfig(service, sequenceEnabled: value),
               ),
               isMobile: isMobile,
             ),
@@ -206,11 +220,19 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
               subtitle: 'How often to save pending sequence edits',
               trailing: SettingsNumberInput(
                 controller: _sequenceIntervalController,
+                // The persisted config is the authority for these fields; the
+                // input seeds itself from it and re-seeds when the service
+                // instance changes, so the box can never show a default the
+                // host is not actually running.
+                authoritativeValue:
+                    config.sequenceInterval.inMinutes.toDouble(),
+                authorityKey: service,
                 suffix: 'min',
                 min: 1,
                 max: 60,
                 decimals: 0,
                 onChanged: (value) => _updateConfig(
+                  service,
                   sequenceInterval: Duration(minutes: value.round()),
                 ),
                 isMobile: isMobile,
@@ -232,7 +254,8 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
               subtitle: 'Periodically create full database backups',
               trailing: SettingsSwitch(
                 value: config.backupEnabled,
-                onChanged: (value) => _updateConfig(backupEnabled: value),
+                onChanged: (value) =>
+                    _updateConfig(service, backupEnabled: value),
               ),
               isMobile: isMobile,
             ),
@@ -242,11 +265,14 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
               subtitle: 'How often to create backups (hours)',
               trailing: SettingsNumberInput(
                 controller: _backupIntervalController,
+                authoritativeValue: config.backupInterval.inHours.toDouble(),
+                authorityKey: service,
                 suffix: 'hrs',
                 min: 1,
                 max: 168,
                 decimals: 0,
                 onChanged: (value) => _updateConfig(
+                  service,
                   backupInterval: Duration(hours: value.round()),
                 ),
                 isMobile: isMobile,
@@ -259,11 +285,14 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
               subtitle: 'Number of auto-save backups to retain',
               trailing: SettingsNumberInput(
                 controller: _maxBackupsController,
+                authoritativeValue: config.maxBackups.toDouble(),
+                authorityKey: service,
                 suffix: '',
                 min: 1,
                 max: 50,
                 decimals: 0,
                 onChanged: (value) => _updateConfig(
+                  service,
                   maxBackups: value.round(),
                 ),
                 isMobile: isMobile,
@@ -282,8 +311,8 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
             SettingRow(
               icon: LucideIcons.checkCircle,
               title: 'Last backup',
-              subtitle: _formatDateTime(_currentStatus.lastBackup),
-              trailing: _currentStatus.isBackingUp
+              subtitle: _formatDateTime(status.lastBackup),
+              trailing: status.isBackingUp
                   ? SizedBox(
                       width: 18,
                       height: 18,
@@ -294,7 +323,7 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
                     )
                   : Text(
                       _formatNextSave(
-                        _currentStatus.lastBackup,
+                        status.lastBackup,
                         config.backupInterval,
                       ),
                       style: TextStyle(
@@ -304,12 +333,12 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
                     ),
               isMobile: isMobile,
             ),
-            if (_currentStatus.lastError != null)
+            if (status.lastError != null)
               SettingRow(
                 icon: LucideIcons.alertTriangle,
                 iconColor: colors.error,
                 title: 'Last error',
-                subtitle: _currentStatus.lastError,
+                subtitle: status.lastError,
                 trailing: const SizedBox.shrink(),
                 isMobile: isMobile,
               ),
@@ -326,7 +355,7 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
                     icon: LucideIcons.save,
                     size: isMobile ? ButtonSize.small : ButtonSize.medium,
                     isLoading: _isSavingNow,
-                    onPressed: _isSavingNow ? null : _saveNow,
+                    onPressed: _isSavingNow ? null : () => _saveNow(service),
                   ),
                   const SizedBox(width: 12),
                   Text(

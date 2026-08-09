@@ -23,6 +23,16 @@ class LombScargleResult {
   /// Lower FAP = more significant detection.
   final double falseAlarmProbability;
 
+  /// Time span of the observations, in the same units as the input times.
+  final double timeBaseline;
+
+  /// The period range actually searched. The requested range is clamped to
+  /// what the data can support (no period longer than the baseline, none
+  /// shorter than twice the sampling interval), so this can be far narrower
+  /// than what the caller asked for.
+  final double searchedMinPeriod;
+  final double searchedMaxPeriod;
+
   const LombScargleResult({
     required this.frequencies,
     required this.powers,
@@ -30,7 +40,24 @@ class LombScargleResult {
     required this.bestPeriod,
     required this.peakPower,
     required this.falseAlarmProbability,
+    required this.timeBaseline,
+    required this.searchedMinPeriod,
+    required this.searchedMaxPeriod,
   });
+
+  /// How many full cycles of [bestPeriod] the observations actually cover.
+  double get observedCycles => bestPeriod > 0 ? timeBaseline / bestPeriod : 0.0;
+
+  /// Whether the peak is a real period measurement rather than an artefact of
+  /// running out of baseline.
+  ///
+  /// A periodogram cannot see beyond the length of the run: when the true
+  /// period exceeds the baseline the peak piles up against the low-frequency
+  /// edge of the search and the "best period" simply reports the baseline
+  /// back. Two cycles is the usual minimum for a period to be considered
+  /// measured; below that the honest statement is "the period is at least
+  /// this long", not "the period is this long".
+  bool get isPeriodConstrained => observedCycles >= 2.0;
 }
 
 /// Results from a Box Least Squares (BLS) transit search.
@@ -256,6 +283,9 @@ class PeriodAnalysisService {
         bestPeriod: maxPeriod,
         peakPower: 0.0,
         falseAlarmProbability: 1.0,
+        timeBaseline: timeBaseline,
+        searchedMinPeriod: minPeriod,
+        searchedMaxPeriod: maxPeriod,
       );
     }
 
@@ -297,7 +327,15 @@ class PeriodAnalysisService {
         sinTermDen += wi * sinPhase * sinPhase;
       }
 
-      // Normalized Lomb-Scargle power.
+      // Lomb-Scargle power under the "standard" normalization: the fraction of
+      // the weighted variance explained by the sinusoid at this frequency, so
+      // power lies in [0, 1] and is directly comparable to published values.
+      //
+      // The textbook 1/(2 sigma^2) prefactor belongs to the UNWEIGHTED form,
+      // where sum(cos^2) ~ N/2. Here the weights are normalised to sum to 1, so
+      // sum(w cos^2) ~ 1/2 already carries that factor of two; dividing by
+      // 2*variance as well halved every power, capping a perfect sinusoid at
+      // 0.5 instead of 1.0.
       var power = 0.0;
       if (cosTermDen > 1e-30) {
         power += (cosTermNum * cosTermNum) / cosTermDen;
@@ -305,7 +343,7 @@ class PeriodAnalysisService {
       if (sinTermDen > 1e-30) {
         power += (sinTermNum * sinTermNum) / sinTermDen;
       }
-      power /= (2.0 * weightedVariance);
+      power = (power / weightedVariance).clamp(0.0, 1.0);
       powers[k] = power;
 
       if (power > bestPower) {
@@ -316,13 +354,13 @@ class PeriodAnalysisService {
 
     final bestFreq = frequencies[bestIndex];
     final bestPeriod = 1.0 / bestFreq;
-
-    // False alarm probability (Baluev 2008 approximation).
-    // FAP = 1 - (1 - exp(-z))^M, where z = peak power, M = effective
-    // number of independent frequencies.
-    final m = effectiveNFreqs.toDouble();
-    final expTerm = math.exp(-bestPower);
-    final fap = 1.0 - math.pow(1.0 - expTerm, m).clamp(0.0, 1.0);
+    final fap = _falseAlarmProbability(
+      peakPower: bestPower,
+      n: n,
+      minFreq: minFreq,
+      maxFreq: maxFreq,
+      timeBaseline: timeBaseline,
+    );
 
     return LombScargleResult(
       frequencies: frequencies,
@@ -331,7 +369,72 @@ class PeriodAnalysisService {
       bestPeriod: bestPeriod,
       peakPower: bestPower,
       falseAlarmProbability: fap.clamp(0.0, 1.0),
+      timeBaseline: timeBaseline,
+      searchedMinPeriod: minPeriod,
+      searchedMaxPeriod: maxPeriod,
     );
+  }
+
+  /// False alarm probability of the periodogram peak: the chance that noise
+  /// alone would produce a peak at least this strong somewhere in the searched
+  /// band.
+  ///
+  /// Under the standard normalization the single-frequency null distribution of
+  /// the power is Beta-shaped, giving Pr(p > z) = (1 - z)^((N-3)/2) for a
+  /// floating-mean periodogram (Zechmeister & Kurster 2009, eq. 24). The band
+  /// is then corrected for the number of INDEPENDENT frequencies it contains,
+  /// which is set by the time baseline (~ baseline * bandwidth), not by how
+  /// finely the grid was oversampled.
+  ///
+  /// The previous form assumed an exponential null (Pr = exp(-z)), which holds
+  /// only for the unnormalized power. Fed a [0,1] power it returned ~1.0 for
+  /// every input, so no detection could ever clear the panel's 0.01/0.001
+  /// significance thresholds.
+  static double _falseAlarmProbability({
+    required double peakPower,
+    required int n,
+    required double minFreq,
+    required double maxFreq,
+    required double timeBaseline,
+  }) {
+    if (!peakPower.isFinite || peakPower <= 0) return 1.0;
+    if (peakPower >= 1.0) return 0.0;
+    // Below 4 points the floating-mean periodogram has no residual degrees of
+    // freedom and the tail probability is undefined.
+    if (n < 4) return 1.0;
+
+    final exponent = 0.5 * (n - 3);
+    // Pr(single frequency exceeds the peak), evaluated in log space so that
+    // strong peaks do not collapse to 0 before the band correction.
+    final logSingle = exponent * math.log(1.0 - peakPower);
+
+    // Independent frequencies in the searched band. One resolution element is
+    // 1/baseline wide; oversampling the grid does not add information.
+    final independent = ((maxFreq - minFreq) * timeBaseline)
+        .clamp(1.0, 1e12)
+        .ceilToDouble();
+
+    // fap = 1 - (1 - single)^M, kept accurate for tiny `single` by working
+    // through log1p/expm1 instead of subtracting near-equal doubles.
+    final logNotOne = independent * _log1p(-math.exp(logSingle));
+    final fap = -_expm1(logNotOne);
+    return fap.clamp(0.0, 1.0);
+  }
+
+  static double _log1p(double x) {
+    if (x <= -1.0) return double.negativeInfinity;
+    // log1p(x) loses no precision for tiny x when routed through the identity
+    // log(1+x) = x * log(1+x)/((1+x)-1).
+    final u = 1.0 + x;
+    if (u == 1.0) return x;
+    return math.log(u) * x / (u - 1.0);
+  }
+
+  static double _expm1(double x) {
+    final u = math.exp(x);
+    if (u == 1.0) return x;
+    if (u - 1.0 == -1.0) return -1.0;
+    return (u - 1.0) * x / math.log(u);
   }
 
   /// Compute Box Least Squares (BLS) transit detection.
@@ -499,19 +602,48 @@ class PeriodAnalysisService {
     }
 
     // Compute Signal Detection Efficiency (SDE).
-    // SDE = (peak_SR - mean_SR) / stddev_SR
-    var srMean = 0.0;
+    // SDE = (peak_SR - mean_SR) / stddev_SR, where mean and stddev describe the
+    // BASELINE the peak stands above.
+    //
+    // Taken over the whole spectrum, peak included, the statistic is
+    // self-defeating: a real box signal raises SR across its own neighbourhood
+    // (the peak plus the adjacent trial periods that still partly phase up),
+    // which lifts the mean and — far worse — inflates the standard deviation
+    // the peak is then divided by. The stronger and cleaner the transit, the
+    // lower its own SDE, so pure noise scored ABOVE an injected transit and no
+    // light curve could ever reach the 6.0 threshold this service documents.
+    //
+    // Standard practice is to mask the peak's neighbourhood out of the
+    // baseline. A +/-20% period window covers the trials that share the same
+    // folding; harmonics and aliases outside it are legitimate baseline (a real
+    // one raises the baseline, which correctly LOWERS the SDE).
+    const peakExclusionFraction = 0.20;
+    const minBaselineTrials = 20;
+
+    final baseline = <double>[];
     for (var i = 0; i < effectiveNTrials; i++) {
-      srMean += srSpectrum[i];
+      final relative =
+          (trialPeriods[i] - globalBestPeriod).abs() / globalBestPeriod;
+      if (relative > peakExclusionFraction) baseline.add(srSpectrum[i]);
     }
-    srMean /= effectiveNTrials;
+    // Too narrow a period range to have any off-peak trials: fall back to the
+    // full spectrum rather than inventing a baseline from nothing.
+    final baselineValues = baseline.length >= minBaselineTrials
+        ? baseline
+        : srSpectrum;
+
+    var srMean = 0.0;
+    for (final v in baselineValues) {
+      srMean += v;
+    }
+    srMean /= baselineValues.length;
 
     var srVariance = 0.0;
-    for (var i = 0; i < effectiveNTrials; i++) {
-      final diff = srSpectrum[i] - srMean;
+    for (final v in baselineValues) {
+      final diff = v - srMean;
       srVariance += diff * diff;
     }
-    srVariance /= effectiveNTrials;
+    srVariance /= baselineValues.length;
     final srStd = math.sqrt(srVariance);
 
     final peakSr = globalBestSr > 0 ? math.sqrt(globalBestSr) : 0.0;

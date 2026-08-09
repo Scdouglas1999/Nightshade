@@ -51,32 +51,55 @@ class _ConnectAllProgressStrip extends ConsumerWidget {
         color: colors.surfaceAlt,
         border: Border(bottom: BorderSide(color: colors.border)),
       ),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 6,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Text(
-              state.isSweeping ? 'Connecting…' : '${state.source} result',
-              style: NightshadeTypography.labelStrongSm
-                  .copyWith(color: colors.textSecondary),
+      child: Tooltip(
+        message: state.isSweeping
+            ? 'Connecting the profile\'s devices.'
+            : 'What the last connect attempt did. The device cards, the header '
+                'count and the status bar show what is connected NOW.',
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                _stripHeadline(state),
+                style: NightshadeTypography.labelStrongSm
+                    .copyWith(color: colors.textSecondary),
+              ),
             ),
-          ),
-          for (final event in entries)
-            _ConnectAllProgressChip(event: event, colors: colors),
-          if (!state.isSweeping)
-            NightshadeButton(
-              label: 'Clear',
-              size: ButtonSize.small,
-              variant: ButtonVariant.ghost,
-              onPressed: () =>
-                  ref.read(deviceConnectionProgressProvider.notifier).clear(),
-            ),
-        ],
+            for (final event in entries)
+              _ConnectAllProgressChip(event: event, colors: colors),
+            if (!state.isSweeping)
+              NightshadeButton(
+                label: 'Clear',
+                size: ButtonSize.small,
+                variant: ButtonVariant.ghost,
+                onPressed: () =>
+                    ref.read(deviceConnectionProgressProvider.notifier).clear(),
+              ),
+          ],
+        ),
       ),
     );
+  }
+
+  /// Dates and scores the finished sweep.
+  ///
+  /// The strip is a RECORD — it survives until the operator clears it, so after
+  /// a Disconnect All it sat undated next to a live "No devices connected"
+  /// empty state still reading `${source} result` with four green `Connected`
+  /// chips. A time and a score make it unmistakably the past.
+  static String _stripHeadline(DeviceConnectionProgressState state) {
+    if (state.isSweeping) return 'Connecting…';
+    final scored =
+        '${state.connectedCount} of ${state.byDeviceType.length} succeeded';
+    final at = state.finishedAt;
+    if (at == null) return '${state.source}: $scored';
+    final hh = at.hour.toString().padLeft(2, '0');
+    final mm = at.minute.toString().padLeft(2, '0');
+    return '${state.source} at $hh:$mm: $scored';
   }
 }
 
@@ -143,13 +166,18 @@ class _ConnectAllProgressChip extends StatelessWidget {
     return chip;
   }
 
+  /// Outcome words, not state words. `Connected` is what the device cards and
+  /// the status bar say about NOW; a chip that outlives the sweep saying the
+  /// same thing was read as live state and contradicted them after a
+  /// disconnect. `Succeeded` / `Failed` can only be read as what the attempt
+  /// did.
   static (IconData, Color, String) _statusVisuals(
       DeviceConnectProgressStatus status, NightshadeColors colors) {
     switch (status) {
       case DeviceConnectProgressStatus.connecting:
         return (LucideIcons.loader, colors.warning, 'Connecting');
       case DeviceConnectProgressStatus.connected:
-        return (LucideIcons.checkCircle, colors.success, 'Connected');
+        return (LucideIcons.checkCircle, colors.success, 'Succeeded');
       case DeviceConnectProgressStatus.failed:
         return (LucideIcons.xCircle, colors.error, 'Failed');
     }

@@ -21,8 +21,10 @@
 // notification_router_test). This file pins the *rendering* contract only.
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/node_properties_panel.dart';
+import 'package:nightshade_app/widgets/sequence/variable_picker.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -87,6 +89,50 @@ void main() {
           'so the chip must annotate that fact rather than silently '
           'render as if Telegram were ready.',
     );
+  });
+
+  // The title and message hints advertise ${frame} / ${target.name} /
+  // ${time.local}, and the operator had no way to see what else exists — the
+  // insert control the variable picker was written for had no call site here.
+  testWidgets(
+      'template fields offer a variable picker over the sequencer catalog',
+      (tester) async {
+    await pumpNode(tester);
+
+    final pickers = find.byType(VariablePickerButton);
+    expect(pickers, findsNWidgets(2), reason: 'one on title, one on message');
+    for (final w in tester.widgetList<VariablePickerButton>(pickers)) {
+      expect(w.variables, same(interpolationCatalog));
+    }
+
+    await tester.tap(pickers.first);
+    await tester.pumpAndSettle();
+    expect(find.text(r'${target.name}'), findsOneWidget);
+    // The rest of the catalog is below the fold; reach it through the dialog's
+    // own search so the assertion covers a token the hint text advertises.
+    await tester.enterText(find.byType(TextField).last, 'frame');
+    await tester.pumpAndSettle();
+    expect(find.text(r'${frame}'), findsOneWidget);
+  });
+
+  testWidgets('inserting a variable commits it to the node', (tester) async {
+    // The picker writes through the TextEditingController, which does NOT
+    // fire TextField.onChanged — so without an explicit commit the insert is
+    // visible in the field and silently absent from the saved sequence.
+    final node = NotificationNode(title: '', message: 'M');
+    await pumpNode(tester, node: node);
+
+    await tester.tap(find.byType(VariablePickerButton).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(r'${target.name}'));
+    await tester.pumpAndSettle();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(NodePropertiesPanel)),
+    );
+    final saved = container.read(currentSequenceProvider)!.nodes[node.id]!
+        as NotificationNode;
+    expect(saved.title, r'${target.name}');
   });
 
   testWidgets('preview_section_is_present: the live preview header renders',

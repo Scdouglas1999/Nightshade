@@ -5,6 +5,8 @@
 /// `connect()` handshake resolves, then push PHD2 event lines and assert the
 /// resulting [Phd2State] transitions, derived statistics, and event stream.
 
+library;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_bridge/src/phd2_client.dart';
 

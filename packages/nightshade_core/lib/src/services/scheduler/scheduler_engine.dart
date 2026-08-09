@@ -793,6 +793,14 @@ class SchedulerEngine {
               .isEmpty // no goals at all is fine - free-form imaging
         : stillNeeded.any(
             (p) =>
+                // An EMPTY goal filter means "no filter requirement", which is
+                // what a rig with no filter wheel has to be able to express.
+                // Matching it against the wheel's filter list rejected it —
+                // `availableFilters` is empty on such a rig, so `contains('')`
+                // is false — and the effect was inverted: a wheel-less target
+                // that scheduled fine free-form became UNSCHEDULABLE the moment
+                // the operator followed the empty-state prompt and added a goal.
+                p.goal.filter.isEmpty ||
                 filtersOnEquipmentLower.contains(p.goal.filter.toLowerCase()),
           );
     if (c.goals.isNotEmpty && !hasUsableGoal && stillNeeded.isNotEmpty) {
@@ -821,6 +829,25 @@ class SchedulerEngine {
             rejections.add(
               'moon illumination ${(moon.illumination * 100).toStringAsFixed(0)}% exceeds max ${(ct.moonIlluminationMax! * 100).toStringAsFixed(0)}%',
             );
+          }
+          break;
+        case TargetConstraintKind.moonSeparationMin:
+          final minSep = ct.moonSeparationMinDeg;
+          if (minSep != null) {
+            final moon = _moonPosition(now);
+            final sep = _angularSeparation(
+              ra1Hours: c.raHours,
+              dec1Degrees: c.decDegrees,
+              ra2Hours: moon.raHours,
+              dec2Degrees: moon.decDegrees,
+            );
+            if (sep < minSep) {
+              rejections.add(
+                'moon separation ${sep.toStringAsFixed(0)}° below minimum '
+                '${minSep.toStringAsFixed(0)}° '
+                '(moon ${(moon.illumination * 100).toStringAsFixed(0)}% lit)',
+              );
+            }
           }
           break;
         case TargetConstraintKind.customHorizon:
@@ -1061,6 +1088,11 @@ class SchedulerEngine {
   double _localSiderealTime(DateTime time) =>
       SkyCalculations.localSiderealTimeHours(time, _site.longitudeDegrees);
 
+  /// Normalise a filter name for an emitted node: the unfiltered sentinel (an
+  /// empty or whitespace name) must reach the executor as null.
+  static String? _nodeFilter(String? name) =>
+      (name == null || name.trim().isEmpty) ? null : name;
+
   /// Filter coverage factor: fraction of total goal frames still needed,
   /// gated by whether the equipment wheel can produce those filters.
   /// 1.0 when the target has the most uncaptured data available; 0.0 when
@@ -1076,7 +1108,15 @@ class SchedulerEngine {
     var totalGoal = 0;
     for (final p in progress) {
       totalGoal += p.goal.frameCount;
-      if (!available.contains(p.goal.filter.toLowerCase())) continue;
+      // Same rule as the admission check and buildSequenceForCandidate: an
+      // empty goal filter means "no filter requirement". Testing it for
+      // membership of the wheel's filter list scored an unfiltered goal on a
+      // wheel-less rig as already-complete, so the autopilot ranked a target
+      // it had never imaged below one that was finished.
+      if (p.goal.filter.isNotEmpty &&
+          !available.contains(p.goal.filter.toLowerCase())) {
+        continue;
+      }
       totalNeeded += p.remainingFrames;
     }
     if (totalGoal <= 0) return 0.5;
@@ -1122,9 +1162,16 @@ class SchedulerEngine {
         goalProgress
             .where((p) => p.remainingFrames > 0)
             .where(
-              (p) => c.availableFilters
-                  .map((f) => f.toLowerCase())
-                  .contains(p.goal.filter.toLowerCase()),
+              // Same rule as the admission check above: an empty goal filter is
+              // "no filter needed", not "a filter the wheel lacks". Dropping it
+              // here would admit the candidate and then silently discard the
+              // operator's exposure and frame count, falling back to a
+              // defensive default frame.
+              (p) =>
+                  p.goal.filter.isEmpty ||
+                  c.availableFilters
+                      .map((f) => f.toLowerCase())
+                      .contains(p.goal.filter.toLowerCase()),
             )
             .toList()
           ..sort((a, b) {
@@ -1159,18 +1206,26 @@ class SchedulerEngine {
         name: 'Expose',
         durationSecs: 30.0,
         count: 1,
-        filter: c.availableFilters.isNotEmpty ? c.availableFilters.first : null,
+        filter: _nodeFilter(
+          c.availableFilters.isNotEmpty ? c.availableFilters.first : null,
+        ),
       );
     } else {
       for (final row in rowsToDispatch) {
         final expId = uuid.v4();
         exposureIds.add(expId);
+        // `filter: null` — not the empty sentinel — is the wire contract for an
+        // unfiltered row: it is what suppresses the filter-change instruction
+        // and makes the executor render the ${filter} filename token as
+        // "nofilter". Passing '' through emitted a node that asked a wheel-less
+        // rig to select a filter named "".
+        final unfiltered = row.goal.filter.trim().isEmpty;
         nodes[expId] = ExposureNode(
           id: expId,
-          name: 'Expose ${row.goal.filter}',
+          name: unfiltered ? 'Expose' : 'Expose ${row.goal.filter}',
           durationSecs: row.goal.exposureSeconds,
           count: row.remainingFrames,
-          filter: row.goal.filter,
+          filter: unfiltered ? null : row.goal.filter,
         );
       }
     }

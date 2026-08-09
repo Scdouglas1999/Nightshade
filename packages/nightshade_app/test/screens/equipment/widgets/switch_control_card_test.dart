@@ -7,6 +7,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/screens/equipment/widgets/switch_control_card.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 class _MockDeviceService extends Mock implements DeviceService {}
 
@@ -33,6 +34,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           deviceServiceProvider.overrideWithValue(service),
           switchStateProvider.overrideWith((ref) {
             final notifier = SwitchStateNotifier(ref);
@@ -189,6 +191,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           _serviceSlotProvider.overrideWith((ref) => serviceA),
           deviceServiceProvider.overrideWith(
             (ref) => ref.watch(_serviceSlotProvider),

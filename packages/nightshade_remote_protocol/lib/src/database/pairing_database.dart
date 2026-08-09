@@ -140,6 +140,21 @@ class PairingDatabase extends _$PairingDatabase {
         .write(PairedDevicesCompanion(lastConnectedAt: Value(DateTime.now())));
   }
 
+  /// Give a paired device an operator-chosen [deviceName].
+  ///
+  /// The name a device is stored under is whatever the client sent at pairing
+  /// time, and the mobile app sends one constant per platform ("Android
+  /// companion"), so a household with three phones ends up with three
+  /// byte-identical rows and no way to tell which token belongs to the handset
+  /// that was sold. Only the host can settle that, so the name is editable
+  /// here. Returns the number of rows changed, so a caller can tell a rename
+  /// that hit nothing (already deleted) from one that landed.
+  Future<int> renamePairedDevice(String deviceId, String deviceName) async {
+    return (update(pairedDevices)
+          ..where((tbl) => tbl.deviceId.equals(deviceId)))
+        .write(PairedDevicesCompanion(deviceName: Value(deviceName)));
+  }
+
   /// Revoke a paired device (mark as inactive).
   ///
   /// The `paired_devices` row is retained (set inactive) for audit, but the
@@ -398,13 +413,71 @@ class PairingDatabase extends _$PairingDatabase {
   }
 }
 
+/// Pins the pairing store beside the Drift application database.
+///
+/// Repeated rather than imported: this package cannot depend on
+/// nightshade_core, which owns the identically-named `nightshadeDatabaseDirEnv`
+/// that resolves `nightshade.db`. The two must stay in sync — they name the
+/// same operator-configured data directory.
+const pairingDatabaseDirEnv = 'NIGHTSHADE_DATABASE_DIR';
+
+/// Resolve where `pairing.db` lives.
+///
+/// Pairing credentials follow the same configured data directory as the main
+/// database so isolated instances cannot share trust state.
+Future<File> resolvePairingDatabaseFile({
+  Map<String, String>? environment,
+  Future<Directory> Function()? documentsDirectoryProvider,
+}) async {
+  final env = environment ?? Platform.environment;
+  final overrideDir = env[pairingDatabaseDirEnv]?.trim();
+  if (overrideDir != null && overrideDir.isNotEmpty) {
+    return File(p.join(overrideDir, 'pairing.db'));
+  }
+
+  final dbFolder =
+      await (documentsDirectoryProvider ?? getApplicationDocumentsDirectory)();
+  return File(p.join(dbFolder.path, 'Nightshade', 'pairing.db'));
+}
+
+/// One-time carry-forward of a pre-override pairing store.
+///
+/// Only runs when the resolved location differs from the historical Documents
+/// path and nothing has been written to the new one yet. It COPIES rather than
+/// moves: the legacy file is shared with any install that has no override set,
+/// and unpairing that install's devices as a side effect of pointing a daemon
+/// at a state directory would be a worse surprise than a duplicate.
+Future<void> migrateLegacyPairingStore(
+  File target, {
+  Future<Directory> Function()? documentsDirectoryProvider,
+}) async {
+  if (await target.exists()) return;
+
+  final dbFolder =
+      await (documentsDirectoryProvider ?? getApplicationDocumentsDirectory)();
+  final legacy = File(p.join(dbFolder.path, 'Nightshade', 'pairing.db'));
+  if (p.equals(legacy.path, target.path)) return;
+  if (!await legacy.exists()) return;
+
+  await legacy.copy(target.path);
+  // SQLite may have left a hot journal / WAL beside the database. Copying the
+  // main file alone would drop committed rows that live only in the sidecar.
+  for (final suffix in const ['-wal', '-shm', '-journal']) {
+    final sidecar = File('${legacy.path}$suffix');
+    if (await sidecar.exists()) {
+      await sidecar.copy('${target.path}$suffix');
+    }
+  }
+}
+
 LazyDatabase _openConnection() {
   return LazyDatabase(() async {
-    final dbFolder = await getApplicationDocumentsDirectory();
-    final file = File(p.join(dbFolder.path, 'Nightshade', 'pairing.db'));
+    final file = await resolvePairingDatabaseFile();
 
     // Ensure directory exists
     await file.parent.create(recursive: true);
+
+    await migrateLegacyPairingStore(file);
 
     return NativeDatabase.createInBackground(file);
   });

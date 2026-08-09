@@ -161,4 +161,69 @@ void main() {
     expect(find.text('Kernel'), findsOneWidget);
     expect(find.text('Bayer drizzle'), findsOneWidget);
   });
+
+  // --- profiles must not be placebos ---------------------------------------
+  //
+  // "Maximum Quality" shipped as a byte-identical copy of Balanced: it restated
+  // five constructor defaults and differed only in `sourcePreset`, a label the
+  // native pipeline never reads. A user picking it for their best data got the
+  // same stack and was told nothing.
+
+  test('no two integration profiles produce the same stack', () {
+    // `sourcePreset` is a UI label, not a stacking knob — compare everything
+    // else via the bridge payload, which is exactly what the native side gets.
+    final byPayload = <String, IntegrationPreset>{};
+    for (final preset in IntegrationPreset.values) {
+      final payload =
+          IntegrationSettings.preset(preset).toBridgeSettings().toString();
+      final clash = byPayload[payload];
+      expect(
+        clash,
+        isNull,
+        reason: '${preset.label} stacks identically to ${clash?.label} — '
+            'a profile that changes nothing must not be offered.',
+      );
+      byPayload[payload] = preset;
+    }
+  });
+
+  test('Maximum Quality actually costs something over Balanced', () {
+    const balanced = IntegrationSettings.defaults;
+    final maxQ = IntegrationSettings.preset(IntegrationPreset.maximumQuality);
+
+    // Tighter inlier gate + more reference stars = a more accurate transform
+    // for more matching work.
+    expect(maxQ.ransacThresholdPx, lessThan(balanced.ransacThresholdPx));
+    expect(maxQ.maxRefStars, greaterThan(balanced.maxRefStars));
+    // Per-cell background match rather than one global scale.
+    expect(maxQ.normalization, NormalizationMode.local);
+    expect(balanced.normalization, NormalizationMode.global);
+  });
+
+  testWidgets('the readout names the knobs the active profile changes',
+      (tester) async {
+    await tester.pumpWidget(_harness(
+      child: IntegrationSettingsPanel(
+        settings: IntegrationSettings.preset(IntegrationPreset.maximumQuality),
+        subCount: 12,
+        onChanged: (_) {},
+      ),
+    ));
+    await tester.pump();
+    expect(find.textContaining('RANSAC 1.0 px'), findsOneWidget);
+    expect(find.textContaining('Max ref stars 120'), findsOneWidget);
+    expect(find.textContaining('Normalization Local grid'), findsOneWidget);
+
+    // Balanced IS the baseline, so it says so rather than inventing a
+    // difference.
+    await tester.pumpWidget(_harness(
+      child: IntegrationSettingsPanel(
+        settings: IntegrationSettings.preset(IntegrationPreset.balanced),
+        subCount: 12,
+        onChanged: (_) {},
+      ),
+    ));
+    await tester.pump();
+    expect(find.text('Same knobs as Balanced.'), findsOneWidget);
+  });
 }

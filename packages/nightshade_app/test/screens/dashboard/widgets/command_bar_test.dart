@@ -4,7 +4,7 @@
 // new behavior and are cheap to test in isolation (no widget tree, no
 // provider container, no leaking planetarium timers):
 //
-//   * resolveNightContext(twilight, now) — picks the single most relevant
+//   * resolveNightContext(twilight, now, clock: const SystemClock()) — picks the single most relevant
 //     darkness fact for the night-context chip:
 //       before astro dusk  → "Dark in {countdown}"   (key darkIn)
 //       during astro night → "Dark {countdown} left" (key darkLeft)
@@ -20,6 +20,7 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/dashboard/widgets/command_bar.dart';
+import 'package:nightshade_core/nightshade_core.dart' hide TwilightTimes;
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
 void main() {
@@ -34,7 +35,8 @@ void main() {
         astronomicalDawn: DateTime(2026, 6, 11, 4, 0),
       );
 
-      final fact = resolveNightContext(twilight, now);
+      final fact =
+          resolveNightContext(twilight, now, clock: const SystemClock());
 
       expect(fact, isNotNull);
       expect(fact!.kind, NightContextKind.beforeDark);
@@ -50,7 +52,8 @@ void main() {
         astronomicalDawn: now.add(const Duration(hours: 4, minutes: 12)),
       );
 
-      final fact = resolveNightContext(twilight, now);
+      final fact =
+          resolveNightContext(twilight, now, clock: const SystemClock());
 
       expect(fact, isNotNull);
       expect(fact!.kind, NightContextKind.duringDark);
@@ -66,12 +69,43 @@ void main() {
         astronomicalDawn: now.subtract(const Duration(hours: 5)),
       );
 
-      final fact = resolveNightContext(twilight, now);
+      final fact =
+          resolveNightContext(twilight, now, clock: const SystemClock());
 
       expect(fact, isNotNull);
       expect(fact!.kind, NightContextKind.afterDark);
       expect(fact.l10nKey, 'sunsetAt');
       expect(fact.time, '20:14');
+    });
+
+    // The only clock FACE on this chip. It formatted the raw DateTime, so it
+    // stayed on the host's zone while the status bar, the dashboard header
+    // clock and the night timeline directly beside it all honoured
+    // Settings -> Location -> Timezone: the same screen showing two zones.
+    test('the sunset face follows the chosen site timezone', () {
+      final twilight = TwilightTimes(
+        // 20:14 UTC.
+        sunset: DateTime.utc(2026, 6, 10, 20, 14),
+        astronomicalDusk: now.subtract(const Duration(hours: 10)),
+        astronomicalDawn: now.subtract(const Duration(hours: 5)),
+      );
+
+      final tokyo = resolveNightContext(
+        twilight,
+        now,
+        clock: const FixedOffsetClock(
+          utcOffset: Duration(hours: 9),
+          label: 'UTC+09:00',
+        ),
+      );
+      expect(tokyo!.time, '05:14');
+
+      final utc = resolveNightContext(
+        twilight,
+        now,
+        clock: const FixedOffsetClock(utcOffset: Duration.zero, label: 'UTC'),
+      );
+      expect(utc!.time, '20:14');
     });
 
     test('sub-hour countdown drops the hours component', () {
@@ -80,7 +114,8 @@ void main() {
         astronomicalDawn: DateTime(2026, 6, 11, 4, 0),
       );
 
-      final fact = resolveNightContext(twilight, now);
+      final fact =
+          resolveNightContext(twilight, now, clock: const SystemClock());
 
       expect(fact!.kind, NightContextKind.beforeDark);
       expect(fact.time, '7m');
@@ -89,7 +124,8 @@ void main() {
     test('no twilight data (no location) → null so the chip self-hides', () {
       const twilight = TwilightTimes(); // all fields null
 
-      expect(resolveNightContext(twilight, now), isNull);
+      expect(resolveNightContext(twilight, now, clock: const SystemClock()),
+          isNull);
     });
 
     test('after dark with no sunset value → null (nothing to show)', () {
@@ -99,7 +135,8 @@ void main() {
         // sunset intentionally null
       );
 
-      expect(resolveNightContext(twilight, now), isNull);
+      expect(resolveNightContext(twilight, now, clock: const SystemClock()),
+          isNull);
     });
 
     test('exactly at dusk counts as during-darkness, not before', () {
@@ -108,7 +145,8 @@ void main() {
         astronomicalDawn: now.add(const Duration(hours: 5)),
       );
 
-      final fact = resolveNightContext(twilight, now);
+      final fact =
+          resolveNightContext(twilight, now, clock: const SystemClock());
 
       expect(fact!.kind, NightContextKind.duringDark);
       expect(fact.l10nKey, 'darkLeft');

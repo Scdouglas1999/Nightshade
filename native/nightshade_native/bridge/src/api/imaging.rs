@@ -748,6 +748,26 @@ fn classify_exposure_failure(device_id: &str, error: String) -> NightshadeError 
     }
 }
 
+/// Terminate a simulated exposure the operator aborted.
+///
+/// Mirrors what the real path does after its own generation check: park the
+/// sensor, publish a FAILED completion so nothing downstream treats the
+/// abandoned frame as a keeper, and report the cancellation to the caller.
+async fn sim_exposure_cancelled() -> Result<(), NightshadeError> {
+    {
+        let mut camera = get_sim_camera().write().await;
+        camera.status.state = CameraState::Idle;
+    }
+    get_state().publish_imaging_event(
+        ImagingEvent::ExposureComplete { success: false },
+        EventSeverity::Info,
+    );
+    tracing::info!("Exposure cancelled");
+    Err(NightshadeError::OperationFailed(
+        "Exposure cancelled".to_string(),
+    ))
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn camera_start_exposure_configured_opt(
     device_id: String,
@@ -771,6 +791,14 @@ pub(crate) async fn camera_start_exposure_configured_opt(
     // Check if simulator or real device
     if device_id.starts_with("sim_") {
         // Simulator path (existing code)
+        // Same abort ledger the real path uses, so `api_camera_cancel_exposure`
+        // means the same thing on both. Without it the simulated exposure ran
+        // to full duration after the operator aborted, then published
+        // ExposureComplete{success:true} and stored the frame — the one
+        // failure mode a simulator must not have, because it makes an abort
+        // that is broken look like an abort that works.
+        let acquisition_generation =
+            crate::unified_device_ops::exposure_abort_generation(&device_id).await;
         // Update camera state to exposing
         {
             let mut camera = get_sim_camera().write().await;
@@ -795,6 +823,12 @@ pub(crate) async fn camera_start_exposure_configured_opt(
             AdaptivePoller::from_preset(PollerPreset::Exposure);
 
         while start_time.elapsed() < duration {
+            if crate::unified_device_ops::exposure_abort_generation(&device_id).await
+                != acquisition_generation
+            {
+                return sim_exposure_cancelled().await;
+            }
+
             let progress = start_time.elapsed().as_secs_f64() / duration_secs;
             let progress_bucket = format!("{:.1}", progress); // Bucket progress for change detection
 
@@ -811,6 +845,15 @@ pub(crate) async fn camera_start_exposure_configured_opt(
             tokio::time::sleep(poll_interval).await;
         }
 
+        // An abort landing during the last poll interval must still discard the
+        // frame: storing it would put an exposure the operator gave up on into
+        // the gallery and the session's frame count.
+        if crate::unified_device_ops::exposure_abort_generation(&device_id).await
+            != acquisition_generation
+        {
+            return sim_exposure_cancelled().await;
+        }
+
         // Update camera state to reading
         {
             let mut camera = get_sim_camera().write().await;
@@ -821,8 +864,18 @@ pub(crate) async fn camera_start_exposure_configured_opt(
         // so an unspecified (None) gain falls back to 0 for brightness math —
         // stars are added regardless, keeping the frame solvable.
         let sim_gain = gain.unwrap_or(0);
-        let full_width = 4144 / bin_x as u32;
-        let full_height = 2822 / bin_y as u32;
+        // The geometry the camera ADVERTISES, not a second hardcoded sensor.
+        // These were 4144x2822 while `get_camera_status` reported SIM_W x SIM_H
+        // (1920x1080), so the Framing screen drew an FOV box 2.16x too narrow
+        // for the frames the same camera was delivering, and no measurement
+        // taken through the manual-capture path could be compared with one from
+        // the sequencer path.
+        let (advertised_width, advertised_height) = {
+            let camera = get_sim_camera().read().await;
+            (camera.status.sensor_width, camera.status.sensor_height)
+        };
+        let full_width = advertised_width / bin_x.max(1) as u32;
+        let full_height = advertised_height / bin_y.max(1) as u32;
         let (sensor_width, sensor_height) = subframe
             .as_ref()
             .map(|roi| (roi.width, roi.height))
@@ -1229,8 +1282,12 @@ pub async fn api_clear_device_image(device_id: String) -> Result<(), NightshadeE
 /// Cancel current exposure
 pub async fn api_camera_cancel_exposure(device_id: String) -> Result<(), NightshadeError> {
     if device_id.starts_with("sim_") {
-        let mut camera = get_sim_camera().write().await;
-        camera.status.state = CameraState::Idle;
+        // Invalidating the acquisition is what actually stops the simulated
+        // exposure: setting the state to Idle alone left the exposure future
+        // sleeping to full duration, so a 30 s light aborted at 24 s still
+        // "completed" 7 s later. The in-flight exposure sees the new generation
+        // and takes `sim_exposure_cancelled`, which parks the sensor.
+        crate::unified_device_ops::mark_camera_exposure_aborted(&device_id).await;
         tracing::info!("Exposure cancelled");
         Ok(())
     } else {
@@ -1527,6 +1584,18 @@ pub struct QualityMapsResultApi {
     pub tiles: Vec<QualityTileMetricApi>,
 }
 
+/// Decode an [`ImageData`] byte buffer into linear `f64` samples.
+///
+/// `ImageData.data` is an in-memory host-endian (little-endian) buffer, NOT the
+/// big-endian wire format of a FITS file: every producer in the imaging crate
+/// writes it with `to_le_bytes` (`fits.rs` after BZERO/BSCALE scaling, the
+/// camera drivers, `processing.rs`) and every other consumer reads it back with
+/// `from_le_bytes` (`ImageData::as_u16`/`as_f32`, `calibration.rs`,
+/// `background_extraction.rs::read_pixel`). Decoding big-endian here byte-swaps
+/// every sample, which does not merely scale the data — it destroys the star
+/// field (a 440 ADU background reads as 47105 and a 40614 ADU star as 42654,
+/// i.e. stars come back DARKER than the sky), so downstream star detection finds
+/// nothing at all.
 pub(crate) fn image_data_to_linear_f64(image_data: &ImageData) -> Vec<f64> {
     match image_data.pixel_type {
         nightshade_imaging::PixelType::U8 => image_data
@@ -1537,27 +1606,93 @@ pub(crate) fn image_data_to_linear_f64(image_data: &ImageData) -> Vec<f64> {
         nightshade_imaging::PixelType::U16 => image_data
             .data
             .chunks_exact(2)
-            .map(|chunk| u16::from_be_bytes([chunk[0], chunk[1]]) as f64)
+            .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]) as f64)
             .collect::<Vec<f64>>(),
         nightshade_imaging::PixelType::U32 => image_data
             .data
             .chunks_exact(4)
-            .map(|chunk| u32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]) as f64)
+            .map(|chunk| u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]) as f64)
             .collect::<Vec<f64>>(),
         nightshade_imaging::PixelType::F32 => image_data
             .data
             .chunks_exact(4)
-            .map(|chunk| f32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]) as f64)
+            .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]) as f64)
             .collect::<Vec<f64>>(),
         nightshade_imaging::PixelType::F64 => image_data
             .data
             .chunks_exact(8)
             .map(|chunk| {
-                f64::from_be_bytes([
+                f64::from_le_bytes([
                     chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6], chunk[7],
                 ])
             })
             .collect::<Vec<f64>>(),
+    }
+}
+
+#[cfg(test)]
+mod linear_decode_tests {
+    use super::image_data_to_linear_f64;
+    use nightshade_imaging::{ImageData, PixelType};
+
+    /// The star field survives a write_fits -> read_fits -> decode round trip.
+    /// A big-endian decode passes none of these: 440 ADU reads back as 47105 and
+    /// the 40614 ADU star as 42654, inverting the contrast so star detection
+    /// finds nothing.
+    #[test]
+    fn round_trips_u16_fits_pixels_through_the_linear_decoder() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("roundtrip.fits");
+
+        let mut image = ImageData::new(4, 4, 1, PixelType::U16);
+        // A sky background with one bright star, i.e. the values from the
+        // Stack & Share repro.
+        let samples: [u16; 16] = [
+            440, 441, 439, 440, 440, 40614, 12000, 440, 441, 9000, 3000, 440, 440, 440, 441, 439,
+        ];
+        for (i, &value) in samples.iter().enumerate() {
+            image.data[i * 2..i * 2 + 2].copy_from_slice(&value.to_le_bytes());
+        }
+
+        let header = nightshade_imaging::FitsHeader::new();
+        nightshade_imaging::write_fits(&path, &image, &header).unwrap();
+
+        let (read_back, _) = nightshade_imaging::read_fits(&path).unwrap();
+        let linear = image_data_to_linear_f64(&read_back);
+
+        assert_eq!(linear.len(), samples.len());
+        for (i, &expected) in samples.iter().enumerate() {
+            assert_eq!(
+                linear[i], expected as f64,
+                "pixel {i} decoded as {} but the file holds {expected}",
+                linear[i]
+            );
+        }
+    }
+
+    /// Every other consumer in the imaging crate reads `ImageData.data` with
+    /// `from_le_bytes`; this decoder must agree with them, or the same buffer
+    /// yields two different images depending on which path touches it.
+    #[test]
+    fn agrees_with_image_data_native_accessors() {
+        let mut image = ImageData::new(2, 1, 1, PixelType::U16);
+        image.data[0..2].copy_from_slice(&440u16.to_le_bytes());
+        image.data[2..4].copy_from_slice(&40614u16.to_le_bytes());
+
+        let linear = image_data_to_linear_f64(&image);
+        let native = image.as_u16().unwrap();
+
+        assert_eq!(linear, vec![native[0] as f64, native[1] as f64]);
+        assert_eq!(linear, vec![440.0, 40614.0]);
+    }
+
+    #[test]
+    fn round_trips_f32_pixels() {
+        let mut image = ImageData::new(2, 1, 1, PixelType::F32);
+        image.data[0..4].copy_from_slice(&1.5f32.to_le_bytes());
+        image.data[4..8].copy_from_slice(&(-2.25f32).to_le_bytes());
+
+        assert_eq!(image_data_to_linear_f64(&image), vec![1.5, -2.25]);
     }
 }
 
@@ -3377,10 +3512,33 @@ impl FitsWriteHeaderRich {
             (None, None) => None,
         };
 
+        // Where the telescope WAS, falling back to where the sequence meant to
+        // be — the same preference `build_rich_header` applies for the
+        // sequencer's own save path, applied here so the two other
+        // `DeviceOps::save_fits` impls (real_device_ops, unified_device_ops),
+        // which build the header from the context and nothing else, agree with
+        // it. Taken as a PAIR rather than field by field: half a mount
+        // pointing and half a target's is a coordinate that was never true of
+        // anything, and the altitude below is derived from the mount's.
+        let (ra, dec) = match ctx.mount_ra_hours.zip(ctx.mount_dec_degrees) {
+            Some((mount_ra, mount_dec)) => (Some(mount_ra), Some(mount_dec)),
+            None => (ctx.target_ra_hours, ctx.target_dec_degrees),
+        };
+
         Self {
             object_name: ctx.target_name.clone(),
             exposure_time: ctx.duration_secs,
-            capture_timestamp: chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string(),
+            // DATE-OBS is the START of the observation. This was `Utc::now()`,
+            // sampled here while building the header -- which runs after
+            // readout -- so every sequenced frame's DATE-OBS was late by
+            // exactly its own EXPTIME. Fall back to now() only when the
+            // capture path genuinely did not record a start, which is still
+            // wrong but no worse than before and never silently absent.
+            capture_timestamp: ctx
+                .exposure_started_at
+                .unwrap_or_else(chrono::Utc::now)
+                .format("%Y-%m-%dT%H:%M:%S")
+                .to_string(),
             frame_type: ctx.frame_type.clone(),
             filter: ctx.filter_name.clone(),
             filter_position: ctx.filter_index,
@@ -3388,15 +3546,17 @@ impl FitsWriteHeaderRich {
             offset: ctx.offset,
             ccd_temp: ctx.sensor_temp_c,
             set_temp: ctx.set_temp_c,
-            ra: ctx.target_ra_hours,
-            dec: ctx.target_dec_degrees,
-            // FrameContext carries no altitude, so sequenced frames get no
-            // AIRMASS card. That is a real (separate) metadata gap, not a
-            // safety valve: `set_optional_airmass` already omits the keyword
-            // rather than failing the write, so supplying a real altitude here
-            // would be safe. Populating it needs the site location and capture
-            // time threaded into FrameContext.
-            altitude: None,
+            ra,
+            dec,
+            // The altitude the sequencer derived from that same pointing, in
+            // the same breath it read it. This was hardcoded `None` under a
+            // comment saying `FrameContext` carried no altitude — true when it
+            // was written, false since the mount telemetry moved into the
+            // context (`mount_altitude_deg`). Dropping it here is what left
+            // sequenced frames with neither OBJCTALT nor AIRMASS: extinction
+            // correction needs one of them, and neither can be recovered later
+            // from a file that recorded only where the scope pointed.
+            altitude: ctx.mount_altitude_deg,
             telescope: ctx.telescope_name.clone(),
             instrument,
             observer: ctx.observer_name.clone(),
@@ -3404,8 +3564,16 @@ impl FitsWriteHeaderRich {
             bin_y: ctx.binning_y as i32,
             focal_length: ctx.telescope_focal_length_mm,
             aperture: ctx.telescope_aperture_mm,
-            pixel_size_x: None,
-            pixel_size_y: None,
+            // The unbinned pitch the camera reported for this frame. This was
+            // hardcoded `None`, so every sequenced sub carried FOCALLEN and
+            // APTDIA but no XPIXSZ/YPIXSZ and ASTAP, PixInsight and AstroBin
+            // could not derive its plate scale from the file alone — the
+            // manual-snapshot path had already been fixed to write them, which
+            // left two frames of the same rig disagreeing about the sensor.
+            // The writer below multiplies by XBINNING/YBINNING, which is why
+            // the context carries the unbinned value.
+            pixel_size_x: ctx.camera_pixel_size_x_um,
+            pixel_size_y: ctx.camera_pixel_size_y_um,
             site_latitude: ctx.site_latitude_deg,
             site_longitude: ctx.site_longitude_deg,
             site_elevation: ctx.site_elevation_m,
@@ -3501,25 +3669,46 @@ fn set_pointing_keywords(header: &mut FitsHeader, ra_hours: Option<f64>, dec_deg
     }
 }
 
-/// Write the optional `AIRMASS` card, omitting it when it cannot be computed.
+/// Write the `OBJCTALT` altitude card and the `AIRMASS` derived from it,
+/// omitting either when it cannot be stated truthfully.
 ///
-/// AIRMASS is a convenience keyword — every stacker works without it — but
-/// [`calculate_airmass`] deliberately refuses sub-horizon altitudes, and
+/// The two are gated differently because they are different kinds of number.
+/// `OBJCTALT` is the measurement: a parked mount really is at −9.9°, and that
+/// is a fact about the frame worth recording. `AIRMASS` is an atmosphere model
+/// evaluated at that altitude, and it is undefined below the horizon.
+///
+/// Recording the altitude and not only the airmass is what makes a frame
+/// re-reducible. Airmass is lossy in the direction that matters: the published
+/// formulae disagree by ~20% at the horizon (Pickering 38.7 vs Young 31.7 at
+/// h=0°), so a photometry pipeline that wants to apply its own extinction
+/// model cannot recover the altitude the writer started from. Every mainstream
+/// capture app records it for that reason — N.I.N.A. and SGP as `OBJCTALT`,
+/// MaxIm DL as `CENTALT` — so a Nightshade file without it is one a
+/// photometry workflow can tell apart from every other app's.
+///
+/// AIRMASS itself is a convenience keyword — every stacker works without it —
+/// but [`calculate_airmass`] deliberately refuses sub-horizon altitudes, and
 /// darks and flats are by definition taken parked or capped (Alt < 0). The
 /// previous code propagated that refusal with `?`, which aborted the entire
 /// FITS write and destroyed the frame: the thumbnail landed on disk and the
 /// science data did not. Losing an optional keyword is always better than
 /// losing the exposure, so warn and skip the card instead.
 #[flutter_rust_bridge::frb(ignore)]
-fn set_optional_airmass(header: &mut FitsHeader, altitude_degrees: Option<f64>) {
+fn set_horizon_keywords(header: &mut FitsHeader, altitude_degrees: Option<f64>) {
     let Some(altitude) = altitude_degrees else {
         return;
     };
+    // A non-finite altitude is a broken read, not a pointing, so neither card
+    // is written — same rule `set_pointing_keywords` applies to RA/DEC.
+    if !altitude.is_finite() {
+        return;
+    }
+    header.set_float("OBJCTALT", altitude);
     match calculate_airmass(altitude) {
         Ok(airmass) => header.set_float("AIRMASS", airmass),
         Err(e) => tracing::warn!(
             "Omitting AIRMASS from FITS header: cannot compute for altitude {}°: {}. \
-             The frame itself is unaffected.",
+             The frame itself, and its OBJCTALT card, are unaffected.",
             altitude,
             e
         ),
@@ -3618,10 +3807,11 @@ pub async fn api_save_fits_file(
         header.set_float("SITEELEV", elev);
     }
 
-    // Target coordinates and airmass. RA arrives in hours and leaves in
-    // degrees; AIRMASS is optional and never fatal (see helpers above).
+    // Target coordinates + horizon coordinates. RA arrives in hours and
+    // leaves in degrees; OBJCTALT/AIRMASS are optional and never fatal (see
+    // helpers above).
     set_pointing_keywords(&mut header, header_data.ra, header_data.dec);
-    set_optional_airmass(&mut header, header_data.altitude);
+    set_horizon_keywords(&mut header, header_data.altitude);
 
     // Validate header completeness
     let header_validation = validate_fits_header(&header);
@@ -3761,11 +3951,12 @@ pub async fn save_fits_file_rich(
     }
 
     // ------------------------------------------------------------------
-    // Target coordinates + airmass. RA arrives in hours and leaves in
-    // degrees; AIRMASS is optional and never fatal (see helpers above).
+    // Target coordinates + horizon coordinates. RA arrives in hours and
+    // leaves in degrees; OBJCTALT/AIRMASS are optional and never fatal (see
+    // helpers above).
     // ------------------------------------------------------------------
     set_pointing_keywords(&mut header, header_data.ra, header_data.dec);
-    set_optional_airmass(&mut header, header_data.altitude);
+    set_horizon_keywords(&mut header, header_data.altitude);
 
     // ------------------------------------------------------------------
     // Image Grading: live device telemetry.
@@ -4055,10 +4246,11 @@ pub async fn api_save_fits_from_last_capture(
         header.set_float("SITEELEV", elev);
     }
 
-    // Target coordinates and airmass. RA arrives in hours and leaves in
-    // degrees; AIRMASS is optional and never fatal (see helpers above).
+    // Target coordinates + horizon coordinates. RA arrives in hours and
+    // leaves in degrees; OBJCTALT/AIRMASS are optional and never fatal (see
+    // helpers above).
     set_pointing_keywords(&mut header, header_data.ra, header_data.dec);
-    set_optional_airmass(&mut header, header_data.altitude);
+    set_horizon_keywords(&mut header, header_data.altitude);
 
     // Validate header completeness
     let header_validation = validate_fits_header(&header);
@@ -5611,6 +5803,8 @@ mod rich_header_tests {
         ctx.telescope_name = Some("Askar 65PHQ".to_string());
         ctx.telescope_focal_length_mm = Some(416.0);
         ctx.telescope_aperture_mm = Some(65.0);
+        ctx.camera_pixel_size_x_um = Some(3.76);
+        ctx.camera_pixel_size_y_um = Some(3.76);
 
         let header = FitsWriteHeaderRich::from_frame_context(&ctx);
 
@@ -5650,6 +5844,16 @@ mod rich_header_tests {
         assert_eq!(parsed.get_string("INSTRUME"), Some("ZWO ASI2600MM Pro"));
         assert_eq!(parsed.get_float("FOCALLEN"), Some(416.0));
         assert_eq!(parsed.get_float("APTDIA"), Some(65.0));
+        // Pixel pitch, scaled by the binning this frame was taken at — FOCALLEN
+        // without it is not enough for a stacker to derive the plate scale, and
+        // these were hardcoded absent on every sequenced frame.
+        let xpixsz = parsed.get_float("XPIXSZ").expect("XPIXSZ card");
+        let ypixsz = parsed.get_float("YPIXSZ").expect("YPIXSZ card");
+        assert!(
+            (xpixsz - 7.52).abs() < 1e-6 && (ypixsz - 7.52).abs() < 1e-6,
+            "a 3.76 um sensor binned 2x2 has 7.52 um effective pixels, \
+             got {xpixsz} x {ypixsz}"
+        );
 
         // Observer + site.
         assert_eq!(parsed.get_string("OBSERVER"), Some("Test Observer"));
@@ -5835,6 +6039,17 @@ mod rich_header_tests {
             None,
             "AIRMASS must be omitted (not faked) when it cannot be computed"
         );
+        // The altitude is a measurement, not a model output: the mount really
+        // was at -9.9°, and a dark that records where the scope was parked is
+        // more useful than one that records nothing. Only the derived quantity
+        // is undefined down there.
+        let recorded = parsed
+            .get_float("OBJCTALT")
+            .expect("OBJCTALT records the altitude even below the horizon");
+        assert!(
+            (recorded - (-9.9)).abs() < 0.01,
+            "OBJCTALT should be -9.9, got {recorded}"
+        );
     }
 
     /// Above the horizon the AIRMASS card is still written, so omission is
@@ -5868,6 +6083,260 @@ mod rich_header_tests {
             (airmass - 1.0185).abs() < 0.001,
             "AIRMASS at Alt 78.98° should be ~1.0185, got {airmass}"
         );
+    }
+
+    /// A sequenced frame has to record where in the sky it was taken, not just
+    /// where the mount was pointed.
+    ///
+    /// This drives the production line: a `FrameContext` carrying exactly the
+    /// telemetry the sequencer stamps onto one (`instructions.rs` reads the
+    /// mount's coordinates and derives alt/az from the site in the same
+    /// breath), through the real `from_frame_context` and the real writer, and
+    /// reads the cards back off disk. `from_frame_context` used to hardcode
+    /// `altitude: None`, so every frame the sequencer wrote through
+    /// `real_device_ops` or `unified_device_ops` lost both keywords —
+    /// extinction correction has nothing to work from, and the altitude cannot
+    /// be reconstructed later because the file does not say when, where, or at
+    /// what it was pointed all at once.
+    #[tokio::test]
+    async fn sequenced_frame_records_where_in_the_sky_it_was_taken() {
+        let width = 4u32;
+        let height = 4u32;
+        let pixels = vec![3u16; (width * height) as usize];
+
+        let scratch = temp_scratch_dir("horizon_coords");
+        let temp_path = scratch.join("sequenced.fits");
+
+        let mut ctx = FrameContext::new_light("sess", 1, 1, 120.0, 1);
+        // Where the sequence MEANT to be...
+        ctx.target_ra_hours = Some(5.5);
+        ctx.target_dec_degrees = Some(-5.4);
+        // ...and where the mount actually was when the shutter opened, with
+        // the altitude the sequencer derived from that pointing and the site.
+        ctx.mount_ra_hours = Some(5.4917);
+        ctx.mount_dec_degrees = Some(-5.39);
+        ctx.mount_altitude_deg = Some(30.0);
+
+        let header = FitsWriteHeaderRich::from_frame_context(&ctx);
+        save_fits_file_rich(
+            temp_path.to_string_lossy().to_string(),
+            width,
+            height,
+            pixels,
+            header,
+        )
+        .await
+        .expect("FITS save should succeed");
+
+        let (_image, parsed) = read_fits(&temp_path).expect("FITS read-back");
+
+        let recorded_alt = parsed
+            .get_float("OBJCTALT")
+            .expect("a sequenced frame must record the altitude it was taken at");
+        assert!(
+            (recorded_alt - 30.0).abs() < 0.01,
+            "OBJCTALT should be the mount's 30.0°, got {recorded_alt}"
+        );
+
+        // Physics, not a re-run of the formula: at 30° altitude the zenith
+        // angle is 60°, so the plane-parallel path is sec 60° = 2.0 exactly.
+        // A real (curved, refracting) atmosphere is always a slightly SHORTER
+        // path than that, by a few tenths of a percent at this altitude.
+        let airmass = parsed
+            .get_float("AIRMASS")
+            .expect("AIRMASS follows from a recorded altitude");
+        let plane_parallel = 1.0 / (60.0_f64).to_radians().cos();
+        assert!(
+            airmass < plane_parallel,
+            "AIRMASS {airmass} at 30° altitude is not below the plane-parallel \
+             ceiling {plane_parallel}"
+        );
+        assert!(
+            plane_parallel - airmass < 0.02,
+            "AIRMASS {airmass} at 30° altitude is {:.4} below sec z — far more \
+             curvature than a real atmosphere has",
+            plane_parallel - airmass
+        );
+
+        // The pointing cards describe the same instant as the altitude: the
+        // mount's coordinates, not the target's nominal ones. RA leaves in
+        // degrees.
+        let ra_deg = parsed.get_float("RA").expect("RA card");
+        assert!(
+            (ra_deg - 5.4917 * 15.0).abs() < 1e-6,
+            "RA should be the mount's 5.4917h in degrees, got {ra_deg}"
+        );
+        let dec_deg = parsed.get_float("DEC").expect("DEC card");
+        assert!(
+            (dec_deg - (-5.39)).abs() < 1e-6,
+            "DEC should be the mount's -5.39°, got {dec_deg}"
+        );
+    }
+
+    /// Hardie (1962), for cross-checking the AIRMASS card against a formula
+    /// this codebase does not implement. A polynomial in sec z, from different
+    /// data and a different era than either Pickering or Young, and the
+    /// reduction every photoelectric photometry paper used for three decades:
+    ///
+    ///   X = sec z − 0.0018167(sec z − 1) − 0.002875(sec z − 1)²
+    ///              − 0.0008083(sec z − 1)³
+    ///
+    /// Hardie, R. H. 1962. "Photoelectric Reductions", in *Astronomical
+    /// Techniques*, ed. W. A. Hiltner (University of Chicago Press), p. 180.
+    /// Stated valid to z ≈ 80° (h ≥ 10°); it diverges rapidly below that.
+    fn hardie_1962_airmass(altitude_degrees: f64) -> f64 {
+        let sec_z = 1.0 / (90.0 - altitude_degrees).to_radians().cos();
+        let d = sec_z - 1.0;
+        sec_z - 0.0018167 * d - 0.002875 * d * d - 0.0008083 * d * d * d
+    }
+
+    /// Pin the AIRMASS card against a published formula rather than against
+    /// itself.
+    ///
+    /// This value goes into files users publish and hand to other people's
+    /// reduction pipelines, so the thing worth asserting is not "Pickering was
+    /// transcribed correctly" — a typo'd Pickering is still self-consistent —
+    /// but "an outside reducer computing airmass their own way gets our
+    /// number". Hardie is that outside reducer: a different functional form
+    /// fitted to different data, agreeing here to better than 0.02 airmass
+    /// (0.005 mag at a typical k = 0.25) across its whole validity range.
+    ///
+    /// This is the shape of check that catches a formula that has quietly
+    /// stopped being the one it is named after — like the copy in the
+    /// sequencer's photometry gate that added Pickering's refraction term to
+    /// sin(h) instead of to h, and was wrong by a factor of nearly three at
+    /// 10° altitude while still looking like Pickering's formula on the page.
+    #[test]
+    fn airmass_agrees_with_hardie_1962_over_its_published_range() {
+        let mut worst = (0.0_f64, 0.0_f64);
+        let mut h = 10.0_f64;
+        while h <= 90.0 {
+            let ours = nightshade_imaging::calculate_airmass(h).expect("above the horizon");
+            let delta = (ours - hardie_1962_airmass(h)).abs();
+            if delta > worst.1 {
+                worst = (h, delta);
+            }
+            h += 0.25;
+        }
+        assert!(
+            worst.1 < 0.02,
+            "AIRMASS disagrees with Hardie 1962 by {:.4} airmass at h={:.2}° \
+             (ours {:.5}, Hardie {:.5}); the card no longer means what an \
+             outside photometry reduction will assume it means",
+            worst.1,
+            worst.0,
+            nightshade_imaging::calculate_airmass(worst.0).unwrap(),
+            hardie_1962_airmass(worst.0),
+        );
+    }
+
+    /// The properties any airmass must have, over the whole sky, independent
+    /// of which formula produced it:
+    ///
+    ///   * ≥ 1 — the zenith is the shortest path through the atmosphere, so
+    ///     nothing can be shorter.
+    ///   * strictly increasing toward the horizon — a lower target looks
+    ///     through more air, always.
+    ///   * ≤ sec z — a curved atmosphere is a shorter path than the flat one
+    ///     the plane-parallel approximation assumes, so sec z is a hard
+    ///     ceiling.
+    ///
+    /// The hand-rolled copy this consolidation deleted from the photometry
+    /// gate violated the first two: it peaked at 2.02 near 10° altitude, then
+    /// *decreased* toward the horizon, and reported 0.86 at 1°. Nothing
+    /// checked shape, so it survived for as long as it existed.
+    #[test]
+    fn airmass_is_physical_over_the_whole_sky() {
+        let mut previous: Option<(f64, f64)> = None;
+        let mut h = 0.0_f64;
+        while h <= 89.75 {
+            let x = nightshade_imaging::calculate_airmass(h).expect("h >= 0 is above the horizon");
+            assert!(
+                x >= 1.0,
+                "airmass {x} at h={h}° is below 1.0 — shorter than the zenith path"
+            );
+            let sec_z = 1.0 / (90.0 - h).to_radians().cos();
+            assert!(
+                x <= sec_z,
+                "airmass {x} at h={h}° exceeds the plane-parallel ceiling sec z = {sec_z}"
+            );
+            if let Some((prev_h, prev_x)) = previous {
+                assert!(
+                    x < prev_x,
+                    "airmass rose with altitude: {prev_x} at {prev_h}° -> {x} at {h}°"
+                );
+            }
+            previous = Some((h, x));
+            h += 0.25;
+        }
+    }
+
+    /// Bound the one place the implementation is not continuous.
+    ///
+    /// `calculate_airmass` hands over from Young 1994 to Pickering 2002 at
+    /// exactly 10° altitude, and the two disagree there, so airmass takes a
+    /// small step UP as altitude increases across the seam — a local violation
+    /// of the monotonicity the sweep above checks, invisible at that sweep's
+    /// 0.25° resolution because the real gradient (0.13/0.25°) is four times
+    /// larger than the step.
+    ///
+    /// It is left in place rather than smoothed away: 0.035 airmass is 0.009
+    /// mag at a typical k = 0.25, at an altitude no photometry gate admits
+    /// (the default cut-off is 2.5 airmass, ~24°), and the alternative is
+    /// changing the AIRMASS of every frame the app has ever written. What is
+    /// not acceptable is for it to grow silently, so it is measured here.
+    #[test]
+    fn young_to_pickering_handover_step_stays_small() {
+        let below = nightshade_imaging::calculate_airmass(9.9999).expect("above the horizon");
+        let at = nightshade_imaging::calculate_airmass(10.0).expect("above the horizon");
+        let step = at - below;
+        assert!(
+            (0.0..0.05).contains(&step),
+            "the Young/Pickering handover at 10° now steps by {step:.4} airmass \
+             ({below} just below, {at} at the seam)"
+        );
+    }
+
+    /// The AIRMASS a frame records and the airmass the scheduler used to pick
+    /// its target must be one number.
+    ///
+    /// Read off disk on one side, called live on the other — so this fails if
+    /// either the writer or `scheduling::astronomy` grows its own formula
+    /// again. They previously disagreed below 10° altitude, where the writer
+    /// switches to Young 1994 and the scheduler's private copy did not: 31.7
+    /// against 38.7 at the horizon, either of which could end up in a file
+    /// somebody publishes.
+    #[tokio::test]
+    async fn airmass_card_agrees_with_the_scheduler_that_chose_the_target() {
+        let width = 2u32;
+        let height = 2u32;
+        let scratch = temp_scratch_dir("airmass_parity");
+
+        for altitude in [80.0_f64, 45.0, 24.0, 12.0, 6.0, 1.0] {
+            let temp_path = scratch.join(format!("alt_{altitude}.fits"));
+            let ctx = FrameContext::new_light("sess", 1, 1, 5.0, 1);
+            let mut header = FitsWriteHeaderRich::from_frame_context(&ctx);
+            header.altitude = Some(altitude);
+
+            save_fits_file_rich(
+                temp_path.to_string_lossy().to_string(),
+                width,
+                height,
+                vec![0u16; (width * height) as usize],
+                header,
+            )
+            .await
+            .expect("FITS save should succeed");
+
+            let (_image, parsed) = read_fits(&temp_path).expect("FITS read-back");
+            let written = parsed.get_float("AIRMASS").expect("AIRMASS card");
+            let scheduled = nightshade_sequencer::scheduling::airmass(altitude);
+            assert!(
+                (written - scheduled).abs() < 1e-9,
+                "at {altitude}° the file records airmass {written} but the scheduler \
+                 scored the target at {scheduled}"
+            );
+        }
     }
 
     /// Unit pin: RA is carried internally in hours but the numeric FITS RA
@@ -6224,6 +6693,66 @@ mod exposure_failure_classification_tests {
         }
     }
 
+    /// DATE-OBS must be when the shutter OPENED.
+    ///
+    /// It was sampled with `Utc::now()` while building the header, which runs
+    /// after readout, so every sequenced frame recorded a DATE-OBS late by
+    /// exactly its own EXPTIME -- measured live as a 30 s exposure starting
+    /// 14:04:37 and claiming 14:05:09. Photometry, occultation timing and
+    /// astrometry all read DATE-OBS as the start, so this silently shifted
+    /// every measurement by half to one exposure length.
+    #[test]
+    fn date_obs_is_the_exposure_start_not_the_readout_time() {
+        use chrono::TimeZone;
+
+        let started = chrono::Utc
+            .with_ymd_and_hms(2026, 8, 1, 14, 4, 37)
+            .single()
+            .expect("valid instant");
+
+        let mut ctx = nightshade_sequencer::scheduling::FrameContext::new_light(
+            "session".to_string(),
+            1,
+            1,
+            30.0,
+            1,
+        );
+        ctx.exposure_started_at = Some(started);
+
+        let header = crate::FitsWriteHeaderRich::from_frame_context(&ctx);
+
+        assert_eq!(
+            header.capture_timestamp, "2026-08-01T14:04:37",
+            "DATE-OBS must be the start of the exposure"
+        );
+        assert!(
+            !header.capture_timestamp.starts_with("2026-08-01T14:05"),
+            "DATE-OBS must not be the readout time (start + EXPTIME)"
+        );
+    }
+
+    /// A frame whose start time was never recorded must not silently claim the
+    /// current clock as its observation time without that being obvious.
+    #[test]
+    fn date_obs_without_a_recorded_start_falls_back_to_now() {
+        let ctx = nightshade_sequencer::scheduling::FrameContext::new_light(
+            "session".to_string(),
+            1,
+            1,
+            5.0,
+            1,
+        );
+        assert!(ctx.exposure_started_at.is_none());
+
+        let header = crate::FitsWriteHeaderRich::from_frame_context(&ctx);
+        let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string();
+        assert_eq!(
+            header.capture_timestamp[..13],
+            now[..13],
+            "fallback should be the current hour, not an empty or sentinel value"
+        );
+    }
+
     #[test]
     fn empty_validation_reason_still_classifies() {
         // `validation.errors.join("; ")` can only be empty if the error list was
@@ -6442,5 +6971,99 @@ mod fits_keyword_update_tests {
         )
         .await;
         assert!(result.is_err(), "missing file must surface an error");
+    }
+}
+
+#[cfg(test)]
+mod sim_exposure_tests {
+    use super::*;
+
+    /// The simulated camera must deliver the sensor it advertises.
+    ///
+    /// The manual-capture path generated 4144x2822 while `get_camera_status`
+    /// reported SIM_W x SIM_H (1920x1080). Two surfaces of one app then
+    /// disagreed about one connected camera: the Imaging toolbar and the FITS
+    /// said 4144x2822, while the Framing sidebar sized its FOV box from the
+    /// advertised 1920x1080 and drew it 2.16x too narrow.
+    #[tokio::test]
+    async fn simulated_frame_matches_the_advertised_sensor() {
+        let device_id = "sim_geometry_probe".to_string();
+
+        camera_start_exposure_configured_opt(
+            device_id.clone(),
+            0.01,
+            Some(100),
+            Some(10),
+            1,
+            1,
+            None,
+            nightshade_native::camera::FrameType::Light,
+        )
+        .await
+        .expect("simulated exposure should complete");
+
+        let (advertised_w, advertised_h) = {
+            let camera = get_sim_camera().read().await;
+            (camera.status.sensor_width, camera.status.sensor_height)
+        };
+        let frame = api_get_last_image(device_id)
+            .await
+            .expect("a frame should be stored");
+
+        assert_eq!(
+            (frame.width, frame.height),
+            (advertised_w, advertised_h),
+            "the delivered frame must have the geometry the camera advertised"
+        );
+    }
+
+    /// Aborting a simulated exposure must actually stop it.
+    ///
+    /// The cancel path only set the sensor state to Idle, so the exposure
+    /// future slept on to full duration and then published
+    /// ExposureComplete{success:true} and stored the frame. A 30 s light
+    /// aborted at 24 s still "completed" 7 s later.
+    #[tokio::test]
+    async fn cancelling_a_simulated_exposure_stops_it_and_stores_nothing() {
+        let device_id = "sim_cancel_probe".to_string();
+        api_clear_device_image(device_id.clone())
+            .await
+            .expect("clearing an empty slot is a no-op");
+
+        let cancel_id = device_id.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+            api_camera_cancel_exposure(cancel_id)
+                .await
+                .expect("cancel should be accepted");
+        });
+
+        let started = std::time::Instant::now();
+        let result = camera_start_exposure_configured_opt(
+            device_id.clone(),
+            30.0,
+            Some(100),
+            Some(10),
+            1,
+            1,
+            None,
+            nightshade_native::camera::FrameType::Light,
+        )
+        .await;
+        let elapsed = started.elapsed();
+
+        assert!(
+            result.is_err(),
+            "a cancelled exposure must not report success"
+        );
+        assert!(
+            elapsed < std::time::Duration::from_secs(5),
+            "the exposure kept integrating for {:?} of its 30 s after the abort",
+            elapsed
+        );
+        assert!(
+            api_get_last_image(device_id).await.is_err(),
+            "an aborted exposure must not store a frame"
+        );
     }
 }

@@ -21,6 +21,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 // ignore: implementation_imports
 import 'package:nightshade_core/src/models/framing_plate_scale.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 /// A fully-saturated red survey image, so any pixel of it that escapes the canvas
 /// is trivially detectable against a black surround (no other layer is red).
@@ -59,6 +60,7 @@ void main() {
     });
 
     final container = ProviderContainer(overrides: [
+      inMemoryDatabaseOverride(),
       // Keep the HiPS layer inert so this isolates the survey-background canvas.
       hipsFramingEnabledProvider.overrideWith((ref) => false),
     ]);

@@ -67,13 +67,17 @@ void main() {
 
       expect(find.text('Deep stars (Tycho-2 / Gaia tier)'), findsOneWidget);
       expect(
-        find.textContaining('No tileset installed'),
+        find.textContaining('No tileset available yet'),
         findsOneWidget,
         reason: 'silence is what made this a dead control',
       );
-      // No switch to flip — an Install affordance takes its place.
+      // No switch to flip — a configure affordance takes its place.
       expect(_switchFor(tester, 'Deep stars (Tycho-2 / Gaia tier)'), isNull);
-      expect(find.text('Install'), findsOneWidget);
+      // Named for what it does. "Install" promised a download that does not
+      // exist: the button only opens a form asking the user to host a tileset
+      // themselves, so the control could never install anything.
+      expect(find.text('Install'), findsNothing);
+      expect(find.text('Configure source...'), findsOneWidget);
     });
 
     testWidgets('the row never claims to be on while uninstalled',
@@ -89,7 +93,7 @@ void main() {
         ],
       );
 
-      expect(find.textContaining('No tileset installed'), findsOneWidget);
+      expect(find.textContaining('No tileset available yet'), findsOneWidget);
       expect(_switchFor(tester, 'Deep stars (Tycho-2 / Gaia tier)'), isNull);
     });
   });

@@ -32,6 +32,12 @@ extension CurrentSequenceTreeEditing on CurrentSequenceNotifier {
     _saveUndo();
 
     final newNodes = Map<String, SequenceNode>.from(_currentSequence!.nodes);
+    // Resolve the root BEFORE the insertion point so a rootless document gets
+    // a spine to hang the node from. Without this the `else if` below fell
+    // through and the node stayed in `nodes` with no parent and no entry in
+    // anyone's `childIds` — present to `containsKey`, invisible to every
+    // renderer and to the executor.
+    final rootNodeId = _ensureRootNode(newNodes);
     final resolved = _resolveInsertionPoint(newNodes, parentId, index);
     parentId = resolved.parentId;
     index = resolved.index;
@@ -60,8 +66,8 @@ extension CurrentSequenceTreeEditing on CurrentSequenceNotifier {
           newNodes[childId] = newNodes[childId]!.copyWith(orderIndex: i);
         }
       }
-    } else if (_currentSequence!.rootNodeId != null) {
-      final root = newNodes[_currentSequence!.rootNodeId!]!;
+    } else {
+      final root = newNodes[rootNodeId]!;
       final newChildIds = List<String>.from(root.childIds);
 
       if (index != null && index >= 0 && index <= newChildIds.length) {
@@ -70,10 +76,8 @@ extension CurrentSequenceTreeEditing on CurrentSequenceNotifier {
         newChildIds.add(node.id);
       }
 
-      newNodes[_currentSequence!.rootNodeId!] = root.copyWith(
-        childIds: newChildIds,
-      );
-      newNodes[node.id] = node.copyWith(parentId: _currentSequence!.rootNodeId);
+      newNodes[rootNodeId] = root.copyWith(childIds: newChildIds);
+      newNodes[node.id] = node.copyWith(parentId: rootNodeId);
 
       for (int i = 0; i < newChildIds.length; i++) {
         final childId = newChildIds[i];
@@ -85,8 +89,66 @@ extension CurrentSequenceTreeEditing on CurrentSequenceNotifier {
 
     _currentSequence = _currentSequence!.copyWith(
       nodes: newNodes,
+      rootNodeId: rootNodeId,
       modifiedAt: DateTime.now(),
     );
+  }
+
+  /// Resolve — repairing or creating when necessary — the container every
+  /// top-level insert hangs from, mutating [nodes] in place and returning its
+  /// id. The caller must write the returned id back onto the sequence's
+  /// `rootNodeId`.
+  ///
+  /// A sequence reaches the editor with no usable root more often than the
+  /// name suggests: `rootNodeId` is nullable in the model, in the `sequences`
+  /// table and in the `.nseq.json` schema (the importer only checks it is a
+  /// String *if present*), and the id-remapping copy paths resolve it through
+  /// a lookup that can miss. Both `addNode` and `addTargetHeader` used to bail
+  /// out on those documents, which is how Framing's "Add to Sequence -> Add
+  /// target" could close its dialog having written nothing at all: there was
+  /// no root to hang the header from, so it was hung nowhere. Refusing to
+  /// insert is not a safer answer than repairing the spine — it just moves the
+  /// failure somewhere the user cannot fix it.
+  String _ensureRootNode(Map<String, SequenceNode> nodes) {
+    final declaredId = _currentSequence!.rootNodeId;
+    if (declaredId != null && nodes.containsKey(declaredId)) return declaredId;
+
+    // Everything nobody claims as a child is currently top-level; the repaired
+    // root has to adopt all of it or the repair would strand the existing tree.
+    final claimed = <String>{for (final node in nodes.values) ...node.childIds};
+    final topLevel = nodes.values.where((n) => !claimed.contains(n.id)).toList()
+      ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+
+    // A document whose only defect is a missing `rootNodeId` already HAS its
+    // root — the single unparented container everything hangs from. Adopt it
+    // rather than wrapping it, so repairing a pointer never deepens the tree
+    // the user authored. Target headers are excluded: wrapping is the point
+    // there, otherwise the next target would nest inside the previous one.
+    if (declaredId == null &&
+        topLevel.length == 1 &&
+        topLevel.first.parentId == null &&
+        topLevel.first is! TargetHeaderNode &&
+        isContainerNode(topLevel.first)) {
+      return topLevel.first.id;
+    }
+
+    // Keep a declared-but-dangling id instead of minting a fresh one: child
+    // `parentId`s, the persisted `sequences.root_node_id` column and any
+    // in-flight diff all still name it.
+    final rootId = declaredId ?? const Uuid().v4();
+    final childIds = [for (final child in topLevel) child.id];
+    nodes[rootId] = InstructionSetNode(
+      id: rootId,
+      name: 'Sequence',
+      childIds: childIds,
+    );
+    for (int i = 0; i < childIds.length; i++) {
+      nodes[childIds[i]] = nodes[childIds[i]]!.copyWith(
+        parentId: rootId,
+        orderIndex: i,
+      );
+    }
+    return rootId;
   }
 
   /// Walk [parentId] up to the nearest node that can actually hold children,
@@ -105,8 +167,9 @@ extension CurrentSequenceTreeEditing on CurrentSequenceNotifier {
     while (cursor != null) {
       final candidate = nodes[cursor];
       if (candidate == null) return (parentId: null, index: resolvedIndex);
-      if (isContainerNode(candidate))
+      if (isContainerNode(candidate)) {
         return (parentId: cursor, index: resolvedIndex);
+      }
       final grandparentId = candidate.parentId;
       if (grandparentId == null) return (parentId: null, index: null);
       final siblings = nodes[grandparentId]?.childIds ?? const <String>[];
@@ -125,6 +188,11 @@ extension CurrentSequenceTreeEditing on CurrentSequenceNotifier {
   /// this silently created an unnamed sequence, hiding the UX failure that the
   /// user hadn't opened or created one yet. UI callers should catch and prompt
   /// (e.g. "Create a new sequence named '${targetNode.targetName}'?").
+  ///
+  /// A sequence that IS loaded but has no usable root is repaired rather than
+  /// refused — see [_ensureRootNode]. The bare `if (rootNodeId == null) return`
+  /// this replaced is what made Framing's "Add to Sequence -> Add target"
+  /// unable to add a target: it returned normally having written nothing.
   void addTargetHeader(TargetHeaderNode targetNode) {
     if (_currentSequence == null) {
       throw NoActiveSequenceException(
@@ -135,11 +203,8 @@ extension CurrentSequenceTreeEditing on CurrentSequenceNotifier {
     _saveUndo();
 
     final newNodes = Map<String, SequenceNode>.from(_currentSequence!.nodes);
-    final rootNodeId = _currentSequence!.rootNodeId;
-    if (rootNodeId == null) return;
-
-    final root = newNodes[rootNodeId];
-    if (root == null) return;
+    final rootNodeId = _ensureRootNode(newNodes);
+    final root = newNodes[rootNodeId]!;
 
     final orphanIds = <String>[];
     final remainingRootChildren = <String>[];
@@ -175,6 +240,7 @@ extension CurrentSequenceTreeEditing on CurrentSequenceNotifier {
 
     _currentSequence = _currentSequence!.copyWith(
       nodes: newNodes,
+      rootNodeId: rootNodeId,
       modifiedAt: DateTime.now(),
     );
   }

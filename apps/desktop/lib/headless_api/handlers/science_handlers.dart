@@ -434,14 +434,26 @@ class ScienceHandlers {
       });
     }
 
-    double airmass = 1.0;
-    if (image.mountAltitude != null && image.mountAltitude! > 0) {
-      final altitudeRadians = image.mountAltitude! * math.pi / 180.0;
-      airmass =
-          1.0 /
-          (math.sin(altitudeRadians) +
-              0.50572 * math.pow(image.mountAltitude! + 6.07995, -1.6364));
-      airmass = airmass.clamp(1.0, 8.0);
+    // Airmass through the product's one model, so a client paired to this host
+    // fits extinction on the same atmosphere the in-app wizard does and the
+    // same one the frame's FITS AIRMASS card records.
+    //
+    // A frame with no recorded above-horizon altitude is refused rather than
+    // defaulted to X = 1.0: an invented zenith airmass mixed in with real ones
+    // drags the extinction slope toward zero, and the wrong k then rides along
+    // in every magnitude the saved transform standardizes. The in-app wizard
+    // refuses the same frame for the same reason.
+    final altitudeDeg = image.mountAltitude;
+    final airmass = altitudeDeg == null
+        ? null
+        : airmassForTrueAltitude(altitudeDeg);
+    if (airmass == null) {
+      return jsonBadRequest({
+        'error':
+            'Frame ${image.fileName} has no recorded above-horizon mount '
+            'altitude, so its airmass is unknown and it cannot contribute to '
+            'an extinction fit.',
+      });
     }
 
     final wcs = WcsSolution(

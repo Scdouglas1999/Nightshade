@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as path;
-import 'package:path_provider/path_provider.dart';
 import '../database/database.dart' hide Sequence, SequenceNode;
 import '../database/daos/settings_dao.dart';
 import '../database/daos/equipment_profiles_dao.dart';
@@ -113,6 +112,32 @@ class BackupMetadata {
   }
 }
 
+/// Where backups live when no explicit directory is injected: a `backups/`
+/// folder beside the database they were taken from.
+///
+/// WHY resolved from [resolveDefaultDatabaseFile] rather than straight from
+/// `getApplicationDocumentsDirectory()`: a bundle only means anything next to
+/// the database it snapshotted. The old path ignored the configured data
+/// directory entirely, so every install on a machine — the GUI, a headless
+/// daemon pinned to its own state dir, a scratch profile — read and WROTE into
+/// one shared `~/Documents/Nightshade/backups`. "Recent Backups" then listed
+/// bundles from databases the running instance had never seen, with nothing in
+/// the row to tell them apart, and Restore on a foreign row was one click away.
+/// Following the database keeps each install's history its own.
+///
+/// The default (no override) resolves to the historical
+/// `<documents>/Nightshade/backups`, so existing installs keep their bundles.
+Future<Directory> resolveDefaultBackupDirectory({
+  Map<String, String>? environment,
+  Future<Directory> Function()? documentsDirectoryProvider,
+}) async {
+  final databaseFile = await resolveDefaultDatabaseFile(
+    environment: environment,
+    documentsDirectoryProvider: documentsDirectoryProvider,
+  );
+  return Directory(path.join(databaseFile.parent.path, 'backups'));
+}
+
 /// Comprehensive backup and restore service for Nightshade data
 class BackupService {
   final NightshadeDatabase database;
@@ -139,6 +164,20 @@ class BackupService {
   /// screen kept reporting a stale (or "Never") time directly above the Create
   /// Backup button the operator had just pressed.
   static const String lastBackupSettingKey = 'autosave.last_backup_at';
+
+  /// Settings key holding the operator's chosen backup folder, empty/absent
+  /// meaning [resolveDefaultBackupDirectory].
+  ///
+  /// Backups belong on the drive the operator actually backs up: an observatory
+  /// PC's system volume is routinely the smallest one on the machine, and the
+  /// default folder follows the database onto it. Until this key existed the
+  /// destination was fixed, undisclosed, and pruned by "Maximum backups" with no
+  /// way to move it.
+  ///
+  /// Deliberately excluded from [_exportSettings]: a bundle restored from
+  /// another machine would otherwise repoint THIS install's backup folder — and
+  /// its retention deletes — at a path that machine chose.
+  static const String backupDirectorySettingKey = 'backup.directory';
   final String runtimeAppVersion;
 
   BackupService({
@@ -379,12 +418,13 @@ class BackupService {
           _logger.debug('Restored $count settings');
         }
 
-        // Restore equipment profiles
+        // Restore equipment profiles. No `replace` flag: profiles are re-keyed
+        // on name rather than on the bundle's row ids, so the importer updates
+        // or inserts on its own terms. A replace-restore has already emptied
+        // the table above, which is the state _importProfiles reads to decide
+        // whether the bundle's default/active flags may be honoured.
         if (staged.profiles != null) {
-          final count = await _importProfiles(
-            staged.profiles!,
-            replace: replaceExisting,
-          );
+          final count = await _importProfiles(staged.profiles!);
           categoryCounts['profiles'] = count;
           _logger.debug('Restored $count profiles');
         }
@@ -711,6 +751,11 @@ class BackupService {
   Future<Map<String, dynamic>> _exportSettings() async {
     final settingsDao = SettingsDao(database);
     final allSettings = await settingsDao.getAllSettings();
+    // The backup folder describes THIS machine's disks, not the archive's
+    // contents. Carrying it in the bundle would let a restore repoint where a
+    // different install writes — and where "Maximum backups" deletes from — at
+    // a path chosen on another machine.
+    allSettings.remove(backupDirectorySettingKey);
     return allSettings;
   }
 
@@ -1025,11 +1070,46 @@ class BackupService {
   Future<Directory> _getBackupDirectory() async {
     final override = _backupDirectoryProvider;
     if (override != null) return override();
-    final docsDir = await getApplicationDocumentsDirectory();
-    return Directory(path.join(docsDir.path, 'Nightshade', 'backups'));
+    final configured = await getConfiguredBackupDirectory();
+    if (configured != null) return Directory(configured);
+    return resolveDefaultBackupDirectory();
   }
 
+  /// The operator's chosen backup folder, or null when backups still follow the
+  /// database. Distinct from [getBackupDirectory], which always answers with a
+  /// concrete directory — this one answers "did anyone move it?".
+  Future<String?> getConfiguredBackupDirectory() async {
+    final value = await SettingsDao(
+      database,
+    ).getSetting(backupDirectorySettingKey);
+    final trimmed = value?.trim() ?? '';
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  /// The folder backups are written to, read, and pruned from — the one choke
+  /// point every caller goes through (create, auto-save, list, retention, the
+  /// headless handlers, sync).
   Future<Directory> getBackupDirectory() => _getBackupDirectory();
+
+  /// Point backups at [directoryPath]; pass null or blank to return to the
+  /// default beside the database.
+  ///
+  /// Deliberately does NOT move or copy the bundles already written elsewhere:
+  /// silently relocating an archive on a settings change is not something the
+  /// operator asked for, and the old folder keeps whatever it holds. It IS
+  /// created eagerly, so a path that cannot be written to fails here — while
+  /// the operator is looking at the picker — instead of at 3am when the
+  /// scheduled backup fires.
+  Future<void> setBackupDirectory(String? directoryPath) async {
+    final dao = SettingsDao(database);
+    final trimmed = directoryPath?.trim() ?? '';
+    if (trimmed.isEmpty) {
+      await dao.deleteSetting(backupDirectorySettingKey);
+      return;
+    }
+    await Directory(trimmed).create(recursive: true);
+    await dao.setSetting(backupDirectorySettingKey, trimmed);
+  }
 
   Future<void> _clearAllData() async {
     // Clear all tables (except settings if desired)

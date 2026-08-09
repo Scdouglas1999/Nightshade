@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:nightshade_core/nightshade_core.dart';
+import '../../harness/in_memory_database.dart';
 
 /// Tests for LIM-4: live MASTER -> SLAVE mirroring of the OPEN sequencer
 /// editor canvas via the [HostMutationEntity.sequenceEditor] host-mutation and
@@ -82,7 +83,9 @@ void main() {
   test(
     'editor-mirror applies to a CLEAN slave canvas (loadSequence)',
     () async {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: [inMemoryDatabaseOverride()],
+      );
       addTearDown(container.dispose);
 
       final fileService = container.read(sequenceFileServiceProvider);
@@ -110,7 +113,9 @@ void main() {
   test(
     'editor-mirror SKIPS a slave canvas with unsaved edits (isDirty guard)',
     () async {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: [inMemoryDatabaseOverride()],
+      );
       addTearDown(container.dispose);
 
       final editor = container.read(currentSequenceProvider.notifier);
@@ -140,7 +145,9 @@ void main() {
   );
 
   test('editor-mirror "cleared" empties a CLEAN slave canvas', () async {
-    final container = ProviderContainer();
+    final container = ProviderContainer(
+      overrides: [inMemoryDatabaseOverride()],
+    );
     addTearDown(container.dispose);
 
     final editor = container.read(currentSequenceProvider.notifier);
@@ -160,7 +167,9 @@ void main() {
   });
 
   test('editor-mirror "cleared" does NOT wipe a dirty slave canvas', () async {
-    final container = ProviderContainer();
+    final container = ProviderContainer(
+      overrides: [inMemoryDatabaseOverride()],
+    );
     addTearDown(container.dispose);
 
     final editor = container.read(currentSequenceProvider.notifier);

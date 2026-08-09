@@ -106,6 +106,7 @@ List<String> availableHeadlessEndpoints() {
     'POST /api/rotator/set-reverse',
     // PHD2
     'GET /api/phd2/running',
+    'GET /api/phd2/probe',
     'POST /api/phd2/connect',
     'POST /api/phd2/disconnect',
     'POST /api/phd2/start-guiding',

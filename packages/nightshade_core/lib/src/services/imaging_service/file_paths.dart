@@ -63,6 +63,77 @@ extension _ImagingServiceFilePaths on ImagingService {
     return _ensureUniqueFilePath(fullPath);
   }
 
+  /// The `$SEQ`/`$FRAMENUM` value to stamp on the next KEEPER, given that
+  /// [ImagingService._frameNumber] counts only this service instance's frames.
+  ///
+  /// `imagingServiceProvider` watches `backendProvider`, so the service — and
+  /// with it the counter — is rebuilt on every app start and on every host
+  /// switch or reconnect. The counter therefore returned to 0 several times a
+  /// night while the shipped pattern `$TARGET_$FILTER_$DATE_$SEQ` still
+  /// resolved to the same folder and the same UTC date: the next Snapshot
+  /// asked for `0001` with `0001` already on disk. [_ensureUniqueFilePath] kept
+  /// the data safe by appending `_001`, but the operator was left with two
+  /// files whose sequence number both read 0001 and a suffix no pattern asked
+  /// for — which sorts wrong in every stacker.
+  ///
+  /// Probing the folder rather than remembering a high-water mark is also what
+  /// makes the number restart correctly: tomorrow's `$DATE` renders a path that
+  /// does not exist yet, so tomorrow's first frame is 0001 again.
+  ///
+  /// Never throws. An unusable naming pattern must fail the capture at save
+  /// time, where the operator gets the real message, and a folder that cannot
+  /// be probed simply falls back to the in-memory counter.
+  Future<int> _nextKeeperFrameNumber({
+    required ExposureSettings exposureSettings,
+    String? targetName,
+  }) async {
+    final fallback = _frameNumber + 1;
+    try {
+      final basePath = _ref
+          .read(appSettingsProvider)
+          .valueOrNull
+          ?.imageOutputPath;
+      if (basePath == null || basePath.isEmpty) return fallback;
+
+      final namingPattern = _ref.read(namingPatternProvider);
+      // `nowUtc()`, not `now().toUtc()`: the latter re-converts an already
+      // zone-shifted rendering and lands offset+hostOffset away, so the
+      // `$DATETIME` a probe renders would not match the one the real save
+      // renders and the keeper-number probe would look at the wrong files.
+      final timestamp = _ref.read(clockProvider).nowUtc();
+      String renderFor(int frameNumber) => ImagingService.buildImageFilePath(
+        pattern: namingPattern.pattern,
+        basePath: basePath,
+        extension: namingPattern.format.extension,
+        substitutions: _buildPatternSubstitutions(
+          exposureSettings: exposureSettings,
+          targetName: targetName,
+          frameNumber: frameNumber,
+          timestamp: timestamp,
+        ),
+      );
+
+      // A pattern that renders no frame number (e.g. `$TARGET_$DATETIME`)
+      // gives the same path for every candidate: probing it would never
+      // terminate, and there uniqueness is _ensureUniqueFilePath's job.
+      if (renderFor(fallback) == renderFor(fallback + 1)) return fallback;
+
+      var candidate = fallback;
+      final ceiling = fallback + ImagingService._keeperProbeLimit;
+      while (candidate < ceiling && await File(renderFor(candidate)).exists()) {
+        candidate++;
+      }
+      return candidate;
+    } catch (e) {
+      _logger.warning(
+        'Could not check which frame numbers are already on disk ($e) — '
+        'numbering continues from $fallback',
+        source: 'ImagingService',
+      );
+      return fallback;
+    }
+  }
+
   Future<String> _ensureUniqueFilePath(String desiredPath) async {
     var candidate = desiredPath;
     var suffix = 1;

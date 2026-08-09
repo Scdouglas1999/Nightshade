@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/analytics/analytics_screen.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 ImagingSession _session({
   required int id,
@@ -66,6 +67,7 @@ void main() {
 
   setUp(() {
     container = ProviderContainer(overrides: [
+      inMemoryDatabaseOverride(),
       allSessionsProvider.overrideWith((ref) => Stream.value(sessions)),
       allDbTargetsProvider.overrideWith((ref) => Stream.value(targets)),
     ]);

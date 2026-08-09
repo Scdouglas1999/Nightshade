@@ -885,8 +885,8 @@ as Map<String, double>,
 /// @nodoc
 mixin _$GuideErrorPoint {
 
-/// RA error in arcseconds
- double get raError;/// Dec error in arcseconds
+/// RA error (guide-camera pixels; see class docs)
+ double get raError;/// Dec error (guide-camera pixels; see class docs)
  double get decError;/// Timestamp when this error was recorded
  DateTime get timestamp;
 /// Create a copy of GuideErrorPoint
@@ -1087,9 +1087,9 @@ class _GuideErrorPoint implements GuideErrorPoint {
   const _GuideErrorPoint({required this.raError, required this.decError, required this.timestamp});
   factory _GuideErrorPoint.fromJson(Map<String, dynamic> json) => _$GuideErrorPointFromJson(json);
 
-/// RA error in arcseconds
+/// RA error (guide-camera pixels; see class docs)
 @override final  double raError;
-/// Dec error in arcseconds
+/// Dec error (guide-camera pixels; see class docs)
 @override final  double decError;
 /// Timestamp when this error was recorded
 @override final  DateTime timestamp;
@@ -1160,11 +1160,11 @@ as DateTime,
 /// @nodoc
 mixin _$Phd2GuideStats {
 
-/// RMS error in RA (arcseconds)
- double get rmsRa;/// RMS error in Dec (arcseconds)
- double get rmsDec;/// Total RMS error (arcseconds)
- double get rmsTotal;/// Peak RA error (arcseconds)
- double get peakRa;/// Peak Dec error (arcseconds)
+/// RMS error in RA (guide-camera pixels; see class docs)
+ double get rmsRa;/// RMS error in Dec (guide-camera pixels; see class docs)
+ double get rmsDec;/// Total RMS error (guide-camera pixels; see class docs)
+ double get rmsTotal;/// Peak RA error (guide-camera pixels; see class docs)
+ double get peakRa;/// Peak Dec error (guide-camera pixels; see class docs)
  double get peakDec;/// SNR of guide star
  double get snr;/// Star mass (brightness)
  double get starMass;/// HFD (Half Flux Diameter)
@@ -1380,15 +1380,15 @@ class _Phd2GuideStats implements Phd2GuideStats {
   const _Phd2GuideStats({this.rmsRa = 0.0, this.rmsDec = 0.0, this.rmsTotal = 0.0, this.peakRa = 0.0, this.peakDec = 0.0, this.snr = 0.0, this.starMass = 0.0, this.hfd = 0.0, this.starX = 0.0, this.starY = 0.0, this.pixelScale = 0.0, this.frameCount = 0});
   factory _Phd2GuideStats.fromJson(Map<String, dynamic> json) => _$Phd2GuideStatsFromJson(json);
 
-/// RMS error in RA (arcseconds)
+/// RMS error in RA (guide-camera pixels; see class docs)
 @override@JsonKey() final  double rmsRa;
-/// RMS error in Dec (arcseconds)
+/// RMS error in Dec (guide-camera pixels; see class docs)
 @override@JsonKey() final  double rmsDec;
-/// Total RMS error (arcseconds)
+/// Total RMS error (guide-camera pixels; see class docs)
 @override@JsonKey() final  double rmsTotal;
-/// Peak RA error (arcseconds)
+/// Peak RA error (guide-camera pixels; see class docs)
 @override@JsonKey() final  double peakRa;
-/// Peak Dec error (arcseconds)
+/// Peak Dec error (guide-camera pixels; see class docs)
 @override@JsonKey() final  double peakDec;
 /// SNR of guide star
 @override@JsonKey() final  double snr;

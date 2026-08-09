@@ -1,4 +1,6 @@
+import '../../../models/equipment/equipment_models.dart';
 import '../../../models/sequence/sequence_models.dart';
+import '../../equipment_provider.dart';
 import '../../profiles_provider.dart';
 import '../sequence_validation.dart';
 
@@ -7,8 +9,8 @@ import '../sequence_validation.dart';
 /// These rules cover the three failure modes the brief calls out:
 ///   * empty plans (executable but pointless — error)
 ///   * any plan with count == 0 (silently never runs — warning)
-///   * missing filter wheel on the active equipment profile (the node
-///     cannot execute without one — error)
+///   * no filters on the active equipment profile (the rows have nothing
+///     to select, so the node cannot execute — error)
 ///
 /// All three are pure structural rules apart from
 /// [SmartExposureFilterWheelMissingRule] which needs `Ref` to read the
@@ -127,8 +129,16 @@ class SmartExposureNegativeCountRule implements SequenceValidator {
   }
 }
 
-/// SmartExposure needs a filter wheel to execute. When the active
-/// equipment profile has no filter wheel device, the node cannot run.
+/// SmartExposure picks its per-row filters from the active equipment
+/// profile's filter list, so an empty list leaves every row unselectable
+/// and the node cannot run.
+///
+/// The condition tested is the profile's filter list — NOT whether a filter
+/// wheel is attached. Those are different facts and the app can show them
+/// disagreeing: a wheel connected and green on the Equipment screen while
+/// the profile still lists no filters. Reporting the empty list as "no
+/// filter wheel" sent users to Equipment to look at a wheel that was fine,
+/// so the wheel's real state is read here and the wording follows it.
 class SmartExposureFilterWheelMissingRule implements RefAwareSequenceValidator {
   @override
   String get name => 'SmartExposureFilterWheelMissing';
@@ -152,16 +162,46 @@ class SmartExposureFilterWheelMissingRule implements RefAwareSequenceValidator {
         const ValidationIssue(
           severity: ValidationSeverity.info,
           category: ValidationCategory.equipment,
-          title: 'Cannot check SmartExposure filter wheel',
+          title: 'Cannot check SmartExposure filters',
           description:
-              'No active equipment profile is selected, so the SmartExposure filter-wheel requirement could not be verified.',
+              'No active equipment profile is selected, so the filter list SmartExposure draws its rows from could not be read.',
         ),
       ];
     }
 
-    // The profile carries a `filterNames` list — empty means no filter
-    // wheel is configured.
+    // The profile's `filterNames` list is what the SmartExposure editor
+    // offers as row filters; empty means the rows have nothing to select.
     if (profile.filterNames.isNotEmpty) return const [];
+
+    // Same source of truth the Equipment screen shows, so the message
+    // cannot contradict what the user sees there.
+    final wheel = ctx.ref.read(filterWheelStateProvider);
+    final wheelConnected =
+        wheel.connectionState == DeviceConnectionState.connected;
+    final wheelAssignedToProfile = profile.filterWheelId?.isNotEmpty == true;
+    final wheelLabel =
+        wheel.deviceName ?? profile.filterWheelName ?? 'The filter wheel';
+
+    final String title;
+    final String cause;
+    final String hint;
+    if (wheelConnected || wheelAssignedToProfile) {
+      title = 'No filters configured for SmartExposure';
+      cause = wheelConnected
+          ? '$wheelLabel is connected, but the active equipment profile "${profile.name}" lists no filters, so its rows have nothing to select.'
+          : 'the active equipment profile "${profile.name}" assigns a filter wheel but lists no filters, so its rows have nothing to select.';
+      // Echoing the slots the driver reports turns "add some filters" into
+      // a list the user can copy, instead of a guess at their own hardware.
+      hint = wheelConnected && wheel.filterNames.isNotEmpty
+          ? 'Edit the active profile and name its filters — the wheel reports ${wheel.filterNames.length} slots: ${wheel.filterNames.join(', ')}.'
+          : 'Edit the active profile and add at least one filter, or remove the SmartExposure node.';
+    } else {
+      title = 'No filter wheel for SmartExposure';
+      cause =
+          'no filter wheel is connected and the active equipment profile "${profile.name}" has none assigned, so there are no filters for its rows to select.';
+      hint =
+          'Assign a filter wheel to the active profile and add its filters, or remove the SmartExposure node.';
+    }
 
     final issues = <ValidationIssue>[];
     for (final node in sequence.nodes.values) {
@@ -171,12 +211,10 @@ class SmartExposureFilterWheelMissingRule implements RefAwareSequenceValidator {
         ValidationIssue(
           severity: ValidationSeverity.error,
           category: ValidationCategory.equipment,
-          title: 'No filter wheel for SmartExposure',
-          description:
-              'Smart Exposure "${node.name}" requires a filter wheel, but the active equipment profile has no filters configured.',
+          title: title,
+          description: 'Smart Exposure "${node.name}": $cause',
           affectedNodeId: node.id,
-          resolutionHint:
-              'Edit the active profile and add at least one filter, or remove the SmartExposure node.',
+          resolutionHint: hint,
         ),
       );
     }

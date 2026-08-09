@@ -501,7 +501,10 @@ class ProfileService {
     }
 
     final exportData = ProfileExportData.fromModel(profile);
-    return jsonEncode(exportData.toJson());
+    // Enveloped so the file identifies itself: import can then say "that is
+    // not a Nightshade profile" instead of failing on the first field it
+    // cannot read.
+    return jsonEncode(profileExportEnvelope([exportData.toJson()]));
   }
 
   /// Export a profile to a file
@@ -535,12 +538,9 @@ class ProfileService {
           .toList();
     }
 
-    final exportJson = exportData.map((p) => p.toJson()).toList();
-    return jsonEncode({
-      'version': 2,
-      'exportDate': DateTime.now().toIso8601String(),
-      'profiles': exportJson,
-    });
+    return jsonEncode(
+      profileExportEnvelope(exportData.map((p) => p.toJson()).toList()),
+    );
   }
 
   /// Export all profiles to a file
@@ -553,26 +553,14 @@ class ProfileService {
   /// Import a profile from JSON
   Future<int> importProfileFromJson(String json) async {
     final authority = _authority;
-    final data = jsonDecode(json);
-
-    // Handle single profile export
-    final Object? profileData;
-    if (data is Map && data.containsKey('profiles')) {
-      final profiles = data['profiles'];
-      if (profiles is! List || profiles.isEmpty) {
-        throw const FormatException(
-          'Profile export must contain at least one profile',
-        );
-      }
-      profileData = profiles.first;
-    } else {
-      profileData = data;
-    }
-    if (profileData is! Map<String, dynamic>) {
-      throw const FormatException('Profile entry must be a JSON object');
+    final profiles = profilesFromExportDocument(json);
+    if (profiles.isEmpty) {
+      throw const ProfileImportException(
+        'That Nightshade export contains no profiles.',
+      );
     }
 
-    final exportData = ProfileExportData.fromJson(profileData);
+    final exportData = parseExportedProfile(profiles.first, index: 0);
     return await _createProfileFromExport(exportData, authority: authority);
   }
 
@@ -586,38 +574,20 @@ class ProfileService {
   /// Import all profiles from JSON (batch import)
   Future<List<int>> importAllProfilesFromJson(String json) async {
     final authority = _authority;
-    final data = jsonDecode(json);
-
-    List<dynamic> profilesData;
-    if (data is Map && data.containsKey('profiles')) {
-      final profiles = data['profiles'];
-      if (profiles is! List) {
-        throw const FormatException('"profiles" must be a JSON array');
-      }
-      profilesData = profiles;
-    } else if (data is List) {
-      profilesData = data;
-    } else {
-      // Single profile
-      profilesData = [data];
-    }
+    final profilesData = profilesFromExportDocument(json);
 
     if (profilesData.isEmpty) {
-      throw const FormatException(
-        'Profile export must contain at least one profile',
+      throw const ProfileImportException(
+        'That Nightshade export contains no profiles.',
       );
     }
 
     // Parse and validate the entire document before persisting the first row.
     // A malformed later entry must not leave a misleading partial import.
-    final parsedProfiles = profilesData
-        .map((profileJson) {
-          if (profileJson is! Map<String, dynamic>) {
-            throw const FormatException('Each profile must be a JSON object');
-          }
-          return ProfileExportData.fromJson(profileJson);
-        })
-        .toList(growable: false);
+    final parsedProfiles = <ProfileExportData>[];
+    for (var i = 0; i < profilesData.length; i++) {
+      parsedProfiles.add(parseExportedProfile(profilesData[i], index: i));
+    }
 
     final ids = <int>[];
     for (final exportData in parsedProfiles) {

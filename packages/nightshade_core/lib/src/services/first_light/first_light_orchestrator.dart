@@ -192,6 +192,16 @@ class _FirstLightStageError implements Exception {
   String toString() => message;
 }
 
+/// Thrown internally when [FirstLightOrchestrator.cancel] latches mid-run.
+///
+/// Distinct from [_FirstLightStageError] because a cancel is not a failure:
+/// it unwinds the flow back to idle rather than to
+/// [FirstLightPhase.failed] with a "capture failed" message the operator did
+/// not cause.
+class _FirstLightCancelled implements Exception {
+  const _FirstLightCancelled();
+}
+
 /// Chains the existing imaging, auto-stretch, plate-solve and annotation
 /// services into a single guided "first light" flow.
 ///
@@ -221,9 +231,32 @@ class FirstLightOrchestrator {
 
   LoggingService get _logger => _ref.read(loggingServiceProvider);
 
+  /// Latched by [cancel] for the duration of one [run].
+  bool _cancelRequested = false;
+
   /// Message shown on the positive end when ASTAP is not yet configured.
   static const solverNotConfiguredNote =
       'Plate solver not configured — set it up to label your image';
+
+  /// Abort an in-flight run AT THE CAMERA.
+  ///
+  /// Without this there was no way to stop a first-light exposure at all:
+  /// dismissing the flow left the sensor exposing with nothing holding a
+  /// handle on it, so the camera stayed busy until the process was restarted.
+  /// The abort is dispatched through the same [ImagingService] seam the
+  /// exposure was started through — `cancelExposure` resolves the pending
+  /// exposure completer AND sends the driver-level abort — and the latch
+  /// short-circuits the remaining stages so a cancel during
+  /// stretch/solve/annotate stops there too.
+  void cancel() {
+    if (_cancelRequested) return;
+    _cancelRequested = true;
+    _ref.read(imagingServiceProvider).cancelExposure();
+  }
+
+  void _throwIfCancelled() {
+    if (_cancelRequested) throw const _FirstLightCancelled();
+  }
 
   /// Run the full first-light flow for a single [exposureSeconds] exposure.
   ///
@@ -238,6 +271,10 @@ class FirstLightOrchestrator {
         'First-light exposure length must be positive',
       );
     }
+
+    // Fresh latch per run: a cancel belongs to the run it interrupted, and a
+    // stale one would abort the next run before it started.
+    _cancelRequested = false;
 
     var state = FirstLightState(
       phase: FirstLightPhase.exposing,
@@ -274,6 +311,7 @@ class FirstLightOrchestrator {
       state = state.copyWith(phase: FirstLightPhase.stretching);
       _emit(state);
       await _autoStretch(captured);
+      _throwIfCancelled();
       state = state.copyWith(stretched: true);
       _emit(state);
 
@@ -286,6 +324,7 @@ class FirstLightOrchestrator {
       // ---------------------------------------------------------------------
       final plateSolve = _ref.read(plateSolveServiceProvider);
       final detection = await _detect(plateSolve);
+      _throwIfCancelled();
 
       if (!detection.selectedSolverReady) {
         // Legitimate positive end for a first-time user who hasn't set up a
@@ -310,6 +349,7 @@ class FirstLightOrchestrator {
         plateSolve,
         imagePath: captured.filePath,
       );
+      _throwIfCancelled();
       state = state.copyWith(solveResult: solveResult);
       _emit(state);
 
@@ -321,6 +361,15 @@ class FirstLightOrchestrator {
       await _annotate(captured, solveResult);
       state = state.copyWith(phase: FirstLightPhase.success, annotated: true);
       _emit(state);
+    } on _FirstLightCancelled {
+      // The operator stopped it; the exposure has already been aborted at the
+      // camera by `cancel()`. Unwind to idle rather than to `failed`, so the
+      // flow does not report a failure the operator caused deliberately.
+      _logger.info(
+        'First-light flow cancelled by the operator.',
+        source: 'FirstLight',
+      );
+      _emit(const FirstLightState());
     } on _FirstLightStageError catch (e) {
       _logger.warning(
         'First-light flow failed: ${e.message}',
@@ -377,8 +426,13 @@ class FirstLightOrchestrator {
           .read(imagingServiceProvider)
           .captureImage(settings: settings);
     } catch (e) {
+      // A cancel takes the capture down through this same path; report it as a
+      // cancel, not as "Capture failed".
+      _throwIfCancelled();
       throw _FirstLightStageError('Capture failed: $e');
     }
+
+    _throwIfCancelled();
 
     if (captured == null) {
       throw const _FirstLightStageError(

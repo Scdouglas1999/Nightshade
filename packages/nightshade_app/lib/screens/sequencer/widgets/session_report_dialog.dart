@@ -294,24 +294,105 @@ class _ReportBody extends ConsumerWidget {
                       postSessionHealthSummaryProvider(report.sessionId),
                     );
 
+                    // A persisted snapshot is two penalty scores and a capture
+                    // time — nothing in it records whether either score came
+                    // from a measurement, and a penalty of 0 is both
+                    // "perfectly flat field" and "nothing looked". So BOTH
+                    // operands of the drift subtraction have their measured
+                    // flags re-derived from this session's own PSF tiles /
+                    // astrometric residuals, which are permanent rows keyed by
+                    // session id.
+                    //
+                    // The flags are passed explicitly rather than left to the
+                    // constructor defaults. Those defaults stay fail-OPEN
+                    // (`true`) on purpose: the analyzer is the one caller that
+                    // may legitimately omit them because it always knows what
+                    // it looked at, and defaulting it to `false` would
+                    // downgrade its own honest readings. Reconstructions like
+                    // this one carry no such knowledge, so they state the
+                    // flags and fail CLOSED on unknown — a session whose
+                    // science rows we cannot read is unmeasured, not healthy.
+                    final analysis = ref
+                        .watch(
+                          opticalTrainDiagnosticsProvider(report.sessionId),
+                        )
+                        .valueOrNull;
+                    final currentTiltMeasured = analysis?.tiltMeasured ?? false;
+                    final currentCollimationMeasured =
+                        analysis?.collimationMeasured ?? false;
+
                     OpticalTrainDiagnostics? currentDiag;
                     if (current != null) {
                       currentDiag = OpticalTrainDiagnostics(
                         tiltScore: current.tiltScore,
                         collimationScore: current.collimationScore,
-                        dominantTiltDirection: 'unknown',
+                        dominantTiltDirection:
+                            analysis?.dominantTiltDirection ?? 'unknown',
                         issues: const [],
+                        tiltMeasured: currentTiltMeasured,
+                        collimationMeasured: currentCollimationMeasured,
                       );
                     }
 
+                    // The far operand needs the same treatment. The executor
+                    // analysed the baseline from the rows that existed at
+                    // `capturedAt`, so replay that same cut through the same
+                    // service to recover ITS flags. Gating only the near
+                    // operand still let a run that first measured collimation
+                    // mid-session subtract the baseline's placeholder 0 and
+                    // report "collimation Δ 22 — re-check spacers".
+                    final baselineAnalysis = _analyzeOpticalTrainAsOf(
+                      ref,
+                      sessionId: report.sessionId,
+                      asOf: baseline?.capturedAt,
+                    );
+
+                    // An axis supports a verdict only when BOTH ends of the
+                    // subtraction measured it.
+                    final tiltMeasured = currentTiltMeasured &&
+                        (baselineAnalysis?.tiltMeasured ?? false);
+                    final collimationMeasured = currentCollimationMeasured &&
+                        (baselineAnalysis?.collimationMeasured ?? false);
+
+                    // The drift verdict subtracts the two snapshots. It is
+                    // only a measurement when both axes behind those numbers
+                    // were measured at both ends; otherwise "held steady" is
+                    // vouching for a comparison that never happened.
+                    final driftIsComparable = currentDiag != null &&
+                        tiltMeasured &&
+                        collimationMeasured;
+
                     final diagnostics = PostSessionDiagnostics.build(
                       preSession: baseline,
-                      postSession: currentDiag,
+                      postSession: driftIsComparable ? currentDiag : null,
                       healthSummary: healthSummary,
                       opticalTrainDriftThreshold:
                           settings.opticalTrainDriftThreshold,
                     );
-                    if (diagnostics.isEmpty) {
+                    // Say what was not measured exactly where the drift
+                    // verdict would have gone, so the section does not simply
+                    // go quiet about the optical train.
+                    final issues = <ValidationIssue>[
+                      if (baseline != null &&
+                          currentDiag != null &&
+                          !driftIsComparable)
+                        ValidationIssue(
+                          severity: ValidationSeverity.info,
+                          category: ValidationCategory.opticalTrain,
+                          title: 'Optical Train Drift Not Measured',
+                          description:
+                              '${_unmeasuredOpticalAxes(tiltMeasured: tiltMeasured, collimationMeasured: collimationMeasured)} '
+                              'not measured at both ends of this run, so a '
+                              'pre/post comparison would subtract placeholder '
+                              'zeros rather than report drift.',
+                          resolutionHint:
+                              'Plate-solve frames across the whole field so '
+                              'tilt and edge-versus-centre residuals can be '
+                              'compared next time.',
+                        ),
+                      ...diagnostics.all,
+                    ];
+                    if (issues.isEmpty) {
                       return const SizedBox.shrink();
                     }
 
@@ -324,7 +405,7 @@ class _ReportBody extends ConsumerWidget {
                             icon: LucideIcons.stethoscope,
                             colors: colors,
                             titleColor: colors.primary),
-                        for (final issue in diagnostics.all) ...[
+                        for (final issue in issues) ...[
                           _DiagnosticIssueTile(
                             issue: issue,
                             colors: colors,
@@ -583,6 +664,49 @@ class _ReportBody extends ConsumerWidget {
       );
     }
   }
+}
+
+/// Re-runs the optical-train analysis over only the science rows that existed
+/// at [asOf] — the cut the executor's session-start hook analysed to produce
+/// the persisted baseline.
+///
+/// Returns `null` when there is no baseline to reconstruct or the rows are not
+/// readable yet, which callers must treat as "not measured": the persisted
+/// baseline carries scores but no provenance, and trusting a placeholder 0 on
+/// this end of a subtraction fabricates drift exactly as readily as one on the
+/// other end.
+OpticalTrainDiagnostics? _analyzeOpticalTrainAsOf(
+  WidgetRef ref, {
+  required int sessionId,
+  required DateTime? asOf,
+}) {
+  if (asOf == null) return null;
+  final psfTiles = ref.watch(psfTilesForSessionProvider(sessionId)).valueOrNull;
+  final residuals =
+      ref.watch(residualVectorsForSessionProvider(sessionId)).valueOrNull;
+  if (psfTiles == null || residuals == null) return null;
+  return ref.read(opticalTrainDiagnosticsServiceProvider).analyze(
+        psfTiles: psfTiles
+            .where((row) => !row.timestamp.isAfter(asOf))
+            .toList(growable: false),
+        residualVectors: residuals
+            .where((row) => !row.timestamp.isAfter(asOf))
+            .toList(growable: false),
+      );
+}
+
+/// Sentence subject naming the axes that lack data on at least one end of the
+/// pre/post comparison, for the report line that replaces a drift verdict those
+/// axes could not support. Says "not measured at both ends" rather than "never
+/// measured" because an axis first measured mid-run is equally uncomparable.
+String _unmeasuredOpticalAxes({
+  required bool tiltMeasured,
+  required bool collimationMeasured,
+}) {
+  if (!tiltMeasured && !collimationMeasured) {
+    return 'Field tilt and collimation were';
+  }
+  return tiltMeasured ? 'Collimation was' : 'Field tilt was';
 }
 
 class _AuxiliaryReportState extends StatelessWidget {

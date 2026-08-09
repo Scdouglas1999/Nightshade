@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +11,7 @@ import '../../widgets/contextual_tour_prompt.dart';
 import '../../widgets/plate_solver_required_banner.dart';
 import '../../widgets/tutorial_keys/polar_alignment_keys.dart';
 import 'polar_alignment_body_layout.dart';
+import 'polar_alignment_error_format.dart';
 import 'widgets/all_sky_target_reticle.dart';
 import 'widgets/polar_alignment_segmented_button.dart';
 // ---------------------------------------------------------------------------
@@ -41,6 +43,18 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
     with TickerProviderStateMixin {
   late AnimationController _pulseController;
 
+  /// Scroll position of the left configuration column, owned here so the header
+  /// History toggle can bring the panel it reveals into view. The panel is
+  /// appended BELOW Essential/Common/Advanced, so with the collapsibles open it
+  /// lands past the bottom of the viewport and the toggle looked like a dead
+  /// control: the button lit up and nothing else on screen changed.
+  final ScrollController _configScrollController = ScrollController();
+
+  /// Captured every build so [dispose] can act on them: `ref` is already
+  /// invalid by the time a ConsumerState is disposed.
+  PolarAlignmentController? _controller;
+  PolarAlignPhase _phase = PolarAlignPhase.idle;
+
   @override
   void initState() {
     super.initState();
@@ -52,11 +66,71 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
 
   @override
   void dispose() {
+    _releaseFinishedRun();
+    _configScrollController.dispose();
     _pulseController.dispose();
     super.dispose();
   }
 
+  /// Drop a FINISHED run's state as the operator leaves the wizard.
+  ///
+  /// The alignment state is app-scoped, so pressing Done (which pops back to
+  /// Imaging) left the terminal state standing: re-entering Polar Alignment
+  /// reopened straight onto last night's green "Alignment Complete" summary,
+  /// with Restart as the only route back to the instructions — a wizard that
+  /// says it succeeded when nothing has run. The result itself is already
+  /// persisted to the History panel by the time the phase goes terminal, so
+  /// nothing is lost. A run still in flight is deliberately untouched: coming
+  /// back to a live measurement has to show the live measurement.
+  void _releaseFinishedRun() {
+    if (_phase != PolarAlignPhase.complete && _phase != PolarAlignPhase.error) {
+      return;
+    }
+    final controller = _controller;
+    if (controller == null) return;
+    // After the tree settles: mutating a provider inside a widget's dispose can
+    // land mid-teardown of the frame that removed the route.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        controller.reset();
+      } on PolarAlignmentBusyException {
+        // The run's history row is still being written; the next entry clears
+        // it. Never force a reset over an in-flight save.
+      }
+    });
+  }
+
+  /// Bring the Alignment History panel into view after the toggle adds it to
+  /// the bottom of the configuration column.
+  void _revealHistoryPanel() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_configScrollController.hasClients) return;
+      _configScrollController.animateTo(
+        _configScrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
   Future<void> _startAlignment() async {
+    // A polar-axis error is decomposed into azimuth/altitude corrections using
+    // the SITE latitude. The app installs a (0, 0) observer location at startup
+    // so the native guard (`polar_align/mod.rs` refuses only when the location
+    // is None) can never fire, and the wizard would happily print corrections
+    // for an observer on the equator. Refuse here, alongside the camera / mount
+    // / solver prerequisites.
+    final settings = await ref.read(appSettingsProvider.future);
+    if (!mounted) return;
+    if (settings.latitude == 0.0 && settings.longitude == 0.0) {
+      ref.read(polarAlignmentStateProvider.notifier).reset();
+      context.showErrorSnackBar(
+        'No observing location set. Polar error is measured relative to your '
+        'site latitude — set an observing location in Settings first.',
+      );
+      return;
+    }
+
     // Validate equipment is connected before starting
     final cameraState = ref.read(cameraStateProvider);
     final mountState = ref.read(mountStateProvider);
@@ -157,6 +231,19 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
       }
     });
 
+    // A History toggle whose only effect is off-screen is indistinguishable
+    // from a dead button, so scroll the panel it reveals into view. On the
+    // compact (tabbed) layout the configuration column is a tab, so also select
+    // it — the field is inert in the wide layout, where all three panels show.
+    ref.listen<bool>(
+      polarAlignmentUiStateProvider.select((s) => s.showHistoryPanel),
+      (prev, next) {
+        if (!next || prev == next) return;
+        ref.read(polarAlignmentUiStateProvider.notifier).setCompactTabIndex(0);
+        _revealHistoryPanel();
+      },
+    );
+
     // Surface config persistence failures truthfully — settings that failed to
     // save must not look persisted.
     ref.listen<String?>(polarAlignmentConfigSaveErrorProvider, (prev, next) {
@@ -168,6 +255,10 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
     final colors = NightshadeColors.of(context);
     final state = ref.watch(polarAlignmentStateProvider);
     final config = ref.watch(polarAlignmentConfigProvider);
+
+    // Snapshot for dispose, which cannot read `ref`.
+    _controller = ref.read(polarAlignmentControllerProvider);
+    _phase = state.phase;
 
     final isRunning = state.isRunning;
 

@@ -479,11 +479,14 @@ extension _SkyCanvasPainterSolarSystemAndMarkers on SkyCanvasPainter {
   void _drawMoon(Canvas canvas, Size size, Offset center, double scale) {
     if (moonPosition == null) return;
 
-    final (ra, dec, rawIllumination) = moonPosition!;
-    // Sanitised once here so neither the phase geometry nor the label can be
-    // fed a NaN or an out-of-range fraction from upstream ephemeris.
-    final illumination = rawIllumination.isFinite
-        ? rawIllumination.clamp(0.0, 1.0)
+    final (ra, dec, rawIlluminationPercent) = moonPosition!;
+    // The tuple carries a PERCENT (see SkyCanvasPainter.moonPosition); the
+    // terminator geometry and the `illumination >= 0.5` lit/dark test below are
+    // both in fractions. Converting once here is the only place the two units
+    // meet. Sanitised at the same time so neither the phase geometry nor the
+    // label can be fed a NaN or an out-of-range value from upstream ephemeris.
+    final illumination = rawIlluminationPercent.isFinite
+        ? (rawIlluminationPercent / 100).clamp(0.0, 1.0)
         : 0.0;
     final coord = CelestialCoordinate(
       ra: ra / 15,

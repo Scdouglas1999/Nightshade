@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import '../harness/in_memory_database.dart';
 
 class _MockNetworkBackend extends Mock implements NetworkBackend {}
 
@@ -32,6 +33,7 @@ void main() {
 
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith(
           (ref) => _SwitchableBackendNotifier(ref, backend),
         ),
@@ -72,6 +74,7 @@ void main() {
     late _SwitchableBackendNotifier backendNotifier;
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith((ref) {
           backendNotifier = _SwitchableBackendNotifier(ref, backend);
           return backendNotifier;
@@ -104,6 +107,7 @@ void main() {
     late _SwitchableBackendNotifier backendNotifier;
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith((ref) {
           backendNotifier = _SwitchableBackendNotifier(ref, firstBackend);
           return backendNotifier;
@@ -131,6 +135,7 @@ void main() {
     final backend = _MockNetworkBackend();
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith(
           (ref) => _SwitchableBackendNotifier(ref, backend),
         ),

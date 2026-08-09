@@ -610,6 +610,12 @@ class _CoordinateReadout extends StatelessWidget {
 /// parent (or the first) [TargetHeaderNode]. This card shows which target will
 /// be used (green) or warns when none can be found (amber) so the user isn't
 /// left guessing whether the slew/center has anything to aim at.
+///
+/// Finding a target group is not the same as having somewhere to point: a
+/// freshly-added target sits at the 0h/+0° placeholder
+/// ([targetCoordinatesUnset]), and confirming that in green is the app
+/// asserting a pointing the user never chose. Unset coordinates get the amber
+/// warning treatment too.
 class _TargetResolutionPreview extends ConsumerWidget {
   final NightshadeColors colors;
   final String nodeId;
@@ -633,7 +639,9 @@ class _TargetResolutionPreview extends ConsumerWidget {
           : null;
     }
 
-    final resolved = targetGroup != null;
+    final coordinatesUnset =
+        targetGroup != null && targetCoordinatesUnset(targetGroup);
+    final resolved = targetGroup != null && !coordinatesUnset;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Container(
@@ -652,11 +660,15 @@ class _TargetResolutionPreview extends ConsumerWidget {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                targetGroup != null
-                    ? 'Will use target: ${targetGroup.targetName}\n'
-                        '${formatRaHoursAsHms(targetGroup.raHours)}   '
-                        '${formatDecDegAsDms(targetGroup.decDegrees)}'
-                    : 'No target group found in sequence',
+                targetGroup == null
+                    ? 'No target group found in sequence'
+                    : coordinatesUnset
+                        ? 'Target "${targetGroup.targetName}" has no '
+                            'coordinates set — this node has nowhere to point.\n'
+                            'Look up or enter RA/Dec in the target editor.'
+                        : 'Will use target: ${targetGroup.targetName}\n'
+                            '${formatRaHoursAsHms(targetGroup.raHours)}   '
+                            '${formatDecDegAsDms(targetGroup.decDegrees)}',
                 style: TextStyle(
                   fontSize: Responsive.fontSize(context, 12),
                   color: resolved ? colors.success : colors.warning,

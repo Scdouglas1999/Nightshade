@@ -4,8 +4,9 @@ part of '../status_bar.dart';
 /// Only visible when the focuser is connected and has temperature data.
 class _TempCompIndicator extends ConsumerWidget {
   final NightshadeColors colors;
+  final NightshadeLocalizations l10n;
 
-  const _TempCompIndicator({required this.colors});
+  const _TempCompIndicator({required this.colors, required this.l10n});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -37,21 +38,34 @@ class _TempCompIndicator extends ConsumerWidget {
 
     if (!tempCompEnabled) {
       indicatorColor = colors.textMuted;
-      tooltip = 'Temp compensation disabled';
+      tooltip = l10n.text('statusTempCompOff');
     } else if (!hasReliableModel) {
       indicatorColor = colors.warning;
       tooltip = model == null
-          ? 'Temp comp enabled - no model data'
-          : 'Temp comp enabled - model not yet reliable (R\u00B2=${model.rSquared.toStringAsFixed(2)})';
+          ? l10n.text('statusTempCompNoModel')
+          : l10n.text(
+              'statusTempCompUnreliable',
+              params: {'r2': model.rSquared.toStringAsFixed(2)},
+            );
     } else {
       final prediction = focusService.predictFocusPosition(
         profileId: profileId,
         currentTemperature: focuserState.temperature!,
       );
       indicatorColor = colors.success;
+      final slope = model.slope.toStringAsFixed(1);
       tooltip = prediction != null
-          ? 'Temp comp active: ${model.slope.toStringAsFixed(1)} steps/\u00B0C, predicted ${prediction.position}'
-          : 'Temp comp active: ${model.slope.toStringAsFixed(1)} steps/\u00B0C';
+          ? l10n.text(
+              'statusTempCompActive',
+              params: {
+                'slope': slope,
+                'position': prediction.position.toString(),
+              },
+            )
+          : l10n.text(
+              'statusTempCompActiveNoPrediction',
+              params: {'slope': slope},
+            );
     }
 
     return Tooltip(
@@ -115,71 +129,144 @@ String formatLstChip(double? lstHours) {
   return 'LST ${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
 }
 
-class _TimeDisplay extends ConsumerWidget {
-  final DateTime now;
+/// Wall-clock and LST chip that owns its per-second tick.
+///
+/// The tick used to live on `_StatusBarState`, so one `setState` a second
+/// rebuilt the whole bar — every device pill, both action buttons, the
+/// enclosing `LayoutBuilder` — to move one digit. Owning it here scopes that
+/// rebuild to this chip; `status_bar_idle_repaint_test.dart` pins it via
+/// Flutter's rebuild tracer.
+///
+/// Measured honestly, that scoping is the whole of the win. Re-measuring a
+/// rebuilt release bundle with `NIGHTSHADE_FRAME_TIMING=1` showed the idle
+/// frame rate unchanged at 1.0 fps (a clock showing seconds must produce a
+/// frame per second) and per-frame raster cost unchanged within noise — so the
+/// [RepaintBoundary] below is insurance against this chip dirtying the bar,
+/// NOT a demonstrated saving. Flutter's Linux embedder appears to submit a
+/// full-window frame regardless of damage.
+///
+/// Ticking stops while the app is backgrounded.
+class _TimeDisplay extends ConsumerStatefulWidget {
   final NightshadeColors colors;
 
-  const _TimeDisplay({
-    required this.now,
-    required this.colors,
-  });
+  const _TimeDisplay({required this.colors});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_TimeDisplay> createState() => _TimeDisplayState();
+}
+
+class _TimeDisplayState extends ConsumerState<_TimeDisplay>
+    with WidgetsBindingObserver {
+  Timer? _timer;
+  DateTime _now = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _startTimer();
+  }
+
+  void _startTimer() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() => _now = DateTime.now());
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (_timer == null || !_timer!.isActive) {
+        // Resync immediately so the clock doesn't show a stale time.
+        _now = DateTime.now();
+        _startTimer();
+      }
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _timer?.cancel();
+      _timer = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = widget.colors;
+    final now = _now;
     final settings = ref.watch(appSettingsProvider).valueOrNull;
     final siteIsSet = settings != null &&
         siteLocationIsSet(settings.latitude, settings.longitude);
     // Only read the LST once we know whose LST it is.
     final lst = siteIsSet ? ref.watch(localSiderealTimeProvider) : null;
+    final l10n = context.l10n;
     final lstTooltip = settings == null
-        ? 'Loading your observing site…'
+        ? l10n.text('statusLstLoading')
         : siteIsSet
-            ? 'Local sidereal time at your observing site'
-            : 'No observing site set — sidereal time is unknown. '
-                'Set it in Settings → Location.';
+            ? l10n.text('statusLstTooltip')
+            : l10n.text('statusLstNoSite');
+    // Settings → Location → Timezone was inert on the one clock that is on
+    // screen from every page: this chip formatted the host's `DateTime.now()`
+    // straight through, so a remote-observatory operator who set the site
+    // offset saw the setting persist, the row's subtitle update, and this
+    // clock keep the laptop's time. `Clock.fromUtc` re-expresses the SAME
+    // instant in the chosen zone — the caller's timer still decides when the
+    // chip reticks — and [SystemClock] leaves host-local users untouched.
+    final displayNow = ref.watch(clockProvider).fromUtc(now.toUtc());
     final timeStr =
-        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}';
+        '${displayNow.hour.toString().padLeft(2, '0')}:${displayNow.minute.toString().padLeft(2, '0')}:${displayNow.second.toString().padLeft(2, '0')}';
 
-    return Row(
-      children: [
-        Icon(
-          NightshadeIcons.clock,
-          size: 12,
-          color: colors.textMuted,
-        ),
-        const SizedBox(width: 6),
-        Text(
-          timeStr,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize11,
-            fontWeight: FontWeight.w500,
-            color: colors.textSecondary,
-            fontFeatures: const [FontFeature.tabularFigures()],
+    // The boundary is the point of the exercise: without it, repainting one
+    // digit marks the parent layer dirty and the whole window re-rasterises
+    // once a second.
+    return RepaintBoundary(
+      child: Row(
+        children: [
+          Icon(
+            NightshadeIcons.clock,
+            size: 12,
+            color: colors.textMuted,
           ),
-        ),
-        const SizedBox(width: 8),
-        Tooltip(
-          message: lstTooltip,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: NightshadeDecorations.statusChip(
-              // An unknown LST must not wear the confident accent colour.
-              lst == null ? colors.textMuted : colors.primary,
-              borderRadius: NightshadeTokens.borderRadiusInline4,
-              bordered: false,
+          const SizedBox(width: 6),
+          Text(
+            timeStr,
+            style: TextStyle(
+              fontSize: NightshadeTypography.fontSize11,
+              fontWeight: FontWeight.w500,
+              color: colors.textSecondary,
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
-            child: Text(
-              formatLstChip(lst),
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize10,
-                fontWeight: FontWeight.w500,
-                color: lst == null ? colors.textMuted : colors.primary,
-                fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+          const SizedBox(width: 8),
+          Tooltip(
+            message: lstTooltip,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: NightshadeDecorations.statusChip(
+                // An unknown LST must not wear the confident accent colour.
+                lst == null ? colors.textMuted : colors.primary,
+                borderRadius: NightshadeTokens.borderRadiusInline4,
+                bordered: false,
+              ),
+              child: Text(
+                formatLstChip(lst),
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize10,
+                  fontWeight: FontWeight.w500,
+                  color: lst == null ? colors.textMuted : colors.primary,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
               ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

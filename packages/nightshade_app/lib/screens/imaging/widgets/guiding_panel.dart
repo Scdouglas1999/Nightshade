@@ -132,6 +132,29 @@ class _GuidingPanelState extends ConsumerState<GuidingPanel> {
     return text.isEmpty ? raw.trim() : text;
   }
 
+  /// One guide-error readout (RMS or Peak).
+  ///
+  /// Every `Phd2GuideStats` error field defaults to 0.0, which on screen is
+  /// indistinguishable from a real, perfect measurement: "RA Peak 0.00" with no
+  /// guider connected is a claim of flawless guiding. Until at least one guide
+  /// step has been measured (`frameCount > 0`, zeroed again by
+  /// `GuidingStopped`) there is nothing to report, so render the same em dash
+  /// the Guiding screen, Equipment card and Dashboard already use.
+  ///
+  /// PHD2 and the built-in guider both report residuals in guide-camera
+  /// PIXELS. Convert only when a pixel scale is actually known; otherwise say
+  /// px rather than mislabelling pixels as arcseconds (at a 0.78"/px guide
+  /// scale the bare suffix swap understates a 0.53 px error by ~28%).
+  static String _guideErrorText(
+    double value, {
+    required bool hasSamples,
+    required double pixelScale,
+  }) {
+    if (!hasSamples) return '—';
+    if (pixelScale > 0) return '${(value * pixelScale).toStringAsFixed(2)}"';
+    return '${value.toStringAsFixed(2)} px';
+  }
+
   @override
   Widget build(BuildContext context) {
     final guiderState = ref.watch(guiderStateProvider);
@@ -141,18 +164,43 @@ class _GuidingPanelState extends ConsumerState<GuidingPanel> {
     final isGuiding = guiderState.isGuiding;
     final isBuiltinGuider = ref.watch(isBuiltinGuiderProvider);
 
-    final rmsRa = guiderState.rmsRa?.toStringAsFixed(2) ?? '---';
-    final rmsDec = guiderState.rmsDec?.toStringAsFixed(2) ?? '---';
-    final rmsTotal = guiderState.rmsTotal?.toStringAsFixed(2) ?? '---';
-
-    // Per-axis PEAK guide error. These are already tracked in the rolling
-    // guide stats (Phd2GuideStats.peakRa/peakDec) but, until now, only the RMS
-    // tiles were surfaced. Peak is the worst single-frame excursion over the
-    // window — a useful complement to RMS for spotting transient seeing spikes
-    // or a flexing/bumped axis that an averaged figure would smooth away.
+    // All six error readouts below come from ONE source, the rolling guide
+    // stats, so RMS and Peak cannot disagree about the same window. `guiderState`
+    // carries a copy of the three RMS values (controller.dart mirrors them via
+    // `updateRms`) but not the peaks, and the copy is not cleared on
+    // `GuidingStopped` the way `GuideStatsNotifier.reset()` clears the source.
+    //
+    // Peak is the worst single-frame excursion over the window — a useful
+    // complement to RMS for spotting transient seeing spikes or a flexing /
+    // bumped axis that an averaged figure would smooth away.
     final guideStats = ref.watch(guideStatsProvider);
-    final peakRa = guideStats.peakRa.toStringAsFixed(2);
-    final peakDec = guideStats.peakDec.toStringAsFixed(2);
+    final hasGuideSamples = guideStats.frameCount > 0;
+    final pixelScale = guideStats.pixelScale;
+    final rmsRa = _guideErrorText(
+      guideStats.rmsRa,
+      hasSamples: hasGuideSamples,
+      pixelScale: pixelScale,
+    );
+    final rmsDec = _guideErrorText(
+      guideStats.rmsDec,
+      hasSamples: hasGuideSamples,
+      pixelScale: pixelScale,
+    );
+    final rmsTotal = _guideErrorText(
+      guideStats.rmsTotal,
+      hasSamples: hasGuideSamples,
+      pixelScale: pixelScale,
+    );
+    final peakRa = _guideErrorText(
+      guideStats.peakRa,
+      hasSamples: hasGuideSamples,
+      pixelScale: pixelScale,
+    );
+    final peakDec = _guideErrorText(
+      guideStats.peakDec,
+      hasSamples: hasGuideSamples,
+      pixelScale: pixelScale,
+    );
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -217,12 +265,9 @@ class _GuidingPanelState extends ConsumerState<GuidingPanel> {
           // RMS Stats
           Row(
             children: [
-              GuideStat(
-                  label: 'RA RMS', value: '$rmsRa"', colors: widget.colors),
-              GuideStat(
-                  label: 'Dec RMS', value: '$rmsDec"', colors: widget.colors),
-              GuideStat(
-                  label: 'Total', value: '$rmsTotal"', colors: widget.colors),
+              GuideStat(label: 'RA RMS', value: rmsRa, colors: widget.colors),
+              GuideStat(label: 'Dec RMS', value: rmsDec, colors: widget.colors),
+              GuideStat(label: 'Total', value: rmsTotal, colors: widget.colors),
             ],
           ),
           const SizedBox(height: 12),
@@ -232,10 +277,12 @@ class _GuidingPanelState extends ConsumerState<GuidingPanel> {
           // counterparts instead of stretching across the full row.
           Row(
             children: [
+              GuideStat(label: 'RA Peak', value: peakRa, colors: widget.colors),
               GuideStat(
-                  label: 'RA Peak', value: '$peakRa"', colors: widget.colors),
-              GuideStat(
-                  label: 'Dec Peak', value: '$peakDec"', colors: widget.colors),
+                label: 'Dec Peak',
+                value: peakDec,
+                colors: widget.colors,
+              ),
               const Spacer(),
             ],
           ),

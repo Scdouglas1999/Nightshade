@@ -455,10 +455,8 @@ where
     outcome
 }
 
-/// Emit a JPEG-encoded preview frame via the image callback. Uses
-/// `point: 0` and `phase: "adjusting"` to match pre-refactor behavior
-/// (the all-sky wizard does not distinguish baseline vs. adjustment
-/// frames in its UI events — the user only sees "tracking arrows").
+/// Emit an adjustment preview frame. The all-sky UI renders these callbacks as
+/// tracking-arrow updates, so they use point zero and the `adjusting` phase.
 fn emit_adjustment_preview(
     image_data: &crate::device_ops::ImageData,
     image_callback: &impl Fn(PolarAlignmentImageData),

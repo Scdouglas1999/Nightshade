@@ -1414,25 +1414,57 @@ pub fn validate_image(
 
         if !pixels.is_empty() {
             let all_zero = pixels.iter().all(|&p| p == 0);
-            // 65024 ~= 99.2% of the 12-bit ADC ceiling scaled to 16-bit; see
-            // ImageValidationOptions::saturation_threshold for why 65535/65530
-            // never fires on the 12-/14-bit sensors that dominate astro imaging,
-            // and why real sensors clip a little under the theoretical ceiling.
-            let all_saturated = pixels.iter().all(|&p| p >= 65024);
+            // Why: max() of an empty pixel iterator → 0; an empty pixel
+            // vec is impossible (we are inside the `pixels.len() > 0`-guarded branch and
+            // the prior `all_zero` iterator has already inspected it).
+            // Zero is the inert placeholder for the unreachable empty case.
+            let max_value = pixels.iter().copied().max().unwrap_or(0);
+
+            // This entry point has no sensor to ask, so the ceiling comes from
+            // the frame's own clipping evidence or from the 16-bit default; see
+            // DEFAULT_SATURATION_THRESHOLD for why the default is not 65535.
+            let count_at_max = pixels.iter().filter(|&&p| p == max_value).count();
+            let saturation_threshold =
+                infer_full_scale_from_frame(max_value, count_at_max, pixels.len())
+                    .and_then(|full_scale| {
+                        saturation_threshold_for_full_scale(u32::from(full_scale))
+                    })
+                    .unwrap_or(DEFAULT_SATURATION_THRESHOLD);
+            let all_saturated = pixels.iter().all(|&p| p >= saturation_threshold);
 
             if all_zero {
                 validation.add_error("Image is all-zero (no data captured)".to_string());
             } else if all_saturated {
-                validation
-                    .add_error("Image is all-saturated (overexposed or sensor issue)".to_string());
+                // WARNING, not an error, and the distinction decides whether a
+                // night survives.
+                //
+                // A validation error fails the whole exposure
+                // (`unified_device_ops.rs`: `if !validation.is_valid { return
+                // Err(..) }`). All-zero deserves that — there is no data. An
+                // all-saturated frame is real data that is merely clipped, and
+                // the condition is recoverable by lowering the exposure.
+                //
+                // Making it fatal actively breaks the flat wizard, which
+                // converges by capturing a deliberately bright flat, measuring
+                // it, and reducing the exposure. It captures through this same
+                // path, so a hard failure removes the very measurement the
+                // correction loop needs.
+                //
+                // This only became reachable for ordinary frames when the
+                // threshold started being derived from the sensor's real
+                // ceiling: a right-justified 12-bit frame clipped at 4095 was
+                // previously compared against a 16-bit threshold it could never
+                // meet, so it silently passed. Deriving the ceiling was correct;
+                // turning every over-exposed 12-bit frame into an aborted
+                // exposure was not.
+                validation.add_warning(
+                    "Image is all-saturated (overexposed, or a stuck sensor) - \
+                     lower the exposure, gain, or light level"
+                        .to_string(),
+                );
             }
 
             // Check for extremely low signal
-            // Why: max() of an empty pixel iterator → 0; an empty pixel
-            // vec is impossible (we are inside the `pixels.len() > 0`-guarded branch and
-            // both prior `all_zero`/`all_saturated` iterators have already inspected it).
-            // Zero is the inert placeholder for the unreachable empty case.
-            let max_value = pixels.iter().copied().max().unwrap_or(0);
             if max_value < 100 {
                 validation.add_warning(format!(
                     "Very low signal detected (max value: {})",
@@ -1445,6 +1477,134 @@ pub fn validate_image(
     validation
 }
 
+/// Saturation threshold used when the sensor's full scale is genuinely unknown.
+///
+/// 65024 = 65535 - (65535 >> 7): a 16-bit container with the usual 1/128 of
+/// headroom (see [`SATURATION_HEADROOM_SHIFT`]). It is the right guess for the
+/// left-justified 12-/14-bit sensors that dominate astro imaging (they top out
+/// at 65520 / 65532) but it is only a guess — prefer
+/// [`ImageValidationOptions::sensor_max_adu`] whenever the driver has told us
+/// the real ceiling.
+pub const DEFAULT_SATURATION_THRESHOLD: u16 = 65024;
+
+/// Headroom below full scale at which a pixel is already called saturated,
+/// as a right-shift: threshold = `full_scale - (full_scale >> 7)`, i.e. one
+/// part in 128 (~0.8%).
+///
+/// Real sensors clip slightly BELOW their theoretical ceiling — a live
+/// ASI1600MM-Cool clips at 65504, one ADU under the 65520 its left-justified
+/// 12-bit samples can reach — so a threshold pinned to the exact ceiling misses
+/// the clip, and a missed clip gets misreported as "sensor failure or dead
+/// frame". 1/128 reproduces the historical 16-bit constant exactly
+/// (65535 - 511 = [`DEFAULT_SATURATION_THRESHOLD`]) while scaling to sensors
+/// whose pixel container is not 16-bit wide.
+const SATURATION_HEADROOM_SHIFT: u32 = 7;
+
+/// Smallest full scale we will believe from a driver. A camera reporting a
+/// sub-8-bit ceiling is broken or uninitialised, and honouring it would drag
+/// the saturation threshold down under the sky background — labelling every
+/// ordinary frame of the night "completely saturated". Below this we keep the
+/// default. 255 itself is trusted: it is the SVBony RAW8 container.
+const MIN_TRUSTED_FULL_SCALE: u32 = 255;
+
+/// Container full scales recognisable from the pixel data alone, for drivers
+/// that right-justify sub-16-bit samples (INDI CCDs and several ASCOM drivers
+/// deliver a 12-bit sensor as values 0..4095 rather than left-shifting them).
+///
+/// 255 is here because it is a container an actual driver ships: the SVBony
+/// `connect()` path falls back to `SVB_IMG_RAW8` when a model offers no RAW16
+/// and then publishes `max_adu: 255` (`native/src/vendor/svbony.rs`,
+/// `container_max_adu`). Ascending order matters — [`infer_full_scale_from_frame`]
+/// takes the first band the peak falls in.
+///
+/// 16-bit needs no entry: its ceiling is the default.
+const RIGHT_JUSTIFIED_FULL_SCALES: [u16; 4] = [255, 1023, 4095, 16383];
+
+/// Saturation threshold for a sensor whose pixel container tops out at
+/// `full_scale` ADU.
+///
+/// `full_scale` is `CameraStatus::max_adu` / `SensorInfo::max_adu` — the
+/// container full scale, NOT `2^bit_depth - 1`. The two differ for every
+/// left-justified sub-16-bit sensor (a 12-bit ASI1600 has `bit_depth: 12` but
+/// `max_adu: 65520`), and conflating them has already shipped as a defect once;
+/// `nightshade_native::camera::SensorInfo` spells out the contract.
+///
+/// `None` means "not usable as a ceiling, keep
+/// [`DEFAULT_SATURATION_THRESHOLD`]".
+pub fn saturation_threshold_for_full_scale(full_scale: u32) -> Option<u16> {
+    if full_scale < MIN_TRUSTED_FULL_SCALE {
+        return None;
+    }
+    // Samples arrive in a u16 container; a driver advertising a wider full
+    // scale (ASCOM MaxADU is an i32) still cannot deliver a sample above
+    // u16::MAX through this path.
+    let ceiling = full_scale.min(u32::from(u16::MAX)) as u16;
+    Some(ceiling - (ceiling >> SATURATION_HEADROOM_SHIFT))
+}
+
+/// The severe-underexposure floor ([`ImageValidationOptions::min_max_value`])
+/// restated in the scale of a container that tops out at `full_scale`.
+///
+/// The floor is a FRACTION of full scale wearing absolute-ADU clothes: 100 of a
+/// 16-bit container is 0.15%, i.e. "essentially nothing came off the sensor".
+/// On a narrower container the same number means something else entirely — on
+/// the SVBony RAW8 fallback (`max_adu: 255`, samples handed over as 0..255;
+/// `native/src/vendor/svbony.rs`) 100 ADU is 39% of everything the sensor can
+/// produce, so an ordinary dim sub reads as "severely underexposed". That
+/// verdict is an *error*, and an error is not an annotation: the capture path
+/// returns Err on `!is_valid`, so the unscaled floor destroys the frame.
+///
+/// This is the same defect the saturation threshold had, at the other end of
+/// the range; deriving the ceiling fixed only the bright end.
+///
+/// Scaling can only ever lower the floor, so no frame that passes today can
+/// start failing.
+fn signal_floor_for_full_scale(floor_at_full_16bit: u16, full_scale: u32) -> u16 {
+    let ceiling = u64::from(full_scale.min(u32::from(u16::MAX)));
+    // At least 1 ADU: on an 8-bit container 0.15% is a fraction of a code, and
+    // the only emptier frame that container can express is all-zero, which is
+    // already its own error.
+    ((u64::from(floor_at_full_16bit) * ceiling) / u64::from(u16::MAX)).max(1) as u16
+}
+
+/// Recover the container full scale from the frame itself, for the callers that
+/// cannot tell us (`sensor_max_adu: None`).
+///
+/// A right-justified 12-bit frame clips at 4095, nowhere near the 65024 default,
+/// so without this a fully clipped frame reads back as "possible sensor failure
+/// or dead frame" — an alarming misdiagnosis of a plain over-exposure.
+///
+/// The peak is matched against a band, not against the exact full scale.
+/// Demanding equality contradicts the fact that motivates
+/// [`SATURATION_HEADROOM_SHIFT`] in the first place: real sensors clip a few ADU
+/// BELOW their container ceiling, so a right-justified ASI1600 that pins at 4090
+/// is every bit as clipped as one that pins at 4095 and must be recognised as a
+/// 4095-container clip rather than ignored. The band is that same 1/128 of
+/// headroom, and the four bands (254..=255, 1016..=1023, 4064..=4095,
+/// 16256..=16383) do not overlap, so at most one candidate ever matches.
+///
+/// A matching peak alone is not enough: enough pixels must pile up on it to be a
+/// clip rather than a coincidence, or a well-exposed 16-bit frame whose
+/// brightest star happens to read 4090 would have its highlights redefined as
+/// saturated.
+fn infer_full_scale_from_frame(
+    max_value: u16,
+    count_at_max: usize,
+    total_pixels: usize,
+) -> Option<u16> {
+    let full_scale = *RIGHT_JUSTIFIED_FULL_SCALES.iter().find(|&&candidate| {
+        max_value <= candidate
+            && saturation_threshold_for_full_scale(u32::from(candidate))
+                .is_some_and(|clip_floor| max_value >= clip_floor)
+    })?;
+    // 1 pixel in 2048 (~0.05%), floored at 16 so small guide/thumbnail frames
+    // still need a real pile-up. Normal star fields clip a few hundredths of a
+    // percent of the sensor at most; a ruined frame clips orders of magnitude
+    // more.
+    let min_pile_up = (total_pixels / 2048).max(16);
+    (count_at_max >= min_pile_up).then_some(full_scale)
+}
+
 /// Comprehensive image validation options
 #[derive(Debug, Clone)]
 pub struct ImageValidationOptions {
@@ -1454,7 +1614,11 @@ pub struct ImageValidationOptions {
     pub expected_height: Option<u32>,
     /// Whether this is a bias frame (allows uniform pixel values)
     pub is_bias_frame: bool,
-    /// Minimum acceptable max pixel value (default: 100)
+    /// Minimum acceptable max pixel value, stated against a full 16-bit
+    /// container (default: 100, i.e. 0.15% of full scale). It is rescaled to
+    /// whatever container the frame actually arrived in — see
+    /// [`signal_floor_for_full_scale`], and note that falling under it is an
+    /// error, which aborts the exposure.
     pub min_max_value: u16,
     /// Saturation threshold: pixels at/above this are considered saturated.
     /// Default 65024 = 4064 << 4, i.e. 99.2% of the 12-bit ADC ceiling scaled
@@ -1467,9 +1631,26 @@ pub struct ImageValidationOptions {
     /// 65520, which a threshold pinned to the exact ceiling would miss — and a
     /// missed saturation gets misreported as "sensor failure or dead frame".
     /// 65024 leaves that headroom while still meaning "clipped and unusable".
+    ///
+    /// Only used when the ceiling is unknown — `sensor_max_adu` wins.
     pub saturation_threshold: u16,
+    /// The sensor's pixel-container full scale (`CameraStatus::max_adu`) when
+    /// the caller knows it, which is the only trustworthy source: a driver that
+    /// right-justifies a 12-bit sensor clips at 4095, and no fixed 16-bit
+    /// constant can see that. `None` = unknown, fall back to
+    /// `saturation_threshold` (with the frame's own evidence as a last resort).
+    pub sensor_max_adu: Option<u32>,
     /// Maximum acceptable saturation percentage (default: 0.90 = 90%)
     pub max_saturation_percent: f64,
+    /// Saturation percentage above which the frame is called heavily clipped
+    /// (default: 0.05 = 5%).
+    ///
+    /// A normal deep-sky sub clips only star cores — hundredths of a percent.
+    /// Once 5% of the sensor sits at the ceiling the exposure or gain is wrong
+    /// (or the moon/twilight is washing the field) and the highlights of that
+    /// sub are gone. Reporting only above `max_saturation_percent` meant a frame
+    /// with half its pixels clipped passed silently.
+    pub warn_saturation_percent: f64,
 }
 
 impl Default for ImageValidationOptions {
@@ -1479,8 +1660,20 @@ impl Default for ImageValidationOptions {
             expected_height: None,
             is_bias_frame: false,
             min_max_value: 100,
-            saturation_threshold: 65024,
+            saturation_threshold: DEFAULT_SATURATION_THRESHOLD,
+            sensor_max_adu: None,
             max_saturation_percent: 0.90,
+            warn_saturation_percent: 0.05,
+        }
+    }
+}
+
+impl ImageValidationOptions {
+    /// Options for a frame off a sensor whose container full scale is known.
+    pub fn for_sensor(max_adu: u32) -> Self {
+        Self {
+            sensor_max_adu: Some(max_adu),
+            ..Self::default()
         }
     }
 }
@@ -1518,7 +1711,8 @@ pub fn validate_image_with_options(
 /// 1. Validates image data size matches dimensions (width * height)
 /// 2. Rejects images where ALL pixels are identical (unless it's a bias frame)
 /// 3. Rejects severely underexposed images (max pixel value < min_max_value)
-/// 4. Warns on excessive saturation (>max_saturation_percent of pixels saturated)
+/// 4. Warns on saturation, judged against the sensor's own ADU ceiling
+///    (`sensor_max_adu`) rather than a fixed 16-bit constant
 /// 5. Logs validation results for debugging
 ///
 /// # Arguments
@@ -1593,16 +1787,19 @@ pub fn validate_image_comprehensive(
         if !pixels.is_empty() {
             let total_pixels = pixels.len();
 
-            // Calculate statistics in a single pass for efficiency
-            let (min_value, max_value, sum, saturated_count) = pixels.iter().fold(
+            // Calculate statistics in a single pass for efficiency. The
+            // saturation count cannot ride along: on a sensor that delivers
+            // right-justified sub-16-bit samples the ceiling IS this pass's
+            // peak, so what counts as saturated is not known until it finishes.
+            let (min_value, max_value, sum, count_at_max) = pixels.iter().fold(
                 (u16::MAX, u16::MIN, 0u64, 0usize),
-                |(min, max, sum, sat_count), &pixel| {
-                    (
-                        min.min(pixel),
-                        max.max(pixel),
-                        sum + pixel as u64,
-                        sat_count + (pixel >= options.saturation_threshold) as usize,
-                    )
+                |(min, max, sum, count_at_max), &pixel| {
+                    let (max, count_at_max) = match pixel.cmp(&max) {
+                        std::cmp::Ordering::Greater => (pixel, 1),
+                        std::cmp::Ordering::Equal => (max, count_at_max + 1),
+                        std::cmp::Ordering::Less => (max, count_at_max),
+                    };
+                    (min.min(pixel), max, sum + pixel as u64, count_at_max)
                 },
             );
             let mean_value = if total_pixels > 0 {
@@ -1610,16 +1807,58 @@ pub fn validate_image_comprehensive(
             } else {
                 0
             };
+
+            // Two independent estimates of the pixel container's full scale:
+            // what the driver declared, and where the frame itself clips.
+            //
+            // A declared ceiling the frame itself EXCEEDS is a driver reporting
+            // ADC bits where container full scale belongs (the documented
+            // bit_depth/max_adu confusion) — believing it would call an ordinary
+            // frame completely saturated, so distrust it entirely.
+            let declared_full_scale = options
+                .sensor_max_adu
+                .filter(|declared| u32::from(max_value) <= *declared);
+            let observed_full_scale =
+                infer_full_scale_from_frame(max_value, count_at_max, total_pixels).map(u32::from);
+
+            // Take the LOWER of the two, because the two ways of being wrong are
+            // not symmetric. A driver that cannot name its reachable ceiling
+            // answers with the container width instead — INDI falls back to
+            // `(1 << CCD_BITSPERPIXEL) - 1`, i.e. 65535, for a sensor whose
+            // right-justified samples clip at 4095 — and believing that puts the
+            // threshold above anything the frame can ever reach, so every
+            // clipped flat passes in silence. A pile-up parked on a recognised
+            // container ceiling is positive evidence of where the ADC actually
+            // clips, so it wins whenever it is the lower of the two.
+            //
+            // One believed ceiling, used by every verdict below. Both ends of
+            // the range are proportions of it: what counts as clipped, and what
+            // counts as nothing at all.
+            let believed_full_scale = declared_full_scale
+                .into_iter()
+                .chain(observed_full_scale)
+                .min()
+                .filter(|&full_scale| full_scale >= MIN_TRUSTED_FULL_SCALE);
+            let saturation_threshold = believed_full_scale
+                .and_then(saturation_threshold_for_full_scale)
+                .unwrap_or(options.saturation_threshold);
+            let saturated_count = pixels
+                .iter()
+                .filter(|&&pixel| pixel >= saturation_threshold)
+                .count();
             let saturation_percent = saturated_count as f64 / total_pixels as f64;
 
-            // Log statistics for debugging
+            // Log statistics for debugging. The threshold is included because a
+            // saturation verdict is meaningless without the ceiling it was
+            // judged against.
             tracing::debug!(
-                "[IMAGE_VALIDATION] Stats: size={}, min={}, max={}, mean={}, saturated={:.1}%",
+                "[IMAGE_VALIDATION] Stats: size={}, min={}, max={}, mean={}, saturated={:.1}% (>= {})",
                 total_pixels,
                 min_value,
                 max_value,
                 mean_value,
-                saturation_percent * 100.0
+                saturation_percent * 100.0,
+                saturation_threshold
             );
 
             // Check 1: All pixels identical (uniform data). A uniform frame is
@@ -1648,10 +1887,10 @@ pub fn validate_image_comprehensive(
                     // non-uniform case; report it here for the uniform case).
                     validation.add_error("Image is all-zero (no data captured)".to_string());
                     tracing::error!("[IMAGE_VALIDATION] REJECTED: All-zero image");
-                } else if min_value >= options.saturation_threshold {
+                } else if min_value >= saturation_threshold {
                     // Fully saturated / over-exposed: Check 5 adds the accurate
                     // "completely saturated - reduce exposure time or gain"
-                    // error. Not a dead sensor.
+                    // report. Not a dead sensor.
                     tracing::warn!(
                         "[IMAGE_VALIDATION] Uniform frame fully saturated at {} (over-exposed, see saturation check)",
                         min_value
@@ -1677,19 +1916,30 @@ pub fn validate_image_comprehensive(
             }
 
             // Check 3: Underexposure detection with tiered thresholds
-            // Severe underexposure (max < min_max_value, default 100) - error
-            // Moderate underexposure (max < min_max_value * 5, default 500) - warning
-            let moderate_threshold = options.min_max_value.saturating_mul(5);
-            if max_value < options.min_max_value && !all_zero && !options.is_bias_frame {
+            // Severe underexposure (max < signal_floor) - error
+            // Moderate underexposure (max < signal_floor * 5) - warning
+            //
+            // Both tiers are proportions of the container the frame actually
+            // arrived in, not bare ADU counts. The unscaled 100/500 pair is
+            // 0.15%/0.76% of a 16-bit container but 39%/196% of an 8-bit one,
+            // so on the SVBony RAW8 fallback it called every frame low-signal —
+            // including a completely saturated one, in the same breath as
+            // calling it clipped — and aborted the dim ones outright. See
+            // signal_floor_for_full_scale.
+            let signal_floor = believed_full_scale.map_or(options.min_max_value, |full_scale| {
+                signal_floor_for_full_scale(options.min_max_value, full_scale)
+            });
+            let moderate_threshold = signal_floor.saturating_mul(5);
+            if max_value < signal_floor && !all_zero && !options.is_bias_frame {
                 validation.add_error(format!(
                     "Image severely underexposed: max pixel value {} is below minimum threshold {} - \
                     increase exposure time or check camera connection/shutter",
-                    max_value, options.min_max_value
+                    max_value, signal_floor
                 ));
                 tracing::error!(
                     "[IMAGE_VALIDATION] REJECTED: Severely underexposed (max={} < {})",
                     max_value,
-                    options.min_max_value
+                    signal_floor
                 );
             } else if max_value < moderate_threshold && !all_zero && !options.is_bias_frame {
                 // Moderate underexposure - useful signal but concerning
@@ -1704,8 +1954,11 @@ pub fn validate_image_comprehensive(
                 );
             }
 
-            // Check 4: Excessive saturation (>90% of pixels saturated)
-            // This indicates severe overexposure or gain/exposure misconfiguration
+            // Check 4: Saturation with tiered thresholds
+            // Excessive (>max_saturation_percent, default 90%) - severe overexposure
+            // Heavy (>warn_saturation_percent, default 5%) - the sub's highlights
+            // are already gone; the old single 90% tier let a frame with half its
+            // pixels clipped pass without saying anything.
             if saturation_percent > options.max_saturation_percent {
                 validation.add_warning(format!(
                     "Excessive saturation: {:.1}% of pixels are saturated (>{}%) - \
@@ -1718,18 +1971,48 @@ pub fn validate_image_comprehensive(
                     saturation_percent * 100.0,
                     options.max_saturation_percent * 100.0
                 );
+            } else if saturation_percent > options.warn_saturation_percent {
+                validation.add_warning(format!(
+                    "Heavy saturation: {:.1}% of pixels are clipped at/above {} - \
+                    those highlights are unrecoverable; reduce exposure time or gain",
+                    saturation_percent * 100.0,
+                    saturation_threshold
+                ));
+                tracing::warn!(
+                    "[IMAGE_VALIDATION] WARNING: Heavy saturation ({:.1}% clipped at/above {})",
+                    saturation_percent * 100.0,
+                    saturation_threshold
+                );
             }
 
-            // Check 5: All pixels saturated (complete overexposure)
-            let all_saturated = min_value >= options.saturation_threshold;
+            // Check 5: All pixels saturated (complete overexposure).
+            //
+            // WARNING, not an error, and this is the surface where that
+            // distinction bites: THIS is the validator the capture path runs
+            // (`unified_device_ops.rs` `camera_start_exposure_configured` calls
+            // `validate_image_comprehensive` with the camera's own `max_adu`,
+            // then `if !validation.is_valid { return Err(..) }`). An error here
+            // does not annotate the frame, it
+            // destroys it — the exposure returns Err and the caller never sees a
+            // pixel.
+            //
+            // An over-exposed frame is real, recoverable data; the cure is a
+            // shorter exposure, which the caller can only choose if it gets the
+            // measurement. Failing it outright breaks the flat wizard outright:
+            // it converges by deliberately over-exposing, measuring the mean
+            // ADU, and stepping the exposure down (`FlatWizardService.
+            // exposeAndAwait` -> `api_camera_start_exposure` -> here), so a hard
+            // failure removes the very measurement the correction loop runs on.
+            // All-zero keeps its error because there genuinely is no data.
+            let all_saturated = min_value >= saturation_threshold;
             if all_saturated {
-                validation.add_error(format!(
+                validation.add_warning(format!(
                     "Image is completely saturated (min value {} >= {}) - \
                     significantly reduce exposure time or gain",
-                    min_value, options.saturation_threshold
+                    min_value, saturation_threshold
                 ));
-                tracing::error!(
-                    "[IMAGE_VALIDATION] REJECTED: All pixels saturated (min={})",
+                tracing::warn!(
+                    "[IMAGE_VALIDATION] WARNING: All pixels saturated (min={})",
                     min_value
                 );
             }
@@ -2072,13 +2355,18 @@ mod tests {
     fn test_validate_image_all_saturated() {
         let image = ImageData::from_u16(100, 100, 1, &vec![65535u16; 100 * 100]);
         let validation = validate_image(&image, None, None);
+        // Reported, but NOT fatal: a validation error aborts the exposure, and
+        // an over-exposed frame is recoverable data the caller needs to see in
+        // order to lower the exposure. The flat wizard converges on exactly
+        // this frame.
         assert!(
-            !validation.is_valid,
-            "All-saturated image should be invalid"
+            validation.is_valid,
+            "an over-exposed frame must not fail the capture"
         );
         assert!(
-            validation.errors.iter().any(|e| e.contains("saturated")),
-            "Should have saturated error"
+            validation.warnings.iter().any(|w| w.contains("saturated")),
+            "Should warn about saturation, got {:?}",
+            validation.warnings
         );
     }
 
@@ -2096,6 +2384,449 @@ mod tests {
         );
     }
 
+    /// Errors + warnings, lowercased, for the "did it say anything about
+    /// clipping?" assertions below.
+    fn saturation_messages(v: &ImageValidation) -> Vec<String> {
+        v.errors
+            .iter()
+            .chain(v.warnings.iter())
+            .map(|m| m.to_lowercase())
+            .filter(|m| m.contains("saturat") || m.contains("clipped"))
+            .collect()
+    }
+
+    #[test]
+    fn test_saturation_threshold_tracks_the_sensor_ceiling() {
+        // The threshold is a proportion of the sensor's own full scale, not a
+        // constant: ~0.8% of headroom under the ceiling, whatever the ceiling.
+        for full_scale in [255u32, 1023, 4095, 16383, 65520, 65535] {
+            let t = saturation_threshold_for_full_scale(full_scale)
+                .unwrap_or_else(|| panic!("{full_scale} is a usable ceiling"));
+            let headroom_adu = full_scale - u32::from(t);
+            let headroom = f64::from(headroom_adu) / f64::from(full_scale);
+            assert!(
+                headroom_adu >= 1 && headroom <= 0.009,
+                "threshold {t} for full scale {full_scale} leaves {headroom_adu} ADU \
+                 ({headroom:.4}) of headroom; it must sit at least one ADU below the \
+                 ceiling (sensors clip a little low) and no more than ~1% below it \
+                 (or unclipped highlights start counting as saturated)"
+            );
+            if full_scale >= 1023 {
+                assert!(
+                    headroom >= 0.006,
+                    "full scale {full_scale} got only {headroom:.4} headroom; the ~0.8% \
+                     margin is what caught the ASI1600 clipping at 65504 instead of 65520"
+                );
+            }
+        }
+
+        // 16-bit must reproduce the historical constant exactly so nothing that
+        // relied on 65024 shifts underfoot.
+        assert_eq!(
+            saturation_threshold_for_full_scale(65535),
+            Some(DEFAULT_SATURATION_THRESHOLD)
+        );
+
+        // A driver reporting a nonsense ceiling must not drag the threshold
+        // under the sky background and fail every frame of the night.
+        assert_eq!(saturation_threshold_for_full_scale(0), None);
+        assert_eq!(saturation_threshold_for_full_scale(64), None);
+    }
+
+    #[test]
+    fn test_declared_ceiling_decides_saturation_not_the_pixel_values() {
+        // Same bytes, two sensors. A quarter of the frame sits in the top 1% of
+        // a 12-bit container: badly over-exposed on a 12-bit camera, an ordinary
+        // dim frame on a 16-bit one. Nothing in the pixels says which — only the
+        // declared ceiling does.
+        //
+        // The bright region is deliberately NOT clipped: its values spread over
+        // 4064..=4090 and only ten pixels reach the peak, far under the pile-up
+        // a real clip leaves. That is what keeps this a test of the declaration
+        // rather than of the frame's own evidence.
+        let mut pixels = vec![800u16; 128 * 128];
+        for (i, p) in pixels.iter_mut().enumerate().take(4000) {
+            *p = 4064 + (i % 26) as u16;
+        }
+        for p in pixels.iter_mut().skip(4000).take(10) {
+            *p = 4090;
+        }
+        let image = ImageData::from_u16(128, 128, 1, &pixels);
+
+        let twelve_bit =
+            validate_image_comprehensive(&image, ImageValidationOptions::for_sensor(4095));
+        assert!(
+            !saturation_messages(&twelve_bit).is_empty(),
+            "half a 12-bit frame at its 4095 ceiling is clipped, got {:?} / {:?}",
+            twelve_bit.errors,
+            twelve_bit.warnings
+        );
+
+        let sixteen_bit =
+            validate_image_comprehensive(&image, ImageValidationOptions::for_sensor(65535));
+        assert!(
+            saturation_messages(&sixteen_bit).is_empty(),
+            "4090 is 6% of full scale on a 16-bit sensor and must not read as \
+             saturation, got {:?} / {:?}",
+            sixteen_bit.errors,
+            sixteen_bit.warnings
+        );
+    }
+
+    #[test]
+    fn test_container_width_declaration_does_not_hide_a_right_justified_clip() {
+        // The counterpart to the test above, and the reason the declared ceiling
+        // cannot simply win. A driver with nothing better to say answers with the
+        // container width — INDI falls back to `(1 << CCD_BITSPERPIXEL) - 1` =
+        // 65535 — while delivering right-justified 12-bit samples that pile up on
+        // 4095. Against a 65535 ceiling nothing in this frame is saturated, so
+        // taking the declaration at face value hides a completely clipped flat.
+        let image = ImageData::from_u16(256, 256, 1, &vec![4095u16; 256 * 256]);
+        let v = validate_image_comprehensive(&image, ImageValidationOptions::for_sensor(65535));
+        assert!(
+            !saturation_messages(&v).is_empty(),
+            "a frame pinned to 4095 is clipped no matter what ceiling the driver \
+             declared, got {:?} / {:?}",
+            v.errors,
+            v.warnings
+        );
+    }
+
+    #[test]
+    fn test_declared_ceiling_below_the_data_is_distrusted() {
+        // The shipped bit_depth/max_adu confusion: a driver advertises 4095 (its
+        // ADC bits) while its left-justified samples reach 65504. Honouring that
+        // ceiling would call a perfectly exposed frame completely saturated and
+        // fail the exposure, so a ceiling the frame itself exceeds is discarded.
+        //
+        // The sky background sits at a genuine left-justified level (2000 << 4)
+        // rather than a token few hundred ADU, and that is what gives this test
+        // teeth: against a believed 4095 ceiling EVERY pixel here is over the
+        // 4064 clip threshold, so deleting the `filter` that discards the
+        // declaration turns an ordinary sub into "Excessive saturation: 100.0%".
+        // Over a dim background only the two bright pixels would cross it —
+        // 0.01% of the frame, under every reporting tier — and the assertions
+        // below would pass with or without the guard, pinning nothing.
+        let mut pixels = vec![32000u16; 128 * 128];
+        pixels[0] = 65504;
+        pixels[1] = 40000;
+        let image = ImageData::from_u16(128, 128, 1, &pixels);
+
+        let v = validate_image_comprehensive(&image, ImageValidationOptions::for_sensor(4095));
+        assert!(
+            saturation_messages(&v).is_empty(),
+            "a frame that exceeds the declared ceiling proves the declaration \
+             wrong; it must not be reported as saturated: {:?} / {:?}",
+            v.errors,
+            v.warnings
+        );
+        assert!(
+            v.is_valid,
+            "well-exposed frame must stay valid: {:?}",
+            v.errors
+        );
+    }
+
+    #[test]
+    fn test_right_justified_12bit_clip_is_saturation_not_a_dead_sensor() {
+        // INDI CCDs and several ASCOM drivers deliver a 12-bit sensor as 0..4095
+        // instead of left-shifting into 16 bits. A fully clipped frame from one
+        // of those never reached the 16-bit threshold, so the app announced
+        // "possible sensor failure or dead frame" at an over-exposed user.
+        // Driven through the exact call the capture path makes.
+        let image = ImageData::from_u16(256, 256, 1, &vec![4095u16; 256 * 256]);
+        let v = validate_image_with_options(&image, Some(256), Some(256), false);
+        assert!(v.is_valid, "a clipped 12-bit frame must still be returned");
+        assert!(
+            v.warnings
+                .iter()
+                .any(|w| w.to_lowercase().contains("saturated")),
+            "expected a saturation error at the 12-bit ceiling, got {:?}",
+            v.errors
+        );
+        assert!(
+            !v.errors
+                .iter()
+                .any(|e| e.contains("dead frame") || e.contains("sensor failure")),
+            "over-exposure must not be misreported as broken hardware: {:?}",
+            v.errors
+        );
+    }
+
+    #[test]
+    fn test_right_justified_14bit_clip_is_saturation_not_a_dead_sensor() {
+        // Same story one ADC generation up: 0..16383.
+        let image = ImageData::from_u16(256, 256, 1, &vec![16383u16; 256 * 256]);
+        let v = validate_image_with_options(&image, Some(256), Some(256), false);
+        assert!(v.is_valid, "a clipped 14-bit frame must still be returned");
+        assert!(
+            v.warnings
+                .iter()
+                .any(|w| w.to_lowercase().contains("saturated")),
+            "expected a saturation warning at the 14-bit ceiling, got {:?}",
+            v.warnings
+        );
+        assert!(
+            !v.errors
+                .iter()
+                .any(|e| e.contains("dead frame") || e.contains("sensor failure")),
+            "over-exposure must not be misreported as broken hardware: {:?}",
+            v.errors
+        );
+    }
+
+    #[test]
+    fn test_right_justified_clip_flagged_by_the_basic_validator_too() {
+        // api_* image loads go through the three-argument validator, which had
+        // the 16-bit constant baked in and stayed silent on the same frame.
+        let image = ImageData::from_u16(256, 256, 1, &vec![4095u16; 256 * 256]);
+        let v = validate_image(&image, Some(256), Some(256));
+        assert!(
+            v.warnings
+                .iter()
+                .any(|w| w.to_lowercase().contains("saturated")),
+            "expected an all-saturated warning at the 12-bit ceiling, got {:?}",
+            v.warnings
+        );
+        // Detected without failing the capture: before the ceiling was derived
+        // this frame was compared against a 16-bit threshold it could never
+        // reach and passed in silence, but the cure must not be an aborted run.
+        assert!(
+            v.is_valid,
+            "a clipped 12-bit flat must still return a frame"
+        );
+    }
+
+    #[test]
+    fn test_half_clipped_frame_is_reported() {
+        // Half the pixels at the ceiling is a ruined sub. Reporting only above
+        // 90% meant this passed in silence.
+        let mut pixels = vec![12000u16; 128 * 128];
+        for p in pixels.iter_mut().take(128 * 128 / 2) {
+            *p = 65535;
+        }
+        let image = ImageData::from_u16(128, 128, 1, &pixels);
+        let v = validate_image_with_options(&image, Some(128), Some(128), false);
+        let reported = saturation_messages(&v);
+        assert!(
+            !reported.is_empty(),
+            "a 50%-clipped frame must say so, got {:?} / {:?}",
+            v.errors,
+            v.warnings
+        );
+        assert!(
+            reported.iter().any(|m| m.contains("50.0%")),
+            "the report should carry the actual clipped fraction: {reported:?}"
+        );
+    }
+
+    #[test]
+    fn test_normal_star_field_with_a_few_clipped_cores_is_clean() {
+        // The counterweight to the two tests above: a good 12-bit sub clips only
+        // the brightest star cores. Neither the ceiling inference nor the new
+        // lower saturation tier may turn that into a complaint, or every frame
+        // of a normal night carries a warning and the warning stops meaning
+        // anything.
+        let mut pixels: Vec<u16> = (0..256 * 256).map(|i| 495 + (i % 11) as u16).collect();
+        for i in 0..8 {
+            pixels[i * 997] = 4095;
+        }
+        let image = ImageData::from_u16(256, 256, 1, &pixels);
+        let v = validate_image_with_options(&image, Some(256), Some(256), false);
+        assert!(
+            saturation_messages(&v).is_empty(),
+            "0.01% clipped cores is a normal sub: {:?} / {:?}",
+            v.errors,
+            v.warnings
+        );
+        assert!(v.is_valid, "normal sub must be valid: {:?}", v.errors);
+    }
+
+    #[test]
+    fn test_sensor_clipping_a_few_adu_low_is_still_a_clip() {
+        // An over-exposed flat off a 12-bit sensor delivered right-justified,
+        // whose ADC pins at 4090 rather than the container's exact 4095 — the
+        // same "real sensors clip a little low" fact that SATURATION_HEADROOM_SHIFT
+        // exists for (the live ASI1600 clips at 4094 << 4, not 4095 << 4).
+        //
+        // The driver has nothing better to declare than the container width:
+        // INDI answers `(1 << CCD_BITSPERPIXEL) - 1` = 65535 for exactly these
+        // cameras. So the frame's own pile-up is the only evidence of where it
+        // clips, and if the inference demands the peak equal 4095 exactly, a
+        // 70%-clipped flat is reported as a perfectly good frame.
+        let mut pixels = vec![4090u16; 256 * 256];
+        // Vignetted corners fall away from the clipped plateau, so the frame is
+        // not uniform — the dead-sensor path is not what is under test.
+        for (i, p) in pixels.iter_mut().enumerate().take(20_000) {
+            *p = 3000 + (i % 500) as u16;
+        }
+        let image = ImageData::from_u16(256, 256, 1, &pixels);
+
+        let v = validate_image_comprehensive(&image, ImageValidationOptions::for_sensor(65535));
+        let reported = saturation_messages(&v);
+        assert!(
+            !reported.is_empty(),
+            "a frame with 69% of its pixels pinned at 4090 is a clipped 12-bit \
+             frame, five ADU low or not: {:?} / {:?}",
+            v.errors,
+            v.warnings
+        );
+        assert!(
+            reported.iter().any(|m| m.contains("4064")),
+            "the report must be judged against the 12-bit container the pile-up \
+             identifies, not the declared 65535: {reported:?}"
+        );
+        assert!(v.is_valid, "an over-exposed flat must still be returned");
+    }
+
+    #[test]
+    fn test_clip_below_the_ceiling_flagged_by_the_basic_validator_too() {
+        // Same shortfall through the three-argument validator the api_* image
+        // loads use, which has no sensor to ask at all.
+        let image = ImageData::from_u16(256, 256, 1, &vec![4090u16; 256 * 256]);
+        let v = validate_image(&image, Some(256), Some(256));
+        assert!(
+            v.warnings
+                .iter()
+                .any(|w| w.to_lowercase().contains("saturated")),
+            "a frame pinned at 4090 is clipped, got {:?} / {:?}",
+            v.errors,
+            v.warnings
+        );
+        assert!(v.is_valid, "a clipped flat must still return a frame");
+    }
+
+    #[test]
+    fn test_every_recognised_container_is_recognised_without_a_declared_ceiling() {
+        // RIGHT_JUSTIFIED_FULL_SCALES is a claim about hardware we support, and
+        // only two of its four entries were held by anything: deleting 255 or
+        // 1023 from the table left the entire suite green. All four are real —
+        // `vendor/touptek.rs` `max_adu_from_bit_depth` returns `(1 << bits) - 1`
+        // verbatim, so an 8-/10-/12-/14-bit Touptek-family camera declares
+        // 255 / 1023 / 4095 / 16383, and both the QHY 8-bit transfer container
+        // and the SVBony RAW8 connect fallback land on 255.
+        //
+        // Driven with NO declared ceiling, which is a live production branch and
+        // not a contrivance: `unified_device_ops.rs` asks the camera for its
+        // status best-effort and passes `sensor_max_adu: None` whenever the
+        // driver cannot answer, and the three `validate_image` call sites in
+        // `api/imaging.rs` have no camera to ask at all. The frame's own pile-up
+        // is then the only evidence of where the sensor clips.
+        //
+        // Each frame clips a few ADU UNDER its container ceiling, the way real
+        // sensors do, so the tolerance band is pinned for every container rather
+        // than only for the 12-bit one.
+        for (full_scale, clips_at) in [(255u16, 254u16), (1023, 1018), (4095, 4090), (16383, 16303)]
+        {
+            let image = ImageData::from_u16(128, 128, 1, &vec![clips_at; 128 * 128]);
+
+            let v = validate_image_comprehensive(&image, ImageValidationOptions::default());
+            assert!(
+                v.is_valid,
+                "a blown flat off a {full_scale}-ADU container is over-exposed, \
+                 not a failure — an error here aborts the exposure: {:?}",
+                v.errors
+            );
+            assert!(
+                !v.errors
+                    .iter()
+                    .any(|e| e.contains("dead frame") || e.contains("sensor failure")),
+                "a frame pinned at {clips_at} on a {full_scale}-ADU container is \
+                 clipped, not a broken camera: {:?}",
+                v.errors
+            );
+            assert!(
+                !saturation_messages(&v).is_empty(),
+                "a {full_scale}-ADU container clipping at {clips_at} must be \
+                 reported as saturated: {:?} / {:?}",
+                v.errors,
+                v.warnings
+            );
+            assert!(
+                exposure_level_messages(&v).is_empty(),
+                "a clipped frame is the opposite of underexposed: {:?} / {:?}",
+                v.errors,
+                v.warnings
+            );
+
+            let basic = validate_image(&image, Some(128), Some(128));
+            assert!(
+                basic
+                    .warnings
+                    .iter()
+                    .any(|w| w.to_lowercase().contains("saturated")),
+                "the FITS-save validator must recognise the same {full_scale}-ADU \
+                 clip: {:?} / {:?}",
+                basic.errors,
+                basic.warnings
+            );
+        }
+    }
+
+    /// Errors + warnings, lowercased, for the "did it call the frame empty?"
+    /// assertions below.
+    fn exposure_level_messages(v: &ImageValidation) -> Vec<String> {
+        v.errors
+            .iter()
+            .chain(v.warnings.iter())
+            .map(|m| m.to_lowercase())
+            .filter(|m| m.contains("underexposed") || m.contains("low signal"))
+            .collect()
+    }
+
+    #[test]
+    fn test_eight_bit_container_frame_is_not_called_underexposed() {
+        // The SVBony `connect()` fallback: a model with no RAW16 mode runs as
+        // SVB_IMG_RAW8, publishes `max_adu: 255` and hands its samples over as
+        // 0..255 widened into the 16-bit buffer (`vendor/svbony.rs`). A sub
+        // peaking at 90 of 255 is a third of full scale — a perfectly ordinary
+        // dim sub, not an empty frame.
+        //
+        // Judged against the unscaled 100-ADU floor it is "severely
+        // underexposed", which is an ERROR, and an error means the capture path
+        // returns Err and throws the frame away. Every sub off that camera.
+        let mut pixels = vec![24u16; 128 * 128];
+        for (i, p) in pixels.iter_mut().enumerate().step_by(97) {
+            *p = 60 + (i % 31) as u16;
+        }
+        pixels[0] = 90;
+        let image = ImageData::from_u16(128, 128, 1, &pixels);
+
+        let v = validate_image_comprehensive(&image, ImageValidationOptions::for_sensor(255));
+        assert!(
+            v.is_valid,
+            "a third of an 8-bit container's full scale is a real frame; \
+             failing it aborts the exposure: {:?}",
+            v.errors
+        );
+        assert!(
+            exposure_level_messages(&v).is_empty(),
+            "nothing here is underexposed at a 255-ADU ceiling: {:?} / {:?}",
+            v.errors,
+            v.warnings
+        );
+    }
+
+    #[test]
+    fn test_signal_floor_still_catches_a_frame_with_nothing_in_it() {
+        // The counterweight: scaling the floor to the container must not retire
+        // the check. Four ADU out of a 4095 container is 0.1% — a blocked
+        // shutter or a dead link, and still an error.
+        let mut pixels = vec![1u16; 128 * 128];
+        pixels[0] = 4;
+        let image = ImageData::from_u16(128, 128, 1, &pixels);
+
+        let v = validate_image_comprehensive(&image, ImageValidationOptions::for_sensor(4095));
+        assert!(!v.is_valid, "an empty frame is still an empty frame");
+        assert!(
+            v.errors
+                .iter()
+                .any(|e| e.to_lowercase().contains("underexposed")),
+            "expected a severe-underexposure error: {:?}",
+            v.errors
+        );
+    }
+
     #[test]
     fn test_comprehensive_uniform_saturated_not_dead_frame() {
         // A frame uniformly at the 14-bit sensor ceiling (16382 << 2 = 65528)
@@ -2104,11 +2835,14 @@ mod tests {
         // frame" (the pre-fix misdiagnosis surfaced live on a real ASI178MM).
         let image = ImageData::from_u16(64, 64, 1, &vec![65528u16; 64 * 64]);
         let v = validate_image_comprehensive(&image, ImageValidationOptions::default());
-        assert!(!v.is_valid, "fully saturated frame is invalid");
         assert!(
-            v.errors
+            v.is_valid,
+            "a saturated frame must still be returned to the caller"
+        );
+        assert!(
+            v.warnings
                 .iter()
-                .any(|e| e.to_lowercase().contains("saturated")),
+                .any(|w| w.to_lowercase().contains("saturated")),
             "expected a saturation error, got {:?}",
             v.errors
         );
@@ -2129,11 +2863,14 @@ mod tests {
         // frame came back as "possible sensor failure or dead frame".
         let image = ImageData::from_u16(64, 64, 1, &vec![65504u16; 64 * 64]);
         let v = validate_image_comprehensive(&image, ImageValidationOptions::default());
-        assert!(!v.is_valid, "clipped frame is invalid");
         assert!(
-            v.errors
+            v.is_valid,
+            "a clipped frame must still be returned to the caller"
+        );
+        assert!(
+            v.warnings
                 .iter()
-                .any(|e| e.to_lowercase().contains("saturated")),
+                .any(|w| w.to_lowercase().contains("saturated")),
             "expected saturation error for real ASI1600 clip value, got {:?}",
             v.errors
         );
@@ -2152,11 +2889,14 @@ mod tests {
         // 65530 threshold this common case (e.g. ASI1600MM) was never flagged.
         let image = ImageData::from_u16(64, 64, 1, &vec![65520u16; 64 * 64]);
         let v = validate_image_comprehensive(&image, ImageValidationOptions::default());
-        assert!(!v.is_valid, "12-bit fully saturated frame must be flagged");
         assert!(
-            v.errors
+            v.is_valid,
+            "an over-exposed frame must be reported without failing the capture"
+        );
+        assert!(
+            v.warnings
                 .iter()
-                .any(|e| e.to_lowercase().contains("saturated")),
+                .any(|w| w.to_lowercase().contains("saturated")),
             "expected saturation error for 12-bit ceiling, got {:?}",
             v.errors
         );

@@ -2022,9 +2022,11 @@ mod tests {
         );
 
         // Unsupported device type (no simulation.rs singleton) must error.
-        let switch = build_sim_info("sim_switch_1", DeviceType::Switch);
+        // Guider is the remaining one; switch and cover calibrator now have
+        // simulators and are covered by their own test below.
+        let guider = build_sim_info("sim_guider_1", DeviceType::Guider);
         let err = manager
-            .connect_simulator(&switch)
+            .connect_simulator(&guider)
             .await
             .expect_err("unsupported sim device type must fail loudly");
         assert!(
@@ -2541,35 +2543,83 @@ mod tests {
         get_sim_focuser().write().await.status.connected = false;
     }
 
+    /// The simulated switch and cover calibrator obey the same connection gate
+    /// as every other simulator: they answer once connected and refuse before.
+    ///
+    /// This replaces an assertion that both device types loud-errored
+    /// unconditionally, which was true only because neither had a simulator at
+    /// all — the reason the app logged "Discovery complete for Switch: 0
+    /// devices" every launch and flat-panel flows could not be run without
+    /// hardware. Answering while disconnected would be the opposite failure and
+    /// is what the second half of this test pins down.
     #[tokio::test]
-    async fn switch_ops_simulator_always_errors_no_singleton() {
-        // Switch has no simulator singleton in simulation.rs, so every op
-        // must loud-error regardless of any "connect" attempt.
+    async fn switch_and_cover_simulators_answer_only_while_connected() {
+        let _guard = simulator_singleton_test_lock().lock().await;
+        // The singletons are process-global; start from the power-on state so
+        // an earlier test's open cover cannot masquerade as this one's.
+        crate::api::devices::simulation::reset_sim_cover_calibrator().await;
+        crate::api::devices::simulation::reset_sim_switch().await;
         let manager = Arc::new(build_device_manager());
-        let device_id = "sim_switch_ops_1";
-        let info = build_sim_info(device_id, DeviceType::Switch);
-        manager.register_device(info.clone(), false).await;
 
-        let err = manager
-            .switch_get_max(device_id)
-            .await
-            .expect_err("simulator switch has no singleton; must loud-error");
+        let switch_info = build_sim_info("sim_switch_1", DeviceType::Switch);
+        let cover_info = build_sim_info("sim_cover_calibrator_1", DeviceType::CoverCalibrator);
+        manager.register_device(switch_info.clone(), false).await;
+        manager.register_device(cover_info.clone(), false).await;
+
+        for info in [&switch_info, &cover_info] {
+            manager
+                .disconnect_simulator(info)
+                .await
+                .expect("disconnect_simulator should succeed for a supported sim type");
+        }
+
+        for err in [
+            manager
+                .switch_get_max("sim_switch_1")
+                .await
+                .expect_err("a disconnected sim switch must not report a channel count")
+                .to_string(),
+            manager
+                .cover_calibrator_get_cover_state("sim_cover_calibrator_1")
+                .await
+                .expect_err("a disconnected sim panel must not report a cover state")
+                .to_string(),
+        ] {
+            assert!(
+                err.contains("not connected"),
+                "the refusal must name the disconnection: {err}"
+            );
+        }
+
+        for info in [&switch_info, &cover_info] {
+            manager
+                .connect_simulator(info)
+                .await
+                .expect("connect_simulator should succeed for a supported sim type");
+        }
+
         assert!(
-            err.to_string().contains("simulator")
-                || err.to_string().contains("Simulator")
-                || err.to_string().contains("disabled"),
-            "error must mention the missing simulator implementation: {}",
-            err
+            manager
+                .switch_get_max("sim_switch_1")
+                .await
+                .expect("a connected sim switch reports its channels")
+                > 0
+        );
+        assert_eq!(
+            manager
+                .cover_calibrator_get_cover_state("sim_cover_calibrator_1")
+                .await
+                .expect("a connected sim panel reports its cover state"),
+            CoverState::Closed.to_i32(),
+            "a freshly connected flat panel must report its cover closed"
         );
 
-        // Confirm `connect_simulator` itself refuses unsupported device types
-        // (mirrors the existing DEV-P3-3 test) so the contract is symmetric:
-        // ops can never observe a "connected" sim switch.
-        let connect_err = manager
-            .connect_simulator(&info)
-            .await
-            .expect_err("connect_simulator must reject unsupported sim device types");
-        assert!(connect_err.contains("no simulator implementation"));
+        for info in [&switch_info, &cover_info] {
+            manager
+                .disconnect_simulator(info)
+                .await
+                .expect("disconnect_simulator should succeed");
+        }
     }
 
     // -------------------------------------------------------------------------

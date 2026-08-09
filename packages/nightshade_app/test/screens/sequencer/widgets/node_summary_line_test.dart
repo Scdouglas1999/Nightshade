@@ -23,11 +23,13 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/node_summary_line.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 Future<void> _pump(
   WidgetTester tester,
   SequenceNode node, {
   required SequenceExecutionState executionState,
+  List<Override> extraOverrides = const [],
 }) async {
   tester.view.devicePixelRatio = 1.0;
   tester.view.physicalSize = const Size(900, 700);
@@ -37,7 +39,9 @@ Future<void> _pump(
   });
 
   final container = ProviderContainer(overrides: [
+    inMemoryDatabaseOverride(),
     sequenceExecutionStateProvider.overrideWith((ref) => executionState),
+    ...extraOverrides,
   ]);
   addTearDown(container.dispose);
 
@@ -144,6 +148,54 @@ void main() {
       await tester.tap(find.text('12'));
       await tester.pumpAndSettle();
       expect(find.text('Exposure count'), findsNothing);
+    },
+  );
+
+  // The executor drops AutofocusNode.method whenever `useSettingsDefaults` is
+  // on (serialization passes `nodeOverrides: null`), so the row must name the
+  // AppSettings method that will really run and must not offer a chip that
+  // edits the discarded field.
+  testWidgets(
+    'autofocus row in defaults mode names the global method, no editable chip',
+    (tester) async {
+      await _pump(
+        tester,
+        AutofocusNode(method: AutofocusMethod.quadratic),
+        executionState: SequenceExecutionState.idle,
+        extraOverrides: [
+          autofocusSettingsProvider.overrideWithValue(
+            const AutofocusSettings(method: 'Star HFR'),
+          ),
+        ],
+      );
+
+      expect(find.text('Star HFR (global)'), findsOneWidget);
+      expect(find.text('quadratic'), findsNothing);
+      expect(find.byIcon(LucideIcons.chevronDown), findsNothing);
+      expect(find.byType(InkWell), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'autofocus row in override mode still offers the editable method chip',
+    (tester) async {
+      await _pump(
+        tester,
+        AutofocusNode(
+          method: AutofocusMethod.quadratic,
+          useSettingsDefaults: false,
+        ),
+        executionState: SequenceExecutionState.idle,
+        extraOverrides: [
+          autofocusSettingsProvider.overrideWithValue(
+            const AutofocusSettings(method: 'Star HFR'),
+          ),
+        ],
+      );
+
+      expect(find.text('quadratic'), findsOneWidget);
+      expect(find.text('Star HFR (global)'), findsNothing);
+      expect(find.byIcon(LucideIcons.chevronDown), findsWidgets);
     },
   );
 

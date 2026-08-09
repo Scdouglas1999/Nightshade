@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import '../harness/in_memory_database.dart';
 
 class _MockNetworkBackend extends Mock implements NetworkBackend {}
 
@@ -68,6 +69,7 @@ void main() {
       });
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith(
             (ref) => _SwappableBackendNotifier(ref, backend),
           ),
@@ -113,6 +115,7 @@ void main() {
     ).thenThrow(StateError('host rejected update'));
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith(
           (ref) => _SwappableBackendNotifier(ref, backend),
         ),
@@ -143,6 +146,7 @@ void main() {
       late _SwappableBackendNotifier backendNotifier;
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith((ref) {
             backendNotifier = _SwappableBackendNotifier(ref, hostA);
             return backendNotifier;

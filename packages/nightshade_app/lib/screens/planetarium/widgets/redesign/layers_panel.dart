@@ -330,7 +330,7 @@ class _LayerSwitch extends StatelessWidget {
   const _LayerSwitch({
     required this.label,
     required this.value,
-    required this.onChanged,
+    this.onChanged,
     this.enabled = true,
     this.indented = false,
     this.trailing,
@@ -339,7 +339,7 @@ class _LayerSwitch extends StatelessWidget {
 
   final String label;
   final bool value;
-  final ValueChanged<bool> onChanged;
+  final ValueChanged<bool>? onChanged;
 
   /// False for a row whose effect is currently impossible (a missing catalog, a
   /// master switch that is off). Renders inert and greyed rather than accepting
@@ -358,11 +358,12 @@ class _LayerSwitch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    final labelColor = !enabled
+    final isEnabled = enabled && onChanged != null;
+    final labelColor = !isEnabled
         ? colors.textMuted
         : (value ? colors.textPrimary : colors.textSecondary);
     return InkWell(
-      onTap: enabled ? () => onChanged(!value) : null,
+      onTap: isEnabled ? () => onChanged!(!value) : null,
       child: Padding(
         padding: EdgeInsets.only(
           left: indented ? 32 : 16,
@@ -399,8 +400,8 @@ class _LayerSwitch extends StatelessWidget {
               trailing!
             else
               Switch(
-                value: enabled && value,
-                onChanged: enabled ? onChanged : null,
+                value: isEnabled && value,
+                onChanged: isEnabled ? onChanged : null,
                 activeThumbColor: colors.accent,
               ),
           ],
@@ -423,12 +424,11 @@ class _DeepStarsSwitch extends ConsumerWidget {
     const label = 'Deep stars (Tycho-2 / Gaia tier)';
 
     if (manifest.isLoading) {
-      return _LayerSwitch(
+      return const _LayerSwitch(
         label: label,
         value: false,
         enabled: false,
         subtitle: 'Checking for an installed tileset...',
-        onChanged: (_) {},
       );
     }
 
@@ -437,15 +437,17 @@ class _DeepStarsSwitch extends ConsumerWidget {
         label: label,
         value: false,
         enabled: false,
-        subtitle: 'No tileset installed - stars below mag '
-            '${kHygFaintFloorMag.toStringAsFixed(1)} are unavailable',
+        // "Install" promised a download that does not exist: no deep-star
+        // tileset is published, and the button only opens a form asking the
+        // user to host one themselves. Name the control after what it does.
+        subtitle: 'No tileset available yet - stars below mag '
+            '${kHygFaintFloorMag.toStringAsFixed(1)} need a self-hosted tileset',
         trailing: NightshadeButton(
-          label: 'Install',
+          label: 'Configure source...',
           variant: ButtonVariant.outline,
           size: ButtonSize.small,
           onPressed: () => _openCatalogSettings(context, ref),
         ),
-        onChanged: (_) {},
       );
     }
 

@@ -4,6 +4,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'widgets/auto_save_settings.dart';
 import 'widgets/autofocus_settings.dart';
 import 'widgets/file_path_settings.dart';
+import 'widgets/focus_model_settings.dart';
 import 'widgets/predictive_af_settings.dart';
 
 /// Stacks two existing settings widgets into one continuously-scrolling section.
@@ -21,6 +22,8 @@ class _MergedSection extends StatelessWidget {
     required this.first,
     required this.secondLabel,
     required this.second,
+    this.thirdLabel,
+    this.third,
   });
 
   final bool isMobile;
@@ -29,8 +32,14 @@ class _MergedSection extends StatelessWidget {
   final String secondLabel;
   final Widget second;
 
+  /// Optional third pane. Two was enough until `focus-model` turned out to be
+  /// declared as merging into Autofocus without ever being mounted there.
+  final String? thirdLabel;
+  final Widget? third;
+
   @override
   Widget build(BuildContext context) {
+    final third = this.third;
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -40,6 +49,13 @@ class _MergedSection extends StatelessWidget {
           _SubHeader(
               label: secondLabel, isMobile: isMobile, withTopBorder: true),
           second,
+          if (third != null) ...[
+            _SubHeader(
+                label: thirdLabel ?? '',
+                isMobile: isMobile,
+                withTopBorder: true),
+            third,
+          ],
         ],
       ),
     );
@@ -106,7 +122,16 @@ class FilesAndStorageSettings extends StatelessWidget {
   }
 }
 
-/// Autofocus = autofocus + predictive AF (keys `autofocus` + `predictive-af`).
+/// Autofocus = autofocus + predictive AF + focus model
+/// (keys `autofocus` + `predictive-af` + `focus-model`).
+///
+/// `focus-model` was in [kMergedSectionAliases] pointing here from the start,
+/// and `kSettingsSectionIndex` lists it, but nothing ever mounted
+/// [FocusModelSettings] — repo-wide its only references were its own
+/// declaration. So a whole settings screen shipped with no route into it, and
+/// the deep link resolved to an Autofocus pane that did not contain it. The
+/// pane is remote-only and says so off-network, which matches how the other
+/// appliance-backed sections behave rather than hiding itself.
 class AutofocusMergedSettings extends StatelessWidget {
   const AutofocusMergedSettings({super.key, this.isMobile = false});
 
@@ -120,6 +145,8 @@ class AutofocusMergedSettings extends StatelessWidget {
       first: AutofocusSettingsPage(isMobile: isMobile, embedded: true),
       secondLabel: 'PREDICTIVE AUTOFOCUS',
       second: PredictiveAfSettingsPage(isMobile: isMobile, embedded: true),
+      thirdLabel: 'FOCUS MODEL',
+      third: FocusModelSettings(isMobile: isMobile, embedded: true),
     );
   }
 }

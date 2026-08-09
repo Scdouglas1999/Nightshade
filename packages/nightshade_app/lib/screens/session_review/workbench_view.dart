@@ -192,10 +192,24 @@ class _RightColumn extends StatelessWidget {
     // Prefer the freshest run's preview; otherwise the persisted master's.
     final previewPath = outcome?.result.previewPath ?? master?.previewPngPath;
 
+    // A run that dropped subs still returns a master, so nothing else on this
+    // column looks wrong — the card just reads a smaller frame count. The
+    // toast is transient; this banner is what is still on screen when the user
+    // looks at the master and wonders why it is thin.
+    final shortfall = SessionReviewController.integrationShortfall(outcome);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (shortfall != null) ...[
+          NightshadeAlert(
+            severity: NightshadeAlertSeverity.warning,
+            title: 'Subs were dropped from this master',
+            message: shortfall,
+          ),
+          const SizedBox(height: NightshadeTokens.spaceMd),
+        ],
         // ── Master with every overlay toggle. ────────────────────────────
         const SectionHeader(title: 'Master & overlays'),
         const SizedBox(height: NightshadeTokens.spaceSm),
@@ -301,6 +315,7 @@ class _RightColumn extends StatelessWidget {
           // than discarding it: a failed combine sets `state.error`, a successful
           // one pushes the `narrowband_composites` row onto state, which the
           // `_NarrowbandCompositeCard` below renders.
+          busy: state.combiningNarrowband,
           onApply: (palette, weights) async {
             await controller.runNarrowband(palette, weights);
           },

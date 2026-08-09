@@ -222,9 +222,13 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Streams faint stars below the bundled HYG floor (~mag 11.5) as '
-            'view-culled tiles when zoomed in. Host a tileset built with '
-            'tools/catalog_prep and point the URL below at it.',
+            // The floor is quoted from kHygFaintFloorMag, the same constant the
+            // HYG/deep-tier merge seam and the Layers panel use — this card
+            // used to hard-code 11.5 while the seam used 9.0.
+            'Streams faint stars below the bundled HYG floor '
+            '(mag ${kHygFaintFloorMag.toStringAsFixed(1)}) as view-culled '
+            'tiles when zoomed in. No tileset is published yet: host one built '
+            'with tools/catalog_prep and point the URL below at it.',
             style: TextStyle(
               color: colors.textSecondary,
               fontSize: NightshadeTypography.fontSize13,

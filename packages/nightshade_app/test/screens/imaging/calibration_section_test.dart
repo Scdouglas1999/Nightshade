@@ -6,6 +6,8 @@ import 'package:nightshade_app/screens/imaging/widgets/calibration_section.dart'
 import 'package:nightshade_app/screens/imaging/widgets/panel_widgets.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
+import '../../harness/provider_teardown.dart';
 
 /// Build a GoRouter that hosts the calibration section so the
 /// "Go to Equipment" button has a real `/equipment` route to navigate to
@@ -201,6 +203,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            inMemoryDatabaseOverride(),
             cameraStateProvider.overrideWith((ref) {
               final notifier = CameraStateNotifier(ref);
               notifier
@@ -275,6 +278,8 @@ void main() {
       );
 
       expect(tester.takeException(), isNull);
+
+      await settleProviderTeardown(tester);
     },
   );
 }

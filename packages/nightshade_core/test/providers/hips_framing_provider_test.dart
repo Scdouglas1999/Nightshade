@@ -14,6 +14,7 @@ import 'package:nightshade_core/src/providers/hips_framing_provider.dart';
 import 'package:nightshade_core/src/services/hips/hips_tile_cache.dart';
 import 'package:nightshade_core/src/services/hips/hips_tile_fetcher.dart';
 import 'package:nightshade_core/src/services/hips/hips_tile_loader.dart';
+import '../harness/in_memory_database.dart';
 
 // ===========================================================================
 // Fixtures / doubles
@@ -88,6 +89,7 @@ ProviderContainer _container({
   final client = server ?? _tileServer();
   final container = ProviderContainer(
     overrides: [
+      inMemoryDatabaseOverride(),
       hipsFramingEnabledProvider.overrideWith((ref) => enabled),
       hipsTileFetcherProvider.overrideWithValue(
         HipsTileFetcher(httpClient: client),
@@ -152,7 +154,9 @@ void main() {
   // -------------------------------------------------------------------------
   group('feature flag and survey capability gate', () {
     test('hipsFramingEnabledProvider defaults on', () {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: [inMemoryDatabaseOverride()],
+      );
       addTearDown(container.dispose);
       expect(container.read(hipsFramingEnabledProvider), isTrue);
     });
@@ -171,7 +175,9 @@ void main() {
     );
 
     test('active = user toggle AND survey capability', () {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: [inMemoryDatabaseOverride()],
+      );
       addTearDown(container.dispose);
       // Enabled (default) + capable survey => active.
       expect(
@@ -186,7 +192,9 @@ void main() {
     });
 
     test('toggling the user flag off deactivates even a capable survey', () {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: [inMemoryDatabaseOverride()],
+      );
       addTearDown(container.dispose);
       container.read(hipsFramingEnabledProvider.notifier).state = false;
       expect(
@@ -236,6 +244,7 @@ void main() {
         final fetcher = HipsTileFetcher(httpClient: client);
         final container = ProviderContainer(
           overrides: [
+            inMemoryDatabaseOverride(),
             hipsTileCacheProvider.overrideWithValue(cache),
             hipsTileFetcherProvider.overrideWithValue(fetcher),
           ],

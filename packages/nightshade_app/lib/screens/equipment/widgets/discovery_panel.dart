@@ -638,34 +638,13 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
     IconData icon,
     List<UnifiedDevice> devices,
   ) {
-    if (devices.isEmpty) {
-      // Show empty state with per-type scan button
-      return Row(
-        children: [
-          Icon(icon, size: 14, color: colors.textMuted),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'No ${title.toLowerCase()} found',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textMuted,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ),
-          IconButton(
-            onPressed: _scanForDevices,
-            icon: const Icon(LucideIcons.refreshCw, size: 14),
-            tooltip: 'Scan for ${title.toLowerCase()}',
-            style: IconButton.styleFrom(
-              foregroundColor: colors.textMuted,
-              padding: const EdgeInsets.all(8),
-            ),
-          ),
-        ],
-      );
-    }
+    // Zero-result classes get the SAME chrome as every other class. They used
+    // to collapse to one italic "No switches found" line: no count, no clue
+    // which backends had been asked, and no route to adding one — while the
+    // log recorded "Discovery complete for Switch: 0 devices, 0 backend
+    // errors". The section that says nothing was found is exactly where the
+    // reason for that belongs.
+    final isEmpty = devices.isEmpty;
 
     return Container(
       decoration: BoxDecoration(
@@ -678,21 +657,35 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
         children: [
           // Group header
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: EdgeInsets.only(
+              left: 12,
+              right: isEmpty ? 4 : 12,
+              top: 8,
+              bottom: 8,
+            ),
             child: Row(
               children: [
                 Icon(icon, size: 14, color: colors.textMuted),
                 const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize10,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textMuted,
-                    letterSpacing: 0.5,
+                // Expanded rather than a bare Text + Spacer: the empty-class
+                // variant adds a rescan IconButton to this row, and on a 360dp
+                // phone the longest class names ("Cover Calibrators") plus the
+                // count plus that button overflowed the header by 24px. Taking
+                // the slack here lets the title ellipsize instead, and the
+                // rendered layout is unchanged wherever it already fitted.
+                Expanded(
+                  child: Text(
+                    title,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize10,
+                      fontWeight: FontWeight.w600,
+                      color: colors.textMuted,
+                      letterSpacing: 0.5,
+                    ),
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 8),
                 Text(
                   '${devices.length} found',
                   style: TextStyle(
@@ -700,19 +693,83 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
                     color: colors.textMuted,
                   ),
                 ),
+                if (isEmpty)
+                  IconButton(
+                    onPressed: _scanForDevices,
+                    icon: const Icon(LucideIcons.refreshCw, size: 14),
+                    tooltip: 'Scan for ${title.toLowerCase()}',
+                    visualDensity: VisualDensity.compact,
+                    style: IconButton.styleFrom(
+                      foregroundColor: colors.textMuted,
+                      padding: const EdgeInsets.all(6),
+                    ),
+                  ),
               ],
             ),
           ),
           // Divider
           Divider(height: 1, color: colors.border.withValues(alpha: 0.5)),
-          // Device list
-          ...devices.map((device) => _DeviceRowItem(
-                device: device,
-                deviceType: deviceType,
-                onConnect: () => _connectDevice(device),
-                onDisconnect: () => _disconnectDevice(device.type),
-                onAssignDevice: widget.onAssignDevice,
-              )),
+          if (isEmpty)
+            _buildEmptyClassBody(context, colors, title)
+          else
+            // Device list
+            ...devices.map((device) => _DeviceRowItem(
+                  device: device,
+                  deviceType: deviceType,
+                  onConnect: () => _connectDevice(device),
+                  onDisconnect: () => _disconnectDevice(device.type),
+                  onAssignDevice: widget.onAssignDevice,
+                )),
+        ],
+      ),
+    );
+  }
+
+  /// What a zero-result class says: which backends were actually asked, which
+  /// of them failed, and where to configure a remote server — the three things
+  /// the operator needs and the bare "No switches found" line withheld.
+  Widget _buildEmptyClassBody(
+    BuildContext context,
+    NightshadeColors colors,
+    String title,
+  ) {
+    final discoveryState = ref.watch(unifiedDiscoveryProvider);
+    final searched = discoveryState.backendStates.keys.toList()
+      ..sort((a, b) => a.index.compareTo(b.index));
+    final failed = discoveryState.errorBackends.toSet();
+
+    final String detail;
+    if (searched.isEmpty) {
+      detail = 'Not searched yet — run a scan.';
+    } else {
+      final names = searched.map((b) {
+        final label = b.displayName;
+        return failed.contains(b) ? '$label (failed)' : label;
+      }).join(', ');
+      detail = 'Searched: $names';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            detail,
+            style: TextStyle(
+              fontSize: NightshadeTypography.fontSize11,
+              color: failed.isEmpty ? colors.textMuted : colors.warning,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Devices on another machine are reached over Alpaca or INDI — set '
+            'the server address in Settings → Connection.',
+            style: TextStyle(
+              fontSize: NightshadeTypography.fontSize11,
+              color: colors.textMuted,
+            ),
+          ),
         ],
       ),
     );

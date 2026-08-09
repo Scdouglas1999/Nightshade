@@ -20,6 +20,7 @@ import 'package:nightshade_core/src/models/settings/app_settings.dart'
     as models;
 import 'package:nightshade_core/src/providers/backend_provider.dart';
 import 'package:nightshade_core/src/providers/settings_provider.dart';
+import '../harness/in_memory_database.dart';
 
 class _MockNetworkBackend extends Mock implements NetworkBackend {}
 
@@ -80,6 +81,7 @@ void main() {
   ProviderContainer containerFor(_MockNetworkBackend backend) {
     return ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith(
           (ref) => _FixedBackendNotifier(ref, backend),
         ),
@@ -140,6 +142,7 @@ void main() {
     late _FixedBackendNotifier backendNotifier;
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith(
           (ref) => backendNotifier = _FixedBackendNotifier(ref, first.backend),
         ),
@@ -254,13 +257,9 @@ void main() {
     await container.read(appSettingsProvider.future);
     await container.read(appSettingsProvider.notifier).setDefaultGain(120);
     await container.read(appSettingsProvider.notifier).setDefaultOffset(64);
-    await container
-        .read(appSettingsProvider.notifier)
-        .setCoolingBehavior('Manual');
 
     expect(h.writes.last.defaultGain, 120);
     expect(h.writes.last.defaultOffset, 64);
-    expect(h.writes.last.coolingBehavior, 'Manual');
   });
 
   test('web-server enable + port round-trip', () async {

@@ -18,7 +18,17 @@ const Duration _kSlideInDuration = Duration(milliseconds: 240);
 final smartNightPromptGraceProvider =
     Provider<Duration>((ref) => const Duration(seconds: 60));
 
-final smartNightPromptNowProvider = Provider<DateTime>((ref) => DateTime.now());
+/// Wall-clock source for the equipment-ready grace window, injectable so tests
+/// can advance time without sleeping.
+///
+/// This MUST stay a *function*. It was a plain `Provider` of a `DateTime`
+/// — a non-autoDispose provider, so the single `DateTime.now()`
+/// captured on first read was cached for the life of the container. Every later
+/// read returned that same instant, `now.difference(_equipmentReadySince)` was
+/// permanently `Duration.zero`, the grace never elapsed, and the prompt was
+/// invisible forever even with the setting on and every precondition met.
+final smartNightPromptClockProvider =
+    Provider<DateTime Function()>((ref) => DateTime.now);
 
 /// Whether the floating Smart Night auto-prompt is actually on screen right now.
 /// [SmartNightPromptCard] publishes its real rendered visibility here (including
@@ -302,7 +312,7 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
       return false;
     }
 
-    final now = ref.watch(smartNightPromptNowProvider);
+    final now = ref.watch(smartNightPromptClockProvider)();
     final grace = ref.watch(smartNightPromptGraceProvider);
     _equipmentReadySince ??= now;
     if (grace <= Duration.zero) {
@@ -319,7 +329,12 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
     }
 
     final remaining = grace - elapsed;
+    // Clearing the handle from inside the callback is what lets the wake-up
+    // RE-ARM. A fired Timer stays non-null, so the `??=` below would never
+    // schedule another one and a rebuild that still fell short of the grace
+    // would leave the card with nothing left to wake it.
     _graceTimer ??= Timer(remaining, () {
+      _graceTimer = null;
       if (mounted) setState(() {});
     });
     return false;

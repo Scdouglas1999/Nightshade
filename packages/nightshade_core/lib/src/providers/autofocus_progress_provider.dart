@@ -107,6 +107,14 @@ class AutofocusOverlayNotifier extends StateNotifier<AutofocusOverlayState> {
   final Ref _ref;
   StreamSubscription? _eventSubscription;
   int _backendGeneration = 0;
+  Timer? _resultDismissTimer;
+
+  /// How long a finished result stays on screen before the overlay closes
+  /// itself. The overlay is shell-mounted (it is the single live V-curve
+  /// surface, so it must outlive a screen change during a run), which means a
+  /// result that never expires follows the operator onto Guiding, Plan Tonight
+  /// and Framing and sits on top of their controls for the rest of the night.
+  static const Duration resultAutoDismissDelay = Duration(seconds: 10);
 
   AutofocusOverlayNotifier(this._ref) : super(const AutofocusOverlayState()) {
     _listenToEvents();
@@ -205,6 +213,7 @@ class AutofocusOverlayNotifier extends StateNotifier<AutofocusOverlayState> {
 
   /// Called when autofocus starts (from any trigger: focus tab, dashboard, sequencer)
   void onAutofocusStarted() {
+    _cancelResultDismiss();
     state = const AutofocusOverlayState(
       isRunning: true,
       isVisible: true,
@@ -223,6 +232,7 @@ class AutofocusOverlayNotifier extends StateNotifier<AutofocusOverlayState> {
   /// to do nothing. Minimised it keeps the result readable (and one tap
   /// re-expands the V-curve) without holding the controls hostage.
   void onAutofocusCompleted(AutofocusResult result) {
+    _armResultDismiss();
     state = state.copyWith(
       isRunning: false,
       hasError: false,
@@ -236,6 +246,9 @@ class AutofocusOverlayNotifier extends StateNotifier<AutofocusOverlayState> {
 
   /// Called when autofocus fails
   void onAutofocusFailed(String error) {
+    // A failed run carries an error the operator has to read, so it stays up
+    // until dismissed by hand.
+    _cancelResultDismiss();
     state = state.copyWith(
       isRunning: false,
       hasError: true,
@@ -255,6 +268,7 @@ class AutofocusOverlayNotifier extends StateNotifier<AutofocusOverlayState> {
   }
 
   void onAutofocusCancelled() {
+    _armResultDismiss();
     state = state.copyWith(
       isRunning: false,
       hasError: false,
@@ -271,6 +285,7 @@ class AutofocusOverlayNotifier extends StateNotifier<AutofocusOverlayState> {
 
   /// Close/dismiss the overlay
   void dismiss() {
+    _cancelResultDismiss();
     state = state.copyWith(
       isVisible: false,
       isRunning: false,
@@ -278,8 +293,25 @@ class AutofocusOverlayNotifier extends StateNotifier<AutofocusOverlayState> {
     );
   }
 
+  void _armResultDismiss() {
+    _resultDismissTimer?.cancel();
+    _resultDismissTimer = Timer(resultAutoDismissDelay, () {
+      if (!mounted) return;
+      // Only a settled result expires: if another run started in the meantime
+      // the timer was already cancelled, and a failure re-cancels it.
+      if (state.isRunning || state.hasError) return;
+      dismiss();
+    });
+  }
+
+  void _cancelResultDismiss() {
+    _resultDismissTimer?.cancel();
+    _resultDismissTimer = null;
+  }
+
   @override
   void dispose() {
+    _cancelResultDismiss();
     _eventSubscription?.cancel();
     super.dispose();
   }

@@ -736,6 +736,52 @@ bool _routerClassifierAlreadyPushes(ns_events.NightshadeEvent event) {
   };
 }
 
+/// True for the event that opens a run, which resets the per-run ledger of
+/// already-escalated failure reasons.
+bool _isSequencerRunStart(ns_events.NightshadeEvent event) {
+  final payload = event.payload;
+  return payload is ns_events.EventPayload_Sequencer &&
+      payload.field0 is ns_events.SequencerEvent_Started;
+}
+
+/// True when [event] is the terminal `SequenceFailed` merely RESTATING a
+/// reason this run already escalated, in which case the caller must not
+/// escalate it a second time.
+///
+/// The native executor derives `SequenceFailed.error` by draining the
+/// broadcast buffer for the last `InstructionFailed` and re-formatting it as
+/// `"<node>: <message>"` (`executor/mod.rs: last_instruction_failure`) — the
+/// byte-identical string the bridge already delivered as a mid-run
+/// `SequencerEvent.Error`. Both payload variants are on the `isCriticalEvent`
+/// allow-list, so one failed Open Cover node raised TWO identical
+/// "Critical · Sequencer" toasts and left two identical rows in the critical
+/// banner. Matching on the reason text (rather than a time window) is what
+/// keeps this from swallowing a genuinely new failure: a terminal error the
+/// run never announced mid-flight is still escalated, and the ledger is
+/// per-run.
+///
+/// Recording happens here too, so the mid-run Error that IS escalated is
+/// remembered for its own terminal restatement.
+bool _isRestatedFailureReason(
+  ns_events.NightshadeEvent event,
+  Set<String> escalatedReasons,
+) {
+  final payload = event.payload;
+  if (payload is! ns_events.EventPayload_Sequencer) return false;
+  final sequencerEvent = payload.field0;
+  final reason = ns_events.nightshadeEventDisplayDetail(event);
+  if (reason.isEmpty) return false;
+
+  if (sequencerEvent is ns_events.SequencerEvent_Error) {
+    escalatedReasons.add(reason);
+    return false;
+  }
+  if (sequencerEvent is ns_events.SequencerEvent_Failed) {
+    return escalatedReasons.contains(reason);
+  }
+  return false;
+}
+
 /// Side-effect provider: subscribes to the event history and routes
 /// critical events through the dashboard notifier, the in-app
 /// notification queue, the audible alert player, and the mobile push
@@ -751,6 +797,10 @@ final runDashboardCriticalEventsBridgeProvider = Provider<void>((ref) {
   // Last time we played the audible alert. We hold this in the provider
   // closure scope so the cooldown survives provider rebuilds.
   DateTime? lastAlertAt;
+  // Mid-run failure reasons this run has already escalated, so the terminal
+  // event that restates one is not escalated a second time. See
+  // [_isRestatedFailureReason].
+  final escalatedSequencerFailureReasons = <String>{};
 
   ref.listen<List<ns_events.NightshadeEvent>>(
     eventHistoryProvider,
@@ -784,8 +834,17 @@ final runDashboardCriticalEventsBridgeProvider = Provider<void>((ref) {
         // Error payload, so without this guard every 30s config tick flooded
         // the run dashboard with false "Sequencer error" banners + audible /
         // push alerts.
+        // A fresh run starts a fresh ledger of reasons. Checked ahead of the
+        // severity/criticality gates because a run start is Info-severity and
+        // is not itself a critical event.
+        if (_isSequencerRunStart(event)) {
+          escalatedSequencerFailureReasons.clear();
+        }
         if (event.severity == ns_events.EventSeverity.info) continue;
         if (!ns_events.isCriticalEvent(event)) continue;
+        if (_isRestatedFailureReason(event, escalatedSequencerFailureReasons)) {
+          continue;
+        }
         final dashboardEvent = _toDashboardEvent(event);
         ref
             .read(runDashboardCriticalEventsProvider.notifier)

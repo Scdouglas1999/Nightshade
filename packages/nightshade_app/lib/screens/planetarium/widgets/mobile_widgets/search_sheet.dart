@@ -180,7 +180,8 @@ class _MobileSearchSheetState extends ConsumerState<MobileSearchSheet> {
                 padding: const EdgeInsets.all(24),
                 child: Center(
                   child: Text(
-                    'No targets above 30 tonight',
+                    'Nothing clears 30° during tonight’s darkness',
+                    textAlign: TextAlign.center,
                     style: TextStyle(color: widget.colors.textMuted),
                   ),
                 ),
@@ -188,11 +189,10 @@ class _MobileSearchSheetState extends ConsumerState<MobileSearchSheet> {
             }
             return Column(
               children: targets.take(10).map((item) {
-                final (dso, _) = item;
                 return MobileSearchResultTile(
-                  object: dso,
+                  object: item.object,
                   colors: widget.colors,
-                  onTap: () => widget.onObjectSelected(dso),
+                  onTap: () => widget.onObjectSelected(item.object),
                 );
               }).toList(),
             );

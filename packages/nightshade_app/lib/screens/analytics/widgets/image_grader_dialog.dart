@@ -10,6 +10,7 @@
 // a single tap on the rejected card.
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -342,89 +343,105 @@ class _ImageGraderDialogState extends ConsumerState<ImageGraderDialog> {
                   '${preview.rejected == 1 ? "" : "s"}',
         ),
       ],
+      // The dialog owns its scrolling: the list of frames about to be rejected
+      // is pinned above the footer and scrolls inside its own box. Left in the
+      // dialog's single scroll view it opened below the fold, half-hidden
+      // behind the "Reject N frames" bar, so the confirmation list for a
+      // destructive action was something the user had to go looking for.
+      scrollableBody: false,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            'Mark frames as rejected when they exceed any threshold below. '
-            'Nothing is deleted — rejection can be undone per frame.',
-            style: NightshadeTypography.caption
-                .copyWith(color: colors.textSecondary),
-          ),
-          const SizedBox(height: NightshadeTokens.spaceXs),
-          Text(
-            '$frameCount frame${frameCount == 1 ? "" : "s"} loaded',
-            style: NightshadeTypography.captionSm
-                .copyWith(color: colors.textMuted),
-          ),
-          if (_rulesLoading) ...[
-            const SizedBox(height: NightshadeTokens.spaceSm),
-            Text(
-              'Loading saved grading rules…',
-              style: NightshadeTypography.captionSm.copyWith(
-                color: colors.textMuted,
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Mark frames as rejected when they exceed any threshold below. '
+                    'Nothing is deleted — rejection can be undone per frame.',
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.textSecondary),
+                  ),
+                  const SizedBox(height: NightshadeTokens.spaceXs),
+                  Text(
+                    '$frameCount frame${frameCount == 1 ? "" : "s"} loaded',
+                    style: NightshadeTypography.captionSm
+                        .copyWith(color: colors.textMuted),
+                  ),
+                  if (_rulesLoading) ...[
+                    const SizedBox(height: NightshadeTokens.spaceSm),
+                    Text(
+                      'Loading saved grading rules…',
+                      style: NightshadeTypography.captionSm.copyWith(
+                        color: colors.textMuted,
+                      ),
+                    ),
+                  ] else if (_rulesError != null) ...[
+                    const SizedBox(height: NightshadeTokens.spaceSm),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Saved grading rules could not be loaded. Applying is '
+                            'disabled to protect the existing settings.',
+                            style: NightshadeTypography.captionSm.copyWith(
+                              color: colors.error,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                            onPressed: _loadRules, child: const Text('Retry')),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: NightshadeTokens.spaceMd + 2),
+                  _ThresholdSliders(
+                    colors: colors,
+                    rules: _rules,
+                    frames: widget.frames,
+                    psfMetricsByImage: _psfMetricsByImage,
+                    onChanged: (next) => setState(() => _rules = next),
+                  ),
+                  if (_psfMetricsLoading) ...[
+                    const SizedBox(height: NightshadeTokens.spaceSm),
+                    Text(
+                      'Loading FWHM and eccentricity measurements…',
+                      style: NightshadeTypography.captionSm.copyWith(
+                        color: colors.textMuted,
+                      ),
+                    ),
+                  ] else if (_psfMetricsError != null) ...[
+                    const SizedBox(height: NightshadeTokens.spaceSm),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'FWHM and eccentricity are unavailable. Those rules will '
+                            'not be applied until the measurements load.',
+                            style: NightshadeTypography.captionSm.copyWith(
+                              color: colors.warning,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: _loadPsfMetrics,
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: NightshadeTokens.spaceMd),
+                  _PreviewSummary(
+                    colors: colors,
+                    rejected: preview.rejected,
+                    accepted: preview.accepted,
+                    activeRules: _activeRuleSummary(),
+                  ),
+                ],
               ),
             ),
-          ] else if (_rulesError != null) ...[
-            const SizedBox(height: NightshadeTokens.spaceSm),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Saved grading rules could not be loaded. Applying is '
-                    'disabled to protect the existing settings.',
-                    style: NightshadeTypography.captionSm.copyWith(
-                      color: colors.error,
-                    ),
-                  ),
-                ),
-                TextButton(onPressed: _loadRules, child: const Text('Retry')),
-              ],
-            ),
-          ],
-          const SizedBox(height: NightshadeTokens.spaceMd + 2),
-          _ThresholdSliders(
-            colors: colors,
-            rules: _rules,
-            frames: widget.frames,
-            psfMetricsByImage: _psfMetricsByImage,
-            onChanged: (next) => setState(() => _rules = next),
-          ),
-          if (_psfMetricsLoading) ...[
-            const SizedBox(height: NightshadeTokens.spaceSm),
-            Text(
-              'Loading FWHM and eccentricity measurements…',
-              style: NightshadeTypography.captionSm.copyWith(
-                color: colors.textMuted,
-              ),
-            ),
-          ] else if (_psfMetricsError != null) ...[
-            const SizedBox(height: NightshadeTokens.spaceSm),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'FWHM and eccentricity are unavailable. Those rules will '
-                    'not be applied until the measurements load.',
-                    style: NightshadeTypography.captionSm.copyWith(
-                      color: colors.warning,
-                    ),
-                  ),
-                ),
-                TextButton(
-                  onPressed: _loadPsfMetrics,
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
-          ],
-          const SizedBox(height: NightshadeTokens.spaceMd),
-          _PreviewSummary(
-            colors: colors,
-            rejected: preview.rejected,
-            accepted: preview.accepted,
-            activeRules: _activeRuleSummary(),
           ),
           const SizedBox(height: NightshadeTokens.spaceSm),
           _RejectionList(
@@ -554,6 +571,38 @@ class _ThresholdSliders extends StatelessWidget {
   }
 }
 
+/// How far a threshold slider's track runs.
+///
+/// A session where every frame shares one value (one HFR, one FWHM) gives a
+/// zero-width range, which Material refuses; the track is widened by one unit
+/// so it still renders.
+@visibleForTesting
+double thresholdSliderMax(double rangeMin, double rangeMax) =>
+    rangeMax <= rangeMin ? rangeMin + 1 : rangeMax;
+
+/// Where a "Max x" rule's thumb sits.
+///
+/// An off rule sits at the permissive end of the complete slider track.
+@visibleForTesting
+double maxRuleThumbValue(double? value, double rangeMin, double rangeMax) {
+  final top = thresholdSliderMax(rangeMin, rangeMax);
+  return (value ?? top).clamp(rangeMin, top);
+}
+
+/// Where a "Min x" rule's thumb sits.
+///
+/// The permissive end of a minimum is the BOTTOM, so an off rule parks there.
+/// A rule that IS set still has to be able to reach the top of the widened
+/// track: clamping it to `rangeMax` instead sprang the thumb back to the
+/// bottom of a degenerate track while the readout kept showing the higher
+/// number the user had just dragged to.
+@visibleForTesting
+int minRuleThumbValue(int? value, int rangeMin, int rangeMax) {
+  final top =
+      thresholdSliderMax(rangeMin.toDouble(), rangeMax.toDouble()).round();
+  return (value ?? rangeMin).clamp(rangeMin, top);
+}
+
 class _DoubleRow extends StatelessWidget {
   final NightshadeColors colors;
   final String label;
@@ -583,7 +632,8 @@ class _DoubleRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final span = rangeMax - rangeMin;
     final enabled = available.isNotEmpty;
-    final effectiveValue = (value ?? rangeMax).clamp(rangeMin, rangeMax);
+    final sliderMax = thresholdSliderMax(rangeMin, rangeMax);
+    final effectiveValue = maxRuleThumbValue(value, rangeMin, rangeMax);
     return Padding(
       padding:
           const EdgeInsets.symmetric(vertical: NightshadeTokens.spaceXs + 2),
@@ -610,12 +660,18 @@ class _DoubleRow extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: NightshadeSlider(
-              min: rangeMin,
-              max: rangeMax == rangeMin ? rangeMin + 1 : rangeMax,
-              value: effectiveValue,
-              divisions: span > 0 ? 40 : null,
-              onChanged: enabled ? onChanged : null,
+            // An off rule is dimmed rather than hidden: it still reads as a
+            // track the user can drag to switch the rule on, but it no longer
+            // looks like a threshold that is in force.
+            child: Opacity(
+              opacity: value == null ? 0.45 : 1.0,
+              child: NightshadeSlider(
+                min: rangeMin,
+                max: sliderMax,
+                value: effectiveValue,
+                divisions: span > 0 ? 40 : null,
+                onChanged: enabled ? onChanged : null,
+              ),
             ),
           ),
           SizedBox(
@@ -678,7 +734,7 @@ class _IntRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = available.isNotEmpty;
-    final effective = (value ?? rangeMin).clamp(rangeMin, rangeMax);
+    final effective = minRuleThumbValue(value, rangeMin, rangeMax);
     return Padding(
       padding:
           const EdgeInsets.symmetric(vertical: NightshadeTokens.spaceXs + 2),
@@ -705,15 +761,20 @@ class _IntRow extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: NightshadeSlider(
-              min: rangeMin.toDouble(),
-              max: rangeMax == rangeMin
-                  ? (rangeMin + 1).toDouble()
-                  : rangeMax.toDouble(),
-              value: effective.toDouble(),
-              divisions:
-                  (rangeMax - rangeMin) > 0 ? (rangeMax - rangeMin) : null,
-              onChanged: enabled ? (v) => onChanged(v.round()) : null,
+            // Same convention as [_DoubleRow]: an off rule is dimmed, and its
+            // thumb sits at the permissive end — here the MINIMUM, because
+            // "Min stars: off" accepts any star count.
+            child: Opacity(
+              opacity: value == null ? 0.45 : 1.0,
+              child: NightshadeSlider(
+                min: rangeMin.toDouble(),
+                max: thresholdSliderMax(
+                    rangeMin.toDouble(), rangeMax.toDouble()),
+                value: effective.toDouble(),
+                divisions:
+                    (rangeMax - rangeMin) > 0 ? (rangeMax - rangeMin) : null,
+                onChanged: enabled ? (v) => onChanged(v.round()) : null,
+              ),
             ),
           ),
           SizedBox(
@@ -855,14 +916,35 @@ class _Chip extends StatelessWidget {
   }
 }
 
-class _RejectionList extends StatelessWidget {
+/// What is about to be rejected, and why.
+///
+/// Bounded and independently scrollable so it always sits directly above the
+/// dialog's action bar: this is the confirmation list for a destructive-looking
+/// action, so it must be readable without hunting for a scroll.
+class _RejectionList extends StatefulWidget {
   final NightshadeColors colors;
   final List<({DbCapturedImage frame, String reason})> rejections;
 
   const _RejectionList({required this.colors, required this.rejections});
 
   @override
+  State<_RejectionList> createState() => _RejectionListState();
+}
+
+class _RejectionListState extends State<_RejectionList> {
+  /// Shared by the list and its scrollbar so the thumb can stay visible.
+  final ScrollController _controller = ScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final colors = widget.colors;
+    final rejections = widget.rejections;
     if (rejections.isEmpty) {
       return Padding(
         padding:
@@ -873,42 +955,52 @@ class _RejectionList extends StatelessWidget {
         ),
       );
     }
+    // Never more than a bit over a quarter of the viewport, so the sliders
+    // above keep a usable share of a phone-sized dialog.
+    final maxHeight = math.min(190.0, MediaQuery.sizeOf(context).height * 0.28);
     return Container(
+      constraints: BoxConstraints(maxHeight: maxHeight),
       decoration: BoxDecoration(
         border: Border.all(color: colors.border),
         borderRadius: NightshadeTokens.borderRadiusLg,
       ),
-      child: ListView.separated(
-        itemCount: rejections.length,
-        shrinkWrap: true,
-        separatorBuilder: (_, __) =>
-            Divider(color: colors.border, height: 1, thickness: 0.5),
-        itemBuilder: (_, i) {
-          final r = rejections[i];
-          final filename = r.frame.filePath.split(RegExp(r'[\\/]')).last;
-          return Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: NightshadeTokens.spaceMd,
-              vertical: NightshadeTokens.spaceSm,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  filename,
-                  style: NightshadeTypography.label
-                      .copyWith(color: colors.textPrimary),
-                ),
-                const SizedBox(height: NightshadeTokens.spaceXs - 2),
-                Text(
-                  r.reason,
-                  style: NightshadeTypography.captionSm
-                      .copyWith(color: colors.textMuted),
-                ),
-              ],
-            ),
-          );
-        },
+      child: Scrollbar(
+        controller: _controller,
+        thumbVisibility: true,
+        child: ListView.separated(
+          controller: _controller,
+          itemCount: rejections.length,
+          shrinkWrap: true,
+          padding: EdgeInsets.zero,
+          separatorBuilder: (_, __) =>
+              Divider(color: colors.border, height: 1, thickness: 0.5),
+          itemBuilder: (_, i) {
+            final r = rejections[i];
+            final filename = r.frame.filePath.split(RegExp(r'[\\/]')).last;
+            return Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: NightshadeTokens.spaceMd,
+                vertical: NightshadeTokens.spaceSm,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    filename,
+                    style: NightshadeTypography.label
+                        .copyWith(color: colors.textPrimary),
+                  ),
+                  const SizedBox(height: NightshadeTokens.spaceXs - 2),
+                  Text(
+                    r.reason,
+                    style: NightshadeTypography.captionSm
+                        .copyWith(color: colors.textMuted),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }

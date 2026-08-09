@@ -167,7 +167,10 @@ Future<void> _pumpCard(WidgetTester tester, SyncService service) async {
 
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [syncServiceProvider.overrideWithValue(service)],
+      overrides: [
+        inMemoryDatabaseOverride(),
+        syncServiceProvider.overrideWithValue(service)
+      ],
       child: MaterialApp(
         theme: NightshadeTheme.dark,
         home: const Scaffold(
@@ -437,6 +440,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith(
             (ref) => _FixedBackendNotifier(ref, backend),
           ),
@@ -493,6 +497,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith(
             (ref) => _FixedBackendNotifier(ref, backend),
           ),
@@ -541,6 +546,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith(
             (ref) => notifier = _SwappableBackendNotifier(ref, hostA),
           ),

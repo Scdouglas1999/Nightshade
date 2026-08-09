@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/sequence/sequence_models.dart';
+import '../../services/sequence_time_estimator.dart';
 import '../sequence_provider.dart' show currentSequenceProvider;
+import 'sequencer_defaults.dart' show sequencerOverheadConfigProvider;
 
 /// Per-node estimated *integration + overhead* roll-up.
 ///
@@ -25,8 +27,7 @@ import '../sequence_provider.dart' show currentSequenceProvider;
 ///                               overhead.
 ///   * other leaves            — per-node overhead from [SequenceOverheadConfig].
 ///
-/// Disabled nodes contribute 0 — matching the executor's behaviour and the
-/// existing [Sequence.estimateWithOverhead] math.
+/// Disabled nodes contribute 0 — matching the executor's behaviour.
 ///
 /// Caching: returned as a [Provider.family] keyed by node ID. Riverpod
 /// memoizes per-key and invalidates the whole family when
@@ -57,10 +58,17 @@ final nodeRollupDurationProvider = Provider.family<Duration, String>((
 final _nodeRollupMapProvider = Provider<Map<String, Duration>>((ref) {
   final sequence = ref.watch(currentSequenceProvider);
   if (sequence == null) return const <String, Duration>{};
-  const overhead = SequenceOverheadConfig();
+  // ONE engine and ONE overhead model, shared with the timeline, the node
+  // timing panel and the pre-flight simulation. The rollup used to hold its
+  // own per-node cost table on top of the config defaults, so the Builder's
+  // estimate chip and the Pre-Flight "Duration" disagreed about the same
+  // sequence by tens of percent.
+  final estimator = SequenceTimeEstimator(
+    overhead: ref.watch(sequencerOverheadConfigProvider),
+  );
   final secsById = <String, double>{};
   if (sequence.rootNodeId != null) {
-    _computeRollupSecs(sequence, sequence.rootNodeId!, overhead, secsById);
+    _computeRollupSecs(sequence, sequence.rootNodeId!, estimator, secsById);
   }
   // Compute any node not reached from the root (detached subtrees, or the
   // no-root case) so every tree row still gets its own value — matching the
@@ -68,7 +76,7 @@ final _nodeRollupMapProvider = Provider<Map<String, Duration>>((ref) {
   // Already-computed nodes short-circuit via the cache inside the walk.
   for (final id in sequence.nodes.keys) {
     if (!secsById.containsKey(id)) {
-      _computeRollupSecs(sequence, id, overhead, secsById);
+      _computeRollupSecs(sequence, id, estimator, secsById);
     }
   }
   return secsById.map(
@@ -102,14 +110,15 @@ String formatRollupDuration(Duration d) {
 /// in [out]; subsequent reaches (shared ids are not expected in a tree, but
 /// the guard makes the walk idempotent) reuse the cached value.
 ///
-/// Kept separate from [Sequence.estimateWithOverhead] because that method
-/// produces a single tree-wide [SequenceEstimate]; here we need per-node
-/// values during a single render pass. We deliberately walk the same tree
-/// shape so the numbers agree with the timeline / sequence header.
+/// A tree-wide total is not enough here: every container row needs its own
+/// value during a single render pass. The per-node cost itself comes from
+/// [SequenceTimeEstimator.nodeDuration] — the same model the timeline and the
+/// pre-flight simulation bill against — so the numbers agree by construction
+/// rather than by two tables being kept in sync by hand.
 double _computeRollupSecs(
   Sequence sequence,
   String nodeId,
-  SequenceOverheadConfig overhead,
+  SequenceTimeEstimator estimator,
   Map<String, double> out,
 ) {
   final cached = out[nodeId];
@@ -121,49 +130,12 @@ double _computeRollupSecs(
     return 0;
   }
 
-  // Leaf: ExposureNode contributes integration + per-exposure download
-  // overhead. All other leaf node-types contribute their per-instance
-  // overhead. This matches [Sequence._nodeOverhead] + the executor.
-  if (node is ExposureNode) {
-    final integration = node.durationSecs * node.count;
-    final download = overhead.downloadOverheadPerExposureSecs * node.count;
-    final total = integration + download;
-    out[nodeId] = total;
-    return total;
-  }
-
-  // SmartExposure is a leaf that internally dispatches
-  // per-filter batches. Integration time is the sum of plan integrations;
-  // download overhead is one per planned frame. Filter-change and dither
-  // overheads are intentionally NOT modeled here — `sequence_time_estimator`
-  // has the rotation/batch-aware math and this provider rolls up totals
-  // for the tree-row "Duration" column, where a slight under-estimate is
-  // less misleading than double-counting overheads. When `rotateFilters`
-  // is true and `integrationBudgetSecs > 0` we cap the integration at the
-  // budget to match Rust runtime behaviour.
-  if (node is SmartExposureNode) {
-    var integration = 0.0;
-    var frameCount = 0;
-    for (final plan in node.plans) {
-      integration += plan.integrationSecs;
-      frameCount += plan.count;
-    }
-    if (node.integrationBudgetSecs > 0 &&
-        integration > node.integrationBudgetSecs) {
-      integration = node.integrationBudgetSecs;
-    }
-    final download = overhead.downloadOverheadPerExposureSecs * frameCount;
-    final total = integration + download;
-    out[nodeId] = total;
-    return total;
-  }
-
   // Compute child rollups first; we use them for every container shape.
   // Each child writes its own value into [out] as a side effect.
   final childSecs = <double>[];
   double childSum = 0;
   for (final childId in node.childIds) {
-    final s = _computeRollupSecs(sequence, childId, overhead, out);
+    final s = _computeRollupSecs(sequence, childId, estimator, out);
     childSecs.add(s);
     childSum += s;
   }
@@ -171,9 +143,10 @@ double _computeRollupSecs(
       ? 0.0
       : childSecs.reduce((a, b) => a > b ? a : b);
 
-  // Self overhead for non-exposure nodes that have a fixed time cost
-  // (slew, autofocus, etc). For containers this is 0.
-  final selfOverhead = _selfOverhead(node, overhead);
+  // The node's own cost, children excluded. Exposure / SmartExposure /
+  // SciencePhotometry leaves get their full capture cost here; containers get
+  // zero and are carried entirely by [childSum] / [childMax] below.
+  final selfOverhead = estimator.nodeDuration(node).inMilliseconds / 1000.0;
 
   final double result;
   if (node is LoopNode) {
@@ -257,23 +230,4 @@ double _integrationTimeRollup(
     }
   }
   return selfOverhead + childSum;
-}
-
-/// Per-node fixed overhead (slew time, autofocus, etc). Mirrors
-/// [Sequence._nodeOverhead] but kept private here to avoid widening
-/// nightshade_core's public surface.
-double _selfOverhead(SequenceNode node, SequenceOverheadConfig c) {
-  if (node is SlewNode) return c.slewSecs;
-  if (node is CenterNode) return c.centerTargetSecs;
-  if (node is AutofocusNode) return c.autofocusSecs;
-  if (node is FilterChangeNode) return c.filterChangeSecs;
-  if (node is DitherNode) return c.ditherSecs;
-  if (node is StartGuidingNode) return c.guideAcquireSecs;
-  if (node is MeridianFlipNode) return c.meridianFlipSecs;
-  if (node is CoolCameraNode) return c.coolingSecs;
-  if (node is WarmCameraNode) return c.warmingSecs;
-  if (node is OpenCoverNode || node is CloseCoverNode) {
-    return c.coverMoveSecs;
-  }
-  return 0;
 }

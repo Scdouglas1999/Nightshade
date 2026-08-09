@@ -9,6 +9,7 @@ import '../models/sequence/sequence_models.dart';
 import '../database/daos/sequence_runs_dao.dart';
 import '../database/daos/sequence_versions_dao.dart';
 import '../database/daos/session_diagnostics_dao.dart';
+import '../utils/duration_format.dart';
 import 'backend_provider.dart';
 import 'database_provider.dart';
 
@@ -161,6 +162,24 @@ class SequenceRunStats {
   void recordMeridianFlip() => meridianFlips++;
   void recordDither() => ditherCount++;
   void recordError(String message) => errorMessages.add(message);
+
+  /// Record the run's TERMINAL error (the reason on `SequenceFailed`).
+  ///
+  /// The native executor derives that reason by re-formatting the last
+  /// `InstructionFailed` as `"<node>: <message>"` — byte-for-byte the string
+  /// the bridge already delivered as a mid-run `Error` event and which
+  /// [recordError] already stored. One failing Dither node therefore ended the
+  /// night with the same sentence twice in `errorMessages`, printed twice in
+  /// the Session Report and stacked as two identical critical banners.
+  ///
+  /// Only the immediately-preceding entry is compared, so a node that really
+  /// fails twice still records two errors.
+  void recordTerminalError(String message) {
+    if (errorMessages.isNotEmpty && errorMessages.last == message) {
+      return;
+    }
+    errorMessages.add(message);
+  }
 
   /// Record a non-fatal warning surfaced during execution. Idempotent on
   /// exact-duplicate consecutive messages so a per-frame warning (e.g.
@@ -319,14 +338,9 @@ class ParsedRunStats {
     );
   }
 
-  String formatDuration(double secs) {
-    final hours = (secs / 3600).floor();
-    final mins = ((secs % 3600) / 60).floor();
-    final seconds = (secs % 60).round();
-    if (hours > 0) return '${hours}h ${mins}m ${seconds}s';
-    if (mins > 0) return '${mins}m ${seconds}s';
-    return '${seconds}s';
-  }
+  /// Delegates to the shared formatter so the run cards, the history tab and
+  /// the Continue Session dialog all describe one run identically.
+  String formatDuration(double secs) => formatIntegrationSeconds(secs);
 }
 
 // =============================================================================

@@ -44,6 +44,23 @@ final backupImportReaderProvider = Provider<BackupImportReader>(
 /// iOS have no save dialog (`getSavePath` throws UnimplementedError), so
 /// downloading a backup from a remote host was dead on a phone. There the file
 /// goes to a sandbox path and [_downloadBackup] finishes with the share sheet.
+/// Outcome of the last restore, held until the operator dismisses it.
+///
+/// A restore rewrites the database under a running app, so from that moment
+/// every screen is showing in-memory state that disagrees with what is on disk
+/// — and the operator is usually about to observe. Saying that once in a
+/// snackbar that fades after five seconds leaves nothing on screen to
+/// contradict an app that looks perfectly normal.
+///
+/// Deliberately a provider and not [State]: the condition it describes outlives
+/// the Backup & Restore screen, and the very next thing the operator does is
+/// leave it. Held in screen state the reminder was cleared by walking away —
+/// i.e. by exactly the action that makes it matter — rather than by the
+/// operator acknowledging it. Being in-memory (never persisted) is the right
+/// lifetime for it: restarting Nightshade is what resolves the condition, and
+/// a restart clears the provider for free.
+final restoreRestartNoticeProvider = StateProvider<String?>((ref) => null);
+
 final backupDownloadSavePickerProvider =
     Provider<BackupDownloadSavePicker>((ref) {
   return (suggestedName) => chooseExportTarget(
@@ -131,6 +148,22 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
       'Stop the active capture or sequence before restoring a backup.',
     );
     return true;
+  }
+
+  /// Records a completed restore as a banner that stays until dismissed.
+  ///
+  /// Not a snackbar: the condition it describes (running app, freshly rewritten
+  /// database) outlives any transient message, and the restart is the operator's
+  /// to perform. Written to [restoreRestartNoticeProvider] rather than to this
+  /// [State] so leaving the screen does not clear it.
+  void _announceRestore(int itemsRestored, {required bool remote}) {
+    ref.read(restoreRestartNoticeProvider.notifier).state = remote
+        ? 'Restored $itemsRestored items to the imaging host. Restart the '
+            'host before the next run — until then it is running on the '
+            'state it had before the restore.'
+        : 'Restored $itemsRestored items. Restart Nightshade before the next '
+            'run — until then this app is showing the state it had before '
+            'the restore.';
   }
 
   void _refreshAfterRestore() {
@@ -258,9 +291,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
         final restored = result['itemsRestored'] as int? ?? 0;
         if (!mounted || !_backendStillMatches(token)) return;
         _refreshAfterRestore();
-        context.showSuccessSnackBar(
-          'Restored $restored items. Restart the imaging host before the next run.',
-        );
+        _announceRestore(restored, remote: true);
       } else {
         final result = await ref.read(backupServiceProvider).restoreBackup(
               filePath: backup.filePath,
@@ -271,9 +302,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
         }
         if (!mounted || !_backendStillMatches(token)) return;
         _refreshAfterRestore();
-        context.showSuccessSnackBar(
-          'Restored ${result.itemsRestored} items. Restart Nightshade before the next run.',
-        );
+        _announceRestore(result.itemsRestored, remote: false);
       }
     } catch (e) {
       if (!mounted || !_backendStillMatches(token)) return;
@@ -331,11 +360,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
 
       if (!mounted || !_isCurrentImport(generation, token)) return;
       _refreshAfterRestore();
-      context.showSuccessSnackBar(
-        backend is NetworkBackend
-            ? 'Restored $restored items. Restart the imaging host before the next run.'
-            : 'Restored $restored items. Restart Nightshade before the next run.',
-      );
+      _announceRestore(restored, remote: backend is NetworkBackend);
       await _loadAvailableBackups();
     } catch (e) {
       if (!mounted || !_isCurrentImport(generation, token)) return;
@@ -430,6 +455,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     final backend = ref.watch(backendProvider);
     final autoSaveStatus =
         isRemoteMode ? null : ref.watch(autoSaveStatusProvider);
+    final restoreNotice = ref.watch(restoreRestartNoticeProvider);
 
     // Reload when the active backend changes (connect / disconnect / switch
     // rig) so the list — and the identity token guarding row actions — always
@@ -465,6 +491,15 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (restoreNotice != null) ...[
+                    _RestoreNoticeBanner(
+                      message: restoreNotice,
+                      onDismiss: () => ref
+                          .read(restoreRestartNoticeProvider.notifier)
+                          .state = null,
+                    ),
+                    const SizedBox(height: 24),
+                  ],
                   if (!isRemoteMode) ...[
                     _AutoSaveStatusCard(statusAsync: autoSaveStatus!),
                     const SizedBox(height: 24),
@@ -497,6 +532,63 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Stays on the Backup & Restore screen after a restore until dismissed.
+class _RestoreNoticeBanner extends StatelessWidget {
+  final String message;
+  final VoidCallback onDismiss;
+
+  const _RestoreNoticeBanner({required this.message, required this.onDismiss});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colors.warning.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+        border: Border.all(color: colors.warning.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(LucideIcons.refreshCw, size: 18, color: colors.warning),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Restart required',
+                  style: NightshadeTypography.labelStrong
+                      .copyWith(color: colors.textPrimary),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  message,
+                  style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize12,
+                    color: colors.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          NightshadeButton(
+            label: 'Dismiss',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
+            onPressed: onDismiss,
           ),
         ],
       ),

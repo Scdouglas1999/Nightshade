@@ -164,17 +164,23 @@ class AtlasGrowthCurvePanel extends StatelessWidget {
   }
 
   Widget _placeholder() {
-    return const Column(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SectionHeader(title: 'Deepening over time'),
-        SizedBox(height: NightshadeTokens.spaceSm),
+        const SectionHeader(title: 'Deepening over time'),
+        const SizedBox(height: NightshadeTokens.spaceSm),
         NightshadeCard(
           variant: CardVariant.subtle,
           padding: NightshadeTokens.cardPadding,
-          child: AdaptiveChartContainer.fixed(
-            height: 170,
-            child: EmptyState.compact(
+          // A FIXED chart-sized box clipped this copy: the icon, a wrapped
+          // title and a three-line body need more than 170px once the empty
+          // state is narrowed to its 360px column, so the card rendered the
+          // overflow stripe. Keep 170 as the FLOOR (so the card still holds
+          // the chart's place in the scroll) and let the words have their
+          // height.
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 170),
+            child: const EmptyState.compact(
               icon: LucideIcons.trendingUp,
               title: 'Image this region again to see it deepen',
               body: 'The growth curve plots cumulative integration once you '

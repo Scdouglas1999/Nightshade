@@ -48,7 +48,7 @@ extension _ReviewStep on _QuickStartWizardDialogState {
               _reviewRow(
                 colors,
                 f.filterName,
-                '${f.count}x ${f.exposureSecs.round()}s (${f.binning.label})',
+                '${_loopCount}x ${f.exposureSecs.round()}s (${f.binning.label})',
               ),
               _buildExposureRationale(colors, f),
             ],
@@ -75,20 +75,16 @@ extension _ReviewStep on _QuickStartWizardDialogState {
 
         const SizedBox(height: 12),
 
-        // Loop summary
+        // Capture count summary
         _buildReviewSection(
           colors: colors,
           icon: LucideIcons.repeat,
-          title: 'Loop',
+          title: 'Capture count',
           children: [
             _reviewRow(
               colors,
-              'Type',
-              _loopType == LoopConditionType.count
-                  ? '$_loopCount iterations'
-                  : _loopType == LoopConditionType.forever
-                      ? 'Run forever'
-                      : 'While dark',
+              'Frames per filter',
+              '$_loopCount',
             ),
           ],
         ),
@@ -306,11 +302,7 @@ extension _ReviewStep on _QuickStartWizardDialogState {
       treeLines.add(_TreeLine('Start Guiding', LucideIcons.crosshair, 1));
     }
 
-    final loopLabel = _loopType == LoopConditionType.count
-        ? 'Capture Loop (x$_loopCount)'
-        : _loopType == LoopConditionType.forever
-            ? 'Capture Loop (forever)'
-            : 'Capture Loop (while dark)';
+    final loopLabel = 'Capture Loop ($_loopCount frames/filter)';
     treeLines.add(_TreeLine(loopLabel, LucideIcons.repeat, 1));
 
     for (final f in enabledFilters) {

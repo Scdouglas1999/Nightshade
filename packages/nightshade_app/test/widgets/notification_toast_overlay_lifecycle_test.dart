@@ -4,13 +4,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/widgets/notification_toast_overlay.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('pending exit animation is cancelled when overlay unmounts',
       (tester) async {
-    final container = ProviderContainer();
+    final container =
+        ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
     addTearDown(container.dispose);
     container.read(uiNotificationProvider.notifier).showInfo(
           'Camera connected',

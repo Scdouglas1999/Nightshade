@@ -185,6 +185,15 @@ void main() {
       // Integration = 3 frames x 60s.
       expect(summary.totalIntegrationSecs, 180.0);
 
+      // Each survivor also carries its OWN exposure. The stacker can refuse
+      // individual subs, so the run has to be able to total the time that
+      // actually made it into the master — the selection-wide figure above is
+      // fixed before the engine has seen a frame.
+      expect(
+        summary.selected.map((s) => s.exposureSecs).toList(),
+        everyElement(60.0),
+      );
+
       // Target name resolved through the session's targetId.
       expect(summary.targetName, 'M42');
     });

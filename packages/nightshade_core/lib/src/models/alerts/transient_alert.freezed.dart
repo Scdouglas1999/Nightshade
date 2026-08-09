@@ -350,8 +350,13 @@ as TransientAlertState,
 /// @nodoc
 mixin _$TransientAlertSettings {
 
-/// Which alert sources to monitor
-/// Note: TNS requires an API key to be configured (see tnsApiKey)
+/// Which alert sources to monitor.
+///
+/// Defaults to the fetchable feed plus manual entry. It used to default to
+/// {aavso, mpec, cbat, manual} — three sources that are never queried — so
+/// out of the box the app reported it was monitoring feeds it was not.
+/// TNS still needs its bot credentials before it can return anything (see
+/// tnsApiKey and Settings > Science).
  Set<TransientSource> get enabledSources;/// Only show alerts brighter than this magnitude
  double get magnitudeThreshold;/// Which transient types to monitor
  Set<TransientType> get typesToMonitor;/// Show notification when new alerts arrive
@@ -560,14 +565,24 @@ return $default(_that.enabledSources,_that.magnitudeThreshold,_that.typesToMonit
 @JsonSerializable()
 
 class _TransientAlertSettings implements TransientAlertSettings {
-  const _TransientAlertSettings({final  Set<TransientSource> enabledSources = const {TransientSource.aavso, TransientSource.mpec, TransientSource.cbat, TransientSource.manual}, this.magnitudeThreshold = 15.0, final  Set<TransientType> typesToMonitor = const {TransientType.nova, TransientType.supernova, TransientType.cataclysmic, TransientType.comet, TransientType.asteroid, TransientType.variableStar, TransientType.gammaRayBurst, TransientType.other}, this.notifyOnNew = true, this.autoQueueBright = false, this.autoQueueMagnitude = 10.0, this.tnsApiKey}): _enabledSources = enabledSources,_typesToMonitor = typesToMonitor;
+  const _TransientAlertSettings({final  Set<TransientSource> enabledSources = const {TransientSource.tns, TransientSource.manual}, this.magnitudeThreshold = 15.0, final  Set<TransientType> typesToMonitor = const {TransientType.nova, TransientType.supernova, TransientType.cataclysmic, TransientType.comet, TransientType.asteroid, TransientType.variableStar, TransientType.gammaRayBurst, TransientType.other}, this.notifyOnNew = true, this.autoQueueBright = false, this.autoQueueMagnitude = 10.0, this.tnsApiKey}): _enabledSources = enabledSources,_typesToMonitor = typesToMonitor;
   factory _TransientAlertSettings.fromJson(Map<String, dynamic> json) => _$TransientAlertSettingsFromJson(json);
 
-/// Which alert sources to monitor
-/// Note: TNS requires an API key to be configured (see tnsApiKey)
+/// Which alert sources to monitor.
+///
+/// Defaults to the fetchable feed plus manual entry. It used to default to
+/// {aavso, mpec, cbat, manual} — three sources that are never queried — so
+/// out of the box the app reported it was monitoring feeds it was not.
+/// TNS still needs its bot credentials before it can return anything (see
+/// tnsApiKey and Settings > Science).
  final  Set<TransientSource> _enabledSources;
-/// Which alert sources to monitor
-/// Note: TNS requires an API key to be configured (see tnsApiKey)
+/// Which alert sources to monitor.
+///
+/// Defaults to the fetchable feed plus manual entry. It used to default to
+/// {aavso, mpec, cbat, manual} — three sources that are never queried — so
+/// out of the box the app reported it was monitoring feeds it was not.
+/// TNS still needs its bot credentials before it can return anything (see
+/// tnsApiKey and Settings > Science).
 @override@JsonKey() Set<TransientSource> get enabledSources {
   if (_enabledSources is EqualUnmodifiableSetView) return _enabledSources;
   // ignore: implicit_dynamic_type

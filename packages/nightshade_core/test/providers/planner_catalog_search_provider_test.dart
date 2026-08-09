@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
+import '../harness/in_memory_database.dart';
 
 TargetSuggestion _suggestion({
   required int id,
@@ -56,6 +57,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           tonightSuggestionsProvider.overrideWith(
             (ref) async => [
               _suggestion(id: 1, name: 'M31 Andromeda', catalogId: 'M31'),
@@ -106,6 +108,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           tonightSuggestionsProvider.overrideWith((ref) async => const []),
         ],
       );

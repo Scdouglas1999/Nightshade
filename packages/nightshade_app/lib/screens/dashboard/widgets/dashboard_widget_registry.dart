@@ -50,6 +50,36 @@ typedef DashboardWidgetBuilder = Widget Function(
   AnimationController pulseController,
 );
 
+/// Which family a dashboard tile belongs to.
+///
+/// The registry holds two generations of tiles that overlap in subject matter
+/// (guiding, weather, equipment). Presented as one flat list the picker offered
+/// two rows with the same name and no way to tell them apart, so the family is
+/// part of the definition and the picker renders it as a section.
+enum DashboardWidgetGroup {
+  /// Transplanted run-dashboard panels: live during a sequence run, and the
+  /// default dashboard.
+  liveRun,
+
+  /// The pre-cockpit control/info cards. Off by default, kept for operators who
+  /// prefer them.
+  classic;
+
+  String get label => switch (this) {
+        DashboardWidgetGroup.liveRun => 'Live run panels',
+        DashboardWidgetGroup.classic => 'Classic cards',
+      };
+
+  String get description => switch (this) {
+        DashboardWidgetGroup.liveRun =>
+          'The default cockpit. Each panel reads the active run and stays quiet '
+              'when nothing is running.',
+        DashboardWidgetGroup.classic =>
+          'The original dashboard cards. They overlap the panels above — enable '
+              'them only if you prefer the older layout.',
+      };
+}
+
 /// Widget definition with zone-aware metadata for the command center layout.
 class DashboardWidgetDefinition {
   final DashboardWidgetId id;
@@ -58,6 +88,10 @@ class DashboardWidgetDefinition {
   final IconData icon;
   final DashboardZone defaultZone;
   final DashboardWidgetBuilder builder;
+
+  /// Which family this tile belongs to. Defaults to the cockpit generation;
+  /// the pre-cockpit cards mark themselves [DashboardWidgetGroup.classic].
+  final DashboardWidgetGroup group;
 
   /// When true, the panel renders its own chrome (NightshadeCard / banner) and
   /// the dashboard tile frame must NOT draw a resting border/background — only
@@ -73,6 +107,7 @@ class DashboardWidgetDefinition {
     required this.defaultZone,
     required this.builder,
     this.selfChromed = false,
+    this.group = DashboardWidgetGroup.liveRun,
   });
 }
 
@@ -314,6 +349,7 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
     subtitle: 'Current image, capture status, and image stats',
     icon: LucideIcons.image,
     defaultZone: DashboardZone.primary,
+    group: DashboardWidgetGroup.classic,
     builder: _buildLivePreview,
   ),
   DashboardWidgetDefinition(
@@ -322,6 +358,7 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
     subtitle: 'Exposure, gain, filter, and capture controls',
     icon: LucideIcons.camera,
     defaultZone: DashboardZone.primary,
+    group: DashboardWidgetGroup.classic,
     builder: _buildCaptureSettings,
   ),
 
@@ -332,22 +369,27 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
     subtitle: 'Active sequence progress and timing',
     icon: LucideIcons.listOrdered,
     defaultZone: DashboardZone.secondary,
+    group: DashboardWidgetGroup.classic,
     builder: _buildSequenceStatus,
   ),
   DashboardWidgetDefinition(
     id: DashboardWidgetId.guiding,
-    title: 'Guiding',
-    subtitle: 'RMS and guiding graph',
+    // Named apart from the cockpit 'Guiding' panel on purpose: the picker used
+    // to list two rows both called "Guiding" with near-identical subtitles.
+    title: 'Guiding (classic)',
+    subtitle: 'Compact RMS readout and guide graph — the pre-cockpit card',
     icon: LucideIcons.crosshair,
     defaultZone: DashboardZone.secondary,
+    group: DashboardWidgetGroup.classic,
     builder: _buildGuiding,
   ),
   DashboardWidgetDefinition(
     id: DashboardWidgetId.equipmentStatus,
-    title: 'Equipment',
-    subtitle: 'Device connectivity overview',
+    title: 'Equipment (classic)',
+    subtitle: 'Connect/disconnect list — not the live telemetry panel',
     icon: LucideIcons.plug,
     defaultZone: DashboardZone.secondary,
+    group: DashboardWidgetGroup.classic,
     builder: _buildEquipmentStatus,
   ),
   DashboardWidgetDefinition(
@@ -356,6 +398,7 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
     subtitle: 'Snapshot, autofocus, centering, and parking',
     icon: LucideIcons.zap,
     defaultZone: DashboardZone.secondary,
+    group: DashboardWidgetGroup.classic,
     builder: _buildQuickActions,
   ),
 
@@ -366,6 +409,7 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
     subtitle: 'Mount connection and control actions',
     icon: LucideIcons.move3d,
     defaultZone: DashboardZone.tertiary,
+    group: DashboardWidgetGroup.classic,
     builder: _buildMountControl,
   ),
   DashboardWidgetDefinition(
@@ -374,14 +418,16 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
     subtitle: 'Focuser stats and autofocus controls',
     icon: LucideIcons.focus,
     defaultZone: DashboardZone.tertiary,
+    group: DashboardWidgetGroup.classic,
     builder: _buildFocus,
   ),
   DashboardWidgetDefinition(
     id: DashboardWidgetId.weather,
-    title: 'Weather',
-    subtitle: 'Cloud status and safety conditions',
+    title: 'Weather (classic)',
+    subtitle: 'Cloud status card — not the run Weather & Safety panel',
     icon: LucideIcons.cloud,
     defaultZone: DashboardZone.tertiary,
+    group: DashboardWidgetGroup.classic,
     builder: _buildWeather,
   ),
   DashboardWidgetDefinition(
@@ -390,6 +436,7 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
     subtitle: 'Twilight, moon, and imaging window',
     icon: LucideIcons.moon,
     defaultZone: DashboardZone.tertiary,
+    group: DashboardWidgetGroup.classic,
     builder: _buildTonight,
   ),
   DashboardWidgetDefinition(
@@ -398,6 +445,7 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
     subtitle: 'Active operations and recent notifications',
     icon: LucideIcons.bell,
     defaultZone: DashboardZone.tertiary,
+    group: DashboardWidgetGroup.classic,
     builder: _buildAlerts,
   ),
   DashboardWidgetDefinition(
@@ -406,6 +454,7 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
     subtitle: 'Sensor temp, focus, HFR, and RMS',
     icon: LucideIcons.activity,
     defaultZone: DashboardZone.tertiary,
+    group: DashboardWidgetGroup.classic,
     builder: _buildQuickStats,
   ),
   DashboardWidgetDefinition(
@@ -414,6 +463,7 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
     subtitle: 'Free space and projected sequence size',
     icon: LucideIcons.hardDrive,
     defaultZone: DashboardZone.tertiary,
+    group: DashboardWidgetGroup.classic,
     builder: _buildStorage,
   ),
 ];

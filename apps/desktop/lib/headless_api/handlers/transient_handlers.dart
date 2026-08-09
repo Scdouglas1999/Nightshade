@@ -67,16 +67,23 @@ class TransientHandlers {
     await statesNotifier.loaded;
     final states = container.read(transientAlertStatesProvider);
 
-    // Filter out dismissed alerts
+    // Resolve each alert's state the way every other surface does: the
+    // overrides map holds only the queue/dismiss actions taken through this
+    // API, so a First Light detection the user dismissed in the desktop app
+    // (the row itself carries the state) stayed "active" for every remote
+    // client. Counting the map's entries had the same blind spot.
+    final resolved = <String, TransientAlertState>{
+      for (final a in alerts) a.id: resolveTransientAlertState(a, states),
+    };
     final activeAlerts = alerts
-        .where((a) => states[a.id] != TransientAlertState.dismissed)
+        .where((a) => resolved[a.id] != TransientAlertState.dismissed)
         .toList();
 
     return jsonOk({
       "alerts": activeAlerts.map((a) => _alertToJson(a, states)).toList(),
       "totalCount": alerts.length,
-      "dismissedCount": _countState(states, TransientAlertState.dismissed),
-      "queuedCount": _countState(states, TransientAlertState.queued),
+      "dismissedCount": _countResolved(resolved, TransientAlertState.dismissed),
+      "queuedCount": _countResolved(resolved, TransientAlertState.queued),
     });
   }
 
@@ -269,7 +276,11 @@ class TransientHandlers {
     // Fetch all alerts and filter to queued ones
     final alerts = await _fetchAlerts(settings);
     final queuedAlerts = alerts
-        .where((a) => states[a.id] == TransientAlertState.queued)
+        .where(
+          (a) =>
+              resolveTransientAlertState(a, states) ==
+              TransientAlertState.queued,
+        )
         .toList();
 
     return jsonOk({
@@ -297,6 +308,18 @@ class TransientHandlers {
     return null;
   }
 
+  /// Count over states already resolved per alert (overrides falling back to
+  /// the alert's own state), never over the raw overrides map — that map has
+  /// no entry for a detection whose state lives on its own row.
+  int _countResolved(
+    Map<String, TransientAlertState> resolved,
+    TransientAlertState wanted,
+  ) => resolved.values.where((state) => state == wanted).length;
+
+  /// Entries in the override store alone. Used only by the queue/dismiss
+  /// responses, which acknowledge an action without the alert population in
+  /// hand (fetching it would hit the remote sources on every mutation); the
+  /// listing endpoints resolve over the population via [_countResolved].
   int _countState(
     Map<String, TransientAlertState> states,
     TransientAlertState wanted,
@@ -320,8 +343,12 @@ class TransientHandlers {
       'sourceUrl': alert.sourceUrl,
       'priority': alert.priority,
       'classification': alert.classification,
-      'isQueued': states[alert.id] == TransientAlertState.queued,
-      'isDismissed': states[alert.id] == TransientAlertState.dismissed,
+      'isQueued':
+          resolveTransientAlertState(alert, states) ==
+          TransientAlertState.queued,
+      'isDismissed':
+          resolveTransientAlertState(alert, states) ==
+          TransientAlertState.dismissed,
     };
   }
 }

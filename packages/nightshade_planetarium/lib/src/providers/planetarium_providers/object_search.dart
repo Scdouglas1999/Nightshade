@@ -172,6 +172,49 @@ int? _scoreMatch(String query, String target) {
   return null; // No match
 }
 
+/// Rank given to a result whose catalogue designation IS the query.
+///
+/// Below 0 so it outranks every [_scoreMatch] band, including the exact
+/// whole-string match at 0 — a designation match is the same idea expressed
+/// tolerantly (`ngc 6720` / `NGC6720` / `6720` all name one object).
+const int _exactDesignationScore = -1;
+
+/// Catalogues in which a bare number is conventional shorthand for a target.
+///
+/// Deliberately narrow. Observers say "6888" or "7000" and mean NGC; nobody
+/// says "48915" and means HD, so a bare number must not promote stars — that
+/// would just replace one wrong first result with another.
+const Set<String> _bareNumberCatalogs = {'m', 'ngc', 'ic'};
+
+/// Split a catalogue designation into its prefix and number, e.g.
+/// `NGC 6720` -> `('ngc', 6720)`, `IC0059` -> `('ic', 59)`, `6720` -> `('', 6720)`.
+///
+/// Returns null for anything that is not a single prefix + number, which keeps
+/// survey identifiers like `2MASX J21422663+1234093` or `ESO 287-052` out of
+/// designation matching entirely.
+({String prefix, int number})? _splitDesignation(String value) {
+  final normalized = value.toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
+  final match = RegExp(r'^([a-z]*)0*(\d+)$').firstMatch(normalized);
+  if (match == null) return null;
+  final number = int.tryParse(match.group(2)!);
+  if (number == null) return null;
+  return (prefix: match.group(1)!, number: number);
+}
+
+/// Whether [designation] is the object the designation-shaped [query] names.
+///
+/// A prefixed query pins the catalogue (`ugc 6720` must not answer NGC6720);
+/// a bare number is only honoured for [_bareNumberCatalogs].
+bool _isExactDesignation(
+  ({String prefix, int number}) query,
+  String designation,
+) {
+  final parsed = _splitDesignation(designation);
+  if (parsed == null || parsed.number != query.number) return false;
+  if (query.prefix.isEmpty) return _bareNumberCatalogs.contains(parsed.prefix);
+  return parsed.prefix == query.prefix;
+}
+
 /// Map of well-known DSO common names to their catalog IDs
 /// Used as a supplemental lookup for objects whose common names
 /// may not be in the catalog data
@@ -262,20 +305,22 @@ const Map<String, String> _wellKnownStarNames = {
 /// propagation for minor bodies) so the omnibox can resolve "jupiter" or
 /// "ceres" regardless of whether the corresponding sky overlay is toggled on.
 ///
-/// Each body is wrapped as a [Star] using the same id conventions the sky-view
-/// tap handler uses (`PLANET_<name>` / `MINORBODY_<name>`) so selection,
-/// fly-to, and the details panel treat a searched planet identically to a
-/// tapped one.
+/// Each body is wrapped as a [SolarSystemBody] (a [Star] subtype, so every
+/// point-source code path keeps working) using the same id conventions the
+/// sky-view tap handler uses (`PLANET_<name>` / `MINORBODY_<name>`) so
+/// selection, fly-to, and the details panel treat a searched planet identically
+/// to a tapped one.
 final solarSystemSearchObjectsProvider = Provider<List<CelestialObject>>((ref) {
   final time = ref.watch(observationMinuteProvider);
   final objects = <CelestialObject>[];
 
   for (final planet in PlanetaryPositions.getAllPlanetPositions(time)) {
     objects.add(
-      Star(
+      SolarSystemBody(
         id: 'PLANET_${planet.name}',
         name: planet.name,
         coordinates: CelestialCoordinate(ra: planet.ra, dec: planet.dec),
+        kind: SolarSystemBodyKind.planet,
         magnitude: planet.magnitude,
       ),
     );
@@ -287,10 +332,11 @@ final solarSystemSearchObjectsProvider = Provider<List<CelestialObject>>((ref) {
   );
   for (final body in minorBodies) {
     objects.add(
-      Star(
+      SolarSystemBody(
         id: 'MINORBODY_${body.name}',
         name: body.name,
         coordinates: body.coordinates,
+        kind: SolarSystemBodyKind.minorBody,
         magnitude: body.visualMag,
       ),
     );
@@ -325,6 +371,15 @@ class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
     final qLower = query.toLowerCase().trim();
     final filters = state.filters;
 
+    // Catalogue numbers are zero-padded in cross-identifiers, so a plain
+    // substring match on a typed designation drags in every object whose
+    // PGC/UGC digits happen to contain it — typing "6720" ranked NGC7107
+    // (PGC 067209), IC728 (UGC 06720), NGC7112 (PGC 067208) and IC5118
+    // (PGC 067202) immediately under M57, and M57 only led because it was the
+    // brightest of the tie. A designation-shaped query resolves its own
+    // catalogue entry first, deterministically.
+    final designationQuery = _splitDesignation(qLower);
+
     try {
       final scored = <ScoredSearchResult>[];
 
@@ -356,6 +411,22 @@ class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
           final loadedStars = await _ref.read(loadedStarsProvider.future);
           for (final star in loadedStars) {
             if (!_passesFilters(star, filters)) continue;
+
+            // "HD 48915" names one star; nothing weaker may outrank it.
+            if (designationQuery != null &&
+                (_isExactDesignation(designationQuery, star.id) ||
+                    star.catalogIds.any(
+                      (id) => _isExactDesignation(designationQuery, id),
+                    ))) {
+              scored.add(
+                ScoredSearchResult(
+                  object: star,
+                  score: _exactDesignationScore,
+                  matchSource: 'designation',
+                ),
+              );
+              continue;
+            }
 
             // Check proper name
             final nameScore = _scoreMatch(qLower, star.name);
@@ -505,6 +576,17 @@ class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
                     conScore + 5; // Lower priority for constellation matches
                 matchSource = 'constellation';
               }
+            }
+
+            // An exact catalogue designation beats every fuzzier band above,
+            // so it is applied last and unconditionally.
+            if (designationQuery != null &&
+                (_isExactDesignation(designationQuery, dso.id) ||
+                    dso.catalogIds.any(
+                      (id) => _isExactDesignation(designationQuery, id),
+                    ))) {
+              bestScore = _exactDesignationScore;
+              matchSource = 'designation';
             }
 
             if (bestScore != null) {

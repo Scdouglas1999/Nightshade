@@ -266,32 +266,35 @@ const List<TutorialStep> _firstLight = [
 // EQUIPMENT SETUP TOUR (4 steps)
 // Profiles -> Drivers -> Connect
 // ============================================================
+// Every step used to name a control that does not exist ("the Profiles tab",
+// "the Connections tab", "the New Profile button") and point at a targetKey no
+// widget registers, so nothing was ever spotlighted. The Equipment screen has a
+// Profiles side panel with a + button and per-device cards; the copy and the
+// keys now describe that.
 const List<TutorialStep> _equipmentSetup = [
   TutorialStep(
     id: 'eq_profiles_overview',
     title: 'Equipment Profiles',
     description:
-        'Click the Profiles tab to manage your equipment configurations. Profiles save your telescope, camera, and accessory combinations for quick switching.',
-    targetKey: 'profiles_tab',
-    position: TooltipPosition.bottom,
+        'The Profiles panel lists your equipment configurations. A profile saves one telescope, camera and accessory combination, so you can switch rigs without re-entering anything.',
+    targetKey: 'equipment_profile_selector',
+    position: TooltipPosition.right,
     order: 0,
     category: TutorialCategory.equipmentSetup,
-    requiredAction: 'click',
-    actionTarget: 'profiles_tab',
     isInteractive: true,
-    spotlightShape: SpotlightShape.pill,
+    spotlightShape: SpotlightShape.roundedRect,
   ),
   TutorialStep(
     id: 'eq_create_profile',
     title: 'Create a Profile',
     description:
-        'Click the New Profile button to create a configuration. Enter your sensor size, pixel scale, and focal length. These values enable accurate field-of-view calculations.',
-    targetKey: 'new_profile_button',
+        'The + button at the top of the Profiles panel opens a new configuration. Enter focal length, aperture and your camera details — those are what the field-of-view and pixel-scale figures are computed from.',
+    targetKey: 'equipment_create_profile_btn',
     position: TooltipPosition.bottom,
     order: 1,
     category: TutorialCategory.equipmentSetup,
     requiredAction: 'click',
-    actionTarget: 'new_profile_button',
+    actionTarget: 'equipment_create_profile_btn',
     isInteractive: true,
     spotlightShape: SpotlightShape.circle,
   ),
@@ -299,13 +302,13 @@ const List<TutorialStep> _equipmentSetup = [
     id: 'eq_connect_devices',
     title: 'Connect Devices',
     description:
-        'Click the Connections tab to connect your hardware. Use ASCOM COM only on Windows, Alpaca for ASCOM network devices, INDI through a reachable server, and Native only where the release includes the needed SDK.',
-    targetKey: 'connections_tab',
-    position: TooltipPosition.bottom,
+        'Connect All brings up every device in the selected profile. Use ASCOM COM only on Windows, Alpaca for ASCOM network devices, INDI through a reachable server, and Native only where the release includes the needed SDK.',
+    targetKey: 'equipment_quick_connect_bar',
+    position: TooltipPosition.top,
     order: 2,
     category: TutorialCategory.equipmentSetup,
     requiredAction: 'click',
-    actionTarget: 'connections_tab',
+    actionTarget: 'equipment_quick_connect_bar',
     isInteractive: true,
     spotlightShape: SpotlightShape.pill,
   ),
@@ -313,8 +316,8 @@ const List<TutorialStep> _equipmentSetup = [
     id: 'eq_verify_status',
     title: 'Verify Connections',
     description:
-        'Check the status indicators for each device. Green means connected and ready. If a device shows red, click it to view error details and troubleshoot.',
-    targetKey: 'device_status_panel',
+        'Each connected device gets a card here. Green means connected and ready; a device that failed to connect reports the error on the card instead.',
+    targetKey: 'equipment_camera_card',
     position: TooltipPosition.left,
     order: 3,
     category: TutorialCategory.equipmentSetup,

@@ -60,7 +60,6 @@ void main() {
       // General
       startMinimized: true,
       autoConnectEquipment: false,
-      autoSaveSequences: false,
       confirmBeforeClosing: false,
       autoDiscoverOnLaunch: false,
       // Appearance
@@ -128,7 +127,6 @@ void main() {
       webServerEnabled: true,
       webServerPort: 9090,
       // Camera
-      coolingBehavior: 'Manual',
       defaultGain: 139,
       defaultOffset: 64,
       // Mount

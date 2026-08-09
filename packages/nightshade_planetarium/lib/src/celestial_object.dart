@@ -70,6 +70,54 @@ class Star implements CelestialObject {
   }
 }
 
+/// What kind of solar-system body a [SolarSystemBody] is.
+enum SolarSystemBodyKind {
+  planet('Planet', 'planet'),
+  minorBody('Minor body', 'minor_body'),
+  satellite('Satellite', 'satellite');
+
+  const SolarSystemBodyKind(this.displayName, this.storageKey);
+
+  /// Shown to the user, e.g. in the object popup's Type row.
+  final String displayName;
+
+  /// Written to durable records (the observation log's `object_type`). An
+  /// observing log is data the user keeps for years, so this is a stable
+  /// snake_case token rather than the display string.
+  final String storageKey;
+}
+
+/// A solar-system body — a major planet, a comet/asteroid, or an artificial
+/// satellite — surfaced through the same [CelestialObject] channel as the
+/// catalogues.
+///
+/// Extends [Star] deliberately. These bodies have always been *carried* as
+/// `Star(id: 'PLANET_Jupiter')` and the whole app branches on `obj is Star` for
+/// point sources (icons, popup layout, framing, slew); subclassing keeps every
+/// one of those paths working while giving the surfaces that state a FACT about
+/// the object — the popup's Type row, the observation log's `object_type`
+/// column, the identifier chip — something true to say. Before this they said
+/// "Star", and the observing log permanently recorded Jupiter as a star with
+/// the internal token `PLANET_Jupiter` as its catalogue id.
+class SolarSystemBody extends Star {
+  final SolarSystemBodyKind kind;
+
+  const SolarSystemBody({
+    required super.id,
+    required super.name,
+    required super.coordinates,
+    required this.kind,
+    super.magnitude,
+  });
+
+  /// Human-facing designation for the identifier chip.
+  ///
+  /// The `PLANET_`/`MINORBODY_`/`SAT_` prefixed [id] is an internal join key,
+  /// not something anyone would recognise on a chart, so the chip shows the
+  /// kind instead.
+  String get designation => kind.displayName;
+}
+
 /// Deep sky object types
 /// Based on OpenNGC type codes
 enum DsoType {

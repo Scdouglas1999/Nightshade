@@ -247,6 +247,18 @@ class SettingsNumberInput extends StatefulWidget {
   /// If true, let the input expand to constraints supplied by its parent.
   final bool flexible;
 
+  /// Reads the field's text as a number, replacing plain [double.tryParse].
+  ///
+  /// Supplying this also LIFTS the digits-only input formatter, because a
+  /// formatter that rejects every non-numeric keystroke makes the alternate
+  /// notation unenterable and discards pasted coordinates.
+  /// Returning null still means "not a number": the field snaps back to the
+  /// last stored value exactly as it does for unparseable digits.
+  ///
+  /// Used by the site latitude/longitude rows, where degrees-minutes-seconds
+  /// is as common a way to write the value as decimal degrees.
+  final double? Function(String)? parse;
+
   const SettingsNumberInput({
     super.key,
     required this.controller,
@@ -260,6 +272,7 @@ class SettingsNumberInput extends StatefulWidget {
     this.width,
     this.isMobile = false,
     this.flexible = false,
+    this.parse,
   })  : assert(min <= max),
         assert(decimals >= 0);
 
@@ -323,8 +336,11 @@ class _SettingsNumberInputState extends State<SettingsNumberInput> {
     }
   }
 
-  double? _parseControllerValue() {
-    final parsed = double.tryParse(widget.controller.text.trim());
+  double? _parseControllerValue() => _parseText(widget.controller.text);
+
+  double? _parseText(String text) {
+    final parser = widget.parse;
+    final parsed = parser != null ? parser(text) : double.tryParse(text.trim());
     return parsed != null && parsed.isFinite ? parsed : null;
   }
 
@@ -341,7 +357,7 @@ class _SettingsNumberInputState extends State<SettingsNumberInput> {
   }
 
   void _commit() {
-    final parsed = double.tryParse(widget.controller.text.trim());
+    final parsed = _parseText(widget.controller.text);
     if (parsed == null || !parsed.isFinite) {
       widget.controller.text = _format(_lastSubmittedValue);
       return;
@@ -429,14 +445,20 @@ class _SettingsNumberInputState extends State<SettingsNumberInput> {
     final designWidth = widget.width ?? (widget.isMobile ? 100.0 : 120.0);
     final effectiveWidth = dialogMaxWidth(context, designWidth);
 
+    final custom = widget.parse != null;
     final input = NightshadeTextField(
       controller: widget.controller,
       focusNode: _focusNode,
-      keyboardType: TextInputType.numberWithOptions(
-        decimal: widget.decimals > 0,
-        signed: widget.min < 0,
-      ),
-      inputFormatters: [_numberFormatter],
+      // A custom parser exists precisely because the value can be written with
+      // letters and punctuation (47 36 22 N), so the phone keyboard has to
+      // offer them and the digits-only formatter has to stand down.
+      keyboardType: custom
+          ? TextInputType.text
+          : TextInputType.numberWithOptions(
+              decimal: widget.decimals > 0,
+              signed: widget.min < 0,
+            ),
+      inputFormatters: custom ? const [] : [_numberFormatter],
       textAlign: TextAlign.right,
       suffix: widget.suffix,
       onSubmitted: (_) => _commit(),

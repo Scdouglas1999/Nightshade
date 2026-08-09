@@ -1,12 +1,18 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nightshade_app/localization/nightshade_localizations.dart';
 import 'package:nightshade_app/screens/shell/widgets/status_bar.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 class _MockNetworkBackend extends Mock implements NetworkBackend {}
 
 String _basename(String path) => path.split('/').last;
+
+/// These cases pin the English wording, so they resolve against the `en`
+/// catalogue the chip now reads from.
+final _en = NightshadeLocalizations(const Locale('en'));
 
 void main() {
   group('savePathChipFor', () {
@@ -20,6 +26,7 @@ void main() {
       final chip = savePathChipFor(
         const AsyncValue<SavePathStatus>.loading(),
         _basename,
+        _en,
       );
 
       expect(chip.tone, SavePathTone.unknown);
@@ -36,6 +43,7 @@ void main() {
           ),
         ),
         _basename,
+        _en,
       );
 
       expect(chip.tone, SavePathTone.unknown);
@@ -53,6 +61,7 @@ void main() {
           ),
         ),
         _basename,
+        _en,
       );
 
       expect(chip.tone, SavePathTone.ok);
@@ -68,6 +77,7 @@ void main() {
           ),
         ),
         _basename,
+        _en,
       );
 
       expect(chip.tone, SavePathTone.alarm);
@@ -78,7 +88,7 @@ void main() {
       const chip = AsyncValue<SavePathStatus>.data(
         SavePathStatus(path: '', existence: SavePathExistence.missing),
       );
-      final result = savePathChipFor(chip, _basename);
+      final result = savePathChipFor(chip, _basename, _en);
 
       expect(result.tone, SavePathTone.alarm);
       expect(result.label, 'No save path');
@@ -88,6 +98,7 @@ void main() {
       final chip = savePathChipFor(
         const AsyncValue<SavePathStatus>.error('boom', StackTrace.empty),
         _basename,
+        _en,
       );
 
       expect(chip.tone, SavePathTone.unknown);

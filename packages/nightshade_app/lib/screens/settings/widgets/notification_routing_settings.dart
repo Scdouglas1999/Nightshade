@@ -22,6 +22,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../utils/user_facing_error.dart';
 import 'settings_widgets.dart';
 
 part 'notification_routing_settings/category_editor_dialog.dart';
@@ -74,6 +75,9 @@ class NotificationRoutingSettings extends ConsumerWidget {
       );
     }
     final matrixAsync = ref.watch(notificationRoutingMatrixProvider);
+    // The router drops unconfigured transports at send time, so the editor and
+    // the summary line must not present them as channels that will deliver.
+    final configured = ref.watch(configuredNotificationTransportsProvider);
 
     return matrixAsync.when(
       loading: () => const Padding(
@@ -91,7 +95,7 @@ class NotificationRoutingSettings extends ConsumerWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              e.toString(),
+              userFacingError(e),
               style: TextStyle(
                 color: colors.textSecondary,
                 fontSize: NightshadeTypography.fontSize12,
@@ -109,12 +113,16 @@ class NotificationRoutingSettings extends ConsumerWidget {
           ],
         ),
       ),
-      data: (matrix) => _build(context, ref, matrix),
+      data: (matrix) => _build(context, ref, matrix, configured),
     );
   }
 
   Widget _build(
-      BuildContext context, WidgetRef ref, NotificationRoutingMatrix matrix) {
+    BuildContext context,
+    WidgetRef ref,
+    NotificationRoutingMatrix matrix,
+    Set<NotificationTransportKind> configured,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -147,6 +155,7 @@ class NotificationRoutingSettings extends ConsumerWidget {
                 ref,
                 NotificationCategory.values[i],
                 matrix,
+                configured,
                 isLast: i == NotificationCategory.values.length - 1,
               ),
           ],
@@ -160,12 +169,13 @@ class NotificationRoutingSettings extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     NotificationCategory category,
-    NotificationRoutingMatrix matrix, {
+    NotificationRoutingMatrix matrix,
+    Set<NotificationTransportKind> configured, {
     required bool isLast,
   }) {
     final rule = matrix.ruleFor(category);
     final summary = rule.enabled && rule.transports.isNotEmpty
-        ? rule.transports.map((t) => t.label).join(' + ')
+        ? rule.transports.map((t) => _transportLabel(t, configured)).join(' + ')
         : '(disabled)';
 
     return SettingRow(
@@ -182,6 +192,7 @@ class NotificationRoutingSettings extends ConsumerWidget {
             builder: (_) => _CategoryEditorDialog(
               category: category,
               rule: rule,
+              configuredTransports: configured,
               onSave: (updated) async {
                 await ref
                     .read(notificationRoutingMatrixProvider.notifier)
@@ -246,6 +257,16 @@ class NotificationRoutingSettings extends ConsumerWidget {
     }
   }
 }
+
+/// Transport name as the routing surfaces must state it. A transport the
+/// router would drop at send time (no SMTP host, no bot token, no broker) is
+/// named as such, because selecting it changes nothing about what the operator
+/// actually receives.
+String _transportLabel(
+  NotificationTransportKind kind,
+  Set<NotificationTransportKind> configured,
+) =>
+    configured.contains(kind) ? kind.label : '${kind.label} (not configured)';
 
 // ---------------------------------------------------------------------------
 // Per-category editor dialog

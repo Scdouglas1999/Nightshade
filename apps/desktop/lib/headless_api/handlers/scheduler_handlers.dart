@@ -58,6 +58,9 @@ class SchedulerHandlers {
       'status': engine.status.toJson(),
       'decision': decision.toJson(),
       'config': engine.config.toStorageJson(),
+      'readiness': container
+          .read(schedulerStartReadinessProvider)
+          .toStorageJson(),
     };
   }
 
@@ -78,6 +81,7 @@ class SchedulerHandlers {
     _logInfo('[API] POST /api/scheduler/control');
     final payload = await readJsonObject(request);
     final action = requireString(payload, 'action');
+    final confirmWarnings = payload['confirmWarnings'] == true;
     const validActions = {'start', 'pause', 'resume', 'stop', 'evaluate'};
     if (!validActions.contains(action)) {
       throw BadRequestError(
@@ -91,6 +95,21 @@ class SchedulerHandlers {
       'pause' || 'stop' => container.read(schedulerEngineProvider),
       _ => await container.read(schedulerEngineReadyProvider.future),
     };
+    if (action == 'start') {
+      final readiness = container.read(schedulerStartReadinessProvider);
+      if (readiness.blocked ||
+          (readiness.warnings.isNotEmpty && !confirmWarnings)) {
+        throw BadRequestError(
+          field: 'action',
+          expected: readiness.blocked
+              ? 'scheduler_ready'
+              : 'confirmWarnings:true',
+          message: readiness.blocked
+              ? 'Scheduler readiness is blocked.'
+              : 'Scheduler warnings require explicit confirmation.',
+        );
+      }
+    }
     switch (action) {
       case 'start':
         try {

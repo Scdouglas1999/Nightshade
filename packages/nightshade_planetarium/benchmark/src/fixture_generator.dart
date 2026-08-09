@@ -78,7 +78,10 @@ Planets: ${planets.length}. Observer 40N 75W. Base time 2026-01-15T06:00:00Z.'''
     longitude: -75.0,
     baseTimeUtc: DateTime.utc(2026, 1, 15, 6, 0, 0),
     sunPosition: (kAnchorRaHours + 12.0, -20.0),
-    moonPosition: (kAnchorRaHours + 1.5, kAnchorDecDeg + 4.0, 0.55),
+    // Illumination is a PERCENT (SkyCanvasPainter.moonPosition); 55 keeps the
+    // scene identical to the frozen baseline, which was captured when this slot
+    // was fed the fraction 0.55.
+    moonPosition: (kAnchorRaHours + 1.5, kAnchorDecDeg + 4.0, 55.0),
   );
 }
 

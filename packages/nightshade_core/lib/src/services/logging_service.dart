@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_api;
 
+import '../utils/nightshade_data_directory.dart';
+
 /// Log level for filtering
 enum LogLevel { debug, info, warning, error, critical }
 
@@ -130,6 +132,7 @@ class LogEntry {
 /// Service for managing application logs
 class LoggingService {
   final Future<Directory> Function() _applicationSupportDirectoryProvider;
+  final Map<String, String>? _environment;
   final void Function({String? logDirectory}) _nativeInitWithLogging;
   final void Function() _nativeInit;
   final String? Function() _currentLogFileProvider;
@@ -156,12 +159,14 @@ class LoggingService {
 
   LoggingService({
     Future<Directory> Function()? applicationSupportDirectoryProvider,
+    Map<String, String>? environment,
     void Function({String? logDirectory})? nativeInitWithLogging,
     void Function()? nativeInit,
     String? Function()? currentLogFileProvider,
   }) : _applicationSupportDirectoryProvider =
            applicationSupportDirectoryProvider ??
            getApplicationSupportDirectory,
+       _environment = environment,
        _nativeInitWithLogging =
            nativeInitWithLogging ?? bridge_api.apiInitWithLogging,
        _nativeInit = nativeInit ?? bridge_api.apiInit,
@@ -182,8 +187,16 @@ class LoggingService {
     if (_initialized) return;
 
     try {
-      // Get app data directory for logs
-      final appDir = await _applicationSupportDirectoryProvider();
+      // Anchor logs on this process's data root, not on the platform
+      // application-support folder. The support folder is shared by every
+      // Nightshade on the machine, so a headless daemon started beside the GUI
+      // with NIGHTSHADE_DATA_DIR pointed at its own tree still opened the GUI's
+      // rolling log file and the two interleaved into it.
+      final appDir = await resolveNightshadeDataDirectory(
+        environment: _environment,
+        applicationSupportDirectoryProvider:
+            _applicationSupportDirectoryProvider,
+      );
       _logDirectory = '${appDir.path}${Platform.pathSeparator}logs';
 
       // Create logs directory
@@ -332,8 +345,13 @@ class LoggingService {
     return _recentLogs.where((e) => e.level.index >= minLevel.index).toList();
   }
 
-  /// Get all available log files
-  Future<List<String>> getLogFiles() async {
+  /// Get all available log files.
+  ///
+  /// [maxAge] bounds the result to files modified within that window. The
+  /// native appender is a daily roller with no retention cap, so an install
+  /// that has been running for months accumulates every day's file; a caller
+  /// that promises "recent logs" must say how recent.
+  Future<List<String>> getLogFiles({Duration? maxAge}) async {
     await ensureInitialized();
     if (_logDirectory == null) return [];
 
@@ -341,11 +359,17 @@ class LoggingService {
       final dir = Directory(_logDirectory!);
       if (!await dir.exists()) return [];
 
-      final files = await dir
-          .list()
-          .where((e) => e is File && e.path.contains('nightshade.log'))
-          .map((e) => e.path)
-          .toList();
+      final cutoff = maxAge == null ? null : DateTime.now().subtract(maxAge);
+      final files = <String>[];
+      await for (final entity in dir.list()) {
+        if (entity is! File) continue;
+        if (!entity.path.contains('nightshade.log')) continue;
+        if (cutoff != null) {
+          final modified = await entity.lastModified();
+          if (modified.isBefore(cutoff)) continue;
+        }
+        files.add(entity.path);
+      }
 
       files.sort(); // Chronological order
       return files;
@@ -364,6 +388,13 @@ class LoggingService {
     }
   }
 
+  static String _humanAge(Duration d) {
+    if (d.inHours % 24 == 0 && d.inDays >= 1) {
+      return d.inDays == 1 ? '24 hours' : '${d.inDays} days';
+    }
+    return '${d.inHours} hours';
+  }
+
   /// Read a specific log file
   Future<String> readLogFile(String path) async {
     try {
@@ -374,18 +405,28 @@ class LoggingService {
     }
   }
 
-  /// Export all logs to a single file
-  Future<String> exportLogs(String outputPath) async {
+  /// Export logs to a single file, returning the path written.
+  ///
+  /// [maxAge] bounds which rotated files are included. Callers that describe
+  /// the result to the user as "recent log files" MUST pass one: the native
+  /// appender rolls daily with no retention cap, so an unbounded export ships
+  /// every day the install has ever run — every capture path, target name and
+  /// host name in that history — to whoever receives the bundle.
+  Future<String> exportLogs(String outputPath, {Duration? maxAge}) async {
     await ensureInitialized();
     try {
       final output = StringBuffer();
       output.writeln('=== Nightshade Log Export ===');
       output.writeln('Exported: ${DateTime.now().toIso8601String()}');
       output.writeln('Platform: ${Platform.operatingSystem}');
+      output.writeln(
+        maxAge == null
+            ? 'Span: all retained log files'
+            : 'Span: log files modified in the last ${_humanAge(maxAge)}',
+      );
       output.writeln('');
 
-      // Get all log files
-      final logFiles = await getLogFiles();
+      final logFiles = await getLogFiles(maxAge: maxAge);
 
       for (final logFile in logFiles) {
         output.writeln('\n=== $logFile ===\n');

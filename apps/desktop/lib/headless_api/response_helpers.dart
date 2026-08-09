@@ -5,62 +5,14 @@ import 'package:shelf/shelf.dart';
 const jsonContentType = 'application/json';
 const jsonResponseHeaders = {'content-type': jsonContentType};
 
-/// Wire field name for the shared stop/abort no-op contract.
-///
-/// # The contract
-///
-/// Every endpoint that STOPS or ABORTS something (`/api/camera/abort`,
-/// `/api/sequencer/stop`, `/api/stacking/stop`, `/api/framing/abort-slew`)
-/// answers `200` whether or not anything was actually running — these are
-/// idempotent safety operations and a panic-stop must never fail. But the
-/// body MUST let the caller tell the two cases apart:
-///
-///   * `wasRunning: true`  — something was genuinely in progress and has now
-///     been stopped.
-///   * `wasRunning: false` — nothing was running; this call changed nothing.
-///     The response also carries a plain-language `message` saying so.
-///
-/// # Why it exists
-///
-/// All four endpoints previously reported an action they had not performed.
-/// Observed live with the sequencer idle, stacking inactive, no slew in
-/// progress and the camera idle:
-///
-///   POST /api/sequencer/stop     -> 200 {"status":"stopped","preserveCheckpoint":true}
-///   POST /api/stacking/stop      -> 200 {"status":"stopped"}
-///   POST /api/framing/abort-slew -> 200 {"status":"aborted"}
-///   POST /api/camera/abort       -> 200 {"status":"aborted"}
-///
-/// `{"status":"aborted"}` for a slew that was never running reads to an
-/// operator hitting abort in a hurry as "the mount was stopped".
-///
-/// # Why additive rather than a new `status` value
-///
-/// The existing `status` strings are kept EXACTLY as they were so no pinned
-/// client can break. A consumer audit (web dashboard `web_dashboard/js`,
-/// the Flutter `NetworkBackend`, and the mobile app which shares it) found
-/// no caller that branches on these `status` values — all four are consumed
-/// as `Future<void>` / discarded promises — but keeping them stable costs
-/// nothing and removes the risk entirely.
+/// Indicates whether an idempotent stop or abort changed an active operation.
+/// Existing `status` fields remain unchanged for wire compatibility.
 const String kWasRunningField = 'wasRunning';
 
-/// Last line of defence for values JSON cannot represent.
-///
-/// `double.infinity` and `double.nan` are legitimate in-memory sentinels
-/// ("no cloud front detected", "not measured yet") but have no JSON encoding,
-/// so `jsonEncode` rejects them. Reaching that point used to abort the whole
-/// response and surface as an opaque HTTP 500 — a client asking a perfectly
-/// answerable question got an internal error instead of the answer, and the
-/// one field that could not be encoded took the other twenty with it.
-///
-/// JSON's only honest representation of a non-finite number is null, so emit
-/// null and keep the response. Handlers should still map their own sentinels
-/// explicitly — this exists so that forgetting to cannot break an endpoint.
+/// Maps non-finite numbers, which JSON cannot represent, to `null`.
+/// Other custom objects retain `jsonEncode`'s normal `toJson` behavior.
 Object? _jsonSafe(Object? value) {
   if (value is double && !value.isFinite) return null;
-  // Preserve the default behaviour for every other unencodable object: the
-  // dynamic `toJson()` call is exactly what jsonEncode does without a
-  // toEncodable hook, so unsupported types keep failing loudly as before.
   return (value as dynamic).toJson();
 }
 
@@ -128,21 +80,8 @@ Response jsonServiceUnavailable(Object? body, {Map<String, String>? headers}) {
   return jsonResponse(body, statusCode: 503, headers: headers);
 }
 
-/// Emit the unified, backward-compatible error envelope (NAME-001).
-///
-/// The body carries BOTH the legacy and canonical keys so existing and new
-/// clients are satisfied by a single response:
-///
-///   - `error`   — the human-readable [message]. Legacy clients that read
-///                 `body['error']` as a display string keep working.
-///   - `code`    — the machine-readable [code] new clients branch on.
-///   - `message` — the same human string under the canonical key.
-///   - `[details]` entries, spread inline.
-///
-/// [statusCode] is forwarded verbatim so the HTTP status for each error case
-/// is unchanged. The canonical `error`/`code`/`message` keys are written last
-/// so a stray same-named key inside [details] can never clobber the machine
-/// code or human message.
+/// Emits the legacy `error` field alongside canonical `code` and `message`.
+/// Canonical keys override collisions in [details].
 Response jsonError({
   required String code,
   required String message,

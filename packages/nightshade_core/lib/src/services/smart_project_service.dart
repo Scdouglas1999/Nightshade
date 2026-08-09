@@ -11,13 +11,16 @@ import '../providers/database_provider.dart';
 import 'scheduler/integration_goal_service.dart';
 
 /// One point of an integrated master's multi-night growth: cumulative
-/// integration time as of a calendar date.
+/// integration time as of an observing night.
 ///
-/// The x-axis is the capture [date] of the last sub folded that day; the
-/// y-axis is the running [cumulativeIntegrationSeconds] across every sub folded
-/// on or before that date. [framesToDate] is the running accepted-frame count.
+/// The x-axis is the observing night [date] of the last sub folded that night;
+/// the y-axis is the running [cumulativeIntegrationSeconds] across every sub
+/// folded on or before that night. [framesToDate] is the running accepted-frame
+/// count.
 class IntegrationGrowthPoint {
-  /// Local calendar day (date-only; time component is midnight UTC).
+  /// The observing night this point covers, as a local date-only DateTime
+  /// (local midnight). See [SmartProjectService.observingNightOf] for the
+  /// noon-to-noon rule that assigns a capture to a night.
   final DateTime date;
 
   /// Running cumulative integration time (seconds) through this date.
@@ -45,10 +48,11 @@ class IntegrationGrowthPoint {
       Object.hash(date, cumulativeIntegrationSeconds, framesToDate);
 }
 
-/// The single best night folded into a master: the calendar day whose accepted
-/// subs carried the highest mean integration weight.
+/// The single best night folded into a master: the observing night whose
+/// accepted subs carried the highest mean integration weight.
 class BestNight {
-  /// The night's local calendar day (date-only).
+  /// The observing night, as a local date-only DateTime (local midnight). See
+  /// [SmartProjectService.observingNightOf].
   final DateTime date;
 
   /// Mean integration weight over the night's accepted subs.
@@ -213,7 +217,9 @@ class FilterDeficit {
 /// One folded sub, projected from the `integrated_master_frames` join against
 /// `captured_images`. Internal to the growth/best-night/deficit math.
 class _FoldedSub {
-  final DateTime captureDate; // date-only (midnight UTC)
+  /// The observing night the sub belongs to, noon-to-noon local, as a
+  /// date-only local DateTime. See [SmartProjectService.observingNightOf].
+  final DateTime captureDate;
   final double exposureSeconds;
 
   /// Per-frame integration weight, or null when the fold record carries no
@@ -272,15 +278,17 @@ class SmartProjectService {
   // ---------------------------------------------------------------------------
 
   /// Integration-time growth points for [masterId]: cumulative integration
-  /// seconds (and accepted-frame count) per calendar date the master grew.
+  /// seconds (and accepted-frame count) per observing night the master grew.
   ///
-  /// Points are ordered ascending by date; one point per distinct capture day.
+  /// Points are ordered ascending by date; one point per distinct observing
+  /// night (noon-to-noon local, see [observingNightOf]), so a single run that
+  /// crosses local midnight — or 00:00 UTC — stays one point.
   /// Returns an empty list when the master has no accepted folded subs.
   Future<List<IntegrationGrowthPoint>> growthCurve(int masterId) async {
     final subs = await _foldedSubs(masterId);
     if (subs.isEmpty) return const [];
 
-    // Group accepted subs by capture day, then accumulate.
+    // Group accepted subs by observing night, then accumulate.
     final byDay = <DateTime, ({double seconds, int count})>{};
     for (final s in subs) {
       final prev = byDay[s.captureDate];
@@ -313,7 +321,7 @@ class SmartProjectService {
   // Best night
   // ---------------------------------------------------------------------------
 
-  /// The night (calendar day) whose accepted subs carried the highest mean
+  /// The observing night whose accepted subs carried the highest mean
   /// integration weight. Null when the master has no accepted folded subs.
   Future<BestNight?> bestNight(int masterId) async {
     final subs = await _foldedSubs(masterId);
@@ -580,7 +588,7 @@ class SmartProjectService {
       final exposure = r.readNullable<double>('exposure') ?? 0.0;
       out.add(
         _FoldedSub(
-          captureDate: _dayOf(capturedAtSec),
+          captureDate: observingNightOf(capturedAtSec),
           exposureSeconds: exposure,
           weight: r.readNullable<double>('weight'),
           snr: r.readNullable<double>('snr'),
@@ -676,12 +684,25 @@ class SmartProjectService {
     return null;
   }
 
-  static DateTime _dayOf(int epochSeconds) {
-    final dt = DateTime.fromMillisecondsSinceEpoch(
+  /// The observing night a capture belongs to, as a local date-only DateTime.
+  ///
+  /// Nights are bucketed noon-to-noon in the observer's local time — the same
+  /// rule `TargetProgressService._nightStart` and the forecast planner use — and
+  /// labelled with the date the night *started*. Grouping by UTC calendar day
+  /// instead was wrong twice over: west of Greenwich every night is labelled a
+  /// day late (21:00 EDT is 01:00 UTC the next day), and east of Greenwich the
+  /// 00:00 UTC boundary falls in the MIDDLE of the observing night, splitting a
+  /// single continuous run into two "nights" and halving its reported totals.
+  static DateTime observingNightOf(int epochSeconds) {
+    final local = DateTime.fromMillisecondsSinceEpoch(
       epochSeconds * 1000,
       isUtc: true,
-    );
-    return DateTime.utc(dt.year, dt.month, dt.day);
+    ).toLocal();
+    final noonToday = DateTime(local.year, local.month, local.day, 12);
+    final nightStart = local.isBefore(noonToday)
+        ? noonToday.subtract(const Duration(days: 1))
+        : noonToday;
+    return DateTime(nightStart.year, nightStart.month, nightStart.day);
   }
 
   static double _median(List<double> values) {

@@ -79,16 +79,15 @@ class _SessionHandoffDialogState extends ConsumerState<SessionHandoffDialog> {
     };
   }
 
-  String _formatHours(double seconds) {
-    final hours = seconds / 3600.0;
-    if (hours >= 1.0) {
-      final h = hours.floor();
-      final m = ((hours - h) * 60).round();
-      return m > 0 ? '${h}h ${m}m' : '${h}h';
-    }
-    final mins = (seconds / 60).round();
-    return '${mins}m';
-  }
+  /// Carry-over integration, in the one h/m/s shape the rest of the app uses
+  /// (see `formatIntegrationSeconds`).
+  ///
+  /// This used to round to whole minutes, so a real 12-second prior session
+  /// rendered as "0m" — right next to its own accepted-frame count, which is
+  /// the same "the run captured nothing" lie the Continue Session dialog
+  /// told. Sub-minute carry-overs are exactly the ones a handoff decision is
+  /// least obvious for, so they must not read as zero.
+  String _formatHours(double seconds) => formatIntegrationSeconds(seconds);
 
   String _formatDate(DateTime dt) =>
       DateFormat('MMM d, yyyy').format(dt.toLocal());

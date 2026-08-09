@@ -101,19 +101,39 @@ class TransientReportService {
   }
 
   /// Human-readable reason AAVSO is unavailable, or null when it is available.
+  ///
+  /// Reports EVERY blocker that applies, leading with the calibrated magnitude.
+  /// AAVSO needs both a photometric zeropoint for the detection's frame and an
+  /// observer code, and on a fresh profile with an uncalibrated frame both are
+  /// missing. Returning the observer-code sentence alone told the operator that
+  /// one settings field was all that stood in the way; they would set it, come
+  /// back, and find AAVSO still disabled behind a blocker no setting can clear.
+  /// The un-fixable one is stated first precisely because Settings cannot
+  /// resolve it — the report panel and the headless
+  /// `/api/firstlight/<id>/export/aavso` 400 body both render this string.
   String? aavsoDisabledReason(
     TransientDetectionRow detection, {
     required String observerCode,
     double? magZeroPoint,
   }) {
-    if (observerCode.trim().isEmpty) {
-      return 'Set your AAVSO observer code in Settings > Science first.';
-    }
-    if (!aavsoAvailable(detection, magZeroPoint: magZeroPoint)) {
-      return 'AAVSO needs a calibrated magnitude (a photometric zeropoint for '
-          'this frame) — not available for this detection.';
-    }
-    return null;
+    final needsZeroPoint = !aavsoAvailable(
+      detection,
+      magZeroPoint: magZeroPoint,
+    );
+    final needsObserverCode = observerCode.trim().isEmpty;
+    if (!needsZeroPoint && !needsObserverCode) return null;
+
+    return [
+      if (needsZeroPoint)
+        'AAVSO needs a calibrated magnitude (a photometric zeropoint for '
+            'this frame) — not available for this detection.',
+      if (needsObserverCode)
+        needsZeroPoint
+            // Not "first": it is not the only thing in the way, and saying so
+            // is what sent the operator on the dead-end trip to Settings.
+            ? 'Your AAVSO observer code is also unset (Settings > Science).'
+            : 'Set your AAVSO observer code in Settings > Science first.',
+    ].join(' ');
   }
 
   /// Build an AAVSO Extended File Format report (Option A — STD magnitude).

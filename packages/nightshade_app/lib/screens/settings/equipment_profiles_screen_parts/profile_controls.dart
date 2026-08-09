@@ -73,6 +73,11 @@ class _FieldCard extends StatelessWidget {
   final String? hint;
   final bool readOnly;
 
+  /// Why a rejected save says so. Rendered under the field and used to tint
+  /// the border, because the summary snackbar is drawn behind the persistent
+  /// bottom status bar on desktop.
+  final String? errorText;
+
   const _FieldCard({
     required this.label,
     this.value,
@@ -80,11 +85,13 @@ class _FieldCard extends StatelessWidget {
     this.suffix,
     this.hint,
     this.readOnly = false,
+    this.errorText,
   });
 
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
+    final hasError = errorText != null && controller != null && !readOnly;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -92,7 +99,7 @@ class _FieldCard extends StatelessWidget {
           label,
           style: TextStyle(
             fontSize: NightshadeTypography.fontSize11,
-            color: colors.textMuted,
+            color: hasError ? colors.error : colors.textMuted,
           ),
         ),
         const SizedBox(height: 6),
@@ -102,7 +109,8 @@ class _FieldCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
               borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-              border: Border.all(color: colors.border),
+              border:
+                  Border.all(color: hasError ? colors.error : colors.border),
             ),
             child: TextField(
               controller: controller,
@@ -142,6 +150,17 @@ class _FieldCard extends StatelessWidget {
                     color: value != null && value != 'Not set' && value != 'N/A'
                         ? colors.textPrimary
                         : colors.textMuted),
+              ),
+            ),
+          ),
+        if (hasError)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              errorText!,
+              style: TextStyle(
+                fontSize: NightshadeTypography.fontSize11,
+                color: colors.error,
               ),
             ),
           ),
@@ -284,9 +303,17 @@ class _EditableFilterChip extends StatelessWidget {
   final TextEditingController controller;
   final VoidCallback onRemove;
 
+  /// Fired on every keystroke. The Filter Focus Offsets card below is built
+  /// from these same controllers' text, so without a rebuild signal it lagged
+  /// a whole interaction behind: naming a filter produced no offset row until
+  /// some unrelated widget forced a rebuild, and the operator had to save and
+  /// re-open the editor to reach the offset they had just created a slot for.
+  final VoidCallback onNameChanged;
+
   const _EditableFilterChip({
     required this.controller,
     required this.onRemove,
+    required this.onNameChanged,
   });
 
   @override
@@ -305,6 +332,7 @@ class _EditableFilterChip extends StatelessWidget {
           Expanded(
             child: TextField(
               controller: controller,
+              onChanged: (_) => onNameChanged(),
               style: TextStyle(
                 fontSize: NightshadeTypography.fontSize12,
                 color: colors.textPrimary,

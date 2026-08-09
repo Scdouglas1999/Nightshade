@@ -23,6 +23,16 @@ class NightshadeDropdown extends StatelessWidget {
     this.isDense = false,
   });
 
+  /// The style the closed control paints its current value in.
+  ///
+  /// Public so a caller that has to SIZE this control can measure the label
+  /// with the same style it will be painted in, instead of guessing.
+  static const TextStyle labelStyle = TextStyle(fontSize: 12);
+
+  /// Horizontal space this control spends on everything that is not the label:
+  /// 12 px padding each side, the 14 px chevron, and the 1 px border each side.
+  static const double chromeWidth = 12 + 12 + 14 + 2;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.nightshadeColors;
@@ -52,7 +62,7 @@ class NightshadeDropdown extends StatelessWidget {
           ),
           dropdownColor: colors.surface,
           borderRadius: BorderRadius.circular(8),
-          style: TextStyle(fontSize: 12, color: colors.textPrimary),
+          style: labelStyle.copyWith(color: colors.textPrimary),
           items: List.generate(items.length, (index) {
             final item = items[index];
             final label = itemLabels != null && index < itemLabels!.length

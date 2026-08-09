@@ -17,6 +17,8 @@ import 'widgets/delete_node_confirmation.dart';
 import 'widgets/palette_icon_map.dart';
 import 'widgets/sequence_toolbar.dart';
 import 'widgets/node_palette.dart';
+import 'widgets/node_palette_empty_state.dart';
+import 'widgets/node_palette_search.dart';
 import 'widgets/snippet_palette.dart';
 import 'widgets/sequence_tree.dart';
 import 'widgets/node_properties_panel.dart';
@@ -453,7 +455,17 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
                     : SequencerToolboxTab.nodes;
           },
         },
-        child: Focus(
+        // A SCOPE, not a bare Focus. `CallbackShortcuts` only sees a key
+        // event while primary focus sits inside its subtree, and the bare
+        // Focus autofocused exactly once at mount: as soon as anything called
+        // `unfocus()` (every text field does on submit / tap-away) focus
+        // landed on the ROUTE's scope — an ancestor of these bindings — and
+        // every advertised shortcut, including the Ctrl+Z the delete dialogs
+        // point at, went dead until the user happened to click a focusable
+        // control inside the screen again. An enclosing scope of our own
+        // catches that unfocus, so focus falls back INTO the shortcut subtree
+        // instead of out of it.
+        child: FocusScope(
           autofocus: true,
           // §17: derive ONE form-factor decision at the screen level and
           // thread it to the tab strip so the header and the body agree.
@@ -473,7 +485,7 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
                   _SequencerTabBar(
                     colors: colors,
                     controller: _tabController,
-                    isRunning: isRunning,
+                    executionState: executionState,
                     isPhone: isPhone,
                   ),
 

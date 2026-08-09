@@ -10,6 +10,8 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 void main() {
+  var databaseReads = 0;
+
   CoImagingSession session() => const CoImagingSession(
         sessionId: 's1',
         ownerAccountId: 'owner',
@@ -34,13 +36,32 @@ void main() {
     List<CollabMosaic> mosaics = const [],
     SharedLibrarySummary library =
         const SharedLibrarySummary(publishedCount: 0, pulledCount: 0),
+    // Membership and contribution are separate facts, so the caption a joined
+    // rig gets depends on whether unattended sharing consent is on record.
+    // Default to on: these tests are about membership, not consent.
+    bool sharing = true,
   }) {
     return ProviderScope(
       overrides: [
+        coImagingSharingEnabledProvider.overrideWith((ref) async => sharing),
         constellationConfiguredProvider.overrideWith((ref) => configured),
         constellationHubInfoProvider.overrideWith((ref) async => null),
         constellationDisplayNameProvider.overrideWith((ref) async => ''),
+        // The screen only needs the identity to decide owner affordances. Keep
+        // this test independent of the process database; opening the default
+        // Drift store here masked UI regressions with a DB lifecycle warning.
+        constellationAccountIdProvider.overrideWith((ref) async => null),
+        databaseProvider.overrideWith((ref) {
+          databaseReads++;
+          throw StateError('Collaborative Sky must not open the app database');
+        }),
         coImagingSessionsProvider.overrideWith((ref) async => sessions),
+        coImagingPreviewProvider.overrideWith(
+          (ref, sessionId) => const Stream<CoImagingPreview>.empty(),
+        ),
+        coImagingAttributionProvider.overrideWith(
+          (ref, sessionId) async => throw StateError('not in this UI test'),
+        ),
         coImagingMembershipsProvider.overrideWith(
           (ref) =>
               membershipLoader?.call() ??
@@ -79,6 +100,7 @@ void main() {
   }
 
   testWidgets('signed-out body invites connecting to a hub', (tester) async {
+    databaseReads = 0;
     await tester.pumpWidget(host(configured: false));
     await tester.pumpAndSettle();
 
@@ -86,10 +108,12 @@ void main() {
     expect(find.text('Connect to a hub'), findsOneWidget);
     // None of the connected sections render before sign-in.
     expect(find.text('Live co-imaging'), findsNothing);
+    expect(databaseReads, 0);
   });
 
   testWidgets('connected body shows all three collaborative sections (empty)',
       (tester) async {
+    databaseReads = 0;
     await tester.pumpWidget(host(configured: true));
     await tester.pumpAndSettle();
 
@@ -105,10 +129,12 @@ void main() {
     // The shared library card renders its empty pitch.
     expect(
         find.textContaining('Never shoot the same dark twice'), findsOneWidget);
+    expect(databaseReads, 0);
   });
 
   testWidgets('a live session renders its card with a Join affordance',
       (tester) async {
+    databaseReads = 0;
     await tester.pumpWidget(host(configured: true, sessions: [session()]));
     await tester.pumpAndSettle();
 
@@ -116,10 +142,12 @@ void main() {
     expect(find.text('Join session'), findsOneWidget);
     expect(
         find.textContaining('No live sessions on this hub yet'), findsNothing);
+    expect(databaseReads, 0);
   });
 
   testWidgets('membership loading preserves the session but disables mutation',
       (tester) async {
+    databaseReads = 0;
     final membership = Completer<List<CoImagingSessionRow>>();
     await tester.pumpWidget(host(
       configured: true,
@@ -133,10 +161,12 @@ void main() {
     expect(find.text('Checking membership…'), findsOneWidget);
     expect(find.text('Join session'), findsNothing);
     expect(find.text('Leave'), findsNothing);
+    expect(databaseReads, 0);
   });
 
   testWidgets('membership error disables mutation and Retry reloads it',
       (tester) async {
+    databaseReads = 0;
     var attempts = 0;
     await tester.pumpWidget(host(
       configured: true,
@@ -164,10 +194,12 @@ void main() {
     expect(attempts, 2);
     expect(find.text('Could not verify membership'), findsNothing);
     expect(find.text('Join session'), findsOneWidget);
+    expect(databaseReads, 0);
   });
 
   testWidgets('successful matching membership enables Leave, never Join',
       (tester) async {
+    databaseReads = 0;
     await tester.pumpWidget(host(
       configured: true,
       sessions: [session()],
@@ -180,5 +212,6 @@ void main() {
     expect(find.text('You are pooling light here'), findsOneWidget);
     expect(find.text('Leave'), findsOneWidget);
     expect(find.text('Join session'), findsNothing);
+    expect(databaseReads, 0);
   });
 }

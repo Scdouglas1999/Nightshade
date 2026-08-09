@@ -57,6 +57,42 @@ class _PairingCallout extends StatelessWidget {
   }
 }
 
+/// Who has to pair before the dashboard will show anything.
+///
+/// NOT `remoteAccessInfoBody`: that string promises "Localhost stays
+/// frictionless for this machine, while non-local clients must pair", and the
+/// auth middleware has no loopback branch anywhere. From 127.0.0.1,
+/// `/api/status`, `/api/images/recent` and `/api/auth/csrf` return the same 401
+/// they return to a LAN address — only the static `/dashboard` shell is 200,
+/// and it can load no data. Kept as a literal here rather than a new l10n key
+/// because the translation table is owned elsewhere; lifting these two strings
+/// into `translations.dart` (en + es) is tracked as a follow-up.
+@visibleForTesting
+String describeRemoteAccessPairing({required bool requiresAuthentication}) {
+  if (requiresAuthentication) {
+    return 'Desktop remote access serves the same dashboard locally and on '
+        'your LAN. Every client has to pair before it can load data or control '
+        'the app — a browser on this computer is not exempt.';
+  }
+  return 'Desktop remote access serves the same dashboard locally and on your '
+      'LAN. Pairing is currently not required, so anything that can reach this '
+      'port can control the app.';
+}
+
+/// Body for the "Open on this computer" card.
+///
+/// The shipped copy told the operator to use the local link "to confirm the
+/// dashboard is working before sharing it elsewhere". Unpaired, that page is a
+/// shell with no data, so following the instruction reads as a broken server.
+@visibleForTesting
+String describeLocalDashboardAction({required bool requiresAuthentication}) {
+  if (requiresAuthentication) {
+    return 'Opens the dashboard on this computer. This browser pairs like any '
+        'other client — until it does, the page loads but stays empty.';
+  }
+  return 'Opens the dashboard on this computer.';
+}
+
 /// Turn a raw server startup failure into something an operator can act on.
 ///
 /// The panel used to surface the bare `SocketException`, clipped after two

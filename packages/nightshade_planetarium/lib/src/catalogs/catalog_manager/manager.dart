@@ -91,11 +91,72 @@ class CatalogManager {
       level: 800,
     );
 
+    await _sweepAbandonedPartials(dir);
+
     // Warm the name-search caches off the critical path so the FIRST
     // `search()` doesn't block for several seconds parsing the multi-MB
     // star/DSO files (B10). Fire-and-forget: a failed pre-warm just means the
     // first real search pays the parse cost, exactly as before.
     unawaited(prewarmSearchCaches());
+  }
+
+  /// Suffixes a download writes to before promoting the finished file into
+  /// place. `.partial` is what the unified and legacy catalog downloads use;
+  /// `.part` is what the deep-star tile fetcher writes, one per tile, inside
+  /// the `deep_stars/` subdirectory — which is why the sweep below recurses
+  /// rather than listing only the top level.
+  static const List<String> _abandonedDownloadSuffixes = ['.partial', '.part'];
+
+  /// Deletes the temp files left in the catalog directory by a download
+  /// that never finished, and returns the bytes reclaimed.
+  ///
+  /// Every download writes to `<name>.partial` and promotes it on success; the
+  /// `finally` that removes it only runs if the process lives that long. A
+  /// crash, a kill, or a power cut during the multi-hundred-megabyte GLADE+
+  /// download therefore strands the whole partial on disk forever: nothing
+  /// deletes it, no screen mentions it, and the catalog page happily offers a
+  /// fresh download beside it. (Observed: a 407 MiB
+  /// `glade_plus_galaxies.csv.partial` six weeks old.) A partial is never
+  /// resumable — each attempt truncates the temp file — so it is pure dead
+  /// weight and reclaiming it at startup is safe.
+  ///
+  /// Runs before any download this process starts, so it can never race one.
+  Future<int> _sweepAbandonedPartials(Directory dir) async {
+    var reclaimed = 0;
+    try {
+      await for (final entity in dir.list(
+        recursive: true,
+        followLinks: false,
+      )) {
+        if (entity is! File) continue;
+        if (!_abandonedDownloadSuffixes.any(entity.path.endsWith)) continue;
+        try {
+          final size = await entity.length();
+          await entity.delete();
+          reclaimed += size;
+          developer.log(
+            '[Catalog] removed abandoned download ${entity.path} '
+            '(${(size / 1024 / 1024).toStringAsFixed(1)} MB reclaimed)',
+            name: 'CatalogManager',
+            level: 800,
+          );
+        } catch (e) {
+          // A locked or unreadable leftover is not worth failing startup over.
+          developer.log(
+            '[Catalog] could not remove ${entity.path}: $e',
+            name: 'CatalogManager',
+            level: 900,
+          );
+        }
+      }
+    } catch (e) {
+      developer.log(
+        '[Catalog] could not scan for abandoned downloads: $e',
+        name: 'CatalogManager',
+        level: 900,
+      );
+    }
+    return reclaimed;
   }
 
   /// Eagerly parse the installed DSO + star catalogs into their in-memory

@@ -25,6 +25,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/services/stacking_engine_seam.dart'
     show LinearFrameData, StackingEngineSeam;
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 /// A stretch-engine seam that records the channel count it was asked to
 /// auto-stretch and returns a constant RGBA buffer, so the colour vs mono branch
@@ -160,6 +161,7 @@ Future<void> _pumpScreen(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        inMemoryDatabaseOverride(),
         stackResultViewerProvider(result.id!)
             .overrideWith((ref) async => result),
         stackAndShareProvider.overrideWith(
@@ -194,6 +196,7 @@ Future<_FakeStackAndShareNotifier> _pumpDialog(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        inMemoryDatabaseOverride(),
         // No connected camera in these tests, so the dialog shows the manual
         // OSC controls directly (no auto-detected colour summary). Overriding
         // keeps the pump hermetic — no backend / native query.
@@ -249,6 +252,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            inMemoryDatabaseOverride(),
             backendProvider.overrideWith(
               (ref) => _FixedBackendNotifier(ref, backend),
             ),
@@ -352,6 +356,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            inMemoryDatabaseOverride(),
             stackResultViewerProvider(result.id!)
                 .overrideWith((ref) async => result),
             stackAndShareProvider.overrideWith(
@@ -384,6 +389,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            inMemoryDatabaseOverride(),
             stackResultViewerProvider(99).overrideWith(
               (ref) async =>
                   throw StateError('No stacked result found for id 99'),
@@ -469,6 +475,44 @@ void main() {
       expect(notifier.lastConfig!.sensorMode, 'auto');
       expect(notifier.lastConfig!.bayerPatternOverride, isNull);
       expect(notifier.lastConfig!.demosaicQuality, 'vng');
+    });
+
+    testWidgets(
+        'a bridge failure is shown as its sentence, with the raw union behind '
+        'technical details', (tester) async {
+      const raw = 'NightshadeError.imageError(field0: Failed to initialize '
+          'stacker: Reference frame has only 0 stars, need at least 5 for '
+          'alignment)';
+      await _pumpDialog(
+        tester,
+        selection: buildSelection(),
+        liveState: const StackAndShareState(
+          progress: StackAndShareProgress(phase: StackAndSharePhase.error),
+          errorMessage: raw,
+        ),
+      );
+
+      // The operator sees the sentence, never the Dart union wrapper or the
+      // flutter_rust_bridge positional-field label.
+      expect(
+        find.textContaining(
+          'Reference frame has only 0 stars, need at least 5 for alignment',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('NightshadeError.imageError'), findsNothing);
+      expect(find.textContaining('field0'), findsNothing);
+      // …and a next step they can act on.
+      expect(find.textContaining('Check focus'), findsOneWidget);
+
+      // The raw text is still one tap away.
+      expect(find.text(raw), findsNothing);
+      await tester.tap(find.widgetWithText(
+          NightshadeButton,
+          'Technical '
+          'details'));
+      await tester.pumpAndSettle();
+      expect(find.text(raw), findsOneWidget);
     });
 
     testWidgets('surfaces a LiveStackBusy error as an alert', (tester) async {

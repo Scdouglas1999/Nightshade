@@ -11,7 +11,6 @@ import '../screens/sequencer/sequencer_screen.dart';
 import '../screens/planetarium/planetarium_screen.dart';
 import '../screens/framing/framing_screen.dart';
 import '../screens/analytics/analytics_screen.dart';
-import '../screens/science/science_screen.dart';
 import '../screens/stack_result/stack_result_screen.dart';
 import '../screens/session_review/session_review_controller.dart';
 import '../screens/session_review/session_review_screen.dart';
@@ -219,20 +218,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           // Light / Observing Alerts). This standalone path is kept for deep-link
           // compatibility and redirects onto the Analytics Science tab, mapping
           // its `?tab=` sub-view onto the Analytics `?view=` param.
+          // Redirect-only by design: go_router short-circuits a route whose
+          // redirect returns non-null, so any builder here would be unreachable
+          // code that reads like a live screen.
           GoRoute(
             path: '/science',
             name: 'science',
             redirect: (context, state) {
               final sub = state.uri.queryParameters['tab'];
               return '/analytics?tab=science${sub == null ? '' : '&view=$sub'}';
-            },
-            pageBuilder: (context, state) {
-              final tabQuery = state.uri.queryParameters['tab'];
-              return CustomTransitionPage(
-                child: ScienceScreen(initialTabQuery: tabQuery),
-                transitionsBuilder: PageTransitions.slideFadeTransition,
-                transitionDuration: const Duration(milliseconds: 300),
-              );
             },
           ),
           // Stack-and-Share result viewer. Reached from `image_ready` /

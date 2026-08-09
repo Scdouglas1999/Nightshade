@@ -185,6 +185,14 @@ pub enum ProgressDetail {
         /// does for `FrameRejected.reject_path`.
         #[serde(default)]
         save_path: Option<String>,
+        /// The capture truth for this exact frame, projected out of the very
+        /// `FrameContext` the FITS writer stamped the header from. This is
+        /// what makes the `captured_images` row and the file on disk agree:
+        /// before it, the row was assembled from a second, thinner source and
+        /// landed with NULL gain / offset / temperature / pointing while the
+        /// header written microseconds earlier had all of them.
+        #[serde(default)]
+        capture: crate::scheduling::FrameCaptureMetadata,
     },
     /// Image Grading: exposure failed at least one quality threshold
     /// and was routed to the reject folder. 's integration
@@ -241,6 +249,12 @@ pub enum ProgressDetail {
         /// Sensor temperature (°C) at capture time.
         #[serde(default)]
         sensor_temp_at_capture: Option<f64>,
+        /// The capture truth for this exact frame — see
+        /// [`ProgressDetail::FrameAccepted::capture`]. A rejected frame is
+        /// still written to disk and still gets a `captured_images` row, so it
+        /// needs the same one-source stamping as an accepted one.
+        #[serde(default)]
+        capture: crate::scheduling::FrameCaptureMetadata,
     },
     /// sky-brightness adaptive exposure decision.
     /// Emitted by `expose.rs` immediately before a burst starts whenever

@@ -58,7 +58,6 @@ class _FilterExposureConfig {
   bool enabled;
   double exposureSecs;
   bool exposureEdited = false;
-  int count;
   BinningMode binning = BinningMode.one;
 
   _FilterExposureConfig({
@@ -66,10 +65,9 @@ class _FilterExposureConfig {
     required this.filterIndex,
     this.enabled = true,
     this.exposureSecs = _kWizardBroadbandFallbackSecs,
-    this.count = _kWizardExposureCountFallback,
   });
 
-  double get totalSecs => exposureSecs * count;
+  double get totalSecs => exposureSecs;
 }
 
 /// Preset for common filter+exposure combinations
@@ -139,11 +137,19 @@ class _QuickStartWizardDialogState
   bool _isSearching = false;
   DbTarget? _selectedTarget;
 
+  // A finished search that found nothing used to render as silence: no list,
+  // no message, empty RA/Dec. These carry the outcome so step 1 can say
+  // which of "your library has no such target", "your library is empty" and
+  // "the lookup itself failed" actually happened.
+  String _lastSearchQuery = '';
+  bool _searchCompleted = false;
+  Object? _searchError;
+  bool _libraryIsEmpty = false;
+
   // Step 2: Filters & Exposures
   List<_FilterExposureConfig> _filterConfigs = [];
   _ExposurePreset _selectedPreset = _ExposurePreset.custom;
   SmartNightExposureContext? _exposureContext;
-  LoopConditionType _loopType = LoopConditionType.count;
   int _loopCount = _kWizardExposureCountFallback;
 
   // Persistent text controllers for the numeric fields. Recreating these
@@ -160,8 +166,7 @@ class _QuickStartWizardDialogState
 
   /// Per-filter-row controllers, keyed by filterIndex. Created in
   /// [_initFilterConfigs] and synced from outside in [_syncFilterControllers].
-  final Map<int, ({TextEditingController exp, TextEditingController count})>
-      _filterControllers = {};
+  final Map<int, TextEditingController> _filterControllers = {};
 
   // Step 3: Automation
   bool _enableAutofocus = true;
@@ -233,19 +238,15 @@ class _QuickStartWizardDialogState
     }
   }
 
-  /// Sync the per-filter exposure/count controllers from [_filterConfigs].
+  /// Sync the per-filter exposure controllers from [_filterConfigs].
   /// Creates missing controllers and updates text only when it differs.
   void _syncFilterControllers() {
     for (final config in _filterConfigs) {
-      final pair = _filterControllers.putIfAbsent(
+      final controller = _filterControllers.putIfAbsent(
         config.filterIndex,
-        () => (
-          exp: TextEditingController(),
-          count: TextEditingController(),
-        ),
+        TextEditingController.new,
       );
-      _syncController(pair.exp, config.exposureSecs.round().toString());
-      _syncController(pair.count, config.count.toString());
+      _syncController(controller, config.exposureSecs.round().toString());
     }
   }
 
@@ -375,13 +376,6 @@ class _QuickStartWizardDialogState
   }
 
   void _initFilterConfigs(List<String> filters) {
-    // Per-filter sub-count default — honours the user's Sequencer Settings
-    // exposure-count preference (already pulled into `_loopCount` by
-    // `_applyUserDefaults`) so the wizard doesn't ship one number for the
-    // loop and a different one for each filter row.
-    final defaultCount =
-        _loopCount > 0 ? _loopCount : _kWizardExposureCountFallback;
-
     if (filters.isEmpty) {
       // No filter wheel or no filters configured - default to a single "Light" entry
       _filterConfigs = [
@@ -390,7 +384,6 @@ class _QuickStartWizardDialogState
           filterIndex: 0,
           enabled: true,
           exposureSecs: _defaultExposureForFilter('Light'),
-          count: defaultCount,
         ),
       ];
     } else {
@@ -400,7 +393,6 @@ class _QuickStartWizardDialogState
           filterIndex: entry.key,
           enabled: _isCommonFilter(entry.value),
           exposureSecs: _defaultExposureForFilter(entry.value),
-          count: defaultCount,
         );
       }).toList();
     }
@@ -445,9 +437,8 @@ class _QuickStartWizardDialogState
     _autofocusFramesController.dispose();
     _ditherPixelsController.dispose();
     _coolingTempController.dispose();
-    for (final pair in _filterControllers.values) {
-      pair.exp.dispose();
-      pair.count.dispose();
+    for (final controller in _filterControllers.values) {
+      controller.dispose();
     }
     _searchDebounce?.cancel();
     super.dispose();
@@ -468,11 +459,19 @@ class _QuickStartWizardDialogState
       setState(() {
         _searchResults = [];
         _isSearching = false;
+        _searchCompleted = false;
+        _searchError = null;
+        _lastSearchQuery = query;
       });
       return;
     }
 
-    setState(() => _isSearching = true);
+    setState(() {
+      _isSearching = true;
+      _searchCompleted = false;
+      _searchError = null;
+      _lastSearchQuery = query;
+    });
 
     _searchDebounce = Timer(const Duration(milliseconds: 300), () async {
       final authority = ref.read(backendProvider);
@@ -491,10 +490,21 @@ class _QuickStartWizardDialogState
           final dao = ref.read(targetsDaoProvider);
           results = await dao.searchTargets(query);
         }
+        // Only when a search comes back empty is it worth asking whether the
+        // library has anything in it at all — that is what separates "no
+        // match for M31" from "you have not saved any targets yet".
+        bool libraryEmpty = false;
+        if (results.isEmpty) {
+          final all = await ref.read(allDbTargetsProvider.future);
+          libraryEmpty = all.isEmpty;
+        }
         if (_isCurrentAuthority(authority, generation)) {
           setState(() {
             _searchResults = results;
             _isSearching = false;
+            _searchCompleted = true;
+            _searchError = null;
+            _libraryIsEmpty = libraryEmpty;
           });
         }
       } catch (e) {
@@ -502,6 +512,8 @@ class _QuickStartWizardDialogState
           setState(() {
             _searchResults = [];
             _isSearching = false;
+            _searchCompleted = true;
+            _searchError = e;
           });
         }
       }
@@ -515,6 +527,10 @@ class _QuickStartWizardDialogState
       _raController.text = _formatRa(target.ra);
       _decController.text = _formatDec(target.dec);
       _searchResults = [];
+      // The list is collapsing because the user picked something, not
+      // because the search failed — do not raise the empty-state message.
+      _searchCompleted = false;
+      _searchError = null;
     });
   }
 
@@ -569,20 +585,6 @@ class _QuickStartWizardDialogState
   // ---------------------------------------------------------------------------
 
   void _applyPreset(_ExposurePreset preset) {
-    // Preset sub-counts scale off the user's exposure-count preference
-    // (`_loopCount`, seeded from Sequencer Settings) rather than hardcoded
-    // literals, so a user who keeps 20-sub sessions gets proportionally more
-    // subs out of every preset. Narrowband presets bias higher (longer subs
-    // need fewer frames per signal, but users typically want extra to fight
-    // read noise on faint emission); the OSC preset banks everything into one
-    // filter so it gets a heavier weight. Multipliers, not magic numbers.
-    final base = _loopCount > 0 ? _loopCount : _kWizardExposureCountFallback;
-    int scaled(double multiplier) => (base * multiplier).round().clamp(1, 9999);
-    final broadbandCount = scaled(1.0);
-    final shoCount = scaled(1.0);
-    final haOiiiCount = scaled(1.5);
-    final oscCount = scaled(2.0);
-
     setState(() {
       _selectedPreset = preset;
 
@@ -595,7 +597,6 @@ class _QuickStartWizardDialogState
                 lower == 'l' || lower == 'r' || lower == 'g' || lower == 'b';
             config.exposureSecs = _defaultExposureForFilter(config.filterName);
             config.exposureEdited = false;
-            config.count = broadbandCount;
             config.binning = BinningMode.one;
 
           case _ExposurePreset.narrowbandSho:
@@ -605,7 +606,6 @@ class _QuickStartWizardDialogState
                 lower == 'oiii';
             config.exposureSecs = _defaultExposureForFilter(config.filterName);
             config.exposureEdited = false;
-            config.count = shoCount;
             config.binning = BinningMode.one;
 
           case _ExposurePreset.narrowbandHaOiii:
@@ -613,14 +613,12 @@ class _QuickStartWizardDialogState
                 lower == 'ha' || lower == 'h-alpha' || lower == 'oiii';
             config.exposureSecs = _defaultExposureForFilter(config.filterName);
             config.exposureEdited = false;
-            config.count = haOiiiCount;
             config.binning = BinningMode.one;
 
           case _ExposurePreset.oscNoFilter:
             config.enabled = config.filterIndex == 0;
             config.exposureSecs = _defaultExposureForFilter(config.filterName);
             config.exposureEdited = false;
-            config.count = oscCount;
             config.binning = BinningMode.one;
 
           case _ExposurePreset.custom:
@@ -757,7 +755,9 @@ class _QuickStartWizardDialogState
         id: expId,
         name: filterConfig.filterName,
         durationSecs: filterConfig.exposureSecs,
-        count: 1, // 1 per loop iteration; loop controls total count
+        // One frame per filter per loop pass; the single Frames/filter
+        // control is represented by this loop's repeat count below.
+        count: 1,
         filter: hasFilterWheel ? filterConfig.filterName : null,
         filterIndex: hasFilterWheel ? filterConfig.filterIndex : null,
         binning: filterConfig.binning,
@@ -788,8 +788,8 @@ class _QuickStartWizardDialogState
     nodes[loopId] = LoopNode(
       id: loopId,
       name: 'Capture Loop',
-      conditionType: _loopType,
-      repeatCount: _loopType == LoopConditionType.count ? _loopCount : null,
+      conditionType: LoopConditionType.count,
+      repeatCount: _loopCount,
       parentId: rootId,
       orderIndex: orderIndex++,
       childIds: loopChildIds,
@@ -1106,7 +1106,7 @@ class _QuickStartWizardDialogState
 
   String _buildDescription(List<_FilterExposureConfig> enabledFilters) {
     final filterSummary = enabledFilters
-        .map((f) => '${f.filterName}: ${f.count}x${f.exposureSecs.round()}s')
+        .map((f) => '${f.filterName}: ${_loopCount}x${f.exposureSecs.round()}s')
         .join(', ');
     final features = <String>[];
     if (_enableAutofocus) features.add('autofocus');
@@ -1132,13 +1132,7 @@ class _QuickStartWizardDialogState
     }
     if (_enableDithering) perIterationSecs += _ditherSettleSecsForEstimate();
 
-    double totalSecs;
-    if (_loopType == LoopConditionType.count) {
-      totalSecs = perIterationSecs * _loopCount;
-    } else {
-      // For unbounded loops, show per-iteration time
-      totalSecs = perIterationSecs;
-    }
+    final totalSecs = perIterationSecs * _loopCount;
 
     // Add overhead: cooling ~5min, slew+center ~3min, autofocus ~2min, warm ~5min
     double overheadSecs = 0;
@@ -1151,27 +1145,12 @@ class _QuickStartWizardDialogState
   }
 
   String _formatDuration(double totalSecs) {
-    if (_loopType != LoopConditionType.count) {
-      final perIter = _estimatedPerIterationSecs();
-      final mins = (perIter / 60).round();
-      return '~${mins}m/iteration (runs until stopped)';
-    }
     final hours = (totalSecs / 3600).floor();
     final mins = ((totalSecs % 3600) / 60).round();
     if (hours > 0) {
       return '~${hours}h ${mins}m';
     }
     return '~${mins}m';
-  }
-
-  double _estimatedPerIterationSecs() {
-    final enabledFilters = _filterConfigs.where((f) => f.enabled).toList();
-    double perIter = 0;
-    for (final f in enabledFilters) {
-      perIter += f.exposureSecs;
-    }
-    if (_enableDithering) perIter += _ditherSettleSecsForEstimate();
-    return perIter;
   }
 
   /// Per-iteration dither-settle estimate used by the duration preview.

@@ -8,8 +8,10 @@ export 'src/coordinate_system.dart';
 
 // Catalogs
 export 'src/catalogs/catalog.dart';
+export 'src/catalogs/hyg_depth.dart';
 export 'src/catalogs/star_catalog.dart';
 export 'src/catalogs/constellation_data.dart';
+export 'src/catalogs/constellation_names.dart';
 export 'src/catalogs/constellation_art.dart';
 export 'src/catalogs/catalog_manager.dart';
 export 'src/catalogs/hyperleda_catalog.dart';
@@ -47,6 +49,7 @@ export 'src/services/element_refresh_service.dart';
 
 // Planning
 export 'src/planning/target_scoring.dart';
+export 'src/planning/tonight_ranking.dart';
 export 'src/planning/weighted_score.dart';
 
 // Providers

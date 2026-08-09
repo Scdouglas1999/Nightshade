@@ -15,7 +15,6 @@ import 'widgets/switch_control_card.dart';
 import 'dialogs/profile_editor_dialog.dart';
 import 'tabs/settings_tab.dart';
 import 'utils/connect_all_summary.dart';
-import 'utils/driver_error_pretty.dart';
 import 'utils/equipment_disconnect.dart';
 import '../../localization/nightshade_localizations.dart';
 import '../../utils/cooled_camera_guard.dart';
@@ -25,6 +24,7 @@ import '../../widgets/contextual_tour_prompt.dart';
 import '../sequencer/widgets/run_dashboard/recovery_banner.dart';
 
 part 'equipment_screen/layout_rail.dart';
+part 'equipment_screen/profile_undo.dart';
 part 'equipment_screen/progress_dashboard.dart';
 part 'equipment_screen/sidebar_onboarding.dart';
 
@@ -86,12 +86,10 @@ class EquipmentScreen extends ConsumerStatefulWidget {
 }
 
 class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
-  /// Bumped on any profile mutation so delete-undo cannot race edits.
-  int _profileMutationEpoch = 0;
   int _profileOperationGeneration = 0;
 
   void _bumpProfileMutationEpoch() {
-    _profileMutationEpoch++;
+    ref.read(profileMutationEpochProvider.notifier).state++;
   }
 
   bool _isCurrentProfileOperation(
@@ -181,6 +179,8 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
               constraints.maxWidth < NightshadeTokens.breakpointTablet;
 
           final profileSidebar = ProfileSidebar(
+            // Spotlight target for the Equipment Setup tour's first step.
+            key: EquipmentTutorialKeys.profileSelector,
             selectedProfileId: selectedProfileId,
             onProfileSelected: (id) {
               ref.read(selectedEquipmentProfileIdProvider.notifier).state = id;
@@ -190,6 +190,7 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
             onConnectAll: _connectAllDevices,
             onDisconnectAll: _disconnectAllDevices,
             onSetDefault: _setDefaultProfile,
+            onActivateProfile: _activateProfile,
             onDuplicateProfile: _duplicateProfile,
             onDeleteProfile: _deleteProfile,
             onReorderProfiles: _reorderProfiles,
@@ -328,17 +329,50 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
     context.go('/onboarding');
   }
 
+  /// Point the app at [profile] for this session without touching which
+  /// profile loads at startup.
+  ///
+  /// `setActiveProfile` is the app's single, remote-aware activation
+  /// authority (it pushes the row into the native executor before committing
+  /// SQLite), and it was already reachable from Settings → Equipment Profiles
+  /// — just not from the screen where the profiles actually live.
+  Future<void> _activateProfile(EquipmentProfileModel profile) async {
+    final profileId = profile.id;
+    if (profileId == null) return;
+    final authority = ref.read(backendProvider);
+    final generation = ++_profileOperationGeneration;
+    try {
+      await ref
+          .read(equipmentProfilesProvider.notifier)
+          .setActiveProfile(profileId);
+      if (!_isCurrentProfileOperation(generation, authority)) return;
+      if (!mounted) return;
+      _bumpProfileMutationEpoch();
+      context.showSuccessSnackBar('Now using "${profile.name}"');
+    } catch (e) {
+      if (!_isCurrentProfileOperation(generation, authority)) return;
+      if (!mounted) return;
+      context.showErrorSnackBar(
+        'Could not switch to "${profile.name}": $e',
+      );
+    }
+  }
+
   Future<void> _setDefaultProfile(EquipmentProfileModel profile) async {
     final authority = ref.read(backendProvider);
     final generation = ++_profileOperationGeneration;
     try {
-      // The notifier's local setDefaultProfile(makeActive:true) branch now owns
-      // the native (Rust) executor write-through, so the GUI no longer needs a
-      // second manual push here; remote mode still routes activation through the
-      // host's REST loadProfile. Single authority = no split-brain activation.
+      // makeActive: false — the star means "Make Startup Default" and nothing
+      // else. Switching which rig is in use is its own action now ("Use This
+      // Profile" / [_activateProfile]), so starring a profile you are not
+      // imaging with must not yank the session onto it and re-push its devices
+      // to the Rust executor mid-run. Settings > Equipment Profiles has always
+      // treated the same action this way (screen_shell.dart _setDefaultProfile);
+      // this is the Equipment screen catching up rather than two surfaces
+      // disagreeing about what one label does.
       await ref
           .read(equipmentProfilesProvider.notifier)
-          .setDefaultProfile(profile.id, makeActive: true);
+          .setDefaultProfile(profile.id, makeActive: false);
       if (!_isCurrentProfileOperation(generation, authority)) return;
       if (!mounted) return;
       _bumpProfileMutationEpoch();
@@ -417,7 +451,7 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
           .deleteProfile(profileId);
       if (!_isCurrentProfileOperation(generation, backendAtDelete)) return;
       _bumpProfileMutationEpoch();
-      final epochAtDelete = _profileMutationEpoch;
+      final epochAtDelete = ref.read(profileMutationEpochProvider);
 
       // If we deleted the selected profile, select another one
       final selectedId = ref.read(selectedEquipmentProfileIdProvider);
@@ -435,17 +469,36 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
 
       if (mounted) {
         final messenger = ScaffoldMessenger.of(context);
+        // Everything the Undo needs is captured HERE, while the screen is
+        // alive: the messenger and the container both outlive this route, so
+        // the offer still works after the operator navigates away.
+        final container = ProviderScope.containerOf(context, listen: false);
+        final colors = NightshadeColors.of(context);
+        final l10n = context.l10n;
         messenger.hideCurrentSnackBar();
         messenger.showSnackBar(
           SnackBar(
             content: Text(context.l10n.text('equipmentProfileDeleted',
                 params: {'name': deletedProfile.name})),
             duration: const Duration(seconds: 6),
+            // `persist` defaults to `action != null` in Flutter 3.44
+            // (SnackBar's constructor), and ScaffoldMessenger's timer returns
+            // without hiding when it is set — so `duration` was inert and this
+            // bar sat over the status bar (profile, device states, focuser
+            // position, temperature, clock, LST) until the app was restarted.
+            // An undo offer is not a modal: honour the 6 s window and give the
+            // operator an explicit ✕ as well.
+            persist: false,
+            showCloseIcon: true,
             action: SnackBarAction(
               label: context.l10n.text('commonUndo'),
               onPressed: () {
-                unawaited(_restoreDeletedProfile(
+                unawaited(restoreDeletedProfile(
                   deletedProfile,
+                  container: container,
+                  messenger: messenger,
+                  colors: colors,
+                  l10n: l10n,
                   localExportJson: deletedProfileJson,
                   epochAtDelete: epochAtDelete,
                   backendOwner: backendOwner,
@@ -504,77 +557,6 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
     }
   }
 
-  Future<void> _restoreDeletedProfile(
-    EquipmentProfileModel deletedProfile, {
-    required String? localExportJson,
-    required int epochAtDelete,
-    required BackendNotifier backendOwner,
-    required NightshadeBackend backendAtDelete,
-  }) async {
-    if (epochAtDelete != _profileMutationEpoch) {
-      if (mounted) {
-        context.showWarningSnackBar(
-          'Undo expired — profiles changed after the delete.',
-        );
-      }
-      return;
-    }
-
-    if (!backendOwner.isCurrentBackend(backendAtDelete)) {
-      if (mounted) {
-        context.showWarningSnackBar(
-          'Undo expired — the connected imaging host changed.',
-        );
-      }
-      return;
-    }
-
-    final generation = ++_profileOperationGeneration;
-    try {
-      final int restoredId;
-      if (backendAtDelete is NetworkBackend) {
-        final notifier = ref.read(equipmentProfilesProvider.notifier);
-        restoredId = await notifier.updateProfile(
-          deletedProfile.toInsertionCopy(name: deletedProfile.name),
-        );
-        if (!_isCurrentProfileOperation(generation, backendAtDelete)) return;
-        if (deletedProfile.isDefault) {
-          await notifier.setDefaultProfile(restoredId, makeActive: true);
-        } else if (deletedProfile.isActive) {
-          await notifier.setActiveProfile(restoredId);
-        }
-        if (!_isCurrentProfileOperation(generation, backendAtDelete)) return;
-      } else {
-        if (localExportJson == null) {
-          throw StateError('The local profile undo payload is missing.');
-        }
-        restoredId = await ref
-            .read(profileServiceProvider)
-            .importProfileFromJson(localExportJson);
-        if (!_isCurrentProfileOperation(generation, backendAtDelete)) return;
-        if (deletedProfile.isActive) {
-          await ref
-              .read(equipmentProfilesProvider.notifier)
-              .setActiveProfile(restoredId);
-        }
-        if (!_isCurrentProfileOperation(generation, backendAtDelete)) return;
-      }
-      _bumpProfileMutationEpoch();
-      ref.read(selectedEquipmentProfileIdProvider.notifier).state = restoredId;
-      if (mounted) {
-        context.showSuccessSnackBar(
-          context.l10n.text('equipmentProfileRestored'),
-        );
-      }
-    } catch (e) {
-      if (!_isCurrentProfileOperation(generation, backendAtDelete)) return;
-      if (!mounted) return;
-      context.showErrorSnackBar(
-        context.l10n.text('equipmentRestoreFailed', params: {'error': '$e'}),
-      );
-    }
-  }
-
   // ============================================================================
   // Device Connection Operations
   // ============================================================================
@@ -585,7 +567,10 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
     final progressNotifier =
         ref.read(deviceConnectionProgressProvider.notifier);
 
-    // Count how many devices we need to connect
+    // Count how many devices we need to connect. Must list every slot the
+    // sweep itself dispatches (see DeviceService.connectAllFromProfile),
+    // otherwise a profile holding only a safety monitor and a power switch is
+    // turned away as "no devices configured" and then connects nothing.
     final deviceIds = [
       profile.cameraId,
       profile.mountId,
@@ -595,6 +580,8 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
       profile.rotatorId,
       profile.domeId,
       profile.weatherId,
+      profile.safetyMonitorId,
+      profile.switchId,
       profile.coverCalibratorId,
     ].where((id) => id != null && id.isNotEmpty).toList();
 
@@ -657,51 +644,20 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
       progressNotifier.endSweep();
     }
 
-    // Try to auto-connect safety monitor if available. The profile may
-    // not list a safety monitor id, but the unified discovery panel may
-    // have surfaced one — connect to that as a best-effort.
-    try {
-      final safetyState = ref.read(safetyMonitorStateProvider);
-      if (safetyState.connectionState == DeviceConnectionState.disconnected) {
-        final safetyMonitors = ref.read(unifiedSafetyMonitorsProvider);
-        if (safetyMonitors.isNotEmpty) {
-          final safetyId = safetyMonitors.first.activeDeviceId;
-          progressNotifier.record(DeviceConnectProgress(
-            deviceType: 'safety monitor',
-            deviceId: safetyId,
-            status: DeviceConnectProgressStatus.connecting,
-          ));
-          try {
-            await deviceService.connectSafetyMonitor(safetyId);
-            successCount++;
-            progressNotifier.record(DeviceConnectProgress(
-              deviceType: 'safety monitor',
-              deviceId: safetyId,
-              status: DeviceConnectProgressStatus.connected,
-            ));
-          } catch (e) {
-            failCount++;
-            failures.add(ConnectAllFailure(
-              deviceType: 'safety monitor',
-              message: PrettyError.format(e.toString()).short,
-            ));
-            ref.read(loggingServiceProvider).warning(
-                  'Connect All failed for safety monitor: $e',
-                  source: 'EquipmentScreen',
-                );
-            progressNotifier.record(DeviceConnectProgress(
-              deviceType: 'safety monitor',
-              deviceId: safetyId,
-              status: DeviceConnectProgressStatus.failed,
-              error: e,
-              errorMessage: e.toString(),
-            ));
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('Error during connect all: $e');
-    }
+    // NOTHING ELSE IS CONNECTED HERE. "Connect All" sits under the profile
+    // card and means "connect this profile's devices" — the sweep above, which
+    // already includes the profile's safety monitor and switch.
+    //
+    // This used to best-effort connect `unifiedSafetyMonitorsProvider.first`
+    // whenever no safety monitor was connected, whether or not the profile
+    // listed one. That provider is fed by the discovery cache, so two identical
+    // presses produced different rigs: the first press connected the profile's
+    // four devices, and a press after the Discovery panel had re-scanned
+    // connected those four PLUS an unassigned simulated safety monitor — the
+    // header read "5 connected · 1 unsaved" while the profile card and status
+    // bar both still read 4/4, and the extra device silently vanished on the
+    // next launch because it was never in the profile. A device that is not in
+    // the profile is assigned in Discovery, deliberately, once.
 
     if (!mounted) return;
 

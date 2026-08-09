@@ -155,6 +155,8 @@ abstract class Sequence with _$Sequence {
         count += node.count;
       } else if (node is SmartExposureNode && node.isEnabled) {
         count += node.plans.fold(0, (s, p) => s + p.count);
+      } else if (node is SciencePhotometryNode && node.isEnabled) {
+        count += node.count;
       }
     }
     return count;
@@ -174,6 +176,11 @@ abstract class Sequence with _$Sequence {
       count += node.count * mult;
     } else if (node is SmartExposureNode) {
       count += node.plans.fold(0, (s, p) => s + p.count) * mult;
+    } else if (node is SciencePhotometryNode) {
+      // A photometry burst captures `count` frames through the standard
+      // TakeExposure pipeline. Omitting it made the sequence header read
+      // "0 frames" for a node whose own properties panel said 60.
+      count += node.count * mult;
     }
 
     int childMultiplier = mult;
@@ -196,6 +203,16 @@ abstract class Sequence with _$Sequence {
   /// Estimate integration time with overhead awareness.
   /// Walks the sequence tree counting occurrences of each operation type
   /// and applies configurable per-operation overhead estimates.
+  ///
+  /// NOT the model any UI surface bills against — do not reach for it from one.
+  /// Its per-node costs are flat constants that know nothing about a node's own
+  /// configuration (a Cool Camera is billed a fixed "cooling" figure rather
+  /// than its configured duration) and it has no entry at all for the
+  /// clock-dependent nodes. Pointing the Builder's estimate chip at it while
+  /// the Pre-Flight panel used [SequenceTimeEstimator] is what made the two
+  /// print different totals for the same sequence. Every estimate surface now
+  /// goes through [SequenceTimeEstimator.nodeDuration] with the overhead config
+  /// from `sequencerOverheadConfigProvider`.
   SequenceEstimate estimateWithOverhead({
     SequenceOverheadConfig config = const SequenceOverheadConfig(),
     DateTime? referenceTime,
@@ -286,6 +303,11 @@ abstract class Sequence with _$Sequence {
       for (final node in nodes.values) {
         if (node is ExposureNode && node.isEnabled) {
           total += node.totalDurationSecs;
+        } else if (node is SmartExposureNode && node.isEnabled) {
+          // Same omission as the tree walk below, on the flat fallback path:
+          // [totalExposures] already counts SmartExposure frames here, so
+          // leaving them out of the duration made the two disagree.
+          total += _smartExposureIntegration(node).estimatedSecs;
         }
       }
       return SequenceEstimate(
@@ -297,6 +319,47 @@ abstract class Sequence with _$Sequence {
 
     // Walk the tree from root
     return _estimateNodeIntegration(rootNodeId!, referenceTime);
+  }
+
+  /// Integration a [SmartExposureNode] will actually accumulate, following the
+  /// executor's own stopping rules (`smart_exposure.rs`):
+  ///
+  ///  * `loopUntilStopped` ignores the per-plan counts entirely and rotates one
+  ///    sub per filter until the budget or the surrounding target window ends
+  ///    it. With a budget that IS the estimate; without one the only bound is
+  ///    the target window, so the node is unbounded and we report a single
+  ///    rotation the way the unbounded loop kinds do.
+  ///  * Otherwise the plans run to completion, but a positive budget
+  ///    short-circuits them, so the estimate cannot exceed it.
+  SequenceEstimate _smartExposureIntegration(SmartExposureNode node) {
+    final oneRotation = node.plans.fold<double>(
+      0,
+      (sum, plan) => sum + plan.durationSecs,
+    );
+    final budget = node.integrationBudgetSecs;
+
+    if (node.loopUntilStopped) {
+      if (budget > 0) {
+        return SequenceEstimate(
+          estimatedSecs: budget,
+          singleIterationSecs: oneRotation,
+          isUnbounded: false,
+        );
+      }
+      return SequenceEstimate(
+        estimatedSecs: oneRotation,
+        singleIterationSecs: oneRotation,
+        isUnbounded: true,
+      );
+    }
+
+    var duration = node.totalIntegrationSecs;
+    if (budget > 0 && budget < duration) duration = budget;
+    return SequenceEstimate(
+      estimatedSecs: duration,
+      singleIterationSecs: duration,
+      isUnbounded: false,
+    );
   }
 
   /// Recursively estimate integration time for a node and its children
@@ -316,6 +379,27 @@ abstract class Sequence with _$Sequence {
     // For exposure nodes, return the direct duration
     if (node is ExposureNode) {
       final duration = node.totalDurationSecs;
+      return SequenceEstimate(
+        estimatedSecs: duration,
+        singleIterationSecs: duration,
+        isUnbounded: false,
+      );
+    }
+
+    // Smart Exposure is an imaging node like any other: its per-filter plans
+    // are frames on disk. Omitting it made [totalIntegrationSecs] — and the
+    // `estimated_duration_mins` column the library card renders — report only
+    // the plain ExposureNodes, so a sequence of one 10x60s TakeExposure plus
+    // one 10x60s SmartExposure was stored and shown as "10m" for 20 frames.
+    if (node is SmartExposureNode) {
+      return _smartExposureIntegration(node);
+    }
+
+    // A photometry burst is integration time like any other: `count` frames of
+    // `exposureSecs`. Leaving it out reported "0m" for a node that occupies an
+    // hour of the night.
+    if (node is SciencePhotometryNode) {
+      final duration = node.exposureSecs * node.count;
       return SequenceEstimate(
         estimatedSecs: duration,
         singleIterationSecs: duration,

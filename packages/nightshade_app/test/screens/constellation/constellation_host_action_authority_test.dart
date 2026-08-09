@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/screens/constellation/constellation_ui_providers.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 class _MockFfiBackend extends Mock implements FfiBackend {}
 
@@ -17,6 +18,7 @@ class _FixedBackendNotifier extends BackendNotifier {
 bool _enabledFor(NightshadeBackend backend) {
   final container = ProviderContainer(
     overrides: [
+      inMemoryDatabaseOverride(),
       backendProvider.overrideWith(
         (ref) => _FixedBackendNotifier(ref, backend),
       ),

@@ -293,6 +293,7 @@ class _PanelLayer extends StatelessWidget {
               top: centerPx.dy - 6,
               child: IgnorePointer(
                 child: Container(
+                  key: const ValueKey('mosaic_center_handle'),
                   width: 12,
                   height: 12,
                   decoration: BoxDecoration(
@@ -303,13 +304,32 @@ class _PanelLayer extends StatelessWidget {
                 ),
               ),
             ),
+            // The numbers are their own layer, drawn AFTER the centre handle.
+            // Moving them from each cell's centre to its top-left corner
+            // cleared the handle for ODD grids, where the handle sits in the
+            // middle of a cell — but an even grid puts the handle on the
+            // shared CORNER of four cells, which is exactly where a top-left
+            // badge lives, so the collision came back on 2x2 / 4x4 (and gets
+            // worse as overlap % grows, which pulls the corner further in).
+            // No placement clears the handle for every grid parity, so the
+            // number wins the z-order instead: the digit is the information
+            // the operator needs to map the picture onto the plan, and the
+            // handle stays readable as a dot behind it.
+            for (final p in panels) _panelNumber(p, centerPx),
           ],
         ),
       );
     });
   }
 
-  Widget _panelWidget(_PanelPosition p, Offset centerPx) {
+  /// Where a panel's cell lands on the planner canvas, in pixels.
+  ///
+  /// Shared by the panel body and its number badge so the two layers cannot
+  /// drift apart.
+  ({Offset topLeft, Size size}) _panelGeometry(
+    _PanelPosition p,
+    Offset centerPx,
+  ) {
     final dRaDeg = (p.ra - centerRa) * 15;
     final dDecDeg = p.dec - centerDec;
     final decRad = centerDec * math.pi / 180.0;
@@ -325,17 +345,29 @@ class _PanelLayer extends StatelessWidget {
     final pxWidth = (panelWidthArcmin / 60.0) * pxPerDeg;
     final pxHeight = (panelHeightArcmin / 60.0) * pxPerDeg;
 
+    return (
+      topLeft: Offset(
+        panelCenterPx.dx - pxWidth / 2,
+        panelCenterPx.dy - pxHeight / 2,
+      ),
+      size: Size(pxWidth, pxHeight),
+    );
+  }
+
+  Widget _panelWidget(_PanelPosition p, Offset centerPx) {
+    final g = _panelGeometry(p, centerPx);
+
     return Positioned(
-      left: panelCenterPx.dx - pxWidth / 2,
-      top: panelCenterPx.dy - pxHeight / 2,
+      left: g.topLeft.dx,
+      top: g.topLeft.dy,
       child: Transform.rotate(
         angle: rotation * math.pi / 180.0,
         child: GestureDetector(
           key: ValueKey('mosaic_panel_${p.row}_${p.col}'),
           onTap: () => onPanelToggle(p),
           child: Container(
-            width: pxWidth,
-            height: pxHeight,
+            width: g.size.width,
+            height: g.size.height,
             decoration: BoxDecoration(
               color: p.enabled
                   ? colors.primary.withValues(alpha: 0.18)
@@ -349,14 +381,54 @@ class _PanelLayer extends StatelessWidget {
                 width: 1.5,
               ),
             ),
-            child: Center(
-              child: Text(
-                '${p.index + 1}',
-                style: TextStyle(
-                  fontSize: math.max(10, pxWidth * 0.12),
-                  // absolute: disabled panel index over the dark sky canvas
-                  color: p.enabled ? colors.textPrimary : Colors.white24,
-                  fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The panel number, drawn in its own top-most layer.
+  ///
+  /// It sits in the cell's top-left corner rather than its centre: centred,
+  /// the middle panel of any odd grid was hidden under the drag-centre
+  /// handle. It is pointer-transparent so a tap still toggles the panel
+  /// underneath, and it is the last thing painted so neither the handle nor
+  /// a neighbouring panel's overlap fill can sit on top of a digit.
+  Widget _panelNumber(_PanelPosition p, Offset centerPx) {
+    final g = _panelGeometry(p, centerPx);
+
+    return Positioned(
+      left: g.topLeft.dx,
+      top: g.topLeft.dy,
+      child: IgnorePointer(
+        child: Transform.rotate(
+          angle: rotation * math.pi / 180.0,
+          child: SizedBox(
+            width: g.size.width,
+            height: g.size.height,
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding: const EdgeInsets.all(3),
+                child: Container(
+                  key: ValueKey('mosaic_panel_number_${p.row}_${p.col}'),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                  decoration: BoxDecoration(
+                    // absolute: label scrim over the dark sky planner canvas
+                    color: Colors.black.withValues(alpha: 0.55),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline4),
+                  ),
+                  child: Text(
+                    '${p.index + 1}',
+                    style: TextStyle(
+                      fontSize: math.max(10, g.size.width * 0.12),
+                      // absolute: disabled panel index over the dark sky canvas
+                      color: p.enabled ? colors.textPrimary : Colors.white24,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ),
             ),

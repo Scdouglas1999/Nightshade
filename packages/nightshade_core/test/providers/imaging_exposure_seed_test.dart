@@ -6,6 +6,7 @@ import 'package:nightshade_core/src/providers/profiles_provider.dart';
 import 'package:nightshade_core/src/providers/session_optimizer_provider.dart';
 import 'package:nightshade_core/src/services/session_optimizer_service.dart';
 import 'package:nightshade_core/src/services/smart_night/exposure_calculator.dart';
+import '../harness/in_memory_database.dart';
 
 /// A pure-value Smart Night context used as the recommendation source. The
 /// physics model rounds the recommendation to a clean value; with this rig the
@@ -34,6 +35,7 @@ ProviderContainer _buildContainer({
 }) {
   return ProviderContainer(
     overrides: [
+      inMemoryDatabaseOverride(),
       activeEquipmentProfileProvider.overrideWithValue(
         EquipmentProfileModel(
           id: profileId,
@@ -54,38 +56,39 @@ ProviderContainer _buildContainer({
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('seeds gain/offset and Smart Night exposure when the user has not '
-      'edited anything', () async {
-    final container = _buildContainer(
-      profileId: 11,
-      defaultGain: 200,
-      defaultOffset: 30,
-    );
-    addTearDown(container.dispose);
+  test(
+    'seeds safe exposure and profile camera defaults when no snapshot is saved',
+    () async {
+      final container = _buildContainer(
+        profileId: 11,
+        defaultGain: 200,
+        defaultOffset: 30,
+      );
+      addTearDown(container.dispose);
 
-    expect(
-      container.read(exposureSettingsUserDirtyProvider),
-      isFalse,
-      reason: 'dirty flag must default to false',
-    );
+      expect(
+        container.read(exposureSettingsUserDirtyProvider),
+        isFalse,
+        reason: 'dirty flag must default to false',
+      );
 
-    await container.read(smartNightExposureContextProvider.future);
-    container.read(syncExposureFromProfileProvider);
-    await Future<void>.delayed(Duration.zero);
+      container.read(syncExposureFromProfileProvider);
+      await pumpEventQueue(times: 20);
 
-    final settings = container.read(exposureSettingsProvider);
-    expect(settings.gain, 200, reason: 'profile defaultGain should seed');
-    expect(settings.offset, 30, reason: 'profile defaultOffset should seed');
-    expect(settings.frameType, FrameType.light);
-    expect(
-      settings.exposureTime,
-      30,
-      reason: 'Smart Night recommendation should seed the light exposure',
-    );
-  });
+      final settings = container.read(exposureSettingsProvider);
+      expect(settings.gain, 200, reason: 'profile defaultGain should seed');
+      expect(settings.offset, 30, reason: 'profile defaultOffset should seed');
+      expect(settings.frameType, FrameType.light);
+      expect(
+        settings.exposureTime,
+        2,
+        reason: 'manual imaging must use the safe cold-start exposure',
+      );
+    },
+  );
 
   test(
-    'skips all seeding and preserves user values when dirty flag is set',
+    'manual values are preserved when profile hydration races the edit',
     () async {
       final container = _buildContainer(
         profileId: 12,
@@ -94,16 +97,18 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      // Simulate a manual edit: user picked their own values and the UI flipped
-      // the dirty flag (the flip itself lives in camera_panel / camera_presets).
-      container.read(exposureSettingsProvider.notifier).state = container
-          .read(exposureSettingsProvider)
-          .copyWith(exposureTime: 45, gain: 77, offset: 11);
-      container.read(exposureSettingsUserDirtyProvider.notifier).state = true;
+      // Simulate a manual edit through the same explicit persistence path used
+      // by the capture controls.
+      container
+          .read(manualExposureSettingsUpdaterProvider)
+          .update(
+            container
+                .read(exposureSettingsProvider)
+                .copyWith(exposureTime: 45, gain: 77, offset: 11),
+          );
 
-      await container.read(smartNightExposureContextProvider.future);
       container.read(syncExposureFromProfileProvider);
-      await Future<void>.delayed(Duration.zero);
+      await pumpEventQueue(times: 20);
 
       final settings = container.read(exposureSettingsProvider);
       expect(settings.exposureTime, 45, reason: 'manual exposure preserved');
@@ -120,28 +125,26 @@ void main() {
     },
   );
 
-  test('exposureTime == 120 no longer governs: a dirty 120 s light frame is not '
-      're-seeded by Smart Night', () async {
-    final container = _buildContainer(profileId: 13);
-    addTearDown(container.dispose);
+  test(
+    'the cold-start value is no longer the historical 120 seconds',
+    () async {
+      final container = _buildContainer(profileId: 13);
+      addTearDown(container.dispose);
 
-    // The old heuristic re-seeded any 120 s light frame. With the dirty flag
-    // set, the literal 120 s default the user deliberately chose must survive.
-    expect(
-      container.read(exposureSettingsProvider).exposureTime,
-      120,
-      reason: 'sanity: the no-recommendation fallback default is still 120',
-    );
-    container.read(exposureSettingsUserDirtyProvider.notifier).state = true;
+      expect(
+        container.read(exposureSettingsProvider).exposureTime,
+        2,
+        reason: 'sanity: snapshot default is short and safe',
+      );
 
-    await container.read(smartNightExposureContextProvider.future);
-    container.read(syncExposureFromProfileProvider);
-    await Future<void>.delayed(Duration.zero);
+      container.read(syncExposureFromProfileProvider);
+      await pumpEventQueue(times: 20);
 
-    expect(
-      container.read(exposureSettingsProvider).exposureTime,
-      120,
-      reason: 'dirty 120 s light frame must not be re-seeded to 30 s',
-    );
-  });
+      expect(
+        container.read(exposureSettingsProvider).exposureTime,
+        2,
+        reason: 'manual imaging does not apply Smart Night recommendations',
+      );
+    },
+  );
 }

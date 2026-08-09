@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'equipment_provider.dart';
+import 'profiles_provider.dart';
 // sequence_provider.dart re-exports sequence/sequence_validation.dart, so the
 // unified ValidationResult / ValidationIssue types are reachable through that
 // single import. Don't add a direct import of sequence_validation.dart — the
@@ -125,6 +126,18 @@ class LiveValidationNotifier extends StateNotifier<LiveValidationState> {
       focuserStateProvider.select((s) => (s.connectionState, s.deviceId)),
       (_, __) => _scheduleValidation(),
     );
+
+    // The active equipment PROFILE is a validation input too — several rules
+    // (FilterInProfileRule, SmartExposureFilterNotInProfileRule) check node
+    // filter names against `profile.filterNames`. Without this listen the
+    // warning survives the operator fixing it: add the missing filter to the
+    // profile, come back to the builder, and the badge still says the name is
+    // not in the profile until something else happens to re-trigger a run.
+    // The provider only recomputes when the profile store changes, so this is
+    // not a churn source.
+    _ref.listen(activeEquipmentProfileProvider, (_, __) {
+      _scheduleValidation();
+    });
 
     // Settings changes (image output path, etc.) influence validation too.
     _ref.listen(appSettingsProvider, (_, __) {

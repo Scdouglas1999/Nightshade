@@ -53,6 +53,20 @@ class MosaicWizardDialog extends ConsumerStatefulWidget {
   ConsumerState<MosaicWizardDialog> createState() => _MosaicWizardDialogState();
 }
 
+/// Where the wizard's panel size came from.
+enum _PanelSizeSource {
+  /// Neither the rig nor the user has supplied one — the wizard must not
+  /// quote a panel size or build anything from it.
+  unknown,
+
+  /// Derived from the active profile's focal length + the connected camera's
+  /// sensor geometry (the same inputs the framing box uses).
+  measured,
+
+  /// Typed into the Advanced section by the user.
+  user,
+}
+
 MosaicExposureSettings mosaicWizardExposureSettingsForContext(
   SmartNightExposureContext? exposureContext,
 ) =>
@@ -61,8 +75,20 @@ MosaicExposureSettings mosaicWizardExposureSettingsForContext(
 class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
   late double _centerRa;
   late double _centerDec;
+
+  /// One panel = one camera field. These are seeded from the rig in
+  /// [initState] and are only a PLACEHOLDER until then: 60' × 40' is not
+  /// anyone's camera, it was just the field initialiser, and the wizard used
+  /// to quote it as "Panel size: 1.00° × 0.67°" and plan the whole mosaic
+  /// from it on a machine with no equipment profile at all. [_panelSizeSource]
+  /// records where the numbers came from so the UI can say "unknown" and the
+  /// build actions can refuse, instead of inventing a field of view — the
+  /// same rule the framing dialog already follows.
   double _panelWidthArcmin = 60.0;
   double _panelHeightArcmin = 40.0;
+  _PanelSizeSource _panelSizeSource = _PanelSizeSource.unknown;
+
+  bool get _panelSizeKnown => _panelSizeSource != _PanelSizeSource.unknown;
   double _overlapPercent = 10.0;
   double _rotation = 0.0;
   int _panelsHorizontal = 3;
@@ -114,6 +140,15 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
     );
     _centerRa = widget.initialRa ?? 0.0;
     _centerDec = widget.initialDec ?? 0.0;
+    // Seed the panel size from the rig: focal length (profile) + sensor
+    // geometry (connected camera). `fieldOfView` is null unless BOTH are
+    // known, which is exactly when we must admit we don't know.
+    final fov = ref.read(opticalConfigProvider)?.fieldOfView;
+    if (fov != null && fov.$1 > 0 && fov.$2 > 0) {
+      _panelWidthArcmin = fov.$1 * 60.0;
+      _panelHeightArcmin = fov.$2 * 60.0;
+      _panelSizeSource = _PanelSizeSource.measured;
+    }
     // Start the checkpoint probe AFTER the first frame, never inline in
     // initState. Its error path calls `context.showErrorSnackBar`, which reads
     // an inherited Theme — and when the backend throws before the first `await`
@@ -756,10 +791,13 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
         // capture tree (no durable project row). Tooltip disambiguates the two
         // near-identical primary actions for the user, not just in code.
         Tooltip(
-          message: 'Add these panels to the current sequence now',
+          message: _panelSizeKnown
+              ? 'Add these panels to the current sequence now'
+              : 'Panel size unknown — set a focal length and connect the '
+                  'camera, or enter it under Advanced',
           child: NightshadeButton(
             key: const ValueKey('mosaic_generate_sequence_btn'),
-            onPressed: _isBusy ? null : _generateMosaic,
+            onPressed: _isBusy || !_panelSizeKnown ? null : _generateMosaic,
             icon: NightshadeIcons.add,
             label: 'Load into Sequencer',
             variant: ButtonVariant.outline,
@@ -773,10 +811,13 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
               ? 'Durable mosaic projects are managed on the imaging host'
               : isDisconnected
                   ? 'Connect to an imaging host before creating a durable project'
-                  : 'Save a reusable project and track its progress',
+                  : !_panelSizeKnown
+                      ? 'Panel size unknown — set a focal length and connect '
+                          'the camera, or enter it under Advanced'
+                      : 'Save a reusable project and track its progress',
           child: NightshadeButton(
             key: const ValueKey('mosaic_create_project_btn'),
-            onPressed: _isBusy || !canCreateProject
+            onPressed: _isBusy || !canCreateProject || !_panelSizeKnown
                 ? null
                 : () => unawaited(_createMosaicProject()),
             icon: NightshadeIcons.layoutGrid,
@@ -803,6 +844,10 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  if (!_panelSizeKnown) ...[
+                    _buildUnknownPanelSizeBanner(colors),
+                    const SizedBox(height: 20),
+                  ],
                   if (_resumableMosaicCheckpoint != null) ...[
                     _buildResumeBanner(_resumableMosaicCheckpoint!, colors),
                     const SizedBox(height: 20),
@@ -839,8 +884,9 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
                     colors: colors,
                     activePanels: _activePanelCount,
                     gridLabel: '$_panelsHorizontal×$_panelsVertical',
-                    panelArcminLabel:
-                        '${(_panelWidthArcmin / 60).toStringAsFixed(2)}° × ${(_panelHeightArcmin / 60).toStringAsFixed(2)}°',
+                    panelArcminLabel: _panelSizeKnown
+                        ? '${(_panelWidthArcmin / 60).toStringAsFixed(2)}° × ${(_panelHeightArcmin / 60).toStringAsFixed(2)}°'
+                        : 'unknown',
                     overlapLabel: '${_overlapPercent.toStringAsFixed(0)}%',
                     filterCount:
                         exposure.isMultiFilter ? exposure.filters!.length : 1,
@@ -900,6 +946,14 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
                         if (panelHeightArcmin != null) {
                           _panelHeightArcmin = panelHeightArcmin;
                         }
+                        // An explicit panel size is a legitimate answer to
+                        // "what field does one panel cover?" — it just has to
+                        // come from the user rather than from a field
+                        // initialiser nobody chose.
+                        if (panelWidthArcmin != null ||
+                            panelHeightArcmin != null) {
+                          _panelSizeSource = _PanelSizeSource.user;
+                        }
                       });
                     },
                   ),
@@ -944,6 +998,59 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
                   });
                 },
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Shown while the panel size is neither measured from the rig nor supplied
+  /// by the user. Wording mirrors the framing dialog, which already refuses to
+  /// guess a field of view, so the two surfaces tell the same story.
+  Widget _buildUnknownPanelSizeBanner(NightshadeColors colors) {
+    final config = ref.watch(opticalConfigProvider);
+    final reason = config == null ||
+            config.focalLength == null ||
+            config.focalLength! <= 0
+        ? 'No equipment profile with a focal length — set one in Settings to '
+            'size a panel.'
+        : 'No camera connected, so the sensor size is unknown. Connect the '
+            'camera, or enter the panel size under Advanced.';
+    return Container(
+      key: const ValueKey('mosaic_unknown_panel_size_banner'),
+      padding: const EdgeInsets.all(16),
+      decoration: NightshadeDecorations.iconChip(
+        colors.warning,
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+        borderAlpha: 0.4,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(NightshadeIcons.warning, color: colors.warning, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Panel size unknown',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: colors.textPrimary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '$reason A mosaic cannot be planned until one panel\'s field '
+                  'is known.',
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: NightshadeTypography.fontSize13,
+                  ),
+                ),
+              ],
             ),
           ),
         ],

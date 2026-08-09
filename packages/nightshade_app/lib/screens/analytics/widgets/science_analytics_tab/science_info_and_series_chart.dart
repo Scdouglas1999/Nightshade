@@ -243,7 +243,15 @@ class _SeriesChartCard extends StatelessWidget {
       }
     }
 
-    final yRange = math.max(0.5, maxY - minY);
+    // Shared "nice" axis: bounds snapped to tick multiples so fl_chart's
+    // boundary labels coincide with ticks instead of printing a second value a
+    // few pixels away (this chart showed "101.0" over "100.0" and "75.0" over
+    // "74.7" on the transparency trend).
+    final axis = NiceAxis.forRange(minY, maxY);
+    final maxX = spots.last.x == 0 ? 1.0 : spots.last.x;
+    // Exact division puts the last tick on the axis end, so the boundary label
+    // is a tick rather than a second copy a few pixels away.
+    final xInterval = maxX / 4;
 
     return NightshadeCard(
       child: Padding(
@@ -272,15 +280,17 @@ class _SeriesChartCard extends StatelessWidget {
               child: LineChart(
                 LineChartData(
                   minX: 0,
-                  maxX: spots.last.x == 0 ? 1 : spots.last.x,
-                  minY: minY - (yRange * 0.15),
-                  maxY: maxY + (yRange * 0.15),
+                  maxX: maxX,
+                  minY: axis.min,
+                  maxY: axis.max,
                   borderData: FlBorderData(
                     show: true,
                     border: Border.all(color: colors.border),
                   ),
                   gridData: FlGridData(
                     drawVerticalLine: true,
+                    horizontalInterval: axis.interval,
+                    verticalInterval: xInterval,
                     getDrawingHorizontalLine: (_) =>
                         FlLine(color: colors.border.withValues(alpha: 0.35)),
                     getDrawingVerticalLine: (_) =>
@@ -297,13 +307,10 @@ class _SeriesChartCard extends StatelessWidget {
                       sideTitles: SideTitles(
                         showTitles: true,
                         reservedSize: 24,
-                        interval:
-                            math.max(1, (spots.last.x / 4).floorToDouble()),
+                        interval: xInterval,
                         getTitlesWidget: (value, meta) {
-                          final mins =
-                              Duration(seconds: value.round()).inMinutes;
                           return Text(
-                            '${mins}m',
+                            elapsedAxisLabel(value),
                             style: TextStyle(
                               fontSize: NightshadeTypography.fontSize10,
                               color: colors.textSecondary,
@@ -321,9 +328,10 @@ class _SeriesChartCard extends StatelessWidget {
                       ),
                       sideTitles: SideTitles(
                         showTitles: true,
-                        reservedSize: 40,
+                        reservedSize: 44,
+                        interval: axis.interval,
                         getTitlesWidget: (value, meta) => Text(
-                          value.toStringAsFixed(1),
+                          axis.label(value),
                           style: TextStyle(
                             fontSize: NightshadeTypography.fontSize10,
                             color: colors.textSecondary,

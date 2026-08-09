@@ -20,6 +20,19 @@ class NarratorEventsDao extends DatabaseAccessor<NightshadeDatabase>
     return into(narratorEvents).insert(event);
   }
 
+  /// How far back a SESSIONLESS dedupe check looks.
+  ///
+  /// A session-scoped check needs no window: every night gets a fresh session
+  /// id, so last night's keys cannot suppress tonight's. The sessionless bucket
+  /// has no such boundary — `sessionId IS NULL` matches every hand-driven frame
+  /// ever recorded — so without a window a static-key detector
+  /// (`conditions.excellent`, `conditions.sky_darkness.darker`,
+  /// `milestone.calibration_locked`, `milestone.limiting_mag.first`) fires once
+  /// per install and is silent on every later night. One observing night is the
+  /// natural boundary, and 12 hours covers the longest of them while still
+  /// separating consecutive nights.
+  static const Duration sessionlessDedupeWindow = Duration(hours: 12);
+
   /// Whether an event with [dedupeKey] already exists for [sessionId] (null =
   /// sessionless). Lets the service survive a restart without re-emitting an
   /// event the engine's in-memory dedupe set has forgotten.
@@ -29,7 +42,12 @@ class NarratorEventsDao extends DatabaseAccessor<NightshadeDatabase>
       ..where(narratorEvents.dedupeKey.equals(dedupeKey))
       ..limit(1);
     if (sessionId == null) {
-      query.where(narratorEvents.sessionId.isNull());
+      query.where(
+        narratorEvents.sessionId.isNull() &
+            narratorEvents.timestamp.isBiggerOrEqualValue(
+              DateTime.now().subtract(sessionlessDedupeWindow),
+            ),
+      );
     } else {
       query.where(narratorEvents.sessionId.equals(sessionId));
     }
@@ -39,11 +57,20 @@ class NarratorEventsDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// All dedupe keys already persisted for [sessionId] (null = sessionless).
   /// Used to seed the engine's dedupe set on (re)attach.
+  ///
+  /// The sessionless case is bounded by [sessionlessDedupeWindow] for the same
+  /// reason [hasDedupeKey] is: seeding the engine with every key this install
+  /// has ever emitted sessionlessly would silence those detectors permanently.
   Future<Set<String>> dedupeKeysForSession(int? sessionId) async {
     final query = selectOnly(narratorEvents)
       ..addColumns([narratorEvents.dedupeKey]);
     if (sessionId == null) {
-      query.where(narratorEvents.sessionId.isNull());
+      query.where(
+        narratorEvents.sessionId.isNull() &
+            narratorEvents.timestamp.isBiggerOrEqualValue(
+              DateTime.now().subtract(sessionlessDedupeWindow),
+            ),
+      );
     } else {
       query.where(narratorEvents.sessionId.equals(sessionId));
     }

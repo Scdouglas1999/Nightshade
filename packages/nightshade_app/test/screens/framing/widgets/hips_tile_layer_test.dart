@@ -84,7 +84,7 @@ void main() {
 
   Widget hostUnder(List<Override> overrides) {
     return ProviderScope(
-      overrides: overrides,
+      overrides: [...overrides],
       child: const MaterialApp(
         home: Scaffold(
           body: SizedBox(

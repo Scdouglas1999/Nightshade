@@ -5,6 +5,8 @@
 /// - failed casts throw a structured [CastFailureException] with context
 /// - the helper does NOT silently fall back on type mismatch
 
+library;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_bridge/src/utils/safe_cast.dart';
 

@@ -78,6 +78,17 @@ List<Override> _stubSettings([
   ];
 }
 
+/// Cancel the auto-save scheduler's timers.
+///
+/// The Files & Storage pane watches `autoSaveLifecycleProvider` — the only
+/// provider that hydrates the persisted schedule — so rendering it genuinely
+/// STARTS the host's backup scheduler, which arms periodic timers. Those
+/// outlive the widget tree and trip flutter_test's pending-timer invariant,
+/// which runs before tearDown callbacks, so the stop has to happen in the body.
+void _stopAutoSave(HarnessHandle handle) {
+  handle.container.read(autoSaveServiceProvider).dispose();
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -285,6 +296,11 @@ void main() {
     await tester.pumpAndSettle(const Duration(milliseconds: 200));
     await tester.tap(resetButton);
     await tester.pumpAndSettle(const Duration(seconds: 1));
+    // Discarding a horizon that is not already flat is confirmed first — the
+    // button sits ~120 px from Import and there is no undo. See
+    // location_horizon_reset_guard_test.dart.
+    await tester.tap(find.text('Reset horizon'));
+    await tester.pumpAndSettle(const Duration(seconds: 1));
 
     final state = handle.container.read(appSettingsProvider).value;
     expect(state, isNotNull);
@@ -373,7 +389,7 @@ void main() {
       'merged-away "file-paths" key opens the combined Files & Storage section '
       '(both child widgets present)', (tester) async {
     _swallowKnownOverflows();
-    await pumpAppScreen(
+    final handle = await pumpAppScreen(
       tester,
       const SettingsScreen(initialSection: 'file-paths'),
       size: const Size(1280, 800),
@@ -386,13 +402,15 @@ void main() {
     expect(find.byType(AutoSaveSettings), findsOneWidget,
         reason: 'The combined Files & Storage section also stacks '
             'AutoSaveSettings.');
+
+    _stopAutoSave(handle);
   });
 
   testWidgets(
       'merged_key_auto_save_opens_files_and_storage: the second merged-away key '
       'also lands on Files & Storage', (tester) async {
     _swallowKnownOverflows();
-    await pumpAppScreen(
+    final handle = await pumpAppScreen(
       tester,
       const SettingsScreen(initialSection: 'auto-save'),
       size: const Size(1280, 800),
@@ -403,6 +421,8 @@ void main() {
     expect(find.byType(AutoSaveSettings), findsOneWidget);
     expect(find.text('Enable sequence auto-save'), findsOneWidget);
     expect(find.text('Sequence save interval'), findsOneWidget);
+
+    _stopAutoSave(handle);
   });
 
   testWidgets(

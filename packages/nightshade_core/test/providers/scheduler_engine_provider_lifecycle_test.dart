@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/database/database.dart' as db;
+import '../harness/in_memory_database.dart';
 
 void main() {
   test(
@@ -32,6 +33,7 @@ void main() {
       var engineConstructions = 0;
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           appSettingsProvider.overrideWith(
             () => _ControlledSettings(settingsCompleter.future),
           ),
@@ -71,6 +73,7 @@ void main() {
       var engineConstructions = 0;
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           appSettingsProvider.overrideWith(
             () =>
                 _ControlledSettings(Future.error(StateError('settings down'))),
@@ -99,6 +102,7 @@ void main() {
     final configCompleter = Completer<SchedulerConfig>();
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         appSettingsProvider.overrideWith(
           () => _ControlledSettings(settingsCompleter.future),
         ),
@@ -132,6 +136,7 @@ void main() {
     final configCompleter = Completer<SchedulerConfig>();
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         appSettingsProvider.overrideWith(
           () => _ControlledSettings(Future.value(const AppSettingsState())),
         ),

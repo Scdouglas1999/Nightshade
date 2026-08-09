@@ -20,6 +20,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../../localization/nightshade_localizations.dart';
 import 'sequence_status_visuals.dart';
 
 /// Persistent banner that renders the in-flight recovery context. Returns
@@ -379,7 +380,7 @@ class SequencerStatusLed extends ConsumerWidget {
 
     // Single source of truth for color/label/variant so the LED can never
     // diverge from the toolbar/mobile status badges.
-    final visuals = SequenceStatusVisuals.of(state, colors);
+    final visuals = SequenceStatusVisuals.of(state, colors, context.l10n);
     final color = visuals.color;
     final label = visuals.label;
     final variant = visuals.variant;

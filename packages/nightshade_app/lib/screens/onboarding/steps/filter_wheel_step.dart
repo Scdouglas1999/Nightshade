@@ -49,6 +49,10 @@ class _OnboardingFilterWheelStepState
   // reads the actual slot count + names from the connected driver.
   static const int _fallbackSlots = 5;
 
+  /// Upper bound used ONLY when the wheel's real position count is unknown.
+  /// A connected wheel caps the editor at what it actually reports.
+  static const int _hardSlotCap = 12;
+
   List<TextEditingController> _controllers = [];
 
   /// True while we connect the just-picked wheel to read its real slot count
@@ -173,12 +177,60 @@ class _OnboardingFilterWheelStepState
     _commitFilters();
   }
 
-  void _removeSlot(int index) {
+  /// Delete a slot, confirming first when it is not the LAST row.
+  ///
+  /// Slot labels are positions on the wheel, so removing a middle row shifts
+  /// every row below it up one position — the name the user typed for
+  /// position 5 silently becomes position 4, and per-filter focus offsets keyed
+  /// by position follow it. Deleting the last row cannot renumber anything, so
+  /// it stays a single click.
+  Future<void> _removeSlot(int index) async {
+    final isLast = index == _controllers.length - 1;
+    if (!isLast) {
+      final name = _controllers[index].text.trim();
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Remove this slot?'),
+          content: Text(
+            'Removing slot ${index + 1}${name.isEmpty ? '' : ' ($name)'} moves '
+            'every slot below it up one position, so the filters after it will '
+            'no longer sit on the positions you gave them.',
+          ),
+          actions: [
+            NightshadeButton(
+              label: 'Cancel',
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+            ),
+            NightshadeButton(
+              label: 'Remove slot',
+              variant: ButtonVariant.destructive,
+              size: ButtonSize.small,
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+    }
     setState(() {
       _controllers[index].dispose();
       _controllers.removeAt(index);
     });
     _commitFilters();
+  }
+
+  /// Positions the CONNECTED wheel reports, or null when we have no reading.
+  ///
+  /// Only trusted when the connected device is the one the draft picked: a
+  /// stale connection to another wheel must not cap this one's editor.
+  int? _reportedSlotCount(OnboardingDraft draft, FilterWheelState wheel) {
+    if (draft.filterWheelId == null) return null;
+    if (wheel.connectionState != DeviceConnectionState.connected) return null;
+    if (wheel.deviceId != draft.filterWheelId) return null;
+    return wheel.filterNames.isEmpty ? null : wheel.filterNames.length;
   }
 
   @override
@@ -188,6 +240,15 @@ class _OnboardingFilterWheelStepState
     final colors = NightshadeColors.of(context);
     final theme = Theme.of(context);
     final hasWheel = draft.filterWheelId != null;
+
+    // The wheel's own position count is the cap. Inventing slot 8 on a
+    // 7-position wheel produced a profile whose filter list the hardware can
+    // never reach — the sequencer would ask for a position that does not exist.
+    // With no reading (connect failed) fall back to the generic hard cap.
+    final reportedSlots =
+        _reportedSlotCount(draft, ref.watch(filterWheelStateProvider));
+    final slotCap = reportedSlots ?? _hardSlotCap;
+    final atSlotCap = _controllers.length >= slotCap;
 
     final viewportHeight = MediaQuery.sizeOf(context).height;
     final pickerHeight = hasWheel
@@ -266,17 +327,36 @@ class _OnboardingFilterWheelStepState
                 ),
                 const SizedBox(width: 8),
               ],
-              NightshadeButton(
-                icon: NightshadeIcons.add,
-                label: 'Add slot',
-                variant: ButtonVariant.outline,
-                size: ButtonSize.small,
-                onPressed: (_loadingSlots || _controllers.length >= 12)
-                    ? null
-                    : _addSlot,
+              Tooltip(
+                message: atSlotCap
+                    ? (reportedSlots != null
+                        ? '${draft.filterWheelName ?? 'This wheel'} reports '
+                            '$reportedSlots positions — it has no slot '
+                            '${_controllers.length + 1} to hold another filter.'
+                        : 'A profile can hold at most $_hardSlotCap filters.')
+                    : 'Add another filter slot',
+                child: NightshadeButton(
+                  icon: NightshadeIcons.add,
+                  label: 'Add slot',
+                  variant: ButtonVariant.outline,
+                  size: ButtonSize.small,
+                  onPressed: (_loadingSlots || atSlotCap) ? null : _addSlot,
+                ),
               ),
             ],
           ),
+          if (reportedSlots != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              atSlotCap
+                  ? 'All $reportedSlots positions on this wheel are listed.'
+                  : '${draft.filterWheelName ?? 'This wheel'} reports '
+                      '$reportedSlots positions.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.textMuted,
+              ),
+            ),
+          ],
           const SizedBox(height: 8),
           // List of editable filter slots. We deliberately render inline
           // (not in a separate Drift table) so the user sees their

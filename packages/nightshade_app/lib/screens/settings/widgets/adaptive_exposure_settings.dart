@@ -312,8 +312,11 @@ class _PerFilterEditorState extends ConsumerState<_PerFilterEditor> {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    final profile = ref.watch(activeEquipmentProfileProvider);
-    final filterNames = profile?.filterNames ?? const <String>[];
+    // Same source of truth the rest of the app uses for "which filters exist":
+    // the connected wheel's names when it is online, otherwise the active
+    // profile's. Reading only the profile made this page claim there was no
+    // filter wheel while Autofocus (which reads the live wheel) listed seven.
+    final filterNames = ref.watch(effectiveFiltersProvider);
     if (filterNames.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
@@ -327,8 +330,9 @@ class _PerFilterEditorState extends ConsumerState<_PerFilterEditor> {
             const SizedBox(width: NightshadeTokens.spaceSm),
             Expanded(
               child: Text(
-                'No filter wheel on active profile — adaptive applies to every '
-                'capture (mono camera assumption).',
+                'No filter wheel connected and no filters on the active '
+                'profile — adaptive applies to every capture (mono camera '
+                'assumption).',
                 style: TextStyle(
                     fontSize: NightshadeTypography.fontSize12,
                     color: colors.textSecondary),
@@ -360,8 +364,8 @@ class _PerFilterEditorState extends ConsumerState<_PerFilterEditor> {
               color: colors.textMuted),
         ),
         const SizedBox(height: NightshadeTokens.spaceSm),
-        ...filterNames
-            .map((filter) => _filterRow(filter, enabledMap, minMap, maxMap)),
+        ...filterNames.map((filter) =>
+            _filterRow(filter, filterNames, enabledMap, minMap, maxMap)),
         if (_boundsError != null) ...[
           const SizedBox(height: NightshadeTokens.spaceXs),
           Text(
@@ -378,6 +382,7 @@ class _PerFilterEditorState extends ConsumerState<_PerFilterEditor> {
 
   Widget _filterRow(
     String filter,
+    List<String> allFilters,
     Map<String, bool> enabledMap,
     Map<String, double> minMap,
     Map<String, double> maxMap,
@@ -406,10 +411,8 @@ class _PerFilterEditorState extends ConsumerState<_PerFilterEditor> {
               // implicit state before changing one checkbox; otherwise the
               // first unchecked filter makes every absent filter disabled.
               if (enabledMap.isEmpty) {
-                for (final profileFilter
-                    in ref.read(activeEquipmentProfileProvider)?.filterNames ??
-                        const <String>[]) {
-                  enabledMap[profileFilter] = true;
+                for (final known in allFilters) {
+                  enabledMap[known] = true;
                 }
               }
               enabledMap[filter] = v ?? false;

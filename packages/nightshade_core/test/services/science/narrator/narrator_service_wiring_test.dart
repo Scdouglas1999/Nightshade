@@ -6,7 +6,6 @@ import 'package:nightshade_core/nightshade_core.dart' hide CapturedImage;
 import 'package:nightshade_core/src/database/database.dart' show CapturedImage;
 import 'package:nightshade_core/src/services/science/narrator/narrator_context.dart';
 import 'package:nightshade_core/src/services/science/narrator/narrator_service.dart';
-import 'package:nightshade_core/src/services/transients/transient_candidate.dart';
 
 /// Service-level wiring test: builds a [NarratorService] over a
 /// [ProviderContainer] whose pull-sources are overridden with synthetic data,

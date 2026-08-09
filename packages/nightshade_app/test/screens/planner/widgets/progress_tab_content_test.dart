@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_app/screens/planner/widgets/progress_tab_content.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 TargetProgress _progress({
   required int id,
@@ -53,6 +54,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           allTargetProgressProvider.overrideWith(
             (ref) async => <int, TargetProgress>{},
           ),
@@ -111,6 +113,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           allTargetProgressProvider.overrideWith((ref) async => progressMap),
         ],
         child: MaterialApp(
@@ -151,6 +154,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           allTargetProgressProvider.overrideWith((ref) async => progressMap),
         ],
         child: MaterialApp(

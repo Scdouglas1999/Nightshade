@@ -26,8 +26,9 @@ const _requiredHelperText = [
   'Response jsonInternalServerError(',
   'Response jsonNotImplemented(',
   'Response contentResponse(',
+  'Response noContentResponse(',
   'Response attachmentResponse(',
-  'jsonEncode(body)',
+  'jsonEncode(body',
 ];
 
 const _requiredTestText = [
@@ -35,6 +36,7 @@ const _requiredTestText = [
   'jsonRateLimited',
   'jsonNotImplemented encodes 501 JSON',
   'contentResponse applies content type and length',
+  'noContentResponse returns 204 without a body',
   'attachmentResponse applies safe disposition and length',
   'attachmentDisposition',
 ];
@@ -162,7 +164,7 @@ _UsageAudit _scanUsage(Directory root) {
     r'\bjson(Ok|Created|BadRequest|'
     r'Unauthorized|Forbidden|NotFound|Conflict|TooLarge|UpgradeRequired|'
     r'RateLimited|InternalServerError|NotImplemented|Response)\s*\(|'
-    r'\b(contentResponse|attachmentResponse)\s*\(',
+    r'\b(contentResponse|noContentResponse|attachmentResponse)\s*\(',
   );
   final perFile = <Map<String, Object?>>[];
   var rawResponseCallCount = 0;

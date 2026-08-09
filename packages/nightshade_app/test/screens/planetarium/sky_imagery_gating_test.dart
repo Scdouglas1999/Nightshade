@@ -27,6 +27,7 @@ import 'package:nightshade_core/nightshade_core.dart'
 import 'package:nightshade_planetarium/nightshade_planetarium.dart'
     hide SurveySource;
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 const _props = HipsProperties(
   hipsOrder: 11,
@@ -41,7 +42,8 @@ const _props = HipsProperties(
 
 void main() {
   ProviderContainer containerAt({required double fovDegrees}) {
-    final container = ProviderContainer();
+    final container =
+        ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
     addTearDown(container.dispose);
     container.read(skyViewStateProvider.notifier).setFieldOfView(fovDegrees);
     return container;
@@ -157,6 +159,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            inMemoryDatabaseOverride(),
             planetariumSkyImageryVisibleProvider.overrideWithValue(visible),
             framingHipsPropertiesProvider(
               kPlanetariumSkyImagerySurvey,

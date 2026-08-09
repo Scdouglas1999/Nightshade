@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 
+import '../../backend/frame_capture_metadata.dart';
 import '../../backend/nightshade_backend.dart';
 import '../../models/equipment/equipment_models.dart';
 import '../../models/imaging/imaging_models.dart';
@@ -16,6 +17,8 @@ import '../../models/settings/app_settings.dart'
 import '../weather_providers.dart' show weatherSettingsProvider;
 import '../../services/disk_space_guard.dart';
 import '../../services/sequence_file_service.dart';
+import '../../services/sequence_repository.dart'
+    show sequenceRepositoryProvider;
 import '../../services/live_stacking_broadcast_service.dart';
 import '../../services/live_stacking_service.dart' show LiveStackingConfig;
 import '../../services/safe_rig_service.dart';
@@ -25,7 +28,7 @@ import '../../services/logging_service.dart';
 import '../thumbnail_sidecar_provider.dart';
 import '../backend_provider.dart';
 import '../database_provider.dart'
-    show guideRmsHistoryDaoProvider, imagesDaoProvider;
+    show guideRmsHistoryDaoProvider, imagesDaoProvider, targetsDaoProvider;
 import '../defect_map_provider.dart' show seedDefectMapRuntimeForSequence;
 import '../../database/daos/campaigns_dao.dart' show campaignsDaoProvider;
 import '../disk_space_provider.dart';
@@ -579,6 +582,145 @@ class SequenceExecutor {
     }
   }
 
+  /// Open the `imaging_sessions` row for this run.
+  ///
+  /// Audit C3 — pick option (a): one sequence run == one session. The session
+  /// row is labelled with the sequence name (which is what the user typed in
+  /// the sequencer toolbar). Per-target coordinates belong to per-target child
+  /// rows that the scheduler emits as it walks the tree — we deliberately
+  /// leave targetRa/targetDec NULL here for multi-target sequences instead of
+  /// arbitrarily picking targetHeaders.first, which would misrepresent the
+  /// session in the database. A single-target sequence still gets its
+  /// coordinates so the historical "single-target session" view keeps working.
+  ///
+  /// The profile and sequence ids are the run's identity. Without them the
+  /// Continue Session handoff dialog — which builds its context out of
+  /// `imaging_sessions` — showed "Unknown Profile" and "No Sequence" for a run
+  /// whose sequence name it was printing in its own header.
+  Future<void> _startSessionRow(Sequence sequence) async {
+    final sessionNotifier = _ref.read(sessionStateProvider.notifier);
+    final isSingleTarget = sequence.targetHeaders.length == 1;
+    await sessionNotifier.startSession(
+      targetName: sequence.name,
+      targetRa: isSingleTarget ? sequence.targetHeaders.first.raHours : null,
+      targetDec: isSingleTarget
+          ? sequence.targetHeaders.first.decDegrees
+          : null,
+      profileId: _ref.read(activeEquipmentProfileProvider)?.id,
+      sequenceId: sequence.databaseId,
+    );
+    sessionNotifier.setTotalExposures(sequence.totalExposures);
+  }
+
+  /// Test entry point for the session row a run opens. See [_startSessionRow].
+  @visibleForTesting
+  Future<void> startSessionRowForTest(Sequence sequence) =>
+      _startSessionRow(sequence);
+
+  /// Give the sequence about to run a `sequences` row if it has never had one.
+  ///
+  /// A tree built in the sequencer and started without a trip through Save
+  /// carries `databaseId == null`, so both its `sequence_runs` row and its
+  /// `imaging_sessions` row recorded `sequence_id` NULL. The Continue Session
+  /// handoff dialog reads that column to name what it is offering: it printed
+  /// "Sequence: No Sequence" for the very night it was offering to restore,
+  /// and its "Load Previous Setup" had no row to reload. Run history's
+  /// per-sequence grouping and the run-diff view had the same hole.
+  ///
+  /// A sequence the operator actually ran is worth keeping, so it is persisted
+  /// here — once: the editor adopts the new id, so the next run of the same
+  /// document updates that row instead of adding another.
+  ///
+  /// A failure is logged and the run proceeds with the id still null: refusing
+  /// to image because a library row could not be written would be far worse
+  /// than a night filed without one.
+  Future<Sequence> _ensureSequencePersisted(Sequence sequence) async {
+    if (sequence.databaseId != null) return sequence;
+    // Operator-authored plans only. Autopilot, Smart Night and mosaic generate
+    // a fresh tree per target/panel and regenerate it on the next run, so
+    // filing each one in the library would bury the operator's own sequences
+    // under a night's worth of machine output. Their trees stay recoverable
+    // from the run's stored snapshot.
+    final notifier = _ref.read(currentSequenceProvider.notifier);
+    if (notifier.activeOwner.isAutomated) return sequence;
+    try {
+      final databaseId = await _ref
+          .read(sequenceRepositoryProvider)
+          .saveSequence(sequence);
+      notifier.applyPersistedSave(
+        expectedSequenceId: sequence.id,
+        databaseId: databaseId,
+        name: sequence.name,
+        description: sequence.description,
+        isTemplate: sequence.isTemplate,
+      );
+      return sequence.copyWith(databaseId: databaseId);
+    } catch (e) {
+      _logger.warning(
+        'Could not persist "${sequence.name}" before running it: $e — the run '
+        'and its session will be recorded without a sequence id, so the '
+        'Continue Session dialog will not be able to name or reload it.',
+        source: 'SequenceExecutor',
+      );
+      return sequence;
+    }
+  }
+
+  /// `targets.id` for each of the running sequence's Target nodes, keyed by
+  /// node id. Rebuilt at every start by [_bindCatalogTargets].
+  final Map<String, int> _runCatalogTargetIds = <String, int>{};
+
+  /// Give every Target node in [sequence] a `targets` row so the frames it
+  /// produces can be attributed to it.
+  ///
+  /// `TargetHeaderNode.catalogTargetId` is only populated for sequences
+  /// generated from a library/catalog target (planner, scheduler, mosaic). A
+  /// target the operator typed into the builder had none, so every frame it
+  /// captured was persisted with `captured_images.target_id` NULL: the Session
+  /// Report filed the night under "Untargeted", per-target integration goals
+  /// could never complete, and project tracking counted nothing — for frames
+  /// whose own FITS `OBJECT` card and filename named the target.
+  ///
+  /// The row is created lazily HERE, at the moment the target is actually
+  /// imaged, rather than when a Target node is added to a draft sequence, so
+  /// editing the builder does not litter the target library.
+  Future<void> _bindCatalogTargets(Sequence sequence) async {
+    _runCatalogTargetIds.clear();
+    final dao = _ref.read(targetsDaoProvider);
+    for (final header in sequence.targetHeaders) {
+      final existing = header.catalogTargetId;
+      if (existing != null) {
+        _runCatalogTargetIds[header.id] = existing;
+        continue;
+      }
+      final name = header.targetName.trim();
+      // An unnamed target cannot be identified later; NULL stays the honest
+      // answer rather than inventing a library entry called "".
+      if (name.isEmpty) continue;
+      try {
+        _runCatalogTargetIds[header.id] = await dao.findOrCreateByName(
+          name: name,
+          raHours: header.raHours,
+          decDegrees: header.decDegrees,
+        );
+      } catch (e) {
+        _logger.warning(
+          'Could not bind target "$name" to a targets row; its frames will be '
+          'recorded without a target id: $e',
+          source: 'SequenceExecutor',
+        );
+      }
+    }
+  }
+
+  /// `targets.id` for the frame produced by [nodeId], from the binding made at
+  /// run start. Null when the node sits outside any target.
+  int? _runTargetIdFor(Sequence sequence, String nodeId) {
+    final header = enclosingTargetHeader(sequence, nodeId);
+    if (header == null) return null;
+    return header.catalogTargetId ?? _runCatalogTargetIds[header.id];
+  }
+
   /// Acquire every run resource and hand off to the native executor as one
   /// transaction. Each line here is a resource [_rollbackStart] knows how to
   /// release — keep the two in sync. Throws on the first failure; [start]
@@ -587,6 +729,9 @@ class SequenceExecutor {
     Sequence sequence,
     AppSettingsState runSettings,
   ) async {
+    // Before the editor is locked by the running-state flip below, so the
+    // adopted database id lands on a document that still accepts it.
+    sequence = await _ensureSequencePersisted(sequence);
     final progressNotifier = _ref.read(sequenceProgressProvider.notifier);
     // Clear the PREVIOUS run's progress before seeding this one's.
     //
@@ -608,25 +753,8 @@ class SequenceExecutor {
     _ref.read(sequenceExecutionStateProvider.notifier).state =
         SequenceExecutionState.running;
 
-    final sessionNotifier = _ref.read(sessionStateProvider.notifier);
-    // Audit C3 — pick option (a): one sequence run == one session. The
-    // session row is labelled with the sequence name (which is what the
-    // user typed in the sequencer toolbar). Per-target coordinates
-    // belong to per-target child rows that the scheduler emits as it
-    // walks the tree — we deliberately leave targetRa/targetDec NULL
-    // here for multi-target sequences instead of arbitrarily picking
-    // targetHeaders.first, which would misrepresent the session in the
-    // database. A single-target sequence still gets its coordinates so
-    // the historical "single-target session" view keeps working.
-    final isSingleTarget = sequence.targetHeaders.length == 1;
-    await sessionNotifier.startSession(
-      targetName: sequence.name,
-      targetRa: isSingleTarget ? sequence.targetHeaders.first.raHours : null,
-      targetDec: isSingleTarget
-          ? sequence.targetHeaders.first.decDegrees
-          : null,
-    );
-    sessionNotifier.setTotalExposures(sequence.totalExposures);
+    await _bindCatalogTargets(sequence);
+    await _startSessionRow(sequence);
     // Persist the exact sequence JSON used for this run so the run-history
     // "diff vs previous run" view compares real snapshots rather than the
     // live (possibly since-edited) sequence.
@@ -855,7 +983,7 @@ class SequenceExecutor {
       if (confirmation != null && !confirmation.isCompleted) {
         confirmation.complete();
       }
-      if (error != null) _recordRunError(error);
+      if (error != null) _recordTerminalRunError(error);
 
       // A terminal arriving while the original drive is waiting wakes that
       // drive above. If the command call had already failed, resume the same
@@ -874,7 +1002,7 @@ class SequenceExecutor {
     if (state == SequenceExecutionState.stopFailed && pending != null) {
       final f = _finalization!;
       f.nativeStopConfirmed = true;
-      if (error != null) _recordRunError(error);
+      if (error != null) _recordTerminalRunError(error);
       _setExecutionState(SequenceExecutionState.finalizing);
       _terminalCleanupFuture = _launchDrive(f);
       _swallowSpawnedFinalizationError(_terminalCleanupFuture!);
@@ -888,7 +1016,7 @@ class SequenceExecutor {
     if (_finalization != null || _finalizationFuture != null) return;
 
     if (error != null) {
-      _recordRunError(error);
+      _recordTerminalRunError(error);
       _ref
           .read(sequenceProgressProvider.notifier)
           .updateProgress(message: error);
@@ -1256,6 +1384,7 @@ class SequenceExecutor {
       }
 
       _isPaused = true;
+      await _persistLiveRunStatus('paused');
     } finally {
       _pauseResumeInProgress = false;
     }
@@ -1292,8 +1421,28 @@ class SequenceExecutor {
       }
 
       _isPaused = false;
+      await _persistLiveRunStatus('running');
     } finally {
       _pauseResumeInProgress = false;
+    }
+  }
+
+  /// Publish the run's live state onto its `sequence_runs` row.
+  ///
+  /// The GUI knew the run was paused; the database did not, and the headless
+  /// API, the web dashboard and the phone all read the database. Failure is
+  /// logged and swallowed: a pause that succeeded on the hardware must not be
+  /// reported as failed because a row could not be updated.
+  Future<void> _persistLiveRunStatus(String status) async {
+    final runId = _ref.read(currentRunIdProvider);
+    if (runId == null) return;
+    try {
+      await _ref.read(sequenceRunsDaoProvider).setLiveStatus(runId, status);
+    } catch (e) {
+      _logger.warning(
+        'Could not persist run $runId status "$status": $e',
+        source: 'SequenceExecutor',
+      );
     }
   }
 
@@ -1825,14 +1974,36 @@ class SequenceExecutor {
 
       // A resumed run still needs a session + run row so frame stats,
       // replay decisions and the morning report have something to attach
-      // to. sequenceId is unknown post-crash (the checkpoint stores the
-      // Rust-side definition, not the Dart DB id) — null is accepted.
+      // to. The checkpoint itself stores the Rust-side definition rather than
+      // a Dart DB id, but by this point [_recoverResumedSequence] has put the
+      // tree back into `currentSequenceProvider` and the active profile never
+      // left memory — so a resumed session carries exactly the identity a
+      // fresh run's does. Recording nulls here is what made the Continue
+      // Session dialog offer "Unknown Profile" / "No Sequence" after the one
+      // event that dialog exists for: an interrupted night.
+      final loadedForResume = _ref.read(currentSequenceProvider);
+      final resumedSequence = loadedForResume == null
+          ? null
+          // A tree rebuilt from the interrupted run's JSON snapshot has no row
+          // of its own, and a resumed night must not be filed as "No Sequence"
+          // either.
+          : await _ensureSequencePersisted(loadedForResume);
+      if (resumedSequence != null) {
+        // Same binding a fresh start makes: without it every frame captured
+        // after the resume registers with target_id NULL, so one night's
+        // frames split between the target and "Untargeted".
+        await _bindCatalogTargets(resumedSequence);
+      }
       final sessionNotifier = _ref.read(sessionStateProvider.notifier);
-      await sessionNotifier.startSession(targetName: info.sequenceName);
+      await sessionNotifier.startSession(
+        targetName: info.sequenceName,
+        profileId: _ref.read(activeEquipmentProfileProvider)?.id,
+        sequenceId: resumedSequence?.databaseId,
+      );
       final runId = await _ref
           .read(sequenceRunsDaoProvider)
           .startRun(
-            sequenceId: _ref.read(currentSequenceProvider)?.databaseId,
+            sequenceId: resumedSequence?.databaseId,
             sequenceName: info.sequenceName,
             sequenceSnapshotJson: recoveredSnapshotJson,
           );

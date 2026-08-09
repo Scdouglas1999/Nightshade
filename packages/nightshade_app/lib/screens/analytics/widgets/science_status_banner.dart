@@ -23,7 +23,22 @@ class ScienceStatusBanner extends ConsumerWidget {
   /// chrome budget is tight.
   final bool hideWhenIdle;
 
-  const ScienceStatusBanner({super.key, this.hideWhenIdle = false});
+  /// Frames already on record for the session the surrounding surface is
+  /// reporting on.
+  ///
+  /// Every other state on this banner comes from the in-memory pipeline
+  /// tracker, which starts empty on every app launch. Reviewing last night's
+  /// session therefore rendered "Science idle — waiting for the first captured
+  /// frame" directly above that session's 120 solved frames. When nothing is
+  /// in flight but the reviewed session has frames, the banner says it is
+  /// reviewing stored results instead of denying they exist.
+  final int? storedFrameCount;
+
+  const ScienceStatusBanner({
+    super.key,
+    this.hideWhenIdle = false,
+    this.storedFrameCount,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -68,6 +83,7 @@ class ScienceStatusBanner extends ConsumerWidget {
     final inflight = snapshot.inflight;
     final lastFailure = snapshot.lastFailure;
     final hasHistory = snapshot.history.isNotEmpty;
+    final persistedFrameCount = storedFrameCount;
 
     if (hideWhenIdle &&
         inflight == null &&
@@ -117,6 +133,13 @@ class ScienceStatusBanner extends ConsumerWidget {
           '${snapshot.processedCount} frame${snapshot.processedCount == 1 ? '' : 's'} processed · last ${_relativeTime(completedAt)}';
       icon =
           last.hasFailure ? LucideIcons.alertCircle : LucideIcons.checkCircle;
+    } else if (persistedFrameCount != null && persistedFrameCount > 0) {
+      final frames = persistedFrameCount;
+      style = _BannerStyle.idle(colors);
+      headline = 'Reviewing stored results';
+      subtitle = '$frames frame${frames == 1 ? '' : 's'} on record · '
+          'nothing processing right now';
+      icon = LucideIcons.history;
     } else {
       style = _BannerStyle.idle(colors);
       headline = 'Science idle';

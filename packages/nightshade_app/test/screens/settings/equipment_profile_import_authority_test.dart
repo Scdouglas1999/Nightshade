@@ -138,6 +138,38 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  // The screen must hand a rejected import to describeProfileImportFailure,
+  // not print the thrown object. Cutting that call at the call site turns this
+  // red: a raw ProfileImportException toString has no file name in it.
+  testWidgets('a rejected import names the picked file, not a Dart exception',
+      (tester) async {
+    await pumpAppScreen(
+      tester,
+      const EquipmentProfilesScreen(),
+      extraOverrides: [
+        equipmentProfileImportPickerProvider.overrideWithValue(
+          () async => XFile('/home/op/m31.nseq.json', name: 'm31.nseq.json'),
+        ),
+        equipmentProfileImportReaderProvider.overrideWithValue(
+          (file) async => '{"name":"M31","nodes":{},"rootNodeId":"r"}',
+        ),
+        equipmentProfileImporterProvider.overrideWithValue(
+          (json) async =>
+              profilesFromExportDocument(json).map((e) => 0).toList(),
+        ),
+      ],
+    );
+
+    await tester.tap(find.byTooltip('Import profiles'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.textContaining('"m31.nseq.json"'), findsOneWidget);
+    expect(find.textContaining('Nightshade sequence'), findsOneWidget);
+    expect(find.textContaining('Exception'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('profile export is single-flight and stops after a host switch',
       (tester) async {
     final pick = Completer<ExportTarget?>();

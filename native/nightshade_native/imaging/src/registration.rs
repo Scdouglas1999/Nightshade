@@ -247,6 +247,30 @@ pub enum RegistrationError {
 // Public entry point
 // =============================================================================
 
+/// The number of detected stars [`register_frame`] requires on BOTH the
+/// reference and the frame for `kind`: enough to form triangles and to fit the
+/// minimal model.
+pub fn min_registration_stars(kind: TransformKind) -> usize {
+    3usize.max(min_correspondences(kind))
+}
+
+/// How many stars [`register_frame`] would actually detect on `image` with
+/// `config` — 0 when the image cannot be a registration operand at all (wrong
+/// pixel type or channel layout, exactly as [`register_frame`] validates).
+///
+/// Exposed so a caller *choosing* an alignment reference can reject a candidate
+/// this detector cannot see, rather than discovering it one failed frame at a
+/// time. A frame can score highest on SNR/sharpness/roundness and still yield
+/// zero centroids — a near-saturated star flattens the local peak the detector
+/// looks for — and picking that frame as the reference fails EVERY other frame
+/// against it, silently discarding a whole night.
+pub fn registrable_star_count(image: &ImageData, config: &RegistrationConfig) -> usize {
+    if image.pixel_type != PixelType::U16 || !matches!(image.channels, 1 | 3) {
+        return 0;
+    }
+    detect_stars(&detection_plane(image), &config.star_detection).len()
+}
+
 /// Register `frame` (source) onto `reference`, returning the fitted transform,
 /// the resampled aligned frame, and quality statistics.
 ///
@@ -267,7 +291,7 @@ pub fn register_frame(
     let frame_stars = detect_stars(&frame_plane, &config.star_detection);
 
     // We need at least enough stars to form triangles and a minimal fit.
-    let min_stars = 3usize.max(min_correspondences(config.transform_kind));
+    let min_stars = min_registration_stars(config.transform_kind);
     if ref_stars.len() < min_stars || frame_stars.len() < min_stars {
         return Err(RegistrationError::TooFewStars {
             reference: ref_stars.len(),

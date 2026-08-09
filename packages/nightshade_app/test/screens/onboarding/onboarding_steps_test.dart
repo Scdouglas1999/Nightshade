@@ -232,7 +232,12 @@ void main() {
       await _pumpStep(tester, db: db, step: const OnboardingCaptureDirStep());
 
       expect(find.text('Where should we save captures?'), findsOneWidget);
-      expect(find.text('No folder selected yet'), findsOneWidget);
+      // The empty state is the editable box's hint, not a dead label: Browse
+      // is one way in, typing or pasting a known path is the other.
+      expect(
+        find.text('Type or paste a folder, or use Browse'),
+        findsOneWidget,
+      );
       expect(find.text('Browse'), findsOneWidget);
     });
   });
@@ -245,6 +250,8 @@ void main() {
       WidgetTester tester,
       NightshadeDatabase db, {
       ApproximateLocationLookup? approximateLocation,
+      ApproximateLocationLookup? deviceLocation,
+      ({double latitude, double longitude, double elevation})? seed,
     }) async {
       late ProviderContainer container;
       tester.view.devicePixelRatio = 1.0;
@@ -254,12 +261,23 @@ void main() {
         tester.view.resetDevicePixelRatio();
       });
 
+      if (seed != null) {
+        await SettingsDao(db).setSettings(<String, String>{
+          'observer_latitude': '${seed.latitude}',
+          'observer_longitude': '${seed.longitude}',
+          'observer_elevation': '${seed.elevation}',
+        });
+      }
+
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
             databaseProvider.overrideWithValue(db),
             onboardingApproximateLocationProvider.overrideWithValue(
               approximateLocation ?? () async => null,
+            ),
+            onboardingDeviceLocationProvider.overrideWithValue(
+              deviceLocation ?? () async => null,
             ),
           ],
           child: Consumer(builder: (ctx, ref, _) {
@@ -278,6 +296,16 @@ void main() {
       );
       await tester.pumpAndSettle();
       return container;
+    }
+
+    /// Ask for the IP estimate and accept the consent dialog. The step no
+    /// longer fires the lookup by itself, so every suggestion-card assertion
+    /// goes through here.
+    Future<void> requestIpEstimate(WidgetTester tester) async {
+      await tester.tap(find.text('Estimate from IP'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Detect location'));
+      await tester.pumpAndSettle();
     }
 
     testWidgets(
@@ -432,6 +460,8 @@ void main() {
             (39.9817, -75.4072, 'West Chester, PA'),
       );
 
+      await requestIpEstimate(tester);
+
       expect(find.text('Approximate location from your IP address'),
           findsOneWidget);
       expect(
@@ -495,11 +525,81 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await requestIpEstimate(tester);
 
       expect(find.text('Approximate location from your IP address'),
           findsOneWidget);
       expect(find.text('Use this'), findsOneWidget);
       expect(tester.takeException(), isNull);
+    });
+
+    // Arriving on this step used to post a frame callback that sent the
+    // machine's public IP to ipapi.co (falling back to plain-HTTP
+    // ip-api.com): the app's first outbound request, on its first run, with
+    // no click and nothing on screen saying so.
+    testWidgets('no lookup leaves the machine until the user asks',
+        (tester) async {
+      final db = _newDb();
+      addTearDown(db.close);
+      var calls = 0;
+      await pumpSiteStep(
+        tester,
+        db,
+        approximateLocation: () async {
+          calls++;
+          return (39.9817, -75.4072, 'West Chester, PA');
+        },
+      );
+
+      expect(calls, 0, reason: 'the step looked up a location on its own');
+      expect(
+          find.textContaining('Nothing is sent until you ask'), findsOneWidget);
+
+      // Asking is not enough — the consent dialog has to be accepted.
+      await tester.tap(find.text('Estimate from IP'));
+      await tester.pumpAndSettle();
+      expect(calls, 0, reason: 'the lookup ran before the user consented');
+      expect(find.textContaining('ipapi.co'), findsOneWidget);
+
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(calls, 0, reason: 'a declined lookup still reached the network');
+
+      await requestIpEstimate(tester);
+      expect(calls, 1);
+    });
+
+    testWidgets('detecting a location asks first and drops a stale elevation',
+        (tester) async {
+      final db = _newDb();
+      addTearDown(db.close);
+      var calls = 0;
+      final container = await pumpSiteStep(
+        tester,
+        db,
+        // Seattle, 1234 m: the site this run is moving away from.
+        seed: (latitude: 47.6062, longitude: -122.3321, elevation: 1234.0),
+        deviceLocation: () async {
+          calls++;
+          return (39.9817, -75.4072, 'Newtown Square, PA');
+        },
+      );
+
+      await tester.tap(find.text('Use my current location'));
+      await tester.pumpAndSettle();
+      expect(calls, 0, reason: 'the lookup ran before the user consented');
+
+      await tester.tap(find.text('Detect location'));
+      await tester.pumpAndSettle();
+      expect(calls, 1);
+
+      final settings = await container.read(appSettingsProvider.future);
+      expect(settings.latitude, closeTo(39.9817, 0.0001));
+      expect(
+        settings.elevation,
+        0.0,
+        reason: 'a Pennsylvania fix kept the Seattle elevation',
+      );
     });
   });
 
@@ -693,6 +793,85 @@ void main() {
       // Plain `pump()` defaults to Duration.zero which is NOT enough
       // — Timer(Duration.zero) is scheduled relative to NOW so a zero
       // advance leaves it pending.
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(microseconds: 1));
+    });
+
+    testWidgets('step list ticks only the steps that captured a value',
+        (tester) async {
+      // The sidebar used to tick every step behind the cursor, so a guider the
+      // user tested, failed to reach and skipped carried the same filled tick
+      // as the camera they really configured — while the Review screen said
+      // "— not set —" about the same guider.
+      final db = _newDb();
+      addTearDown(db.close);
+      late ProviderContainer container;
+
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(1280, 900);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final router = GoRouter(
+        initialLocation: '/onboarding',
+        routes: [
+          GoRoute(
+            path: '/onboarding',
+            builder: (ctx, _) => const OnboardingScreen(),
+          ),
+          GoRoute(
+            path: '/dashboard',
+            builder: (ctx, _) =>
+                const Scaffold(body: Text('dashboard stub for test')),
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            databaseProvider.overrideWithValue(db),
+            allProfilesProvider.overrideWith((ref) => const Stream.empty()),
+          ],
+          child: Consumer(builder: (ctx, ref, _) {
+            container = ProviderScope.containerOf(ctx);
+            return MaterialApp.router(
+              theme: NightshadeTheme.dark,
+              routerConfig: router,
+            );
+          }),
+        ),
+      );
+      await container.read(onboardingDraftProvider.notifier).loaded;
+      await tester.pumpAndSettle();
+
+      // Configure the required gear only, then walk to Review. Focuser,
+      // filter wheel, guider, capture defaults and site are all passed over
+      // with nothing set — exactly the "I pressed Test, it failed, I picked
+      // nothing, I pressed Next" case.
+      final notifier = container.read(onboardingDraftProvider.notifier);
+      await notifier.toggleDriver(DriverType.simulator);
+      await notifier.setCamera(id: 'sim:camera:0', name: 'Simulator Camera');
+      await notifier.setMount(id: 'sim:mount:0', name: 'Simulator Mount');
+      await notifier.setOpticalTrain(
+        focalLengthMm: 1000,
+        apertureMm: 80,
+        pixelSizeMicrons: 3.76,
+        reducerFactor: 1.0,
+      );
+      await notifier.setCaptureDirectory('C:/sim_captures');
+      await notifier.goToStep(OnboardingStep.summary);
+      await tester.pumpAndSettle();
+
+      // Passed with a value: welcome, drivers, camera, mount, optical train,
+      // capture folder.
+      expect(find.byTooltip('Configured'), findsNWidgets(6));
+      // Passed with nothing on record: focuser, filter wheel, guider, camera
+      // defaults, observing site.
+      expect(find.byTooltip('Skipped — nothing was set'), findsNWidgets(5));
+      expect(find.byTooltip('Current step'), findsOneWidget);
+
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump(const Duration(microseconds: 1));
     });

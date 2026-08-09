@@ -56,6 +56,28 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         };
         if (nodeId != null) {
           progressNotifier.updateNodeStatus(nodeId, nodeStatus);
+          // Count the autofocus that actually ran.
+          //
+          // `SequenceRunStats.recordAutofocus()` had ZERO production call
+          // sites: the counter was declared, serialised into
+          // `sequence_runs.stats_json`, mirrored onto
+          // `imaging_sessions.autofocus_count` and rendered by the Session
+          // Report's Mount & focus block — and nothing anywhere incremented
+          // it. Verified on a live run: the Autofocus node swept 9 points,
+          // logged "completed with status: Success" and moved the focuser
+          // 25000 -> 25070, and the run still persisted `"autofocusRuns":0`.
+          //
+          // Read BEFORE the status write above would have been equivalent —
+          // `updateNodeStatus` does not touch the structured-detail map — but
+          // the evidence itself is what matters: the node's own last
+          // structured progress payload. `ProgressDetail::Autofocus` is
+          // emitted by the autofocus instruction and by nothing else, so it
+          // identifies the sweep by what the node DID, keyed on node id. The
+          // node's display name is not usable here: it is operator-editable
+          // and the same string reaches us for a renamed Wait node.
+          if (nodeStatus == NodeStatus.success && _nodeRanAutofocus(nodeId)) {
+            _incrementRunStat((stats) => stats.recordAutofocus());
+          }
           // An unrecognised status string maps to failure (above), but a
           // bare red node with no explanation trains users to ignore the
           // tree. Carry the raw status as a diagnostic and log it so a new
@@ -607,6 +629,13 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     final hfr = (event.data['hfr'] as num?)?.toDouble();
     final eccentricity = (event.data['eccentricity'] as num?)?.toDouble();
     final starCount = event.data['star_count'] as int?;
+    // The capture truth the FITS writer used for THIS frame, carried on the
+    // event. Reading it here — rather than re-deriving gain/offset/binning
+    // from the sequence tree, and leaving temperature, pointing, focuser and
+    // rotator simply absent — is what makes the row and the file agree. Adding
+    // more fields to `resolveFrameAttribution` instead would have kept two
+    // sources of truth for one exposure, which is the defect itself.
+    final capture = FrameCapture.fromEventData(event.data);
     // Accepted frames now carry the on-disk save_path
     // alongside the existing rejected-frame reject_path. The thumbnail
     // strip uses whichever field is populated to load the inline
@@ -621,17 +650,10 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     final rejectionReason = isAccepted
         ? null
         : (event.data['reason'] as String?);
-    final progress = _ref.read(sequenceProgressProvider);
-    // Second source for the filter: the wheel's own live position/name. The
-    // progress provider learns the filter from the Change Filter instruction
-    // event; the wheel state learns it from the `FilterChanged` equipment
-    // event. Either alone leaves a hole (an operator who selects the filter
-    // outside the sequence, or a run whose first frame lands before the
-    // instruction event is processed), and a frame recorded with no filter is
-    // unusable for calibration matching later.
-    final filter =
-        progress.currentFilter ??
-        _ref.read(filterWheelStateProvider).currentFilterName;
+    // One resolver, shared with the run-stats bucket — see
+    // [_resolveActiveFilter] for why the two must not diverge. A frame
+    // recorded with no filter is unusable for calibration matching later.
+    final filter = _resolveActiveFilter();
     final runId = _ref.read(currentRunIdProvider);
     final runIdString = runId?.toString();
     // `dbSessionId` is 0/absent when no session row is open (a bare
@@ -651,6 +673,26 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     // all night) and corrupted every integration-time total. Computed
     // synchronously here so it reflects the sequence as it was when the frame
     // was produced, not whatever is loaded by the time the async insert runs.
+    //
+    // Scope of the `capture.X ?? attribution.X` fallbacks below: they exist for
+    // ONE case, a paired client talking to an appliance older than the frame
+    // capture payload (a phone that auto-updated against a Pi that did not).
+    // That host's frame event carries none of the capture keys, so the tree
+    // walk is all there is.
+    //
+    // On the FFI path they are dead by construction and must stay that way.
+    // Native fills `FrameContext.gain` from `image_data.gain.or(config.gain)`,
+    // and `config.gain` IS the producing node's configured gain — the exact
+    // value `resolveFrameAttribution` reads out of the tree. So a null capture
+    // gain implies a null node gain, and the fallback has nothing to add. It is
+    // also the WEAKER source: for a SmartExposure burst the tree walk picks a
+    // plan by matching the filter name, which can select the wrong plan, while
+    // the native value came off the exposure that actually ran.
+    //
+    // `targetId` is not one of these fallbacks. It is resolved Dart-side only
+    // (see below), because it is a `targets.id` primary key; the event's own
+    // `target_id` is the sequencer's TargetHeader NODE id, a different
+    // identifier entirely.
     final loadedSequence = _ref.read(currentSequenceProvider);
     final attribution = loadedSequence == null
         ? const FrameAttribution()
@@ -659,7 +701,22 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
             nodeId,
             currentFilter: filter,
           );
-    if (attribution.exposureSecs == null) {
+    // `targets.id` this frame belongs to. `attribution` reads the node's own
+    // `catalogTargetId`, which only sequences generated from a library target
+    // carry; for a Target the operator typed into the builder the id comes
+    // from the row bound at run start (see [_bindCatalogTargets]). Before that
+    // binding existed every builder-authored night was persisted with
+    // `target_id` NULL and reported as "Untargeted".
+    final targetId =
+        attribution.targetId ??
+        (loadedSequence == null
+            ? null
+            : _runTargetIdFor(loadedSequence, nodeId));
+    // The exposure the shutter actually ran for, as the camera reported it —
+    // already bounded against the commanded duration native-side, so a driver
+    // that misreports cannot inflate this column's integration totals.
+    final exposureSecs = capture.exposureSecs ?? attribution.exposureSecs;
+    if (exposureSecs == null) {
       _logger.warning(
         'Sequence frame from node $nodeId has no resolvable exposure duration '
         '(producing node is not an ExposureNode); recording 0s rather than a '
@@ -691,7 +748,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     _ref
         .read(sessionStateProvider.notifier)
         .recordExposureComplete(
-          exposureTime: attribution.exposureSecs ?? 0.0,
+          exposureTime: exposureSecs ?? 0.0,
           hfr: hfr,
           accepted: isAccepted,
         );
@@ -711,10 +768,10 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
           fileFormat: filePath.toLowerCase().endsWith('.xisf')
               ? 'xisf'
               : 'fits',
-          // Real exposure length from the producing ExposureNode —
-          // (see the resolved `attribution` above; column is NOT NULL).
-          exposureDuration: attribution.exposureSecs ?? 0.0,
-          targetId: attribution.targetId,
+          // Real exposure length (see `exposureSecs` above; column is NOT
+          // NULL).
+          exposureDuration: exposureSecs ?? 0.0,
+          targetId: targetId,
           capturedAt: DateTime.now(),
           isAccepted: isAccepted,
           producingNodeId: nodeId,
@@ -722,21 +779,34 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
           runtimeGrade: grade,
           rejectionReason: rejectionReason,
           filter: filter,
-          // Real frame type from the producing ExposureNode — previously
-          // hardcoded 'light', which mislabeled sequenced darks/flats/bias
-          // in the images DB.
-          frameType: attribution.frameType,
-          // Capture settings from the producing node. Omitting these left
-          // sequencer frames with NULL gain/offset and a defaulted 1x1 binning
-          // (the columns are NOT NULL DEFAULT 1), so master-dark matching —
-          // which keys on gain, offset and binning — could not pair a sequenced
-          // light with its calibration frames, and binned runs were recorded at
-          // the wrong binning. The ad-hoc capture path already recorded all
-          // three; this brings the sequencer in line.
-          gain: attribution.gain,
-          offset: attribution.offset,
-          binX: attribution.binX,
-          binY: attribution.binY,
+          // Frame type as captured (FITS `IMAGETYP`), lowercased to the images
+          // DB's spelling. Falls back to the tree walk for a host that does
+          // not send the capture payload.
+          frameType: capture.frameType?.toLowerCase() ?? attribution.frameType,
+          // Capture settings as the camera actually reported them for this
+          // exposure — the same values stamped into the FITS header. They used
+          // to come from the node config instead, which is what the sequence
+          // ASKED for; a camera that clamped or ignored a requested gain left
+          // the row and the file disagreeing about the same frame.
+          gain: capture.gain ?? attribution.gain,
+          offset: capture.offset ?? attribution.offset,
+          binX: capture.binX ?? attribution.binX,
+          binY: capture.binY ?? attribution.binY,
+          // Live equipment state at the moment of capture. These columns have
+          // existed since v18 and no sequencer frame has ever populated one:
+          // the row carried no temperature, no pointing, no focuser or rotator
+          // position, while the FITS file written microseconds earlier from the
+          // same exposure carried all of them.
+          sensorTemp: capture.sensorTempC,
+          coolerPower: capture.coolerPowerPercent,
+          mountRa: capture.mountRaHours,
+          mountDec: capture.mountDecDegrees,
+          mountAltitude: capture.mountAltitudeDeg,
+          mountAzimuth: capture.mountAzimuthDeg,
+          pierSide: capture.pierSide,
+          focuserPosition: capture.focuserPosition,
+          focuserTemp: capture.focuserTemperatureC,
+          rotatorAngle: capture.rotatorAngleDeg,
           // Tie the frame to the active imaging session, the same way the
           // ad-hoc capture path does (`persistence.dart` reads
           // `sessionState.dbSessionId`). Without it every session-scoped
@@ -787,7 +857,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         // touches frame attribution; rejected frames (`isAccepted == false`)
         // are skipped so the counter only advances on acceptance.
         if (isAccepted &&
-            attribution.targetId != null &&
+            targetId != null &&
             filter != null &&
             filter.isNotEmpty) {
           if (_disposed) return;
@@ -795,14 +865,14 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
             await _ref
                 .read(campaignsDaoProvider)
                 .recordAccepted(
-                  targetId: attribution.targetId!,
+                  targetId: targetId,
                   filter: filter,
                   capturedAt: DateTime.now(),
                 );
           } catch (e) {
             logger.warning(
               'Phase B: failed to credit campaign for target '
-              '${attribution.targetId} filter $filter: $e',
+              '$targetId filter $filter: $e',
               source: 'SequenceExecutor',
             );
           }
@@ -823,19 +893,81 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     );
   }
 
+  /// Whether the node identified by [nodeId] ran an autofocus sweep, judged by
+  /// its most recent structured progress payload.
+  ///
+  /// `ProgressDetail::Autofocus` reaches Dart as an
+  /// [UnknownInstructionProgressDetail] with `kind == 'Autofocus'` (only
+  /// `Exposure` has a typed Dart counterpart today), and it is emitted by the
+  /// autofocus instruction alone — both for a tree `Autofocus` node and for a
+  /// trigger-fired refocus, which the executor publishes under the synthetic
+  /// node id `trigger:<id>:autofocus`.
+  bool _nodeRanAutofocus(String nodeId) {
+    final detail = _ref
+        .read(sequenceProgressProvider)
+        .nodeProgressStructuredDetail[nodeId];
+    return detail is UnknownInstructionProgressDetail &&
+        detail.kind == 'Autofocus';
+  }
+
+  /// The filter this run is exposing through, resolved once from the two
+  /// sources that can know it.
+  ///
+  /// The progress provider learns the filter from the Change Filter
+  /// instruction event; the wheel state learns it from the `FilterChanged`
+  /// equipment event. Either alone leaves a hole — an operator who parks the
+  /// wheel outside the sequence, or a frame that lands before the instruction
+  /// event is processed.
+  ///
+  /// Shared with [_registerSequenceFrame] on purpose. The two used to resolve
+  /// the filter differently for the SAME frame: registration used this chain
+  /// (and wrote `captured_images.filter = 'R'`) while the run-stats bucket
+  /// used only `SequencerEvent.ExposureCompleted.filter`, a field the native
+  /// event does not even carry, so `stats_json.targetBreakdown` filed the same
+  /// four frames under `"Unknown"`. One frame, two answers, both persisted.
+  String? _resolveActiveFilter() =>
+      _ref.read(sequenceProgressProvider).currentFilter ??
+      _ref.read(filterWheelStateProvider).currentFilterName;
+
+  /// The target the run is currently imaging, for the run-stats bucket.
+  ///
+  /// The progress provider only learns a target name from a native
+  /// `TargetStarted` / `TargetChanged` event. A plain builder sequence never
+  /// produces one, so this fell straight through to the SEQUENCE name and
+  /// `stats_json.targetBreakdown` filed four frames of "New Target" under the
+  /// key "New Sequence". The sequence tree knows the answer without any event:
+  /// walk up from the node that is executing to its enclosing target header.
+  String _resolveActiveTargetName() {
+    final progress = _ref.read(sequenceProgressProvider);
+    final fromEvent = progress.currentTarget;
+    if (fromEvent != null && fromEvent.isNotEmpty) return fromEvent;
+
+    final sequence = _ref.read(currentSequenceProvider);
+    final nodeId = progress.currentNodeId;
+    if (sequence != null && nodeId != null) {
+      final header = enclosingTargetHeader(sequence, nodeId);
+      final name = header?.targetName;
+      if (name != null && name.isNotEmpty) return name;
+    }
+    // No target header at all (a bare calibration or quick-capture sequence):
+    // the sequence's own name is the most specific true label left.
+    return sequence?.name ?? 'Sequence';
+  }
+
   void _recordRunFrame({
     required double exposureSecs,
     required bool accepted,
     String? filter,
   }) {
     _incrementRunStat((stats) {
-      final progress = _ref.read(sequenceProgressProvider);
+      final resolvedFilter = (filter != null && filter.isNotEmpty)
+          ? filter
+          : _resolveActiveFilter();
       stats.recordFrame(
-        target:
-            progress.currentTarget ??
-            _ref.read(currentSequenceProvider)?.name ??
-            'Sequence',
-        filter: (filter != null && filter.isNotEmpty) ? filter : 'Unknown',
+        target: _resolveActiveTargetName(),
+        filter: (resolvedFilter != null && resolvedFilter.isNotEmpty)
+            ? resolvedFilter
+            : 'Unknown',
         exposureSecs: exposureSecs,
         accepted: accepted,
       );
@@ -844,6 +976,14 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
 
   void _recordRunError(String message) {
     _incrementRunStat((stats) => stats.recordError(message));
+  }
+
+  /// Record the reason carried by a terminal event. See
+  /// [SequenceRunStats.recordTerminalError] for why this is not
+  /// [_recordRunError]: the terminal reason is a restatement of the mid-run
+  /// `Error` this same run already recorded.
+  void _recordTerminalRunError(String message) {
+    _incrementRunStat((stats) => stats.recordTerminalError(message));
   }
 
   /// Record the verdict of a meridian flip into the live run stats.

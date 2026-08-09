@@ -3,7 +3,11 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:nightshade_core/nightshade_core.dart'
+    show InterpolationVariable;
 import 'package:nightshade_ui/nightshade_ui.dart';
+
+import '../../../widgets/sequence/variable_picker.dart';
 
 /// Finite upper/lower fallback used when only one of `min`/`max` is supplied to
 /// a numeric field. Clamping against `double.infinity` let pathological values
@@ -129,6 +133,12 @@ class NodeTextInput extends StatefulWidget {
   /// invalid (but still-typeable) content such as malformed JSON.
   final bool hasError;
 
+  /// When non-null the field gains a `${ }` insert control offering exactly
+  /// these variables. Template fields (notification title/message) advertise
+  /// `${target.name}`-style tokens in their hint and otherwise require the
+  /// operator to type them from memory, with no list of what exists.
+  final List<InterpolationVariable>? variables;
+
   const NodeTextInput({
     super.key,
     required this.colors,
@@ -137,6 +147,7 @@ class NodeTextInput extends StatefulWidget {
     this.hint,
     this.maxLines,
     this.hasError = false,
+    this.variables,
   });
 
   @override
@@ -171,6 +182,7 @@ class _NodeTextInputState extends State<NodeTextInput> {
     final inputFontSize = Responsive.fontSize(context, 13);
     final inputPaddingH = Responsive.spacing(context, 12);
     final inputPaddingV = Responsive.spacing(context, 10);
+    final variables = widget.variables;
 
     return Container(
       padding: EdgeInsets.symmetric(horizontal: inputPaddingH),
@@ -199,6 +211,16 @@ class _NodeTextInputState extends State<NodeTextInput> {
           border: InputBorder.none,
           isDense: true,
           contentPadding: EdgeInsets.symmetric(vertical: inputPaddingV),
+          suffixIcon: variables == null
+              ? null
+              : VariablePickerButton(
+                  controller: _controller,
+                  variables: variables,
+                  // The picker writes through the controller, which does not
+                  // fire TextField.onChanged (that only fires on user edits),
+                  // so the insert has to be committed to the node explicitly.
+                  onChanged: () => widget.onChanged(_controller.text),
+                ),
         ),
       ),
     );

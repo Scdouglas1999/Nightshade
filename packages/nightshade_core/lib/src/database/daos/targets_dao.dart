@@ -100,6 +100,38 @@ class TargetsDao extends DatabaseAccessor<NightshadeDatabase>
     return into(targets).insert(target);
   }
 
+  /// `targets.id` for the object a sequence's Target node images, creating the
+  /// row the first time that object is actually imaged.
+  ///
+  /// A Target node built by hand in the sequencer carries no `catalogTargetId`,
+  /// so every frame it produced was written with `target_id` NULL: the Session
+  /// Report filed a whole night under "Untargeted", per-target integration
+  /// goals could never complete, and project tracking counted nothing —
+  /// while the FITS `OBJECT` card and the file name both named the target.
+  ///
+  /// Matched on trimmed, case-insensitive name so re-running the same sequence
+  /// keeps accumulating against one row instead of forking a new one per night.
+  /// Coordinates are only used when the row has to be created; an existing
+  /// row's coordinates are left alone (the library entry, or the planner, owns
+  /// them).
+  Future<int> findOrCreateByName({
+    required String name,
+    required double raHours,
+    required double decDegrees,
+  }) async {
+    final trimmed = name.trim();
+    final existing =
+        await (select(targets)
+              ..where((t) => t.name.lower().equals(trimmed.toLowerCase()))
+              ..limit(1))
+            .getSingleOrNull();
+    if (existing != null) return existing.id;
+
+    return createTarget(
+      TargetsCompanion.insert(name: trimmed, ra: raHours, dec: decDegrees),
+    );
+  }
+
   /// Update a target
   Future<bool> updateTarget(Target target) {
     return update(targets).replace(target);

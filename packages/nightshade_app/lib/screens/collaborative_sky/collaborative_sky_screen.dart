@@ -78,8 +78,7 @@ class CollaborativeSkyView extends ConsumerWidget {
     ref.invalidate(constellationHubInfoProvider);
     ref.invalidate(coImagingSessionsProvider);
     ref.invalidate(coImagingMembershipsProvider);
-    ref.invalidate(collaborativeMosaicsProvider);
-    ref.invalidate(collaborativeMosaicDetailProvider);
+    invalidateCollaborativeMosaicStateFor(ref);
     ref.invalidate(sharedLibrarySummaryProvider);
   }
 
@@ -424,11 +423,17 @@ class _CoImagingCardWiredState extends ConsumerState<_CoImagingCardWired> {
     final attribution = ref
         .watch(coImagingAttributionProvider(widget.session.sessionId))
         .valueOrNull;
+    // Membership alone does not mean a sub ever leaves this device: the
+    // auto-contribute egress fails closed without an unattended consent record.
+    final contributing = ref.watch(coImagingSharingEnabledProvider).valueOrNull;
     return CoImagingSessionCard(
       session: widget.session,
       livePreview: livePreview,
       attribution: attribution,
       joined: joined,
+      contributing: joined == true ? contributing : null,
+      onEnableSharing:
+          joined == true && contributing == false ? _enableSharing : null,
       membershipErrorMessage: membershipErrorMessage,
       onRetryMembership: membershipErrorMessage == null
           ? null
@@ -497,6 +502,12 @@ class _CoImagingCardWiredState extends ConsumerState<_CoImagingCardWired> {
     } finally {
       if (mounted) setState(() => _joining = false);
     }
+  }
+
+  Future<void> _enableSharing() async {
+    final sharing = await ensureCoImagingSharingConsent(context, ref);
+    if (sharing == null || !mounted) return;
+    ref.invalidate(coImagingSharingEnabledProvider);
   }
 
   Future<void> _leave() async {

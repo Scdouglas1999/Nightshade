@@ -15,6 +15,16 @@ enum TargetConstraintKind {
   /// is skipped. Example: image M42 only when moon < 0.30 illuminated.
   moonIlluminationMax,
 
+  /// A minimum angular separation (degrees) between the target and the moon,
+  /// below which the target is skipped.
+  ///
+  /// Illumination alone is the wrong axis on its own: it rejects a target
+  /// 150° away from a 90% moon (harmless) and accepts one 10° from a 40% moon
+  /// (ruined). Separation is what NINA and SGP both gate on, and the rest of
+  /// this app already speaks it — the planner filter bar, the recommendation
+  /// cards, and the scheduler's own moon score factor.
+  moonSeparationMin,
+
   /// A reference to a horizon profile id; the target is rejected if its
   /// current altitude is below the profile's value at the target's azimuth.
   customHorizon,
@@ -140,6 +150,9 @@ class TargetConstraint extends Equatable {
 
   final double? moonIlluminationMax;
 
+  /// Degrees; payload for [TargetConstraintKind.moonSeparationMin].
+  final double? moonSeparationMinDeg;
+
   /// Reference to HorizonProfiles.id (resolved against the same database).
   final int? customHorizonId;
 
@@ -156,6 +169,7 @@ class TargetConstraint extends Equatable {
     required this.kind,
     this.timeWindow,
     this.moonIlluminationMax,
+    this.moonSeparationMinDeg,
     this.customHorizonId,
     this.scheduledWindow,
     this.enabled = true,
@@ -167,6 +181,7 @@ class TargetConstraint extends Equatable {
     TargetConstraintKind? kind,
     TargetTimeWindow? timeWindow,
     double? moonIlluminationMax,
+    double? moonSeparationMinDeg,
     int? customHorizonId,
     ScheduledWindow? scheduledWindow,
     bool? enabled,
@@ -177,6 +192,7 @@ class TargetConstraint extends Equatable {
       kind: kind ?? this.kind,
       timeWindow: timeWindow ?? this.timeWindow,
       moonIlluminationMax: moonIlluminationMax ?? this.moonIlluminationMax,
+      moonSeparationMinDeg: moonSeparationMinDeg ?? this.moonSeparationMinDeg,
       customHorizonId: customHorizonId ?? this.customHorizonId,
       scheduledWindow: scheduledWindow ?? this.scheduledWindow,
       enabled: enabled ?? this.enabled,
@@ -199,6 +215,13 @@ class TargetConstraint extends Equatable {
           );
         }
         return jsonEncode({'max': moonIlluminationMax});
+      case TargetConstraintKind.moonSeparationMin:
+        if (moonSeparationMinDeg == null) {
+          throw StateError(
+            'moonSeparationMin constraint missing moonSeparationMinDeg value',
+          );
+        }
+        return jsonEncode({'min_deg': moonSeparationMinDeg});
       case TargetConstraintKind.customHorizon:
         if (customHorizonId == null) {
           throw StateError(
@@ -244,6 +267,14 @@ class TargetConstraint extends Equatable {
           targetId: targetId,
           kind: kind,
           moonIlluminationMax: (payload['max'] as num).toDouble(),
+          enabled: enabled,
+        );
+      case TargetConstraintKind.moonSeparationMin:
+        return TargetConstraint(
+          id: id,
+          targetId: targetId,
+          kind: kind,
+          moonSeparationMinDeg: (payload['min_deg'] as num).toDouble(),
           enabled: enabled,
         );
       case TargetConstraintKind.customHorizon:
@@ -294,6 +325,7 @@ class TargetConstraint extends Equatable {
     kind,
     timeWindow,
     moonIlluminationMax,
+    moonSeparationMinDeg,
     customHorizonId,
     scheduledWindow,
     enabled,

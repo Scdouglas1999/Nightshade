@@ -115,6 +115,21 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
         .watch();
   }
 
+  /// Every session that recorded at least one photometry measurement.
+  ///
+  /// Used to choose which night the Science tab opens on, so a couple of test
+  /// frames taken after a photometry run cannot bury the run they follow.
+  Future<Set<int>> getSessionIdsWithPhotometry() async {
+    final query = selectOnly(photometryMeasurements, distinct: true)
+      ..addColumns([photometryMeasurements.sessionId])
+      ..where(photometryMeasurements.sessionId.isNotNull());
+    final rows = await query.get();
+    return rows
+        .map((row) => row.read(photometryMeasurements.sessionId))
+        .whereType<int>()
+        .toSet();
+  }
+
   Future<List<PhotometryMeasurementRow>> getPhotometryForSession(
     int sessionId,
   ) {
@@ -122,6 +137,39 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
           ..where((tbl) => tbl.sessionId.equals(sessionId))
           ..orderBy([(tbl) => OrderingTerm.asc(tbl.timestamp)]))
         .get();
+  }
+
+  /// Every measurement of one object across all sessions that imaged a target.
+  ///
+  /// Period searches need a baseline longer than the period they are looking
+  /// for, and almost no variable star or transit fits inside a single night —
+  /// a per-session light curve can only ever report "the period is at least as
+  /// long as this run". Joining through `captured_images.target_id` keeps the
+  /// campaign together even though photometry rows themselves only know their
+  /// session.
+  Stream<List<PhotometryMeasurementRow>> watchPhotometryForTarget({
+    required int targetId,
+    required String objectId,
+  }) {
+    final query =
+        select(photometryMeasurements).join([
+            innerJoin(
+              capturedImages,
+              capturedImages.id.equalsExp(
+                photometryMeasurements.capturedImageId,
+              ),
+            ),
+          ])
+          ..where(
+            capturedImages.targetId.equals(targetId) &
+                photometryMeasurements.objectId.equals(objectId),
+          )
+          ..orderBy([OrderingTerm.asc(photometryMeasurements.timestamp)]);
+    return query.watch().map(
+      (rows) => rows
+          .map((row) => row.readTable(photometryMeasurements))
+          .toList(growable: false),
+    );
   }
 
   Future<void> insertFrameCalibration(

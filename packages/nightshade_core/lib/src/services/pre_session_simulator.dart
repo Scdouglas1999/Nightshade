@@ -100,7 +100,28 @@ class PreSessionSimulator {
     final segments = analysis.timings
         .map((timing) => _segmentFromTiming(sequence, timing))
         .toList(growable: false);
-    final end = segments.isEmpty ? start : segments.last.end;
+    // The end of the run, not the end of the last RENDERED segment.
+    //
+    // `estimateSequenceTiming` deliberately emits detail for a single pass of
+    // a Count loop (each entry carries a "Showing 1 of N" note) while advancing
+    // its own clock by the whole loop. Taking `segments.last.end` therefore
+    // billed a sequence that ends in `Loop(count: N)` for ONE iteration, so the
+    // pre-flight "Duration"/"Ends" pair disagreed with the Builder's estimate
+    // chip — which reads `estimateTotalDuration` — by the loop factor. Ask the
+    // estimator for the same total the chip shows; `estimateTotalDuration`
+    // already takes the later of its own walk end and the last timing entry, so
+    // this can only ever move the end later, never earlier.
+    final walkEnd = start.add(
+      _estimator.estimateTotalDuration(
+        sequence,
+        start,
+        latitude: latitude,
+        longitude: longitude,
+      ),
+    );
+    final end = segments.isEmpty
+        ? start
+        : (walkEnd.isAfter(segments.last.end) ? walkEnd : segments.last.end);
     final issues = <PreSessionSimulationIssue>[
       ...analysis.conflicts.map(
         (message) => PreSessionSimulationIssue(

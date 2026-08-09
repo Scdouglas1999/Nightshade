@@ -326,6 +326,16 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
   }
 
   @override
+  Future<Phd2ProbeResult> phd2Probe({
+    String host = 'localhost',
+    int port = 4400,
+  }) {
+    // The FFI backend runs on the imaging host itself, so the PHD2 event
+    // socket is directly reachable from this isolate.
+    return probePhd2(host: host, port: port);
+  }
+
+  @override
   Future<void> phd2Connect({String host = 'localhost', int port = 4400}) async {
     await bridge.NativeBridge.phd2Connect(host: host, port: port);
   }

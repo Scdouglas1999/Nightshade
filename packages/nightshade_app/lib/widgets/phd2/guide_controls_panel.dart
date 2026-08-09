@@ -780,68 +780,83 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
     final laneBusy = isStop ? _stopInFlight : _positiveBusy;
     final isDisabled = onPressed == null || laneBusy;
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: isDisabled ? null : () => _runAction(id, onPressed),
-        borderRadius: BorderRadius.circular(8),
-        child: ConstrainedBox(
-          // Ensure minimum 44px touch target height for accessibility
-          constraints: BoxConstraints(minHeight: small ? 40 : 44),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            padding: EdgeInsets.symmetric(
-              horizontal: small ? 10 : 12,
-              vertical: small ? 10 : 12,
-            ),
-            decoration: BoxDecoration(
-              color: isOutline
-                  ? Colors.transparent
-                  : (isDisabled
-                      ? colors.surfaceAlt
-                      : color.withValues(alpha: 0.15)),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: isDisabled
-                    ? colors.border
-                    : (isOutline
-                        ? colors.border
-                        : color.withValues(alpha: 0.3)),
+    // These are the controls that start and stop guiding, so they must publish
+    // a button role and their enabled state. Without this wrapper the bare
+    // Material > InkWell reached assistive tech as an unnamed generic node
+    // ("panel: Start") that never carried DISABLED, so a screen-reader user was
+    // never told Start was unavailable while PHD2 was disconnected. The tap
+    // action is republished here because excludeSemantics drops the InkWell's
+    // own gesture semantics along with the duplicate label node.
+    return Semantics(
+      container: true,
+      button: true,
+      enabled: !isDisabled,
+      label: label,
+      onTap: isDisabled ? null : () => _runAction(id, onPressed),
+      excludeSemantics: true,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isDisabled ? null : () => _runAction(id, onPressed),
+          borderRadius: BorderRadius.circular(8),
+          child: ConstrainedBox(
+            // Ensure minimum 44px touch target height for accessibility
+            constraints: BoxConstraints(minHeight: small ? 40 : 44),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: EdgeInsets.symmetric(
+                horizontal: small ? 10 : 12,
+                vertical: small ? 10 : 12,
               ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: small ? MainAxisSize.min : MainAxisSize.max,
-              children: [
-                if (isThisBusy)
-                  SizedBox(
-                    width: small ? 14 : 16,
-                    height: small ? 14 : 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(color),
-                    ),
-                  )
-                else
-                  Icon(
-                    icon,
-                    size: small ? 14 : 16,
-                    color: isDisabled ? colors.textMuted : color,
-                  ),
-                SizedBox(width: small ? 6 : 8),
-                Flexible(
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: small ? 11 : 12,
-                      fontWeight: FontWeight.w500,
+              decoration: BoxDecoration(
+                color: isOutline
+                    ? Colors.transparent
+                    : (isDisabled
+                        ? colors.surfaceAlt
+                        : color.withValues(alpha: 0.15)),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isDisabled
+                      ? colors.border
+                      : (isOutline
+                          ? colors.border
+                          : color.withValues(alpha: 0.3)),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: small ? MainAxisSize.min : MainAxisSize.max,
+                children: [
+                  if (isThisBusy)
+                    SizedBox(
+                      width: small ? 14 : 16,
+                      height: small ? 14 : 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(color),
+                      ),
+                    )
+                  else
+                    Icon(
+                      icon,
+                      size: small ? 14 : 16,
                       color: isDisabled ? colors.textMuted : color,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  SizedBox(width: small ? 6 : 8),
+                  Flexible(
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: small ? 11 : 12,
+                        fontWeight: FontWeight.w500,
+                        color: isDisabled ? colors.textMuted : color,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

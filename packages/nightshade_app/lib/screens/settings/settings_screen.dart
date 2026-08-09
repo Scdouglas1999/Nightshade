@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -8,6 +11,8 @@ import '../../localization/nightshade_localizations.dart';
 import '../../widgets/contextual_tour_prompt.dart';
 import '../../widgets/tutorial_keys/settings_keys.dart';
 import 'settings_catalog.dart';
+import 'settings_search_index.g.dart';
+import 'widgets/settings_widgets.dart';
 
 // Re-export the derived deep-link index map so existing importers keep
 // resolving `package:.../settings_screen.dart` → kSettingsSectionIndex. The map
@@ -15,6 +20,139 @@ import 'settings_catalog.dart';
 // and is a backward-compatibility shim only; selection is driven by KEY.
 export 'settings_catalog.dart'
     show kSettingsSectionIndex, kMergedSectionAliases;
+
+/// Words a user types for a setting that the owning page never says.
+///
+/// The app's own vocabulary was missing the page that owns it: the Dashboard
+/// empty state says "Set a capture directory to track free space" and the
+/// status bar says "No save path", but Files & Storage titles that row "Image
+/// output" — so "capture folder", "disk", "free space" and "save path" all
+/// returned nothing. Kept small and deliberate: a synonym that is too generous
+/// makes the search match everything, which is the failure mode the derived
+/// index replaced.
+const Map<String, List<String>> kSettingsSearchSynonyms = {
+  'files-storage': [
+    'capture folder',
+    'capture directory',
+    'save path',
+    'image folder',
+    'disk space',
+    'free space',
+    'storage location',
+  ],
+};
+
+/// Whether [section] answers a single search token, including the synonyms
+/// above. Exposed so tests can exercise the same predicate the screen uses.
+bool sectionMatchesToken(SettingsSectionDef section, String token) {
+  if (section.matches(token)) return true;
+  for (final synonym in kSettingsSearchSynonyms[section.key] ?? const []) {
+    if (synonym.contains(token)) return true;
+  }
+  return false;
+}
+
+/// How well [section] answers [query]; lower sorts first.
+///
+/// Exact section titles outrank a row title that merely contains the query,
+/// which is what kept sending an autofocus search to a page ranked above the
+/// page the setting is actually on.
+int settingsMatchRank(SettingsSectionDef section, String query) {
+  final label = section.label.toLowerCase();
+  if (label == query) return 0;
+  if (label.contains(query)) return 1;
+  var best = 4;
+  for (final term in kSettingsSearchTerms[section.key] ?? const <String>[]) {
+    final lower = term.toLowerCase();
+    if (lower == query) return 2;
+    if (lower.startsWith(query) && best > 3) best = 3;
+  }
+  return best;
+}
+
+/// A section that answered the query, plus the rows inside it that did.
+///
+/// The row titles were being computed and thrown away: the sidebar showed
+/// "Connection" for a query of "Alpaca" and left the operator to find the
+/// Alpaca row on a long page by eye.
+class SettingsSearchResult {
+  const SettingsSearchResult(this.section, this.rows);
+
+  final SettingsSectionDef section;
+
+  /// Matching row titles, best (shortest, i.e. most title-like) first. Empty
+  /// when the section's own name or a synonym is what matched.
+  final List<String> rows;
+}
+
+/// Does [term] look like the NAME of a setting, rather than prose about one?
+///
+/// The generated index is not a list of row titles. Its `title:` rule has no
+/// left word boundary, so every `subtitle:` in the settings tree is indexed as
+/// well — that is how "Where rejected frames go. Leave blank for the default
+/// `<save_path>/Reject/…`" (164 characters) ends up in it. That was harmless
+/// while the index only decided which SECTIONS matched, but a result list that
+/// offers those strings as tappable rows offers dead ends: nothing on the page
+/// is titled that, so opening it reveals and marks nothing — exactly the
+/// complaint the row results were added to fix.
+///
+/// Measured over the 508 `title:` and 222 `subtitle:` literals under
+/// `screens/settings/`: 99% of titles are <= 39 characters and <= 6 words,
+/// while the median subtitle is 43 characters and 7 words.
+bool isRowShapedSettingsTerm(String term) {
+  final trimmed = term.trim();
+  if (trimmed.isEmpty || trimmed.length > 48) return false;
+  if (trimmed.split(RegExp(r'\s+')).length > 6) return false;
+  // A sentence is prose; a row name never ends in a full stop or a comma and
+  // never runs two sentences together.
+  if (RegExp(r'[.,;]$').hasMatch(trimmed)) return false;
+  if (trimmed.contains('. ')) return false;
+  return true;
+}
+
+/// Does [token] begin a word in [lowerTerm]?
+///
+/// A bare `contains` made "gain" match "try ag[ain]." and "port" match
+/// "sup[port]" and "re[port]ing_group_id" — results that have nothing to do
+/// with what was typed. Sections keep the looser substring test
+/// ([sectionMatchesToken]); only the row list, which claims to name the
+/// setting that matched, is held to a word boundary.
+bool _startsWord(String lowerTerm, String token) {
+  if (token.isEmpty) return false;
+  var from = 0;
+  while (true) {
+    final at = lowerTerm.indexOf(token, from);
+    if (at < 0) return false;
+    if (at == 0 || !RegExp(r'[a-z0-9]').hasMatch(lowerTerm[at - 1])) {
+      return true;
+    }
+    from = at + 1;
+  }
+}
+
+/// Row titles inside [section] that answer every token of the query.
+///
+/// Shortest first: the index holds row titles, page headings and control
+/// labels, and the short entries are the ones that are actually a row's name.
+List<String> matchingSettingsRows(
+  SettingsSectionDef section,
+  List<String> tokens, {
+  int limit = 3,
+}) {
+  final matches = <String>[];
+  final sectionLabel = section.label.toLowerCase();
+  for (final term in kSettingsSearchTerms[section.key] ?? const <String>[]) {
+    if (!isRowShapedSettingsTerm(term)) continue;
+    final lower = term.toLowerCase();
+    // A page whose own heading repeats the section name ("Notifications"
+    // inside Notifications) would be offered as a child of the entry directly
+    // above it, which says nothing new and cannot be tapped anywhere better.
+    if (lower == sectionLabel) continue;
+    if (tokens.every((token) => _startsWord(lower, token))) matches.add(term);
+  }
+  mergeSort<String>(matches, compare: (a, b) => a.length.compareTo(b.length));
+  return matches.take(limit).toList();
+}
 
 class SettingsScreen extends ConsumerStatefulWidget {
   /// Optional stable section key (e.g. `'location'`) to open directly. Unknown
@@ -43,6 +181,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _query = '';
 
+  /// Row title the detail pane should reveal, set when a search result names a
+  /// specific row. Cleared a few seconds later by [_highlightTimer].
+  String? _highlightRow;
+  Timer? _highlightTimer;
+
   @override
   void initState() {
     super.initState();
@@ -64,6 +207,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   void dispose() {
     ShellBackDispatcher.unregister(_handleSystemBack);
+    _highlightTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -95,10 +239,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     return groups.first.sections.first;
   }
 
-  void _selectSection(String key, {required bool isMobile}) {
+  void _selectSection(String key, {required bool isMobile, String? rowTitle}) {
+    _highlightTimer?.cancel();
     setState(() {
       _selectedKey = key;
+      _highlightRow = rowTitle;
       if (isMobile) _mobileShowingDetail = true;
+    });
+    if (rowTitle == null) return;
+    // The tint is a pointer, not a state: leaving it on would make the row look
+    // selected for the rest of the session.
+    _highlightTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) setState(() => _highlightRow = null);
     });
   }
 
@@ -108,17 +260,39 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     });
   }
 
-  /// Sections matching the live search query, flattened across all groups.
-  List<SettingsSectionDef> _searchResults(List<SettingsGroupDef> groups) {
-    final q = _query.trim().toLowerCase();
-    if (q.isEmpty) return const [];
-    final results = <SettingsSectionDef>[];
+  /// Sections matching the live search query, best match first.
+  ///
+  /// The query is tokenised and every token must match, because
+  /// [SettingsSectionDef.matches] is a substring test over single indexed
+  /// phrases: the whole string "capture folder" is not a substring of any one
+  /// row title, so the two-word phrase a user actually types returned "No
+  /// settings match your search" while "folder" alone returned three sections.
+  List<SettingsSearchResult> _searchResults(List<SettingsGroupDef> groups) {
+    final query = _query.trim().toLowerCase();
+    if (query.isEmpty) return const [];
+    final tokens =
+        query.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+    if (tokens.isEmpty) return const [];
+
+    final sections = <SettingsSectionDef>[];
     for (final group in groups) {
       for (final section in group.sections) {
-        if (section.matches(q)) results.add(section);
+        if (tokens.every((token) => sectionMatchesToken(section, token))) {
+          sections.add(section);
+        }
       }
     }
-    return results;
+    // Stable sort: equal ranks keep sidebar order, so the list only ever
+    // PROMOTES a better match rather than reshuffling the taxonomy.
+    mergeSort<SettingsSectionDef>(
+      sections,
+      compare: (a, b) =>
+          settingsMatchRank(a, query).compareTo(settingsMatchRank(b, query)),
+    );
+    return [
+      for (final section in sections)
+        SettingsSearchResult(section, matchingSettingsRows(section, tokens)),
+    ];
   }
 
   @override
@@ -199,7 +373,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         expandedGroups: _expandedGroups,
         onQueryChanged: (value) => setState(() => _query = value),
         onToggleGroup: _toggleGroup,
-        onSectionTap: (key) => _selectSection(key, isMobile: true),
+        onSectionTap: (key, rowTitle) =>
+            _selectSection(key, isMobile: true, rowTitle: rowTitle),
         colors: colors,
         title: context.l10n.text('settingsTitle'),
       );
@@ -244,7 +419,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         Expanded(
           child: SafeArea(
             top: false,
-            child: section.build(true),
+            child: SettingsRowHighlight(
+              rowTitle: _highlightRow,
+              child: section.build(true),
+            ),
           ),
         ),
       ],
@@ -307,7 +485,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           results: results,
                           selectedKey: _selectedKey,
                           colors: colors,
-                          onTap: (key) => _selectSection(key, isMobile: false),
+                          onTap: (key, rowTitle) => _selectSection(
+                            key,
+                            isMobile: false,
+                            rowTitle: rowTitle,
+                          ),
                         )
                       : _DesktopGroupedList(
                           groups: groups,
@@ -323,7 +505,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
         ),
-        Expanded(child: _selectedSection(groups).build(false)),
+        Expanded(
+          child: SettingsRowHighlight(
+            rowTitle: _highlightRow,
+            child: _selectedSection(groups).build(false),
+          ),
+        ),
       ],
     );
   }
@@ -469,6 +656,7 @@ class _GroupHeader extends StatefulWidget {
 
 class _GroupHeaderState extends State<_GroupHeader> {
   bool _hovered = false;
+  bool _focused = false;
 
   @override
   Widget build(BuildContext context) {
@@ -476,41 +664,57 @@ class _GroupHeaderState extends State<_GroupHeader> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        behavior: HitTestBehavior.opaque,
-        child: Container(
-          margin: const EdgeInsets.only(top: 8, bottom: 2),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(
-            color: _hovered ? colors.surfaceAlt : Colors.transparent,
+      // InkWell, not GestureDetector: the whole section navigator was
+      // mouse-only — 24 Tab presses never landed on it, and AT read every
+      // entry as "panel" rather than a control. InkWell joins the traversal
+      // order, activates on Enter/Space, and reports itself as a button.
+      child: MergeSemantics(
+        child: Semantics(
+          button: true,
+          expanded: widget.expanded,
+          child: InkWell(
+            onTap: widget.onTap,
+            onFocusChange: (value) => setState(() => _focused = value),
             borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-          ),
-          child: Row(
-            children: [
-              Icon(widget.icon, size: 16, color: colors.textMuted),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  widget.title.toUpperCase(),
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.6,
-                    color: colors.textSecondary,
+            child: Container(
+              margin: const EdgeInsets.only(top: 8, bottom: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: _hovered ? colors.surfaceAlt : Colors.transparent,
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline8),
+                // Keyboard focus has to be VISIBLE, not just held.
+                border: _focused
+                    ? Border.all(color: colors.primary, width: 2)
+                    : null,
+              ),
+              child: Row(
+                children: [
+                  Icon(widget.icon, size: 16, color: colors.textMuted),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      widget.title.toUpperCase(),
+                      style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.6,
+                        color: colors.textSecondary,
+                      ),
+                    ),
                   ),
-                ),
+                  AnimatedRotation(
+                    turns: widget.expanded ? 0.25 : 0.0,
+                    duration: const Duration(milliseconds: 150),
+                    child: Icon(
+                      LucideIcons.chevronRight,
+                      size: 16,
+                      color: colors.textMuted,
+                    ),
+                  ),
+                ],
               ),
-              AnimatedRotation(
-                turns: widget.expanded ? 0.25 : 0.0,
-                duration: const Duration(milliseconds: 150),
-                child: Icon(
-                  LucideIcons.chevronRight,
-                  size: 16,
-                  color: colors.textMuted,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -530,10 +734,10 @@ class _DesktopSearchResults extends StatelessWidget {
     required this.onTap,
   });
 
-  final List<SettingsSectionDef> results;
+  final List<SettingsSearchResult> results;
   final String selectedKey;
   final NightshadeColors colors;
-  final void Function(String key) onTap;
+  final void Function(String key, String? rowTitle) onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -552,15 +756,95 @@ class _DesktopSearchResults extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       itemCount: results.length,
       itemBuilder: (context, index) {
-        final section = results[index];
-        return _CategoryItem(
-          icon: section.icon,
-          label: section.label,
-          isSelected: section.key == selectedKey,
-          onTap: () => onTap(section.key),
-          colors: colors,
+        final result = results[index];
+        final section = result.section;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _CategoryItem(
+              icon: section.icon,
+              label: section.label,
+              isSelected: section.key == selectedKey,
+              onTap: () => onTap(section.key, null),
+              colors: colors,
+            ),
+            // The rows that actually matched. Tapping one opens the section
+            // scrolled to that row instead of at the top of a long page.
+            for (final row in result.rows)
+              _SearchRowResult(
+                label: row,
+                colors: colors,
+                onTap: () => onTap(section.key, row),
+              ),
+          ],
         );
       },
+    );
+  }
+}
+
+/// A single matched setting beneath its section in the search results.
+class _SearchRowResult extends StatefulWidget {
+  const _SearchRowResult({
+    required this.label,
+    required this.colors,
+    required this.onTap,
+  });
+
+  final String label;
+  final NightshadeColors colors;
+  final VoidCallback onTap;
+
+  @override
+  State<_SearchRowResult> createState() => _SearchRowResultState();
+}
+
+class _SearchRowResultState extends State<_SearchRowResult> {
+  bool _hovered = false;
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = widget.colors;
+    return Semantics(
+      button: true,
+      child: InkWell(
+        onTap: widget.onTap,
+        onFocusChange: (value) => setState(() => _focused = value),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+        child: MouseRegion(
+          onEnter: (_) => setState(() => _hovered = true),
+          onExit: (_) => setState(() => _hovered = false),
+          child: Container(
+            margin: const EdgeInsets.only(left: 20, bottom: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: _hovered ? colors.surfaceAlt : Colors.transparent,
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+              border:
+                  _focused ? Border.all(color: colors.primary, width: 2) : null,
+            ),
+            child: Row(
+              children: [
+                Icon(LucideIcons.cornerDownRight,
+                    size: 12, color: colors.textMuted),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    widget.label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize12,
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -586,11 +870,11 @@ class _MobileSectionList extends StatelessWidget {
   final List<SettingsGroupDef> groups;
   final TextEditingController searchController;
   final String query;
-  final List<SettingsSectionDef> results;
+  final List<SettingsSearchResult> results;
   final Set<String> expandedGroups;
   final ValueChanged<String> onQueryChanged;
   final void Function(String title) onToggleGroup;
-  final void Function(String key) onSectionTap;
+  final void Function(String key, String? rowTitle) onSectionTap;
   final NightshadeColors colors;
   final String title;
 
@@ -678,7 +962,8 @@ class _MobileSectionList extends StatelessWidget {
                                   (section) => _MobileSectionItem(
                                     icon: section.icon,
                                     label: section.label,
-                                    onTap: () => onSectionTap(section.key),
+                                    onTap: () =>
+                                        onSectionTap(section.key, null),
                                     colors: colors,
                                   ),
                                 ),
@@ -702,9 +987,9 @@ class _MobileSearchResults extends StatelessWidget {
     required this.onSectionTap,
   });
 
-  final List<SettingsSectionDef> results;
+  final List<SettingsSearchResult> results;
   final NightshadeColors colors;
-  final void Function(String key) onSectionTap;
+  final void Function(String key, String? rowTitle) onSectionTap;
 
   @override
   Widget build(BuildContext context) {
@@ -723,12 +1008,24 @@ class _MobileSearchResults extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 8),
       itemCount: results.length,
       itemBuilder: (context, index) {
-        final section = results[index];
-        return _MobileSectionItem(
-          icon: section.icon,
-          label: section.label,
-          onTap: () => onSectionTap(section.key),
-          colors: colors,
+        final result = results[index];
+        final section = result.section;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _MobileSectionItem(
+              icon: section.icon,
+              label: section.label,
+              onTap: () => onSectionTap(section.key, null),
+              colors: colors,
+            ),
+            for (final row in result.rows)
+              _SearchRowResult(
+                label: row,
+                colors: colors,
+                onTap: () => onSectionTap(section.key, row),
+              ),
+          ],
         );
       },
     );
@@ -872,56 +1169,75 @@ class _CategoryItem extends StatefulWidget {
 
 class _CategoryItemState extends State<_CategoryItem> {
   bool _isHovered = false;
+  bool _isFocused = false;
 
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          margin: const EdgeInsets.only(bottom: 4),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: widget.isSelected
-                ? widget.colors.primary.withValues(alpha: 0.1)
-                : _isHovered
-                    ? widget.colors.surfaceAlt
-                    : Colors.transparent,
+      // A settings section is a control, not a panel: keyboard-only and
+      // screen-reader users could not change section at all while this was a
+      // bare GestureDetector. InkWell supplies traversal, Enter/Space
+      // activation and the button role in one widget; Semantics adds the
+      // selected state so AT can announce which section is open.
+      child: MergeSemantics(
+        child: Semantics(
+          button: true,
+          selected: widget.isSelected,
+          child: InkWell(
+            onTap: widget.onTap,
+            onFocusChange: (value) => setState(() => _isFocused = value),
             borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-            border: widget.isSelected
-                ? Border.all(
-                    color: widget.colors.primary.withValues(alpha: 0.3))
-                : null,
-          ),
-          child: Row(
-            children: [
-              Icon(
-                widget.icon,
-                size: 18,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              margin: const EdgeInsets.only(bottom: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
                 color: widget.isSelected
-                    ? widget.colors.primary
-                    : widget.colors.textSecondary,
+                    ? widget.colors.primary.withValues(alpha: 0.1)
+                    : _isHovered
+                        ? widget.colors.surfaceAlt
+                        : Colors.transparent,
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+                // Focus outlines the row at full strength; selection keeps its
+                // softer tint, so the two states stay distinguishable.
+                border: _isFocused
+                    ? Border.all(color: widget.colors.primary, width: 2)
+                    : widget.isSelected
+                        ? Border.all(
+                            color: widget.colors.primary.withValues(alpha: 0.3))
+                        : null,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  widget.label,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize13,
-                    fontWeight:
-                        widget.isSelected ? FontWeight.w600 : FontWeight.w500,
+              child: Row(
+                children: [
+                  Icon(
+                    widget.icon,
+                    size: 18,
                     color: widget.isSelected
-                        ? widget.colors.textPrimary
+                        ? widget.colors.primary
                         : widget.colors.textSecondary,
                   ),
-                ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      widget.label,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize13,
+                        fontWeight: widget.isSelected
+                            ? FontWeight.w600
+                            : FontWeight.w500,
+                        color: widget.isSelected
+                            ? widget.colors.textPrimary
+                            : widget.colors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),

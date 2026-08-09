@@ -272,10 +272,13 @@ void main() {
       CenterNode(),
       DitherNode(),
       CoolCameraNode(),
-      AutofocusNode(),
+      // Only in override mode: with `useSettingsDefaults` on, the method the
+      // chip edits is discarded by the executor, so no chip is offered.
+      AutofocusNode(useSettingsDefaults: false),
     ];
 
     final notEditable = <SequenceNode>[
+      AutofocusNode(),
       SlewNode(),
       MeridianFlipNode(),
       ParkNode(),

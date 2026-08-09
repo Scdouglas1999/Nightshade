@@ -96,7 +96,10 @@ enum InlineEditKind {
   centerTolerance,
 
   /// [AutofocusNode.method] — autofocus curve-fit method (closed
-  /// dropdown).
+  /// dropdown). Only offered while the node is in override mode
+  /// ([AutofocusNode.useSettingsDefaults] false); with defaults on, the
+  /// executor discards this field, so the row shows the global method
+  /// instead of an inert control.
   autofocusMethod,
 
   /// [CoolCameraNode.targetTemp] — target sensor temperature in °C
@@ -202,7 +205,16 @@ class EditableFragment extends SummaryFragment {
 ///
 /// Fragments marked [EditableFragment] carry an [InlineEditKind] identifying
 /// a single safe-to-edit property; all other content is [StaticFragment].
-List<SummaryFragment> nodeSummary(SequenceNode node) {
+///
+/// [globalAutofocusMethod] is the persisted `AppSettings.afMethod` (e.g.
+/// 'Star HFR'). An [AutofocusNode] in defaults mode runs THAT method — the
+/// executor drops the node's own `method` field — so the caller passes it in
+/// and the row reports what will actually run. This function stays pure: the
+/// widget layer reads the setting and hands it over.
+List<SummaryFragment> nodeSummary(
+  SequenceNode node, {
+  String? globalAutofocusMethod,
+}) {
   return switch (node) {
     // -------------------------------------------------------------------
     // Imaging — the lead row in most sequences. Count × duration + filter
@@ -286,16 +298,31 @@ List<SummaryFragment> nodeSummary(SequenceNode node) {
         ),
       ],
 
-    // Autofocus — method is a closed-dropdown pick; the defaults/custom
-    // flag is a static hint.
+    // Autofocus — the row must name the method the RUN will use. With
+    // `useSettingsDefaults` on (the default) the executor passes
+    // `nodeOverrides: null` and resolves every parameter from AppSettings,
+    // so `node.method` is dead data: showing it as an editable chip
+    // advertised a control that changed nothing and contradicted the
+    // properties panel beside it. In that mode we print the global method
+    // and offer no chip; the pick returns only in override mode, where it
+    // is the value that actually runs.
     AutofocusNode(
       method: final method,
       useSettingsDefaults: final useDefaults,
     ) =>
-      <SummaryFragment>[
-        EditableFragment(InlineEditKind.autofocusMethod, method.name),
-        StaticFragment(useDefaults ? 'uses defaults' : 'custom'),
-      ],
+      useDefaults
+          ? <SummaryFragment>[
+              StaticFragment(
+                globalAutofocusMethod == null
+                    ? 'global AF settings'
+                    : '$globalAutofocusMethod (global)',
+                icon: LucideIcons.settings,
+              ),
+            ]
+          : <SummaryFragment>[
+              EditableFragment(InlineEditKind.autofocusMethod, method.name),
+              const StaticFragment('custom'),
+            ],
 
     // Wait — absolute time / twilight crossing is panel-grade; static.
     WaitTimeNode(

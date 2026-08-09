@@ -100,20 +100,26 @@ class _FullTimelineState extends ConsumerState<_FullTimeline>
     return _twilightTimes;
   }
 
-  /// Calculate target visibility windows for rise/set markers
+  /// Calculate target visibility windows for rise/set markers.
+  ///
+  /// [date] is the timeline's start INSTANT, so it is resolved to the night
+  /// that contains it: the visibility scan runs local noon to noon, and a run
+  /// starting after midnight otherwise drew its rise/set markers from the
+  /// following night.
   Map<String, ObjectVisibility> _getTargetWindows(
     double lat,
     double lon,
     DateTime date,
   ) {
     final windows = <String, ObjectVisibility>{};
+    final nightDate = AstronomyCalculations.nightDateOf(date);
 
     for (final node in widget.sequence.nodes.values) {
       if (node is TargetHeaderNode && node.isEnabled) {
         final visibility = AstronomyCalculations.calculateObjectVisibility(
           raDeg: node.raHours * 15.0, // Convert RA hours to degrees
           decDeg: node.decDegrees,
-          date: date,
+          date: nightDate,
           latitudeDeg: lat,
           longitudeDeg: lon,
           minAltitude: node.minAltitude ?? 0,

@@ -96,8 +96,23 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
     // --- Optical-train post-session snapshot + drift ------------------
     OpticalTrainBaseline? postSnapshot;
     try {
-      postSnapshot = _captureOpticalTrainBaseline();
-      if (postSnapshot != null) {
+      // Keep the FULL analysis, not just the snapshot it collapses into.
+      // Rebuilding an `OpticalTrainDiagnostics` from an
+      // `OpticalTrainBaseline` — as this used to — drops the
+      // `tiltMeasured` / `collimationMeasured` flags onto their fail-OPEN
+      // constructor defaults, which turns "we never measured it" into "we
+      // measured it and it was 0", i.e. the best possible reading.
+      //
+      // Those defaults stay fail-open on purpose: the analyzer is the only
+      // caller entitled to omit them, because it alone knows what it looked
+      // at. The fix is to stop reconstructing here at all — carry the real
+      // analysis forward — rather than to flip a default that would then
+      // silently downgrade the analyzer's own honest readings.
+      final postDiagnostics = _analyzeOpticalTrain();
+      postSnapshot = postDiagnostics == null
+          ? null
+          : OpticalTrainBaseline.fromDiagnostics(postDiagnostics);
+      if (postSnapshot != null && postDiagnostics != null) {
         _ref.read(opticalTrainCurrentSnapshotProvider.notifier).state =
             postSnapshot;
         // Promote the post-session snapshot to the new baseline for
@@ -106,24 +121,32 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
         // finished run, so the second session would see no drift.
         _ref.read(opticalTrainBaselineProvider.notifier).state = postSnapshot;
         if (_sessionStartBaseline != null) {
-          final drift = _sessionStartBaseline!.driftAgainst(
-            OpticalTrainDiagnostics(
-              tiltScore: postSnapshot.tiltScore,
-              collimationScore: postSnapshot.collimationScore,
-              dominantTiltDirection: 'unknown',
-              issues: const [],
-            ),
-          );
-          _logger.info(
-            'Optical-train drift vs. session-start baseline: '
-            '${drift.toStringAsFixed(2)} (tilt '
-            '${_sessionStartBaseline!.tiltScore.toStringAsFixed(1)} → '
-            '${postSnapshot.tiltScore.toStringAsFixed(1)}, '
-            'collimation '
-            '${_sessionStartBaseline!.collimationScore.toStringAsFixed(1)} → '
-            '${postSnapshot.collimationScore.toStringAsFixed(1)})',
-            source: 'SequenceExecutor',
-          );
+          // Drift is a subtraction of two penalty scores. An axis that was
+          // never measured contributes a 0 that is a placeholder, not a
+          // reading, so half of the blend below would be arithmetic rather
+          // than measurement — state what is missing instead of a number.
+          if (postDiagnostics.tiltMeasured &&
+              postDiagnostics.collimationMeasured) {
+            final drift = _sessionStartBaseline!.driftAgainst(postDiagnostics);
+            _logger.info(
+              'Optical-train drift vs. session-start baseline: '
+              '${drift.toStringAsFixed(2)} (tilt '
+              '${_sessionStartBaseline!.tiltScore.toStringAsFixed(1)} → '
+              '${postSnapshot.tiltScore.toStringAsFixed(1)}, '
+              'collimation '
+              '${_sessionStartBaseline!.collimationScore.toStringAsFixed(1)} → '
+              '${postSnapshot.collimationScore.toStringAsFixed(1)})',
+              source: 'SequenceExecutor',
+            );
+          } else {
+            _logger.info(
+              'Optical-train drift vs. session-start baseline not computed: '
+              '${_unmeasuredOpticalAxes(postDiagnostics)} was not measured '
+              'this session, so the pre/post comparison would subtract '
+              'placeholder zeros.',
+              source: 'SequenceExecutor',
+            );
+          }
         }
         _logger.debug(
           'Captured optical-train post-session snapshot: '
@@ -282,16 +305,20 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
     _sessionStartBaseline = null;
   }
 
-  /// Snapshot the live optical-train diagnostics for the active session
-  /// and convert to an [OpticalTrainBaseline]. Returns `null` when no
-  /// diagnostics data is available (no solved frames yet, no PSF
-  /// tiles, no live session).
+  /// Live optical-train analysis for the active session, or `null` when
+  /// there is nothing to analyse (no live session, no PSF tiles).
   ///
   /// Uses the same data path as the analytics tab so the values shown
   /// in the History dialog match the live dashboard — pulled directly
   /// from the PSF / residual provider streams rather than re-running
   /// the analysis on raw FITS files.
-  OpticalTrainBaseline? _captureOpticalTrainBaseline() {
+  ///
+  /// Returns the whole [OpticalTrainDiagnostics] rather than the
+  /// [OpticalTrainBaseline] it collapses into: the baseline keeps only the two
+  /// penalty scores, and a penalty of 0 is simultaneously "perfectly flat
+  /// field" and "nothing measured it". Anything that states a verdict needs
+  /// `tiltMeasured` / `collimationMeasured` from here.
+  OpticalTrainDiagnostics? _analyzeOpticalTrain() {
     final dbSessionId = _ref.read(sessionStateProvider).dbSessionId;
     if (dbSessionId == null) return null;
     final psfTiles =
@@ -307,11 +334,26 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
       return null;
     }
     final service = _ref.read(opticalTrainDiagnosticsServiceProvider);
-    final diagnostics = service.analyze(
-      psfTiles: psfTiles,
-      residualVectors: residuals,
-    );
+    return service.analyze(psfTiles: psfTiles, residualVectors: residuals);
+  }
+
+  /// Snapshot the live optical-train diagnostics for the active session
+  /// and convert to an [OpticalTrainBaseline]. Returns `null` when no
+  /// diagnostics data is available (no solved frames yet, no PSF
+  /// tiles, no live session).
+  OpticalTrainBaseline? _captureOpticalTrainBaseline() {
+    final diagnostics = _analyzeOpticalTrain();
+    if (diagnostics == null) return null;
     return OpticalTrainBaseline.fromDiagnostics(diagnostics);
+  }
+
+  /// Names the axes [diagnostics] could not measure, for log lines that would
+  /// otherwise quote a score derived from them.
+  String _unmeasuredOpticalAxes(OpticalTrainDiagnostics diagnostics) {
+    if (!diagnostics.tiltMeasured && !diagnostics.collimationMeasured) {
+      return 'neither field tilt nor collimation';
+    }
+    return diagnostics.tiltMeasured ? 'collimation' : 'field tilt';
   }
 
   /// Build the post-session diagnostics summary from the run stats +

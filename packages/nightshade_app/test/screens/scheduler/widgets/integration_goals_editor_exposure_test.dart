@@ -7,6 +7,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/screens/scheduler/widgets/integration_goals_editor.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 class _MockIntegrationGoalService extends Mock
     implements IntegrationGoalService {}
@@ -37,6 +38,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           integrationGoalProgressProvider.overrideWith(
             (ref, targetId) async => const <IntegrationGoalProgress>[],
           ),
@@ -95,6 +97,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith((ref) {
             backendNotifier = _SwappableBackendNotifier(
               ref,

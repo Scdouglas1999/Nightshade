@@ -84,16 +84,9 @@ String _frameTypeToDbString(FrameType type) => switch (type) {
 ///
 /// Walks the tree upward from the producing node through any intervening
 /// containers (Loop / Sequential / Parallel) until it reaches the enclosing
-/// [TargetHeaderNode], reading its [catalogTargetId]. The exposure length
-/// comes from the producing [ExposureNode]'s configured duration.
-///
-/// Parent links are derived by inverting each node's `childIds` rather than
-/// using `Sequence.parentOf` / `node.parentId`: scheduler-generated, in-memory
-/// sequences (the path with the original `target_id=NULL` bug) populate
-/// `childIds` but NOT `parentId`, so a `parentId`-based walk silently returns
-/// null and never reaches the target. `childIds` is the model's documented
-/// canonical source and is always present. A `visited` guard makes a malformed
-/// (cyclic) tree terminate rather than spin.
+/// [TargetHeaderNode] (see [enclosingTargetHeader]), reading its
+/// [catalogTargetId]. The exposure length comes from the producing
+/// [ExposureNode]'s configured duration.
 FrameAttribution resolveFrameAttribution(
   Sequence sequence,
   String nodeId, {
@@ -133,27 +126,10 @@ FrameAttribution resolveFrameAttribution(
     }
   }
 
-  final parentByChild = <String, String>{};
-  for (final node in sequence.nodes.values) {
-    for (final childId in node.childIds) {
-      parentByChild[childId] = node.id;
-    }
-  }
-
-  int? targetId;
-  String? cursor = nodeId;
-  final visited = <String>{};
-  while (cursor != null && visited.add(cursor)) {
-    final node = sequence.nodes[cursor];
-    if (node is TargetHeaderNode) {
-      targetId = node.catalogTargetId;
-      break;
-    }
-    cursor = parentByChild[cursor];
-  }
+  final header = enclosingTargetHeader(sequence, nodeId);
 
   return FrameAttribution(
-    targetId: targetId,
+    targetId: header?.catalogTargetId,
     exposureSecs: exposureSecs,
     frameType: frameType,
     gain: gain,
@@ -161,4 +137,32 @@ FrameAttribution resolveFrameAttribution(
     binX: binX,
     binY: binY,
   );
+}
+
+/// The [TargetHeaderNode] that encloses [nodeId] in [sequence], or `null` when
+/// the node sits outside any target.
+///
+/// Parent links are derived by inverting each node's `childIds` rather than
+/// using `Sequence.parentOf` / `node.parentId`: scheduler-generated, in-memory
+/// sequences (the path with the original `target_id=NULL` bug) populate
+/// `childIds` but NOT `parentId`, so a `parentId`-based walk silently returns
+/// null and never reaches the target. `childIds` is the model's documented
+/// canonical source and is always present. A `visited` guard makes a malformed
+/// (cyclic) tree terminate rather than spin.
+TargetHeaderNode? enclosingTargetHeader(Sequence sequence, String nodeId) {
+  final parentByChild = <String, String>{};
+  for (final node in sequence.nodes.values) {
+    for (final childId in node.childIds) {
+      parentByChild[childId] = node.id;
+    }
+  }
+
+  String? cursor = nodeId;
+  final visited = <String>{};
+  while (cursor != null && visited.add(cursor)) {
+    final node = sequence.nodes[cursor];
+    if (node is TargetHeaderNode) return node;
+    cursor = parentByChild[cursor];
+  }
+  return null;
 }

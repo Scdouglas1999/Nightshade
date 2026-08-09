@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/analytics/widgets/science_export_hub.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -32,6 +33,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           allSessionsProvider.overrideWith((ref) {
             attempts++;
             return Stream<List<ImagingSession>>.error(
@@ -94,6 +96,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           allSessionsProvider.overrideWith(
             (ref) => Stream.value(const <ImagingSession>[]),
           ),
@@ -114,6 +117,14 @@ void main() {
             directory.createSync(recursive: true);
             return directory;
           }),
+          scienceExportSavePickerProvider.overrideWithValue(
+            ({
+              required fileName,
+              required initialDirectory,
+              required allowedExtensions,
+            }) async =>
+                '$initialDirectory/$fileName',
+          ),
           scienceExportFileWriterProvider.overrideWithValue((file, contents) {
             writtenCsv = contents;
             file.writeAsStringSync(contents);
@@ -166,6 +177,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           allSessionsProvider.overrideWith(
             (ref) => Stream.value(const <ImagingSession>[]),
           ),

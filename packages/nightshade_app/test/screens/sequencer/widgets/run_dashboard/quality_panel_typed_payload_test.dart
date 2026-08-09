@@ -17,6 +17,7 @@ import 'package:nightshade_app/screens/sequencer/widgets/run_dashboard/quality_p
 import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../../../harness/mock_backend.dart';
+import '../../../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 /// Lightweight `BackendNotifier` subclass that pins the backend state to
 /// our `MockBackend` instance so the panel's `_QualityNotifier` subscribes
@@ -105,6 +106,7 @@ void main() {
       () async {
         final backend = mockBackend();
         final container = ProviderContainer(overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider
               .overrideWith((ref) => _TestBackendNotifier(ref, backend)),
         ]);
@@ -164,6 +166,7 @@ void main() {
       () async {
         final backend = mockBackend();
         final container = ProviderContainer(overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider
               .overrideWith((ref) => _TestBackendNotifier(ref, backend)),
         ]);
@@ -214,6 +217,7 @@ void main() {
       () async {
         final backend = mockBackend();
         final container = ProviderContainer(overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider
               .overrideWith((ref) => _TestBackendNotifier(ref, backend)),
         ]);
@@ -253,6 +257,7 @@ void main() {
       () async {
         final backend = mockBackend();
         final container = ProviderContainer(overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider
               .overrideWith((ref) => _TestBackendNotifier(ref, backend)),
         ]);
@@ -298,6 +303,7 @@ void main() {
       final oldBackend = mockBackend();
       final newBackend = mockBackend();
       final container = ProviderContainer(overrides: [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith(
           (ref) => _TestBackendNotifier(ref, oldBackend),
         ),

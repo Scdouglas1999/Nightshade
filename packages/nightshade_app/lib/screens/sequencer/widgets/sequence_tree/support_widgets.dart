@@ -607,32 +607,43 @@ class _ValidationBadges extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (errorCount > 0)
-          _MiniCountBadge(
-            count: errorCount,
-            color: colors.error,
-            icon: LucideIcons.xCircle,
-          ),
-        if (warningCount > 0) ...[
-          if (errorCount > 0) const SizedBox(width: 4),
-          _MiniCountBadge(
-            count: warningCount,
-            color: colors.warning,
-            icon: LucideIcons.alertTriangle,
-          ),
-        ],
-        if (infoCount > 0) ...[
-          if (errorCount > 0 || warningCount > 0) const SizedBox(width: 4),
-          _MiniCountBadge(
-            count: infoCount,
-            color: colors.info,
-            icon: LucideIcons.info,
-          ),
-        ],
-      ],
+    // The badges are the only place the builder admits the sequence has
+    // problems. They used to be plain containers, so "1 error" could only be
+    // decoded by pressing Start and reading the pre-flight dialog. One tap
+    // now opens the same issue list without arming a run.
+    return Tooltip(
+      message: 'Show sequence issues',
+      child: InkWell(
+        onTap: () => SequenceIssuesDialog.show(context),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (errorCount > 0)
+              _MiniCountBadge(
+                count: errorCount,
+                color: colors.error,
+                icon: LucideIcons.xCircle,
+              ),
+            if (warningCount > 0) ...[
+              if (errorCount > 0) const SizedBox(width: 4),
+              _MiniCountBadge(
+                count: warningCount,
+                color: colors.warning,
+                icon: LucideIcons.alertTriangle,
+              ),
+            ],
+            if (infoCount > 0) ...[
+              if (errorCount > 0 || warningCount > 0) const SizedBox(width: 4),
+              _MiniCountBadge(
+                count: infoCount,
+                color: colors.info,
+                icon: LucideIcons.info,
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

@@ -81,6 +81,11 @@ Future<void> _pumpPanel(
         appSettingsProvider
             .overrideWith(() => _FakeSettingsNotifier(curveFitting)),
         deviceServiceProvider.overrideWithValue(_MockDeviceService()),
+        // The panel now also carries the temperature-compensation card, which
+        // is profile-scoped. This file is about the curve-fit dropdown only, so
+        // pin the profile to "none" and let the card render its empty state
+        // instead of standing up the profiles database.
+        activeEquipmentProfileProvider.overrideWithValue(null),
       ],
       child: MaterialApp(
         theme: NightshadeTheme.dark,
@@ -142,6 +147,9 @@ void main() {
         overrides: [
           databaseProvider.overrideWithValue(database),
           deviceServiceProvider.overrideWithValue(_MockDeviceService()),
+          // See _pumpPanel: the temperature-compensation card is
+          // profile-scoped, and this test is about the curve-fit write path.
+          activeEquipmentProfileProvider.overrideWithValue(null),
         ],
         child: MaterialApp(
           theme: NightshadeTheme.dark,

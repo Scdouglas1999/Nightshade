@@ -14,6 +14,7 @@ import 'headless_route.dart';
 List<HeadlessRoute> buildGuidingRoutes(GuidingHandlers h) => <HeadlessRoute>[
   // PHD2 Guiding
   HeadlessRoute(HttpMethod.get, '/api/phd2/running', h.handlePhd2IsRunning),
+  HeadlessRoute(HttpMethod.get, '/api/phd2/probe', h.handlePhd2Probe),
   HeadlessRoute(HttpMethod.post, '/api/phd2/connect', h.handlePhd2Connect),
   HeadlessRoute(
     HttpMethod.post,

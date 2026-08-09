@@ -1787,6 +1787,106 @@ void main() {
       },
     );
   });
+
+  group('wheel-less rigs', () {
+    // The integration-goals editor was changed to offer an unfiltered ('')
+    // goal, because a profile with no filter wheel previously had no way to
+    // express a target at all. The scheduler was not changed to match, and the
+    // net effect INVERTED the defect: `availableFilters` is EMPTY on such a
+    // rig, so `contains('')` was false and the candidate was hard-rejected with
+    // "required filter(s) not in equipment wheel ()". A target that scheduled
+    // fine free-form became UNSCHEDULABLE the moment the operator followed the
+    // app's own empty-state prompt.
+    //
+    // Driven through the real engine rather than a scoring helper, because the
+    // defect lives in the wiring between the editor and the admission gate.
+    test('an unfiltered goal on a wheel-less rig still dispatches', () async {
+      final sink = _RecordingSink();
+      final now = DateTime.utc(2026, 5, 11, 4, 0);
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => <SchedulerCandidate>[
+          SchedulerCandidate(
+            targetId: 1,
+            name: 'wheel-less',
+            raHours: 14.0,
+            decDegrees: 30.0,
+            userPriority: 5,
+            goals: [
+              IntegrationGoal(
+                targetId: 1,
+                filter: '',
+                exposureSeconds: 120.0,
+                frameCount: 10,
+                priority: 5,
+                createdAt: now,
+              ),
+            ],
+            capturedCounts: const [0],
+            constraints: const [],
+            horizonProfiles: const {},
+            availableFilters: const [],
+          ),
+        ],
+        clock: () => now,
+      );
+      await engine.start();
+
+      expect(
+        engine.lastDecision!.chosenTargetId,
+        1,
+        reason:
+            'an empty goal filter means NO filter is required, so an empty '
+            'wheel cannot be the reason to reject it',
+      );
+      expect(sink.dispatched, hasLength(1));
+    });
+
+    test(
+      'a goal naming a filter the wheel really lacks is still rejected',
+      () async {
+        final sink = _RecordingSink();
+        final now = DateTime.utc(2026, 5, 11, 4, 0);
+        final engine = SchedulerEngine(
+          site: _site,
+          sequenceSink: sink,
+          candidateLoader: () async => <SchedulerCandidate>[
+            SchedulerCandidate(
+              targetId: 1,
+              name: 'needs Ha',
+              raHours: 14.0,
+              decDegrees: 30.0,
+              userPriority: 5,
+              goals: [
+                IntegrationGoal(
+                  targetId: 1,
+                  filter: 'Ha',
+                  exposureSeconds: 120.0,
+                  frameCount: 10,
+                  priority: 5,
+                  createdAt: now,
+                ),
+              ],
+              capturedCounts: const [0],
+              constraints: const [],
+              horizonProfiles: const {},
+              availableFilters: const ['L', 'R'],
+            ),
+          ],
+          clock: () => now,
+        );
+        await engine.start();
+
+        expect(
+          engine.lastDecision!.chosenTargetId,
+          isNull,
+          reason: 'the guard must still catch a genuinely missing filter',
+        );
+        expect(sink.dispatched, isEmpty);
+      },
+    );
+  });
 }
 
 /// Sink whose individual hooks can be configured to throw, for exercising the

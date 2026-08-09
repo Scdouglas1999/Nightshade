@@ -1,4 +1,5 @@
 import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -18,6 +19,102 @@ AnimatedContainer _trackOf(WidgetTester tester) {
 }
 
 void main() {
+  // These pin the behaviour that was missing entirely: measured on the running
+  // app, the whole Settings screen exposed ZERO checkable accessibility nodes
+  // and only five focusable ones, so no switch could be read by a screen reader
+  // or reached by a keyboard. Asserting the rendered visuals is not enough --
+  // the control looked perfect the whole time it was unusable.
+  group('NightshadeSwitch accessibility', () {
+    testWidgets('reports its on/off state to assistive technology', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+
+      await tester.pumpWidget(
+        _wrap(const NightshadeSwitch(value: true, onChanged: _noop)),
+      );
+      // Focusability lives on the detector's own semantics node rather than
+      // this one; the keyboard-traversal test below is what pins that.
+      expect(
+        tester.getSemantics(find.byType(NightshadeSwitch)),
+        matchesSemantics(
+          hasToggledState: true,
+          isToggled: true,
+          hasEnabledState: true,
+          isEnabled: true,
+          hasTapAction: true,
+        ),
+      );
+
+      await tester.pumpWidget(
+        _wrap(const NightshadeSwitch(value: false, onChanged: _noop)),
+      );
+      expect(
+        tester.getSemantics(find.byType(NightshadeSwitch)),
+        matchesSemantics(
+          hasToggledState: true,
+          isToggled: false,
+          hasEnabledState: true,
+          isEnabled: true,
+          hasTapAction: true,
+        ),
+      );
+
+      handle.dispose();
+    });
+
+    testWidgets('a disabled switch is announced as disabled', (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _wrap(const NightshadeSwitch(value: false, onChanged: null)),
+      );
+      // Asserted with matchesSemantics rather than by poking a single flag:
+      // it pins that the node still declares an enabled STATE (so assistive
+      // tech knows the control exists and is currently unavailable) while that
+      // state is false, and that no tap action is advertised.
+      expect(
+        tester.getSemantics(find.byType(NightshadeSwitch)),
+        matchesSemantics(
+          hasToggledState: true,
+          isToggled: false,
+          hasEnabledState: true,
+          isEnabled: false,
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('can be reached and operated by keyboard alone', (
+      tester,
+    ) async {
+      var value = false;
+      await tester.pumpWidget(
+        _wrap(NightshadeSwitch(value: value, onChanged: (v) => value = v)),
+      );
+
+      // Tab must land on the switch: before the fix nothing in the subtree was
+      // focusable, so traversal skipped straight past it.
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+      expect(
+        Focus.of(
+          tester.element(find.byType(NightshadeSwitch)),
+          scopeOk: true,
+        ).hasFocus,
+        isTrue,
+        reason: 'Tab traversal never reached the switch',
+      );
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.pumpAndSettle();
+      expect(
+        value,
+        isTrue,
+        reason: 'Space did not activate the focused switch',
+      );
+    });
+  });
+
   group('NightshadeSwitch', () {
     testWidgets('toggles on tap', (tester) async {
       var value = false;

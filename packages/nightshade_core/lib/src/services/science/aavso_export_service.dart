@@ -8,6 +8,12 @@ import '../../database/daos/images_dao.dart';
 import '../../database/daos/science_dao.dart';
 import '../../database/daos/settings_dao.dart';
 import '../../database/database.dart';
+import 'airmass.dart';
+
+// Surfaced through the science-services barrel, which already exports this
+// library, so every consumer reaches the one airmass model by importing
+// nightshade_core rather than re-deriving the formula locally.
+export 'airmass.dart';
 
 /// Generates AAVSO Extended Format (Version 1.11) text files from photometry
 /// measurements stored in the Nightshade database.
@@ -198,26 +204,17 @@ class AavsoExportService {
         }
       }
 
-      // Airmass — compute from the captured image's mount altitude using
-      // the Pickering (2002) formula for better accuracy near the horizon:
-      //   airmass = 1 / sin(alt + 244.0/(165.0 + 47.0*alt^1.1))
-      // Falls back to 'na' if no altitude is available.
+      // Derive AMASS only from the frame's recorded altitude with the canonical
+      // model. Missing or sub-horizon altitude is represented as AAVSO `na`.
       String amass = 'na';
       if (m.capturedImageId != null) {
         final capturedImage = await _imagesDao.getImageById(m.capturedImageId!);
-        if (capturedImage != null &&
-            capturedImage.mountAltitude != null &&
-            capturedImage.mountAltitude! > 0) {
-          final altDeg = capturedImage.mountAltitude!;
-          final altRad = altDeg * math.pi / 180.0;
-          // Pickering (2002) refraction-corrected airmass formula
-          final correctionDeg = 244.0 / (165.0 + 47.0 * math.pow(altDeg, 1.1));
-          final effectiveAltRad = altRad + correctionDeg * math.pi / 180.0;
-          final sinAlt = math.sin(effectiveAltRad);
-          if (sinAlt > 0) {
-            final airmass = (1.0 / sinAlt).clamp(1.0, 40.0);
-            amass = airmass.toStringAsFixed(3);
-          }
+        final altitudeDeg = capturedImage?.mountAltitude;
+        final airmass = altitudeDeg == null
+            ? null
+            : airmassForTrueAltitude(altitudeDeg);
+        if (airmass != null) {
+          amass = airmass.toStringAsFixed(3);
         }
       }
 

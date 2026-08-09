@@ -3,10 +3,19 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+// Outside the core barrel by design (it collides with `cameraPresetsProvider`),
+// so imported by source path — the route the preset picker dialog takes too.
+// ignore: implementation_imports
+import 'package:nightshade_core/src/providers/hardware_presets_provider.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../widgets/help/field_help_label.dart';
 import '../../../widgets/hardware/hardware_preset_picker_dialog.dart';
+
+/// One-tap "use the library entry for the camera you already picked". Exposed
+/// so tests can target it without matching on the camera's name.
+const Key cameraDefaultsUseMatchedPresetKey =
+    Key('onboarding.cameraDefaults.useMatchedPreset');
 
 /// Camera-defaults step — the acquisition set-points (gain / offset /
 /// binning / cooling) that the created equipment profile is seeded with.
@@ -154,6 +163,13 @@ class _OnboardingCameraDefaultsStepState
     }
   }
 
+  /// Arm (or disarm) cool-on-connect for the profile this wizard will create.
+  Future<void> _toggleCoolOnConnect(bool enabled) async {
+    await ref
+        .read(onboardingDraftProvider.notifier)
+        .setCameraDefaults(coolOnConnect: enabled);
+  }
+
   Future<void> _toggleCooling(bool enabled) async {
     final notifier = ref.read(onboardingDraftProvider.notifier);
     setState(() => _coolingOn = enabled);
@@ -206,10 +222,21 @@ class _OnboardingCameraDefaultsStepState
     }
   }
 
+  /// The library entry for the camera picked at the camera step, when the name
+  /// the driver reported resolves to exactly one. Null for an unrecognised
+  /// camera — a wrong preset is worse than no preset.
+  CameraDefaultsPreset? get _matchedPreset {
+    final name = ref.watch(onboardingDraftProvider).cameraName;
+    return ref.read(hardwarePresetsServiceProvider).matchCameraByName(name);
+  }
+
   Future<void> _pickFromLibrary() async {
     final preset = await HardwarePresetPickerDialog.showCamera(context);
     if (preset == null || !mounted) return;
+    await _applyPreset(preset);
+  }
 
+  Future<void> _applyPreset(CameraDefaultsPreset preset) async {
     await ref.read(onboardingDraftProvider.notifier).applyCameraPreset(preset);
     if (!mounted) return;
 
@@ -241,6 +268,7 @@ class _OnboardingCameraDefaultsStepState
 
     // Local, not derived from the stored set-point — see [_coolingOn].
     final coolingEnabled = _coolingOn;
+    final coolOnConnect = draft.coolOnConnect;
 
     return SingleChildScrollView(
       child: Column(
@@ -261,6 +289,22 @@ class _OnboardingCameraDefaultsStepState
             ),
           ),
           const SizedBox(height: NightshadeTokens.spaceLg),
+          // The camera was already named two steps ago. Making the user find it
+          // again in a library the app can search itself was asking the same
+          // question twice; when the match is unambiguous, offer it by name as
+          // one tap. Still a tap, not a silent write — gain and offset are the
+          // user's call, and the library only recommends.
+          if (draft.cameraPresetId == null && _matchedPreset != null) ...[
+            NightshadeButton(
+              key: cameraDefaultsUseMatchedPresetKey,
+              icon: NightshadeIcons.camera,
+              label: 'Use ${_matchedPreset!.displayName} settings',
+              variant: ButtonVariant.primary,
+              size: ButtonSize.small,
+              onPressed: () => _applyPreset(_matchedPreset!),
+            ),
+            const SizedBox(height: NightshadeTokens.spaceSm),
+          ],
           Row(
             children: [
               NightshadeButton(
@@ -375,6 +419,24 @@ class _OnboardingCameraDefaultsStepState
                     allowDecimal: true,
                     errorText: _coolingError,
                     onChanged: _commitCooling,
+                  ),
+                  const SizedBox(height: NightshadeTokens.spaceMd),
+                  // Without this the wizard collected a set-point and then
+                  // never used it: the profile was written with
+                  // cool_on_connect = 0, the camera sat at ambient all night,
+                  // and the only way to arm the cooler was a checkbox buried in
+                  // Equipment > Edit Profile > Camera Defaults. Asked here,
+                  // defaulted off — a rig set up at noon must not pin the TEC
+                  // at full power for the afternoon.
+                  NightshadeSwitchRow(
+                    label: 'Start cooling when the camera connects',
+                    subtitle: coolOnConnect
+                        ? 'Nightshade will drive the sensor to the set-point as '
+                            'soon as the camera connects.'
+                        : 'Leave off to start the cooler yourself from the '
+                            'Equipment screen when you are ready to image.',
+                    value: coolOnConnect,
+                    onChanged: _toggleCoolOnConnect,
                   ),
                 ],
               ],

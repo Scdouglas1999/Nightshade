@@ -236,17 +236,23 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
             _StatChip(
               colors: widget.colors,
               icon: LucideIcons.layers,
-              label: '${_summary.nodeCount} nodes',
+              label: countLabel(_summary.nodeCount, 'node'),
             ),
             _StatChip(
               colors: widget.colors,
               icon: LucideIcons.target,
-              label: '${_summary.targetCount} targets',
+              label: countLabel(_summary.targetCount, 'target'),
             ),
+            // NOT a frame count: the library roll-up query counts capture
+            // NODES (`TakeExposure` / `SmartExposure` rows), so a "10 × 60s"
+            // exposure node is 1. Labelling it "exposures" read as frames and
+            // contradicted both the Builder toolbar's frame counter and this
+            // card's own preview. The true frame total needs the node tree,
+            // which the preview below loads on demand.
             _StatChip(
               colors: widget.colors,
               icon: LucideIcons.camera,
-              label: '${_summary.exposureCount} exposures',
+              label: countLabel(_summary.exposureCount, 'capture step'),
             ),
             _StatChip(
               colors: widget.colors,
@@ -450,12 +456,14 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
 
     final headers =
         sequence.nodes.values.whereType<TargetHeaderNode>().toList();
-    final exposures = sequence.nodes.values.whereType<ExposureNode>().toList();
 
     if (headers.isEmpty) {
+      // Frames, not nodes — the shared walk applies loop multipliers and
+      // counts SmartExposure plans, so a target-less calibration or
+      // Plan-Tonight sequence reports what it will actually capture.
+      final planned = plannedCaptureForSequence(sequence);
       return Text(
-        'No targets — ${exposures.length} exposure '
-        'node${exposures.length == 1 ? '' : 's'}.',
+        'No targets — ${_plannedSummary(planned)}.',
         style: TextStyle(
           fontSize: NightshadeTypography.fontSize12,
           color: widget.colors.textMuted,
@@ -474,30 +482,43 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
     );
   }
 
-  Widget _buildTargetPreviewRow(Sequence sequence, TargetHeaderNode header) {
-    // Sum exposure seconds per filter for the exposures descended from
-    // this target header (direct + nested children).
-    final byFilter = <String, double>{};
-    final visited = <String>{};
-    void walk(String nodeId) {
-      if (!visited.add(nodeId)) return;
-      final node = sequence.nodes[nodeId];
-      if (node == null) return;
-      if (node is ExposureNode) {
-        final filter = (node.filter == null || node.filter!.isEmpty)
-            ? 'No filter'
-            : node.filter!;
-        byFilter[filter] =
-            (byFilter[filter] ?? 0) + node.durationSecs * node.count;
-      }
-      for (final childId in node.childIds) {
-        walk(childId);
-      }
-    }
+  /// One-line "what this will capture" phrase for a [PlannedCapture].
+  ///
+  /// Never says "no exposures" for a plan that captures something: an
+  /// open-ended (loop-until-stopped) Smart Exposure has no fixed count but is
+  /// very much imaging, and a non-`count` loop makes the counted figure a
+  /// per-pass floor.
+  String _plannedSummary(PlannedCapture planned) {
+    if (planned.isEmpty) return 'no exposures';
 
-    for (final childId in header.childIds) {
-      walk(childId);
+    final parts = <String>[];
+    if (planned.frames > 0) {
+      parts.add(
+        '${countLabel(planned.frames, 'frame')} • '
+        '${_formatSecs(planned.integrationSecs)}'
+        '${planned.hasUnboundedRepeat ? ' per pass' : ''}',
+      );
     }
+    if (planned.hasOpenEndedLoop) {
+      parts.add(
+        planned.openEndedBudgetSecs > 0
+            ? 'looping up to ${_formatSecs(planned.openEndedBudgetSecs)}'
+            : 'looping until the window closes',
+      );
+    }
+    if (planned.hasUnboundedRepeat && planned.frames > 0) {
+      parts.add('loop repeats until its stop condition');
+    }
+    return parts.join(' + ');
+  }
+
+  Widget _buildTargetPreviewRow(Sequence sequence, TargetHeaderNode header) {
+    // The shared plan walk: loop multipliers applied, SmartExposure plans
+    // counted. The old local walk did neither, so a target whose only imager
+    // was a Smart Exposure rendered "No exposures" and a `Capture Loop ×10`
+    // reported a tenth of its integration.
+    final planned = plannedCaptureUnder(sequence, header.id);
+    final byFilter = planned.integrationSecsByFilter;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -520,18 +541,19 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
             ),
           ],
         ),
-        if (byFilter.isEmpty)
-          Padding(
-            padding: const EdgeInsets.only(left: 18, top: 2),
-            child: Text(
-              'No exposures',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                color: widget.colors.textMuted,
-              ),
+        Padding(
+          padding: const EdgeInsets.only(left: 18, top: 2),
+          child: Text(
+            _plannedSummary(planned),
+            style: TextStyle(
+              fontSize: NightshadeTypography.fontSize11,
+              color: planned.isEmpty
+                  ? widget.colors.textMuted
+                  : widget.colors.textSecondary,
             ),
-          )
-        else
+          ),
+        ),
+        if (byFilter.isNotEmpty)
           for (final entry in byFilter.entries)
             Padding(
               padding: const EdgeInsets.only(left: 18, top: 2),

@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
+import '../mosaic/mosaic_contribute_sheet.dart';
+
 /// App-side Riverpod surface for the unified Collaborative Sky screen (6.0
 /// pillar). It composes the three collaborative flows the pillar productizes —
 /// live co-imaging (WS3), collaborative mosaics (WS2), and the shared
@@ -17,6 +19,49 @@ import 'package:nightshade_core/nightshade_core.dart';
 final collaborativeMosaicsProvider = FutureProvider<List<CollabMosaic>>((ref) {
   return ref.watch(collaborativeMosaicServiceProvider).listMosaics();
 });
+
+/// The LOCAL mosaic project mirroring a hub mosaic, or null when this device
+/// has neither published nor joined it. Keyed by the hub mosaic id, which is
+/// the join key `mosaic_projects.hub_mosaic_id` stores.
+///
+/// The collaborative detail screen needs this to tell a stranger's mosaic from
+/// one this rig already owns: without it, the owner of a mosaic they had just
+/// published was offered a "Join mosaic" button for their own project.
+final localMosaicProjectForHubProvider =
+    FutureProvider.family<MosaicProject?, String>((ref, mosaicId) {
+  return ref.watch(mosaicProjectsDaoProvider).getByHubMosaicId(mosaicId);
+});
+
+/// Every provider that caches hub-side collaborative-mosaic state.
+///
+/// They are plain (non-`autoDispose`) `FutureProvider`s, so the first answer
+/// sticks for the life of the container: a rig that opened Collaborative Sky
+/// before publishing kept being told "No collaborative mosaics on this hub yet"
+/// about a mosaic it had just published itself. EVERY code path that changes
+/// hub-side state — publish, claim, release, upload, assemble, join — has to
+/// drop these, not just the screen header's manual refresh button.
+List<ProviderOrFamily> get collaborativeMosaicStateProviders => [
+      collaborativeMosaicsProvider,
+      collaborativeMosaicDetailProvider,
+      collaborativeMosaicAttributionProvider,
+      // Joining/publishing creates the local mirror this resolves, so the
+      // "join vs open your own project" branch must be re-read too.
+      localMosaicProjectForHubProvider,
+    ];
+
+/// Drop [collaborativeMosaicStateProviders] from a provider body / notifier.
+void invalidateCollaborativeMosaicState(Ref ref) {
+  for (final provider in collaborativeMosaicStateProviders) {
+    ref.invalidate(provider);
+  }
+}
+
+/// Drop [collaborativeMosaicStateProviders] from a widget callback.
+void invalidateCollaborativeMosaicStateFor(WidgetRef ref) {
+  for (final provider in collaborativeMosaicStateProviders) {
+    ref.invalidate(provider);
+  }
+}
 
 /// The detailed state of one collaborative mosaic (its per-panel grid, claim
 /// status, and contributor attribution), keyed by the hub mosaic id. The list
@@ -94,4 +139,19 @@ final sharedLibrarySummaryProvider =
     }
   }
   return SharedLibrarySummary(publishedCount: published, pulledCount: pulled);
+});
+
+/// Whether this rig's completed subs would actually co-add into a session's
+/// combined stack.
+///
+/// Membership and contribution are separate facts: joining points the mount at
+/// a framing slot, but the auto-contribute egress fails closed unless the
+/// operator has an UNATTENDED contribution consent on record (the same
+/// `MosaicUploadConsent.autoUpload` the mosaic path persists). A card that
+/// reports pooling from membership alone tells a user who declined the consent
+/// sheet that their photons are being shared when nothing is leaving the
+/// device.
+final coImagingSharingEnabledProvider = FutureProvider<bool>((ref) async {
+  final consent = await ref.watch(mosaicUploadConsentProvider.future);
+  return consent != null && consent.autoUpload;
 });

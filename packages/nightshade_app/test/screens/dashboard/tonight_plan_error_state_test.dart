@@ -7,6 +7,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart'
     as planetarium;
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 class _ConfiguredSettingsNotifier extends AppSettingsNotifier {
   @override
@@ -19,6 +20,7 @@ class _ConfiguredSettingsNotifier extends AppSettingsNotifier {
 ProviderContainer _container({required void Function() onSuggestionsRead}) {
   return ProviderContainer(
     overrides: [
+      inMemoryDatabaseOverride(),
       appSettingsProvider.overrideWith(_ConfiguredSettingsNotifier.new),
       tonightSuggestionsProvider.overrideWith((ref) {
         onSuggestionsRead();
@@ -78,6 +80,10 @@ void main() {
 
     await tester.pumpWidget(const SizedBox.shrink());
     container.dispose();
+    // Drift finishes cancelling the disposed container's query streams in a
+    // zero-duration Timer, and a bare pump() would not advance the fake clock
+    // far enough to run it.
+    await tester.pump(const Duration(milliseconds: 1));
   });
 
   testWidgets('standby targets card does not blame location for fetch errors', (
@@ -105,5 +111,9 @@ void main() {
 
     await tester.pumpWidget(const SizedBox.shrink());
     container.dispose();
+    // Drift finishes cancelling the disposed container's query streams in a
+    // zero-duration Timer, and a bare pump() would not advance the fake clock
+    // far enough to run it.
+    await tester.pump(const Duration(milliseconds: 1));
   });
 }

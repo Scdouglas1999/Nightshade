@@ -22,6 +22,7 @@ export 'src/utils/adaptive_dialog_constraints.dart';
 export 'src/utils/scaled_config.dart';
 export 'src/utils/touch_target.dart';
 export 'src/utils/on_screen_animation_gate.dart';
+export 'src/utils/platform_shortcuts.dart';
 
 // Components
 export 'src/components/nightshade_button.dart';

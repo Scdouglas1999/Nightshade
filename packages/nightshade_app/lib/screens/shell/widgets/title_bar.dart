@@ -1,17 +1,41 @@
 import 'dart:developer' as developer;
-import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../localization/nightshade_localizations.dart';
 import '../../../widgets/remote_connection_indicator.dart';
 import '../../../widgets/transient_alert_badge.dart';
 import '../../../widgets/tutorial_overlay.dart' show TutorialKeys;
+import '../shell_chrome.dart';
 
 // Conditional import for window_manager (desktop only)
 import 'title_bar_stub.dart' if (dart.library.io) 'title_bar_desktop.dart'
     as window_impl;
+
+/// Makes [child] behave as window chrome: drag to move the frameless window,
+/// double-tap to toggle maximize.
+///
+/// Public because the shell renders a second, compact bar below the
+/// side-nav breakpoint (`_MobileSettingsBar`). That bar is still the desktop
+/// window's only title bar — `TitleBarStyle.hidden` means the OS draws no
+/// decorations at any width — so it needs the same move/maximize affordances.
+/// No-ops on mobile via the conditional `title_bar_stub` import.
+class WindowDragArea extends StatelessWidget {
+  final Widget child;
+
+  const WindowDragArea({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onPanStart: window_impl.onTitleBarPanStart,
+      onDoubleTap: window_impl.onTitleBarDoubleTap,
+      child: child,
+    );
+  }
+}
 
 class TitleBar extends ConsumerWidget {
   const TitleBar({super.key});
@@ -21,9 +45,7 @@ class TitleBar extends ConsumerWidget {
     final colors = NightshadeColors.of(context);
     final onPrimary = Theme.of(context).colorScheme.onPrimary;
 
-    return GestureDetector(
-      onPanStart: window_impl.onTitleBarPanStart,
-      onDoubleTap: window_impl.onTitleBarDoubleTap,
+    return WindowDragArea(
       child: Container(
         height: ShellChromeMetrics.titleBarHeight,
         color: colors.surface,
@@ -95,7 +117,7 @@ class TitleBar extends ConsumerWidget {
             Builder(
               builder: (context) => _TitleBarButton(
                 icon: NightshadeIcons.user,
-                tooltip: 'Equipment Profiles',
+                tooltip: context.l10n.text('settingsEquipmentProfiles'),
                 onPressed: () {
                   try {
                     // Deep-link to the Equipment Profiles section so this
@@ -119,7 +141,7 @@ class TitleBar extends ConsumerWidget {
               builder: (context) => _TitleBarButton(
                 key: TutorialKeys.navSettings,
                 icon: NightshadeIcons.settings,
-                tooltip: 'Settings',
+                tooltip: context.l10n.text('settingsTitle'),
                 onPressed: () {
                   try {
                     context.go('/settings');
@@ -133,8 +155,7 @@ class TitleBar extends ConsumerWidget {
             const SizedBox(width: NightshadeTokens.spaceSm),
 
             // Window controls (desktop only)
-            if (Platform.isWindows || Platform.isLinux || Platform.isMacOS)
-              _WindowControls(colors: colors),
+            if (ShellChrome.isDesktopWindow) WindowControls(colors: colors),
           ],
         ),
       ),
@@ -182,10 +203,13 @@ class _TitleBarButton extends StatelessWidget {
   }
 }
 
-class _WindowControls extends StatelessWidget {
+/// Minimize / maximize / close caption buttons for the frameless desktop
+/// window. Public so every desktop shell layout can render them — see
+/// [WindowDragArea].
+class WindowControls extends StatelessWidget {
   final NightshadeColors colors;
 
-  const _WindowControls({required this.colors});
+  const WindowControls({super.key, required this.colors});
 
   @override
   Widget build(BuildContext context) {

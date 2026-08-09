@@ -32,7 +32,10 @@ pub struct AppState {
 
     /// Observer location (in-memory, synced from Dart on startup/change)
     /// This is the single source of truth for location during runtime
-    observer_location: RwLock<Option<ObserverLocation>>,
+    ///
+    /// Guarded by a *sync* lock, unlike the fields above: reads must never be
+    /// allowed to give up and report "no site" (see `get_observer_location`).
+    observer_location: std::sync::RwLock<Option<ObserverLocation>>,
 }
 
 /// Global profile storage
@@ -145,7 +148,7 @@ impl AppState {
             devices: RwLock::new(HashMap::new()),
             session: RwLock::new(SessionState::default()),
             profile: RwLock::new(None),
-            observer_location: RwLock::new(None),
+            observer_location: std::sync::RwLock::new(None),
         })
     }
 
@@ -321,38 +324,68 @@ impl AppState {
 
     /// Get observer location from in-memory state
     /// This is the primary accessor - reads from runtime state, not file
+    /// `None` means exactly one thing: this user has no observing site on
+    /// record. Every native consumer treats it that way — polar alignment
+    /// refuses to run, the sequencer skips altitude/meridian maths, FITS
+    /// headers omit SITELAT/SITELONG — so `None` must never be an answer this
+    /// method invents. It used to be: a tokio `try_read()` that returned
+    /// `Ok(None)` on a failed try, which made a writer holding the lock for a
+    /// microsecond indistinguishable from a user who never set a site, at a
+    /// moment (settings sync) when a writer is exactly what is there.
     pub fn get_observer_location(&self) -> Result<Option<ObserverLocation>, String> {
-        // Use try_read to avoid panicking when called from async context
-        // blocking_read() panics if called from within a Tokio runtime
-        match self.observer_location.try_read() {
-            Ok(guard) => {
-                let location = guard.clone();
-                match &location {
-                    Some(loc) => {
-                        // Only log occasionally to avoid spam - log on first call
-                        tracing::debug!(
-                            "Retrieved observer location: lat={}, lon={}, elev={}",
-                            loc.latitude,
-                            loc.longitude,
-                            loc.elevation
-                        );
-                    }
-                    None => {
-                        tracing::debug!("Observer location is not set");
-                    }
-                }
-                Ok(location)
+        let location = self.read_observer_location().clone();
+        match &location {
+            Some(loc) => {
+                tracing::debug!(
+                    "Retrieved observer location: lat={}, lon={}, elev={}",
+                    loc.latitude,
+                    loc.longitude,
+                    loc.elevation
+                );
             }
-            Err(_) => {
-                // Lock is held for write, return None rather than blocking
-                tracing::debug!("Observer location lock busy, returning None");
-                Ok(None)
+            None => {
+                tracing::debug!("Observer location is not set");
             }
         }
+        Ok(location)
+    }
+
+    /// Borrow the stored site, waiting for any in-flight write.
+    ///
+    /// A plain (non-async) lock is deliberate. Every critical section on this
+    /// field is a single clone or assignment with no `.await` inside it, so
+    /// waiting costs nanoseconds and cannot deadlock a runtime worker — whereas
+    /// the async lock's non-blocking escapes both had to invent an answer when
+    /// they lost the race (see [`Self::get_observer_location`]) or fall back to
+    /// `blocking_write()`, which panics outright when called from inside a
+    /// Tokio runtime, as the sequencer and mount device-ops paths do.
+    fn read_observer_location(&self) -> std::sync::RwLockReadGuard<'_, Option<ObserverLocation>> {
+        // The guarded value is a plain `Option`; a panic elsewhere cannot leave
+        // it half-written, so recover from poisoning instead of propagating it.
+        self.observer_location
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    fn write_observer_location(&self) -> std::sync::RwLockWriteGuard<'_, Option<ObserverLocation>> {
+        self.observer_location
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
     /// Set observer location in-memory and optionally persist to file
     /// This updates the runtime state that all components use
+    ///
+    /// `None` is the only way to say "this user has no observing site", and
+    /// callers that don't have one MUST pass it. There is no coordinate that
+    /// means "unset": (0, 0) is a real point in the Gulf of Guinea, and every
+    /// native consumer reads a `Some` as a site the user chose. Handing this a
+    /// placeholder triple silently defeats guards that exist precisely to stop
+    /// site-dependent work — polar alignment's "set your site location before
+    /// starting" refusal, the sequencer's altitude/meridian maths, and the
+    /// SITELAT/SITELONG in every FITS header — because a fabricated site is
+    /// indistinguishable from a real one once it is in here. It also persists,
+    /// so one bad write outlives the launch that made it.
     pub fn set_observer_location(&self, location: Option<ObserverLocation>) -> Result<(), String> {
         match &location {
             Some(loc) => {
@@ -369,20 +402,11 @@ impl AppState {
         }
 
         // Update in-memory state (this is the primary source of truth at runtime)
-        // Use try_write to avoid panicking when called from async context
-        match self.observer_location.try_write() {
-            Ok(mut loc_guard) => {
-                *loc_guard = location.clone();
-                tracing::debug!("Observer location updated in memory");
-            }
-            Err(_) => {
-                // Lock is held for read, try to wait a bit and retry
-                tracing::warn!("Observer location lock busy for write, using blocking fallback");
-                let mut loc_guard = self.observer_location.blocking_write();
-                *loc_guard = location.clone();
-                tracing::debug!("Observer location updated in memory (blocking)");
-            }
+        {
+            let mut loc_guard = self.write_observer_location();
+            *loc_guard = location.clone();
         }
+        tracing::debug!("Observer location updated in memory");
 
         // Also persist to settings file if storage is initialized (best-effort)
         if let Ok(mut settings) = self.get_settings() {
@@ -400,18 +424,24 @@ impl AppState {
 
     /// Load observer location from persisted settings into in-memory state
     /// Call this at startup after settings storage is initialized
+    ///
+    /// "No site in settings" loads as no site. Skipping the write in that case
+    /// would let a site from a previous profile or a previous run outlive the
+    /// settings that named it, and absence is the one state whose whole job is
+    /// to survive.
     pub fn load_observer_location_from_settings(&self) {
         if let Ok(settings) = self.get_settings() {
-            if let Some(loc) = settings.location {
-                tracing::info!(
+            match &settings.location {
+                Some(loc) => tracing::info!(
                     "Loading observer location from settings: lat={}, lon={}, elev={}",
                     loc.latitude,
                     loc.longitude,
                     loc.elevation
-                );
-                let mut loc_guard = self.observer_location.blocking_write();
-                *loc_guard = Some(loc);
+                ),
+                None => tracing::info!("Settings have no observer location"),
             }
+            let mut loc_guard = self.write_observer_location();
+            *loc_guard = settings.location;
         }
     }
 
@@ -638,7 +668,7 @@ impl Default for AppState {
             devices: RwLock::new(HashMap::new()),
             session: RwLock::new(SessionState::default()),
             profile: RwLock::new(None),
-            observer_location: RwLock::new(None),
+            observer_location: std::sync::RwLock::new(None),
         }
     }
 }
@@ -687,5 +717,72 @@ mod tests {
                 .as_deref(),
             Some("safe-live")
         );
+    }
+
+    /// Guard for the "no observing site" representation the whole stack depends
+    /// on. Absence has to survive as absence: a launch that has never had a
+    /// site must not report one, and an explicit clear must not decay into a
+    /// coordinate. Every native consumer (polar alignment's refusal to run, the
+    /// sequencer's altitude maths, FITS SITELAT/SITELONG) branches on this
+    /// `Option` and cannot tell a fabricated site from a chosen one, so a
+    /// future `unwrap_or_default()` here would be invisible everywhere else.
+    #[tokio::test]
+    async fn observer_location_absence_is_representable_and_survives() {
+        let state = AppState::new();
+
+        // Never configured — not 0/0, which is a real place off Africa.
+        assert!(state.get_observer_location().unwrap().is_none());
+
+        state
+            .set_observer_location(Some(ObserverLocation {
+                latitude: 40.71,
+                longitude: -74.01,
+                elevation: 10.0,
+            }))
+            .expect("site should be settable");
+        let site = state.get_observer_location().unwrap().expect("site");
+        assert_eq!(site.latitude, 40.71);
+        assert_eq!(site.longitude, -74.01);
+
+        // Clearing means "no site", not "the site at 0/0".
+        state
+            .set_observer_location(None)
+            .expect("site should be clearable");
+        assert!(state.get_observer_location().unwrap().is_none());
+    }
+
+    /// The other way to fabricate a site is to fabricate its absence. A reader
+    /// that loses the race with a writer must wait, not answer "no site on
+    /// record" — that answer aborts polar alignment, drops SITELAT/SITELONG
+    /// from the FITS header and skips meridian maths, and the settings fan-out
+    /// makes a writer present at exactly the moment surfaces first ask.
+    #[test]
+    fn a_busy_lock_never_reports_the_site_as_unset() {
+        let state = AppState::new();
+        state
+            .set_observer_location(Some(ObserverLocation {
+                latitude: 40.71,
+                longitude: -74.01,
+                elevation: 10.0,
+            }))
+            .expect("site should be settable");
+
+        let (locked_tx, locked_rx) = std::sync::mpsc::channel();
+        let writer_state = Arc::clone(&state);
+        let writer = std::thread::spawn(move || {
+            let guard = writer_state.write_observer_location();
+            locked_tx.send(()).expect("reader should be waiting");
+            std::thread::sleep(std::time::Duration::from_millis(200));
+            drop(guard);
+        });
+        locked_rx.recv().expect("writer should take the lock");
+
+        let site = state
+            .get_observer_location()
+            .expect("read should not error")
+            .expect("a held write lock is not 'the user has no site'");
+        assert_eq!(site.latitude, 40.71);
+
+        writer.join().expect("writer thread should finish");
     }
 }

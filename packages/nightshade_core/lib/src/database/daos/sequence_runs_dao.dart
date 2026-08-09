@@ -88,6 +88,19 @@ class SequenceRunsDao extends DatabaseAccessor<NightshadeDatabase>
     return row?.sequenceSnapshotJson;
   }
 
+  /// Move an in-flight run between the live statuses ('running' / 'paused').
+  ///
+  /// `ended_at` and `stats_json` are deliberately untouched — this is not a
+  /// finish. Without it the row said 'running' throughout a pause, so every
+  /// non-GUI consumer (headless API, web dashboard, phone) believed the rig
+  /// was still exposing while the desktop showed PAUSED and frame progress
+  /// sat frozen.
+  Future<void> setLiveStatus(int runId, String status) async {
+    await (update(sequenceRuns)..where((r) => r.id.equals(runId))).write(
+      SequenceRunsCompanion(status: Value(status)),
+    );
+  }
+
   /// Finish a run with final status and statistics.
   Future<void> finishRun(int runId, String status, String statsJson) async {
     await (update(sequenceRuns)..where((r) => r.id.equals(runId))).write(

@@ -29,27 +29,10 @@ class _NodePaletteContentState extends ConsumerState<_NodePaletteContent> {
   Widget build(BuildContext context) {
     final categories = ref.watch(nodePaletteProvider);
 
-    // Filter based on search. Lower-case the query once up front rather
-    // than per-item, and reuse it across name + description checks.
-    final filteredCategories = categories
-        .map((category) {
-          if (_searchQuery.isEmpty) return category;
-
-          final q = _searchQuery.toLowerCase();
-          final filteredItems = category.items
-              .where((item) =>
-                  item.name.toLowerCase().contains(q) ||
-                  item.description.toLowerCase().contains(q))
-              .toList();
-
-          return NodePaletteCategory(
-            name: category.name,
-            icon: category.icon,
-            items: filteredItems,
-          );
-        })
-        .where((c) => c.items.isNotEmpty)
-        .toList();
+    // Filter AND rank: a name hit must outrank a description hit, or the
+    // first row (the one people click) is the wrong node. See
+    // widgets/node_palette_search.dart.
+    final filteredCategories = rankNodePaletteMatches(categories, _searchQuery);
 
     final searchFontSize = Responsive.fontSize(context, 13);
     final searchIconSize = Responsive.iconSize(context, 15);
@@ -125,19 +108,29 @@ class _NodePaletteContentState extends ConsumerState<_NodePaletteContent> {
                 PointerDeviceKind.trackpad,
               },
             ),
-            child: ListView.builder(
-              padding: EdgeInsets.only(bottom: Responsive.spacing(context, 8)),
-              itemCount: filteredCategories.length,
-              itemBuilder: (context, index) {
-                final category = filteredCategories[index];
-                return _NodeCategorySection(
-                  category: category,
-                  colors: widget.colors,
-                  categoryColor: _getCategoryColor(category.name),
-                  getIcon: _getIcon,
-                );
-              },
-            ),
+            child: filteredCategories.isEmpty
+                ? NodePaletteEmptyState(
+                    colors: widget.colors,
+                    query: _searchQuery,
+                    onClear: () {
+                      _searchController.clear();
+                      setState(() => _searchQuery = '');
+                    },
+                  )
+                : ListView.builder(
+                    padding:
+                        EdgeInsets.only(bottom: Responsive.spacing(context, 8)),
+                    itemCount: filteredCategories.length,
+                    itemBuilder: (context, index) {
+                      final category = filteredCategories[index];
+                      return _NodeCategorySection(
+                        category: category,
+                        colors: widget.colors,
+                        categoryColor: _getCategoryColor(category.name),
+                        getIcon: _getIcon,
+                      );
+                    },
+                  ),
           ),
         ),
 

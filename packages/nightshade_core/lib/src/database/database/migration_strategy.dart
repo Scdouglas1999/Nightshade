@@ -25,6 +25,12 @@ extension _NightshadeDatabaseMigration on NightshadeDatabase {
         // Enable foreign key enforcement
         await customStatement('PRAGMA foreign_keys = ON');
 
+        // Retired settings are pruned here, not in onCreate/onUpgrade:
+        // those only fire on a fresh database or a schema-version bump,
+        // and the profiles that still carry an orphaned row are exactly
+        // the ones already sitting at the current version.
+        await _pruneRetiredSettings();
+
         // Close out runs a previous process left mid-flight.
         //
         // A `sequence_runs` row is only 'running' while THIS process's
@@ -43,9 +49,12 @@ extension _NightshadeDatabaseMigration on NightshadeDatabase {
         // `ended_at` is deliberately left NULL. We do not know when the run
         // actually stopped, and stamping "now" would invent a duration
         // spanning the entire downtime. An unknown end time is the truth.
+        // 'paused' is a LIVE status too — written while an executor holds the
+        // run — so a process that died mid-pause leaves exactly the same
+        // permanently-stale row as one that died mid-exposure.
         final interrupted = await customUpdate(
           "UPDATE sequence_runs SET status = 'interrupted' "
-          "WHERE status = 'running'",
+          "WHERE status IN ('running', 'paused')",
           updates: {sequenceRuns},
           updateKind: UpdateKind.update,
         );
@@ -53,7 +62,7 @@ extension _NightshadeDatabaseMigration on NightshadeDatabase {
           // ignore: avoid_print
           print(
             '[nightshade_db] Marked $interrupted sequence run(s) left '
-            "'running' by a previous process as 'interrupted'.",
+            "live by a previous process as 'interrupted'.",
           );
         }
 

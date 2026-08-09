@@ -15,6 +15,7 @@ import 'package:nightshade_core/src/models/equipment_profile.dart'
 import 'package:nightshade_core/src/providers/remote_sync_handler.dart';
 import 'package:nightshade_core/src/services/device_service.dart';
 import 'package:nightshade_core/src/services/profile_service.dart';
+import '../harness/in_memory_database.dart';
 
 class _MockNetworkBackend extends Mock implements NetworkBackend {}
 
@@ -145,6 +146,7 @@ void main() {
 
         final container = ProviderContainer(
           overrides: [
+            inMemoryDatabaseOverride(),
             backendProvider.overrideWith(
               (ref) => _FixedBackendNotifier(ref, backend),
             ),
@@ -185,6 +187,7 @@ void main() {
 
         final container = ProviderContainer(
           overrides: [
+            inMemoryDatabaseOverride(),
             backendProvider.overrideWith(
               (ref) => _FixedBackendNotifier(ref, backend),
             ),
@@ -220,6 +223,7 @@ void main() {
         late _SwappableBackendNotifier backendNotifier;
         final container = ProviderContainer(
           overrides: [
+            inMemoryDatabaseOverride(),
             backendProvider.overrideWith((ref) {
               backendNotifier = _SwappableBackendNotifier(ref, hostA);
               return backendNotifier;
@@ -268,6 +272,7 @@ void main() {
         var loadCount = 0;
         final container = ProviderContainer(
           overrides: [
+            inMemoryDatabaseOverride(),
             backendProvider.overrideWith(
               (ref) => _FixedBackendNotifier(ref, backend),
             ),
@@ -315,6 +320,7 @@ void main() {
       var loadCount = 0;
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith(
             (ref) => _FixedBackendNotifier(ref, backend),
           ),

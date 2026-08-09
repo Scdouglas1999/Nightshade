@@ -6,6 +6,7 @@ import '../models/plate_solver.dart'
     show PlateSolverDetection, PlateSolverInfo, PlateSolverPreference;
 import '../models/equipment_profile.dart';
 import '../models/phd2_models.dart';
+import '../services/phd2_probe.dart';
 import '../models/settings/app_settings.dart' as models;
 import '../models/sequence/sequence_models.dart'
     show AdaptiveSwapSnapshot, ConditionsScore;
@@ -277,6 +278,14 @@ class DisconnectedBackend
 
   @override
   Future<bool> isPhd2Running({
+    String host = 'localhost',
+    int port = 4400,
+  }) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<Phd2ProbeResult> phd2Probe({
     String host = 'localhost',
     int port = 4400,
   }) async {

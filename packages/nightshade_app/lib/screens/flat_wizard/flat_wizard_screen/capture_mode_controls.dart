@@ -23,6 +23,12 @@ class _QuickCaptureControls extends ConsumerWidget {
           const _FilterSelector(),
           const SizedBox(height: 24),
 
+          // Camera settings the run will actually command
+          _SectionHeader(title: 'Camera', colors: colors),
+          const SizedBox(height: 8),
+          const _CaptureConfigSummary(),
+          const SizedBox(height: 24),
+
           // Histogram target
           _SectionHeader(title: 'Histogram Target', colors: colors),
           const SizedBox(height: 8),
@@ -70,6 +76,7 @@ class _BatchCaptureControls extends ConsumerWidget {
     final state = ref.watch(flatWizardProvider);
     final notifier = ref.read(flatWizardProvider.notifier);
     final cameraConfig = ref.watch(flatCameraConfigProvider);
+    final isSelected = state.mode == FlatWizardMode.batch;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -79,26 +86,37 @@ class _BatchCaptureControls extends ConsumerWidget {
           // Filter checklist
           _SectionHeader(title: 'Filters', colors: colors),
           const SizedBox(height: 8),
-          _FilterChecklist(key: FlatWizardTutorialKeys.filterSelect),
+          // Only the SELECTED tab claims the shared tutorial GlobalKeys: the
+          // TabBarView keeps the outgoing tab mounted across a switch, and a
+          // GlobalKey attached twice throws "specified multiple times in the
+          // widget tree".
+          _FilterChecklist(
+            key: isSelected ? FlatWizardTutorialKeys.filterSelect : null,
+          ),
           const SizedBox(height: 24),
 
           // Global settings
           _SectionHeader(title: 'Global Settings', colors: colors),
           const SizedBox(height: 8),
+          const _CaptureConfigSummary(),
+          const SizedBox(height: 12),
+          const _FieldLabel('Histogram Target'),
           _HistogramTargetSlider(
-            key: FlatWizardTutorialKeys.targetAdu,
+            key: isSelected ? FlatWizardTutorialKeys.targetAdu : null,
             value: state.globalSettings.histogramTarget,
             onChanged: notifier.setHistogramTarget,
             config: cameraConfig,
           ),
           const SizedBox(height: 12),
+          const _FieldLabel('Tolerance'),
           _ToleranceSlider(
             value: state.globalSettings.tolerancePercent,
             onChanged: notifier.setTolerance,
           ),
           const SizedBox(height: 12),
+          const _FieldLabel('Frame Count'),
           _FrameCountInput(
-            key: FlatWizardTutorialKeys.frameCount,
+            key: isSelected ? FlatWizardTutorialKeys.frameCount : null,
             value: state.globalSettings.frameCount,
             onChanged: notifier.setFrameCount,
           ),
@@ -123,6 +141,7 @@ class _SkyFlatsControls extends ConsumerWidget {
     final state = ref.watch(flatWizardProvider);
     final notifier = ref.read(flatWizardProvider.notifier);
     final cameraConfig = ref.watch(flatCameraConfigProvider);
+    final isSelected = state.mode == FlatWizardMode.skyFlats;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -156,26 +175,33 @@ class _SkyFlatsControls extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 8),
-          _FilterChecklist(key: FlatWizardTutorialKeys.filterSelect),
+          _FilterChecklist(
+            key: isSelected ? FlatWizardTutorialKeys.filterSelect : null,
+          ),
           const SizedBox(height: 24),
 
           // Global settings
           _SectionHeader(title: 'Global Settings', colors: colors),
           const SizedBox(height: 8),
+          const _CaptureConfigSummary(),
+          const SizedBox(height: 12),
+          const _FieldLabel('Histogram Target'),
           _HistogramTargetSlider(
-            key: FlatWizardTutorialKeys.targetAdu,
+            key: isSelected ? FlatWizardTutorialKeys.targetAdu : null,
             value: state.globalSettings.histogramTarget,
             onChanged: notifier.setHistogramTarget,
             config: cameraConfig,
           ),
           const SizedBox(height: 12),
+          const _FieldLabel('Tolerance'),
           _ToleranceSlider(
             value: state.globalSettings.tolerancePercent,
             onChanged: notifier.setTolerance,
           ),
           const SizedBox(height: 12),
+          const _FieldLabel('Frame Count'),
           _FrameCountInput(
-            key: FlatWizardTutorialKeys.frameCount,
+            key: isSelected ? FlatWizardTutorialKeys.frameCount : null,
             value: state.globalSettings.frameCount,
             onChanged: notifier.setFrameCount,
           ),

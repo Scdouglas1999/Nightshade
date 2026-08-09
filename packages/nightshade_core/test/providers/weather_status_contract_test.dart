@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import '../harness/in_memory_database.dart';
 
 WeatherAlert _clearAlert() => WeatherAlert(
   level: AlertLevel.clear,
@@ -18,6 +19,7 @@ void main() {
     () async {
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           weatherRadarFramesProvider.overrideWith(
             (ref) async => const <RadarFrame>[],
           ),
@@ -45,7 +47,11 @@ void main() {
       final status = container.read(weatherStatusProvider);
       expect(status.isLoading, isFalse);
       expect(status.errorMessage, contains('weather observations unavailable'));
-      expect(status.lastUpdate, DateTime.fromMillisecondsSinceEpoch(0));
+      // NULL, not an epoch-zero stand-in. The sentinel was indistinguishable
+      // from a real timestamp downstream and the status card rendered it as
+      // "Updated 20667 days ago" — for the whole session when, as here, the
+      // fetch never succeeds.
+      expect(status.lastUpdate, isNull);
     },
   );
 
@@ -55,6 +61,7 @@ void main() {
       final evaluation = Completer<WeatherAlert>();
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           weatherRadarFramesProvider.overrideWith(
             (ref) async => const <RadarFrame>[],
           ),

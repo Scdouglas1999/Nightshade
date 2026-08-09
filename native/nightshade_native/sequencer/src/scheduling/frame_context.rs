@@ -104,6 +104,15 @@ pub struct FrameContext {
     /// Exposure duration in seconds. Mirrors `EXPTIME` in the FITS header.
     pub duration_secs: f64,
 
+    /// When the shutter opened, in UTC. FITS `DATE-OBS`.
+    ///
+    /// Carried explicitly rather than sampled where the header is built: header
+    /// construction happens after readout, so `Utc::now()` there produced a
+    /// DATE-OBS late by exactly the exposure time on every sequenced frame.
+    /// `None` means the caller genuinely does not know, and the keyword is
+    /// omitted rather than filled with a plausible-looking lie.
+    pub exposure_started_at: Option<chrono::DateTime<chrono::Utc>>,
+
     // -------------------------------------------------------------------
     // FRAME ACCOUNTING (custom NS-* keywords)
     // -------------------------------------------------------------------
@@ -120,6 +129,11 @@ pub struct FrameContext {
     pub sensor_temp_c: Option<f64>,
     /// Target temperature the cooler was set to. FITS `SET-TEMP`.
     pub set_temp_c: Option<f64>,
+    /// Cooler duty cycle (0-100 %) at capture time. Not a keyword the FITS
+    /// standard defines, but the `captured_images.cooler_power` column has
+    /// always existed for it and a sub captured while the cooler was pinned
+    /// at 100 % is the evidence for a thermal-runaway night.
+    pub cooler_power_percent: Option<f64>,
     /// Focuser absolute position. FITS `FOCUSPOS`.
     pub focuser_position: Option<i32>,
     /// Focuser temperature (sometimes used for offset prediction). FITS
@@ -131,6 +145,36 @@ pub struct FrameContext {
     /// Total guiding RMS in arcseconds at the moment of capture. FITS
     /// `GUIDERMS`.
     pub guide_rms_arcsec: Option<f64>,
+
+    // -------------------------------------------------------------------
+    // MOUNT POINTING (RA / DEC / OBJCTALT / OBJCTAZ / PIERSIDE keywords)
+    // -------------------------------------------------------------------
+    //
+    // Where the telescope actually WAS, as distinct from `target_ra_hours` /
+    // `target_dec_degrees`, which are where the sequence meant to be. The
+    // bridge used to sample this itself at save time; it now comes from here
+    // so the FITS header and the `captured_images` row are stamped from one
+    // struct instead of two independent reads that can disagree.
+    /// Mount-reported right ascension in HOURS (0-24). Same unit as
+    /// `target_ra_hours` and `captured_images.mount_ra`; the FITS writer
+    /// multiplies by 15 for the degrees-valued `RA` card.
+    pub mount_ra_hours: Option<f64>,
+    /// Mount-reported declination in degrees.
+    pub mount_dec_degrees: Option<f64>,
+    /// Altitude above the horizon in degrees, derived from the pointing and
+    /// the site. `None` when the observer location is unset, in which case
+    /// the FITS writer omits `AIRMASS` rather than computing it from a
+    /// guessed site.
+    pub mount_altitude_deg: Option<f64>,
+    /// Azimuth in degrees east of north, derived alongside the altitude.
+    pub mount_azimuth_deg: Option<f64>,
+    /// Which side of the pier the mount reported — `"East"` or `"West"`, the
+    /// same spelling `ExecutorEvent::MeridianFlipOutcome.new_pier_side`
+    /// already ships. `None` covers both "no mount" and a mount that answered
+    /// `Unknown`: a column reading "Unknown" would claim a reading was taken
+    /// and came back indeterminate, which is not distinguishable downstream
+    /// from a driver that cannot report at all.
+    pub pier_side: Option<String>,
 
     // -------------------------------------------------------------------
     // PLATE-SOLVE RESULT (SOLVED-RA / SOLVED-DEC / PIXSCALE / CROTA1 keywords)
@@ -180,6 +224,22 @@ pub struct FrameContext {
     pub camera_make: Option<String>,
     /// Camera model (e.g., "ASI2600MM Pro").
     pub camera_model: Option<String>,
+    /// UNBINNED sensor pixel pitch in microns. FITS `XPIXSZ` / `YPIXSZ`.
+    ///
+    /// Sourced from the driver, not the equipment profile: the profile has no
+    /// pixel-size column, and the driver is the only place the number exists.
+    /// The FITS writer multiplies these by `XBINNING`/`YBINNING`, so the
+    /// unbinned pitch is what belongs here.
+    ///
+    /// Without them a sequenced sub carries `FOCALLEN` but no pitch, so ASTAP,
+    /// PixInsight and AstroBin cannot derive the plate scale from the file
+    /// alone — the same defect that was fixed on the manual-snapshot path and
+    /// left standing on the path that writes every frame of a real run.
+    /// `None` when the driver will not report one, so the keyword is omitted
+    /// rather than filled with a guess a downstream solver would trust.
+    pub camera_pixel_size_x_um: Option<f64>,
+    /// Vertical counterpart of [`Self::camera_pixel_size_x_um`].
+    pub camera_pixel_size_y_um: Option<f64>,
     /// Telescope name (e.g., "Askar 65PHQ"). FITS `TELESCOP`.
     pub telescope_name: Option<String>,
     /// Telescope focal length in millimetres. FITS `FOCALLEN`.
@@ -247,6 +307,75 @@ pub struct FrameContext {
     pub rig_label: Option<String>,
 }
 
+/// The per-frame capture truth, projected out of the [`FrameContext`] the FITS
+/// writer used, so the database row and the file on disk can never disagree.
+///
+/// Why this type exists: the FITS header was built from `FrameContext` and then
+/// the struct was dropped, while the `captured_images` row was built from a
+/// completely separate progress event that carried only node id + grading
+/// metrics. A sequenced frame therefore landed in the database with no gain, no
+/// offset, no sensor temperature, no pointing and no focuser/rotator position —
+/// while the file written microseconds earlier from the same exposure had all of
+/// them. Two sources of truth for one frame is the defect; this struct is the
+/// one source. It rides on `ProgressDetail::FrameAccepted`/`FrameRejected` so
+/// the Dart listener writes the row from exactly the values the header got.
+///
+/// Every field is `Option<_>` for the same reason `FrameContext`'s are: a device
+/// that is absent or will not answer leaves the column NULL rather than being
+/// filled with a plausible-looking lie.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct FrameCaptureMetadata {
+    pub gain: Option<i32>,
+    pub offset: Option<i32>,
+    pub sensor_temp_c: Option<f64>,
+    pub cooler_power_percent: Option<f64>,
+    /// Mount right ascension in HOURS — see [`FrameContext::mount_ra_hours`]
+    /// for why this is not degrees.
+    pub mount_ra_hours: Option<f64>,
+    pub mount_dec_degrees: Option<f64>,
+    pub mount_altitude_deg: Option<f64>,
+    pub mount_azimuth_deg: Option<f64>,
+    pub pier_side: Option<String>,
+    pub focuser_position: Option<i32>,
+    pub focuser_temperature_c: Option<f64>,
+    pub rotator_angle_deg: Option<f64>,
+    /// Commanded exposure length in seconds. Not optional: an exposure with no
+    /// duration did not happen.
+    pub exposure_secs: f64,
+    pub bin_x: u32,
+    pub bin_y: u32,
+    /// "Light" / "Dark" / "Flat" / "Bias" — the same string the FITS
+    /// `IMAGETYP` card gets.
+    pub frame_type: String,
+    /// Stable target identifier, so the row joins to the same target the
+    /// header's `NS-SESID` session was imaging.
+    pub target_id: Option<String>,
+}
+
+impl From<&FrameContext> for FrameCaptureMetadata {
+    fn from(ctx: &FrameContext) -> Self {
+        Self {
+            gain: ctx.gain,
+            offset: ctx.offset,
+            sensor_temp_c: ctx.sensor_temp_c,
+            cooler_power_percent: ctx.cooler_power_percent,
+            mount_ra_hours: ctx.mount_ra_hours,
+            mount_dec_degrees: ctx.mount_dec_degrees,
+            mount_altitude_deg: ctx.mount_altitude_deg,
+            mount_azimuth_deg: ctx.mount_azimuth_deg,
+            pier_side: ctx.pier_side.clone(),
+            focuser_position: ctx.focuser_position,
+            focuser_temperature_c: ctx.focuser_temperature_c,
+            rotator_angle_deg: ctx.rotator_angle_deg,
+            exposure_secs: ctx.duration_secs,
+            bin_x: ctx.binning_x,
+            bin_y: ctx.binning_y,
+            frame_type: ctx.frame_type.clone(),
+            target_id: ctx.target_id.clone(),
+        }
+    }
+}
+
 impl FrameContext {
     /// Convenience constructor for the common case in `expose.rs`: a Light
     /// frame in a TakeExposure burst, with the target and exposure settings
@@ -271,6 +400,31 @@ impl FrameContext {
             frame_type: "Light".to_string(),
             ..Default::default()
         }
+    }
+
+    /// The instant halfway through the exposure.
+    ///
+    /// Anything derived from where the sky WAS — altitude, azimuth and the
+    /// airmass computed from them — belongs at the midpoint, because that is
+    /// the effective epoch of the light the frame integrated. Both the
+    /// sequencer and the FITS writer used to derive it from `Utc::now()` at
+    /// save time instead, which dates the geometry by the whole exposure plus
+    /// readout: on a 300 s sub taken at 20 deg altitude that is a 2.9 %
+    /// airmass error, and it lands directly in the extinction correction of a
+    /// photometry run and in the AMASS column of an AAVSO submission.
+    ///
+    /// `None` when the caller never recorded when the shutter opened, so the
+    /// caller falls back to its own clock rather than inventing a start.
+    /// A negative or non-finite duration contributes nothing rather than
+    /// moving the epoch backwards.
+    pub fn exposure_midpoint(&self) -> Option<chrono::DateTime<chrono::Utc>> {
+        let started = self.exposure_started_at?;
+        let half_millis = if self.duration_secs.is_finite() && self.duration_secs > 0.0 {
+            (self.duration_secs * 500.0) as i64
+        } else {
+            0
+        };
+        Some(started + chrono::Duration::milliseconds(half_millis))
     }
 
     /// Display label suitable for log lines. Used by the FITS writer to

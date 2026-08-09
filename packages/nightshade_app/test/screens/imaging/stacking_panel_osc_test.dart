@@ -14,6 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/imaging/widgets/stacking_panel.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 CameraCapabilities _colorCaps({String? bayerPattern = 'RGGB'}) {
   return CameraCapabilities(
@@ -117,6 +118,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            inMemoryDatabaseOverride(),
             isRemoteModeProvider.overrideWithValue(false),
             connectedCameraIdProvider.overrideWithValue(null),
           ],
@@ -197,6 +199,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            inMemoryDatabaseOverride(),
             isRemoteModeProvider.overrideWithValue(false),
             connectedCameraIdProvider.overrideWithValue('native:zwo:0'),
             equipmentCameraCapabilitiesProvider('native:zwo:0')

@@ -190,6 +190,22 @@ final firstNightWizardProvider =
       return FirstNightWizardNotifier(ref.watch(tutorialDaoProvider));
     });
 
+/// True while the first-night walkthrough owns the user's attention.
+///
+/// Set when the modal opens and cleared when the user finishes it, skips it
+/// forever, or closes it — but deliberately NOT when they follow a "Show me on
+/// the X screen" deep link, because that parks the walkthrough on a screen
+/// rather than ending it. Following that link used to land the user on the
+/// Sequencer and immediately raise a *second* offer — "Sequencer Tour: learn
+/// how to create and run automated imaging sequences" — describing the ground
+/// the walkthrough step they were on had just covered. One guided flow at a
+/// time; the per-screen nudges wait their turn.
+///
+/// Session-scoped on purpose. Deriving it from the persisted step row would
+/// mean a user who clicked Next once and never came back had all per-screen
+/// tour offers suppressed forever.
+final guidedFlowActiveProvider = StateProvider<bool>((ref) => false);
+
 /// True if the first-night wizard should be auto-opened on this launch.
 /// Resolves asynchronously because it has to read the `tutorial_progress`
 /// table. Bootstrap code in `app.dart` watches this and triggers the
@@ -221,7 +237,15 @@ enum FirstLaunchTourStatus {
   /// DAO read hasn't returned yet — render nothing.
   unknown,
 
-  /// No row exists for the tour — auto-show on launch.
+  /// No row exists: the tour has never been run and has never been asked
+  /// for. Distinct from [pending] because the coach-mark tour is
+  /// replay-only — a fresh install must not be handed it on top of the
+  /// equipment-onboarding spine it just finished.
+  notStarted,
+
+  /// The user explicitly asked for the tour (Settings → Help → Re-run) and
+  /// has not yet finished or dismissed that run. This is the only status
+  /// that mounts the overlay.
   pending,
 
   /// User clicked Done on the final step.
@@ -246,7 +270,12 @@ class FirstLaunchTourDao {
   Future<FirstLaunchTourStatus> getStatus() async {
     final progress = await _progressDao.getProgress(firstLaunchTourCategory);
     if (progress == null) {
-      return FirstLaunchTourStatus.pending;
+      // No row at all. Nobody has asked for this tour, so it must not run:
+      // mapping "missing row" to `pending` is what made the replay-only
+      // coach-mark tour auto-fire on every fresh install, stacking a
+      // "set up equipment and a profile" walkthrough on top of the
+      // equipment-onboarding wizard that had just done exactly that.
+      return FirstLaunchTourStatus.notStarted;
     }
     if (progress.completed) {
       return FirstLaunchTourStatus.completed;
@@ -254,10 +283,10 @@ class FirstLaunchTourDao {
     if (progress.dismissed) {
       return FirstLaunchTourStatus.skipped;
     }
-    // A row exists but neither flag is set — treat as pending so a user
-    // who closed the overlay before completing can still see it next
-    // launch. The overlay only writes the row when the user explicitly
-    // completes or skips.
+    // A row exists with neither terminal flag set — [reset] wrote it, so the
+    // user explicitly asked for a replay and has not finished it yet. A user
+    // who closes the overlay mid-run keeps that request until they complete
+    // or skip.
     return FirstLaunchTourStatus.pending;
   }
 
@@ -275,10 +304,16 @@ class FirstLaunchTourDao {
     return _progressDao.markDismissed(firstLaunchTourCategory);
   }
 
-  /// Wipe the tour's progress so it auto-opens again on next launch.
+  /// Record an explicit replay request, so the launcher mounts the overlay.
   /// Backs the Settings → Help "Re-run tutorial" button.
-  Future<void> reset() {
-    return _progressDao.resetProgress(firstLaunchTourCategory);
+  ///
+  /// Writes a fresh row (rather than only deleting the old one) because the
+  /// request itself is what [getStatus] reads: an absent row means "never
+  /// asked for", and deleting without replacing would make the tour
+  /// indistinguishable from a fresh install.
+  Future<void> reset() async {
+    await _progressDao.resetProgress(firstLaunchTourCategory);
+    await _progressDao.saveProgress(firstLaunchTourCategory, 0);
   }
 }
 

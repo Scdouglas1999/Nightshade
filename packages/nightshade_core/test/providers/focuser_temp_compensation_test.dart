@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/providers/equipment/focuser_state_provider.dart';
 import 'package:nightshade_core/src/providers/equipment/focuser_temp_compensation_provider.dart';
 import 'package:nightshade_core/src/providers/settings_provider.dart';
+import '../harness/in_memory_database.dart';
 
 class _FakeAppSettingsNotifier extends AppSettingsNotifier {
   _FakeAppSettingsNotifier(this._initial);
@@ -26,7 +27,10 @@ void main() {
         const AppSettingsState(tempCompensation: true, tempCoefficient: 10.0),
       );
       final container = ProviderContainer(
-        overrides: [appSettingsProvider.overrideWith(() => notifier)],
+        overrides: [
+          inMemoryDatabaseOverride(),
+          appSettingsProvider.overrideWith(() => notifier),
+        ],
       );
       addTearDown(container.dispose);
       await container.read(appSettingsProvider.future);
@@ -55,7 +59,10 @@ void main() {
         const AppSettingsState(tempCompensation: false, tempCoefficient: 10.0),
       );
       final container = ProviderContainer(
-        overrides: [appSettingsProvider.overrideWith(() => notifier)],
+        overrides: [
+          inMemoryDatabaseOverride(),
+          appSettingsProvider.overrideWith(() => notifier),
+        ],
       );
       addTearDown(container.dispose);
       await container.read(appSettingsProvider.future);
@@ -76,7 +83,10 @@ void main() {
         const AppSettingsState(tempCompensation: true, tempCoefficient: 10.0),
       );
       final container = ProviderContainer(
-        overrides: [appSettingsProvider.overrideWith(() => notifier)],
+        overrides: [
+          inMemoryDatabaseOverride(),
+          appSettingsProvider.overrideWith(() => notifier),
+        ],
       );
       addTearDown(container.dispose);
       await container.read(appSettingsProvider.future);
@@ -103,7 +113,10 @@ void main() {
         const AppSettingsState(tempCompensation: true, tempCoefficient: 10.0),
       );
       final container = ProviderContainer(
-        overrides: [appSettingsProvider.overrideWith(() => notifier)],
+        overrides: [
+          inMemoryDatabaseOverride(),
+          appSettingsProvider.overrideWith(() => notifier),
+        ],
       );
       addTearDown(container.dispose);
       await container.read(appSettingsProvider.future);

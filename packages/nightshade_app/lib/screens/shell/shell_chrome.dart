@@ -20,6 +20,18 @@ abstract final class ShellChrome {
     return Platform.isAndroid || Platform.isIOS;
   }
 
+  /// True when this process owns an OS window it must draw the chrome for.
+  ///
+  /// The desktop runners set `TitleBarStyle.hidden`, so the platform draws no
+  /// minimize/maximize/close buttons at ANY width. That makes window controls
+  /// a property of the platform, never of the layout — a narrow desktop window
+  /// switching to [useBottomNavigation] must still render them or the operator
+  /// is left with no mouse-reachable way to close, minimize or move the app.
+  static bool get isDesktopWindow {
+    if (kIsWeb) return false;
+    return Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+  }
+
   /// Whether the shell should render [NightshadeBottomNavigation].
   static bool useBottomNavigation(double width) {
     if (isNativeMobile) return true;

@@ -9,7 +9,7 @@ int _gb(int n) => n * 1024 * 1024 * 1024;
 
 Widget _wrap(List<Override> overrides) {
   return ProviderScope(
-    overrides: overrides,
+    overrides: [...overrides],
     child: MaterialApp(
       theme: NightshadeTheme.dark,
       home: Scaffold(

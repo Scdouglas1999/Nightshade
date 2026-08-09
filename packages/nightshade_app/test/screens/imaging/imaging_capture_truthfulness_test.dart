@@ -8,8 +8,6 @@
 //    already running;
 //  * below ~820 px in landscape the capture bar was dropped entirely, leaving
 //    no way at all to start an exposure.
-import 'dart:typed_data';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -61,6 +59,7 @@ class _PreviewHost extends ConsumerWidget {
       panOffset: Offset.zero,
       showCrosshair: false,
       showStarOverlay: false,
+      isStoppingCapture: false,
       onZoomIn: () {},
       onZoomOut: () {},
       onPanUpdate: (_) {},

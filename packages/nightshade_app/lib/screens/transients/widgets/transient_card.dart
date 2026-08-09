@@ -108,21 +108,26 @@ class _TransientCardState extends State<TransientCard> {
                     NightshadeTypography.h4.copyWith(color: colors.textPrimary),
               ),
               const SizedBox(height: NightshadeTokens.spaceXs),
-              Row(
-                children: [
-                  Text(
-                    _getTypeLabel(),
-                    style: NightshadeTypography.caption
-                        .copyWith(color: colors.textSecondary),
-                  ),
-                  if (widget.alert.classification != null) ...[
-                    Text(
-                      ' - ${widget.alert.classification}',
-                      style: NightshadeTypography.caption
-                          .copyWith(color: colors.textMuted),
-                    ),
+              // One wrapping paragraph, not a Row of unconstrained Texts. A
+              // First Light detection has no apparent magnitude, so its
+              // measured brightness CHANGE ("Δ2.35 mag brighter than
+              // template") rides in the classification — and the old Row
+              // clipped whatever ran past the card's width, which on a phone
+              // is most of it.
+              Text.rich(
+                TextSpan(
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textSecondary),
+                  children: [
+                    TextSpan(text: _getTypeLabel()),
+                    if (widget.alert.classification != null)
+                      TextSpan(
+                        text: ' - ${widget.alert.classification}',
+                        style: NightshadeTypography.caption
+                            .copyWith(color: colors.textMuted),
+                      ),
                   ],
-                ],
+                ),
               ),
             ],
           ),

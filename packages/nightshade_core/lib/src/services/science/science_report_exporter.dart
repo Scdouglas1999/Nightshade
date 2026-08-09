@@ -12,6 +12,7 @@ import '../../database/daos/targets_dao.dart';
 import '../../database/database.dart';
 import '../../providers/app_version_provider.dart';
 import '../../providers/database_provider.dart';
+import 'period_analysis_service.dart';
 
 /// Markdown science-report exporter.
 ///
@@ -58,7 +59,14 @@ class ScienceReportExporter {
   /// Build a markdown string for [sessionId]. Public so callers can ship
   /// the report somewhere other than disk (Slack DM, email, etc.) without
   /// going through `exportToDisk`.
-  Future<String> buildMarkdown(int sessionId) async {
+  ///
+  /// [period] is the period search the operator ran on the Science tab. It is
+  /// UI state, not a stored product, so the caller passes it; null prints
+  /// "Not run for this session", which is true, unlike the previous silence.
+  Future<String> buildMarkdown(
+    int sessionId, {
+    PeriodAnalysisResult? period,
+  }) async {
     final session = await _sessionsDao.getSessionById(sessionId);
     if (session == null) {
       throw StateError('Session $sessionId not found');
@@ -76,6 +84,7 @@ class ScienceReportExporter {
     final movingObjects = await _scienceDao.getMovingObjectsForSession(
       sessionId,
     );
+    final photometry = await _scienceDao.getPhotometryForSession(sessionId);
 
     final b = StringBuffer();
     b.writeln('# Nightshade Science Report — Session #$sessionId');
@@ -83,6 +92,10 @@ class ScienceReportExporter {
     b.writeln(_sessionHeader(session, target));
     b.writeln();
     b.writeln(_frameCounts(images));
+    b.writeln();
+    b.writeln(_lightCurveSnapshot(photometry));
+    b.writeln();
+    b.writeln(_periodAnalysis(period));
     b.writeln();
     b.writeln(_photometrySnapshot(calibrations));
     b.writeln();
@@ -105,8 +118,11 @@ class ScienceReportExporter {
   /// Returns the absolute path the user can hand off to share / open. The
   /// returned [File] is always flushed to disk so external apps can open
   /// it immediately.
-  Future<File> exportToDisk(int sessionId) async {
-    final markdown = await buildMarkdown(sessionId);
+  Future<File> exportToDisk(
+    int sessionId, {
+    PeriodAnalysisResult? period,
+  }) async {
+    final markdown = await buildMarkdown(sessionId, period: period);
     final dir = await _ensureReportsDirectory();
     final stamp = DateTime.now().toUtc().toIso8601String().replaceAll(
       RegExp(r'[:.]'),
@@ -126,15 +142,23 @@ class ScienceReportExporter {
     return dir;
   }
 
+  /// One convention for every instant the report prints: UTC, with the Z.
+  static String _utcStamp(DateTime when) => when.toUtc().toIso8601String();
+
   String _sessionHeader(ImagingSession session, Target? target) {
     final lines = <String>[
       '## Session',
       '- **Target:** ${target?.name ?? '(no target bound)'}',
       if (target?.constellation != null && target!.constellation!.isNotEmpty)
         '- **Constellation:** ${target.constellation}',
-      '- **Started:** ${session.startTime.toIso8601String()}',
+      // UTC with the Z suffix, like the light-curve block and the footer.
+      // Drift hands these back as LOCAL DateTimes, so printing them raw
+      // produced an ISO-8601-shaped string with no offset and no Z sitting a
+      // few lines above a labelled UTC one — a report shared with the AAVSO or
+      // the MPC that is ambiguous by up to a day to whoever reads it.
+      '- **Started (UTC):** ${_utcStamp(session.startTime)}',
       if (session.endTime != null)
-        '- **Ended:** ${session.endTime!.toIso8601String()}',
+        '- **Ended (UTC):** ${_utcStamp(session.endTime!)}',
       if (session.endTime != null)
         '- **Wall-clock:** ${_humanDuration(session.endTime!.difference(session.startTime))}',
     ];
@@ -174,7 +198,7 @@ class ScienceReportExporter {
         )
         .toList(growable: false);
     if (calibrated.isEmpty) {
-      return '## Photometry\n'
+      return '## Photometric calibration\n'
           'No photometric calibration produced this session. This usually means '
           'too few frames solved against the catalog (need ≥ 5–10 calibrated '
           'frames before a transparency model stabilises).';
@@ -195,7 +219,7 @@ class ScienceReportExporter {
         ? '—'
         : 'median ${lim5[lim5.length ~/ 2].toStringAsFixed(2)} mag';
     final catalog = calibrated.map((c) => c.catalogSource).toSet().join(', ');
-    return '## Photometry\n'
+    return '## Photometric calibration\n'
         '- **Latest zero point:** ${latest.zeroPoint!.toStringAsFixed(2)} mag '
         '(${latest.matchedStarCount} catalog stars matched, RMS '
         '${latest.calibrationRms.toStringAsFixed(3)})\n'
@@ -203,6 +227,93 @@ class ScienceReportExporter {
         '(mean ${mean.toStringAsFixed(2)}, range ${range.toStringAsFixed(2)} mag)\n'
         '- **Limiting magnitude (5σ):** $limStr\n'
         '- **Catalog source(s):** $catalog\n';
+  }
+
+  /// The differential-photometry time series this session actually produced.
+  ///
+  /// The report used to skip `photometry_measurements` entirely: a session with
+  /// 80 measurements exported a document whose only photometry-shaped section
+  /// said "No photometric calibration produced this session", so the light
+  /// curve — the whole product of a variable-star run — was simply absent.
+  String _lightCurveSnapshot(List<PhotometryMeasurementRow> rows) {
+    if (rows.isEmpty) {
+      return '## Light curve\n'
+          'No photometry measurements were recorded for this session. Live '
+          'reduction has to be enabled on the capture (Science Photometry '
+          'node, or Science → live reduction) for a light curve to exist.';
+    }
+    final targets = rows
+        .where((r) => r.role == 'target')
+        .toList(growable: false);
+    final comparisons =
+        rows
+            .where((r) => r.role != 'target')
+            .map((r) => r.objectId)
+            .toSet()
+            .toList(growable: false)
+          ..sort();
+    final series = targets.isEmpty ? rows : targets;
+    final objectIds = series.map((r) => r.objectId).toSet().toList()..sort();
+    final first = series.first.timestamp.toUtc();
+    final last = series.last.timestamp.toUtc();
+
+    final diffs = series
+        .map((r) => r.differentialMagnitude)
+        .whereType<double>()
+        .where((v) => v.isFinite)
+        .toList(growable: false);
+    final String diffLine;
+    if (diffs.isEmpty) {
+      diffLine =
+          '- **Differential magnitude:** not computed (no comparison stars '
+          'resolved)\n';
+    } else {
+      final mean = diffs.reduce((a, b) => a + b) / diffs.length;
+      final variance =
+          diffs.map((v) => (v - mean) * (v - mean)).reduce((a, b) => a + b) /
+          diffs.length;
+      final rms = math.sqrt(variance);
+      diffLine =
+          '- **Differential magnitude:** mean ${mean.toStringAsFixed(4)}, '
+          'RMS ${rms.toStringAsFixed(4)} mag over ${diffs.length} points\n';
+    }
+
+    final outliers = series.where((r) => r.isOutlier).length;
+    return '## Light curve\n'
+        '- **Points:** ${series.length}'
+        '${outliers > 0 ? ' ($outliers flagged as outliers)' : ''}\n'
+        '- **Target object:** ${objectIds.join(', ')}\n'
+        '- **Comparison stars:** '
+        '${comparisons.isEmpty ? 'none' : comparisons.join(', ')}\n'
+        '- **First / last measurement (UTC):** '
+        '${first.toIso8601String()} → ${last.toIso8601String()}\n'
+        '$diffLine';
+  }
+
+  /// The period search the operator ran, or an explicit statement that none was.
+  String _periodAnalysis(PeriodAnalysisResult? period) {
+    if (period == null) {
+      return '## Period analysis\n'
+          'Not run for this session.';
+    }
+    final ls = period.lombScargle;
+    final bls = period.bls;
+    final constrained = ls.isPeriodConstrained
+        ? '${ls.observedCycles.toStringAsFixed(1)} cycles observed'
+        : 'UNCONSTRAINED — only ${ls.observedCycles.toStringAsFixed(1)} cycles '
+              'fit in the baseline, so this is a lower bound, not a measurement';
+    return '## Period analysis\n'
+        '- **Lomb-Scargle best period:** ${ls.bestPeriod.toStringAsFixed(6)} d '
+        '(peak power ${ls.peakPower.toStringAsFixed(3)}, '
+        'FAP ${ls.falseAlarmProbability.toStringAsExponential(2)})\n'
+        '- **Baseline / coverage:** ${ls.timeBaseline.toStringAsFixed(4)} d, '
+        '$constrained\n'
+        '- **Searched range:** ${ls.searchedMinPeriod.toStringAsFixed(4)} – '
+        '${ls.searchedMaxPeriod.toStringAsFixed(4)} d\n'
+        '- **BLS best period:** ${bls.bestPeriod.toStringAsFixed(6)} d '
+        '(depth ${bls.transitDepth.toStringAsFixed(4)} mag, duration '
+        '${bls.transitDuration.toStringAsFixed(4)} d, '
+        'SDE ${bls.signalDetectionEfficiency.toStringAsFixed(2)})\n';
   }
 
   String _transparencySnapshot(List<TransparencySampleRow> samples) {

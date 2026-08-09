@@ -129,6 +129,11 @@ class _ObjectInfoPopupState extends ConsumerState<ObjectInfoPopup>
   void _consumeTap() {
     // Popup body absorbs taps so sky-map clicks do not pass through.
   }
+
+  /// Re-selecting the same target from a different surface rebuilds the model
+  /// object, so identity alone would close a popup that is still correct.
+  bool _isSamePopupObject(CelestialObject other) =>
+      identical(other, widget.object) || other.id == widget.object.id;
   late Animation<double> _fadeAnimation;
 
   @override
@@ -156,9 +161,42 @@ class _ObjectInfoPopupState extends ConsumerState<ObjectInfoPopup>
     super.dispose();
   }
 
+  /// Live alt/az for the object this popup is HEADED BY — never for whatever
+  /// happens to be selected.
+  ///
+  /// This block used to read `selectedObjectAltAzProvider`, which follows the
+  /// global selection while the header, catalogue coordinates and every action
+  /// button stay pinned to the object captured at tap time. Selecting something
+  /// else (a search result, a list row, a deep link) therefore left a popup
+  /// headed "Deneb" reporting M57's altitude to 0.1 deg, complete with a red
+  /// "Below Horizon" badge for a star that was 11.5 deg up — and, in the other
+  /// direction, a green "Excellent" badge for a star 2.8 deg below the horizon.
+  /// A true-looking sentence about the wrong object is worse than no sentence.
+  (double alt, double az) get _objectAltAz {
+    final location = ref.watch(observerLocationProvider);
+    final time = ref.watch(observationMinuteProvider);
+    return AstronomyCalculations.objectAltAz(
+      raDeg: widget.coordinates.raDegrees,
+      decDeg: widget.coordinates.dec,
+      dt: time,
+      latitudeDeg: location.latitude,
+      longitudeDeg: location.longitude,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final layout = resolveObjectInfoPopupLayout(context, widget.position);
+
+    // The popup is a snapshot taken when the sky was tapped, so it cannot
+    // follow a selection made anywhere else. Half-following is what produced
+    // the mismatched horizon block above; close instead, and let the new
+    // selection speak for itself through the HUD.
+    ref.listen<SelectedObjectState>(selectedObjectProvider, (previous, next) {
+      final selected = next.object;
+      if (selected != null && _isSamePopupObject(selected)) return;
+      widget.onDismiss();
+    });
 
     return Positioned(
       left: layout.left,
@@ -229,11 +267,8 @@ class _ObjectInfoPopupState extends ConsumerState<ObjectInfoPopup>
                               _buildObjectDetails(),
                               const SizedBox(height: 16),
                               _buildCoordinates(),
-                              if (ref.watch(selectedObjectAltAzProvider) !=
-                                  null) ...[
-                                const SizedBox(height: 12),
-                                _buildAltAz(),
-                              ],
+                              const SizedBox(height: 12),
+                              _buildAltAz(),
                             ],
                           ),
                         ),
@@ -325,9 +360,15 @@ class _ObjectInfoPopupState extends ConsumerState<ObjectInfoPopup>
                             NightshadeTokens.radiusInline4),
                       ),
                       child: Text(
-                        obj is DeepSkyObject
-                            ? getDsoDisplayInfo(obj).$2
-                            : obj.id,
+                        // A planet's id is the internal join key
+                        // `PLANET_Jupiter`; showing it as the catalogue
+                        // designation put an implementation detail on screen
+                        // and into the observing log.
+                        switch (obj) {
+                          DeepSkyObject() => getDsoDisplayInfo(obj).$2,
+                          SolarSystemBody() => obj.designation,
+                          _ => obj.id,
+                        },
                         style: TextStyle(
                           fontSize: NightshadeTypography.fontSize10,
                           fontWeight: FontWeight.w600,
@@ -392,7 +433,11 @@ class _ObjectInfoPopupState extends ConsumerState<ObjectInfoPopup>
     final obj = widget.object;
     String typeLabel = 'Object';
 
-    if (obj is Star) {
+    // SolarSystemBody extends Star (every point-source path in the app branches
+    // on `is Star`), so it has to be matched FIRST or a planet reads "Star".
+    if (obj is SolarSystemBody) {
+      typeLabel = obj.kind.displayName;
+    } else if (obj is Star) {
       typeLabel = 'Star';
       if (obj.spectralType != null) {
         typeLabel = 'Star (${obj.spectralType})';
@@ -473,9 +518,7 @@ class _ObjectInfoPopupState extends ConsumerState<ObjectInfoPopup>
   }
 
   Widget _buildAltAz() {
-    final altAz = ref.watch(selectedObjectAltAzProvider)!;
-    final alt = altAz.$1;
-    final az = altAz.$2;
+    final (alt, az) = _objectAltAz;
 
     // The badge used to grade on altitude alone, so at 11:52 local — with the
     // app's own dashboard reading "Dark in 10h 36m" — a target 63 deg up got a
@@ -639,7 +682,9 @@ class _ObjectInfoPopupState extends ConsumerState<ObjectInfoPopup>
                 builder: (context) => ObservationLogDialog(
                   object: widget.object,
                   coordinates: widget.coordinates,
-                  altAz: ref.read(selectedObjectAltAzProvider),
+                  // A logged observation is a permanent record: it must carry
+                  // the altitude of the object being logged, not the selection's.
+                  altAz: _objectAltAz,
                 ),
               );
               if (saved == true && mounted) {

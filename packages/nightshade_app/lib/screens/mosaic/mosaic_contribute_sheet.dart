@@ -193,10 +193,12 @@ class _MosaicContributeSheetState
         ? _license
         : (hasCompatibleLicense ? licenses.first : ContributionLicense.ccBy);
 
-    return NightshadeDialog(
+    // Surface, not NightshadeDialog: showAdaptiveModal already supplies the
+    // frame (a Dialog on desktop, a bottom sheet on a phone). Nesting a second
+    // dialog stretched that frame into a full-height slab.
+    return NightshadeDialogSurface(
       title: _title,
       icon: LucideIcons.upload,
-      width: 560,
       showCloseButton: !_busy,
       actions: [
         NightshadeButton(

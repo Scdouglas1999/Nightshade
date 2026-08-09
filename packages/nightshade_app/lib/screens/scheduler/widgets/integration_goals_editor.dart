@@ -225,6 +225,19 @@ class _IntegrationGoalsEditorState
         ref.watch(smartNightExposureContextProvider).valueOrNull;
     final authority = ref.watch(backendProvider);
     final service = ref.watch(integrationGoalServiceProvider);
+    // An empty filter list is the normal state of an OSC / DSLR / wheel-less
+    // rig, and Smart Night already plans a single unfiltered row for it
+    // (plan_tonight_sequencer_helper.dart). Only a wheel that IS connected and
+    // still reports no slots is a real fault, and only that case may refuse to
+    // let the operator set a goal — otherwise the scheduler can never be given
+    // a target on a rig that has no wheel at all.
+    //
+    // Watched only in that branch: the wheel provider drags the live device /
+    // profile graph in behind it, and a profile that already names filters has
+    // no question to answer.
+    final wheelOnlineWithNoSlots = widget.availableFilters.isEmpty &&
+        ref.watch(filterWheelStateProvider).connectionState ==
+            DeviceConnectionState.connected;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -305,6 +318,7 @@ class _IntegrationGoalsEditorState
               const SizedBox(height: NightshadeTokens.spaceMd),
               _AddGoalRow(
                 availableFilters: widget.availableFilters,
+                wheelOnlineWithNoSlots: wheelOnlineWithNoSlots,
                 existingFilters: progress.map((p) => p.goal.filter).toSet(),
                 exposureContext: exposureContext,
                 onAdd: ({
@@ -405,7 +419,7 @@ class _GoalRowState extends State<_GoalRow> {
             SizedBox(
               width: 60,
               child: Text(
-                p.goal.filter,
+                _goalFilterLabel(p.goal.filter),
                 style: TextStyle(
                   fontSize: NightshadeTypography.fontSize14,
                   fontWeight: FontWeight.w700,
@@ -523,6 +537,10 @@ class _GoalRowState extends State<_GoalRow> {
 
 class _AddGoalRow extends StatefulWidget {
   final List<String> availableFilters;
+
+  /// True only for the real fault: a filter wheel is connected and still
+  /// reports zero slots. A rig with no wheel at all is NOT this case.
+  final bool wheelOnlineWithNoSlots;
   final Set<String> existingFilters;
   final SmartNightExposureContext? exposureContext;
   final Future<bool> Function({
@@ -535,6 +553,7 @@ class _AddGoalRow extends StatefulWidget {
 
   const _AddGoalRow({
     required this.availableFilters,
+    required this.wheelOnlineWithNoSlots,
     required this.existingFilters,
     required this.exposureContext,
     required this.onAdd,
@@ -561,8 +580,8 @@ class _AddGoalRowState extends State<_AddGoalRow> {
 
   bool get _canAdd =>
       _selectedFilter != null &&
-      !widget.existingFilters
-          .any((f) => f.toLowerCase() == _selectedFilter!.toLowerCase());
+      !widget.existingFilters.any((f) =>
+          f.trim().toLowerCase() == _selectedFilter!.trim().toLowerCase());
 
   void _selectFilter(String? filter) {
     setState(() {
@@ -578,21 +597,32 @@ class _AddGoalRowState extends State<_AddGoalRow> {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    final remaining = widget.availableFilters
-        .where((f) => !widget.existingFilters
-            .any((existing) => existing.toLowerCase() == f.toLowerCase()))
+    final unfilteredRig = widget.availableFilters.isEmpty;
+    // A wheel-less rig gets exactly one selectable slot: the unfiltered
+    // sentinel Smart Night already plans against, so a goal created here and a
+    // sequence built by Smart Night describe the same frames.
+    final selectable = unfilteredRig
+        ? const [smartNightUnfilteredName]
+        : widget.availableFilters;
+    final remaining = selectable
+        .where((f) => !widget.existingFilters.any((existing) =>
+            existing.trim().toLowerCase() == f.trim().toLowerCase()))
         .toList();
 
-    if (widget.availableFilters.isEmpty) {
+    if (widget.wheelOnlineWithNoSlots) {
       return Text(
-        'Equipment profile has no filters configured; configure a filter wheel first.',
+        'The connected filter wheel reports no filter slots. Reconnect the '
+        'wheel or name its filters on the equipment profile before setting '
+        'integration goals.',
         style: TextStyle(
             fontSize: NightshadeTypography.fontSize12, color: colors.warning),
       );
     }
     if (remaining.isEmpty) {
       return Text(
-        'All filters from the active equipment profile already have goals.',
+        unfilteredRig
+            ? 'This rig images unfiltered and already has its goal.'
+            : 'All filters from the active equipment profile have goals.',
         style: TextStyle(
             fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
       );
@@ -610,7 +640,7 @@ class _AddGoalRowState extends State<_AddGoalRow> {
               hint: const Text('Filter'),
               items: [
                 for (final f in remaining)
-                  DropdownMenuItem(value: f, child: Text(f)),
+                  DropdownMenuItem(value: f, child: Text(_goalFilterLabel(f))),
               ],
               onChanged: widget.busy ? null : _selectFilter,
             ),
@@ -696,6 +726,15 @@ class _AddGoalRowState extends State<_AddGoalRow> {
     if (mounted && added) _selectFilter(null);
   }
 }
+
+/// Display name for a goal's filter, spelling the unfiltered sentinel out.
+///
+/// [smartNightUnfilteredName] is the empty string — the wire contract for
+/// "capture the frame as it comes" — so rendering `goal.filter` verbatim leaves
+/// a blank cell that reads as a layout bug. 'No filter' matches the chip the
+/// Recommendation card already renders for the same rig.
+String _goalFilterLabel(String filter) =>
+    filter.trim().isEmpty ? 'No filter' : filter;
 
 void _showGoalError(BuildContext context, String message) {
   _showGoalErrorOn(

@@ -91,7 +91,13 @@ impl Default for LiveStackConfig {
             match_radius_px: 50.0,
             match_flux_tolerance: 0.7,
             min_matched_pairs: 5,
-            max_alignment_residual_px: 10.0,
+            // Gated on the RMS over the pairs that survive outlier rejection
+            // (see `fit_transform_robust`), not over every nearest-neighbour
+            // pairing. 10.0 was not a quality gate at all — a 10px misalignment
+            // folded into the stack is a visibly smeared image; it only ever
+            // measured how badly the matcher mis-paired. 2.0px of *inlier* RMS
+            // is already a poorly registered frame.
+            max_alignment_residual_px: 2.0,
             star_detection: StarDetectionConfig {
                 detection_sigma: 4.0,
                 min_snr: 8.0,
@@ -481,22 +487,45 @@ impl LiveStacker {
             ));
         }
 
-        // Step 3: Compute affine transform from matched pairs
-        let transform = compute_affine_transform(&matches, self.ref_centroid);
+        // Step 3: Fit the transform robustly. Fitting over every
+        // nearest-neighbour pair lets a few mis-pairings from the 50px match
+        // radius dominate the least squares — see [`fit_transform_robust`],
+        // which first finds the largest set of pairs agreeing on one transform
+        // and then clips what remains. `residual` below is therefore the RMS
+        // over the surviving pairs, which is what the ceiling is meant to gate
+        // on.
+        let (transform, residual, inlier_count) =
+            fit_transform_robust(&matches, self.ref_centroid, self.config.min_matched_pairs);
 
-        // Compute alignment residual (RMS of distances after transform)
-        let residual = compute_alignment_residual(&matches, &transform);
+        if inlier_count < self.config.min_matched_pairs {
+            self.stats.rejected_alignment_failures += 1;
+            tracing::warn!(
+                "Frame rejected: only {} of {} star matches agree on one transform (need {})",
+                inlier_count,
+                matches.len(),
+                self.config.min_matched_pairs
+            );
+            return Err(format!(
+                "Inconsistent star matches for alignment: {} of {} agree on one transform, \
+                 {} required",
+                inlier_count,
+                matches.len(),
+                self.config.min_matched_pairs
+            ));
+        }
 
         // Reject a geometrically-inconsistent fit before it is folded in. A
-        // large residual means the matched pairs do not agree on a single
-        // affine transform (typically spurious nearest-neighbour matches), and
-        // accumulating the resampled frame would permanently blur the stack.
+        // large residual means even the surviving pairs do not agree on a
+        // single affine transform, and accumulating the resampled frame would
+        // permanently blur the stack.
         if residual.is_finite() && residual > self.config.max_alignment_residual_px {
             self.stats.rejected_alignment_failures += 1;
             tracing::warn!(
-                "Frame rejected: alignment residual {:.2}px exceeds max {:.2}px ({} matches)",
+                "Frame rejected: alignment residual {:.2}px exceeds max {:.2}px \
+                 ({} of {} matches used)",
                 residual,
                 self.config.max_alignment_residual_px,
+                inlier_count,
                 matches.len()
             );
             return Err(format!(
@@ -506,7 +535,8 @@ impl LiveStacker {
         }
 
         tracing::debug!(
-            "Frame aligned: {} matches, residual={:.2}px, tx={:.1}, ty={:.1}, rot={:.3}deg",
+            "Frame aligned: {} of {} matches, residual={:.2}px, tx={:.1}, ty={:.1}, rot={:.3}deg",
+            inlier_count,
             matches.len(),
             residual,
             transform.tx,
@@ -669,11 +699,31 @@ struct StarMatch {
     distance: f64,
 }
 
-/// Match stars between reference and frame using nearest-neighbor with flux constraint.
+/// Match stars between reference and frame by *mutual* nearest neighbour, with
+/// a radius and a flux-ratio constraint.
 ///
-/// For each reference star (up to max_stars), find the closest frame star
-/// that is within match_radius pixels AND whose flux ratio is within flux_tolerance.
-/// Uses a simple O(N*M) approach which is fine for the typical star counts (~50-200).
+/// A pair is kept only when the frame star is the reference star's closest
+/// admissible candidate **and** that reference star is in turn the frame star's
+/// closest admissible candidate. Both directions are searched over the same
+/// candidate set (the brightest `max_stars` reference stars, everything within
+/// `match_radius` px whose flux ratio is inside `flux_tolerance`), so the
+/// relation is symmetric by construction.
+///
+/// The mutual test is what stops a *steal chain*. The previous matcher walked
+/// the reference stars brightest-first and consumed whichever frame star it
+/// picked. A bright reference star the frame detector happened to miss would
+/// therefore take a neighbour tens of pixels away but still inside the 50px
+/// radius; that neighbour's true owner, now denied, took the next one along;
+/// and the displacement propagated across the field in a single direction. A
+/// chain of wrong pairs that all point the same way is the worst possible input
+/// to a least-squares fit — the errors reinforce instead of cancelling, and no
+/// amount of outlier rejection downstream can tell the coherent majority-ish
+/// bloc from the truth. Under the mutual test an orphaned reference star simply
+/// fails to match: the frame star it wanted is 2px from its real owner and 45px
+/// from the orphan, so the frame star's own nearest reference star wins and the
+/// chain never starts.
+///
+/// O(N*M), which is fine for the typical star counts (~50-200).
 fn match_stars(
     ref_stars: &[DetectedStar],
     frame_stars: &[DetectedStar],
@@ -682,20 +732,18 @@ fn match_stars(
     flux_tolerance: f64,
 ) -> Vec<StarMatch> {
     let match_radius_sq = match_radius * match_radius;
-    let mut matches = Vec::new();
-    let mut used_frame_indices = vec![false; frame_stars.len()];
+    let ref_count = ref_stars.len().min(max_stars);
+    let min_flux_ratio = 1.0 - flux_tolerance;
 
-    // Stars are already sorted by flux (brightest first) from detect_stars
-    for ref_star in ref_stars.iter().take(max_stars) {
-        let mut best_dist_sq = f64::MAX;
-        let mut best_frame_idx: Option<usize> = None;
+    // Closest admissible counterpart in each direction, as (index, dist_sq).
+    let mut best_for_ref: Vec<Option<(usize, f64)>> = vec![None; ref_count];
+    let mut best_for_frame: Vec<Option<(usize, f64)>> = vec![None; frame_stars.len()];
 
+    // Stars arrive sorted by flux (brightest first) from detect_stars, so a
+    // strict `<` on distance resolves an exact tie towards the brighter star in
+    // both directions — which keeps the two passes consistent with each other.
+    for (ri, ref_star) in ref_stars.iter().take(max_stars).enumerate() {
         for (fi, frame_star) in frame_stars.iter().enumerate() {
-            if used_frame_indices[fi] {
-                continue;
-            }
-
-            // Distance check
             let dx = ref_star.x - frame_star.x;
             let dy = ref_star.y - frame_star.y;
             let dist_sq = dx * dx + dy * dy;
@@ -711,24 +759,33 @@ fn match_stars(
                 ref_star.flux / frame_star.flux
             };
 
-            if flux_ratio < (1.0 - flux_tolerance) {
+            if flux_ratio < min_flux_ratio {
                 continue;
             }
 
-            if dist_sq < best_dist_sq {
-                best_dist_sq = dist_sq;
-                best_frame_idx = Some(fi);
+            if best_for_ref[ri].is_none_or(|(_, best)| dist_sq < best) {
+                best_for_ref[ri] = Some((fi, dist_sq));
+            }
+            if best_for_frame[fi].is_none_or(|(_, best)| dist_sq < best) {
+                best_for_frame[fi] = Some((ri, dist_sq));
             }
         }
+    }
 
-        if let Some(fi) = best_frame_idx {
-            used_frame_indices[fi] = true;
-            matches.push(StarMatch {
-                ref_star: ref_star.clone(),
-                frame_star: frame_stars[fi].clone(),
-                distance: best_dist_sq.sqrt(),
-            });
+    // Emit in reference order (brightest first), as callers have always seen.
+    let mut matches = Vec::new();
+    for (ri, ref_star) in ref_stars.iter().take(max_stars).enumerate() {
+        let Some((fi, dist_sq)) = best_for_ref[ri] else {
+            continue;
+        };
+        if best_for_frame[fi].map(|(best_ri, _)| best_ri) != Some(ri) {
+            continue;
         }
+        matches.push(StarMatch {
+            ref_star: ref_star.clone(),
+            frame_star: frame_stars[fi].clone(),
+            distance: dist_sq.sqrt(),
+        });
     }
 
     matches
@@ -801,6 +858,234 @@ fn compute_affine_transform(
         cos_theta,
         sin_theta,
     }
+}
+
+/// Pairs whose post-fit deviation exceeds `CLIP_SIGMA x median deviation` are
+/// dropped and the transform refit. Multiplying the *median* (not the RMS)
+/// keeps the cutoff from being inflated by the very pairs it must remove.
+const CLIP_SIGMA: f64 = 3.0;
+
+/// Floor under the clipping cutoff, in reference pixels. Without it a set of
+/// pairs that already agrees to a hundredth of a pixel would clip itself down
+/// to the minimum on detector centroid noise alone.
+const CLIP_FLOOR_PX: f64 = 1.5;
+
+/// Enough passes to shed the pairs a nearest-neighbour matcher gets wrong;
+/// more only chases centroid noise.
+const MAX_CLIP_PASSES: usize = 5;
+
+/// How far a pair may sit from a candidate transform and still be counted as
+/// agreeing with it, in reference pixels. Star centroids on a well-sampled
+/// frame are good to a few tenths of a pixel, so 2px is loose enough to hold
+/// every genuinely-corresponding pair and far tighter than the tens of pixels a
+/// mis-paired neighbour lands at.
+const CONSENSUS_INLIER_PX: f64 = 2.0;
+
+/// Below this RMS the pairs already agree on one transform and the consensus
+/// search is skipped: it exists to break a *disagreement*, and running it on
+/// clean data could only shrink a healthy pair set.
+const CONSENSUS_TRIGGER_PX: f64 = 1.0;
+
+/// Two pairs sitting closer together than this cannot pin down a rotation — the
+/// lever arm is too short and centroid noise swamps the angle — so they are not
+/// used to seed a candidate transform.
+const CONSENSUS_MIN_BASELINE_PX: f64 = 20.0;
+
+/// Ceiling on how many two-pair hypotheses the consensus search will try. All
+/// pairs of 100 matches (the `max_match_stars` default) is 4950, so this is
+/// only reached with an unusually permissive configuration.
+const MAX_CONSENSUS_HYPOTHESES: usize = 8000;
+
+/// The fraction of matched pairs that must agree before the consensus fit is
+/// adopted.
+///
+/// Consensus finds the *largest* agreeing subset, which is the right answer
+/// only when the pairs it discards are matcher mistakes. It is the wrong answer
+/// when the frame is genuinely not a rigid transform of the reference — a badly
+/// distorted or field-rotated sub can split its stars into two blocs that each
+/// describe a real but different displacement. Aligning to the bigger bloc
+/// there would resample the frame so the other bloc lands pixels away and then
+/// fold that smear permanently into the stack, which is precisely what the
+/// residual ceiling exists to prevent.
+///
+/// Requiring a dominant bloc keeps the two cases apart: a scatter of mis-pairs
+/// leaves the true correspondences in a clear majority, while a split field has
+/// no majority and falls back to the fit over every pair — whose residual is
+/// large, so the ceiling rejects the frame exactly as it did before.
+const CONSENSUS_MIN_FRACTION: f64 = 0.6;
+
+/// Find the largest subset of `matches` that agrees on a single rigid
+/// transform, by seeding a candidate transform from every admissible pair of
+/// matches and keeping the seed with the widest agreement.
+///
+/// This is the part median-based clipping cannot do. Clipping assumes the
+/// wrong pairs are a scattered minority, so that the median deviation still
+/// describes the good pairs; it drops whatever sits far from the *current* fit
+/// and refits. When the wrong pairs are instead displaced coherently — all
+/// stolen from the same direction, which is exactly what a steal chain
+/// produces — they drag the fit towards themselves, the good pairs end up as
+/// far from that fit as the bad ones, the cutoff (3x median) covers everybody,
+/// nothing is clipped, and the loop exits on its first pass having changed
+/// nothing. Consensus does not care how the errors are distributed: a bloc of
+/// coherently-wrong pairs describes a *different* transform, and whichever
+/// transform more pairs agree on wins.
+///
+/// Returns indices into `matches`, or `None` when there is not enough geometry
+/// to seed a hypothesis at all.
+fn consensus_inliers(matches: &[StarMatch], ref_centroid: (f64, f64)) -> Option<Vec<usize>> {
+    let n = matches.len();
+    if n < 3 {
+        return None;
+    }
+    let tol_sq = CONSENSUS_INLIER_PX * CONSENSUS_INLIER_PX;
+    let baseline_sq = CONSENSUS_MIN_BASELINE_PX * CONSENSUS_MIN_BASELINE_PX;
+
+    let mut best: Vec<usize> = Vec::new();
+    let mut hypotheses = 0usize;
+
+    'seeds: for a in 0..n {
+        for b in (a + 1)..n {
+            // Both sides need a real lever arm: a pair of frame stars that
+            // coincide would leave the rotation undetermined.
+            let (rdx, rdy) = (
+                matches[a].ref_star.x - matches[b].ref_star.x,
+                matches[a].ref_star.y - matches[b].ref_star.y,
+            );
+            let (fdx, fdy) = (
+                matches[a].frame_star.x - matches[b].frame_star.x,
+                matches[a].frame_star.y - matches[b].frame_star.y,
+            );
+            if rdx * rdx + rdy * rdy < baseline_sq || fdx * fdx + fdy * fdy < baseline_sq {
+                continue;
+            }
+
+            hypotheses += 1;
+            if hypotheses > MAX_CONSENSUS_HYPOTHESES {
+                break 'seeds;
+            }
+
+            let seed = [matches[a].clone(), matches[b].clone()];
+            let candidate = compute_affine_transform(&seed, ref_centroid);
+
+            let agreeing: Vec<usize> = (0..n)
+                .filter(|&i| {
+                    let (tx, ty) =
+                        candidate.apply(matches[i].frame_star.x, matches[i].frame_star.y);
+                    let dx = tx - matches[i].ref_star.x;
+                    let dy = ty - matches[i].ref_star.y;
+                    dx * dx + dy * dy <= tol_sq
+                })
+                .collect();
+
+            if agreeing.len() > best.len() {
+                best = agreeing;
+            }
+        }
+    }
+
+    if best.is_empty() {
+        None
+    } else {
+        Some(best)
+    }
+}
+
+/// Fit the frame→reference transform with outlier rejection, and report the
+/// fit, the RMS residual **over the surviving pairs**, and how many survived.
+///
+/// A single least-squares fit over every nearest-neighbour match is not robust.
+/// `match_radius_px` defaults to 50 in frames whose mean star separation is
+/// under 100px and the flux gate is loose, so the matcher can pair a star with
+/// a neighbour tens of pixels away. A handful of such pairs drags the Procrustes
+/// fit far enough to inflate the RMS past the rejection ceiling: two frames of
+/// the same 40-star field differing by a rigid 2.2px translation measured
+/// 10.34px and were refused, when the correct fit is sub-pixel.
+///
+/// Two stages, in this order, because they fail on opposite inputs:
+///
+/// 1. [`consensus_inliers`] picks the largest set of pairs that agree on one
+///    transform. This survives wrong pairs that are displaced *coherently*,
+///    where median clipping provably does not (see that function).
+/// 2. The median-clipping loop then polishes that set, shedding pairs that sit
+///    just outside the consensus tolerance because of centroid noise rather
+///    than mis-pairing. On already-clean data it is a no-op.
+///
+/// Stage 1 only runs when the plain fit is already inconsistent
+/// (`CONSENSUS_TRIGGER_PX`), and its result is adopted only when the agreeing
+/// set keeps at least `min_pairs` pairs, holds a dominant share of the matches
+/// (`CONSENSUS_MIN_FRACTION`) *and* lowers the residual. So it can never shrink
+/// a healthy pair set below the caller's alignment gate, never align to a
+/// minority bloc of a genuinely non-rigid frame, and never replace a fit with a
+/// worse one — a frame that registers today cannot start failing because of it.
+fn fit_transform_robust(
+    matches: &[StarMatch],
+    ref_centroid: (f64, f64),
+    min_pairs: usize,
+) -> (AffineTransform, f64, usize) {
+    let mut inliers: Vec<StarMatch> = matches.to_vec();
+    let mut transform = compute_affine_transform(&inliers, ref_centroid);
+    let mut residual = compute_alignment_residual(&inliers, &transform);
+
+    // A rigid fit has 4 degrees of freedom, so never clip below 3 pairs however
+    // permissive the caller's `min_matched_pairs` is.
+    let floor_pairs = min_pairs.max(3);
+
+    if residual > CONSENSUS_TRIGGER_PX {
+        let dominant = (matches.len() as f64 * CONSENSUS_MIN_FRACTION).ceil() as usize;
+        if let Some(agreeing) = consensus_inliers(matches, ref_centroid) {
+            if agreeing.len() >= floor_pairs && agreeing.len() >= dominant {
+                let subset: Vec<StarMatch> = agreeing.iter().map(|&i| matches[i].clone()).collect();
+                let subset_transform = compute_affine_transform(&subset, ref_centroid);
+                let subset_residual = compute_alignment_residual(&subset, &subset_transform);
+                if subset_residual < residual {
+                    inliers = subset;
+                    transform = subset_transform;
+                    residual = subset_residual;
+                }
+            }
+        }
+    }
+
+    for _ in 0..MAX_CLIP_PASSES {
+        if inliers.len() <= floor_pairs {
+            break;
+        }
+
+        let mut deviations: Vec<f64> = inliers
+            .iter()
+            .map(|m| {
+                let (tx, ty) = transform.apply(m.frame_star.x, m.frame_star.y);
+                let dx = tx - m.ref_star.x;
+                let dy = ty - m.ref_star.y;
+                (dx * dx + dy * dy).sqrt()
+            })
+            .collect();
+
+        let mut sorted = deviations.clone();
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        let median = sorted[sorted.len() / 2];
+        let cutoff = (CLIP_SIGMA * median).max(CLIP_FLOOR_PX);
+
+        let kept: Vec<StarMatch> = inliers
+            .iter()
+            .zip(deviations.drain(..))
+            .filter(|(_, dev)| *dev <= cutoff)
+            .map(|(m, _)| m.clone())
+            .collect();
+
+        // Nothing clipped, or clipping would take us below a fittable set:
+        // the current solution is the best this match list supports.
+        if kept.len() == inliers.len() || kept.len() < floor_pairs {
+            break;
+        }
+
+        inliers = kept;
+        transform = compute_affine_transform(&inliers, ref_centroid);
+        residual = compute_alignment_residual(&inliers, &transform);
+    }
+
+    let count = inliers.len();
+    (transform, residual, count)
 }
 
 /// Compute RMS alignment residual after applying the transform.
@@ -2371,6 +2656,365 @@ mod tests {
         assert!(
             r > b,
             "R ({r}) should exceed B ({b}) under gains r=0.8 b=0.6 — channels preserved"
+        );
+    }
+
+    /// A synthetic matched pair with a nominal flux, for transform-fit tests.
+    fn pair(rx: f64, ry: f64, fx: f64, fy: f64) -> StarMatch {
+        let mk = |x: f64, y: f64| DetectedStar {
+            x,
+            y,
+            flux: 1000.0,
+            hfr: 2.0,
+            fwhm: 3.0,
+            peak: 5000.0,
+            background: 1000.0,
+            snr: 50.0,
+            eccentricity: 0.0,
+            sharpness: 0.2,
+        };
+        StarMatch {
+            ref_star: mk(rx, ry),
+            frame_star: mk(fx, fy),
+            distance: ((rx - fx).powi(2) + (ry - fy).powi(2)).sqrt(),
+        }
+    }
+
+    /// The reported defect, in the small: two views of the same star field
+    /// differing by a rigid translation, where the 50px match radius let the
+    /// greedy matcher pair a few stars with the wrong neighbour.
+    ///
+    /// A plain least-squares fit over every pair is dragged far enough by those
+    /// few to report a residual metres away from the truth — that is how a pure
+    /// 2.2px translation of a 40-star field measured 10.34px and was refused by
+    /// a 10.00px ceiling. Fitting with outlier rejection must recover the true
+    /// sub-pixel transform.
+    #[test]
+    fn mis_paired_stars_do_not_wreck_the_transform_fit() {
+        // 24 correct pairs on a rigid (dx = -1, dy = +2) translation ...
+        let (dx, dy) = (-1.0, 2.0);
+        let mut matches: Vec<StarMatch> = Vec::new();
+        for i in 0..24 {
+            let rx = 40.0 + (i % 6) as f64 * 80.0;
+            let ry = 40.0 + (i / 6) as f64 * 110.0;
+            matches.push(pair(rx, ry, rx - dx, ry - dy));
+        }
+        // ... plus 4 pairs the matcher got wrong: the frame star is a genuine
+        // star, but a DIFFERENT one, tens of pixels away yet inside the 50px
+        // radius.
+        matches.push(pair(120.0, 150.0, 158.0, 186.0));
+        matches.push(pair(280.0, 260.0, 245.0, 302.0));
+        matches.push(pair(360.0, 370.0, 402.0, 331.0));
+        matches.push(pair(200.0, 480.0, 165.0, 442.0));
+
+        let centroid = (256.0, 256.0);
+
+        // The naive fit is what shipped: it reports a residual far past a
+        // meaningful ceiling for a field that is a rigid translation.
+        let naive = compute_affine_transform(&matches, centroid);
+        let naive_residual = compute_alignment_residual(&matches, &naive);
+        assert!(
+            naive_residual > 5.0,
+            "the unclipped fit should be badly wrong here (got {naive_residual:.2}px) — \
+             otherwise this test is not exercising the defect"
+        );
+
+        // The robust fit recovers the true translation and a sub-pixel residual
+        // over the pairs that agree.
+        let (transform, residual, inliers) = fit_transform_robust(&matches, centroid, 5);
+        assert!(
+            residual < 0.5,
+            "robust fit residual should be sub-pixel, got {residual:.3}px"
+        );
+        assert_eq!(inliers, 24, "exactly the 24 correct pairs should survive");
+        assert!(
+            (transform.tx - dx).abs() < 0.1 && (transform.ty - dy).abs() < 0.1,
+            "recovered translation ({:.3}, {:.3}) should match the true ({dx}, {dy})",
+            transform.tx,
+            transform.ty
+        );
+    }
+
+    /// Clean data must not be clipped down to a hand-picked subset: a field
+    /// whose pairs already agree keeps every pair.
+    #[test]
+    fn a_clean_match_set_keeps_every_pair() {
+        let mut matches: Vec<StarMatch> = Vec::new();
+        for i in 0..20 {
+            let rx = 50.0 + (i % 5) as f64 * 90.0;
+            let ry = 50.0 + (i / 5) as f64 * 110.0;
+            // Sub-pixel centroid jitter, the realistic case.
+            let jitter = ((i % 3) as f64 - 1.0) * 0.15;
+            matches.push(pair(rx, ry, rx + 3.0 + jitter, ry - 4.0 - jitter));
+        }
+        let (transform, residual, inliers) = fit_transform_robust(&matches, (256.0, 256.0), 5);
+        assert_eq!(inliers, 20, "no pair should be clipped from a clean set");
+        assert!(residual < 0.5, "clean residual {residual:.3}px");
+        assert!((transform.tx + 3.0).abs() < 0.3 && (transform.ty - 4.0).abs() < 0.3);
+    }
+
+    /// End-to-end through `add_frame`: a frame that is a small rigid shift of
+    /// the reference must register even when the greedy matcher produces a
+    /// handful of wrong pairs.
+    ///
+    /// The mis-pairing mechanism is the real one. `match_stars` walks the
+    /// reference stars brightest-first and *consumes* the frame star it picks.
+    /// A bright reference star the frame detector missed therefore steals a
+    /// neighbour inside the 50px radius, that neighbour's true owner is denied
+    /// and steals another, and the cascade seeds several ~45px pairs. Fitting
+    /// over all of them puts the residual far past any meaningful ceiling — the
+    /// reported 10.34px on a 2.2px translation. The fit has to survive that.
+    #[test]
+    fn add_frame_survives_a_matcher_cascade_from_missing_stars() {
+        // 8x8 grid at 45px pitch: mean separation is inside the 50px match
+        // radius, which is what lets an orphaned reference star steal.
+        let mut reference_field: Vec<(f64, f64, f64)> = Vec::new();
+        for row in 0..8 {
+            for col in 0..8 {
+                let x = 50.0 + col as f64 * 45.0;
+                let y = 50.0 + row as f64 * 45.0;
+                // The three corner stars are the brightest, so the matcher
+                // processes them first.
+                let bright = (row, col) == (0, 0) || (row, col) == (0, 7) || (row, col) == (7, 0);
+                reference_field.push((x, y, if bright { 45000.0 } else { 22000.0 }));
+            }
+        }
+        // The frame is the same field shifted by a rigid (+2, +1) — with the
+        // three brightest stars absent, as a thin cloud or a detection-
+        // threshold flicker would leave them.
+        let frame_field: Vec<(f64, f64, f64)> = reference_field
+            .iter()
+            .filter(|(_, _, flux)| *flux < 40000.0)
+            .map(|(x, y, flux)| (x + 2.0, y + 1.0, *flux))
+            .collect();
+
+        let config = LiveStackConfig {
+            min_matched_pairs: 5,
+            star_detection: StarDetectionConfig {
+                detection_sigma: 3.0,
+                min_snr: 3.0,
+                min_hfr: 0.5,
+                max_sharpness: 1.0,
+                ..StarDetectionConfig::default()
+            },
+            ..LiveStackConfig::default()
+        };
+
+        let reference = make_test_image(512, 512, &reference_field);
+        let frame = make_test_image(512, 512, &frame_field);
+
+        let mut stacker =
+            LiveStacker::new(&reference, config).expect("reference field is detectable");
+        let outcome = stacker.add_frame(&frame);
+        assert!(
+            outcome.is_ok(),
+            "a rigid 2px shift must register despite mis-paired stars, got {:?}",
+            outcome.err()
+        );
+        assert_eq!(stacker.frame_count(), 2);
+        assert_eq!(
+            stacker.get_stats().rejected_alignment_failures,
+            0,
+            "the frame must not be counted as an alignment rejection"
+        );
+    }
+
+    /// A bare detected star at a position and flux, for matcher tests.
+    fn star(x: f64, y: f64, flux: f64) -> DetectedStar {
+        DetectedStar {
+            x,
+            y,
+            flux,
+            hfr: 2.0,
+            fwhm: 3.0,
+            peak: flux / 10.0,
+            background: 1000.0,
+            snr: 50.0,
+            eccentricity: 0.0,
+            sharpness: 0.2,
+        }
+    }
+
+    /// The matcher must not let a reference star with no counterpart in the
+    /// frame take a frame star that plainly belongs to someone else.
+    ///
+    /// This is the seed of the steal chain. `A` is the brightest reference
+    /// star and the frame detector missed it; the nearest frame star inside the
+    /// 50px radius is `B'`, 47px away — but `B'` is 2.2px from its own owner
+    /// `B`. Consuming `B'` for `A` would then push `B` onto `C'`, and the whole
+    /// row would end up displaced by one star spacing in the same direction.
+    /// Coherent errors like that are the ones a least-squares fit cannot shrug
+    /// off, so the matcher has to refuse the first steal.
+    #[test]
+    fn match_stars_refuses_to_let_an_orphan_steal_a_claimed_star() {
+        let ref_stars = vec![
+            star(60.0, 60.0, 40000.0),  // A — absent from the frame
+            star(105.0, 60.0, 30000.0), // B
+            star(150.0, 60.0, 20000.0), // C
+        ];
+        let frame_stars = vec![
+            star(107.0, 61.0, 30000.0), // B'
+            star(152.0, 61.0, 20000.0), // C'
+        ];
+
+        let matches = match_stars(&ref_stars, &frame_stars, 100, 50.0, 0.7);
+
+        assert_eq!(
+            matches.len(),
+            2,
+            "both frame stars should pair, and only with their own owners"
+        );
+        for m in &matches {
+            assert!(
+                m.distance < 3.0,
+                "pair ({}, {}) -> ({}, {}) is {:.2}px apart — a steal, not a match",
+                m.ref_star.x,
+                m.ref_star.y,
+                m.frame_star.x,
+                m.frame_star.y,
+                m.distance
+            );
+        }
+        assert!(
+            !matches.iter().any(|m| m.ref_star.x == 60.0),
+            "the orphaned reference star must go unmatched rather than take a neighbour"
+        );
+    }
+
+    /// Wrong pairs that are all displaced the SAME way defeat median clipping,
+    /// and only a consensus search recovers from them.
+    ///
+    /// Clipping compares each pair against the current fit and drops whatever
+    /// sits past 3x the median deviation. That works when the wrong pairs point
+    /// in scattered directions, because they stay a minority of the deviation
+    /// distribution. A steal chain does not scatter: every stolen pair is off by
+    /// one star spacing in one direction, so the fit is dragged bodily towards
+    /// them until the honest pairs are just as far from it as the stolen ones,
+    /// the 3x-median cutoff covers the whole set, and the loop exits having
+    /// clipped nothing at all.
+    #[test]
+    fn a_coherent_steal_chain_is_broken_by_consensus_not_clipping() {
+        let (dx, dy) = (-1.0, 2.0);
+        let mut matches: Vec<StarMatch> = Vec::new();
+        // 20 honest pairs on a rigid (dx = -1, dy = +2) translation ...
+        for i in 0..20 {
+            let rx = 40.0 + (i % 5) as f64 * 90.0;
+            let ry = 40.0 + (i / 5) as f64 * 110.0;
+            matches.push(pair(rx, ry, rx - dx, ry - dy));
+        }
+        // ... and 8 stolen ones, each taking the neighbour 45px to its right.
+        for i in 0..8 {
+            let rx = 60.0 + (i % 4) as f64 * 100.0;
+            let ry = 300.0 + (i / 4) as f64 * 100.0;
+            matches.push(pair(rx, ry, rx + 45.0, ry));
+        }
+        let centroid = (256.0, 256.0);
+
+        // Median clipping on its own is inert here: the cutoff never falls
+        // below the worst pair, so the very first pass keeps everything and
+        // stops. Confirm that directly, so this test keeps its meaning if the
+        // clipping constants are ever retuned.
+        let naive = compute_affine_transform(&matches, centroid);
+        let deviations: Vec<f64> = matches
+            .iter()
+            .map(|m| {
+                let (tx, ty) = naive.apply(m.frame_star.x, m.frame_star.y);
+                ((tx - m.ref_star.x).powi(2) + (ty - m.ref_star.y).powi(2)).sqrt()
+            })
+            .collect();
+        let mut sorted = deviations.clone();
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let median = sorted[sorted.len() / 2];
+        let worst = sorted[sorted.len() - 1];
+        assert!(
+            (CLIP_SIGMA * median).max(CLIP_FLOOR_PX) > worst,
+            "clipping should be unable to remove anything here (cutoff {:.2} vs worst {worst:.2})",
+            (CLIP_SIGMA * median).max(CLIP_FLOOR_PX)
+        );
+
+        let (transform, residual, inliers) = fit_transform_robust(&matches, centroid, 5);
+        assert_eq!(inliers, 20, "exactly the 20 honest pairs should survive");
+        assert!(
+            residual < 0.5,
+            "residual should be sub-pixel once the stolen bloc is dropped, got {residual:.3}px"
+        );
+        assert!(
+            (transform.tx - dx).abs() < 0.1 && (transform.ty - dy).abs() < 0.1,
+            "recovered translation ({:.3}, {:.3}) should match the true ({dx}, {dy})",
+            transform.tx,
+            transform.ty
+        );
+    }
+
+    /// End-to-end through `add_frame`: a rigid 2px shift of a field dense enough
+    /// for neighbours to be inside the match radius must register, even when
+    /// several of the brightest reference stars are missing from the frame.
+    ///
+    /// Rows are spaced wider than the 50px match radius and columns closer than
+    /// it, so any mis-pairing has to run along a row — a chain, not a scatter.
+    /// Four rows are missing their leading star, which under a consuming
+    /// brightest-first matcher seeds four chains and leaves under 60% of the
+    /// pairs honest. That is deliberately past the point where picking the
+    /// larger agreeing bloc is safe (a genuinely distorted frame looks the same
+    /// from there and must still be refused), so nothing downstream can rescue
+    /// this: the matcher itself has to not create the chain.
+    #[test]
+    fn add_frame_registers_a_dense_field_a_consuming_matcher_would_chain() {
+        const COLS: usize = 8;
+        const ROWS: usize = 8;
+        const CHAINED_ROWS: usize = 4;
+
+        let mut reference_field: Vec<(f64, f64, f64)> = Vec::new();
+        for row in 0..ROWS {
+            for col in 0..COLS {
+                // Columns at 45px (inside the 50px radius), rows at 60px
+                // (outside it), so a steal can only run along a row.
+                let x = 60.0 + col as f64 * 45.0;
+                let y = 60.0 + row as f64 * 60.0;
+                // Brightness falls left to right so a brightest-first matcher
+                // walks each row from its leading star outwards.
+                reference_field.push((x, y, 40000.0 - col as f64 * 2000.0));
+            }
+        }
+
+        // The frame is the same field shifted by a rigid (+2, +1), with the
+        // leading star of the first four rows absent — a thin cloud or a
+        // detection-threshold flicker leaves exactly this.
+        let frame_field: Vec<(f64, f64, f64)> = reference_field
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| !(i % COLS == 0 && i / COLS < CHAINED_ROWS))
+            .map(|(_, &(x, y, flux))| (x + 2.0, y + 1.0, flux))
+            .collect();
+
+        let config = LiveStackConfig {
+            min_matched_pairs: 5,
+            star_detection: StarDetectionConfig {
+                detection_sigma: 3.0,
+                min_snr: 3.0,
+                min_hfr: 0.5,
+                max_sharpness: 1.0,
+                ..StarDetectionConfig::default()
+            },
+            ..LiveStackConfig::default()
+        };
+
+        let reference = make_test_image(512, 512, &reference_field);
+        let frame = make_test_image(512, 512, &frame_field);
+
+        let mut stacker =
+            LiveStacker::new(&reference, config).expect("reference field is detectable");
+        let outcome = stacker.add_frame(&frame);
+        assert!(
+            outcome.is_ok(),
+            "a rigid 2px shift of a dense field must register, got {:?}",
+            outcome.err()
+        );
+        assert_eq!(stacker.frame_count(), 2);
+        assert_eq!(
+            stacker.get_stats().rejected_alignment_failures,
+            0,
+            "the frame must not be counted as an alignment rejection"
         );
     }
 }

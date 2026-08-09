@@ -179,6 +179,9 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
               // supplement (peak altitude / transit / window hours), not a
               // competing #1 ranker (architecture-unification plan, §1).
               _AutopilotPreviewBanner(colors: colors),
+              const SizedBox(height: NightshadeTokens.spaceMd),
+              const TransientAlertsPanel(initiallyExpanded: false),
+              const SizedBox(height: NightshadeTokens.space2xl),
               if (effectivePrimary != null) ...[
                 _OutlookSectionLabel(colors: colors),
                 const SizedBox(height: NightshadeTokens.spaceSm),
@@ -276,12 +279,22 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
                 const SizedBox(height: NightshadeTokens.space2xl),
                 SectionHeader(
                   title: l10n.text('plannerRationale'),
-                  subtitle: l10n.text('plannerRationaleSubtitle'),
+                  // The rationale is always about the OPTIMIZER's pick, which
+                  // is not necessarily the card above it: a search or filter
+                  // can leave a different hero card on screen, and then the
+                  // generic "Why this plan was chosen" read as an explanation
+                  // of that card while contradicting every number on it. Name
+                  // the target the numbers belong to.
+                  subtitle: plan.primaryTarget == null
+                      ? l10n.text('plannerRationaleSubtitle')
+                      : l10n.text(
+                          'plannerRationaleSubtitleNamed',
+                          params: {'target': plan.primaryTarget!.targetName},
+                        ),
                 ),
                 const SizedBox(height: NightshadeTokens.spaceMd),
                 _RationaleList(rationale: plan.rationale, colors: colors),
               ],
-              const SizedBox(height: NightshadeTokens.space2xl),
             ],
           ),
         );

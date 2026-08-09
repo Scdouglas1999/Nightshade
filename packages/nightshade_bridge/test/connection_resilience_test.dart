@@ -6,6 +6,8 @@
 /// - PHD2 heartbeat and auto-reconnect
 /// - Alpaca retry on timeout
 
+library;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_bridge/src/utils/retry.dart';
 import 'package:nightshade_bridge/src/utils/circuit_breaker.dart';

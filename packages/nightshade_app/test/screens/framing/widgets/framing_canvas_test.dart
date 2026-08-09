@@ -21,6 +21,7 @@ import 'package:nightshade_app/screens/framing/widgets/framing_canvas.dart';
 import 'package:nightshade_app/widgets/tutorial_keys/framing_keys.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 /// A camera + scope giving a roughly 1.5° x 1.0° field, large enough that the
 /// FOV reticle and the scale bar both have meaningful geometry on a desktop-size
@@ -65,6 +66,7 @@ Future<ProviderContainer> _pumpCanvas(
   // properties fetch / network) and the assertions focused on what they cover.
   final container = ProviderContainer(
     overrides: [
+      inMemoryDatabaseOverride(),
       hipsFramingEnabledProvider.overrideWith((ref) => false),
     ],
   );

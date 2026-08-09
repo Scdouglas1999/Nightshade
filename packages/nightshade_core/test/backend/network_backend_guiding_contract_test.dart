@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/backend/network_backend.dart';
+import 'package:nightshade_core/src/services/phd2_probe.dart';
 
 import '../fakes/fakes.dart';
 
@@ -48,6 +49,48 @@ void main() {
           malformedBackend.isPhd2Running(),
           throwsFormatException,
         );
+      },
+    );
+
+    test('PHD2 probe carries the version and profile off the wire', () async {
+      final fake = FakeNetworkClient()
+        ..setResponse(
+          '/api/phd2/probe',
+          body: jsonEncode({
+            'outcome': 'identified',
+            'version': '2.6.13',
+            'subVersion': 'dev4',
+            'profile': 'Main rig',
+          }),
+        );
+      final backend = _backend(fake);
+      addTearDown(backend.dispose);
+
+      final probe = await backend.phd2Probe(host: '10.0.0.5', port: 4402);
+      expect(probe.outcome, Phd2ProbeOutcome.identified);
+      expect(probe.fullVersion, '2.6.13dev4');
+      expect(probe.profile, 'Main rig');
+    });
+
+    test(
+      'a master without the probe endpoint does not invent a version',
+      () async {
+        // The 404 degrade must not become "PHD2 answered": the old endpoint only
+        // ever answered the port question.
+        final oldHost = FakeNetworkClient()
+          ..setResponse(
+            '/api/phd2/probe',
+            status: 404,
+            body: '{"code":"not_found","message":"Unknown endpoint"}',
+          )
+          ..setResponse('/api/phd2/running', body: '{"running":true}');
+        final backend = _backend(oldHost);
+        addTearDown(backend.dispose);
+
+        final probe = await backend.phd2Probe();
+        expect(probe.outcome, Phd2ProbeOutcome.reachableUnverified);
+        expect(probe.isPhd2, isFalse);
+        expect(probe.version, isNull);
       },
     );
 

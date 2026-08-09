@@ -20,7 +20,6 @@ import 'package:nightshade_app/screens/sequencer/widgets/sequence_toolbar.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/target_header_card.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
-import 'package:vector_math/vector_math_64.dart' show Matrix4;
 
 import '../../harness/harness.dart';
 
@@ -28,32 +27,23 @@ import '../../harness/harness.dart';
 const double kMinTapTarget = 48.0;
 
 /// The rect of the tappable semantics node whose label or tooltip is [name].
-Rect _tapTargetRect(WidgetTester tester, String name) {
-  final root = tester.binding.pipelineOwner.semanticsOwner?.rootSemanticsNode;
-  Rect? result;
-
-  void visit(SemanticsNode node, Matrix4 inherited) {
-    final transform = inherited.clone();
-    if (node.transform != null) transform.multiply(node.transform!);
+Rect _tapTargetRect(String name) {
+  final matchingNodes = find.semantics.byPredicate((node) {
     final data = node.getSemanticsData();
-    if (data.hasAction(SemanticsAction.tap) &&
-        !data.hasFlag(SemanticsFlag.isHidden) &&
-        (data.label == name || data.tooltip == name)) {
-      result ??= MatrixUtils.transformRect(transform, node.rect);
-    }
-    node.visitChildren((child) {
-      visit(child, transform);
-      return true;
-    });
-  }
-
-  if (root != null) visit(root, Matrix4.identity());
-  expect(result, isNotNull, reason: 'no tappable semantics node named "$name"');
-  return result!;
+    return data.hasAction(SemanticsAction.tap) &&
+        !data.flagsCollection.isHidden &&
+        (data.label == name || data.tooltip == name);
+  }).evaluate();
+  expect(
+    matchingNodes,
+    hasLength(1),
+    reason: 'expected one tappable semantics node named "$name"',
+  );
+  return matchingNodes.single.rect;
 }
 
-void _expectMeetsTouchMinimum(WidgetTester tester, String name) {
-  final rect = _tapTargetRect(tester, name);
+void _expectMeetsTouchMinimum(String name) {
+  final rect = _tapTargetRect(name);
   final reason = '"$name" is ${rect.width}x${rect.height}; '
       'Android requires ${kMinTapTarget}dp on both edges';
   expect(rect.width, greaterThanOrEqualTo(kMinTapTarget), reason: reason);
@@ -69,7 +59,7 @@ void main() {
     // Android accessibility failure.
     testWidgets('overflow menu meets the touch minimum on a phone',
         (tester) async {
-      final handle = await tester.ensureSemantics();
+      final handle = tester.ensureSemantics();
       await pumpAppScreen(
         tester,
         const SequenceToolbar(colors: NightshadeColors.dark),
@@ -78,7 +68,7 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 100));
 
-      _expectMeetsTouchMinimum(tester, 'More actions');
+      _expectMeetsTouchMinimum('More actions');
       handle.dispose();
     });
 
@@ -116,23 +106,23 @@ void main() {
 
     testWidgets('altitude-chart toggle meets the touch minimum on a phone',
         (tester) async {
-      final handle = await tester.ensureSemantics();
+      final handle = tester.ensureSemantics();
       await pumpAppScreen(tester, card(),
           size: const Size(390, 844), settle: false);
       await tester.pump(const Duration(milliseconds: 100));
 
-      _expectMeetsTouchMinimum(tester, 'Show altitude chart');
+      _expectMeetsTouchMinimum('Show altitude chart');
       handle.dispose();
     });
 
     testWidgets('overflow menu meets the touch minimum on a phone',
         (tester) async {
-      final handle = await tester.ensureSemantics();
+      final handle = tester.ensureSemantics();
       await pumpAppScreen(tester, card(),
           size: const Size(390, 844), settle: false);
       await tester.pump(const Duration(milliseconds: 100));
 
-      _expectMeetsTouchMinimum(tester, 'Show menu');
+      _expectMeetsTouchMinimum('Show menu');
       handle.dispose();
     });
   });

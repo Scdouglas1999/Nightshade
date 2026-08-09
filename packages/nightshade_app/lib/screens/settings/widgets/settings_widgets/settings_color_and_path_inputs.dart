@@ -132,11 +132,25 @@ class _SettingsColorPickerState extends State<SettingsColorPicker> {
 }
 
 /// Path input with browse button for file/directory selection.
-
+///
+/// The box only LOOKS like a text field when [onPathEntered] is supplied. It
+/// used to look like one always: a bordered, filled box with a muted "Not set"
+/// empty-state label that swallowed every keystroke, because it was a [Text]. On a
+/// real rig the typed path is often the only way in — a UNC share, a NAS mount
+/// that is not up yet, a folder on the imaging host — so the two storage rows
+/// now accept one, and the rows that genuinely cannot (a solver executable the
+/// app has to verify) render a plain label instead of inviting the attempt.
 class SettingsPathInput extends StatefulWidget {
   final String path;
 
   final FutureOr<void> Function() onBrowse;
+
+  /// Commit a hand-typed path. Null makes this control read-only.
+  ///
+  /// Called on Enter and on focus loss, only when the text differs from
+  /// [path]. The callback owns validation: it may reject the value, in which
+  /// case the field snaps back to [path] on the next build.
+  final FutureOr<void> Function(String)? onPathEntered;
 
   final bool isMobile;
 
@@ -152,6 +166,7 @@ class SettingsPathInput extends StatefulWidget {
     super.key,
     required this.path,
     required this.onBrowse,
+    this.onPathEntered,
     this.isMobile = false,
     this.flexible = false,
     this.authorityKey,
@@ -165,12 +180,77 @@ class _SettingsPathInputState extends State<SettingsPathInput> {
   bool _browsing = false;
   int _browseGeneration = 0;
 
+  TextEditingController? _controller;
+  FocusNode? _focusNode;
+  bool _committing = false;
+
+  bool get _editable => widget.onPathEntered != null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_editable) {
+      _controller = TextEditingController(text: widget.path);
+      _focusNode = FocusNode()..addListener(_onFocusChange);
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode?.removeListener(_onFocusChange);
+    _focusNode?.dispose();
+    _controller?.dispose();
+    super.dispose();
+  }
+
   @override
   void didUpdateWidget(covariant SettingsPathInput oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (_browsing && !identical(oldWidget.authorityKey, widget.authorityKey)) {
       _browseGeneration++;
       _browsing = false;
+    }
+    // Adopt the stored value whenever it is not being typed into: a browse, a
+    // host switch, or a refused write all have to be visible here. Never while
+    // focused, or the caret would jump under the operator's hands.
+    final controller = _controller;
+    if (controller != null &&
+        !_committing &&
+        _focusNode?.hasFocus != true &&
+        controller.text != widget.path) {
+      controller.text = widget.path;
+    }
+  }
+
+  void _onFocusChange() {
+    if (_focusNode?.hasFocus != true) {
+      // Leaving the field commits it. Tabbing away or clicking elsewhere is
+      // how people leave a path box; requiring Enter loses the edit silently.
+      _commit();
+    }
+  }
+
+  Future<void> _commit() async {
+    final controller = _controller;
+    final handler = widget.onPathEntered;
+    if (controller == null || handler == null || _committing) return;
+    final typed = controller.text;
+    if (typed == widget.path) return;
+    _committing = true;
+    try {
+      await Future<void>.sync(() => handler(typed));
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not use that path: $error')),
+        );
+      }
+    } finally {
+      _committing = false;
+      // Whatever the handler decided, the stored value is the truth.
+      if (mounted && controller.text != widget.path) {
+        setState(() => controller.text = widget.path);
+      }
     }
   }
 
@@ -197,29 +277,58 @@ class _SettingsPathInputState extends State<SettingsPathInput> {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
 
-    Widget pathContainer = Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: widget.isMobile
-            ? NightshadeTokens.spaceSm
-            : NightshadeTokens.radiusSm,
-      ),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
-        border: Border.all(color: colors.border),
-      ),
-      child: Text(
-        widget.path.isEmpty ? 'Not set' : widget.path,
-        style: (widget.isMobile
-                ? NightshadeTypography.caption
-                : NightshadeTypography.captionSm)
-            .copyWith(
-          color: widget.path.isEmpty ? colors.textMuted : colors.textPrimary,
-        ),
-        overflow: TextOverflow.ellipsis,
-      ),
+    final textStyle = (widget.isMobile
+            ? NightshadeTypography.caption
+            : NightshadeTypography.captionSm)
+        .copyWith(
+      color: widget.path.isEmpty ? colors.textMuted : colors.textPrimary,
     );
+    final verticalPadding =
+        widget.isMobile ? NightshadeTokens.spaceSm : NightshadeTokens.radiusSm;
+
+    Widget pathContainer = _editable
+        ? Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: verticalPadding,
+            ),
+            decoration: BoxDecoration(
+              color: colors.surfaceAlt,
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
+              border: Border.all(color: colors.border),
+            ),
+            child: TextField(
+              controller: _controller,
+              focusNode: _focusNode,
+              style: textStyle.copyWith(color: colors.textPrimary),
+              maxLines: 1,
+              // A path is longer than the box: keep the END visible, which is
+              // the part that says which folder this is.
+              textAlign: TextAlign.left,
+              decoration: InputDecoration(
+                isDense: true,
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.zero,
+                hintText: 'Not set',
+                hintStyle: textStyle.copyWith(color: colors.textMuted),
+              ),
+              onSubmitted: (_) => _commit(),
+            ),
+          )
+        // Read-only: no border, no fill, no placeholder box — this is a label,
+        // and dressing it as an input only invites typing that goes nowhere.
+        : Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: verticalPadding + 1,
+            ),
+            child: Text(
+              widget.path.isEmpty ? 'Not set' : widget.path,
+              style: textStyle,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+            ),
+          );
 
     final designWidth = widget.isMobile ? 140.0 : 180.0;
 

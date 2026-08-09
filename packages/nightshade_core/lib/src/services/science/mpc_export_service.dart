@@ -154,8 +154,8 @@ class MpcExportService {
   ///   1-5   : Minor planet number (packed, or blank for unnumbered)
   ///   6-12  : Provisional designation (or temporary designation)
   ///   13    : Discovery asterisk (blank or '*')
-  ///   14    : Note 1 (observation type: C = CCD)
-  ///   15    : Note 2 (blank for most submissions)
+  ///   14    : Note 1 (program/publication note — blank for most submissions)
+  ///   15    : Note 2 (observation type: C = CCD)
   ///   16-32 : Date of observation (YYYY MM DD.ddddd)
   ///   33-44 : RA (HH MM SS.ss)
   ///   45-56 : Dec (sDD MM SS.s)
@@ -178,11 +178,14 @@ class MpcExportService {
     // Column 13: Discovery asterisk (blank for follow-up)
     const discoveryFlag = ' ';
 
-    // Column 14: Note 1 — C = CCD observation
-    const note1 = 'C';
+    // Column 14: Note 1 — a program/publication note, NOT the observation
+    // type. Blank for an ordinary submission.
+    const note1 = ' ';
 
-    // Column 15: Note 2 — blank
-    const note2 = ' ';
+    // Column 15: Note 2 — observation type. 'C' = CCD. This is the column the
+    // MPC reads to learn how the observation was made; putting it in column 14
+    // meant every record arrived with no observation type at all.
+    const note2 = 'C';
 
     // Columns 16-32: Date (YYYY MM DD.ddddd) — 17 characters
     final dateField = _formatMpcDate(candidate.timestamp);

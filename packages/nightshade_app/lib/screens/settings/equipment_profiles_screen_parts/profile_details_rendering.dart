@@ -1,6 +1,11 @@
 part of '../equipment_profiles_screen.dart';
 
 extension _ProfileDetailsRendering on _ProfileDetailsState {
+  /// Read-only text for an optic. `0` is the model's "unspecified" sentinel,
+  /// and "0 mm" read as a measured zero-length telescope.
+  String _opticDisplay(double value) =>
+      value > 0 ? '${value.toStringAsFixed(0)} mm' : 'Not set';
+
   Widget _buildDetails(BuildContext context) {
     final padding = widget.isMobile ? 16.0 : 32.0;
     final titleFontSize = widget.isMobile ? 20.0 : 24.0;
@@ -93,6 +98,9 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                       case 'edit':
                         widget.onEdit();
                         break;
+                      case 'default':
+                        widget.onSetDefault();
+                        break;
                       case 'duplicate':
                         widget.onDuplicate();
                         break;
@@ -121,6 +129,31 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                         ],
                       ),
                     ),
+                    // Auto-connect on launch uses the DEFAULT profile, not the
+                    // active one. Without this action the flag sat wherever
+                    // the first-created profile put it, unreadable and
+                    // unmovable from any screen.
+                    if (!widget.profile.isDefault)
+                      PopupMenuItem(
+                        value: 'default',
+                        child: Row(
+                          children: [
+                            Icon(LucideIcons.power,
+                                size: 16,
+                                color:
+                                    NightshadeColors.of(context).textSecondary),
+                            const SizedBox(width: 8),
+                            // Flexible: the popup menu is width-bounded and
+                            // this is the longest item label on the menu.
+                            Flexible(
+                              child: Text('Set as default',
+                                  style: TextStyle(
+                                      color: NightshadeColors.of(context)
+                                          .textPrimary)),
+                            ),
+                          ],
+                        ),
+                      ),
                     PopupMenuItem(
                       value: 'duplicate',
                       child: Row(
@@ -188,27 +221,33 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                           children: [
                             Expanded(
                               child: _FieldCard(
-                                label: 'Focal Length',
+                                label: _ProfileDetailsState._focalLengthField,
                                 value: widget.isEditing
                                     ? null
-                                    : '${widget.profile.focalLength.toStringAsFixed(0)} mm',
+                                    : _opticDisplay(widget.profile.focalLength),
                                 controller: widget.isEditing
                                     ? _focalLengthController
                                     : null,
                                 suffix: 'mm',
+                                hint: 'e.g., 530',
+                                errorText: _fieldErrors[
+                                    _ProfileDetailsState._focalLengthField],
                               ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
                               child: _FieldCard(
-                                label: 'Aperture',
+                                label: _ProfileDetailsState._apertureField,
                                 value: widget.isEditing
                                     ? null
-                                    : '${widget.profile.aperture.toStringAsFixed(0)} mm',
+                                    : _opticDisplay(widget.profile.aperture),
                                 controller: widget.isEditing
                                     ? _apertureController
                                     : null,
                                 suffix: 'mm',
+                                hint: 'e.g., 106',
+                                errorText: _fieldErrors[
+                                    _ProfileDetailsState._apertureField],
                               ),
                             ),
                           ],
@@ -227,26 +266,32 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                       children: [
                         Expanded(
                           child: _FieldCard(
-                            label: 'Focal Length',
+                            label: _ProfileDetailsState._focalLengthField,
                             value: widget.isEditing
                                 ? null
-                                : '${widget.profile.focalLength.toStringAsFixed(0)} mm',
+                                : _opticDisplay(widget.profile.focalLength),
                             controller: widget.isEditing
                                 ? _focalLengthController
                                 : null,
                             suffix: 'mm',
+                            hint: 'e.g., 530',
+                            errorText: _fieldErrors[
+                                _ProfileDetailsState._focalLengthField],
                           ),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
                           child: _FieldCard(
-                            label: 'Aperture',
+                            label: _ProfileDetailsState._apertureField,
                             value: widget.isEditing
                                 ? null
-                                : '${widget.profile.aperture.toStringAsFixed(0)} mm',
+                                : _opticDisplay(widget.profile.aperture),
                             controller:
                                 widget.isEditing ? _apertureController : null,
                             suffix: 'mm',
+                            hint: 'e.g., 106',
+                            errorText: _fieldErrors[
+                                _ProfileDetailsState._apertureField],
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -486,6 +531,7 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                       widget.isEditing
                           ? _EditableFilterChip(
                               controller: _filterControllers[i],
+                              onNameChanged: () => _update(() {}),
                               onRemove: () {
                                 _update(() {
                                   _filterControllers[i].dispose();

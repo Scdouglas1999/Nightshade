@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -216,17 +217,29 @@ class _CutoutPanel extends ConsumerWidget {
             borderRadius: const BorderRadius.vertical(
               top: Radius.circular(NightshadeTokens.radiusLg),
             ),
-            child: AspectRatio(
-              aspectRatio: 3 / 2,
-              child: folds.isEmpty
-                  ? Container(
-                      color: colors.surfaceAlt,
-                      alignment: Alignment.center,
-                      child: Icon(LucideIcons.orbit,
-                          size: NightshadeTokens.iconXl,
-                          color: colors.textMuted),
-                    )
-                  : AtlasRegionCutout(regionId: region.id, fit: BoxFit.cover),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // A free 3:2 preview is as tall as the pane is wide: on a
+                // 1600x900 window that is ~1030px, so the coordinates, the
+                // contributing-frames list and the growth chart all started
+                // below the fold and the screen opened on nothing but a grey
+                // rectangle. Cap it so the card's own facts stay on screen;
+                // BoxFit.cover crops rather than distorts.
+                final height = math.min(
+                  constraints.maxWidth * 2 / 3,
+                  _kCutoutMaxHeight,
+                );
+                return SizedBox(
+                  width: double.infinity,
+                  height: height,
+                  child: folds.isEmpty
+                      ? _EmptyCutout(colors: colors)
+                      : AtlasRegionCutout(
+                          regionId: region.id,
+                          fit: BoxFit.cover,
+                        ),
+                );
+              },
             ),
           ),
           Padding(
@@ -276,11 +289,61 @@ class _CutoutPanel extends ConsumerWidget {
     );
   }
 
+  /// Tallest the hero preview may get. Chosen so a standard 900px-high desktop
+  /// window still shows the coordinate line and the start of the contributing-
+  /// frames section without scrolling.
+  static const double _kCutoutMaxHeight = 320;
+
   static String _dateLabel(DateTime instant) {
     final utc = instant.toUtc();
     return '${utc.year.toString().padLeft(4, '0')}-'
         '${utc.month.toString().padLeft(2, '0')}-'
         '${utc.day.toString().padLeft(2, '0')}';
+  }
+}
+
+/// What the hero preview shows before a single frame has been folded here.
+///
+/// The panel used to render a bare icon on flat background, so a newly created
+/// region opened on a viewport-filling grey rectangle that said nothing about
+/// why it was empty or what to do about it — while the parent Your Sky screen
+/// handles the same state with a sentence and a next step.
+class _EmptyCutout extends StatelessWidget {
+  final NightshadeColors colors;
+
+  const _EmptyCutout({required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: colors.surfaceAlt,
+      alignment: Alignment.center,
+      padding: NightshadeTokens.cardPadding,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            LucideIcons.orbit,
+            size: NightshadeTokens.iconXl,
+            color: colors.textMuted,
+          ),
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          Text(
+            'Nothing imaged here yet',
+            textAlign: TextAlign.center,
+            style: NightshadeTypography.labelStrong
+                .copyWith(color: colors.textSecondary),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceXs),
+          Text(
+            'Point a session at this patch of sky and its frames fold in here.',
+            textAlign: TextAlign.center,
+            style: NightshadeTypography.captionSm
+                .copyWith(color: colors.textMuted),
+          ),
+        ],
+      ),
+    );
   }
 }
 

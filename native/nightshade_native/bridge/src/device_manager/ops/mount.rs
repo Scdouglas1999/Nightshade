@@ -228,6 +228,7 @@ impl DeviceManager {
             }
             DriverType::Simulator => {
                 crate::device_manager::ops::sim_gate::require_mount_connected().await?;
+                crate::device_manager::ops::sim_gate::refuse_while_mount_slewing("slew").await?;
                 // Travels to the target over time rather than teleporting, and
                 // records the pier side the mount lands on. See
                 // `simulation::begin_sim_slew`.
@@ -346,6 +347,7 @@ impl DeviceManager {
             }
             DriverType::Simulator => {
                 crate::device_manager::ops::sim_gate::require_mount_connected().await?;
+                crate::device_manager::ops::sim_gate::refuse_while_mount_slewing("sync").await?;
                 // A sync redefines where the mount believes it is pointing
                 // without moving it, so any in-flight slew has to be dropped
                 // first — otherwise the interpolation would overwrite the
@@ -440,6 +442,7 @@ impl DeviceManager {
             }
             DriverType::Simulator => {
                 crate::device_manager::ops::sim_gate::require_mount_connected().await?;
+                crate::device_manager::ops::sim_gate::refuse_while_mount_slewing("park").await?;
                 // Drop the in-flight slew BEFORE writing the park position: a
                 // status read landing in between would otherwise advance the
                 // abandoned slew straight back over it.
@@ -550,15 +553,14 @@ impl DeviceManager {
                 ))
             }
             DriverType::Simulator => {
+                // Goes through the shared gate rather than an inline
+                // `connected` read: the gate is also what runs the fault
+                // injector and advances the in-flight slew, so unpark now sees
+                // — and can be made to fail on — the same mount state every
+                // other mutating op does.
+                crate::device_manager::ops::sim_gate::require_mount_connected().await?;
                 let m = crate::api::devices::simulation::get_sim_mount();
-                let mut m = m.write().await;
-                if !m.status.connected {
-                    return Err(DeviceOpError::not_connected(
-                        None,
-                        crate::device_manager::ops::sim_gate::not_connected_mount(),
-                    ));
-                }
-                m.status.parked = false;
+                m.write().await.status.parked = false;
                 Ok(())
             }
         }
@@ -673,6 +675,8 @@ impl DeviceManager {
             }
             DriverType::Simulator => {
                 crate::device_manager::ops::sim_gate::require_mount_connected().await?;
+                crate::device_manager::ops::sim_gate::refuse_while_mount_slewing("alt/az slew")
+                    .await?;
                 // Store the equatorial pointing the alt/az slew produced, not the
                 // alt/az pair itself: RA/Dec is the simulator's single source of
                 // truth and the horizon-frame fields are derived from it on every
@@ -1150,15 +1154,12 @@ impl DeviceManager {
                 )))
             }
             DriverType::Simulator => {
+                // See `mount_unpark`: the shared gate, not an inline
+                // `connected` read, is what advances the motion and runs the
+                // fault injector.
+                crate::device_manager::ops::sim_gate::require_mount_connected().await?;
                 let m = crate::api::devices::simulation::get_sim_mount();
-                let mut m = m.write().await;
-                if !m.status.connected {
-                    return Err(DeviceOpError::not_connected(
-                        None,
-                        crate::device_manager::ops::sim_gate::not_connected_mount(),
-                    ));
-                }
-                m.status.tracking = enabled;
+                m.write().await.status.tracking = enabled;
                 Ok(())
             }
         }
@@ -2185,6 +2186,12 @@ impl DeviceManager {
                 ))
             }
             DriverType::Simulator => {
+                // See `mount_unpark`: the shared gate, not an inline
+                // `connected` read, is what advances the motion and runs the
+                // fault injector. It runs before the rate is parsed so a
+                // disconnected mount reports being disconnected rather than
+                // grading the caller's argument.
+                crate::device_manager::ops::sim_gate::require_mount_connected().await?;
                 // The simulated mount advertises `can_set_tracking_rate: true`
                 // and reports a rate, so it has to accept one — falling through
                 // to the unsupported arm made its own capability report a lie.
@@ -2202,14 +2209,7 @@ impl DeviceManager {
                     }
                 };
                 let m = crate::api::devices::simulation::get_sim_mount();
-                let mut m = m.write().await;
-                if !m.status.connected {
-                    return Err(DeviceOpError::not_connected(
-                        None,
-                        crate::device_manager::ops::sim_gate::not_connected_mount(),
-                    ));
-                }
-                m.status.tracking_rate = Some(rate);
+                m.write().await.status.tracking_rate = Some(rate);
                 Ok(())
             }
             _ => Err(DeviceOpError::unsupported(
@@ -2448,19 +2448,17 @@ impl DeviceManager {
                 ))
             }
             DriverType::Simulator => {
+                // See `mount_unpark`: the shared gate, not an inline
+                // `connected` read, is what advances the motion and runs the
+                // fault injector.
+                crate::device_manager::ops::sim_gate::require_mount_connected().await?;
+                // NOT refused mid-slew: `rate == 0.0` is how the hand-controller
+                // buttons STOP an axis, and a stop must never be rejected.
+                // The simulator has no axis-rate state model — just record
+                // `slewing` so subsequent `mount_get_status` reflects the move
+                // command. A real driver wouldn't no-op silently.
                 let m = crate::api::devices::simulation::get_sim_mount();
-                let mut m = m.write().await;
-                if !m.status.connected {
-                    return Err(DeviceOpError::not_connected(
-                        None,
-                        crate::device_manager::ops::sim_gate::not_connected_mount(),
-                    ));
-                }
-                // The simulator has no axis-rate state model — just gate on
-                // connection and record `slewing` so subsequent
-                // `mount_get_status` reflects the move command. A real driver
-                // wouldn't no-op silently.
-                m.status.slewing = rate != 0.0;
+                m.write().await.status.slewing = rate != 0.0;
                 Ok(())
             }
         }
@@ -2489,6 +2487,10 @@ mod sim_mount_tests {
             display_name: "Simulated Mount".to_string(),
         };
         get_device_manager().register_device(info, false).await;
+        // The interpolation cell lives outside `SimulatedMount`, so resetting
+        // the struct alone would leave the previous test's slew in flight and
+        // this one's first command would be refused as "still moving".
+        crate::api::devices::simulation::cancel_sim_slew().await;
         let mut mount = get_sim_mount().write().await;
         *mount = SimulatedMount::default();
         mount.status.connected = true;

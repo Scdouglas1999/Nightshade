@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/utils/plan_tonight_sequencer_helper.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import '../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 class _SeededFramingNotifier extends FramingNotifier {
   _SeededFramingNotifier(super.ref, FramingState seed) {
@@ -208,6 +209,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           currentSequenceProvider.overrideWith((ref) => editor),
           framingProvider.overrideWith(
             (ref) => _SeededFramingNotifier(ref, framingState),

@@ -7,6 +7,7 @@ import 'package:nightshade_app/screens/mosaic/mosaic_project_screen.dart';
 import 'package:nightshade_app/screens/mosaic/mosaic_projects_list_screen.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 class _MockNetworkBackend extends Mock implements NetworkBackend {}
 
@@ -20,6 +21,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   List<Override> remoteOverrides() => [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith(
           (ref) => _FixedBackendNotifier(ref, _MockNetworkBackend()),
         ),
@@ -39,7 +41,7 @@ void main() {
       (tester) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides: remoteOverrides(),
+        overrides: [inMemoryDatabaseOverride(), ...remoteOverrides()],
         child: MaterialApp(
           theme: NightshadeTheme.dark,
           home: const MosaicProjectsListScreen(),
@@ -59,7 +61,7 @@ void main() {
       (tester) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides: remoteOverrides(),
+        overrides: [inMemoryDatabaseOverride(), ...remoteOverrides()],
         child: MaterialApp(
           theme: NightshadeTheme.dark,
           home: const MosaicProjectScreen(

@@ -16,6 +16,7 @@ import 'package:nightshade_core/src/services/capture_preview_loader.dart';
 import 'package:nightshade_core/src/services/imaging_service.dart';
 import 'package:nightshade_core/src/services/science/science_processing_service.dart';
 
+import '../harness/in_memory_database.dart';
 import '../mocks/mock_backend.dart';
 
 /// No-op science processor for capture-pipeline tests.
@@ -431,6 +432,7 @@ void main() {
 
       container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith(
             (ref) => backendNotifier = TestBackendNotifier(ref, mockBackend),
           ),
@@ -460,6 +462,7 @@ void main() {
       // Create a container with disconnected camera
       final disconnectedContainer = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith(
             (ref) => TestBackendNotifier(ref, mockBackend),
           ),
@@ -584,6 +587,7 @@ void main() {
         late TestBackendNotifier remoteBackendNotifier;
         final remoteContainer = ProviderContainer(
           overrides: [
+            inMemoryDatabaseOverride(),
             backendProvider.overrideWith(
               (ref) => remoteBackendNotifier = TestBackendNotifier(
                 ref,
@@ -695,6 +699,7 @@ void main() {
 
       final remoteContainer = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith(
             (ref) => TestBackendNotifier(ref, remoteBackend),
           ),
@@ -1439,7 +1444,12 @@ void main() {
         await service.captureImage(settings: settings);
 
         expect(headers, hasLength(1));
-        expect(headers.single.captureTimestamp, '2026-07-28T17:33:34.000Z');
+        // The bridge reports when the frame finished downloading; DATE-OBS is
+        // the START of the observation, so it is that instant minus the 5 s
+        // exposure. The timezone assertion is what this test exists for and is
+        // unaffected: a mis-parsed offset would move this by hours, not by the
+        // exposure time.
+        expect(headers.single.captureTimestamp, '2026-07-28T17:33:29.000Z');
       },
     );
 
@@ -1496,7 +1506,9 @@ void main() {
       await service.captureImage(settings: settings);
 
       expect(headers, hasLength(1));
-      expect(headers.single.captureTimestamp, '2026-07-28T17:33:34.000Z');
+      // As above: the offset-bearing bridge timestamp normalises to
+      // 17:33:34Z, and DATE-OBS is that minus the 5 s exposure.
+      expect(headers.single.captureTimestamp, '2026-07-28T17:33:29.000Z');
     });
   });
 
@@ -1571,6 +1583,7 @@ void main() {
 
       container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith(
             (ref) => TestBackendNotifier(ref, mockBackend),
           ),
@@ -1871,6 +1884,7 @@ void main() {
 
       container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith(
             (ref) => TestBackendNotifier(ref, mockBackend),
           ),
@@ -1947,7 +1961,9 @@ void main() {
 
   group('ImagingService Frame Counter', () {
     test('resetFrameCounter resets to zero', () {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: [inMemoryDatabaseOverride()],
+      );
       addTearDown(container.dispose);
       final service = container.read(imagingServiceProvider);
 
@@ -1982,6 +1998,7 @@ void main() {
 
       container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith(
             (ref) => TestBackendNotifier(ref, mockBackend),
           ),
@@ -2332,13 +2349,17 @@ void main() {
     }
 
     test('returns false when no current image is published', () {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: [inMemoryDatabaseOverride()],
+      );
       addTearDown(container.dispose);
       expect(container.read(currentImageIsCalibratedProvider), isFalse);
     });
 
     test('returns false when filePath is null or empty', () {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: [inMemoryDatabaseOverride()],
+      );
       addTearDown(container.dispose);
 
       container.read(currentImageProvider.notifier).state = makeImageWithPath(
@@ -2353,7 +2374,9 @@ void main() {
     });
 
     test('returns false for a raw .fits frame', () {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: [inMemoryDatabaseOverride()],
+      );
       addTearDown(container.dispose);
       container.read(currentImageProvider.notifier).state = makeImageWithPath(
         '/captures/2026-01-01/light_001.fits',
@@ -2362,7 +2385,9 @@ void main() {
     });
 
     test('returns true for a `_cal.fits` suffixed frame', () {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: [inMemoryDatabaseOverride()],
+      );
       addTearDown(container.dispose);
       container.read(currentImageProvider.notifier).state = makeImageWithPath(
         '/captures/2026-01-01/light_001_cal.fits',
@@ -2371,7 +2396,9 @@ void main() {
     });
 
     test('returns true for a `_cal.fit` suffix on Windows-style path', () {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: [inMemoryDatabaseOverride()],
+      );
       addTearDown(container.dispose);
       container.read(currentImageProvider.notifier).state = makeImageWithPath(
         r'C:\captures\2026-01-01\m31_002_cal.fit',
@@ -2381,7 +2408,9 @@ void main() {
 
     test('returns false for paths whose directory contains "cal" but file does '
         'not end in _cal.fits', () {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: [inMemoryDatabaseOverride()],
+      );
       addTearDown(container.dispose);
       // A "calibration" folder used to hold master darks/flats shouldn't
       // make a raw light frame inside it look calibrated.

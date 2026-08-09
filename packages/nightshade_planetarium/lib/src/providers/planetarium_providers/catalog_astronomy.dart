@@ -141,6 +141,21 @@ final _currentDateProvider = Provider<DateTime>((ref) {
       : DateTime(t.year, t.month, t.day);
 });
 
+/// The date of the observing NIGHT in progress — what
+/// [AstronomyCalculations.calculateObjectVisibility] wants as its `date`.
+///
+/// Distinct from [_currentDateProvider]: between local midnight and noon the
+/// night in progress began the previous calendar day, so anchoring rise /
+/// transit / set on the calendar date described the FOLLOWING night and put
+/// every time one sidereal day (~4 min) out. Same reasoning as
+/// [twilightTimesProvider], and just as cheap to watch — the value only
+/// changes at local noon.
+final _currentNightDateProvider = Provider<DateTime>((ref) {
+  return AstronomyCalculations.nightDateOf(
+    ref.watch(observationTimeProvider).time,
+  );
+});
+
 /// Provider that only updates when the minute changes (not every second)
 /// This prevents unnecessary recalculations of astronomical positions
 /// which don't need per-second precision for sky rendering.
@@ -262,19 +277,43 @@ final sunAltitudeProvider = Provider<double>((ref) {
   );
 });
 
-/// Sun position for current time
+/// Sun position for the current time, in **J2000** — the chart's frame.
+///
+/// [AstronomyCalculations.sunPosition] is a theory of date, so its output is
+/// precessed back to J2000 here. Everything drawn on the sky chart has to share
+/// one equinox with the J2000 star and DSO catalogues; mixing frames displaced
+/// the solar-system bodies from the star background by ~22 arcmin in 2026.
+/// The of-date function is untouched, so twilight, rise/set and the altitude
+/// providers that call it directly keep their (correct) apparent places.
+///
 /// Uses minute precision - sun moves ~0.25 degrees per minute which is fine for rendering.
 final sunPositionProvider = Provider<(double ra, double dec)>((ref) {
   final time = ref.watch(_currentMinuteProvider);
-  return AstronomyCalculations.sunPosition(time);
+  final (ra, dec) = AstronomyCalculations.sunPosition(time);
+  return AstronomyCalculations.precessFromDateToJ2000(
+    raDeg: ra,
+    decDeg: dec,
+    dt: time,
+  );
 });
 
-/// Moon position for current time
+/// Moon position for the current time, in **J2000** — see [sunPositionProvider]
+/// for why. Distance (km) is frame independent and passes through.
+///
+/// This also puts the moon-separation scoring in `planning_providers.dart` on
+/// the same frame as the J2000 target it measures against.
+///
 /// Uses minute precision - moon moves ~0.5 arcmin per minute which is fine for rendering.
 final moonPositionProvider = Provider<(double ra, double dec, double distance)>(
   (ref) {
     final time = ref.watch(_currentMinuteProvider);
-    return AstronomyCalculations.moonPosition(time);
+    final (ra, dec, distance) = AstronomyCalculations.moonPosition(time);
+    final (raJ2000, decJ2000) = AstronomyCalculations.precessFromDateToJ2000(
+      raDeg: ra,
+      decDeg: dec,
+      dt: time,
+    );
+    return (raJ2000, decJ2000, distance);
   },
 );
 

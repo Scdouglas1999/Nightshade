@@ -62,7 +62,14 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: overrides,
+        overrides: [
+          // The name field is checked against the existing profiles, so the
+          // editor reads the profile list; stub its sources or the drift query
+          // it opens outlives the test.
+          activeProfileProvider.overrideWith((ref) => Stream.value(null)),
+          allProfilesProvider.overrideWith((ref) => Stream.value(const [])),
+          ...overrides,
+        ],
         child: MaterialApp(
           theme: NightshadeTheme.dark,
           home: Scaffold(

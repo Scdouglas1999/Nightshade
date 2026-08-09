@@ -15,6 +15,10 @@ import 'widgets/element_refresh_card.dart';
 
 part 'catalog_settings_screen/card_builders.dart';
 
+/// Log `source` for every catalog outcome, so Settings > Logs can be filtered
+/// to the catalog subsystem and an exported log can be grepped for it.
+const String _logSource = 'CatalogSettings';
+
 typedef CatalogCsvPicker = Future<XFile?> Function(String confirmButtonText);
 typedef CatalogCsvImporter = Future<bool> Function(
   String sourcePath,
@@ -113,9 +117,17 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
 
   StreamSubscription<DownloadProgress>? _progressSub;
 
+  /// Captured once so a failure that lands after this screen is disposed still
+  /// reaches the log. Every catalog outcome the user sees has to leave a
+  /// record: a session that failed five downloads reported "1 error all night"
+  /// in Settings > Logs and in the exported log file, because this screen
+  /// snackbarred its exceptions and logged nothing.
+  late final LoggingService _logger;
+
   @override
   void initState() {
     super.initState();
+    _logger = ref.read(loggingServiceProvider);
     // Restore the live progress bar if a download is already running (e.g. the
     // user navigated away and came back) and follow it for the rest of its run.
     final active = CatalogManager.instance.activeDownloads;
@@ -242,6 +254,10 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
       _recomputeDownloading();
     });
 
+    _logOutcome(
+      'Catalog download started',
+      fields: {'package': _selectedPackage.name, 'catalogs': 'stars+dso'},
+    );
     try {
       final starSuccess = await CatalogManager.instance.downloadStarCatalog(
         package: _selectedPackage,
@@ -261,6 +277,10 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
         throw Exception('DSO catalog download failed');
       }
 
+      _logOutcome(
+        'Catalog download completed',
+        fields: {'package': _selectedPackage.name, 'catalogs': 'stars+dso'},
+      );
       await _loadCatalogStatus();
 
       if (mounted) {
@@ -281,6 +301,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
   /// Tear down after the user cancelled an in-flight download: refresh any
   /// surviving install and let them know nothing was changed.
   Future<void> _onDownloadCancelled() async {
+    _logOutcome('Catalog download cancelled by the operator');
     await _loadCatalogStatus();
     if (mounted) {
       context.showInfoSnackBar('Download cancelled');
@@ -319,6 +340,9 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
       if (!_isCurrentImport(generation)) return;
 
       if (success) {
+        // Logged before the status refresh: the outcome is already known, and
+        // a slow/failed refresh must not cost the record of it.
+        _logOutcome('Catalog imported', fields: {'type': type});
         await _loadCatalogStatus();
         if (mounted && _isCurrentImport(generation)) {
           context.showSuccessSnackBar('Catalog imported successfully!');
@@ -395,6 +419,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
     });
     try {
       await delete();
+      _logOutcome('Catalogs deleted', fields: {'target': target.name});
       if (!mounted) return;
       await _loadCatalogStatus();
       if (mounted) context.showInfoSnackBar(successMessage);
@@ -411,10 +436,21 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
     }
   }
 
+  /// Single funnel for every user-visible catalog failure: log it (with the
+  /// cause the message already carries) BEFORE the snackbar, and log it even
+  /// when the screen is gone, so support can see what the operator saw.
   void _showError(String message) {
+    _logger.error(message, source: _logSource);
     if (mounted) {
       context.showErrorSnackBar(message);
     }
+  }
+
+  /// Record a catalog outcome the user saw succeed. Success needs a line too —
+  /// a 15 MB GLADE+ download that worked left no trace at all, so the log could
+  /// not even establish that the catalog on disk arrived tonight.
+  void _logOutcome(String message, {Map<String, Object?>? fields}) {
+    _logger.info(message, source: _logSource, fields: fields);
   }
 
   /// The appliance's status for [type] (`stars`, `dso`, `annotation`), or null
@@ -1210,6 +1246,10 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
       _recomputeDownloading();
     });
 
+    _logOutcome(
+      'Annotation catalog download started',
+      fields: {'package': _selectedAnnotationPackage.name},
+    );
     try {
       final success = await CatalogManager.instance.downloadAnnotationCatalog(
         package: _selectedAnnotationPackage,
@@ -1221,6 +1261,10 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
         throw Exception('Annotation catalog download failed');
       }
 
+      _logOutcome(
+        'Annotation catalog download completed',
+        fields: {'package': _selectedAnnotationPackage.name},
+      );
       await _loadCatalogStatus();
 
       if (mounted) {
@@ -1262,6 +1306,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
       if (!_isCurrentImport(generation)) return;
 
       if (success) {
+        _logOutcome('Catalog imported', fields: {'type': 'annotation'});
         await _loadCatalogStatus();
         if (mounted && _isCurrentImport(generation)) {
           context.showSuccessSnackBar(

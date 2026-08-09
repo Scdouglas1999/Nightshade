@@ -216,11 +216,14 @@ class BatchOperationsToolbar extends ConsumerWidget {
         : selectedIds.fold<int>(
             0, (sum, id) => sum + sequence.countDescendants(id));
 
+    // Point at the toolbar button, not only the keystroke: Ctrl+Z needs
+    // keyboard focus inside the builder subtree, the Undo button never does.
     final body = descendants == 0
         ? 'This will remove the selected node(s). '
-            'This cannot be undone except via Undo (Ctrl+Z).'
+            'Recover them with Undo in the toolbar (or Ctrl+Z).'
         : 'This will remove $count node(s) plus their $descendants '
-            'descendant(s). This cannot be undone except via Undo (Ctrl+Z).';
+            'descendant(s). Recover them with Undo in the toolbar '
+            '(or Ctrl+Z).';
 
     showDialog(
       context: context,

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../../utils/user_facing_error.dart';
 
 Future<void> _runAlertStateAction(
   BuildContext context,
@@ -23,17 +24,65 @@ Future<void> _runAlertStateAction(
 /// Panel displaying astronomical transient alerts (novae, supernovae, etc.)
 /// with the ability to queue them as observation targets.
 ///
-/// Shows recent alerts from AAVSO and TNS sources, sorted by priority.
+/// Shows recent alerts from the fetched sources ([kFetchableTransientSources]
+/// — today, TNS alone), sorted by priority. The source label below still
+/// renders every [TransientSource] because an alert already stored, imported or
+/// entered by hand carries its own origin.
 /// Each alert shows name, type, magnitude, coordinates, and discovery date.
 /// Users can queue alerts for tonight's observation or dismiss them.
-class TransientAlertsPanel extends ConsumerWidget {
-  const TransientAlertsPanel({super.key});
+final transientPanelTnsCredentialsReadyProvider =
+    FutureProvider<bool>((ref) async {
+  if (ref.watch(isRemoteModeProvider)) return true;
+  final science = await ref.watch(scienceSettingsProvider.future);
+  if (science.tnsBotId <= 0 || science.tnsBotName.trim().isEmpty) return false;
+  return ref.watch(secretsStoreProvider).has(SecretField.tnsApiKey);
+});
+
+class TransientAlertsPanel extends ConsumerStatefulWidget {
+  final bool initiallyExpanded;
+
+  const TransientAlertsPanel({super.key, this.initiallyExpanded = true});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TransientAlertsPanel> createState() =>
+      _TransientAlertsPanelState();
+}
+
+class _TransientAlertsPanelState extends ConsumerState<TransientAlertsPanel> {
+  late bool _expanded = widget.initiallyExpanded;
+
+  @override
+  Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final alertsAsync = ref.watch(activeTransientAlertsProvider);
     final alertStates = ref.watch(transientAlertStatesProvider);
+    final settings = ref.watch(transientAlertSettingsProvider);
+    final credentials = ref.watch(transientPanelTnsCredentialsReadyProvider);
+    final tnsNeedsSetup =
+        settings.enabledSources.contains(TransientSource.tns) &&
+            credentials.valueOrNull == false;
+    final collapsedSummary = alertsAsync.when(
+      loading: () => ('Checking for alerts…', colors.textMuted),
+      error: (error, _) => tnsNeedsSetup
+          ? ('Setup needed for live TNS alerts', colors.warning)
+          : ('Fetch failed: ${userFacingError(error)}', colors.error),
+      data: (alerts) {
+        if (tnsNeedsSetup) {
+          return ('Setup needed for live TNS alerts', colors.warning);
+        }
+        if (alerts.isEmpty) return ('No active alerts', colors.textMuted);
+        final sorted = _sortForDisplay(alerts, alertStates);
+        final top = sorted.first;
+        final magnitude = top.magnitude == null
+            ? ''
+            : ', mag ${top.magnitude!.toStringAsFixed(1)}';
+        return (
+          '${alerts.length} alert${alerts.length == 1 ? '' : 's'} · '
+              '${top.name}$magnitude',
+          colors.textSecondary,
+        );
+      },
+    );
 
     return NightshadeCard(
       child: Column(
@@ -61,10 +110,14 @@ class TransientAlertsPanel extends ConsumerWidget {
                 _UnacknowledgedBadge(colors: colors),
                 const SizedBox(width: 4),
                 IconButton(
-                  icon: Icon(LucideIcons.refreshCw,
-                      size: 16, color: colors.textSecondary),
-                  tooltip: 'Refresh alerts',
-                  onPressed: () => refreshTransientAlerts(ref),
+                  icon: Icon(
+                      _expanded
+                          ? LucideIcons.chevronUp
+                          : LucideIcons.chevronDown,
+                      size: 16,
+                      color: colors.textSecondary),
+                  tooltip: _expanded ? 'Collapse alerts' : 'Expand alerts',
+                  onPressed: () => setState(() => _expanded = !_expanded),
                   visualDensity: VisualDensity.compact,
                 ),
                 IconButton(
@@ -80,112 +133,160 @@ class TransientAlertsPanel extends ConsumerWidget {
 
           const SizedBox(height: 8),
 
-          // Alert list
-          alertsAsync.when(
-            data: (alerts) {
-              if (alerts.isEmpty) {
-                return Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(LucideIcons.bellOff,
-                            size: 32, color: colors.textMuted),
-                        const SizedBox(height: 8),
-                        Text(
-                          'No transient alerts',
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize13,
-                            color: colors.textSecondary,
+          if (!_expanded)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+              child: Text(
+                collapsedSummary.$1,
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize11,
+                  color: collapsedSummary.$2,
+                ),
+              ),
+            )
+          else
+            // Alert list
+            alertsAsync.when(
+              data: (alerts) {
+                if (alerts.isEmpty) {
+                  if (tnsNeedsSetup) {
+                    return Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(LucideIcons.info,
+                              size: 16, color: colors.warning),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'TNS alerts are enabled but not configured. Add '
+                              'your bot credentials in Science settings to fetch '
+                              'live alerts; manual alerts remain available.',
+                              style: TextStyle(
+                                fontSize: NightshadeTypography.fontSize12,
+                                color: colors.textSecondary,
+                              ),
+                            ),
                           ),
+                        ],
+                      ),
+                    );
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(LucideIcons.bellOff,
+                              size: 32, color: colors.textMuted),
+                          const SizedBox(height: 8),
+                          Text(
+                            'No transient alerts',
+                            style: TextStyle(
+                              fontSize: NightshadeTypography.fontSize13,
+                              color: colors.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Check back later or adjust filter settings.',
+                            style: TextStyle(
+                              fontSize: NightshadeTypography.fontSize11,
+                              color: colors.textMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+
+                // Show up to 10 alerts, with actionable ones first
+                final displayAlerts = _sortForDisplay(alerts, alertStates);
+                final limited = displayAlerts.take(10).toList();
+
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (int i = 0; i < limited.length; i++) ...[
+                      _TransientAlertTile(
+                        key: ValueKey(limited[i].id),
+                        alert: limited[i],
+                        alertState: resolveTransientAlertState(
+                          limited[i],
+                          alertStates,
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Check back later or adjust filter settings.',
+                      ),
+                      if (i < limited.length - 1)
+                        Divider(
+                          height: 1,
+                          indent: 16,
+                          endIndent: 16,
+                          color: colors.border,
+                        ),
+                    ],
+                    if (alerts.length > 10)
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Text(
+                          '${alerts.length - 10} more alerts not shown',
                           style: TextStyle(
                             fontSize: NightshadeTypography.fontSize11,
                             color: colors.textMuted,
+                            fontStyle: FontStyle.italic,
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                );
-              }
-
-              // Show up to 10 alerts, with actionable ones first
-              final displayAlerts = _sortForDisplay(alerts, alertStates);
-              final limited = displayAlerts.take(10).toList();
-
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (int i = 0; i < limited.length; i++) ...[
-                    _TransientAlertTile(
-                      key: ValueKey(limited[i].id),
-                      alert: limited[i],
-                      alertState: alertStates[limited[i].id],
-                    ),
-                    if (i < limited.length - 1)
-                      Divider(
-                        height: 1,
-                        indent: 16,
-                        endIndent: 16,
-                        color: colors.border,
                       ),
                   ],
-                  if (alerts.length > 10)
-                    Padding(
-                      padding: const EdgeInsets.all(12),
+                );
+              },
+              loading: () => const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(
+                  child: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              ),
+              error: (error, _) => Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Icon(
+                      tnsNeedsSetup
+                          ? LucideIcons.settings
+                          : LucideIcons.alertTriangle,
+                      size: 16,
+                      color: tnsNeedsSetup ? colors.warning : colors.error,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
                       child: Text(
-                        '${alerts.length - 10} more alerts not shown',
+                        tnsNeedsSetup
+                            ? 'Setup needed for live TNS alerts'
+                            : 'Failed to load alerts: ${userFacingError(error)}',
                         style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize11,
-                          color: colors.textMuted,
-                          fontStyle: FontStyle.italic,
-                        ),
+                            fontSize: NightshadeTypography.fontSize12,
+                            color:
+                                tnsNeedsSetup ? colors.warning : colors.error),
                       ),
                     ),
-                ],
-              );
-            },
-            loading: () => const Padding(
-              padding: EdgeInsets.all(24),
-              child: Center(
-                child: SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                    if (!tnsNeedsSetup)
+                      IconButton(
+                        icon: Icon(LucideIcons.refreshCw,
+                            size: 14, color: colors.error),
+                        tooltip: 'Retry',
+                        onPressed: () => refreshTransientAlerts(ref),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                  ],
                 ),
               ),
             ),
-            error: (error, _) => Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Icon(LucideIcons.alertTriangle,
-                      size: 16, color: colors.error),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Failed to load alerts: $error',
-                      style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize12,
-                          color: colors.error),
-                    ),
-                  ),
-                  IconButton(
-                    icon: Icon(LucideIcons.refreshCw,
-                        size: 14, color: colors.error),
-                    tooltip: 'Retry',
-                    onPressed: () => refreshTransientAlerts(ref),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                ],
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -197,8 +298,8 @@ class TransientAlertsPanel extends ConsumerWidget {
   ) {
     final sorted = List<TransientAlert>.from(alerts);
     sorted.sort((a, b) {
-      final aState = states[a.id] ?? TransientAlertState.newAlert;
-      final bState = states[b.id] ?? TransientAlertState.newAlert;
+      final aState = resolveTransientAlertState(a, states);
+      final bState = resolveTransientAlertState(b, states);
 
       // New/unacknowledged first
       final aActionable = aState == TransientAlertState.newAlert ||

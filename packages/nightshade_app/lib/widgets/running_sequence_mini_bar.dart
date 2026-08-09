@@ -5,6 +5,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../localization/nightshade_localizations.dart';
 import '../screens/sequencer/sequencer_screen.dart' show kSequencerRoutePath;
 import '../screens/sequencer/widgets/run_dashboard/sequence_status_visuals.dart';
 import '../services/sequence_action_service.dart';
@@ -56,7 +57,8 @@ class RunningSequenceMiniBar extends ConsumerWidget {
     // while it's stopping or recovering (transient states the user can't drive).
     final canDrive = isRunning || isPaused;
 
-    final visuals = SequenceStatusVisuals.of(executionState, colors);
+    final visuals =
+        SequenceStatusVisuals.of(executionState, colors, context.l10n);
 
     Future<void> stopSequence() async {
       final result = await ref.read(sequenceActionServiceProvider).stop();

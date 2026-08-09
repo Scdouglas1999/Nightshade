@@ -150,6 +150,9 @@ class ConnectionDiagnosis {
 /// to [DiagnosticCategory.unknown] with concrete generic steps.
 ///
 /// Classification order (first confident match wins):
+///   0. First-party preflight markers (`built-in guider requires …`) →
+///      [DiagnosticCategory.configuration], with steps naming the exact
+///      profile value the check wanted.
 ///   1. Permission markers (`access is denied`, HRESULT `0x80070005`) →
 ///      [DiagnosticCategory.permission].
 ///   2. Driver/RPC markers (`RPC server unavailable`, HRESULT `0x800706ba`,
@@ -180,13 +183,19 @@ ConnectionDiagnosis diagnoseConnectionFailure({
 
   return ConnectionDiagnosis(
     category: category,
-    headline: _headlineFor(category),
+    headline: _headlineFor(category, error: normalized),
     plainLanguage: _plainLanguageFor(
       category,
       deviceType: deviceType,
       driverType: driverType,
+      error: normalized,
     ),
-    steps: _stepsFor(category, deviceType: deviceType, driverType: driverType),
+    steps: _stepsFor(
+      category,
+      deviceType: deviceType,
+      driverType: driverType,
+      error: normalized,
+    ),
     rawError: rawError,
   );
 }
@@ -273,6 +282,20 @@ const List<String> _configurationMarkers = [
   'bad request',
 ];
 
+/// Preflight failures raised by NIGHTSHADE ITSELF, not by a driver.
+///
+/// The built-in guider is a software guider that reuses the imaging camera: it
+/// has no cable, no power switch and no vendor driver. Its preflight refuses
+/// with a fully-specified message naming the exact profile value it wanted
+/// (`Built-in guider requires an active profile with a guide focal length`,
+/// `… positive guide focal length and camera pixel size (focal_length_mm=0, …)`).
+/// Those matched nothing in the marker tables, so the dialog fell through to
+/// `unknown` and told the operator "we couldn't pin down the exact cause" —
+/// while holding the cause — and then sent them to reseat a cable that does
+/// not exist and restart the app. Matching them here routes the message to a
+/// configuration cause whose steps name the setting.
+const List<String> _firstPartySetupMarkers = ['built-in guider requires'];
+
 bool _isNetworkDriver(DriverType driverType) =>
     driverType == DriverType.alpaca || driverType == DriverType.indi;
 
@@ -281,6 +304,13 @@ DiagnosticCategory _classify(
   required DriverType driverType,
   required DeviceType deviceType,
 }) {
+  // 0. First-party preflight beats every driver-shaped marker below: these are
+  //    our own setup checks and the remediation is a Nightshade setting, never
+  //    a cable, a COM registration or a firewall.
+  if (_containsAny(error, _firstPartySetupMarkers)) {
+    return DiagnosticCategory.configuration;
+  }
+
   // 1. Permission is checked first: "access denied" is unambiguous and would
   //    otherwise be mistaken for a generic driver failure.
   if (_containsAny(error, _permissionMarkers)) {
@@ -321,7 +351,7 @@ DiagnosticCategory _classify(
 // Copy: headlines, plain-language, and branched remediation steps
 // ---------------------------------------------------------------------------
 
-String _headlineFor(DiagnosticCategory category) {
+String _headlineFor(DiagnosticCategory category, {required String error}) {
   switch (category) {
     case DiagnosticCategory.usb:
       return "We couldn't find the device";
@@ -332,7 +362,11 @@ String _headlineFor(DiagnosticCategory category) {
     case DiagnosticCategory.network:
       return "We couldn't reach the server";
     case DiagnosticCategory.configuration:
-      return 'The driver is connected but misconfigured';
+      // No driver is involved in a first-party preflight, so naming one would
+      // be its own small lie.
+      return _containsAny(error, _firstPartySetupMarkers)
+          ? 'Your equipment profile is missing a value'
+          : 'The driver is connected but misconfigured';
     case DiagnosticCategory.unknown:
       return "The connection didn't complete";
   }
@@ -386,6 +420,7 @@ String _plainLanguageFor(
   DiagnosticCategory category, {
   required DeviceType deviceType,
   required DriverType driverType,
+  required String error,
 }) {
   final device = _deviceNoun(deviceType);
   final driver = _driverNoun(driverType);
@@ -410,6 +445,13 @@ String _plainLanguageFor(
           'host or port may be wrong, or a firewall may be blocking the '
           'connection.';
     case DiagnosticCategory.configuration:
+      if (_containsAny(error, _firstPartySetupMarkers)) {
+        return "Nightshade's built-in guider is software — it reuses your "
+            'imaging camera and mount, so there is no cable or power to '
+            'check. It stopped before connecting because a value it needs '
+            'from your equipment profile is missing or zero. The raw message '
+            'below names it exactly.';
+      }
       return 'Nightshade connected to the $driver driver, but it rejected the '
           'request because something is set up incorrectly. The wrong $device '
           'may be selected, or a required setup value is missing or invalid.';
@@ -425,6 +467,7 @@ List<RemediationStep> _stepsFor(
   DiagnosticCategory category, {
   required DeviceType deviceType,
   required DriverType driverType,
+  required String error,
 }) {
   switch (category) {
     case DiagnosticCategory.usb:
@@ -439,6 +482,7 @@ List<RemediationStep> _stepsFor(
       return _configurationSteps(
         deviceType: deviceType,
         driverType: driverType,
+        error: error,
       );
     case DiagnosticCategory.unknown:
       return _unknownSteps(deviceType: deviceType, driverType: driverType);
@@ -683,10 +727,83 @@ List<RemediationStep> _networkSteps({
   ];
 }
 
+/// Steps for a Nightshade preflight refusal, keyed on the value the check
+/// named. Returns `null` when [error] is not one of ours, so the caller falls
+/// back to the generic driver-configuration playbook.
+List<RemediationStep>? _firstPartySetupSteps(String error) {
+  if (!_containsAny(error, _firstPartySetupMarkers)) return null;
+
+  const openProfile = RemediationStep(
+    instruction: 'Open Equipment → your active profile → Edit',
+    detail:
+        'The built-in guider reads its setup from the active equipment '
+        'profile, not from a driver setup dialog.',
+  );
+
+  if (error.contains('focal length') || error.contains('focal_length_mm')) {
+    return const [
+      openProfile,
+      RemediationStep(
+        instruction: 'Enter the Focal Length of the scope you are guiding with',
+        detail:
+            'It is 0 (or unset) right now. The guider divides pixel size by '
+            'focal length to work out how far each star has moved, so it '
+            'cannot start without it. Enter the value in millimetres.',
+      ),
+      RemediationStep(
+        instruction: 'Save the profile, then connect the guider again',
+        detail:
+            'No restart is needed — the guider re-reads the profile on '
+            'each connect.',
+      ),
+    ];
+  }
+
+  if (error.contains('pixel')) {
+    return const [
+      RemediationStep(
+        instruction: "Check your imaging camera is reporting its pixel size",
+        detail:
+            'The built-in guider guides on the imaging camera, and that '
+            'camera reported a pixel size of 0. Reconnect it, or set the '
+            'pixel size in its driver setup dialog.',
+      ),
+      openProfile,
+    ];
+  }
+
+  if (error.contains('binning')) {
+    return const [
+      RemediationStep(
+        instruction: 'Set guide binning to 1 or more in Guiding settings',
+        detail:
+            'The guider was handed a binning of zero, which has no pixel '
+            'scale to guide on.',
+      ),
+    ];
+  }
+
+  // "requires a connected camera / mount in the active profile".
+  return const [
+    RemediationStep(
+      instruction: 'Assign and connect a camera and a mount in this profile',
+      detail:
+          'The built-in guider has no hardware of its own — it guides using '
+          'the imaging camera and pulses the mount, so both have to be '
+          'assigned in the active profile and connected first.',
+    ),
+    openProfile,
+  ];
+}
+
 List<RemediationStep> _configurationSteps({
   required DeviceType deviceType,
   required DriverType driverType,
+  required String error,
 }) {
+  final firstParty = _firstPartySetupSteps(error);
+  if (firstParty != null) return firstParty;
+
   final device = _deviceNoun(deviceType);
   final driver = _driverNoun(driverType);
   final steps = <RemediationStep>[

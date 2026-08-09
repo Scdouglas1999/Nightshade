@@ -236,6 +236,16 @@ pub trait DeviceOps: Send + Sync {
     /// Get cooler power percentage
     async fn camera_get_cooler_power(&self, camera_id: &str) -> DeviceResult<f64>;
 
+    /// The camera's UNBINNED pixel pitch in microns, as `(x, y)`.
+    ///
+    /// `Ok(None)` means the driver does not report one, and the FITS writer
+    /// then omits `XPIXSZ`/`YPIXSZ` rather than guessing. Defaulted so a
+    /// `DeviceOps` that has no camera (test doubles, the null ops) does not
+    /// have to answer; the bridge implementations override it.
+    async fn camera_get_pixel_size_um(&self, _camera_id: &str) -> DeviceResult<Option<(f64, f64)>> {
+        Ok(None)
+    }
+
     // =========================================================================
     // FOCUSER OPERATIONS
     // =========================================================================
@@ -423,6 +433,27 @@ pub trait DeviceOps: Send + Sync {
     // DOME OPERATIONS
     // =========================================================================
 
+    /// Device id of the dome to command when the sequencer's execution context
+    /// carries no dome role assignment.
+    ///
+    /// Why this hook exists: the executor's dome/cover-calibrator role slots are
+    /// only ever filled by `SequenceExecutor::set_dome` /
+    /// `set_cover_calibrator`, and the Dart runtime-config path never calls
+    /// them — its `sequencerSetDevices` contract carries camera, mount, focuser,
+    /// filter wheel and rotator only. Without a fallback every dome and
+    /// cover-calibrator instruction fails with "No dome connected" even while
+    /// the device is connected and assigned to the active profile. The device
+    /// layer is the only component that knows what is actually connected, so it
+    /// answers the question — the same "resolve the active device for me"
+    /// contract `safety_is_safe(None)` already uses.
+    ///
+    /// The default `None` means "this ops layer cannot enumerate devices"
+    /// (`NullDeviceOps`, test doubles), which preserves the explicit
+    /// "no dome connected" instruction failure.
+    async fn active_dome_id(&self) -> Option<String> {
+        None
+    }
+
     /// Open dome shutter
     async fn dome_open(&self, dome_id: &str) -> DeviceResult<()>;
 
@@ -497,6 +528,14 @@ pub trait DeviceOps: Send + Sync {
     // =========================================================================
     // COVER CALIBRATOR (FLAT PANEL / DUST COVER) OPERATIONS
     // =========================================================================
+
+    /// Device id of the cover calibrator (flat panel) to command when the
+    /// sequencer's execution context carries no cover-calibrator role
+    /// assignment. See [`DeviceOps::active_dome_id`] for why the fallback is
+    /// needed and why the default is `None`.
+    async fn active_cover_calibrator_id(&self) -> Option<String> {
+        None
+    }
 
     /// Open the cover (unpark dust cap)
     async fn cover_calibrator_open_cover(&self, device_id: &str) -> DeviceResult<()>;
@@ -1031,6 +1070,20 @@ pub async fn try_park_with_retry(
     let mut last_error: Option<String> = None;
 
     for attempt in 1..=total_attempts {
+        // Stop the axes before asking for the park. Some mounts refuse a park
+        // while slewing (`meridian_flip_executor` already aborts first for
+        // exactly this reason); this helper is the safety-abort path, so a park
+        // issued mid-slew must not be allowed to fail all of its attempts and
+        // leave the mount unparked. Best-effort: drivers that do not implement
+        // abort, or that reject it when idle, still get their park attempt.
+        if let Err(e) = device_ops.mount_abort_slew(mount_id).await {
+            tracing::debug!(
+                "mount_abort_slew({}) before park attempt {} failed: {} — parking anyway",
+                mount_id,
+                attempt,
+                e
+            );
+        }
         match device_ops.mount_park(mount_id).await {
             Ok(()) => {
                 if attempt == 1 {
@@ -1267,6 +1320,10 @@ mod tests {
         fail_count: AtomicU32,
         attempts: AtomicU32,
         fail_forever: bool,
+        /// Models the driver class that rejects a park while the axes are still
+        /// turning (ASCOM `InvalidOperationException`, INDI property reject).
+        /// `mount_abort_slew` is the only thing that clears it.
+        slewing: std::sync::atomic::AtomicBool,
     }
 
     impl FlakyParkOps {
@@ -1276,7 +1333,15 @@ mod tests {
                 fail_count: AtomicU32::new(fail_count),
                 attempts: AtomicU32::new(0),
                 fail_forever,
+                slewing: std::sync::atomic::AtomicBool::new(false),
             }
+        }
+
+        /// A mount that is mid-slew when the safety park arrives.
+        fn slewing() -> Self {
+            let ops = Self::new(0, false);
+            ops.slewing.store(true, Ordering::SeqCst);
+            ops
         }
 
         fn attempts(&self) -> u32 {
@@ -1286,9 +1351,18 @@ mod tests {
 
     #[async_trait]
     impl DeviceOps for FlakyParkOps {
-        // Only mount_park is overridden; every other method delegates to NullDeviceOps.
+        // Only mount_park and mount_abort_slew are overridden; every other
+        // method delegates to NullDeviceOps.
+        async fn mount_abort_slew(&self, _mount_id: &str) -> DeviceResult<()> {
+            self.slewing.store(false, Ordering::SeqCst);
+            Ok(())
+        }
+
         async fn mount_park(&self, mount_id: &str) -> DeviceResult<()> {
             self.attempts.fetch_add(1, Ordering::SeqCst);
+            if self.slewing.load(Ordering::SeqCst) {
+                return Err(format!("{} cannot park while slewing", mount_id));
+            }
             if self.fail_forever {
                 return Err(format!("simulated park failure for {}", mount_id));
             }
@@ -1306,9 +1380,6 @@ mod tests {
         // === delegating methods ===
         async fn mount_slew_to_coordinates(&self, id: &str, ra: f64, dec: f64) -> DeviceResult<()> {
             self.inner.mount_slew_to_coordinates(id, ra, dec).await
-        }
-        async fn mount_abort_slew(&self, id: &str) -> DeviceResult<()> {
-            self.inner.mount_abort_slew(id).await
         }
         async fn mount_get_coordinates(&self, id: &str) -> DeviceResult<(f64, f64)> {
             self.inner.mount_get_coordinates(id).await
@@ -1888,6 +1959,28 @@ mod tests {
         assert!(!result.success);
         assert_eq!(result.attempts_made, 1);
         assert_eq!(ops_concrete.attempts(), 1);
+    }
+
+    /// The safety park must stop the axes before it asks for the park.
+    ///
+    /// This is the emergency-park path (weather abort, recovery
+    /// `ParkAndAbort`), and it is routinely reached with a slew in flight.
+    /// Mounts that refuse a park while slewing therefore rejected every
+    /// attempt and the mount was left unparked — `meridian_flip_executor`
+    /// already aborts first for exactly this reason, this path did not.
+    /// Zero retries so the abort, not a lucky retry, is what makes it succeed.
+    #[tokio::test]
+    async fn try_park_with_retry_stops_the_slew_before_parking() {
+        let ops_concrete = Arc::new(FlakyParkOps::slewing());
+        let ops: SharedDeviceOps = ops_concrete.clone();
+        let result = try_park_with_retry(&ops, "mount-1", 0, 0.0).await;
+        assert!(
+            result.success,
+            "a mount that refuses a park while slewing was left unparked by the \
+             safety-park path: {:?}",
+            result.last_error
+        );
+        assert_eq!(result.attempts_made, 1);
     }
 }
 

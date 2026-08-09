@@ -339,9 +339,16 @@ const List<InterpolationVariable> interpolationCatalog = [
 /// Returns the rendered string. Unknown variables render as
 /// `${name?}` so the user can spot a typo in the picker before the
 /// sequence runs.
-String previewInterpolation(String template) {
+/// [catalog] defaults to the sequencer's expression catalog. A surface with a
+/// different vocabulary (the live-stacking watermark, whose tokens are a flat
+/// map owned by the broadcast service) passes its own, so the preview shows
+/// what that surface will actually render rather than a sequencer example.
+String previewInterpolation(
+  String template, {
+  List<InterpolationVariable> catalog = interpolationCatalog,
+}) {
   // Map from name → example for O(1) lookup.
-  final byName = {for (final v in interpolationCatalog) v.name: v};
+  final byName = {for (final v in catalog) v.name: v};
   final buf = StringBuffer();
   var i = 0;
   while (i < template.length) {

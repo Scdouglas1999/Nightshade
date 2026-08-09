@@ -16,26 +16,25 @@ final opticalTrainDiagnosticsServiceProvider =
       return const OpticalTrainDiagnosticsService();
     });
 
-/// Reactive PSF field tiles stream for a given session.
-final psfTilesForSessionProvider = StreamProvider.autoDispose
-    .family<List<PsfFieldTileRow>, int>((ref, sessionId) {
-      return _watchScienceRows(ref, sessionPsfTilesProvider(sessionId));
-    });
+// These forward the source AsyncValue rather than re-wrapping the source's
+// `.stream`. `.stream` replays nothing: it only forwards events emitted AFTER
+// the listener attaches. If anything else in the app (the Science tab) had
+// already subscribed to sessionPsfTilesProvider(id) and the query had emitted
+// its one value, the re-wrapped provider never received it and stayed
+// `isLoading` forever — so Diagnostics showed skeletons indefinitely for
+// exactly the session the operator had just been looking at, and only that one.
 
-/// Reactive astrometry residual vectors stream for a given session.
-final residualVectorsForSessionProvider = StreamProvider.autoDispose
-    .family<List<AstrometryResidualVectorRow>, int>((ref, sessionId) {
-      return _watchScienceRows(ref, sessionResidualVectorsProvider(sessionId));
-    });
+/// Reactive PSF field tiles for a given session.
+final psfTilesForSessionProvider = Provider.autoDispose
+    .family<AsyncValue<List<PsfFieldTileRow>>, int>(
+      (ref, sessionId) => ref.watch(sessionPsfTilesProvider(sessionId)),
+    );
 
-Stream<List<T>> _watchScienceRows<T>(
-  Ref ref,
-  StreamProvider<List<T>> provider,
-) {
-  // Riverpod 2.x exposes no other lossless StreamProvider composition API.
-  // ignore: deprecated_member_use
-  return ref.watch(provider.stream);
-}
+/// Reactive astrometry residual vectors for a given session.
+final residualVectorsForSessionProvider = Provider.autoDispose
+    .family<AsyncValue<List<AstrometryResidualVectorRow>>, int>(
+      (ref, sessionId) => ref.watch(sessionResidualVectorsProvider(sessionId)),
+    );
 
 /// Reactive optical train diagnostics for a given session.
 ///

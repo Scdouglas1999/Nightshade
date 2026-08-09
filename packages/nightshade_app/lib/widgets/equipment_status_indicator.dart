@@ -30,8 +30,12 @@ class EquipmentStatusIndicator extends ConsumerWidget {
     final guiderState = ref.watch(guiderStateProvider);
     final rotatorState = ref.watch(rotatorStateProvider);
 
-    // Count connected devices
-    final connectedCount = _countConnectedDevices(
+    // Don't show if no profile
+    if (activeProfile == null) {
+      return const SizedBox.shrink();
+    }
+
+    final counts = _countDevices(
       activeProfile,
       cameraState,
       mountState,
@@ -40,15 +44,9 @@ class EquipmentStatusIndicator extends ConsumerWidget {
       guiderState,
       rotatorState,
     );
-    final totalInProfile = _countDevicesInProfile(activeProfile);
-
-    // Don't show if no profile
-    if (activeProfile == null) {
-      return const SizedBox.shrink();
-    }
 
     return PopupMenuButton<String>(
-      tooltip: 'Equipment status',
+      tooltip: counts.tooltip,
       offset: const Offset(0, -200),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
@@ -58,8 +56,7 @@ class EquipmentStatusIndicator extends ConsumerWidget {
       child: _CompactStatus(
         profileIcon: activeProfile.profileIcon ?? '🔭',
         profileName: activeProfile.name,
-        connectedCount: connectedCount,
-        totalCount: totalInProfile,
+        counts: counts,
         colors: colors,
       ),
       itemBuilder: (context) => _buildDropdownItems(
@@ -72,24 +69,28 @@ class EquipmentStatusIndicator extends ConsumerWidget {
         filterWheelState,
         guiderState,
         rotatorState,
-        connectedCount,
-        totalInProfile,
+        counts,
         colors,
       ),
       onSelected: (value) => _handleMenuSelection(context, ref, value),
     );
   }
 
-  /// How many of the ACTIVE PROFILE's devices are connected.
+  /// Split the live device states into "what the profile expects" and "what is
+  /// actually attached".
   ///
-  /// The denominator is the profile's device count, so the numerator has to be
-  /// scoped the same way. Counting every connected device instead let a
-  /// connection made outside the profile push the numerator past the
-  /// denominator — the status bar read "4/2" after connecting a weather device
-  /// and a safety monitor on a two-device profile, which reads as a broken
-  /// counter rather than as "two extra devices are attached".
-  int _countConnectedDevices(
-    EquipmentProfileModel? profile,
+  /// Both numbers are needed because the chip has two jobs. The ratio answers
+  /// "is my rig fully up?", so its numerator must stay scoped to the profile —
+  /// counting every connection there once produced "4/2" on a two-device
+  /// profile, which reads as a broken counter rather than as "two extra devices
+  /// are attached". But scoping the ONLY count that way made a session-only
+  /// connection invisible: the app's own discovery flow offers "This session
+  /// only — not saved to your profile", and four devices connected that way
+  /// left the shell reading "0/0 — No devices configured" while they streamed.
+  /// So session-only connections are counted separately and reported, never
+  /// folded into the ratio and never dropped.
+  _EquipmentCounts _countDevices(
+    EquipmentProfileModel profile,
     CameraStateSnapshot camera,
     MountState mount,
     FocuserState focuser,
@@ -97,30 +98,32 @@ class EquipmentStatusIndicator extends ConsumerWidget {
     GuiderState guider,
     RotatorState rotator,
   ) {
-    if (profile == null) return 0;
-    bool counts(String? profileDeviceId, DeviceConnectionState state) =>
-        profileDeviceId != null && state == DeviceConnectionState.connected;
+    var assignedConnected = 0;
+    var assignedTotal = 0;
+    var sessionOnlyConnected = 0;
 
-    int count = 0;
-    if (counts(profile.cameraId, camera.connectionState)) count++;
-    if (counts(profile.mountId, mount.connectionState)) count++;
-    if (counts(profile.focuserId, focuser.connectionState)) count++;
-    if (counts(profile.filterWheelId, filterWheel.connectionState)) count++;
-    if (counts(profile.guiderId, guider.connectionState)) count++;
-    if (counts(profile.rotatorId, rotator.connectionState)) count++;
-    return count;
-  }
+    void tally(String? profileDeviceId, DeviceConnectionState state) {
+      final isConnected = state == DeviceConnectionState.connected;
+      if (profileDeviceId != null) {
+        assignedTotal++;
+        if (isConnected) assignedConnected++;
+      } else if (isConnected) {
+        sessionOnlyConnected++;
+      }
+    }
 
-  int _countDevicesInProfile(EquipmentProfileModel? profile) {
-    if (profile == null) return 0;
-    int count = 0;
-    if (profile.cameraId != null) count++;
-    if (profile.mountId != null) count++;
-    if (profile.focuserId != null) count++;
-    if (profile.filterWheelId != null) count++;
-    if (profile.guiderId != null) count++;
-    if (profile.rotatorId != null) count++;
-    return count;
+    tally(profile.cameraId, camera.connectionState);
+    tally(profile.mountId, mount.connectionState);
+    tally(profile.focuserId, focuser.connectionState);
+    tally(profile.filterWheelId, filterWheel.connectionState);
+    tally(profile.guiderId, guider.connectionState);
+    tally(profile.rotatorId, rotator.connectionState);
+
+    return _EquipmentCounts(
+      assignedConnected: assignedConnected,
+      assignedTotal: assignedTotal,
+      sessionOnlyConnected: sessionOnlyConnected,
+    );
   }
 
   List<PopupMenuEntry<String>> _buildDropdownItems(
@@ -133,8 +136,7 @@ class EquipmentStatusIndicator extends ConsumerWidget {
     FilterWheelState filterWheelState,
     GuiderState guiderState,
     RotatorState rotatorState,
-    int connectedCount,
-    int totalCount,
+    _EquipmentCounts counts,
     NightshadeColors colors,
   ) {
     final items = <PopupMenuEntry<String>>[];
@@ -147,8 +149,7 @@ class EquipmentStatusIndicator extends ConsumerWidget {
         child: _DropdownHeader(
           profileName: activeProfile.name,
           profileIcon: activeProfile.profileIcon ?? '🔭',
-          connectedCount: connectedCount,
-          totalCount: totalCount,
+          counts: counts,
           colors: colors,
         ),
       ),
@@ -156,15 +157,10 @@ class EquipmentStatusIndicator extends ConsumerWidget {
 
     items.add(PopupMenuDivider(color: colors.border));
 
-    // Device rows for connected devices (only show if connected or configured in profile)
-    final hasAnyDevice = activeProfile.cameraId != null ||
-        activeProfile.mountId != null ||
-        activeProfile.focuserId != null ||
-        activeProfile.filterWheelId != null ||
-        activeProfile.guiderId != null ||
-        activeProfile.rotatorId != null;
-
-    if (!hasAnyDevice && connectedCount == 0) {
+    // "No devices configured" is only true when the profile assigns nothing AND
+    // nothing is attached. With anything connected the per-device rows below
+    // describe it, including devices the profile has never heard of.
+    if (counts.assignedTotal == 0 && counts.totalConnected == 0) {
       items.add(
         PopupMenuItem<String>(
           enabled: false,
@@ -322,19 +318,33 @@ class EquipmentStatusIndicator extends ConsumerWidget {
     items.add(PopupMenuDivider(color: colors.border));
 
     // Action buttons
+    //
+    // Enablement is read off the SAME target list the sweep walks, not off
+    // `counts`: the chip only tallies the six slots the profile can assign,
+    // while runEquipmentDisconnectAll also covers dome, weather, safety
+    // monitor, switch and cover calibrator. Gating on the chip counts would
+    // grey the item out while a connected dome still needed disconnecting.
+    final canDisconnect = equipmentDisconnectTargets(ref).any(
+      (target) => !equipmentDisconnectShouldSkip(target.connectionState),
+    );
     items.add(
       PopupMenuItem<String>(
         value: 'disconnect',
+        enabled: canDisconnect,
         height: 40,
         child: Row(
           children: [
-            Icon(LucideIcons.unplug, size: 16, color: colors.textSecondary),
+            Icon(
+              LucideIcons.unplug,
+              size: 16,
+              color: canDisconnect ? colors.textSecondary : colors.textMuted,
+            ),
             const SizedBox(width: 8),
             Text(
               'Disconnect All',
               style: TextStyle(
                 fontSize: 13,
-                color: colors.textPrimary,
+                color: canDisconnect ? colors.textPrimary : colors.textMuted,
               ),
             ),
           ],
@@ -468,39 +478,85 @@ class EquipmentStatusIndicator extends ConsumerWidget {
   }
 }
 
+/// Live equipment counts behind the shell chip.
+///
+/// See [EquipmentStatusIndicator._countDevices] for why the profile ratio and
+/// the session-only count are kept apart.
+class _EquipmentCounts {
+  /// Profile-assigned slots whose device is connected — the ratio numerator.
+  final int assignedConnected;
+
+  /// Slots the active profile assigns a device to — the ratio denominator.
+  final int assignedTotal;
+
+  /// Connected devices in slots the profile does NOT assign. The profile ratio
+  /// has no room for these, so they are reported separately instead of being
+  /// dropped.
+  final int sessionOnlyConnected;
+
+  const _EquipmentCounts({
+    required this.assignedConnected,
+    required this.assignedTotal,
+    required this.sessionOnlyConnected,
+  });
+
+  /// Everything that is actually attached right now.
+  int get totalConnected => assignedConnected + sessionOnlyConnected;
+
+  /// What the chip reads.
+  ///
+  /// With nothing assigned the ratio is meaningless ("0/0" while four devices
+  /// stream), so state the live count instead. With assignments the ratio is
+  /// what the operator wants, plus an explicit "+n" for anything attached that
+  /// the profile does not know about.
+  String get label {
+    if (assignedTotal == 0) return '$totalConnected connected';
+    if (sessionOnlyConnected > 0) {
+      return '$assignedConnected/$assignedTotal +$sessionOnlyConnected';
+    }
+    return '$assignedConnected/$assignedTotal';
+  }
+
+  /// Long-form of [label] for the hover tooltip, which has room to say what the
+  /// "+n" means.
+  String get tooltip {
+    final parts = <String>['$totalConnected connected'];
+    if (assignedTotal > 0) {
+      parts.add('$assignedConnected of $assignedTotal in this profile');
+    }
+    if (sessionOnlyConnected > 0) {
+      parts.add('$sessionOnlyConnected not saved to this profile');
+    }
+    return 'Equipment status — ${parts.join(' · ')}';
+  }
+
+  /// Muted when nothing is attached, success when the profile is fully up (a
+  /// profile that assigns nothing is "fully up" as soon as anything connects),
+  /// warning when some assigned device is still missing.
+  Color statusColor(NightshadeColors colors) {
+    if (totalConnected == 0) return colors.textMuted;
+    if (assignedConnected == assignedTotal) return colors.success;
+    return colors.warning;
+  }
+}
+
 /// Compact status display for the status bar
 class _CompactStatus extends StatelessWidget {
   final String profileIcon;
   final String profileName;
-  final int connectedCount;
-  final int totalCount;
+  final _EquipmentCounts counts;
   final NightshadeColors colors;
 
   const _CompactStatus({
     required this.profileIcon,
     required this.profileName,
-    required this.connectedCount,
-    required this.totalCount,
+    required this.counts,
     required this.colors,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Determine status color based on connection state
-    final Color statusColor;
-    if (totalCount == 0) {
-      // No devices configured
-      statusColor = colors.textMuted;
-    } else if (connectedCount == totalCount) {
-      // All devices connected
-      statusColor = colors.success;
-    } else if (connectedCount > 0) {
-      // Some devices connected
-      statusColor = colors.warning;
-    } else {
-      // No devices connected
-      statusColor = colors.textMuted;
-    }
+    final statusColor = counts.statusColor(colors);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -535,7 +591,7 @@ class _CompactStatus extends StatelessWidget {
           ),
           const SizedBox(width: 4),
           Text(
-            '$connectedCount/$totalCount',
+            counts.label,
             style: TextStyle(
               fontSize: 11,
               color: statusColor,
@@ -553,30 +609,19 @@ class _CompactStatus extends StatelessWidget {
 class _DropdownHeader extends StatelessWidget {
   final String profileName;
   final String profileIcon;
-  final int connectedCount;
-  final int totalCount;
+  final _EquipmentCounts counts;
   final NightshadeColors colors;
 
   const _DropdownHeader({
     required this.profileName,
     required this.profileIcon,
-    required this.connectedCount,
-    required this.totalCount,
+    required this.counts,
     required this.colors,
   });
 
   @override
   Widget build(BuildContext context) {
-    final Color statusColor;
-    if (totalCount == 0) {
-      statusColor = colors.textMuted;
-    } else if (connectedCount == totalCount) {
-      statusColor = colors.success;
-    } else if (connectedCount > 0) {
-      statusColor = colors.warning;
-    } else {
-      statusColor = colors.textMuted;
-    }
+    final statusColor = counts.statusColor(colors);
 
     return Row(
       children: [
@@ -606,7 +651,7 @@ class _DropdownHeader extends StatelessWidget {
         ),
         const SizedBox(width: 6),
         Text(
-          '$connectedCount/$totalCount',
+          counts.label,
           style: TextStyle(
             fontSize: 13,
             color: statusColor,

@@ -19,6 +19,7 @@ import 'package:drift/native.dart';
 import 'package:nightshade_app/services/push_delivery_targets_provider.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 /// A container whose backend is the local host (FFI), not the default
 /// [DisconnectedBackend] — the host branch of the provider is only reachable
@@ -191,6 +192,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith(_HostBackendNotifier.new),
           pushPairingDatabaseProvider.overrideWithValue(database),
           hostCloudPushConfiguredProvider.overrideWith((ref) async => true),
@@ -211,6 +213,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith(_HostBackendNotifier.new),
           pushPairingDatabaseProvider.overrideWithValue(database),
           hostCloudPushConfiguredProvider.overrideWith((ref) async => true),

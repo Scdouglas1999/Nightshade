@@ -38,7 +38,11 @@ import '../../../models/science/science_models.dart'
     show LightCurvePoint, MovingObjectCandidate, TransparencyTrendPoint;
 import '../../../providers/autofocus_progress_provider.dart';
 import '../../../providers/database_provider.dart';
-import '../../../providers/equipment_provider.dart' show weatherStateProvider;
+import '../../../models/equipment/equipment_models.dart'
+    show DeviceConnectionState;
+import '../../../models/imaging/imaging_models.dart' show ImageStats;
+import '../../../providers/equipment_provider.dart'
+    show focuserStateProvider, weatherStateProvider;
 import '../../../providers/guiding_provider.dart' show guideStatsProvider;
 import '../../../providers/narrator_provider.dart'
     show sessionFilterIntegrationProvider, sessionImagesStreamProvider;
@@ -112,6 +116,11 @@ class NarratorService {
   // Latest per-frame FWHM from `lastImageStatsProvider` (not persisted on the
   // image row), stamped onto the next image-stats entry derived from the stream.
   double? _pendingFwhm;
+  // Sessionless only: the last `ImageStats` object already ingested. Compared by
+  // IDENTITY, not equality — `lastImageStatsProvider` hands out a fresh object
+  // per frame, so identity never drops a genuine frame, whereas two frames of
+  // the same target can legitimately measure equal and would be swallowed.
+  ImageStats? _lastSessionlessStats;
   // Latest period-analysis result already announced, to avoid re-feeding.
   PeriodAnalysisResult? _lastPeriodResult;
 
@@ -169,6 +178,14 @@ class NarratorService {
     _bindAutofocus();
     _bindLastImageStats();
     _bindPeriodAnalysis();
+    // Science stage results are not session-scoped — the provider is a plain
+    // global — but this listener used to sit below the early return, so a
+    // hand-driven night never heard about a completed stage.
+    _subs.add(
+      _ref.listen(scienceProcessingLatestStageProvider, (_, next) {
+        _onStageResult(next);
+      }, fireImmediately: false),
+    );
 
     if (_sessionId == null) {
       // Sessionless captures still get the per-frame pushed detectors and the
@@ -230,11 +247,6 @@ class NarratorService {
     _subs.add(
       _ref.listen(sessionFilterIntegrationProvider(sessionId), (_, __) {
         _onUpdate();
-      }, fireImmediately: false),
-    );
-    _subs.add(
-      _ref.listen(scienceProcessingLatestStageProvider, (_, next) {
-        _onStageResult(next);
       }, fireImmediately: false),
     );
   }
@@ -336,8 +348,67 @@ class NarratorService {
         if (fwhm != null && fwhm.isFinite && fwhm > 0) {
           _pendingFwhm = fwhm;
         }
+        if (_sessionId == null) _ingestSessionlessStats(next);
       }, fireImmediately: true),
     );
+  }
+
+  /// Turn a hand-driven frame into a narrator image-stats sample.
+  ///
+  /// Without this the sessionless bucket has no producer at all. `_imageStats`,
+  /// and therefore every quality, focus-drift and milestone detector, is filled
+  /// only by [_onImagesChanged], which hangs off `sessionImagesStreamProvider`
+  /// and so is never bound when there is no DB session. The strip was pointed at
+  /// the sessionless feed and the feed stayed empty: an operator shooting by
+  /// hand for an hour saw nothing, which is exactly the complaint.
+  ///
+  /// `_pendingFwhm` is deliberately left alone here. It is consumed by
+  /// [_onImagesChanged] to stamp a FWHM onto the newest row of the session
+  /// stream; sessionless there is no such row, and the FWHM is already on the
+  /// sample being built below.
+  void _ingestSessionlessStats(ImageStats? stats) {
+    if (_disposed || stats == null) return;
+    if (identical(stats, _lastSessionlessStats)) return;
+    _lastSessionlessStats = stats;
+
+    final hfr = stats.hfr;
+    final fwhm = stats.fwhm;
+    final starCount = stats.starCount;
+    // A frame that measured nothing says nothing. Pushing an all-null sample
+    // would pad the queue and let a detector average over holes.
+    if (hfr == null && fwhm == null && starCount == null) return;
+
+    _push(
+      _imageStats,
+      NarratorImageStats(
+        // The frame has just been analysed, so "now" is its capture time to
+        // within the analysis latency. There is no captured_images row to read
+        // a truer one from — that is what makes this the sessionless path.
+        timestamp: DateTime.now(),
+        hfr: hfr,
+        fwhm: fwhm,
+        starCount: starCount,
+        focuserTempC: _focuserTempC(),
+      ),
+      _kImageStatsCap,
+    );
+    _onUpdate();
+  }
+
+  /// Focuser temperature for a sessionless sample, or null when no focuser is
+  /// connected or it does not report one. Never a fabricated value: FocusDrift
+  /// correlates HFR against this, and a substituted ambient reading would let it
+  /// announce a drift that did not happen.
+  double? _focuserTempC() {
+    try {
+      final focuser = _ref.read(focuserStateProvider);
+      if (focuser.connectionState != DeviceConnectionState.connected) {
+        return null;
+      }
+      return focuser.temperature;
+    } catch (_) {
+      return null;
+    }
   }
 
   void _bindPeriodAnalysis() {

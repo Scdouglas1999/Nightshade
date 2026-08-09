@@ -8,14 +8,16 @@ import '../models/imaging/auto_stretch_settings.dart';
 import 'backend_provider.dart';
 import 'database_provider.dart';
 import 'profiles_provider.dart';
-import 'session_optimizer_provider.dart';
 import 'session_provider.dart';
 import 'settings_provider.dart';
 
 /// Current exposure settings
 final exposureSettingsProvider = StateProvider<ExposureSettings>((ref) {
   return const ExposureSettings(
-    exposureTime: 120,
+    // A snapshot is an operator probe, not a deep-sky integration. Keep the
+    // cold-start value short enough that an accidental click cannot waste a
+    // night; the user's last settings are restored per equipment profile.
+    exposureTime: 2,
     gain: 100,
     offset: 50,
     binningX: 1,
@@ -24,81 +26,172 @@ final exposureSettingsProvider = StateProvider<ExposureSettings>((ref) {
   );
 });
 
-/// Set true the moment the user manually edits exposure/gain/offset; gates all
-/// auto-seeding.
-///
-/// Once the user touches an exposure control, neither the active equipment
-/// profile's gain/offset defaults nor the Smart Night recommended exposure may
-/// overwrite their values. The flag is flipped to `true` by the camera capture
-/// panel and the camera-preset selector; this provider only declares
-/// the state and is read here to gate seeding. It deliberately replaces the old
-/// `exposureTime == 120` heuristic, which silently re-seeded whenever a user
-/// genuinely wanted a 120 s light frame.
+/// Compatibility flag used by the existing camera controls. The profile key and
+/// revision providers below carry the information needed by persistence.
 final exposureSettingsUserDirtyProvider = StateProvider<bool>((ref) => false);
 
-/// Tracks the profile ID whose defaults were last applied to exposure settings.
-/// This prevents re-applying defaults when navigating back to the imaging screen
-/// while still allowing a profile switch to re-initialize the controls.
-final _lastAppliedProfileIdProvider = StateProvider<int?>((ref) => null);
-final _lastAppliedSmartExposureProfileIdProvider = StateProvider<int?>(
-  (ref) => null,
+final _manualExposureRevisionProvider = StateProvider<int>((ref) => 0);
+final _exposureWriteTailProvider = StateProvider<Future<void>>(
+  (ref) => Future<void>.value(),
 );
+
+String _exposureProfileKey(EquipmentProfileModel profile) =>
+    profile.id?.toString() ?? profile.name;
+
+/// Update a manual snapshot setting and persist it for the active equipment
+/// profile. Hydration uses the provider state directly, so it cannot enqueue a
+/// write or overwrite a newer manual edit.
+void updateManualExposureSettings(Ref ref, ExposureSettings settings) {
+  final profile = ref.read(activeEquipmentProfileProvider);
+  ref.read(exposureSettingsUserDirtyProvider.notifier).state = true;
+  ref.read(_manualExposureRevisionProvider.notifier).state++;
+  ref.read(exposureSettingsProvider.notifier).state = settings;
+  if (profile == null) return;
+
+  final key =
+      'imaging_capture_settings_profile_${_exposureProfileKey(profile)}';
+  final json = jsonEncode(_exposureSettingsToJson(settings));
+  Future<void> save() async {
+    try {
+      await ref.read(settingsDaoProvider).setSetting(key, json);
+    } catch (error, stack) {
+      developer.log(
+        'Failed to save manual capture settings: $error',
+        name: 'ImagingSettings',
+        level: 1000,
+        error: error,
+        stackTrace: stack,
+      );
+    }
+  }
+
+  final previous = ref.read(_exposureWriteTailProvider);
+  final recovered = previous.then<void>((_) {}, onError: (_, __) {});
+  final next = recovered.then<void>((_) => save());
+  ref.read(_exposureWriteTailProvider.notifier).state = next;
+}
+
+/// Façade for callers that own a provider container/ref.
+final manualExposureSettingsUpdaterProvider =
+    Provider<ManualExposureSettingsUpdater>((ref) {
+      return ManualExposureSettingsUpdater(ref);
+    });
+
+class ManualExposureSettingsUpdater {
+  final Ref _ref;
+
+  const ManualExposureSettingsUpdater(this._ref);
+
+  void update(ExposureSettings settings) =>
+      updateManualExposureSettings(_ref, settings);
+}
 
 /// Call this provider from the imaging screen's initState/build to ensure
 /// snapshot controls are initialized from the active equipment profile.
 ///
-/// On first call (or when the active profile changes), this reads the profile's
-/// defaultGain, defaultOffset, and defaultBinX/Y and pushes them into
-/// [exposureSettingsProvider]. Subsequent calls with the same profile are no-ops,
-/// so manual user edits are preserved.
+/// On first call (or when the active profile changes), this restores the
+/// profile's last manual snapshot settings. New profiles receive camera
+/// defaults for gain/offset/binning. Smart Night recommendations are applied by
+/// sequencing, never by the manual imaging screen.
 final syncExposureFromProfileProvider = Provider<void>((ref) {
   final profile = ref.watch(activeEquipmentProfileProvider);
   if (profile == null) return;
 
-  final exposureContext = ref
-      .watch(smartNightExposureContextProvider)
-      .valueOrNull;
-
   var disposed = false;
+  String? loadedProfileKey;
+  var loadInFlight = false;
   ref.onDispose(() => disposed = true);
 
   Future<void>.microtask(() {
-    if (disposed) return;
+    final profileKey = profile.id?.toString() ?? profile.name;
+    if (disposed || loadInFlight || loadedProfileKey == profileKey) return;
+    loadInFlight = true;
 
-    // Once the user has manually edited any exposure control, no auto-seeding
-    // (profile defaults or Smart Night) may overwrite their values.
-    final userDirty = ref.read(exposureSettingsUserDirtyProvider);
+    final revisionAtStart = ref.read(_manualExposureRevisionProvider);
+    () async {
+      final dao = ref.read(settingsDaoProvider);
+      final key = 'imaging_capture_settings_profile_$profileKey';
+      ExposureSettings? saved;
+      try {
+        final value = await dao.getSetting(key);
+        if (value != null && value.isNotEmpty) {
+          saved = _exposureSettingsFromJson(jsonDecode(value));
+        }
+      } catch (_) {
+        saved = null;
+      }
+      final currentProfile = ref.read(activeEquipmentProfileProvider);
+      if (disposed ||
+          currentProfile == null ||
+          _exposureProfileKey(currentProfile) != profileKey) {
+        return;
+      }
+      loadedProfileKey = profileKey;
+      loadInFlight = false;
+      // A manual edit completed while the DAO was reading. Its value is
+      // newer than the stored snapshot and must win the race.
+      if (ref.read(_manualExposureRevisionProvider) != revisionAtStart) {
+        return;
+      }
+      if (disposed) return;
+      if (saved != null) {
+        ref.read(exposureSettingsProvider.notifier).state = saved;
+        return;
+      }
 
-    final profileId = profile.id;
-    final lastApplied = ref.read(_lastAppliedProfileIdProvider);
-    if (!userDirty && lastApplied != profileId) {
-      ref.read(_lastAppliedProfileIdProvider.notifier).state = profileId;
-
-      final current = ref.read(exposureSettingsProvider);
-      ref.read(exposureSettingsProvider.notifier).state = current.copyWith(
-        gain: profile.defaultGain ?? current.gain,
-        offset: profile.defaultOffset ?? current.offset,
+      ref.read(exposureSettingsProvider.notifier).state = ExposureSettings(
+        exposureTime: 2,
+        gain: profile.defaultGain ?? 100,
+        offset: profile.defaultOffset ?? 50,
         binningX: profile.defaultBinX,
         binningY: profile.defaultBinY,
+        frameType: FrameType.light,
       );
-    }
-
-    if (exposureContext == null) return;
-    if (userDirty) return;
-
-    final lastSmart = ref.read(_lastAppliedSmartExposureProfileIdProvider);
-    if (lastSmart == profileId) return;
-
-    final current = ref.read(exposureSettingsProvider);
-    if (current.frameType != FrameType.light) return;
-
-    ref.read(_lastAppliedSmartExposureProfileIdProvider.notifier).state =
-        profileId;
-    ref.read(exposureSettingsProvider.notifier).state = current.copyWith(
-      exposureTime: exposureContext.recommendForFilter(current.filter).seconds,
-    );
+    }();
   });
 });
+
+Map<String, dynamic> _exposureSettingsToJson(ExposureSettings settings) => {
+  'exposureTime': settings.exposureTime,
+  'gain': settings.gain,
+  'offset': settings.offset,
+  'binningX': settings.binningX,
+  'binningY': settings.binningY,
+  'filter': settings.filter,
+  'frameType': settings.frameType.name,
+  'fastReadout': settings.fastReadout,
+  'readoutModeIndex': settings.readoutModeIndex,
+};
+
+ExposureSettings? _exposureSettingsFromJson(dynamic value) {
+  if (value is! Map) return null;
+  final exposure = (value['exposureTime'] as num?)?.toDouble();
+  final gain = (value['gain'] as num?)?.toInt();
+  final offset = (value['offset'] as num?)?.toInt();
+  if (exposure == null ||
+      !exposure.isFinite ||
+      exposure <= 0 ||
+      gain == null ||
+      offset == null) {
+    return null;
+  }
+  final frameName = value['frameType'] as String?;
+  final frameType = FrameType.values.firstWhere(
+    (type) => type.name == frameName,
+    orElse: () => FrameType.light,
+  );
+  return ExposureSettings(
+    exposureTime: exposure,
+    gain: gain,
+    offset: offset,
+    binningX: (value['binningX'] as num?)?.toInt() ?? 1,
+    binningY: (value['binningY'] as num?)?.toInt() ?? 1,
+    filter: value['filter'] as String?,
+    frameType: frameType,
+    fastReadout: value['fastReadout'] as bool? ?? false,
+    readoutModeIndex: (value['readoutModeIndex'] as num?)?.toInt(),
+  );
+}
 
 /// Last captured image stats
 final lastImageStatsProvider = StateProvider<ImageStats?>((ref) => null);

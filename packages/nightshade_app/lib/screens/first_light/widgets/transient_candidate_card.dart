@@ -133,6 +133,8 @@ class _Header extends StatelessWidget {
         return LucideIcons.orbit;
       case TransientKind.dipole:
         return LucideIcons.circleDot;
+      case TransientKind.unknown:
+        return LucideIcons.helpCircle;
     }
   }
 }
@@ -242,6 +244,8 @@ class _MetricsRow extends StatelessWidget {
         return 'Moving streak';
       case TransientKind.dipole:
         return 'Dipole';
+      case TransientKind.unknown:
+        return 'Unclassified';
     }
   }
 }
@@ -376,13 +380,15 @@ class _ActionsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // A low-confidence dipole / unreviewed candidate must not one-tap a TNS
-    // "possible SN" false alarm. Submit is enabled only for a reviewed,
-    // non-dipole detection; otherwise it is disabled with a not-yet-confirmed
-    // warning so the user confirms first.
-    final isDipole =
-        TransientKind.fromWire(detection.kind) == TransientKind.dipole;
-    final canSubmit = detection.reviewed && !isDipole;
+    // A low-confidence artefact / unreviewed candidate must not one-tap a TNS
+    // "possible SN" false alarm. Submit is enabled only for a reviewed
+    // detection whose class is one the pipeline actually reports as a
+    // transient; otherwise it is disabled and says which of the two blockers
+    // applies. The refusal quotes the class's own reason, so an unrecognised
+    // token is never described to the user as a measured dipole.
+    final kind = TransientKind.fromWire(detection.kind);
+    final kindBlocker = kind.submissionBlockedReason;
+    final canSubmit = detection.reviewed && kindBlocker == null;
 
     final primary = Row(
       children: [
@@ -398,10 +404,8 @@ class _ActionsRow extends StatelessWidget {
                     ScaffoldMessenger.maybeOf(context)?.showSnackBar(
                       SnackBar(
                         content: Text(
-                          isDipole
-                              ? 'Dipole artefacts are not real transients — '
-                                  'they cannot be submitted.'
-                              : 'Not yet confirmed — mark this detection as '
+                          kindBlocker ??
+                              'Not yet confirmed — mark this detection as '
                                   'confirmed before submitting.',
                         ),
                       ),

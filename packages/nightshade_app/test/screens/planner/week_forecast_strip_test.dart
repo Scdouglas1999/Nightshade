@@ -26,6 +26,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_app/screens/planner/widgets/week_forecast_strip.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 /// Build an available night with the given clear/total dark hours and an
 /// optional up target so [NightForecast.score] is non-zero when desired.
@@ -60,6 +61,7 @@ NightForecast _night({
 Widget _harness(WeekForecast week) {
   return ProviderScope(
     overrides: [
+      inMemoryDatabaseOverride(),
       weekForecastProvider.overrideWith((ref) async => week),
     ],
     child: const MaterialApp(
@@ -82,6 +84,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           weekForecastProvider.overrideWith(
             (ref) => Future<WeekForecast>.error(
               StateError('forecast feed exploded'),
@@ -246,6 +249,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           weekForecastProvider.overrideWith((ref) async => week),
         ],
         child: MaterialApp(
@@ -272,5 +276,44 @@ void main() {
     expect(dotColors.contains(colors.error), isTrue);
     expect(dotColors.contains(colors.warning), isTrue);
     expect(dotColors.contains(colors.success), isTrue);
+  });
+
+  testWidgets(
+      'no project target up: nothing is starred, not the earliest clouded night',
+      (tester) async {
+    // A fresh profile with no project targets — every night scores 0 because
+    // NightForecast.score gates on bestTargets. The earliest night is also the
+    // WORST weather (0 clear hours) while a later one is nearly all clear. The
+    // strip must not recommend anything rather than star night one on the tie.
+    final week = WeekForecast(nights: [
+      _night(
+        dateLocal: DateTime(2026, 5, 30, 12),
+        darkHours: 6.2,
+        clearDarkHours: 0, // fully clouded, and first in the list
+        withTarget: false,
+      ),
+      _night(
+        dateLocal: DateTime(2026, 5, 31, 12),
+        darkHours: 6.4,
+        clearDarkHours: 5.0, // the genuinely good night
+        withTarget: false,
+      ),
+    ]);
+    await tester.pumpWidget(_harness(week));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(NightshadeCard), findsNWidgets(2));
+    expect(
+      find.byIcon(LucideIcons.star),
+      findsNothing,
+      reason: 'no night is imageable, so none of them is the "best night"',
+    );
+    final cards =
+        tester.widgetList<NightshadeCard>(find.byType(NightshadeCard)).toList();
+    expect(
+      cards.every((c) => c.isSelected == false),
+      isTrue,
+      reason: 'the selected-card accent must not mark a 0-score night either',
+    );
   });
 }

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/analytics/widgets/transient_report_panel.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 class _TestScienceSettingsNotifier extends ScienceSettingsNotifier {
   @override
@@ -64,6 +65,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           scienceSettingsProvider
               .overrideWith(_TestScienceSettingsNotifier.new),
           sessionFrameCalibrationsProvider.overrideWith(
@@ -107,6 +109,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           scienceSettingsProvider.overrideWith(
             _FailingScienceSettingsNotifier.new,
           ),

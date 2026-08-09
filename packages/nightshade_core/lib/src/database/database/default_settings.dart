@@ -9,7 +9,6 @@ const Map<String, String> _defaultSettings = {
   'sidebar_collapsed': 'false',
   'start_minimized': 'false',
   'auto_connect_equipment': 'true',
-  'auto_save_sequences': 'true',
   'confirm_before_closing': 'true',
   'auto_discover_on_launch': 'true',
   'observer_latitude': '0.0',
@@ -20,7 +19,10 @@ const Map<String, String> _defaultSettings = {
   'image_format': 'FITS',
   'file_naming_pattern': r'$TARGET_$FILTER_$DATE_$SEQ',
   'bit_depth': '16-bit',
-  'plate_solver': 'ASTAP',
+  // Projection of the native PlateSolverPreference, whose own default is
+  // Auto. Seeding 'ASTAP' here made every fresh profile's exported value
+  // disagree with the Plate Solving page from the very first launch.
+  'plate_solver': 'Auto',
   'astap_path': '',
   'astrometry_path': '',
   'plate_solve_timeout': '60',
@@ -52,7 +54,6 @@ const Map<String, String> _defaultSettings = {
   'use_simulation_mode': 'false',
   'web_server_enabled': 'false',
   'web_server_port': '8080',
-  'cooling_behavior': 'On Connect',
   'default_gain': '100',
   'default_offset': '50',
   'enable_meridian_flip': 'true',
@@ -127,4 +128,28 @@ const Map<String, String> _defaultSettings = {
   // Empty string = no active project; otherwise the stringified projects.id.
   // Seeded via INSERT ... ON CONFLICT DO NOTHING by _ensureDefaultSettings().
   'planning.active_project_id': '',
+};
+
+/// Keys that were seeded by an earlier build and no longer have an owner.
+///
+/// A retired key is worse than a missing one: nothing writes it, so it keeps
+/// its stale seed value forever — while `BackupService._exportSettings` dumps
+/// the whole `app_settings` table into every `.nsbackup`, and the settings
+/// snapshot serves it. `auto_save_sequences` shipped defaulting to `'true'`
+/// alongside `autosave.sequence_enabled` (default `false`), which is the key
+/// the Files & Storage toggle shows and the one `AutoSaveService` actually
+/// obeys, so every export claimed sequence auto-save was on while the app had
+/// it off. Deleting the row on open is what stops an already-created profile
+/// from carrying that contradiction forward.
+const Set<String> _retiredSettingKeys = {
+  // Removed 2026-08: duplicated `autosave.sequence_enabled` with no UI, no
+  // reader, and the opposite default.
+  'auto_save_sequences',
+  // Removed 2026-08: whether the cooler runs on connect is a PER-PROFILE
+  // decision (`equipment_profiles.cool_on_connect`, asked in the onboarding
+  // wizard and in Equipment > Edit Profile > Camera Defaults). This key had
+  // no UI, no setter caller and no reader that acted on it, yet it shipped
+  // seeded 'On Connect' — so every settings snapshot, .nsbackup and
+  // /api/settings payload announced automatic cooling the app never did.
+  'cooling_behavior',
 };

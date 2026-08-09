@@ -11,7 +11,10 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// raw latency/state streams. In local FFI mode it renders a quiet "Local"
 /// chip (no latency — nothing remote to measure); in a network session it shows
 /// the live link state, the host, and the WebSocket round-trip, color-graded by
-/// [ConnectionQuality.latencyGrade].
+/// [ConnectionQuality.latencyGrade]. With no backend installed at all
+/// ([ConnectionMode.none]) it says so in the error colour — this chip is the
+/// dashboard's answer to "where are my commands going", so it may not read
+/// "Local" for a machine that is driving nothing.
 class ConnectionQualityChip extends ConsumerWidget {
   final NightshadeColors colors;
 
@@ -91,6 +94,10 @@ class ConnectionQualityChip extends ConsumerWidget {
   }
 
   String _label(ConnectionQuality q) {
+    // Named, not folded into "Offline": there is no session to be offline
+    // from. The app has no backend, and Settings → Connection is where the
+    // operator gets one back (either a server or "Work Locally").
+    if (q.mode == ConnectionMode.none) return 'No backend';
     if (q.mode == ConnectionMode.local) return 'Local';
     switch (q.liveness) {
       case ConnectionLiveness.connected:
@@ -109,6 +116,7 @@ class ConnectionQualityChip extends ConsumerWidget {
   }
 
   IconData _icon(ConnectionQuality q) {
+    if (q.mode == ConnectionMode.none) return LucideIcons.serverOff;
     if (q.mode == ConnectionMode.local) return LucideIcons.monitor;
     switch (q.liveness) {
       case ConnectionLiveness.connected:
@@ -126,6 +134,7 @@ class ConnectionQualityChip extends ConsumerWidget {
   }
 
   Color _color(ConnectionQuality q) {
+    if (q.mode == ConnectionMode.none) return colors.error;
     if (q.mode == ConnectionMode.local) return colors.textSecondary;
     switch (q.liveness) {
       case ConnectionLiveness.connected:

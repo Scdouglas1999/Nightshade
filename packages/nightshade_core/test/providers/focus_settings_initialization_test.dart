@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/models/imaging/imaging_models.dart';
 import 'package:nightshade_core/src/providers/imaging_provider.dart';
 import 'package:nightshade_core/src/providers/settings_provider.dart';
+import '../harness/in_memory_database.dart';
 
 class _DelayedAppSettingsNotifier extends AppSettingsNotifier {
   _DelayedAppSettingsNotifier(this.result);
@@ -30,6 +31,7 @@ void main() {
       final completer = Completer<AppSettingsState>();
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           appSettingsProvider.overrideWith(
             () => _DelayedAppSettingsNotifier(completer.future),
           ),
@@ -60,6 +62,7 @@ void main() {
     final completer = Completer<AppSettingsState>();
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         appSettingsProvider.overrideWith(
           () => _DelayedAppSettingsNotifier(completer.future),
         ),

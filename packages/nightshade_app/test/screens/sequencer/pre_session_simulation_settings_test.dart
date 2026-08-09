@@ -7,6 +7,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart'
     as planetarium;
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 class _FakeValidator implements SequenceValidatorService {
   @override
@@ -94,6 +95,13 @@ void main() {
   test('timeline simulation uses the configured effective horizon', () async {
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
+        // The overhead model these surfaces bill against. Overridden so the
+        // simulation does not reach through SequencerDefaultsNotifier into the
+        // settings DAO, which has no path_provider under flutter_test.
+        sequencerOverheadConfigProvider.overrideWithValue(
+          const SequenceOverheadConfig(),
+        ),
         currentSequenceProvider.overrideWith(_SeedingNotifier.new),
         appSettingsProvider.overrideWith(_FakeSettingsNotifier.new),
       ],
@@ -116,6 +124,13 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
+          // The overhead model these surfaces bill against. Overridden so the
+          // simulation does not reach through SequencerDefaultsNotifier into the
+          // settings DAO, which has no path_provider under flutter_test.
+          sequencerOverheadConfigProvider.overrideWithValue(
+            const SequenceOverheadConfig(),
+          ),
           currentSequenceProvider.overrideWith(_SeedingNotifier.new),
           appSettingsProvider.overrideWith(_FakeSettingsNotifier.new),
           sequenceValidatorProvider.overrideWith((ref) => _FakeValidator()),
@@ -138,6 +153,13 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
+          // The overhead model these surfaces bill against. Overridden so the
+          // simulation does not reach through SequencerDefaultsNotifier into the
+          // settings DAO, which has no path_provider under flutter_test.
+          sequencerOverheadConfigProvider.overrideWithValue(
+            const SequenceOverheadConfig(),
+          ),
           currentSequenceProvider.overrideWith(_SeedingNotifier.new),
           appSettingsProvider.overrideWith(_FakeSettingsNotifier.new),
         ],
@@ -162,6 +184,13 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
+          // The overhead model these surfaces bill against. Overridden so the
+          // simulation does not reach through SequencerDefaultsNotifier into the
+          // settings DAO, which has no path_provider under flutter_test.
+          sequencerOverheadConfigProvider.overrideWithValue(
+            const SequenceOverheadConfig(),
+          ),
           currentSequenceProvider.overrideWith(_SeedingNotifier.new),
           appSettingsProvider.overrideWith(_FakeSettingsNotifier.new),
           sequenceValidatorProvider.overrideWith((ref) => _FakeValidator()),
@@ -197,6 +226,13 @@ void main() {
     final dawn = DateTime.now().add(const Duration(minutes: 5));
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
+        // The overhead model these surfaces bill against. Overridden so the
+        // simulation does not reach through SequencerDefaultsNotifier into the
+        // settings DAO, which has no path_provider under flutter_test.
+        sequencerOverheadConfigProvider.overrideWithValue(
+          const SequenceOverheadConfig(),
+        ),
         currentSequenceProvider.overrideWith(
           (ref) => _CustomSequenceNotifier(ref, _longSequence()),
         ),
@@ -225,6 +261,13 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
+          // The overhead model these surfaces bill against. Overridden so the
+          // simulation does not reach through SequencerDefaultsNotifier into the
+          // settings DAO, which has no path_provider under flutter_test.
+          sequencerOverheadConfigProvider.overrideWithValue(
+            const SequenceOverheadConfig(),
+          ),
           currentSequenceProvider.overrideWith(
             (ref) => _CustomSequenceNotifier(ref, _longSequence()),
           ),

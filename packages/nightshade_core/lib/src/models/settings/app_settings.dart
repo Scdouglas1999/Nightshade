@@ -329,9 +329,6 @@ abstract class AppSettings with _$AppSettings {
     // model never injects a different value than local state.
     // -------------------------------------------------------------------
     // Equipment defaults (camera).
-    /// Cooling behaviour: 'On Connect' / 'Manual' / 'Never'. DB `cooling_behavior`.
-    @Default('On Connect') String coolingBehavior,
-
     /// Default camera gain. DB `default_gain`.
     @Default(100) int defaultGain,
 

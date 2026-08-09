@@ -236,24 +236,19 @@ class _ProfileListItemState extends State<_ProfileListItem> {
                         ),
                         if (widget.isActive) ...[
                           const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: NightshadeColors.of(context)
-                                  .primary
-                                  .withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(
-                                  NightshadeTokens.radiusInline4),
-                            ),
-                            child: Text(
-                              'Active',
-                              style: TextStyle(
-                                fontSize: NightshadeTypography.fontSize10,
-                                fontWeight: FontWeight.w600,
-                                color: NightshadeColors.of(context).primary,
-                              ),
-                            ),
+                          _ProfileBadge(
+                            label: 'Active',
+                            color: NightshadeColors.of(context).primary,
+                          ),
+                        ],
+                        // "Active" and "startup default" are different flags —
+                        // auto-connect reads the default, so the operator has
+                        // to be able to see which row that is.
+                        if (widget.profile.isDefault) ...[
+                          const SizedBox(width: 4),
+                          _ProfileBadge(
+                            label: 'Default',
+                            color: NightshadeColors.of(context).textSecondary,
                           ),
                         ],
                       ],
@@ -275,6 +270,32 @@ class _ProfileListItemState extends State<_ProfileListItem> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileBadge extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _ProfileBadge({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: NightshadeTypography.fontSize10,
+          fontWeight: FontWeight.w600,
+          color: color,
         ),
       ),
     );

@@ -264,14 +264,33 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
           '(need at least 4)');
     }
 
-    // Compute airmass from mount altitude or solved coordinates
-    double airmass = 1.0;
-    if (image.mountAltitude != null && image.mountAltitude! > 0) {
-      final altRad = image.mountAltitude! * math.pi / 180.0;
-      airmass = 1.0 /
-          (math.sin(altRad) +
-              0.50572 * math.pow(image.mountAltitude! + 6.07995, -1.6364));
-      airmass = airmass.clamp(1.0, 8.0);
+    // Airmass for this frame, from the product's one airmass model
+    // (nightshade_core .../services/science/airmass.dart) applied to the same
+    // recorded mount altitude the AAVSO exporter reads, so the extinction
+    // coefficient fitted here and the AMASS column of a submission built from
+    // these frames describe one atmosphere. (The FITS AIRMASS card of the same
+    // frame can still differ when the altitude was never recorded in the row —
+    // see the note on the exporter's AMASS block for the writer-side cause.)
+    //
+    // A frame whose altitude was never recorded is refused rather than
+    // assumed to be at the zenith: an invented X = 1.0 mixed in with real
+    // airmasses drags the extinction slope toward zero, and the wrong k then
+    // rides along in every magnitude the saved transform standardizes.
+    final recordedAltitudeDeg = image.mountAltitude;
+    final airmass = recordedAltitudeDeg == null
+        ? null
+        : airmassForTrueAltitude(recordedAltitudeDeg);
+    if (airmass == null) {
+      // No "capture it again with the mount connected" advice here: a frame
+      // can reach this state with the mount connected the whole time, because
+      // the altitude only lands in the row when the sequencer's execution
+      // context carried a site (see the same note in aavso_export_service).
+      // Advice that cannot fix the problem is worse than none.
+      throw StateError(
+        'Frame ${image.fileName} has no recorded above-horizon mount '
+        'altitude, so its airmass is unknown and it cannot contribute to an '
+        'extinction fit. Deselect it to fit on the remaining frames.',
+      );
     }
 
     // When the stored solve carries no pixel scale (older frames, or a

@@ -5,6 +5,8 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../framing/altitude_chart.dart';
 import 'notes_panel.dart';
+import '../plan_math.dart';
+import 'target_coordinates.dart';
 
 /// A rich card widget for displaying target header nodes in the sequencer.
 /// Shows coordinates, altitude chart, progress tracking, and mosaic panel info.
@@ -344,6 +346,11 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
   }
 
   Widget _buildCoordinatesRow(TargetHeaderNode node) {
+    // Printing the 0h/+0° placeholder as `00h 00m 00s` reads as a real
+    // pointing. Say "Not set" instead, in the same amber the card already
+    // uses for the target category, so an unaimed target is obvious in the
+    // tree without opening the properties panel.
+    final unset = targetCoordinatesUnset(node);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
@@ -357,16 +364,18 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
           // RA
           _CoordinateChip(
             label: 'RA',
-            value: _formatRA(node.raHours),
+            value: unset ? 'Not set' : _formatRA(node.raHours),
             colors: widget.colors,
+            isPlaceholder: unset,
           ),
           const SizedBox(width: 16),
 
           // Dec
           _CoordinateChip(
             label: 'Dec',
-            value: _formatDec(node.decDegrees),
+            value: unset ? 'Not set' : _formatDec(node.decDegrees),
             colors: widget.colors,
+            isPlaceholder: unset,
           ),
 
           // Rotation (if set)
@@ -491,7 +500,11 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
     final isActive = executionState == SequenceExecutionState.running ||
         executionState == SequenceExecutionState.paused ||
         executionState == SequenceExecutionState.stopping;
-    final showLiveBar = isActive && stats.hasPlannedFrames;
+    // A looped target has no derivable completion (the loop resets its
+    // children every pass), so fall back to the plan summary rather than
+    // render a ratio that hits 100% after the first of N passes.
+    final showLiveBar =
+        isActive && stats.hasPlannedFrames && stats.hasKnownCompletion;
 
     final currentNodeId = progress.currentNodeId;
     final currentNodeDetail = currentNodeId != null
@@ -513,15 +526,20 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
     // "No exposure nodes" just because the only imager is an open-ended loop.
     final String planLabel;
     if (plan.hasOpenEndedLoop) {
-      final loopPart = plan.loopBudgetSecs > 0
-          ? 'Looping • up to ${_formatDuration(plan.loopBudgetSecs)} (until window end)'
+      final loopPart = plan.openEndedBudgetSecs > 0
+          ? 'Looping • up to ${_formatDuration(plan.openEndedBudgetSecs)} (until window end)'
           : 'Looping until window end';
-      planLabel = plan.totalExposures > 0
-          ? '${plan.totalExposures} planned exposures + $loopPart'
+      planLabel = plan.frames > 0
+          ? '${plan.frames} planned exposures + $loopPart'
           : loopPart;
-    } else if (plan.totalExposures > 0) {
-      planLabel =
-          '${plan.totalExposures} planned exposures • ${_formatDuration(plan.totalIntegrationSecs)}';
+    } else if (plan.frames > 0) {
+      final counted =
+          '${plan.frames} planned exposures • ${_formatDuration(plan.integrationSecs)}';
+      // Under a time/altitude/forever loop the counted figure is one pass, not
+      // the night's total — say so rather than quoting a floor as the plan.
+      planLabel = plan.hasUnboundedRepeat
+          ? '$counted per pass • loop repeats until its stop condition'
+          : counted;
     } else {
       planLabel = 'No exposure nodes under this target';
     }
@@ -646,69 +664,17 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
     return '$hour:$minute';
   }
 
-  ({
-    int totalExposures,
-    double totalIntegrationSecs,
-    bool hasOpenEndedLoop,
-    double loopBudgetSecs,
-  }) _calculateTargetPlan(Sequence? sequence) {
-    if (sequence == null || !sequence.nodes.containsKey(widget.node.id)) {
-      return (
-        totalExposures: 0,
-        totalIntegrationSecs: 0.0,
-        hasOpenEndedLoop: false,
-        loopBudgetSecs: 0.0,
-      );
-    }
-
-    var totalExposures = 0;
-    var totalIntegrationSecs = 0.0;
-    // Loop-until-stopped SmartExposure nodes capture an unbounded number of
-    // subs (bounded by time/window, not by counts), so a fixed "N planned
-    // exposures" figure is meaningless for them. Track that separately so the
-    // label can say "looping" / "up to <budget>" instead of a misleading count.
-    var hasOpenEndedLoop = false;
-    var loopBudgetSecs = 0.0;
-    final visited = <String>{};
-
-    void visit(String nodeId) {
-      if (!visited.add(nodeId)) return;
-      final node = sequence.nodes[nodeId];
-      if (node == null) return;
-
-      if (node is ExposureNode) {
-        totalExposures += node.count;
-        totalIntegrationSecs += node.durationSecs * node.count;
-      } else if (node is SmartExposureNode) {
-        if (node.loopUntilStopped) {
-          // Open-ended: counts are ignored. Record the budget (if any) so the
-          // label can show "up to Xh"; don't fold a fake exposure count in.
-          hasOpenEndedLoop = true;
-          loopBudgetSecs += node.integrationBudgetSecs;
-        } else {
-          // Smart Exposure carries its captures in per-filter plans, not as
-          // standalone ExposureNodes — count them so an auto-built (Plan
-          // Tonight) sequence, whose imaging is a single SmartExposure node,
-          // no longer reports "No exposure nodes under this target".
-          for (final plan in node.plans) {
-            totalExposures += plan.count;
-          }
-          totalIntegrationSecs += node.totalIntegrationSecs;
-        }
-      }
-
-      for (final childId in node.childIds) {
-        visit(childId);
-      }
-    }
-
-    visit(widget.node.id);
-    return (
-      totalExposures: totalExposures,
-      totalIntegrationSecs: totalIntegrationSecs,
-      hasOpenEndedLoop: hasOpenEndedLoop,
-      loopBudgetSecs: loopBudgetSecs,
-    );
+  /// Count the frames and integration time planned under this target.
+  ///
+  /// Delegates to the shared [plannedCaptureUnder] walk so this card, the
+  /// library preview and the model's own `Sequence.totalExposures` can never
+  /// disagree again. It previously walked the subtree with NO loop
+  /// multiplier: a Quick-Start-Wizard sequence (`Capture Loop x10` wrapping a
+  /// single exposure node) read "1 planned exposures - 2m" here while the
+  /// toolbar beside it read "10 frames".
+  PlannedCapture _calculateTargetPlan(Sequence? sequence) {
+    if (sequence == null) return PlannedCapture.empty;
+    return plannedCaptureUnder(sequence, widget.node.id);
   }
 
   String _formatDuration(double totalSeconds) {
@@ -728,10 +694,15 @@ class _CoordinateChip extends StatelessWidget {
   final String value;
   final NightshadeColors colors;
 
+  /// True when [value] stands in for a coordinate the user has not set. Drawn
+  /// in warning colour so "Not set" cannot be mistaken for a measurement.
+  final bool isPlaceholder;
+
   const _CoordinateChip({
     required this.label,
     required this.value,
     required this.colors,
+    this.isPlaceholder = false,
   });
 
   @override
@@ -750,7 +721,7 @@ class _CoordinateChip extends StatelessWidget {
           style: TextStyle(
             fontSize: NightshadeTypography.fontSize12,
             fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
+            color: isPlaceholder ? colors.warning : colors.textPrimary,
             fontFamily: 'monospace',
           ),
         ),

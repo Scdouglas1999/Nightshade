@@ -8,11 +8,11 @@ import '../../error.dart';
 import '../../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `advance_sim_cooler`, `advance_sim_guide_pulse`, `apply_offset_delta`, `begin_sim_exposure`, `clear_sim_exposure`, `drift_step_secs`, `filter_wheel_status_poll_states`, `get_sim_camera`, `get_sim_dome`, `get_sim_filterwheel`, `get_sim_last_exposure_secs`, `get_sim_mount`, `get_sim_safety_monitor`, `get_sim_weather`, `poll_filter_wheel_position`, `reset_sim_guide_offset`, `sim_cooler_last_tick`, `sim_drift_last_tick`, `sim_exposure_elapsed_is_complete`, `sim_exposure_is_complete`, `sim_exposure_start`, `sim_guide_offset_px`, `sim_guide_offset`, `sim_pulse_delta`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `FilterWheelStatusPollState`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `fmt`
+// These functions are ignored because they are not marked as `pub`: `abort_sim_exposure`, `advance_sim_cooler`, `advance_sim_guide_pulse`, `advance_sim_slew`, `angular_separation_deg`, `apply_offset_delta`, `begin_sim_exposure`, `begin_sim_slew`, `cancel_sim_slew`, `drift_step_secs`, `filter_wheel_status_poll_states`, `get_sim_camera`, `get_sim_dome`, `get_sim_filterwheel`, `get_sim_last_exposure`, `get_sim_mount`, `get_sim_safety_monitor`, `get_sim_weather`, `interpolate_ra`, `next_sim_frame_seed`, `pier_side_after_slew_to`, `poll_filter_wheel_position`, `reset_sim_guide_offset`, `sim_camera_state`, `sim_cooler_last_tick`, `sim_drift_last_tick`, `sim_exposure_elapsed_is_complete`, `sim_exposure_is_complete`, `sim_exposure_phase`, `sim_guide_offset_px`, `sim_guide_offset`, `sim_local_sidereal_time`, `sim_park_position`, `sim_pulse_delta`, `sim_slew_duration_secs`, `sim_slew`, `take_sim_exposure_for_download`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `FilterWheelStatusPollState`, `SimExposurePhase`, `SimExposureRequest`, `SimSlew`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `get_sim_focuser`, `get_sim_rotator`
-// These functions are ignored (category: IgnoreBecauseOwnerTyShouldIgnore): `default`
+// These functions are ignored (category: IgnoreBecauseOwnerTyShouldIgnore): `default`, `default`
 
 /// Get camera status
 Future<CameraStatus> apiGetCameraStatus({required String deviceId}) => RustLib

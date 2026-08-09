@@ -32,7 +32,13 @@ final Map<String, Map<String, String>> _localizedValues = {
         'Show confirmation when closing during capture',
     'generalDescription': 'Basic application settings',
     'generalLanguage': 'Language',
-    'generalLanguageDesc': 'Choose the language used for app chrome',
+    // Scope claim. Kept in step with what is actually wired: chrome (nav
+    // rail, status bar, title bar, Settings) plus the Dashboard briefing.
+    // Imaging, the Sequencer and Analytics are still English, and the option
+    // is labelled "(beta)" in the picker for that reason.
+    'generalLanguageDesc':
+        'Translates menus, navigation, the status bar, Settings and the '
+            'Dashboard; Imaging, the Sequencer and Analytics stay in English',
     'generalStartMinimized': 'Start minimized',
     'generalStartMinimizedDesc': 'Launch app minimized to system tray',
     'generalStartup': 'Startup',
@@ -224,11 +230,17 @@ final Map<String, Map<String, String>> _localizedValues = {
     'analyticsDuration': 'Duration',
     'analyticsEditGoal': 'Edit Goal',
     'analyticsEquipmentStats': 'Equipment Stats',
+    'analyticsExposureCountsLightOnly':
+        'Exposure counts are light frames only.',
     'analyticsExposures': 'Exposures',
     'analyticsExportCsv': 'Export to CSV',
     'analyticsExportHtml': 'Export HTML report',
     'analyticsExportJson': 'Export to JSON',
     'analyticsFailed': 'Failed',
+    // The image list holds every frame on disk; the exposure counters beside
+    // it only ever counted lights. Both captions exist so the two numbers
+    // cannot be read as disagreeing versions of one count.
+    'analyticsFrameMix': '{light} light \u00B7 {calibration} calibration',
     'analyticsFrames': 'Frames',
     'analyticsGoal': 'Goal',
     'analyticsGoalDialogTitle': 'Set integration goal for {target}',
@@ -246,8 +258,12 @@ final Map<String, Map<String, String>> _localizedValues = {
     'analyticsNoSessionInProgress': 'No session in progress',
     'analyticsNotSet': 'Not set',
     'analyticsProjects': 'Projects',
+    // Scoped to the badges themselves: the Science tab ships a frame grader
+    // that DOES reject frames (it stamps rejection_reason 'Auto-grade: ...'),
+    // so a blanket "no frames are auto-rejected" was false the moment it ran.
     'analyticsQualityAdvisory':
-        'Quality labels are advisory only. No frames are deleted or auto-rejected.',
+        'Quality badges are advisory and never change acceptance on their own. '
+            'Nothing is deleted. Science > Grade frames is what rejects frames.',
     'analyticsQuickCapture': 'Quick Capture',
     'analyticsQuickCaptureSubtitle':
         'Standalone snapshots taken outside sequences',
@@ -442,6 +458,12 @@ final Map<String, Map<String, String>> _localizedValues = {
     'pairingDaysAgo': '{count}d ago',
     'pairingRevokeAccess': 'Revoke Access',
     'pairingDeleteDevice': 'Delete Device',
+    'pairingRenameDevice': 'Rename Device',
+    'pairingRenameTitle': 'Rename Device',
+    'pairingRenameBody':
+        'Every phone pairs under the same name, so give this one a name you will recognise later. Only the label changes — the device stays connected.',
+    'pairingRenameLabel': 'Device name',
+    'pairingErrorRename': 'Nightshade could not rename that device.',
     'pairingRevokeTitle': 'Revoke Device Access',
     'pairingRevokeBody':
         'Are you sure you want to revoke access for "{name}"? This device will no longer be able to connect until it is paired again.',
@@ -467,6 +489,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'plannerRiskFactorsSubtitle': 'Conditions that may affect your session',
     'plannerRationale': 'Rationale',
     'plannerRationaleSubtitle': 'Why this plan was chosen',
+    'plannerRationaleSubtitleNamed': 'Why {target} was chosen',
     'plannerSequenceCreated':
         'Created sequence with {target} ({exposure}s recommended)',
     'plannerDraftCreated':
@@ -583,6 +606,140 @@ final Map<String, Map<String, String>> _localizedValues = {
     'settingsIntegrations': 'Integrations',
     'settingsAiAssistant': 'AI Assistant',
     'settingsReplayDebug': 'Replay & Debug',
+    // Persistent shell chrome: the status bar that sits on EVERY screen, and
+    // the title-bar icon tooltips. The Language row promises "app chrome", and
+    // the bar an operator watches all night was the last part of that chrome
+    // still hard-coded in English. Reuses the existing short-word vocabulary
+    // (`mount`, `focus`, `guiding`, `disconnected`, `idle`, `sequenceRunning`,
+    // `sequencePaused`, `dashboardTitle`) wherever the English matches exactly.
+    'statusCamera': 'Camera',
+    'statusGuider': 'Guider',
+    'statusConnected': 'Connected',
+    'statusReady': 'Ready',
+    // Not `sequenceStopping` — that one carries an ellipsis and this pill
+    // does not.
+    'statusSequenceStopping': 'Stopping',
+    'statusSequenceCompleted': 'Completed',
+    'statusSequenceFailed': 'Failed',
+    'statusSequenceRecovering': 'Recovering',
+    'statusSequenceStopFailed': 'Stop failed',
+    'statusSequenceCleanupFailed': 'Cleanup failed',
+    'statusSequenceFinalizing': 'Finalizing',
+    'statusSequenceTarget': 'Target: {name}',
+    'statusSequenceStep': 'Step: {name}',
+    'statusSavePathChecking': 'Checking…',
+    'statusSavePathCheckingTooltip':
+        'Checking the configured image output path…',
+    'statusSavePathUnreadable': 'Save path ?',
+    'statusSavePathUnreadableTooltip':
+        'Could not read the configured image output path',
+    'statusNoSavePath': 'No save path',
+    'statusNoSavePathTooltip': 'No image output path configured',
+    'statusSavePathOkTooltip': 'Images save to {path}',
+    'statusSavePathMissingTooltip': 'Configured output path is missing: {path}',
+    'statusSavePathUnknownTooltip': 'Could not verify the output path: {path}',
+    'statusTempCompOff': 'Temp compensation disabled',
+    'statusTempCompNoModel': 'Temp comp enabled - no model data',
+    'statusTempCompUnreliable':
+        'Temp comp enabled - model not yet reliable (R²={r2})',
+    'statusTempCompActive':
+        'Temp comp active: {slope} steps/°C, predicted {position}',
+    'statusTempCompActiveNoPrediction': 'Temp comp active: {slope} steps/°C',
+    'statusLstLoading': 'Loading your observing site…',
+    'statusLstTooltip': 'Local sidereal time at your observing site',
+    'statusLstNoSite': 'No observing site set — sidereal time is unknown. '
+        'Set it in Settings → Location.',
+    'statusDashboardOpen': 'Open local dashboard ({url})',
+    'statusDashboardFilesMissing':
+        'Remote access API is running, but the dashboard files are unavailable',
+    'statusDashboardOff': 'Remote access is not running',
+
+    // ---------------------------------------------------------------------
+    // Dashboard "Tonight's Briefing" — the idle Dashboard body, i.e. the
+    // landing screen. The language picker's own scope claim was "app chrome"
+    // while the first screen a Spanish user ever sees was 100% English, which
+    // made the picker read as broken rather than partial. These keys put the
+    // landing screen inside the scope the setting claims.
+    // ---------------------------------------------------------------------
+    'dbBriefingOverline': "TONIGHT'S BRIEFING",
+    'dbNoRunActive': 'No run active',
+    'dbImageTonight': 'Image tonight',
+    'dbPlanTonight': 'Plan Tonight',
+    'dbPlanTonightTooltip':
+        'Build a plan you can see and edit — pick the target and exposures '
+            'yourself with the Smart Night wizard',
+    'dbEditDashboard': 'Edit Dashboard',
+    'dbEdit': 'Edit',
+    'dbDone': 'Done',
+    'dbWidgets': 'Widgets',
+    'dbReset': 'Reset',
+    'dbEditModeHint':
+        'Edit mode: long-press the grip handle to drag and reorder tiles.',
+    'dbTonightTargets': "Tonight's targets",
+    'dbTargetsPlanning': 'Planning tonight’s best targets…',
+    'dbTargetsError':
+        'Couldn’t generate target recommendations. Check the catalog or '
+            'remote connection and try again.',
+    'dbRetry': 'Retry',
+    'dbSetLocation': 'Set location',
+    'dbOpenPlanner': 'Open planner',
+    'dbExposure': 'Exposure',
+    'dbUsable': 'Usable',
+    'dbScore': 'Score',
+    'dbMoon': 'Moon',
+    'dbIlluminated': '{value}% illuminated',
+    'dbMoonrise': 'Moonrise',
+    'dbMoonset': 'Moonset',
+    'dbMoonPhaseNew Moon': 'New Moon',
+    'dbMoonPhaseWaxing Crescent': 'Waxing Crescent',
+    'dbMoonPhaseFirst Quarter': 'First Quarter',
+    'dbMoonPhaseWaxing Gibbous': 'Waxing Gibbous',
+    'dbMoonPhaseFull Moon': 'Full Moon',
+    'dbMoonPhaseWaning Gibbous': 'Waning Gibbous',
+    'dbMoonPhaseLast Quarter': 'Last Quarter',
+    'dbMoonPhaseWaning Crescent': 'Waning Crescent',
+    'dbReadiness': 'Readiness',
+    'dbCamera': 'Camera',
+    'dbMount': 'Mount',
+    'dbGuider': 'Guider',
+    'dbFocuser': 'Focuser',
+    'dbConnectEquipment': 'Connect equipment',
+    'dbCheckingDisk': 'Checking disk…',
+    'dbDiskQueryFailed': 'Disk query failed',
+    'dbSetCaptureDir': 'Set a capture directory to track free space.',
+    'dbFreeStorage': 'Free storage',
+    'dbLastNight': 'Last night',
+    'dbLastRun': 'Last run',
+    'dbNoRunsYet': 'No runs yet — your first night will appear here.',
+    'dbIntegration': 'integration',
+    'dbFrames': 'frames',
+    'dbRejected': 'rejected',
+    'dbDuration': 'duration',
+    'dbOpenLastRun': 'Open last run',
+    'dbRunCompleted': 'Completed',
+    'dbRunFailed': 'Failed',
+    'dbRunAborted': 'Aborted',
+    'dbRunRunning': 'Running',
+    'dbRunUnknown': 'Unknown',
+    'dbJustNow': 'just now',
+    'dbMinuteAgo': '1 minute ago',
+    'dbMinutesAgo': '{value} minutes ago',
+    'dbHourAgo': '1 hour ago',
+    'dbHoursAgo': '{value} hours ago',
+    'dbDayAgo': '1 day ago',
+    'dbDaysAgo': '{value} days ago',
+    'dbMonthAgo': '1 month ago',
+    'dbMonthsAgo': '{value} months ago',
+    'dbNoTwilight': 'Set an observing location for twilight times.',
+    'dbSunset': 'Sunset',
+    'dbSunrise': 'Sunrise',
+    'dbAstroDark': 'Astro dark',
+    'dbAstroDawn': 'Astro dawn',
+    'dbAstroDarkIn': 'Astro dark in',
+    'dbDarkForAnother': 'Dark for another',
+    'dbSunriseIn': 'Sunrise in',
+    'dbSunsetAt': 'Sunset at',
+    'dbTonight': 'Tonight',
   },
   'es': {
     'appTitle': 'Nightshade',
@@ -614,7 +771,12 @@ final Map<String, Map<String, String>> _localizedValues = {
     'generalDescription':
         'Configuraci\u00F3n b\u00E1sica de la aplicaci\u00F3n',
     'generalLanguage': 'Idioma',
-    'generalLanguageDesc': 'Elegir el idioma de la interfaz principal',
+    // Alcance real del selector: traduce el cromo de la aplicación (menús,
+    // navegación, barra de estado y Ajustes). Decía "la interfaz
+    // principal", que es precisamente lo que no hace.
+    'generalLanguageDesc':
+        'Traduce los menús, la navegación, la barra de estado, Ajustes y el '
+            'Panel; Captura, el Secuenciador y Analítica siguen en inglés',
     'generalStartMinimized': 'Iniciar minimizada',
     'generalStartMinimizedDesc':
         'Abrir la aplicaci\u00F3n minimizada en la bandeja del sistema',
@@ -805,11 +967,15 @@ final Map<String, Map<String, String>> _localizedValues = {
     'analyticsDuration': 'Duraci\u00F3n',
     'analyticsEditGoal': 'Editar meta',
     'analyticsEquipmentStats': 'Equipo',
+    'analyticsExposureCountsLightOnly':
+        'Los recuentos de exposiciones incluyen solo cuadros de luz.',
     'analyticsExposures': 'Exposiciones',
     'analyticsExportCsv': 'Exportar a CSV',
     'analyticsExportHtml': 'Exportar informe HTML',
     'analyticsExportJson': 'Exportar a JSON',
     'analyticsFailed': 'Fallidas',
+    'analyticsFrameMix':
+        '{light} de luz \u00B7 {calibration} de calibraci\u00F3n',
     'analyticsFrames': 'Frames',
     'analyticsGoal': 'Meta',
     'analyticsGoalDialogTitle':
@@ -830,7 +996,8 @@ final Map<String, Map<String, String>> _localizedValues = {
     'analyticsNotSet': 'Sin definir',
     'analyticsProjects': 'Proyectos',
     'analyticsQualityAdvisory':
-        'Las etiquetas de calidad son solo informativas. No se eliminan ni rechazan cuadros autom\u00E1ticamente.',
+        'Las etiquetas de calidad son informativas y nunca cambian la aceptaci\u00F3n por s\u00ED solas. '
+            'No se elimina nada. Ciencia > Clasificar cuadros es lo que rechaza cuadros.',
     'analyticsQuickCapture': 'Captura r\u00E1pida',
     'analyticsQuickCaptureSubtitle':
         'Instant\u00E1neas hechas fuera de las secuencias',
@@ -1025,6 +1192,12 @@ final Map<String, Map<String, String>> _localizedValues = {
     'pairingDaysAgo': 'hace {count}d',
     'pairingRevokeAccess': 'Revocar acceso',
     'pairingDeleteDevice': 'Eliminar dispositivo',
+    'pairingRenameDevice': 'Renombrar dispositivo',
+    'pairingRenameTitle': 'Renombrar dispositivo',
+    'pairingRenameBody':
+        'Todos los telefonos se emparejan con el mismo nombre, asi que ponle uno que reconozcas mas adelante. Solo cambia la etiqueta: el dispositivo sigue conectado.',
+    'pairingRenameLabel': 'Nombre del dispositivo',
+    'pairingErrorRename': 'Nightshade no pudo renombrar ese dispositivo.',
     'pairingRevokeTitle': 'Revocar acceso del dispositivo',
     'pairingRevokeBody':
         '¿Seguro que quieres revocar el acceso de "{name}"? Este dispositivo no podra conectarse hasta que vuelva a emparejarse.',
@@ -1055,6 +1228,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'plannerRiskFactorsSubtitle': 'Condiciones que pueden afectar tu sesion',
     'plannerRationale': 'Motivo',
     'plannerRationaleSubtitle': 'Por que se eligio este plan',
+    'plannerRationaleSubtitleNamed': 'Por que se eligio {target}',
     'plannerSequenceCreated':
         'Se creo una secuencia con {target} ({exposure}s recomendados)',
     'plannerDraftCreated':
@@ -1174,5 +1348,137 @@ final Map<String, Map<String, String>> _localizedValues = {
     'settingsIntegrations': 'Integraciones',
     'settingsAiAssistant': 'Asistente de IA',
     'settingsReplayDebug': 'Reproducción y depuración',
+    // Ver el bloque equivalente en 'en'.
+    'statusCamera': 'Cámara',
+    'statusGuider': 'Guía',
+    'statusConnected': 'Conectado',
+    'statusReady': 'Listo',
+    'statusSequenceStopping': 'Deteniendo',
+    'statusSequenceCompleted': 'Completada',
+    'statusSequenceFailed': 'Fallida',
+    'statusSequenceRecovering': 'Recuperando',
+    'statusSequenceStopFailed': 'Fallo al detener',
+    'statusSequenceCleanupFailed': 'Fallo al limpiar',
+    'statusSequenceFinalizing': 'Finalizando',
+    'statusSequenceTarget': 'Objetivo: {name}',
+    'statusSequenceStep': 'Paso: {name}',
+    'statusSavePathChecking': 'Comprobando…',
+    'statusSavePathCheckingTooltip':
+        'Comprobando la ruta de salida de imágenes configurada…',
+    'statusSavePathUnreadable': '¿Ruta de guardado?',
+    'statusSavePathUnreadableTooltip':
+        'No se pudo leer la ruta de salida de imágenes configurada',
+    'statusNoSavePath': 'Sin ruta de guardado',
+    'statusNoSavePathTooltip':
+        'No hay ninguna ruta de salida de imágenes configurada',
+    'statusSavePathOkTooltip': 'Las imágenes se guardan en {path}',
+    'statusSavePathMissingTooltip':
+        'Falta la ruta de salida configurada: {path}',
+    'statusSavePathUnknownTooltip':
+        'No se pudo verificar la ruta de salida: {path}',
+    'statusTempCompOff': 'Compensación térmica desactivada',
+    'statusTempCompNoModel':
+        'Compensación térmica activada - sin datos de modelo',
+    'statusTempCompUnreliable':
+        'Compensación térmica activada - el modelo aún no es fiable (R²={r2})',
+    'statusTempCompActive':
+        'Compensación térmica activa: {slope} pasos/°C, previsto {position}',
+    'statusTempCompActiveNoPrediction':
+        'Compensación térmica activa: {slope} pasos/°C',
+    'statusLstLoading': 'Cargando tu lugar de observación…',
+    'statusLstTooltip': 'Hora sidérea local en tu lugar de observación',
+    'statusLstNoSite':
+        'No hay lugar de observación definido: la hora sidérea es desconocida. '
+            'Defínelo en Ajustes → Ubicación.',
+    'statusDashboardOpen': 'Abrir el panel local ({url})',
+    'statusDashboardFilesMissing':
+        'La API de acceso remoto está activa, pero los archivos del panel no '
+            'están disponibles',
+    'statusDashboardOff': 'El acceso remoto no está activo',
+
+    // Dashboard "Tonight's Briefing" — see the English block for why the
+    // landing screen is inside the language setting's scope.
+    'dbBriefingOverline': 'RESUMEN DE ESTA NOCHE',
+    'dbNoRunActive': 'Ninguna sesión activa',
+    'dbImageTonight': 'Capturar esta noche',
+    'dbPlanTonight': 'Planificar la noche',
+    'dbPlanTonightTooltip':
+        'Crea un plan que puedes ver y editar: elige el objetivo y las '
+            'exposiciones con el asistente de Noche Inteligente',
+    'dbEditDashboard': 'Editar el panel',
+    'dbEdit': 'Editar',
+    'dbDone': 'Listo',
+    'dbWidgets': 'Widgets',
+    'dbReset': 'Restablecer',
+    'dbEditModeHint':
+        'Modo de edición: mantén pulsado el asa para arrastrar y reordenar '
+            'los paneles.',
+    'dbTonightTargets': 'Objetivos de esta noche',
+    'dbTargetsPlanning': 'Planificando los mejores objetivos de esta noche…',
+    'dbTargetsError':
+        'No se pudieron generar recomendaciones de objetivos. Revisa el '
+            'catálogo o la conexión remota e inténtalo de nuevo.',
+    'dbRetry': 'Reintentar',
+    'dbSetLocation': 'Definir ubicación',
+    'dbOpenPlanner': 'Abrir el planificador',
+    'dbExposure': 'Exposición',
+    'dbUsable': 'Aprovechable',
+    'dbScore': 'Puntuación',
+    'dbMoon': 'Luna',
+    'dbIlluminated': '{value} % iluminada',
+    'dbMoonrise': 'Salida de la Luna',
+    'dbMoonset': 'Puesta de la Luna',
+    'dbMoonPhaseNew Moon': 'Luna nueva',
+    'dbMoonPhaseWaxing Crescent': 'Luna creciente',
+    'dbMoonPhaseFirst Quarter': 'Cuarto creciente',
+    'dbMoonPhaseWaxing Gibbous': 'Gibosa creciente',
+    'dbMoonPhaseFull Moon': 'Luna llena',
+    'dbMoonPhaseWaning Gibbous': 'Gibosa menguante',
+    'dbMoonPhaseLast Quarter': 'Cuarto menguante',
+    'dbMoonPhaseWaning Crescent': 'Luna menguante',
+    'dbReadiness': 'Preparación',
+    'dbCamera': 'Cámara',
+    'dbMount': 'Montura',
+    'dbGuider': 'Guiado',
+    'dbFocuser': 'Enfocador',
+    'dbConnectEquipment': 'Conectar el equipo',
+    'dbCheckingDisk': 'Comprobando el disco…',
+    'dbDiskQueryFailed': 'Fallo al consultar el disco',
+    'dbSetCaptureDir':
+        'Define una carpeta de capturas para ver el espacio libre.',
+    'dbFreeStorage': 'Espacio libre',
+    'dbLastNight': 'Anoche',
+    'dbLastRun': 'Última sesión',
+    'dbNoRunsYet': 'Todavía no hay sesiones: tu primera noche aparecerá aquí.',
+    'dbIntegration': 'integración',
+    'dbFrames': 'tomas',
+    'dbRejected': 'descartadas',
+    'dbDuration': 'duración',
+    'dbOpenLastRun': 'Abrir la última sesión',
+    'dbRunCompleted': 'Completada',
+    'dbRunFailed': 'Fallida',
+    'dbRunAborted': 'Cancelada',
+    'dbRunRunning': 'En curso',
+    'dbRunUnknown': 'Desconocido',
+    'dbJustNow': 'ahora mismo',
+    'dbMinuteAgo': 'hace 1 minuto',
+    'dbMinutesAgo': 'hace {value} minutos',
+    'dbHourAgo': 'hace 1 hora',
+    'dbHoursAgo': 'hace {value} horas',
+    'dbDayAgo': 'hace 1 día',
+    'dbDaysAgo': 'hace {value} días',
+    'dbMonthAgo': 'hace 1 mes',
+    'dbMonthsAgo': 'hace {value} meses',
+    'dbNoTwilight':
+        'Define un lugar de observación para ver las horas del crepúsculo.',
+    'dbSunset': 'Puesta de sol',
+    'dbSunrise': 'Salida del sol',
+    'dbAstroDark': 'Noche astronómica',
+    'dbAstroDawn': 'Alba astronómica',
+    'dbAstroDarkIn': 'Noche astronómica en',
+    'dbDarkForAnother': 'Oscuridad durante',
+    'dbSunriseIn': 'Amanece en',
+    'dbSunsetAt': 'Puesta de sol a las',
+    'dbTonight': 'Esta noche',
   },
 };

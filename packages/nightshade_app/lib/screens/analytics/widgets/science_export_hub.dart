@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:csv/csv.dart';
+import 'package:file_selector/file_selector.dart' show XTypeGroup;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -8,7 +9,6 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:path/path.dart' as path;
-import 'package:path_provider/path_provider.dart';
 
 import '../../../services/observation_report_service.dart';
 import '../../../utils/authority_bound_dialog.dart';
@@ -34,18 +34,53 @@ enum ScienceExportDataset {
   transientReport,
 }
 
-/// Resolves and creates the shared science-export directory. Keeping the
-/// platform lookup behind a provider lets export workflows be tested without
-/// depending on path_provider plugin initialization and avoids repeating the
-/// directory setup for every row type in one hub session.
+/// Where the science-export save dialog OPENS — not where files are written
+/// behind the operator's back.
+///
+/// The suggestion follows the active database directory, while the operator
+/// still chooses the destination. A provider keeps path resolution testable.
 final scienceExportDirectoryProvider = FutureProvider<Directory>((ref) async {
-  final docsDir = await getApplicationDocumentsDirectory();
-  final exportDir = Directory(path.join(docsDir.path, 'Nightshade', 'exports'));
+  final databaseFile = await resolveDefaultDatabaseFile();
+  final exportDir = Directory(path.join(databaseFile.parent.path, 'exports'));
   if (!await exportDir.exists()) {
     await exportDir.create(recursive: true);
   }
   return exportDir;
 });
+
+/// Chooses the destination for a science export. Returns null when the operator
+/// cancels the dialog.
+typedef ScienceExportSavePicker = Future<String?> Function({
+  required String fileName,
+  required String initialDirectory,
+  required List<String> allowedExtensions,
+});
+
+Future<String?> _defaultScienceExportSavePicker({
+  required String fileName,
+  required String initialDirectory,
+  required List<String> allowedExtensions,
+}) async {
+  // [chooseExportTarget], as used by every other export in the app: a native
+  // save dialog on desktop, and on a phone a sandbox path the caller finishes
+  // with the share sheet (the platform save picker is unavailable there).
+  final target = await chooseExportTarget(
+    suggestedName: fileName,
+    initialDirectory: initialDirectory,
+    acceptedTypeGroups: [
+      XTypeGroup(
+        label: allowedExtensions.map((e) => e.toUpperCase()).join(' / '),
+        extensions: allowedExtensions,
+      ),
+    ],
+  );
+  return target?.path;
+}
+
+/// Override point for the science-export save dialog (tests stub this).
+final scienceExportSavePickerProvider = Provider<ScienceExportSavePicker>(
+  (ref) => _defaultScienceExportSavePicker,
+);
 
 typedef ScienceExportFileWriter = Future<void> Function(
   File file,
@@ -57,6 +92,21 @@ final scienceExportFileWriterProvider = Provider<ScienceExportFileWriter>(
     await file.writeAsString(contents);
   },
 );
+
+/// Timestamp as UTC ISO-8601, always ending in `Z`.
+///
+/// Every CSV in this hub used to write `toIso8601String()` on a LOCAL DateTime:
+/// a row stored at 09:00 UTC exported as `2026-08-01T05:00:00.000` on a UTC-4
+/// host, with no offset and no `Z`. Anything parsing that as ISO-8601 placed
+/// every measurement hours away from where it was taken, and the error changed
+/// with the observer's timezone and with DST inside one observing season.
+String _utcStamp(DateTime dt) => dt.toUtc().toIso8601String();
+
+/// Julian Date for [dt], the time system AAVSO/AID submissions and every period
+/// analysis actually work in. Emitted alongside the ISO stamp so a downstream
+/// script never has to redo the conversion (and never has to guess the zone).
+double _julianDate(DateTime dt) =>
+    dt.toUtc().millisecondsSinceEpoch / 86400000.0 + 2440587.5;
 
 /// Dialog listing all exportable science data types with CSV export and filters.
 class ScienceExportHub extends ConsumerStatefulWidget {
@@ -176,6 +226,25 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
     final transientDetectionsReady = transientDetectionsAsync.hasValue &&
         !transientDetectionsAsync.isLoading &&
         !transientDetectionsAsync.hasError;
+
+    // Moving-object candidates: same rule as the transient detections above.
+    // Two of the three entry points construct the hub with no list at all
+    // (the Science header's database icon among them), and the MPC row then
+    // told the user "No moving object candidates available to report yet"
+    // while the page behind the dialog listed two of them and its Open button
+    // did nothing. The hub now looks them up itself.
+    final mpcSessionId = _selectedSessionId ?? _newestSessionId(sessions);
+    final AsyncValue<List<MovingObjectCandidateRow>> mpcCandidatesAsync = widget
+            .mpcCandidates.isNotEmpty
+        ? AsyncValue.data(widget.mpcCandidates)
+        : mpcSessionId == null
+            ? const AsyncValue.data(<MovingObjectCandidateRow>[])
+            : ref.watch(sessionMovingObjectCandidatesProvider(mpcSessionId));
+    final mpcCandidates =
+        mpcCandidatesAsync.valueOrNull ?? const <MovingObjectCandidateRow>[];
+    final mpcCandidatesReady = mpcCandidatesAsync.hasValue &&
+        !mpcCandidatesAsync.isLoading &&
+        !mpcCandidatesAsync.hasError;
 
     return Dialog(
       backgroundColor: colors.surface,
@@ -384,17 +453,22 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
                       key: _rowKeys[ScienceExportDataset.mpcReport],
                       colors: colors,
                       title: 'MPC Astrometry Report',
-                      description: widget.mpcCandidates.isEmpty
-                          ? 'No moving object candidates available to report yet.'
+                      description: mpcCandidates.isEmpty
+                          ? mpcCandidatesAsync.isLoading
+                              ? 'Loading moving-object candidates...'
+                              : mpcCandidatesAsync.hasError
+                                  ? 'Could not load moving-object candidates: '
+                                      '${mpcCandidatesAsync.error}'
+                                  : 'No moving object candidates available to report yet.'
                           : 'Submit selected moving-object detections in MPC 80-column format',
                       icon: LucideIcons.send,
                       isExporting: _isExporting,
                       highlight: widget.initialDataset ==
                           ScienceExportDataset.mpcReport,
-                      enabled: widget.mpcCandidates.isNotEmpty,
+                      enabled: mpcCandidatesReady && mpcCandidates.isNotEmpty,
                       actionLabel: 'Open',
                       actionIcon: LucideIcons.externalLink,
-                      onExport: _openMpcPanel,
+                      onExport: () => _openMpcPanel(mpcCandidates),
                     ),
                     const SizedBox(height: 8),
                     // First Light transient discovery report (AAVSO / MPC / TNS).
@@ -657,8 +731,21 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
     }
   }
 
-  Future<void> _openMpcPanel() async {
-    if (widget.mpcCandidates.isEmpty) {
+  /// Newest session by start time — the one the Science tab is analysing when
+  /// the user has not picked another in the filter.
+  int? _newestSessionId(List<ImagingSession> sessions) {
+    if (sessions.isEmpty) return null;
+    var newest = sessions.first;
+    for (final session in sessions) {
+      if (session.startTime.isAfter(newest.startTime)) newest = session;
+    }
+    return newest.id;
+  }
+
+  Future<void> _openMpcPanel(
+    List<MovingObjectCandidateRow> candidates,
+  ) async {
+    if (candidates.isEmpty) {
       context.showInfoSnackBar(
         'No moving object candidates available to report yet.',
       );
@@ -680,7 +767,7 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
               padding: const EdgeInsets.all(16),
               child: MpcExportPanel(
                 colors: colors,
-                candidates: widget.mpcCandidates,
+                candidates: candidates,
               ),
             ),
           ),
@@ -827,10 +914,28 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
       final csv = const ListToCsvConverter().convert(rows);
       final directory = await ref.read(scienceExportDirectoryProvider.future);
       if (!_isCurrentAuthority(backend, generation)) return;
-      final timestamp =
-          DateTime.now().toIso8601String().replaceAll(':', '-').split('.')[0];
-      final fileName = '${filePrefix}_$timestamp.csv';
-      final filePath = path.join(directory.path, fileName);
+      final timestamp = DateTime.now()
+          .toUtc()
+          .toIso8601String()
+          .replaceAll(':', '-')
+          .split('.')[0];
+      // 'Z' so a file exported at 00:30 local is not filed under the wrong
+      // night, and so the name agrees with the UTC stamps inside it.
+      final fileName = '${filePrefix}_${timestamp}Z.csv';
+      final filePath = await ref.read(scienceExportSavePickerProvider)(
+        fileName: fileName,
+        initialDirectory: directory.path,
+        allowedExtensions: const ['csv'],
+      );
+      if (!_isCurrentAuthority(backend, generation)) return;
+      if (filePath == null) {
+        if (!mounted) return;
+        setState(() {
+          _isExporting = false;
+          _lastExportResult = 'Export cancelled.';
+        });
+        return;
+      }
       final file = File(filePath);
       await ref.read(scienceExportFileWriterProvider)(file, csv);
 
@@ -898,12 +1003,13 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
         final directory = await ref.read(scienceExportDirectoryProvider.future);
         if (!_isCurrentAuthority(backend, generation)) return;
         final timestamp = DateTime.now()
+            .toUtc()
             .toIso8601String()
             .replaceAll(':', '-')
             .split('.')
             .first;
         filePath =
-            path.join(directory.path, 'observation_report_$timestamp.pdf');
+            path.join(directory.path, 'observation_report_${timestamp}Z.pdf');
         await File(filePath).writeAsBytes(bytes, flush: true);
       } else {
         final reportService = ObservationReportService(
@@ -981,7 +1087,8 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
         'SNR',
         'Uncertainty',
         'Is Outlier',
-        'Timestamp',
+        'Timestamp (UTC)',
+        'JD',
       ]
     ];
 
@@ -1011,7 +1118,8 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
           m.snr ?? '',
           m.uncertainty ?? '',
           m.isOutlier,
-          m.timestamp.toIso8601String(),
+          _utcStamp(m.timestamp),
+          _julianDate(m.timestamp),
         ]);
       }
     }
@@ -1026,7 +1134,7 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
       [
         'Session ID',
         'Image ID',
-        'Timestamp',
+        'Timestamp (UTC)',
         'Median',
         'Mean',
         'StdDev',
@@ -1064,7 +1172,7 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
         rows.add([
           m.sessionId ?? '',
           m.capturedImageId ?? '',
-          m.timestamp.toIso8601String(),
+          _utcStamp(m.timestamp),
           m.median,
           m.mean,
           m.stdDev,
@@ -1098,7 +1206,7 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
         'Extinction Coefficient',
         'Quality Bucket',
         'Confidence',
-        'Timestamp',
+        'Timestamp (UTC)',
       ]
     ];
 
@@ -1125,7 +1233,7 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
           s.extinctionCoefficient,
           s.qualityBucket,
           s.confidence,
-          s.timestamp.toIso8601String(),
+          _utcStamp(s.timestamp),
         ]);
       }
     }
@@ -1147,7 +1255,7 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
         'Median HFR',
         'Median Eccentricity',
         'Roundness',
-        'Timestamp',
+        'Timestamp (UTC)',
       ]
     ];
 
@@ -1173,7 +1281,7 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
           t.medianHfr,
           t.medianEccentricity,
           t.roundness,
-          t.timestamp.toIso8601String(),
+          _utcStamp(t.timestamp),
         ]);
       }
     }
@@ -1194,7 +1302,7 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
         'dY (arcsec)',
         'Magnitude (arcsec)',
         'Recommendation',
-        'Timestamp',
+        'Timestamp (UTC)',
       ]
     ];
 
@@ -1223,7 +1331,7 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
           r.dyArcsec,
           r.magnitudeArcsec,
           r.recommendationCode ?? '',
-          r.timestamp.toIso8601String(),
+          _utcStamp(r.timestamp),
         ]);
       }
     }
@@ -1246,7 +1354,7 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
         'Calibration RMS',
         'Catalog Source',
         'Solver ID',
-        'Timestamp',
+        'Timestamp (UTC)',
       ]
     ];
 
@@ -1275,7 +1383,7 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
           c.calibrationRms,
           c.catalogSource,
           c.solverId,
-          c.timestamp.toIso8601String(),
+          _utcStamp(c.timestamp),
         ]);
       }
     }
@@ -1299,7 +1407,7 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
         'Is Known Object',
         'Object Name',
         'Source',
-        'Timestamp',
+        'Timestamp (UTC)',
       ]
     ];
 
@@ -1331,7 +1439,7 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
           m.isKnownObject,
           m.objectName ?? '',
           m.source,
-          m.timestamp.toIso8601String(),
+          _utcStamp(m.timestamp),
         ]);
       }
     }

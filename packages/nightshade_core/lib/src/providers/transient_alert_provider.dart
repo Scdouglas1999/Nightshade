@@ -906,25 +906,51 @@ final transientAlertStatesProvider =
       );
     });
 
+/// The state an alert should be rendered and filtered by.
+///
+/// [overrides] — the [transientAlertStatesProvider] map — is populated ONLY
+/// from the `transient_alert_state_<id>` settings rows the user's own
+/// queue/observe/dismiss actions write. Nothing ever seeds it from the alert's
+/// own [TransientAlert.state], so reading the map alone threw away what the
+/// source row already knew: confirming a First Light candidate sets `reviewed`
+/// on the detection, [transientAlertFromDetection] maps that to
+/// [TransientAlertState.acknowledged], and yet the Observing Alerts tab one
+/// click across still badged the same detection "New" and filed it under the
+/// "New" filter. Two views of one row must not disagree.
+///
+/// A user action still wins — that is what an override is — and API-sourced
+/// alerts carry the default [TransientAlertState.newAlert], so their behaviour
+/// is unchanged.
+TransientAlertState resolveTransientAlertState(
+  TransientAlert alert,
+  Map<String, TransientAlertState> overrides,
+) {
+  return overrides[alert.id] ?? alert.state;
+}
+
 // =============================================================================
 // Unacknowledged Alert Count Provider
 // =============================================================================
 
 /// Provider that computes the count of unacknowledged alerts.
 ///
-/// An alert is considered unacknowledged if:
-/// - It has no state entry (brand new)
-/// - Its state is [TransientAlertState.newAlert]
+/// An alert is unacknowledged when its resolved state (see
+/// [resolveTransientAlertState]) is still [TransientAlertState.newAlert] — a
+/// detection the user has already confirmed in First Light must not keep
+/// inflating the badge.
 final unacknowledgedAlertCountProvider = Provider<int>((ref) {
   final alertsAsync = ref.watch(activeTransientAlertsProvider);
   final states = ref.watch(transientAlertStatesProvider);
 
   final alerts = alertsAsync.valueOrNull ?? [];
 
-  return alerts.where((alert) {
-    final alertState = states[alert.id];
-    return alertState == null || alertState == TransientAlertState.newAlert;
-  }).length;
+  return alerts
+      .where(
+        (alert) =>
+            resolveTransientAlertState(alert, states) ==
+            TransientAlertState.newAlert,
+      )
+      .length;
 });
 
 // =============================================================================

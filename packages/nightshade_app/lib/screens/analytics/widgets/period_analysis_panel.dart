@@ -9,6 +9,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../utils/snackbar_helper.dart';
 import 'adaptive_chart_container.dart';
+import 'chart_axis.dart';
 
 part 'period_analysis_panel/result_widgets.dart';
 part 'period_analysis_panel/periodogram_painter.dart';
@@ -27,16 +28,61 @@ For BLS, the Signal Detection Efficiency (SDE) measures how far the best period 
 The phase-folded plots wrap every data point onto a single cycle at the best period, so a real signal collapses into a clean shape. As with all photometry charts here, magnitude is inverted — brighter points sit higher on the plot.
 ''';
 
+/// The one way this panel writes a period.
+///
+/// The card used to state the same detected period three ways on one scroll —
+/// "20.0 min" in the headline and detail table, "P=0.014d" on the Lomb-Scargle
+/// periodogram and "P=0.33h" on the BLS spectrum — so cross-checking the peak
+/// against the result meant doing arithmetic. Every headline and every chart
+/// marker goes through here; the axes keep their own natural units (cycles per
+/// day, log period) and say so in their labels.
+String formatPeriodLabel(double periodDays) {
+  if (periodDays < 1.0) {
+    final hours = periodDays * 24.0;
+    if (hours < 1.0) {
+      final minutes = hours * 60.0;
+      return '${minutes.toStringAsFixed(1)} min';
+    }
+    return '${hours.toStringAsFixed(2)} hr';
+  }
+  return '${periodDays.toStringAsFixed(4)} d';
+}
+
+/// The peak marker drawn on the Lomb-Scargle periodogram.
+///
+/// The x axis there is frequency, but the annotation is a PERIOD and has to
+/// read like the headline result it annotates.
+@visibleForTesting
+String periodogramPeakLabel(double bestFrequency) =>
+    'P=${formatPeriodLabel(1.0 / bestFrequency)}';
+
+/// The peak marker drawn on the BLS spectrum.
+@visibleForTesting
+String blsPeakLabel(double bestPeriodDays) =>
+    'P=${formatPeriodLabel(bestPeriodDays)}';
+
 /// Panel that provides Lomb-Scargle and BLS period detection analysis
 /// for variable star and exoplanet transit detection.
 class PeriodAnalysisPanel extends ConsumerStatefulWidget {
   final NightshadeColors colors;
+
+  /// Photometry from the session currently being analysed.
   final List<LightCurvePoint> lightCurve;
+
+  /// The same object measured across every night of the campaign, when the
+  /// session belongs to a target. A single night is almost never long enough
+  /// to measure a period, so this is the series that usually matters.
+  final List<LightCurvePoint> campaignLightCurve;
+
+  /// Number of sessions [campaignLightCurve] spans, for the scope labels.
+  final int campaignSessionCount;
 
   const PeriodAnalysisPanel({
     super.key,
     required this.colors,
     required this.lightCurve,
+    this.campaignLightCurve = const [],
+    this.campaignSessionCount = 0,
   });
 
   @override
@@ -52,6 +98,20 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
   late final _maxPeriodController =
       TextEditingController(text: _maxPeriod.toStringAsFixed(1));
   final _customPeriodController = TextEditingController();
+
+  /// Analyse the whole campaign by default when one is available: a single
+  /// night can only ever bound the period from below.
+  bool _useCampaignScope = true;
+
+  /// The series the search actually runs on.
+  List<LightCurvePoint> get _activeCurve =>
+      _campaignAvailable && _useCampaignScope
+          ? widget.campaignLightCurve
+          : widget.lightCurve;
+
+  bool get _campaignAvailable =>
+      widget.campaignSessionCount > 1 &&
+      widget.campaignLightCurve.length > widget.lightCurve.length;
 
   @override
   void dispose() {
@@ -116,6 +176,10 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
             const SizedBox(height: NightshadeTokens.spaceMd),
 
             // Controls row
+            if (_campaignAvailable) ...[
+              _buildScopeSelector(colors),
+              const SizedBox(height: NightshadeTokens.spaceMd),
+            ],
             _buildControls(colors, analysisState),
             const SizedBox(height: NightshadeTokens.spaceLg),
 
@@ -151,6 +215,72 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
           ],
         ),
       ),
+    );
+  }
+
+  /// Choose between this night and the whole campaign. Defaults to the
+  /// campaign because a single night's baseline is shorter than nearly every
+  /// period worth searching for, which forces an unconstrained result.
+  Widget _buildScopeSelector(NightshadeColors colors) {
+    final campaignNights = widget.campaignSessionCount;
+    Widget chip(
+        String label, String detail, bool selected, VoidCallback onTap) {
+      return Expanded(
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: NightshadeTokens.borderRadiusLg,
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: NightshadeTokens.spaceMd,
+              vertical: NightshadeTokens.spaceSm,
+            ),
+            decoration: BoxDecoration(
+              color: selected
+                  ? colors.primary.withValues(alpha: 0.14)
+                  : Colors.transparent,
+              borderRadius: NightshadeTokens.borderRadiusLg,
+              border: Border.all(
+                color: selected ? colors.primary : colors.border,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: NightshadeTypography.labelSm.copyWith(
+                    color: selected ? colors.primary : colors.textPrimary,
+                  ),
+                ),
+                Text(
+                  detail,
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textMuted),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        chip(
+          'This session',
+          '${widget.lightCurve.length} points',
+          !_useCampaignScope,
+          () => setState(() => _useCampaignScope = false),
+        ),
+        const SizedBox(width: NightshadeTokens.spaceSm),
+        chip(
+          'All nights',
+          '${widget.campaignLightCurve.length} points · $campaignNights sessions',
+          _useCampaignScope,
+          () => setState(() => _useCampaignScope = true),
+        ),
+      ],
     );
   }
 
@@ -231,7 +361,7 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
               ? null
               : () {
                   ref.read(periodAnalysisProvider.notifier).runAnalysis(
-                        lightCurve: widget.lightCurve,
+                        lightCurve: _activeCurve,
                         config: PeriodAnalysisConfig(
                           minPeriodDays: _minPeriod,
                           maxPeriodDays: _maxPeriod,
@@ -284,7 +414,7 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
             if (period != null && period > 0) {
               ref.read(periodAnalysisProvider.notifier).setCustomPeriod(
                     periodDays: period,
-                    lightCurve: widget.lightCurve,
+                    lightCurve: _activeCurve,
                   );
             } else {
               context
@@ -359,7 +489,7 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
   }
 
   Widget _buildEmptyState(NightshadeColors colors) {
-    final pointCount = widget.lightCurve.length;
+    final pointCount = _activeCurve.length;
     final tooFew = pointCount < 10;
     return AdaptiveChartContainer.fixed(
       // The guidance body needs more vertical room than the ready-to-run
@@ -483,34 +613,73 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
   Widget _buildPeriodSummary(
       NightshadeColors colors, LombScargleResult ls, BlsResult bls) {
     final fap = ls.falseAlarmProbability;
-    final _Verdict? lsVerdict = fap < 0.001
-        ? _Verdict.strong
-        : fap < 0.01
-            ? _Verdict.significant
-            : null;
+    // A peak found with less than two cycles of coverage is the baseline
+    // reporting itself back, not a measured period — a run shorter than the
+    // period always piles the periodogram up against its low-frequency edge.
+    // Withhold the verdict there rather than badging "Strong" on a number that
+    // is just the length of the night.
+    final constrained = ls.isPeriodConstrained;
+    final _Verdict? lsVerdict = !constrained
+        ? null
+        : fap < 0.001
+            ? _Verdict.strong
+            : fap < 0.01
+                ? _Verdict.significant
+                : null;
     final sde = bls.signalDetectionEfficiency;
-    final _Verdict? blsVerdict = sde > 7
-        ? _Verdict.strong
-        : sde > 6
-            ? _Verdict.noteworthy
-            : null;
+    // The BLS statistic SR = s^2 / (r(1-r)) is sign-blind, so its best box can
+    // be BRIGHTER than the out-of-box baseline — an anti-transit. On pure noise
+    // that is the usual outcome. Such a solution is not a transit candidate and
+    // must never carry a detection verdict.
+    final brightening = _isBrightening(bls);
+    final _Verdict? blsVerdict = !constrained || brightening
+        ? null
+        : sde > 7
+            ? _Verdict.strong
+            : sde > 6
+                ? _Verdict.noteworthy
+                : null;
 
     final lsColumn = _ResultColumn(
       colors: colors,
       label: 'Lomb-Scargle Best Period',
-      value: _formatPeriod(ls.bestPeriod),
-      detail:
-          'Peak power: ${ls.peakPower.toStringAsFixed(2)}  |  FAP: ${_formatFap(fap)}',
+      value: constrained
+          ? _formatPeriod(ls.bestPeriod)
+          : '≥ ${_formatPeriod(ls.bestPeriod)}',
+      detail: constrained
+          ? 'Peak power: ${ls.peakPower.toStringAsFixed(2)}  |  FAP: ${_formatFap(fap)}'
+          : 'Only ${ls.observedCycles.toStringAsFixed(2)} cycles observed — '
+              'this run is too short to measure the period',
       verdict: lsVerdict,
     );
     final blsColumn = _ResultColumn(
       colors: colors,
       label: 'BLS Best Period',
-      value: _formatPeriod(bls.bestPeriod),
-      detail:
-          'Depth: ${(bls.transitDepth * 1000).toStringAsFixed(1)} mmag  |  SDE: ${sde.toStringAsFixed(1)}',
+      value: constrained
+          ? _formatPeriod(bls.bestPeriod)
+          : '≥ ${_formatPeriod(bls.bestPeriod)}',
+      // SDE is meaningless without the bar it has to clear, so the number is
+      // always printed against the 6.0 threshold the service documents. The
+      // ordering defect behind that rule (pure noise scoring 3.1 while an
+      // injected transit reached only 4.8, because the peak inflated its own
+      // baseline) is fixed in period_analysis_service.dart, which now masks a
+      // +/-20% period window out of the mean/std — see bls_sde_baseline_test.
+      // Comparing SDE across different light curves is still not meaningful,
+      // which is why that caveat stays.
+      detail: constrained
+          ? '${_depthLabel(bls)}: ${_depthMmag(bls)} mmag  |  '
+              'SDE: ${sde.toStringAsFixed(1)} '
+              '(${sde > 6 ? 'above' : 'below'} the 6.0 significance threshold; '
+              'compare SDE only within one light curve)'
+          : 'Needs a longer baseline to separate a transit from a trend',
       verdict: blsVerdict,
     );
+
+    // The requested range is silently clamped to what the data supports. Say
+    // so, rather than leaving "Max period: 10.0" on screen next to a search
+    // that never looked past a fraction of a day.
+    final clampedHigh = ls.searchedMaxPeriod < _maxPeriod * 0.999;
+    final clampedLow = ls.searchedMinPeriod > _minPeriod * 1.001;
 
     return Container(
       padding: NightshadeTokens.paddingMd,
@@ -519,32 +688,67 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
         borderRadius: NightshadeTokens.borderRadiusLg,
         border: Border.all(color: colors.primary.withValues(alpha: 0.2)),
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          if (constraints.maxWidth < 1080) {
-            return Column(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth < 1080) {
+                return Column(
+                  children: [
+                    lsColumn,
+                    Divider(
+                        height: NightshadeTokens.space2xl,
+                        color: colors.border),
+                    blsColumn,
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: lsColumn),
+                  Container(
+                    width: 1,
+                    height: 40,
+                    color: colors.border,
+                  ),
+                  Expanded(child: blsColumn),
+                ],
+              );
+            },
+          ),
+          if (clampedHigh || clampedLow) ...[
+            const SizedBox(height: NightshadeTokens.spaceSm),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                lsColumn,
-                Divider(
-                    height: NightshadeTokens.space2xl, color: colors.border),
-                blsColumn,
+                Icon(LucideIcons.info,
+                    size: NightshadeTokens.iconXs, color: colors.textMuted),
+                const SizedBox(width: NightshadeTokens.spaceXs),
+                Expanded(
+                  child: Text(
+                    'Searched ${_formatPeriodDays(ls.searchedMinPeriod)}'
+                    '–${_formatPeriodDays(ls.searchedMaxPeriod)} d — '
+                    '${clampedHigh ? 'capped by the ${_formatPeriodDays(ls.timeBaseline)} d baseline' : 'raised to twice the sampling interval'}'
+                    '${clampedHigh && clampedLow ? ' and by the sampling interval' : ''}.',
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.textMuted),
+                  ),
+                ),
               ],
-            );
-          }
-          return Row(
-            children: [
-              Expanded(child: lsColumn),
-              Container(
-                width: 1,
-                height: 40,
-                color: colors.border,
-              ),
-              Expanded(child: blsColumn),
-            ],
-          );
-        },
+            ),
+          ],
+        ],
       ),
     );
+  }
+
+  /// Period in days at a precision that stays readable across the four orders
+  /// of magnitude this search spans.
+  static String _formatPeriodDays(double days) {
+    if (days >= 1) return days.toStringAsFixed(2);
+    if (days >= 0.1) return days.toStringAsFixed(3);
+    return days.toStringAsFixed(4);
   }
 
   Widget _buildBlsSection(NightshadeColors colors, BlsResult bls) {
@@ -559,6 +763,19 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
             color: colors.textPrimary,
           ),
         ),
+        if (_isBrightening(bls)) ...[
+          const SizedBox(height: NightshadeTokens.spaceXs),
+          // Not a caveat on a detection — a statement that the search did not
+          // find one. The box that maximised SR sits ABOVE the baseline, which
+          // is what pure noise usually produces.
+          Text(
+            'Best box is brighter than the baseline: this is an anti-transit '
+            '(a brightening), not a transit candidate.',
+            style: NightshadeTypography.captionSm.copyWith(
+              color: colors.warning,
+            ),
+          ),
+        ],
         const SizedBox(height: NightshadeTokens.spaceSm),
         // BLS SR spectrum
         AdaptiveChartContainer(
@@ -586,8 +803,8 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
                 value: _formatDuration(bls.transitDuration)),
             _BlsStat(
                 colors: colors,
-                label: 'Depth',
-                value: '${(bls.transitDepth * 1000).toStringAsFixed(1)} mmag'),
+                label: _depthLabel(bls),
+                value: '${_depthMmag(bls)} mmag'),
             _BlsStat(
                 colors: colors,
                 label: 'SDE',
@@ -602,17 +819,18 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
     );
   }
 
-  String _formatPeriod(double periodDays) {
-    if (periodDays < 1.0) {
-      final hours = periodDays * 24.0;
-      if (hours < 1.0) {
-        final minutes = hours * 60.0;
-        return '${minutes.toStringAsFixed(1)} min';
-      }
-      return '${hours.toStringAsFixed(2)} hr';
-    }
-    return '${periodDays.toStringAsFixed(4)} d';
-  }
+  /// The BLS box that maximises SR can be brighter than the out-of-box
+  /// baseline (negative depth). Labelling that "Depth" under a heading that
+  /// says "Transit Search" presents a brightening as a transit.
+  static bool _isBrightening(BlsResult bls) => bls.transitDepth < 0;
+
+  static String _depthLabel(BlsResult bls) =>
+      _isBrightening(bls) ? 'Brightening (anti-transit)' : 'Depth';
+
+  static String _depthMmag(BlsResult bls) =>
+      (bls.transitDepth.abs() * 1000).toStringAsFixed(1);
+
+  String _formatPeriod(double periodDays) => formatPeriodLabel(periodDays);
 
   String _formatDuration(double durationDays) {
     final hours = durationDays * 24.0;

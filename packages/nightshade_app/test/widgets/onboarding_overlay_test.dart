@@ -271,8 +271,27 @@ void main() {
       // coverage without the timer flake.
       await daoWrapper.reset();
 
-      // After reset, the persisted row is gone — launcher's gate will
-      // resolve to pending and re-mount the overlay on next render.
+      // After reset, an explicit replay request is on record — the launcher's
+      // gate resolves to pending and re-mounts the overlay on next render.
+      expect(
+          await daoWrapper.getStatus(), equals(FirstLaunchTourStatus.pending));
+    });
+
+    testWidgets('a fresh install reads as notStarted, never pending',
+        (tester) async {
+      // The coach-mark tour is replay-only. With no row at all nobody has
+      // asked for it, and mapping that to `pending` is what made it auto-fire
+      // on top of the equipment-onboarding wizard on every fresh install.
+      final db = _newInMemoryDb();
+      addTearDown(() async => db.close());
+
+      final daoWrapper = FirstLaunchTourDao(TutorialProgressDao(db));
+
+      expect(await daoWrapper.getStatus(),
+          equals(FirstLaunchTourStatus.notStarted));
+
+      // Only an explicit replay request flips it to pending.
+      await daoWrapper.reset();
       expect(
           await daoWrapper.getStatus(), equals(FirstLaunchTourStatus.pending));
     });

@@ -48,11 +48,13 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: seededReviewOverrides(
-          db: db,
-          scope: scope,
-          previewPath: previewPath,
-        ),
+        overrides: [
+          ...seededReviewOverrides(
+            db: db,
+            scope: scope,
+            previewPath: previewPath,
+          )
+        ],
         child: MaterialApp(
           theme: NightshadeTheme.dark,
           debugShowCheckedModeBanner: false,

@@ -7,6 +7,7 @@ import 'package:nightshade_app/router/app_router.dart';
 import 'package:nightshade_app/widgets/quick_start_checker.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 class _RecordingNetworkBackend extends Mock implements NetworkBackend {
   int discardCalls = 0;
@@ -59,6 +60,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           appRouterProvider.overrideWithValue(router),
           backendProvider.overrideWith(
             (ref) => _SwappableBackendNotifier(ref, backend),
@@ -93,6 +95,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith((ref) {
             notifier = _SwappableBackendNotifier(ref, hostA);
             return notifier;
@@ -137,6 +140,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith(
             (ref) => _SwappableBackendNotifier(ref, backend),
           ),
@@ -177,5 +181,102 @@ void main() {
       findsOneWidget,
     );
     expect(backend.discardCalls, 1);
+  });
+
+  testWidgets('start fresh does not claim a restore it could not perform', (
+    tester,
+  ) async {
+    final backend = _RecordingNetworkBackend();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          inMemoryDatabaseOverride(),
+          backendProvider.overrideWith(
+            (ref) => _SwappableBackendNotifier(ref, backend),
+          ),
+          incompleteSessionsProvider.overrideWith(
+            (ref) async => const <SessionRecoveryInfo>[],
+          ),
+          // The session row records no profile id, no sequence id and no
+          // equipment snapshot — which is what the dialog is already saying
+          // when it prints 'Unknown Profile' / 'No Sequence'. The handler has
+          // nothing to restore, so it must not report a successful restore.
+          quickStartContextProvider.overrideWith((ref) async => _context()),
+        ],
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const QuickStartChecker(
+            child: Scaffold(body: Text('Dashboard')),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Start Fresh'));
+    await tester.tap(find.text('Start Fresh'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Nothing to load'), findsOneWidget);
+    expect(find.textContaining('Loaded previous setup'), findsNothing);
+    expect(find.textContaining('from frame 1'), findsNothing);
+  });
+
+  testWidgets('start fresh re-applies the recorded camera settings', (
+    tester,
+  ) async {
+    final backend = _RecordingNetworkBackend();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          inMemoryDatabaseOverride(),
+          backendProvider.overrideWith(
+            (ref) => _SwappableBackendNotifier(ref, backend),
+          ),
+          incompleteSessionsProvider.overrideWith(
+            (ref) async => const <SessionRecoveryInfo>[],
+          ),
+          // The snapshot the session row now carries (see
+          // SessionStateNotifier._recordEquipmentSnapshot). The whole point of
+          // the button is that these land back on the capture settings — a
+          // snackbar saying so is not a restore.
+          quickStartContextProvider.overrideWith(
+            (ref) async => _context(
+              equipmentSnapshot: EquipmentSnapshot(
+                coolerTargetTemp: -12.5,
+                cameraGain: 250,
+                cameraOffset: 33,
+                capturedAt: DateTime(2026),
+              ),
+            ),
+          ),
+        ],
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const QuickStartChecker(
+            child: Scaffold(body: Text('Dashboard')),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Start Fresh'));
+    await tester.tap(find.text('Start Fresh'));
+    await tester.pumpAndSettle();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.text('Dashboard')),
+    );
+    expect(container.read(exposureSettingsProvider).gain, 250);
+    expect(container.read(exposureSettingsProvider).offset, 33);
+    expect(container.read(cameraStateProvider).targetTemp, -12.5);
+    expect(find.textContaining('gain/offset'), findsOneWidget);
   });
 }

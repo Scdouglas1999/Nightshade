@@ -8,9 +8,18 @@ part of '../profile_editor_dialog.dart';
 class _ParsedProfileForm {
   final String name;
 
+  /// The EFFECTIVE focal length (`telescopeFocalLength * reducerFactor`) — the
+  /// value the rig images at, and the one the FITS FOCALLEN card, the
+  /// plate-solve scale hint and the framing FOV all read.
+  ///
   /// `0` means "unspecified" (the model sentinel); any other value is finite
   /// and strictly positive.
   final double focalLength;
+
+  /// The OTA's NATIVE focal length as typed, before the reducer/barlow. Same
+  /// `0`-means-unspecified sentinel.
+  final double telescopeFocalLength;
+
   final double aperture;
   final double? focalRatio;
 
@@ -26,6 +35,7 @@ class _ParsedProfileForm {
   const _ParsedProfileForm({
     required this.name,
     required this.focalLength,
+    required this.telescopeFocalLength,
     required this.aperture,
     required this.focalRatio,
     required this.gain,
@@ -38,7 +48,70 @@ class _ParsedProfileForm {
   });
 }
 
+/// Parse the reducer/barlow multiplier as typed in the Optical Train section.
+///
+/// Blank means `1.0` ("no reducer") — the same shape the onboarding draft uses.
+/// Bounds come from the shared [OpticalTrainLimits] window rather than a local
+/// constant so this editor cannot drift to a looser range than the wizard.
+ProfileFieldResult<double> _parseReducerFactor(String raw) {
+  final trimmed = raw.trim();
+  if (trimmed.isEmpty) return const ProfileFieldResult.ok(1.0);
+  final parsed = double.tryParse(trimmed);
+  if (parsed == null || !parsed.isFinite || parsed <= 0) {
+    return const ProfileFieldResult.fail(
+      'Reducer / barlow must be a positive number (leave blank for none)',
+    );
+  }
+  if (parsed < OpticalTrainLimits.minReducerFactor ||
+      parsed > OpticalTrainLimits.maxReducerFactor) {
+    return ProfileFieldResult.fail(
+      'Reducer / barlow must be between '
+      '${_formatReducer(OpticalTrainLimits.minReducerFactor)} and '
+      '${_formatReducer(OpticalTrainLimits.maxReducerFactor)}',
+    );
+  }
+  return ProfileFieldResult.ok(parsed);
+}
+
+/// Round an optical quantity to 4 decimal places.
+///
+/// A focal length in millimetres is never known to better than that, and the
+/// raw product carries binary-float noise (`550 * 0.8 == 440.00000000000006`)
+/// that would otherwise make an open-and-save cycle rewrite the very row it
+/// just read — the same "a no-op save mutates the profile" shape this section
+/// exists to prevent.
+double _roundOptic(double value) => double.parse(value.toStringAsFixed(4));
+
+/// Effective focal length of the imaging train: the OTA's native focal length
+/// times the reducer/barlow. `1.0` is passed through untouched so a rig with no
+/// reducer keeps the exact number the user typed.
+double _effectiveFocalLengthOf(double focalLengthMm, double reducerFactor) {
+  if (reducerFactor == 1.0) return focalLengthMm;
+  return _roundOptic(focalLengthMm * reducerFactor);
+}
+
+/// Render a reducer factor the way a user would type it: `1`, `0.8`, `2`.
+String _formatReducer(double value) => value == value.roundToDouble()
+    ? value.round().toString()
+    : value.toString();
+
 extension _ProfileEditorDataOperations on _ProfileEditorDialogState {
+  /// The focal length the rig actually images at — the typed OTA focal length
+  /// scaled by the typed reducer/barlow. Null when either is unusable.
+  ///
+  /// Every derived optical readout below goes through this rather than the raw
+  /// focal-length field, so the preview cannot claim an f-ratio or image scale
+  /// the saved profile does not have.
+  double? get _effectiveFocalLengthMm {
+    final focalLength = double.tryParse(_focalLengthController.text.trim());
+    if (focalLength == null || !focalLength.isFinite || focalLength <= 0) {
+      return null;
+    }
+    final reducer = _parseReducerFactor(_reducerController.text);
+    if (!reducer.isValid) return null;
+    return _effectiveFocalLengthOf(focalLength, reducer.value!);
+  }
+
   // Computed values for optical train.
   //
   // Returns null — so the readout shows `---` rather than a number — whenever
@@ -47,7 +120,7 @@ extension _ProfileEditorDataOperations on _ProfileEditorDialogState {
   // made the unbounded input look accepted in the first place; the same
   // [OpticalTrainLimits] window that gates the save gates the preview.
   double? get _computedFRatio {
-    final focalLength = double.tryParse(_focalLengthController.text);
+    final focalLength = _effectiveFocalLengthMm;
     final aperture = double.tryParse(_apertureController.text);
     if (focalLength == null || aperture == null || aperture <= 0) return null;
     final ratio = focalLength / aperture;
@@ -60,7 +133,7 @@ extension _ProfileEditorDataOperations on _ProfileEditorDialogState {
   }
 
   double? get _computedScale {
-    final focalLength = double.tryParse(_focalLengthController.text);
+    final focalLength = _effectiveFocalLengthMm;
     if (focalLength == null || focalLength <= 0) return null;
     // Try to get pixel size from connected camera
     final cameraState = ref.read(cameraStateProvider);
@@ -282,10 +355,30 @@ extension _ProfileEditorDataOperations on _ProfileEditorDialogState {
   /// save paths consume, so the two can never drift. On failure it surfaces a
   /// stable inline name error plus a summary snackbar of the remaining field
   /// errors, leaves the editor open/editing, and returns null.
+  /// Rejects a name another profile already carries (case- and
+  /// whitespace-insensitive).
+  ///
+  /// The name is the only thing the sidebar rows, the screen header, the status
+  /// bar and the delete confirmation quote, so two rigs both called "My First
+  /// Rig" leave the operator guessing which one a destructive action is about
+  /// to hit. This is the same gate that already catches an empty name.
+  String? _duplicateNameError(String name) {
+    final editingId = widget.profile?.id;
+    final target = name.toLowerCase();
+    final clashes = ref.read(sortedProfilesProvider).any(
+          (p) => p.id != editingId && p.name.trim().toLowerCase() == target,
+        );
+    return clashes ? 'Another profile is already called "$name"' : null;
+  }
+
   _ParsedProfileForm? _validateForm() {
     final nameResult = ProfileValidator.parseName(_nameController.text);
+    final nameError = nameResult.isValid
+        ? _duplicateNameError(nameResult.value!)
+        : nameResult.error;
     final focalResult =
         ProfileValidator.parseFocalLength(_focalLengthController.text);
+    final reducerResult = _parseReducerFactor(_reducerController.text);
     final apertureResult =
         ProfileValidator.parseAperture(_apertureController.text);
     final gainResult = ProfileValidator.parseOptionalWholeNonNegative(
@@ -307,20 +400,32 @@ extension _ProfileEditorDataOperations on _ProfileEditorDialogState {
         ),
     ]);
 
+    // What the rig images at, which is what every downstream consumer means by
+    // "focal length". The reducer is folded in BEFORE the plausibility check so
+    // a barlow that pushes the train past the f-ratio ceiling is caught here
+    // rather than persisted.
+    final effectiveFocalLength =
+        focalResult.isValid && reducerResult.isValid && focalResult.value! > 0
+            ? _effectiveFocalLengthOf(focalResult.value!, reducerResult.value!)
+            : 0.0;
+
     // Individually in-range optics can still describe an impossible system
     // (600 mm at 0.1 mm aperture is f/6000), so cross-check the pair through
     // the same shared contract once both fields parsed.
-    final trainError = focalResult.isValid && apertureResult.isValid
-        ? ProfileValidator.validateOpticalTrain(
-            focalLengthMm: focalResult.value!,
-            apertureMm: apertureResult.value!,
-          )
-        : null;
+    final trainError =
+        focalResult.isValid && reducerResult.isValid && apertureResult.isValid
+            ? ProfileValidator.validateOpticalTrain(
+                focalLengthMm: effectiveFocalLength,
+                apertureMm: apertureResult.value!,
+              )
+            : null;
 
     // Errors that map onto a specific input get inline treatment on that input.
     final inlineErrors = <String, String>{
       if (!focalResult.isValid)
         ProfileEditorField.focalLength: focalResult.error!,
+      if (!reducerResult.isValid)
+        ProfileEditorField.reducer: reducerResult.error!,
       if (!apertureResult.isValid)
         ProfileEditorField.aperture: apertureResult.error!,
       if (!gainResult.isValid) ProfileEditorField.gain: gainResult.error!,
@@ -339,11 +444,11 @@ extension _ProfileEditorDataOperations on _ProfileEditorDialogState {
       if (!filterResult.isValid) ...filterResult.errors,
     ];
 
-    if (!nameResult.isValid ||
+    if (nameError != null ||
         inlineErrors.isNotEmpty ||
         unattachedErrors.isNotEmpty) {
       setState(() {
-        _nameError = nameResult.error;
+        _nameError = nameError;
         _fieldErrors
           ..clear()
           ..addAll(inlineErrors);
@@ -352,8 +457,9 @@ extension _ProfileEditorDataOperations on _ProfileEditorDialogState {
         // actually on screen. Previously only the name did this, so a bad focal
         // length inside a collapsed Optical Train section produced no visible
         // marker at all.
-        if (nameResult.error != null) _expandedSections['identity'] = true;
+        if (nameError != null) _expandedSections['identity'] = true;
         if (inlineErrors.containsKey(ProfileEditorField.focalLength) ||
+            inlineErrors.containsKey(ProfileEditorField.reducer) ||
             inlineErrors.containsKey(ProfileEditorField.aperture) ||
             trainError != null) {
           _expandedSections['optical'] = true;
@@ -381,13 +487,19 @@ extension _ProfileEditorDataOperations on _ProfileEditorDialogState {
       _formErrors = const <String>[];
     });
 
-    final focalLength = focalResult.value!;
     final aperture = apertureResult.value!;
     return _ParsedProfileForm(
       name: nameResult.value!,
-      focalLength: focalLength,
+      focalLength: effectiveFocalLength,
+      telescopeFocalLength: focalResult.value!,
       aperture: aperture,
-      focalRatio: aperture > 0 ? focalLength / aperture : null,
+      // The stored ratio must describe the same train as the stored focal
+      // length, so it is derived from the EFFECTIVE value. Left null when the
+      // ratio is undefined rather than persisted as a meaningless `0.0`, which
+      // the wire validator rejects outright.
+      focalRatio: aperture > 0 && effectiveFocalLength > 0
+          ? effectiveFocalLength / aperture
+          : null,
       gain: gainResult.value,
       offset: offsetResult.value,
       binning: binningResult.value!,
@@ -413,10 +525,12 @@ extension _ProfileEditorDataOperations on _ProfileEditorDialogState {
       isDefault: _isDefault,
       isActive: widget.profile?.isActive ?? false,
       telescopeName: _telescopeNameController.text.trimOrNull,
-      // The optical fields mirror the parsed focal length/aperture; keep the
-      // long-standing "null when unspecified (0)" shape for the telescope
-      // columns.
-      telescopeFocalLength: parsed.focalLength > 0 ? parsed.focalLength : null,
+      // The telescope columns carry the OTA's NATIVE optics and `focalLength`
+      // the effective (post reducer/barlow) train — writing the same number to
+      // both is what silently erased the reducer. Keep the long-standing "null
+      // when unspecified (0)" shape for the telescope columns.
+      telescopeFocalLength:
+          parsed.telescopeFocalLength > 0 ? parsed.telescopeFocalLength : null,
       telescopeAperture: parsed.aperture > 0 ? parsed.aperture : null,
       focalLength: parsed.focalLength,
       aperture: parsed.aperture,
@@ -510,11 +624,13 @@ extension _ProfileEditorDataOperations on _ProfileEditorDialogState {
       final dao = ref.read(equipmentProfilesDaoProvider);
 
       // Normalized numeric values from the validated form (see _validateForm).
+      // `focalLength` is the EFFECTIVE train; the telescope columns keep the
+      // OTA's native optics and the "null when unspecified (0)" shape.
       final focalLength = parsed.focalLength;
       final aperture = parsed.aperture;
       final fRatio = parsed.focalRatio;
-      // Telescope columns keep the "null when unspecified (0)" shape.
-      final telescopeFocalLength = focalLength > 0 ? focalLength : null;
+      final telescopeFocalLength =
+          parsed.telescopeFocalLength > 0 ? parsed.telescopeFocalLength : null;
       final telescopeAperture = aperture > 0 ? aperture : null;
 
       // Encode the validated filter set; an empty set persists as null.

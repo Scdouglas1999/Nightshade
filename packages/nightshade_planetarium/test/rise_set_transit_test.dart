@@ -35,23 +35,29 @@ void main() {
       expect(visibility.transitAltitude, closeTo(90 - lat, 0.4));
     });
 
-    test('apparent Sun altitude at sunset sits on the -0.833 limb', () {
-      final appAlt = AstronomyCalculations.sunAltitude(
+    // The -0.8333 deg limb is a GEOMETRIC sun-centre altitude: the -34' in it
+    // IS the refraction allowance (plus -16' of semi-diameter), which is why
+    // it is checked against the unrefracted altitude. Asserting it against the
+    // refracted altitude is the double-count that put sunset ~3.5 min late.
+    test('geometric Sun altitude at sunset sits on the -0.833 limb', () {
+      final geoAlt = AstronomyCalculations.sunAltitude(
         dt: visibility.setTime!,
         latitudeDeg: lat,
         longitudeDeg: lon,
+        apparent: false,
       );
       // -34' refraction - 16' semi-diameter = -50' = -0.833 deg.
-      expect(appAlt, closeTo(-0.8333, 0.02));
+      expect(geoAlt, closeTo(-0.8333, 0.02));
     });
 
-    test('apparent Sun altitude at sunrise sits on the -0.833 limb', () {
-      final appAlt = AstronomyCalculations.sunAltitude(
+    test('geometric Sun altitude at sunrise sits on the -0.833 limb', () {
+      final geoAlt = AstronomyCalculations.sunAltitude(
         dt: visibility.riseTime!,
         latitudeDeg: lat,
         longitudeDeg: lon,
+        apparent: false,
       );
-      expect(appAlt, closeTo(-0.8333, 0.02));
+      expect(geoAlt, closeTo(-0.8333, 0.02));
     });
 
     test('transit occurs at the meridian (hour angle ~0)', () {

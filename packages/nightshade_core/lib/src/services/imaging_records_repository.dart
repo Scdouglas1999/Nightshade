@@ -186,6 +186,33 @@ class ImagingRecordsRepository {
     await _sessionsDao!.endSession(id, status: status);
   }
 
+  /// Record the equipment this session is running with, so the Continue
+  /// Session handoff can re-apply it on the next launch.
+  ///
+  /// Host-only on purpose: on a paired companion the session row lives on the
+  /// appliance, and the equipment state worth restoring is the appliance's —
+  /// which its own executor stamps. Writing the phone's device state onto a
+  /// local row nothing reads would be a second, wrong source.
+  Future<void> updateEquipmentSnapshot(int id, String snapshotJson) async {
+    if (_remote != null) return;
+    await _sessionsDao!.updateEquipmentSnapshot(id, snapshotJson);
+  }
+
+  /// Close a session that was abandoned, back-dating `end_time` to its last
+  /// captured frame. See [SessionsDao.abortSession] for why the recovery
+  /// clock is the wrong timestamp to record.
+  ///
+  /// The remote branch is the companion asking the HOST to close one of the
+  /// host's sessions; the host runs its own recovery against its own DAO, so
+  /// the back-dating happens there.
+  Future<void> abortSession(int id) async {
+    if (_remote != null) {
+      await _remote.endSession(id, status: 'aborted');
+      return;
+    }
+    await _sessionsDao!.abortSession(id);
+  }
+
   Future<void> updateSessionStats(
     int id, {
     int? totalExposures,

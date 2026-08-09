@@ -8,6 +8,8 @@ import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as path;
 
+import 'hyg_depth.dart';
+
 part 'catalog_manager/source_models.dart';
 part 'catalog_manager/manager.dart';
 part 'catalog_manager/legacy_catalog_io.dart';

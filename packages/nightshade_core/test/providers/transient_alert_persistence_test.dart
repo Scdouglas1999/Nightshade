@@ -79,20 +79,26 @@ void main() {
       addTearDown(notifier.dispose);
       await _pump();
 
+      // TNS is on by default, so the toggle under test turns it OFF; what is
+      // being asserted is that three concurrent independent edits all land in
+      // one persisted snapshot, not the direction of any one of them.
       await Future.wait([
         notifier.toggleSource(TransientSource.tns),
         notifier.toggleType(TransientType.nova),
         notifier.setNotifyOnNew(false),
       ]);
 
-      expect(notifier.state.enabledSources, contains(TransientSource.tns));
+      expect(
+        notifier.state.enabledSources,
+        isNot(contains(TransientSource.tns)),
+      );
       expect(
         notifier.state.typesToMonitor,
         isNot(contains(TransientType.nova)),
       );
       expect(notifier.state.notifyOnNew, isFalse);
       final stored = await dao.getAllSettings();
-      expect(stored['transient_alert_enabled_sources'], contains('tns'));
+      expect(stored['transient_alert_enabled_sources'], isNot(contains('tns')));
       expect(
         jsonDecode(stored['transient_alert_types_to_monitor']!)
             as List<dynamic>,

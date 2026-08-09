@@ -180,6 +180,11 @@ class TargetScoreRow extends StatelessWidget {
       if (reason.contains('altitude') && reason.contains('below')) {
         return 'Below horizon';
       }
+      // Two different moon constraints can reject a target now, and they call
+      // for opposite operator responses (wait for a darker moon vs. wait for
+      // the moon to move). One shared 'Moon avoidance' chip hid which fired.
+      if (reason.contains('moon separation')) return 'Too close to moon';
+      if (reason.contains('moon illumination')) return 'Moon too bright';
       if (reason.contains('moon')) return 'Moon avoidance';
       if (reason.contains('time window')) return 'Outside window';
       if (reason.contains('filter')) return 'Filter missing';

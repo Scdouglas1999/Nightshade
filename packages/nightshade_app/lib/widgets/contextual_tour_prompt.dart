@@ -134,9 +134,15 @@ class _ContextualTourPromptState extends ConsumerState<ContextualTourPrompt>
     // 2. This screen's prompt was already dismissed
     // 3. A tutorial is currently active
     // 4. The relevant tour is already completed
+    // 5. The full-screen coach-mark tour is on screen — a per-screen nudge
+    //    popping into the corner of a spotlighted walkthrough is two guided
+    //    flows competing for the same user at the same moment.
+    // 6. The first-night walkthrough is running on the same screen.
     if (!tutorialState.tutorialsEnabled ||
         dismissedPrompts.contains(widget.screenId) ||
         tutorialState.activeCategory != null ||
+        _coachMarkTourOnScreen ||
+        ref.read(guidedFlowActiveProvider) ||
         _isTourCompleted(tutorialState)) {
       return;
     }
@@ -148,6 +154,25 @@ class _ContextualTourPromptState extends ConsumerState<ContextualTourPrompt>
         setState(() => _isVisible = true);
         _animController.forward();
       }
+    });
+  }
+
+  /// True while [OnboardingTourReplayLauncher] has the full-screen coach-mark
+  /// overlay mounted (its gate is this same `pending` status).
+  bool get _coachMarkTourOnScreen =>
+      ref.read(firstLaunchTourStatusProvider).valueOrNull ==
+      FirstLaunchTourStatus.pending;
+
+  /// Take the card off screen without recording a dismissal.
+  ///
+  /// Distinct from [_dismissPrompt]: the user did not decline this tour, some
+  /// other guided flow simply took over the screen, so the offer must survive
+  /// to the next visit rather than being spent.
+  void _hideForCompetingFlow() {
+    _showDelayTimer?.cancel();
+    if (!_isVisible) return;
+    _animController.reverse().then((_) {
+      if (mounted) setState(() => _isVisible = false);
     });
   }
 
@@ -215,6 +240,22 @@ class _ContextualTourPromptState extends ConsumerState<ContextualTourPrompt>
       if (current.activeCategory != null && _isVisible) {
         _dismissPrompt();
       }
+    });
+
+    // The coach-mark tour can be started from Settings while this nudge is
+    // already on screen. Get out of its way, but keep the offer — the user
+    // declined nothing.
+    ref.listen<AsyncValue<FirstLaunchTourStatus>>(firstLaunchTourStatusProvider,
+        (previous, current) {
+      if (current.valueOrNull == FirstLaunchTourStatus.pending) {
+        _hideForCompetingFlow();
+      }
+    });
+
+    // Same for the first-night walkthrough, which can be opened from Settings
+    // over a screen already showing this nudge.
+    ref.listen<bool>(guidedFlowActiveProvider, (previous, current) {
+      if (current) _hideForCompetingFlow();
     });
 
     // LayoutBuilder because the reserved band has to be capped against the

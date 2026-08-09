@@ -23,12 +23,21 @@ class PairingState {
   final bool isLoading;
   final String? error;
 
+  /// The device that just consumed the outstanding pairing code, if any.
+  ///
+  /// This is the operator's only way to know that the phone in their hand is
+  /// the thing that connected. Without it the desktop kept counting down a
+  /// code the server had already destroyed, and the device list stayed a
+  /// refresh behind.
+  final PairedDevice? lastPairedDevice;
+
   PairingState({
     this.pairingCode,
     this.expiresAt,
     this.pairedDevices = const [],
     this.isLoading = false,
     this.error,
+    this.lastPairedDevice,
   });
 
   PairingState copyWith({
@@ -37,6 +46,7 @@ class PairingState {
     List<PairedDevice>? pairedDevices,
     bool? isLoading,
     Object? error = _pairingUnset,
+    Object? lastPairedDevice = _pairingUnset,
   }) {
     return PairingState(
       pairingCode: identical(pairingCode, _pairingUnset)
@@ -48,6 +58,9 @@ class PairingState {
       pairedDevices: pairedDevices ?? this.pairedDevices,
       isLoading: isLoading ?? this.isLoading,
       error: identical(error, _pairingUnset) ? this.error : error as String?,
+      lastPairedDevice: identical(lastPairedDevice, _pairingUnset)
+          ? this.lastPairedDevice
+          : lastPairedDevice as PairedDevice?,
     );
   }
 
@@ -67,6 +80,14 @@ class PairingNotifier extends StateNotifier<PairingState> {
   final bool _ownsDatabase;
   late Future<void> _operationTail;
   int _queuedOperations = 0;
+
+  /// deviceId -> pairedAt for every device known when the outstanding code was
+  /// issued. A completed pairing is recognised by joining on deviceId (a
+  /// re-pair deletes and re-adds the same id, so the timestamp is part of the
+  /// identity) — never by comparing list lengths, which proves nothing about
+  /// which row is new.
+  Map<String, DateTime> _devicesWhenCodeIssued = const {};
+  bool _completionCheckInFlight = false;
 
   PairingNotifier()
       : this._(
@@ -136,9 +157,19 @@ class PairingNotifier extends StateNotifier<PairingState> {
         if (!mounted) return false;
         final expiresAt = DateTime.now().add(const Duration(minutes: 5));
 
+        // Snapshot BEFORE the code can be used, so the device that consumes it
+        // can be identified rather than guessed at.
+        final known = await _tokenManager.getActivePairedDevices();
+        if (!mounted) return false;
+        _devicesWhenCodeIssued = {
+          for (final device in known) device.deviceId: device.pairedAt,
+        };
+
         state = state.copyWith(
           pairingCode: code,
           expiresAt: expiresAt,
+          pairedDevices: known,
+          lastPairedDevice: null,
           error: null,
         );
 
@@ -174,7 +205,63 @@ class PairingNotifier extends StateNotifier<PairingState> {
       if (state.timeRemaining?.inSeconds == 0) {
         _countdownTimer?.cancel();
       }
+      // The HTTP pairing endpoint runs against the same database file from a
+      // separate PairingDatabase instance, so there is no Drift stream to
+      // listen to and nothing pushes completion at this notifier. Ask, on the
+      // same cadence the countdown already ticks at.
+      unawaited(_checkPairingCompleted());
     });
+  }
+
+  /// Detect that the outstanding code has been consumed and say so.
+  ///
+  /// `completePairing` marks the session used and then deletes used sessions,
+  /// so a missing (or used) row means the credential on screen is dead. Showing
+  /// a live countdown for it is a false statement, and it invites the operator
+  /// to read the dead code to a second device.
+  Future<void> _checkPairingCompleted() async {
+    if (!mounted || _completionCheckInFlight || _queuedOperations > 0) return;
+    final code = state.pairingCode;
+    if (code == null) return;
+    _completionCheckInFlight = true;
+    try {
+      final session = await _database.getPairingSession(code);
+      if (!mounted || state.pairingCode != code) return;
+      if (session != null && !session.isUsed) return; // still outstanding
+
+      final devices = await _tokenManager.getActivePairedDevices();
+      if (!mounted || state.pairingCode != code) return;
+
+      PairedDevice? paired;
+      for (final device in devices) {
+        final previous = _devicesWhenCodeIssued[device.deviceId];
+        if (previous == null || previous != device.pairedAt) {
+          paired = device;
+          break;
+        }
+      }
+
+      _expirationTimer?.cancel();
+      _countdownTimer?.cancel();
+      state = state.copyWith(
+        pairingCode: null,
+        expiresAt: null,
+        pairedDevices: devices,
+        lastPairedDevice: paired,
+        error: null,
+      );
+    } catch (_) {
+      // A transient read failure must never destroy a still-live code; the
+      // next tick tries again.
+    } finally {
+      _completionCheckInFlight = false;
+    }
+  }
+
+  /// Dismiss the "device paired" confirmation.
+  void clearLastPairedDevice() {
+    if (!mounted) return;
+    state = state.copyWith(lastPairedDevice: null);
   }
 
   /// Cancel the current pairing session.
@@ -251,6 +338,46 @@ class PairingNotifier extends StateNotifier<PairingState> {
         if (mounted) {
           state = state.copyWith(
             error: 'pairingErrorRevoke',
+          );
+        }
+        return false;
+      }
+    });
+  }
+
+  /// Give a paired device a name the operator will recognise.
+  ///
+  /// Every phone pairs under a fixed per-platform name ("Android companion"),
+  /// so the list is a stack of identical rows and revoking the handset you sold
+  /// is guesswork. The name is the only field the host owns outright, so this
+  /// is where that is settled; nothing about the device's token or grant
+  /// changes.
+  Future<bool> renameDevice(String deviceId, String deviceName) {
+    final name = deviceName.trim();
+    if (name.isEmpty) return Future<bool>.value(false);
+    return _enqueue(() async {
+      if (!mounted) return false;
+      try {
+        if (!await _tokenManager.renameDevice(deviceId, name)) {
+          // The row is gone (deleted from another surface); say so rather than
+          // reporting a rename that changed nothing.
+          if (mounted) {
+            final devices = await _tokenManager.getActivePairedDevices();
+            if (mounted) state = state.copyWith(pairedDevices: devices);
+          }
+          return false;
+        }
+        final devices = await _tokenManager.getActivePairedDevices();
+        if (!mounted) return false;
+        state = state.copyWith(
+          pairedDevices: devices,
+          error: null,
+        );
+        return true;
+      } catch (_) {
+        if (mounted) {
+          state = state.copyWith(
+            error: 'pairingErrorRename',
           );
         }
         return false;
@@ -349,6 +476,14 @@ class PairingScreen extends ConsumerWidget {
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 16),
+            if (state.lastPairedDevice != null) ...[
+              _PairedConfirmation(
+                device: state.lastPairedDevice!,
+                onDismiss: () =>
+                    ref.read(pairingProvider.notifier).clearLastPairedDevice(),
+              ),
+              const SizedBox(height: 16),
+            ],
             if (state.pairingCode == null) ...[
               Text(
                 l10n.text('pairingStartDesc'),
@@ -598,10 +733,23 @@ class PairingScreen extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  _deviceTypeLabel(device.deviceType),
-                  style: NightshadeTypography.labelSm
-                      .copyWith(color: colors.textMuted),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      _deviceTypeLabel(device.deviceType),
+                      style: NightshadeTypography.labelSm
+                          .copyWith(color: colors.textMuted),
+                    ),
+                    // What this token is allowed to DO. The host has always
+                    // stored it (paired_devices.auth_grant_spec) and the list
+                    // never showed it, so a row holding 'admin' looked exactly
+                    // like a view-only one — and revoking is the moment you
+                    // most need to know which is which.
+                    _AccessBadge(grantSpec: device.authGrantSpec),
+                  ],
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -639,13 +787,25 @@ class PairingScreen extends ConsumerWidget {
           PopupMenuButton<String>(
             enabled: enabled,
             onSelected: (value) {
-              if (value == 'revoke') {
+              if (value == 'rename') {
+                _showRenameDialog(context, ref, device);
+              } else if (value == 'revoke') {
                 _showRevokeDialog(context, ref, device);
               } else if (value == 'delete') {
                 _showDeleteDialog(context, ref, device);
               }
             },
             itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'rename',
+                child: Row(
+                  children: [
+                    const Icon(LucideIcons.pencil),
+                    const SizedBox(width: 8),
+                    Text(context.l10n.text('pairingRenameDevice')),
+                  ],
+                ),
+              ),
               PopupMenuItem(
                 value: 'revoke',
                 child: Row(
@@ -790,6 +950,19 @@ class PairingScreen extends ConsumerWidget {
     }
   }
 
+  void _showRenameDialog(
+      BuildContext context, WidgetRef ref, PairedDevice device) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => _RenameDeviceDialog(
+        device: device,
+        onSubmit: (name) => ref
+            .read(pairingProvider.notifier)
+            .renameDevice(device.deviceId, name),
+      ),
+    );
+  }
+
   void _showRevokeDialog(
       BuildContext context, WidgetRef ref, PairedDevice device) {
     _showDeviceActionDialog(
@@ -879,6 +1052,187 @@ class PairingScreen extends ConsumerWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Renames one paired device.
+///
+/// Deliberately a plain one-field dialog: the field opens focused and holding
+/// the current name, Return commits it, and an empty name is refused rather
+/// than written (a blank row would be even less identifiable than the
+/// duplicate it was meant to fix).
+class _RenameDeviceDialog extends StatefulWidget {
+  final PairedDevice device;
+  final Future<bool> Function(String name) onSubmit;
+
+  const _RenameDeviceDialog({required this.device, required this.onSubmit});
+
+  @override
+  State<_RenameDeviceDialog> createState() => _RenameDeviceDialogState();
+}
+
+class _RenameDeviceDialogState extends State<_RenameDeviceDialog> {
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.device.deviceName);
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_busy) return;
+    final name = _controller.text.trim();
+    if (name.isEmpty) return;
+    setState(() => _busy = true);
+    final succeeded = await widget.onSubmit(name);
+    if (!mounted) return;
+    if (succeeded) {
+      Navigator.of(context).pop();
+      return;
+    }
+    setState(() => _busy = false);
+    context.showErrorSnackBar(context.l10n.text('pairingErrorRename'));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return PopScope(
+      canPop: !_busy,
+      child: AlertDialog(
+        title: Text(l10n.text('pairingRenameTitle')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(l10n.text('pairingRenameBody')),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              enabled: !_busy,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _submit(),
+              // Rebuild so Save disables the moment the field is emptied.
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                labelText: l10n.text('pairingRenameLabel'),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          NightshadeButton(
+            label: l10n.text('cancel'),
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
+            onPressed: _busy ? null : () => Navigator.of(context).pop(),
+          ),
+          NightshadeButton(
+            label: l10n.text('save'),
+            variant: ButtonVariant.primary,
+            size: ButtonSize.small,
+            isLoading: _busy,
+            onPressed:
+                _busy || _controller.text.trim().isEmpty ? null : _submit,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// What a paired device's token is allowed to do, as a badge.
+///
+/// `auth_grant_spec` is either one of the three coarse grants or the host
+/// API's fine-grained `resource:level,...` form; the raw spec is always on the
+/// tooltip so a custom grant is still inspectable.
+class _AccessBadge extends StatelessWidget {
+  final String grantSpec;
+
+  const _AccessBadge({required this.grantSpec});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    final spec = grantSpec.trim().toLowerCase();
+    final (String label, Color color) = switch (spec) {
+      // Admin can re-pair, revoke other devices and change server settings.
+      // Coloured as a warning because it is the grant you look for when you
+      // are deciding what to revoke.
+      'admin' => ('Full access', colors.warning),
+      'control' => ('Can control the rig', colors.info),
+      'view' => ('View only', colors.textMuted),
+      _ => ('Custom access', colors.textMuted),
+    };
+
+    return Tooltip(
+      message: 'Granted access: $grantSpec',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusFull),
+          border: Border.all(color: color.withValues(alpha: 0.35)),
+        ),
+        child: Text(
+          label,
+          style: NightshadeTypography.labelQuiet.copyWith(color: color),
+        ),
+      ),
+    );
+  }
+}
+
+/// `<device> paired` confirmation shown the moment the outstanding code is
+/// consumed. Names the device because that is what tells the operator the phone
+/// in their hand — and not something else on the network — is what connected.
+class _PairedConfirmation extends StatelessWidget {
+  final PairedDevice device;
+  final VoidCallback onDismiss;
+
+  const _PairedConfirmation({
+    required this.device,
+    required this.onDismiss,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colors.success.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+        border: Border.all(color: colors.success.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(NightshadeIcons.check, color: colors.success, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              '${device.deviceName} paired',
+              style: TextStyle(
+                fontSize: NightshadeTypography.fontSize13,
+                color: colors.textPrimary,
+                height: 1.4,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          TextButton(
+            onPressed: onDismiss,
+            child: Text(context.l10n.text('pairingDismissError')),
+          ),
+        ],
+      ),
     );
   }
 }

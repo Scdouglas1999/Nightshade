@@ -94,6 +94,110 @@ class NightshadeDialog extends StatelessWidget {
     this.scrollableBody = true,
   });
 
+  @override
+  Widget build(BuildContext context) {
+    final dialogSize = AdaptiveDialogConstraints.dialogSize(
+      context,
+      designWidth: width,
+      designHeight: height,
+    );
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(NightshadeTokens.spaceLg),
+      child: NightshadeDialogSurface(
+        framed: true,
+        title: title,
+        icon: icon,
+        actions: actions,
+        onClose: onClose,
+        showCloseButton: showCloseButton,
+        closeEnabled: closeEnabled,
+        closeButtonSemanticsLabel: closeButtonSemanticsLabel,
+        width: dialogSize.width,
+        height: dialogSize.height,
+        bodyPadding: bodyPadding,
+        scrollableBody: scrollableBody,
+        child: child,
+      ),
+    );
+  }
+}
+
+/// [NightshadeDialog]'s chrome — header, scrollable body, footer — WITHOUT the
+/// surrounding [Dialog] frame.
+///
+/// Use this as the body of a modal that already supplies its own frame, above
+/// all `showAdaptiveModal`, which wraps its builder in a [Dialog] on
+/// tablet/desktop and in a bottom sheet on a phone. Returning a whole
+/// [NightshadeDialog] from such a builder nests one dialog inside another: the
+/// inner `Dialog`'s `Align` expands to the full viewport height, so the outer
+/// dialog's painted surface stretched into a full-height slab with the real
+/// card floating in the middle of it.
+///
+/// Sizing is deliberately caller-owned: leave [width]/[height] null (the
+/// default) and the surface wraps its content, letting the enclosing frame
+/// decide the width. Pass [framed] `true` only when nothing else is painting
+/// the card (this is what [NightshadeDialog] does).
+class NightshadeDialogSurface extends StatelessWidget {
+  /// Header title text. Required for accessibility.
+  final String title;
+
+  /// Optional leading icon shown before the title.
+  final IconData? icon;
+
+  /// Body content. Wrapped in a scroll view unless [scrollableBody] is false.
+  final Widget child;
+
+  /// Optional footer actions, rendered right-aligned above a top border.
+  final List<Widget>? actions;
+
+  /// Fired when the user closes via the header button. Pops the route if null.
+  final VoidCallback? onClose;
+
+  /// Show the close button in the header. Defaults to true.
+  final bool showCloseButton;
+
+  /// Whether the modal may currently be dismissed. False disables the header
+  /// close button and blocks barrier / system-back pops.
+  final bool closeEnabled;
+
+  /// Accessible label for the close button.
+  final String closeButtonSemanticsLabel;
+
+  /// Explicit width, or null to size to the enclosing frame.
+  final double? width;
+
+  /// Explicit height, or null to size to content.
+  final double? height;
+
+  /// Padding around the body content.
+  final EdgeInsets bodyPadding;
+
+  /// When false, suppresses the body's internal scroll view.
+  final bool scrollableBody;
+
+  /// Paint the card background, border, shadow and rounded corners. False (the
+  /// default) when an enclosing modal frame already paints them.
+  final bool framed;
+
+  const NightshadeDialogSurface({
+    super.key,
+    required this.title,
+    required this.child,
+    this.icon,
+    this.actions,
+    this.onClose,
+    this.showCloseButton = true,
+    this.closeEnabled = true,
+    this.closeButtonSemanticsLabel = 'Close dialog',
+    this.width,
+    this.height,
+    this.bodyPadding = const EdgeInsets.all(NightshadeTokens.spaceXl),
+    this.scrollableBody = true,
+    this.framed = false,
+  });
+
   void _handleClose(BuildContext context) {
     // Caller-provided onClose runs *before* popping so it can decide to
     // keep the dialog open by re-pushing if needed; in practice callers
@@ -109,52 +213,44 @@ class NightshadeDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.nightshadeColors;
-    final dialogSize = AdaptiveDialogConstraints.dialogSize(
-      context,
-      designWidth: width,
-      designHeight: height,
-    );
-
     final body = Padding(padding: bodyPadding, child: child);
+
+    final column = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _Header(
+          title: title,
+          icon: icon,
+          colors: colors,
+          showCloseButton: showCloseButton,
+          closeEnabled: closeEnabled,
+          closeButtonSemanticsLabel: closeButtonSemanticsLabel,
+          onClose: () => _handleClose(context),
+        ),
+        Flexible(
+          child: scrollableBody ? SingleChildScrollView(child: body) : body,
+        ),
+        if (actions != null && actions!.isNotEmpty)
+          _Footer(colors: colors, actions: actions!),
+      ],
+    );
 
     return PopScope(
       canPop: closeEnabled,
-      child: Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.all(NightshadeTokens.spaceLg),
-        child: Container(
-          width: dialogSize.width,
-          height: dialogSize.height,
-          decoration: BoxDecoration(
-            color: colors.surfaceElevated,
-            borderRadius: NightshadeTokens.borderRadiusMd,
-            border: Border.all(color: colors.border),
-            boxShadow: NightshadeTokens.shadowLg,
-          ),
-          child: ClipRRect(
-            borderRadius: NightshadeTokens.borderRadiusMd,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _Header(
-                  title: title,
-                  icon: icon,
-                  colors: colors,
-                  showCloseButton: showCloseButton,
-                  closeEnabled: closeEnabled,
-                  closeButtonSemanticsLabel: closeButtonSemanticsLabel,
-                  onClose: () => _handleClose(context),
-                ),
-                Flexible(
-                  child: scrollableBody
-                      ? SingleChildScrollView(child: body)
-                      : body,
-                ),
-                if (actions != null && actions!.isNotEmpty)
-                  _Footer(colors: colors, actions: actions!),
-              ],
-            ),
-          ),
+      child: Container(
+        width: width,
+        height: height,
+        decoration: framed
+            ? BoxDecoration(
+                color: colors.surfaceElevated,
+                borderRadius: NightshadeTokens.borderRadiusMd,
+                border: Border.all(color: colors.border),
+                boxShadow: NightshadeTokens.shadowLg,
+              )
+            : null,
+        child: ClipRRect(
+          borderRadius: NightshadeTokens.borderRadiusMd,
+          child: column,
         ),
       ),
     );

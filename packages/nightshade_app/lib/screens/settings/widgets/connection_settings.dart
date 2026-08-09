@@ -9,7 +9,9 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../utils/snackbar_helper.dart';
 import '../../../widgets/tutorial_keys/settings_keys.dart';
+import '../../../widgets/work_locally.dart';
 import '../../equipment/dialogs/indi_server_dialog.dart';
+import 'connection_settings_alpaca_dialog.dart';
 import 'settings_widgets.dart';
 
 class ConnectionSettings extends ConsumerWidget {
@@ -131,9 +133,25 @@ class ConnectionSettings extends ConsumerWidget {
                 onPressed: () =>
                     _handleConnectionAction(context, ref, isNetwork),
               ),
-              isLast: true,
+              isLast: !(isDisconnected && canWorkLocally),
               isMobile: isMobile,
             ),
+            // The only way out of a DisconnectedBackend was to relaunch:
+            // `useLocalBackend()` had no UI caller anywhere in the app, so a
+            // desktop that fell out of local mode stayed there, red banner and
+            // all. Offer the way back on the platforms whose entry point runs
+            // the rig locally — a phone has no local hardware to fall back to.
+            if (isDisconnected && canWorkLocally)
+              SettingRow(
+                icon: LucideIcons.hardDrive,
+                title: 'Work Locally',
+                subtitle:
+                    'Drive the equipment attached to this computer instead of '
+                    'a remote server',
+                trailing: const WorkLocallyButton(),
+                isLast: true,
+                isMobile: isMobile,
+              ),
           ],
         ),
         if (settings != null)
@@ -169,6 +187,27 @@ class ConnectionSettings extends ConsumerWidget {
                 trailing: SettingsSwitch(
                   value: settings.indiAutoConnect,
                   onChanged: settingsNotifier.setIndiAutoConnect,
+                ),
+                isMobile: isMobile,
+              ),
+              // The address row the "configured Alpaca server" below it always
+              // referred to. Without it the address was permanently the stored
+              // default (localhost:11111) even though the common Alpaca
+              // deployment is an ASCOM Remote host elsewhere on the LAN.
+              SettingRow(
+                icon: LucideIcons.server,
+                title: 'Alpaca Server Address',
+                subtitle:
+                    '${settings.alpacaServerHost}:${settings.alpacaServerPort}'
+                    ' • host and port used for Alpaca discovery',
+                trailing: NightshadeButton(
+                  label: 'Configure',
+                  variant: ButtonVariant.outline,
+                  size: ButtonSize.small,
+                  onPressed: () => showDialog<Map<String, dynamic>>(
+                    context: context,
+                    builder: (_) => const AlpacaServerDialog(),
+                  ),
                 ),
                 isMobile: isMobile,
               ),
@@ -463,6 +502,13 @@ class _ConnectToServerDialogState
     final inputs = _validatedInputs();
     if (inputs == null) return;
 
+    // A local FfiBackend is the only backend that is neither remote nor an
+    // explicit "nothing installed" state. Remember whether we are about to
+    // displace one, because the failure path has to put it back.
+    final priorBackend = ref.read(backendProvider);
+    final hadLocalBackend =
+        priorBackend is! NetworkBackend && priorBackend is! DisconnectedBackend;
+
     setState(() {
       _isConnecting = true;
       _statusMessage = null;
@@ -479,12 +525,41 @@ class _ConnectToServerDialogState
     } on BackendTransitionSupersededException {
       if (mounted) Navigator.pop(context);
     } catch (e) {
+      // BackendNotifier.connect() rolls a failed handshake back to a
+      // DisconnectedBackend. That is right for a client that never had a rig
+      // of its own, but on the machine that OWNS the hardware it trades a
+      // working local session for a dead one: every role provider follows
+      // backendProvider, so the shell pins "Error: not connected to server"
+      // over an app that was driving the mount a second earlier. Reaching an
+      // OPTIONAL remote host must not cost the operator local mode.
+      final restoreError =
+          hadLocalBackend ? await _restoreLocalBackend() : null;
       if (!mounted) return;
       // Stay open so the operator can correct the address and retry.
       setState(() {
         _isConnecting = false;
-        _statusMessage = 'Connection failed: $e';
+        _statusMessage = switch ((hadLocalBackend, restoreError)) {
+          (true, null) =>
+            'Connection failed: $e\nStill working locally on this computer.',
+          (true, final String problem) => 'Connection failed: $e\n'
+              'Could not return to local mode either: $problem',
+          _ => 'Connection failed: $e',
+        };
       });
+    }
+  }
+
+  /// Put the displaced local backend back. Returns null on success, or a
+  /// description of why local mode could not be restored.
+  Future<String?> _restoreLocalBackend() async {
+    try {
+      await ref.read(backendProvider.notifier).useLocalBackend();
+      return null;
+    } on BackendTransitionSupersededException {
+      // A newer connect/disconnect owns the backend now; leave it alone.
+      return null;
+    } catch (error) {
+      return '$error';
     }
   }
 

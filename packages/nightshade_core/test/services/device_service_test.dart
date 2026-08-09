@@ -18,6 +18,7 @@ import 'package:nightshade_core/src/services/device_exceptions.dart';
 import 'package:nightshade_core/src/services/device_service.dart';
 
 import '../mocks/mock_backend.dart';
+import '../harness/in_memory_database.dart';
 
 class TestBackendNotifier extends BackendNotifier {
   TestBackendNotifier(super.ref, NightshadeBackend backend) {
@@ -63,6 +64,7 @@ void main() {
 
     container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith(
           (ref) => TestBackendNotifier(ref, mockBackend),
         ),
@@ -1866,6 +1868,7 @@ void main() {
   test('configured but disconnected guider cannot receive commands', () async {
     final configuredContainer = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith(
           (ref) => TestBackendNotifier(ref, mockBackend),
         ),

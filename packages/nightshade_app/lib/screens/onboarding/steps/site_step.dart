@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +10,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
 import '../../../utils/snackbar_helper.dart';
+import '../../../widgets/geolocation_consent.dart';
 
 /// Why the observing-site step will not let the wizard advance, or null when the
 /// current entry is acceptable.
@@ -28,6 +30,13 @@ typedef ApproximateLocationLookup = Future<(double, double, String?)?>
 final onboardingApproximateLocationProvider =
     Provider<ApproximateLocationLookup>(
   (ref) => GeolocationService.fetchLocation,
+);
+
+/// The device-position lookup behind "Use my current location": device GPS
+/// where the platform has one, third-party IP lookup everywhere else. Injected
+/// so the consent + elevation rules can be driven in tests without a network.
+final onboardingDeviceLocationProvider = Provider<ApproximateLocationLookup>(
+  (ref) => GeolocationService.fetchLocationFromGPS,
 );
 
 /// Observing-site step.
@@ -93,6 +102,7 @@ class _OnboardingSiteStepState extends ConsumerState<OnboardingSiteStep> {
 
   /// IP-derived starting point, offered only when there is no site on record.
   (double, double, String?)? _ipEstimate;
+  bool _offerIpEstimate = false;
   bool _ipLookupStarted = false;
   bool _ipLookupRunning = false;
 
@@ -128,19 +138,29 @@ class _OnboardingSiteStepState extends ConsumerState<OnboardingSiteStep> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _publishBlockingReason();
     });
-    if (!hasSite && !_ipLookupStarted) {
-      _ipLookupStarted = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) unawaited(_lookUpIpEstimate());
-      });
-    }
+    // Deliberately NO lookup here. Merely arriving on this step used to post a
+    // frame callback that sent the machine's public IP to ipapi.co (falling
+    // back to plain-HTTP ip-api.com) — the app's first outbound request, on
+    // its first run, with no click and nothing on screen saying so. Nightshade
+    // is routinely installed on isolated observatory networks. The offer is
+    // still made; it now waits for [_lookUpIpEstimate].
+    _offerIpEstimate = !hasSite;
   }
 
-  /// Fetch an approximate position to *offer*. Failure is silent: a first run
-  /// with no network must show manual entry, not an error the user cannot act
-  /// on.
+  /// Fetch an approximate position to *offer*, once the operator has asked for
+  /// it and agreed to the request. Failure is silent: a first run with no
+  /// network must show manual entry, not an error the user cannot act on.
   Future<void> _lookUpIpEstimate() async {
-    setState(() => _ipLookupRunning = true);
+    if (_ipLookupRunning) return;
+    final consented = await confirmGeolocationLookup(
+      context,
+      outcome: kGeolocationOffersEstimateOutcome,
+    );
+    if (!consented || !mounted) return;
+    setState(() {
+      _ipLookupStarted = true;
+      _ipLookupRunning = true;
+    });
     final estimate = await ref.read(onboardingApproximateLocationProvider)();
     if (!mounted) return;
     setState(() {
@@ -270,40 +290,65 @@ class _OnboardingSiteStepState extends ConsumerState<OnboardingSiteStep> {
     return value.toString();
   }
 
-  /// Read the device GPS and write all three coordinates in one batched update,
-  /// mirroring Settings → Location's "Use Device Location" affordance. Guards
-  /// the async gap with a backend-authority check so a host switch mid-read
-  /// never applies the reading to the replacement host.
-  Future<void> _useDeviceLocation() async {
+  /// Resolve this machine's position and write the coordinates, mirroring
+  /// Settings → Location's "Detect Location" affordance — including its two
+  /// rules, which this step used to skip. It asks before the request leaves
+  /// the machine (the underlying service falls back to a third-party IP lookup
+  /// on every desktop), and it refuses to leave a stored elevation attached to
+  /// a position it does not belong to. Guards the async gap with a
+  /// backend-authority check so a host switch mid-read never applies the
+  /// reading to the replacement host.
+  Future<void> _useDeviceLocation(AppSettingsState settings) async {
     if (_locating) return;
+    final consented = await confirmGeolocationLookup(
+      context,
+      outcome: kGeolocationWritesSiteOutcome,
+    );
+    if (!consented || !mounted) return;
     final authority = ref.read(backendProvider);
     setState(() => _locating = true);
     try {
-      final location = await GeolocationService.fetchLocationFromGPS();
+      final location = await ref.read(onboardingDeviceLocationProvider)();
       if (!mounted || !identical(ref.read(backendProvider), authority)) {
         return;
       }
       if (location == null) {
         context.showWarningSnackBar(
-          'Could not get GPS location. Check permissions.',
+          'Could not determine a location. Check location permissions, or '
+          'network access if this machine has no GPS.',
         );
         return;
       }
       final (lat, lon, name) = location;
+      // Only a site already on record can lend a stale elevation; on a first
+      // run the field holds whatever the operator has just typed, which is
+      // theirs to keep.
+      final hasStoredSite =
+          settings.latitude != 0.0 || settings.longitude != 0.0;
+      final keepElevation = !hasStoredSite ||
+          _kmBetween(settings.latitude, settings.longitude, lat, lon) <=
+              _sameSiteRadiusKm;
       await ref.read(appSettingsProvider.notifier).updateLocation(
             latitude: lat,
             longitude: lon,
+            elevation: keepElevation ? null : 0,
           );
       if (!mounted || !identical(ref.read(backendProvider), authority)) return;
       _latController.text = _trimNumber(lat);
       _lonController.text = _trimNumber(lon);
+      if (!keepElevation) _elevController.clear();
       setState(() {
         _latError = null;
         _lonError = null;
+        if (!keepElevation) _elevError = null;
       });
       _publishBlockingReason();
+      final where = name ?? '${_trimNumber(lat)}°, ${_trimNumber(lon)}°';
       context.showSuccessSnackBar(
-        name != null ? 'Location updated: $name' : 'Location updated',
+        keepElevation
+            ? 'Coordinates set to $where.'
+            : 'Coordinates set to $where. Elevation cleared — enter the '
+                'elevation for this site.',
       );
     } catch (error) {
       if (mounted && identical(ref.read(backendProvider), authority)) {
@@ -312,6 +357,29 @@ class _OnboardingSiteStepState extends ConsumerState<OnboardingSiteStep> {
     } finally {
       if (mounted) setState(() => _locating = false);
     }
+  }
+
+  /// How far a resolved position may sit from the stored one before the stored
+  /// elevation is treated as belonging to a different place. Matches
+  /// Settings → Location; an IP estimate is accurate to roughly a city.
+  static const double _sameSiteRadiusKm = 25;
+
+  /// Great-circle distance in kilometres.
+  static double _kmBetween(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
+    const earthRadiusKm = 6371.0;
+    double toRad(double deg) => deg * math.pi / 180.0;
+    final dLat = toRad(lat2 - lat1);
+    final dLon = toRad(lon2 - lon1);
+    final a = math.pow(math.sin(dLat / 2), 2) +
+        math.cos(toRad(lat1)) *
+            math.cos(toRad(lat2)) *
+            math.pow(math.sin(dLon / 2), 2);
+    return earthRadiusKm * 2 * math.asin(math.min(1.0, math.sqrt(a)));
   }
 
   /// The IP estimate, presented as a suggestion with its provenance and its
@@ -334,7 +402,16 @@ class _OnboardingSiteStepState extends ConsumerState<OnboardingSiteStep> {
           Expanded(
             child: estimate == null
                 ? Text(
-                    'Looking up an approximate location…',
+                    _ipLookupRunning
+                        ? 'Looking up an approximate location…'
+                        : _ipLookupStarted
+                            ? 'Could not reach a geolocation service. Enter '
+                                'your coordinates below.'
+                            : 'No site on record yet. Nightshade can ask a '
+                                'third-party service to estimate your '
+                                'position from your public IP address — '
+                                'city-level, about 10 km. Nothing is sent '
+                                'until you ask.',
                     style: theme.textTheme.bodySmall
                         ?.copyWith(color: colors.textSecondary),
                   )
@@ -370,6 +447,14 @@ class _OnboardingSiteStepState extends ConsumerState<OnboardingSiteStep> {
               variant: ButtonVariant.outline,
               size: ButtonSize.small,
               onPressed: () => unawaited(_applyIpEstimate()),
+            ),
+          ] else if (!_ipLookupRunning && !_ipLookupStarted) ...[
+            const SizedBox(width: 8),
+            NightshadeButton(
+              label: 'Estimate from IP',
+              variant: ButtonVariant.outline,
+              size: ButtonSize.small,
+              onPressed: () => unawaited(_lookUpIpEstimate()),
             ),
           ],
         ],
@@ -422,11 +507,14 @@ class _OnboardingSiteStepState extends ConsumerState<OnboardingSiteStep> {
                     variant: ButtonVariant.outline,
                     size: ButtonSize.small,
                     isLoading: _locating,
-                    onPressed: _locating ? null : _useDeviceLocation,
+                    onPressed:
+                        _locating ? null : () => _useDeviceLocation(settings),
                   ),
                 ],
               ),
-              if (_ipLookupRunning || _ipEstimate != null) ...[
+              if (_offerIpEstimate ||
+                  _ipLookupRunning ||
+                  _ipEstimate != null) ...[
                 const SizedBox(height: NightshadeTokens.spaceMd),
                 _buildIpEstimate(theme, colors),
               ],

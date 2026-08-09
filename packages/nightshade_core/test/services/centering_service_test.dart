@@ -8,6 +8,7 @@ import 'package:mocktail/mocktail.dart' as mt;
 import 'package:nightshade_core/nightshade_core.dart';
 
 import 'centering_service_test.mocks.dart';
+import '../harness/in_memory_database.dart';
 
 /// Fake backend that lets each test control the `getMountStatus` behavior
 /// for the post-slew settle poll loop. The centering service only touches
@@ -126,6 +127,7 @@ void main() {
 
       container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           imagingServiceProvider.overrideWithValue(mockImagingService),
           plateSolveServiceProvider.overrideWithValue(mockPlateSolveService),
           deviceServiceProvider.overrideWithValue(mockDeviceService),
@@ -172,7 +174,7 @@ void main() {
           );
           final solve = Completer<PlateSolveResult>();
           when(
-            mockImagingService.captureImage(
+            mockImagingService.captureUtilityFrame(
               settings: anyNamed('settings'),
               targetName: anyNamed('targetName'),
             ),
@@ -277,7 +279,7 @@ void main() {
         );
 
         when(
-          mockImagingService.captureImage(
+          mockImagingService.captureUtilityFrame(
             settings: anyNamed('settings'),
             targetName: anyNamed('targetName'),
           ),
@@ -324,7 +326,7 @@ void main() {
               const ExposureSettings(exposureTime: 120, gain: 137, offset: 42);
           ExposureSettings? commandedSettings;
           when(
-            mockImagingService.captureImage(
+            mockImagingService.captureUtilityFrame(
               settings: anyNamed('settings'),
               targetName: anyNamed('targetName'),
             ),
@@ -402,7 +404,7 @@ void main() {
         );
 
         when(
-          mockImagingService.captureImage(
+          mockImagingService.captureUtilityFrame(
             settings: anyNamed('settings'),
             targetName: anyNamed('targetName'),
           ),
@@ -492,7 +494,7 @@ void main() {
           );
 
           when(
-            mockImagingService.captureImage(
+            mockImagingService.captureUtilityFrame(
               settings: anyNamed('settings'),
               targetName: anyNamed('targetName'),
             ),
@@ -584,7 +586,7 @@ void main() {
 
           var iter = 0;
           when(
-            mockImagingService.captureImage(
+            mockImagingService.captureUtilityFrame(
               settings: anyNamed('settings'),
               targetName: anyNamed('targetName'),
             ),
@@ -720,7 +722,7 @@ void main() {
           slews = [];
 
           when(
-            mockImagingService.captureImage(
+            mockImagingService.captureUtilityFrame(
               settings: anyNamed('settings'),
               targetName: anyNamed('targetName'),
             ),
@@ -901,7 +903,7 @@ void main() {
         // Second iteration: 30 arcsec off (within tolerance)
         var iterationCount = 0;
         when(
-          mockImagingService.captureImage(
+          mockImagingService.captureUtilityFrame(
             settings: anyNamed('settings'),
             targetName: anyNamed('targetName'),
           ),
@@ -1030,7 +1032,7 @@ void main() {
 
         // All iterations return coordinates significantly off target
         when(
-          mockImagingService.captureImage(
+          mockImagingService.captureUtilityFrame(
             settings: anyNamed('settings'),
             targetName: anyNamed('targetName'),
           ),
@@ -1100,6 +1102,7 @@ void main() {
         // Arrange
         final disconnectedContainer = ProviderContainer(
           overrides: [
+            inMemoryDatabaseOverride(),
             cameraStateProvider.overrideWith((ref) {
               return CameraStateNotifier(ref); // Default is disconnected
             }),
@@ -1153,7 +1156,7 @@ void main() {
         );
 
         verifyNever(
-          mockImagingService.captureImage(
+          mockImagingService.captureUtilityFrame(
             settings: anyNamed('settings'),
             targetName: anyNamed('targetName'),
           ),
@@ -1180,7 +1183,7 @@ void main() {
           final captureStarted = Completer<void>();
           final exposureCompleter = Completer<CapturedImageData?>();
           when(
-            mockImagingService.captureImage(
+            mockImagingService.captureUtilityFrame(
               settings: anyNamed('settings'),
               targetName: anyNamed('targetName'),
             ),
@@ -1248,7 +1251,7 @@ void main() {
           expect(result.errorMessage, contains('RA'));
           verifyNever(mockPlateSolveService.ensureSolverAvailable());
           verifyNever(
-            mockImagingService.captureImage(
+            mockImagingService.captureUtilityFrame(
               settings: anyNamed('settings'),
               targetName: anyNamed('targetName'),
             ),
@@ -1263,7 +1266,7 @@ void main() {
         );
         final solveCompleter = Completer<PlateSolveResult>();
         when(
-          mockImagingService.captureImage(
+          mockImagingService.captureUtilityFrame(
             settings: anyNamed('settings'),
             targetName: anyNamed('targetName'),
           ),
@@ -1313,7 +1316,7 @@ void main() {
           );
           final exposureCompleter = Completer<CapturedImageData?>();
           when(
-            mockImagingService.captureImage(
+            mockImagingService.captureUtilityFrame(
               settings: anyNamed('settings'),
               targetName: anyNamed('targetName'),
             ),
@@ -1326,7 +1329,7 @@ void main() {
             solverConfig: solverConfig,
           );
           await untilCalled(
-            mockImagingService.captureImage(
+            mockImagingService.captureUtilityFrame(
               settings: anyNamed('settings'),
               targetName: anyNamed('targetName'),
             ),
@@ -1340,7 +1343,7 @@ void main() {
           expect(second.success, isFalse);
           expect(second.errorMessage, contains('already running'));
           verify(
-            mockImagingService.captureImage(
+            mockImagingService.captureUtilityFrame(
               settings: anyNamed('settings'),
               targetName: anyNamed('targetName'),
             ),
@@ -1356,6 +1359,7 @@ void main() {
         // Arrange
         final disconnectedContainer = ProviderContainer(
           overrides: [
+            inMemoryDatabaseOverride(),
             cameraStateProvider.overrideWith((ref) {
               final notifier = CameraStateNotifier(ref);
               notifier.setConnecting('test_camera', 'Test Camera');
@@ -1412,7 +1416,7 @@ void main() {
         );
 
         when(
-          mockImagingService.captureImage(
+          mockImagingService.captureUtilityFrame(
             settings: anyNamed('settings'),
             targetName: anyNamed('targetName'),
           ),
@@ -1496,7 +1500,7 @@ void main() {
 
         var iterationCount = 0;
         when(
-          mockImagingService.captureImage(
+          mockImagingService.captureUtilityFrame(
             settings: anyNamed('settings'),
             targetName: anyNamed('targetName'),
           ),
@@ -1619,7 +1623,7 @@ void main() {
             return Future.value(_settledMount());
           });
           when(
-            mockImagingService.captureImage(
+            mockImagingService.captureUtilityFrame(
               settings: anyNamed('settings'),
               targetName: anyNamed('targetName'),
             ),
@@ -1643,7 +1647,7 @@ void main() {
               );
           await Future<void>.delayed(const Duration(milliseconds: 10));
           verifyNever(
-            mockImagingService.captureImage(
+            mockImagingService.captureUtilityFrame(
               settings: anyNamed('settings'),
               targetName: anyNamed('targetName'),
             ),
@@ -1653,7 +1657,7 @@ void main() {
           final result = await resultFuture;
           expect(result.success, isTrue);
           verify(
-            mockImagingService.captureImage(
+            mockImagingService.captureUtilityFrame(
               settings: anyNamed('settings'),
               targetName: anyNamed('targetName'),
             ),
@@ -1695,7 +1699,7 @@ void main() {
       void stubTwoIterationPlateSolve(double targetRa, double targetDec) {
         var iterationCount = 0;
         when(
-          mockImagingService.captureImage(
+          mockImagingService.captureUtilityFrame(
             settings: anyNamed('settings'),
             targetName: anyNamed('targetName'),
           ),
@@ -1800,7 +1804,7 @@ void main() {
           expect(result.success, isFalse);
           expect(result.errorMessage, contains('still slewing'));
           verify(
-            mockImagingService.captureImage(
+            mockImagingService.captureUtilityFrame(
               settings: anyNamed('settings'),
               targetName: anyNamed('targetName'),
             ),
@@ -1898,7 +1902,7 @@ void main() {
 
         // Only need the FIRST iteration to slew, then fail polling.
         when(
-          mockImagingService.captureImage(
+          mockImagingService.captureUtilityFrame(
             settings: anyNamed('settings'),
             targetName: anyNamed('targetName'),
           ),
@@ -2098,7 +2102,7 @@ void main() {
         );
 
         when(
-          mockImagingService.captureImage(
+          mockImagingService.captureUtilityFrame(
             settings: anyNamed('settings'),
             targetName: anyNamed('targetName'),
           ),
@@ -2183,7 +2187,7 @@ void main() {
         );
 
         when(
-          mockImagingService.captureImage(
+          mockImagingService.captureUtilityFrame(
             settings: anyNamed('settings'),
             targetName: anyNamed('targetName'),
           ),
@@ -2266,7 +2270,7 @@ void main() {
         );
 
         when(
-          mockImagingService.captureImage(
+          mockImagingService.captureUtilityFrame(
             settings: anyNamed('settings'),
             targetName: anyNamed('targetName'),
           ),
@@ -2317,6 +2321,121 @@ void main() {
         // Solved RA is normalised back to HOURS in the recorded iteration
         // (the solver returned 150° == 10h).
         expect(result.iterationHistory.first.solvedRa, closeTo(mountRa, 1e-9));
+      });
+    });
+
+    group('plate-solve frames are not keepers', () {
+      // Centering and verification frames are a MEANS (solve this pointing),
+      // not a product. Routing them through captureImage wrote a full-size
+      // light into the operator's light-frame folder and indexed it in
+      // captured_images on EVERY iteration, inflating the night's frame and
+      // integration totals with images nobody will ever stack.
+      const solverConfig = PlateSolverConfig(
+        type: PlateSolverType.astap,
+        executablePath: '/usr/bin/astap',
+      );
+
+      PlateSolveResult onTarget(double raHours, double dec) => PlateSolveResult(
+        success: true,
+        ra: raHours * 15.0,
+        dec: dec,
+        rotation: 0.0,
+        pixelScale: 1.0,
+        fieldWidth: 2.0,
+        fieldHeight: 1.5,
+        solveTimeSecs: 0.0,
+        cd11: 0,
+        cd12: 0,
+        cd21: 0,
+        cd22: 0,
+        sipAOrder: 0,
+        sipBOrder: 0,
+        sipACoeffs: Float64List(0),
+        sipBCoeffs: Float64List(0),
+        sipApOrder: 0,
+        sipBpOrder: 0,
+        sipApCoeffs: Float64List(0),
+        sipBpCoeffs: Float64List(0),
+      );
+
+      void stubSolve(double raHours, double dec) {
+        when(
+          mockPlateSolveService.solveWithFallback(
+            imagePath: anyNamed('imagePath'),
+            hintRaHours: anyNamed('hintRaHours'),
+            hintDecDegrees: anyNamed('hintDecDegrees'),
+            searchRadiusDegrees: anyNamed('searchRadiusDegrees'),
+            timeoutSeconds: anyNamed('timeoutSeconds'),
+          ),
+        ).thenAnswer((_) async => onTarget(raHours, dec));
+      }
+
+      test('centerOnTarget never uses the keeper capture path', () async {
+        when(
+          mockImagingService.captureUtilityFrame(
+            settings: anyNamed('settings'),
+            targetName: anyNamed('targetName'),
+          ),
+        ).thenAnswer((_) async => _centeringImage());
+        stubSolve(10.0, 45.0);
+
+        final service = container.read(centeringServiceProvider);
+        final result = await service.centerOnTarget(
+          targetRa: 10.0,
+          targetDec: 45.0,
+          solverConfig: solverConfig,
+        );
+
+        expect(result.success, isTrue);
+        verify(
+          mockImagingService.captureUtilityFrame(
+            settings: anyNamed('settings'),
+            targetName: anyNamed('targetName'),
+          ),
+        ).called(greaterThanOrEqualTo(1));
+        verifyNever(
+          mockImagingService.captureImage(
+            settings: anyNamed('settings'),
+            targetName: anyNamed('targetName'),
+            frameNumber: anyNamed('frameNumber'),
+            producingNodeId: anyNamed('producingNodeId'),
+            producingRunId: anyNamed('producingRunId'),
+          ),
+        );
+      });
+
+      test('verifyCenter never uses the keeper capture path', () async {
+        when(
+          mockImagingService.captureUtilityFrame(
+            settings: anyNamed('settings'),
+            targetName: anyNamed('targetName'),
+          ),
+        ).thenAnswer((_) async => _centeringImage());
+        stubSolve(10.0, 45.0);
+
+        final service = container.read(centeringServiceProvider);
+        final result = await service.verifyCenter(
+          targetRa: 10.0,
+          targetDec: 45.0,
+          solverConfig: solverConfig,
+        );
+
+        expect(result.success, isTrue);
+        verify(
+          mockImagingService.captureUtilityFrame(
+            settings: anyNamed('settings'),
+            targetName: anyNamed('targetName'),
+          ),
+        ).called(1);
+        verifyNever(
+          mockImagingService.captureImage(
+            settings: anyNamed('settings'),
+            targetName: anyNamed('targetName'),
+            frameNumber: anyNamed('frameNumber'),
+            producingNodeId: anyNamed('producingNodeId'),
+            producingRunId: anyNamed('producingRunId'),
+          ),
+        );
       });
     });
   });

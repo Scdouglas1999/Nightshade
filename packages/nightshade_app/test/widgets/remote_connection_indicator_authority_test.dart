@@ -7,8 +7,13 @@ import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/widgets/remote_connection_indicator.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 class _MockNetworkBackend extends Mock implements NetworkBackend {}
+
+/// Stands in for the local FfiBackend: any backend that is NOT a
+/// [NetworkBackend] and not the disconnected stand-in.
+class _MockLocalBackend extends Mock implements NightshadeBackend {}
 
 class _SwappableBackendNotifier extends BackendNotifier {
   _SwappableBackendNotifier(super.ref, NightshadeBackend backend) : super() {
@@ -51,6 +56,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith((ref) {
             notifier = _SwappableBackendNotifier(ref, hostA);
             return notifier;
@@ -101,6 +107,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith(
             (ref) => _SwappableBackendNotifier(ref, backend),
           ),
@@ -126,4 +133,64 @@ void main() {
         find.textContaining('Stop the active sequence first'), findsOneWidget);
     verifyNever(backend.dispose);
   });
+
+  // With a DisconnectedBackend the sheet used to state "Not connected to a
+  // server" and offer nothing at all — the dead end one failed "Connect to
+  // Server" left on the desktop that owns the hardware. The title-bar
+  // indicator is the surface the operator taps to ask about the connection,
+  // so the way back has to be on it.
+  testWidgets('with no backend the sheet offers the way back to local mode',
+      (tester) async {
+    final local = _MockLocalBackend();
+    late _LocalRestoringNotifier notifier;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          inMemoryDatabaseOverride(),
+          backendProvider.overrideWith((ref) {
+            notifier = _LocalRestoringNotifier(ref, local);
+            return notifier;
+          }),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(body: RemoteConnectionIndicator()),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byType(RemoteConnectionIndicator));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Not connected to a server'), findsOneWidget);
+    final workLocally = find.text('Work Locally');
+    expect(workLocally, findsOneWidget);
+
+    await tester.tap(workLocally);
+    await tester.pumpAndSettle();
+
+    expect(notifier.useLocalCalls, 1);
+    expect(identical(notifier.currentBackend, local), isTrue);
+    // Once a backend is installed the offer is withdrawn — a machine already
+    // in local mode must not be shown a control that would do nothing.
+    expect(find.text('Work Locally'), findsNothing);
+  });
+}
+
+/// A notifier sitting on a DisconnectedBackend whose only recovery is
+/// `useLocalBackend()`, exactly like the production one after a rolled-back
+/// connect.
+class _LocalRestoringNotifier extends BackendNotifier {
+  _LocalRestoringNotifier(super.ref, this.local) : super() {
+    state = DisconnectedBackend();
+  }
+
+  final NightshadeBackend local;
+  int useLocalCalls = 0;
+
+  @override
+  Future<void> useLocalBackend() async {
+    useLocalCalls++;
+    state = local;
+  }
 }

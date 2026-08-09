@@ -3,11 +3,16 @@ part of '../notification_routing_settings.dart';
 class _CategoryEditorDialog extends StatefulWidget {
   final NotificationCategory category;
   final NotificationRoutingRule rule;
+
+  /// Transports that hold enough configuration to deliver. Anything outside
+  /// this set is dropped by the router when the event fires.
+  final Set<NotificationTransportKind> configuredTransports;
   final Future<void> Function(NotificationRoutingRule) onSave;
 
   const _CategoryEditorDialog({
     required this.category,
     required this.rule,
+    required this.configuredTransports,
     required this.onSave,
   });
 
@@ -51,6 +56,15 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
     super.dispose();
   }
 
+  /// Selected transports the router would drop for want of configuration,
+  /// in the enum's display order.
+  List<NotificationTransportKind> get _unconfiguredSelection =>
+      NotificationTransportKind.values
+          .where((t) =>
+              _selectedTransports.contains(t) &&
+              !widget.configuredTransports.contains(t))
+          .toList();
+
   @override
   Widget build(BuildContext context) {
     final c = NightshadeColors.of(context);
@@ -86,7 +100,8 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
                 children: NotificationTransportKind.values.map((t) {
                   final selected = _selectedTransports.contains(t);
                   return FilterChip(
-                    label: Text(t.label),
+                    label:
+                        Text(_transportLabel(t, widget.configuredTransports)),
                     selected: selected,
                     onSelected: (v) => setState(() {
                       if (v) {
@@ -104,6 +119,19 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
                   'No transports selected — defaulting to in-app only.',
                   style: TextStyle(
                     color: c.textMuted,
+                    fontSize: NightshadeTypography.fontSize11,
+                  ),
+                ),
+              ],
+              if (_unconfiguredSelection.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  '${_unconfiguredSelection.map((t) => t.label).join(', ')} '
+                  '${_unconfiguredSelection.length == 1 ? 'is' : 'are'} not '
+                  'configured, so this rule will not reach you there. Set the '
+                  'credentials up under Transports below.',
+                  style: TextStyle(
+                    color: c.warning,
                     fontSize: NightshadeTypography.fontSize11,
                   ),
                 ),

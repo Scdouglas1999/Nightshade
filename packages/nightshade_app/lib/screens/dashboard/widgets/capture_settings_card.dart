@@ -131,9 +131,9 @@ class _CaptureSettingsCardState extends ConsumerState<CaptureSettingsCard> {
                 onChanged: (v) {
                   final parsed = double.tryParse(v);
                   if (parsed != null && parsed > 0) {
-                    ref.read(exposureSettingsProvider.notifier).state =
-                        exposureSettings.copyWith(exposureTime: parsed);
-                    _markExposureSettingsDirty();
+                    ref.read(manualExposureSettingsUpdaterProvider).update(
+                          exposureSettings.copyWith(exposureTime: parsed),
+                        );
                   }
                 },
               ),
@@ -145,9 +145,9 @@ class _CaptureSettingsCardState extends ConsumerState<CaptureSettingsCard> {
                 onChanged: (v) {
                   final parsed = int.tryParse(v);
                   if (parsed != null && parsed >= 0) {
-                    ref.read(exposureSettingsProvider.notifier).state =
-                        exposureSettings.copyWith(gain: parsed);
-                    _markExposureSettingsDirty();
+                    ref.read(manualExposureSettingsUpdaterProvider).update(
+                          exposureSettings.copyWith(gain: parsed),
+                        );
                   }
                 },
               ),
@@ -162,12 +162,12 @@ class _CaptureSettingsCardState extends ConsumerState<CaptureSettingsCard> {
                 onChanged: (v) {
                   if (v != null) {
                     final parts = v.split('x');
-                    ref.read(exposureSettingsProvider.notifier).state =
-                        exposureSettings.copyWith(
-                      binningX: int.parse(parts[0]),
-                      binningY: int.parse(parts[1]),
-                    );
-                    _markExposureSettingsDirty();
+                    ref.read(manualExposureSettingsUpdaterProvider).update(
+                          exposureSettings.copyWith(
+                            binningX: int.parse(parts[0]),
+                            binningY: int.parse(parts[1]),
+                          ),
+                        );
                   }
                 },
               ),
@@ -198,9 +198,9 @@ class _CaptureSettingsCardState extends ConsumerState<CaptureSettingsCard> {
                       (t) => t.displayName == v,
                       orElse: () => FrameType.light,
                     );
-                    ref.read(exposureSettingsProvider.notifier).state =
-                        exposureSettings.copyWith(frameType: type);
-                    _markExposureSettingsDirty();
+                    ref.read(manualExposureSettingsUpdaterProvider).update(
+                          exposureSettings.copyWith(frameType: type),
+                        );
                   }
                 },
               ),
@@ -299,20 +299,17 @@ class _CaptureSettingsCardState extends ConsumerState<CaptureSettingsCard> {
     );
   }
 
-  Future<bool> _captureImage({ImagingService? expectedService}) async {
+  /// Capture one KEEPER frame for the Capture button.
+  ///
+  /// [ImagingService.captureImage] is the keeper-only entry point
+  /// (`persistFrame: true`): the frame is written into the operator's
+  /// light-frame folder under the naming pattern and indexed in
+  /// `captured_images`. That is what a deliberate single capture should do —
+  /// and exactly what Loop must not do. See [_captureLoopFrame].
+  Future<bool> _captureImage() async {
     if (_captureInFlight) return false;
-    final cameraState = ref.read(cameraStateProvider);
-    if (cameraState.connectionState != DeviceConnectionState.connected) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Camera not connected')),
-        );
-      }
-      return false;
-    }
-    final ImagingService imagingService =
-        expectedService ?? ref.read(imagingServiceProvider);
-    if (!_isCurrentImagingService(imagingService)) return false;
+    if (!_requireConnectedCamera()) return false;
+    final ImagingService imagingService = ref.read(imagingServiceProvider);
     setState(() => _captureInFlight = true);
     try {
       final settings = ref.read(exposureSettingsProvider);
@@ -335,6 +332,76 @@ class _CaptureSettingsCardState extends ConsumerState<CaptureSettingsCard> {
     }
   }
 
+  /// Capture ONE live-view frame for the Loop button.
+  ///
+  /// Loop is framing/focusing, not acquisition, so it must not run
+  /// [ImagingService.captureImage]: that entry point is keeper-only, so this
+  /// card's Loop wrote every framing frame full-size into the operator's
+  /// light-frame folder and indexed it as a light — roughly 27 GB an hour at
+  /// 5 s subs, from a button that only claims to be a live view.
+  /// [ImagingService.startLoopCapture] with `saveFrames: false` reuses one
+  /// scratch file per camera instead, so the preview, annotation and
+  /// plate-solve paths still find a frame on disk while nothing is kept and
+  /// nothing enters the session totals.
+  ///
+  /// Frames are never kept from here: the opt-in "save loop frames" control
+  /// lives on the Imaging screen beside a banner that states which mode is
+  /// active. A card with no such indicator must not silently fill the
+  /// light-frame folder.
+  ///
+  /// Why one frame per call rather than handing the whole run to the service:
+  /// Stop Loop on this card ends the run *after* the exposure already in
+  /// flight, and Abort is the separate immediate cancel. The service-side loop
+  /// can only be stopped with `cancelExposure()`, which would collapse both
+  /// controls onto the same behaviour.
+  Future<bool> _captureLoopFrame(ImagingService imagingService) async {
+    if (_captureInFlight) return false;
+    if (!_requireConnectedCamera()) return false;
+    if (!_isCurrentImagingService(imagingService)) return false;
+    setState(() => _captureInFlight = true);
+    var framesCaptured = 0;
+    String? failure;
+    try {
+      await imagingService.startLoopCapture(
+        settings: ref.read(exposureSettingsProvider),
+        targetName: ref.read(sessionStateProvider).targetName,
+        maxFrames: 1,
+        saveFrames: false,
+        onImageCaptured: (_) => framesCaptured++,
+        onError: (error) => failure ??= error,
+      );
+    } catch (e) {
+      failure ??= e.toString();
+    } finally {
+      if (_isCurrentImagingService(imagingService)) {
+        setState(() => _captureInFlight = false);
+      }
+    }
+    if (!_isCurrentImagingService(imagingService)) return false;
+    if (failure != null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Capture failed: $failure')),
+        );
+      }
+      return false;
+    }
+    return framesCaptured > 0;
+  }
+
+  bool _requireConnectedCamera() {
+    final cameraState = ref.read(cameraStateProvider);
+    if (cameraState.connectionState == DeviceConnectionState.connected) {
+      return true;
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Camera not connected')),
+      );
+    }
+    return false;
+  }
+
   void _toggleLoop() async {
     if (_isLooping) {
       _loopGeneration++;
@@ -348,7 +415,7 @@ class _CaptureSettingsCardState extends ConsumerState<CaptureSettingsCard> {
         mounted &&
         generation == _loopGeneration &&
         _isCurrentImagingService(imagingService)) {
-      final captured = await _captureImage(expectedService: imagingService);
+      final captured = await _captureLoopFrame(imagingService);
       if (!_isCurrentImagingService(imagingService) ||
           generation != _loopGeneration) {
         break;
@@ -368,11 +435,16 @@ class _CaptureSettingsCardState extends ConsumerState<CaptureSettingsCard> {
   void _abortCapture() {
     _loopGeneration++;
     setState(() => _isLooping = false);
-    ref.read(imagingServiceProvider).cancelExposure();
-  }
-
-  void _markExposureSettingsDirty() {
-    ref.read(exposureSettingsUserDirtyProvider.notifier).state = true;
+    final imagingService = ref.read(imagingServiceProvider);
+    // Abort stays enabled for the whole loop, including the pause between
+    // frames, so it is reachable with nothing to cancel. Dispatching anyway is
+    // not free: it sends AbortExposure to a driver whose exposure already
+    // ended, and it latches the service's cancel flag — which
+    // [ImagingService.startLoopCapture] tests BEFORE its first frame, so the
+    // next Loop press would start and stop without ever exposing.
+    if (_captureInFlight || imagingService.isCapturing) {
+      imagingService.cancelExposure();
+    }
   }
 
   /// Handle filter selection - updates settings AND moves the physical filter wheel
@@ -396,10 +468,8 @@ class _CaptureSettingsCardState extends ConsumerState<CaptureSettingsCard> {
       final deviceService = ref.read(deviceServiceProvider);
       final providerContainer =
           ProviderScope.containerOf(context, listen: false);
-      final exposureSettingsController =
-          ref.read(exposureSettingsProvider.notifier);
-      final dirtyController =
-          ref.read(exposureSettingsUserDirtyProvider.notifier);
+      final exposureUpdater =
+          providerContainer.read(manualExposureSettingsUpdaterProvider);
       setState(() => _isChangingFilter = true);
       try {
         await deviceService.setFilterWheelPosition(position);
@@ -407,9 +477,11 @@ class _CaptureSettingsCardState extends ConsumerState<CaptureSettingsCard> {
           providerContainer.read(deviceServiceProvider),
           deviceService,
         )) {
-          exposureSettingsController.state =
-              exposureSettingsController.state.copyWith(filter: filterName);
-          dirtyController.state = true;
+          exposureUpdater.update(
+            providerContainer
+                .read(exposureSettingsProvider)
+                .copyWith(filter: filterName),
+          );
         }
       } catch (e) {
         if (mounted &&
@@ -435,9 +507,9 @@ class _CaptureSettingsCardState extends ConsumerState<CaptureSettingsCard> {
       }
     } else {
       final exposureSettings = ref.read(exposureSettingsProvider);
-      ref.read(exposureSettingsProvider.notifier).state =
-          exposureSettings.copyWith(filter: filterName);
-      _markExposureSettingsDirty();
+      ref.read(manualExposureSettingsUpdaterProvider).update(
+            exposureSettings.copyWith(filter: filterName),
+          );
     }
   }
 
@@ -467,11 +539,14 @@ class _CompactSettingField extends StatefulWidget {
 
 class _CompactSettingFieldState extends State<_CompactSettingField> {
   late TextEditingController _controller;
+  late FocusNode _focusNode;
 
   @override
   void initState() {
     super.initState();
     _controller = TextEditingController(text: widget.value);
+    _focusNode = FocusNode();
+    _focusNode.addListener(_onFocusChanged);
   }
 
   @override
@@ -485,8 +560,35 @@ class _CompactSettingFieldState extends State<_CompactSettingField> {
 
   @override
   void dispose() {
+    _focusNode.removeListener(_onFocusChanged);
+    _focusNode.dispose();
     _controller.dispose();
     super.dispose();
+  }
+
+  /// Commit on blur, then force the box back onto the committed value.
+  ///
+  /// Without this the field only committed on Enter, so tabbing away — or
+  /// clicking Capture, which unfocuses the field on desktop — left the box
+  /// showing a number the rig was never told about, and the next exposure ran
+  /// at the old setting with nothing on screen to say so. Re-syncing after the
+  /// commit is what makes the box truthful in BOTH directions: a good edit
+  /// renormalises ("2" -> "2.0") and an unparseable one snaps back to the value
+  /// actually in force instead of sitting there looking committed.
+  void _onFocusChanged() {
+    if (_focusNode.hasFocus) return;
+    final typed = _controller.text;
+    if (typed != widget.value) {
+      widget.onChanged(typed);
+    }
+    // The commit lands in a provider, so the authoritative value only reaches
+    // us on the next build; re-read `widget.value` after that frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _focusNode.hasFocus) return;
+      if (_controller.text != widget.value) {
+        _controller.text = widget.value;
+      }
+    });
   }
 
   @override
@@ -506,6 +608,7 @@ class _CompactSettingFieldState extends State<_CompactSettingField> {
           height: 28,
           child: TextField(
             controller: _controller,
+            focusNode: _focusNode,
             style: TextStyle(
                 fontSize: NightshadeTypography.fontSize12,
                 color: widget.colors.textPrimary),

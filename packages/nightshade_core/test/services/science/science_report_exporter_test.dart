@@ -58,7 +58,9 @@ void main() {
       '# Nightshade Science Report',
       '## Session',
       '## Frames',
-      '## Photometry',
+      '## Light curve',
+      '## Period analysis',
+      '## Photometric calibration',
       '## Transparency',
       '## Field quality',
       '## Filter breakdown',
@@ -68,6 +70,8 @@ void main() {
     }
     expect(md, contains('NGC 7000'));
     expect(md, contains('No photometric calibration produced this session.'));
+    expect(md, contains('No photometry measurements were recorded'));
+    expect(md, contains('Not run for this session.'));
     expect(md, contains('No transparency samples produced.'));
   });
 
@@ -110,5 +114,115 @@ void main() {
     expect(md, contains('Median ZP across 6 frames'));
     expect(md, contains('Catalog source(s):**'));
     expect(md, contains('87% (good)'));
+  });
+
+  // Audit 2026-08-03: "Export report" produced a Science Report with no light
+  // curve at all for a session holding 80 photometry measurements — the
+  // exporter never read photometry_measurements — and the only
+  // photometry-shaped heading said "No photometric calibration produced this
+  // session", which reads as "you have no photometry".
+  test('markdown reports the light curve when measurements exist', () async {
+    final sessionId = await seedTargetAndSession();
+    final ts = DateTime.parse('2025-01-01T22:00:00.000Z');
+
+    await db.scienceDao.insertPhotometryMeasurements([
+      for (var i = 0; i < 8; i++)
+        PhotometryMeasurementsCompanion.insert(
+          sessionId: drift.Value(sessionId),
+          objectId: 'V0376 Per',
+          role: const drift.Value('target'),
+          x: 100.0,
+          y: 100.0,
+          flux: 12000.0 + i,
+          differentialMagnitude: drift.Value(-0.5 + i * 0.01),
+          uncertainty: const drift.Value(0.004),
+          timestamp: drift.Value(ts.add(Duration(minutes: i))),
+        ),
+      PhotometryMeasurementsCompanion.insert(
+        sessionId: drift.Value(sessionId),
+        objectId: 'COMP-1',
+        role: const drift.Value('comparison'),
+        x: 300.0,
+        y: 220.0,
+        flux: 9000.0,
+        timestamp: drift.Value(ts),
+      ),
+    ]);
+
+    final md = await exporter.buildMarkdown(sessionId);
+    expect(md, contains('## Light curve'));
+    expect(md, contains('**Points:** 8'));
+    expect(md, contains('V0376 Per'));
+    expect(md, contains('COMP-1'));
+    expect(md, contains('2025-01-01T22:00:00.000Z'));
+    expect(md, contains('2025-01-01T22:07:00.000Z'));
+    expect(md, contains('Differential magnitude:'));
+    expect(md, isNot(contains('No photometry measurements were recorded')));
+  });
+
+  test('markdown reports the period search when one was run', () async {
+    final sessionId = await seedTargetAndSession();
+    const period = PeriodAnalysisResult(
+      lombScargle: LombScargleResult(
+        frequencies: [1.0],
+        powers: [0.9],
+        bestFrequency: 2.5,
+        bestPeriod: 0.4,
+        peakPower: 0.91,
+        falseAlarmProbability: 1.2e-5,
+        timeBaseline: 3.2,
+        searchedMinPeriod: 0.05,
+        searchedMaxPeriod: 1.6,
+      ),
+      bls: BlsResult(
+        bestPeriod: 0.4001,
+        transitDurationFraction: 0.05,
+        transitDuration: 0.02,
+        transitDepth: 0.031,
+        signalResidueStatistic: 0.4,
+        signalDetectionEfficiency: 9.4,
+        transitMidPhase: 0.5,
+        trialPeriods: [0.4],
+        srSpectrum: [0.4],
+      ),
+    );
+
+    final md = await exporter.buildMarkdown(sessionId, period: period);
+    expect(md, contains('## Period analysis'));
+    expect(md, contains('Lomb-Scargle best period:** 0.400000 d'));
+    expect(md, contains('FAP 1.20e-5'));
+    expect(md, contains('Searched range:** 0.0500 – 1.6000 d'));
+    expect(md, contains('BLS best period:** 0.400100 d'));
+    expect(md, contains('SDE 9.40'));
+    expect(md, isNot(contains('Not run for this session.')));
+  });
+
+  // A report is shared: it goes to the AAVSO, the MPC, a forum thread. Drift
+  // hands session times back as LOCAL DateTimes, and printing one raw gives an
+  // ISO-8601-SHAPED string with no offset and no Z, a few lines above a
+  // light-curve block explicitly labelled UTC — ambiguous by up to a day to
+  // whoever reads it. Asserted structurally (label + exact UTC instant) so the
+  // test is decisive on a machine whose local zone happens to be UTC too.
+  test('session start/end are printed as labelled UTC instants', () async {
+    final sessionId = await seedTargetAndSession();
+    await db.sessionsDao.endSession(sessionId);
+    final session = await db.sessionsDao.getSessionById(sessionId);
+    final md = await exporter.buildMarkdown(sessionId);
+
+    expect(
+      md,
+      contains(
+        '- **Started (UTC):** ${session!.startTime.toUtc().toIso8601String()}',
+      ),
+    );
+    expect(
+      md,
+      contains(
+        '- **Ended (UTC):** ${session.endTime!.toUtc().toIso8601String()}',
+      ),
+    );
+    // The unlabelled forms the report used to print.
+    expect(md, isNot(contains('- **Started:**')));
+    expect(md, isNot(contains('- **Ended:**')));
   });
 }

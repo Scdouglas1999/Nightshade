@@ -92,13 +92,25 @@ class _Step1ChooseKind extends StatelessWidget {
           key: const ValueKey('wizard-kind-moon'),
           kind: TargetConstraintKind.moonIlluminationMax,
           icon: LucideIcons.moon,
-          title: 'Moon avoidance',
+          title: 'Moon illumination',
           body: "Skip this target when the moon's illumination is above a "
-              'set percentage.',
+              'set percentage, wherever the moon is in the sky.',
           selected: selected == TargetConstraintKind.moonIlluminationMax,
           disabled:
               existingKinds.contains(TargetConstraintKind.moonIlluminationMax),
           onTap: () => onSelect(TargetConstraintKind.moonIlluminationMax),
+        ),
+        _KindCard(
+          key: const ValueKey('wizard-kind-moon-separation'),
+          kind: TargetConstraintKind.moonSeparationMin,
+          icon: LucideIcons.moonStar,
+          title: 'Moon separation',
+          body: 'Skip this target when the moon is closer to it than a set '
+              'angle. This is the one that protects the frames.',
+          selected: selected == TargetConstraintKind.moonSeparationMin,
+          disabled:
+              existingKinds.contains(TargetConstraintKind.moonSeparationMin),
+          onTap: () => onSelect(TargetConstraintKind.moonSeparationMin),
         ),
         _KindCard(
           key: const ValueKey('wizard-kind-horizon'),

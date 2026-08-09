@@ -4,8 +4,9 @@ class _DecisionPanel extends ConsumerWidget {
   final SchedulerStatus status;
   final SchedulerDecision? decision;
   final SchedulerConfig config;
+  final SchedulerStartReadiness? readinessOverride;
   final bool controlsBusy;
-  final Future<void> Function() onStart;
+  final Future<void> Function([bool allowWarnings]) onStart;
   final Future<void> Function() onPause;
   final Future<void> Function() onResume;
   final Future<void> Function() onStop;
@@ -18,6 +19,7 @@ class _DecisionPanel extends ConsumerWidget {
     required this.status,
     required this.decision,
     required this.config,
+    required this.readinessOverride,
     required this.controlsBusy,
     required this.onStart,
     required this.onPause,
@@ -32,7 +34,10 @@ class _DecisionPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
-    final canStart = decision?.scoredCandidates.isNotEmpty ?? false;
+    final candidateAvailable = decision?.scoredCandidates.isNotEmpty ?? false;
+    final SchedulerStartReadiness readiness =
+        readinessOverride ?? ref.watch(schedulerStartReadinessProvider);
+    final canStart = candidateAvailable && !readiness.blocked;
     return NightshadeCard(
       variant: CardVariant.subtle,
       borderRadius: NightshadeTokens.radiusInline8,
@@ -42,23 +47,31 @@ class _DecisionPanel extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(LucideIcons.brain,
                   size: NightshadeTokens.iconLg, color: colors.primary),
               const SizedBox(width: NightshadeTokens.spaceSm),
-              Flexible(
-                child: Text(
-                  'Unattended Autopilot',
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize18,
-                    fontWeight: FontWeight.w700,
-                    color: colors.textPrimary,
-                  ),
+              Expanded(
+                child: Wrap(
+                  spacing: NightshadeTokens.spaceSm,
+                  runSpacing: NightshadeTokens.spaceXs,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      'Unattended Autopilot',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize18,
+                        fontWeight: FontWeight.w700,
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    _StateBadge(state: status.state, colors: colors),
+                  ],
                 ),
               ),
-              const SizedBox(width: NightshadeTokens.spaceSm),
-              _StateBadge(state: status.state, colors: colors),
             ],
           ),
           const SizedBox(height: NightshadeTokens.spaceXs),
@@ -83,12 +96,23 @@ class _DecisionPanel extends ConsumerWidget {
             busy: controlsBusy,
             canStart: canStart,
             onStart: onStart,
+            startWarnings: readiness.warnings,
             onPause: onPause,
             onResume: onResume,
             onStop: onStop,
             onForceReeval: onForceReeval,
           ),
-          if (status.state == SchedulerState.idle && !canStart) ...[
+          if (status.state == SchedulerState.idle && readiness.blocked) ...[
+            const SizedBox(height: NightshadeTokens.spaceSm),
+            Text(
+              'Cannot start unattended until: ${readiness.blockers.map((item) => item.title).join(', ')}.',
+              style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12,
+                color: colors.error,
+              ),
+            ),
+          ] else if (status.state == SchedulerState.idle &&
+              !candidateAvailable) ...[
             const SizedBox(height: NightshadeTokens.spaceSm),
             Text(
               decision == null
@@ -256,7 +280,8 @@ class _ControlsRow extends StatelessWidget {
   final SchedulerStatus status;
   final bool busy;
   final bool canStart;
-  final Future<void> Function() onStart;
+  final Future<void> Function([bool allowWarnings]) onStart;
+  final List<SchedulerReadinessIssue> startWarnings;
   final Future<void> Function() onPause;
   final Future<void> Function() onResume;
   final Future<void> Function() onStop;
@@ -267,6 +292,7 @@ class _ControlsRow extends StatelessWidget {
     required this.busy,
     required this.canStart,
     required this.onStart,
+    required this.startWarnings,
     required this.onPause,
     required this.onResume,
     required this.onStop,
@@ -290,7 +316,9 @@ class _ControlsRow extends StatelessWidget {
               label: 'Run unattended all night',
               icon: LucideIcons.play,
               size: ButtonSize.medium,
-              onPressed: busy || !canStart ? null : () => onStart(),
+              onPressed: busy || !canStart
+                  ? null
+                  : () => _startWithConfirmation(context),
             ),
           ),
         if (status.state == SchedulerState.running)
@@ -325,6 +353,34 @@ class _ControlsRow extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  Future<void> _startWithConfirmation(BuildContext context) async {
+    if (startWarnings.isEmpty) {
+      await onStart();
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Review unattended start'),
+        content: Text(
+          'The rig is usable, but these signals are not ready:\n\n'
+          '${startWarnings.map((item) => '• ${item.title}: ${item.detail}').join('\n')}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Start anyway'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) await onStart(true);
   }
 }
 

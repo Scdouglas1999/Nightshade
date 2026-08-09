@@ -78,7 +78,7 @@ List<Override> _allTabOverrides() {
 
 Widget _harness({PlannerTab? initialTab, String? initialTabQuery}) {
   return ProviderScope(
-    overrides: _allTabOverrides(),
+    overrides: [..._allTabOverrides()],
     child: MaterialApp(
       theme: NightshadeTheme.dark,
       home: Scaffold(

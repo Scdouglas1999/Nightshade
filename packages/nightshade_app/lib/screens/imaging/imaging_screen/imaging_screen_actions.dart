@@ -235,19 +235,33 @@ extension _ImagingScreenActions on _ImagingScreenState {
     final settings = ref.read(exposureSettingsProvider);
     final imagingService = ref.read(imagingServiceProvider);
     _manualCaptureService = imagingService;
+    // Read once, at the start of the run: the banner locks the toggle while a
+    // loop is live, and a run must not change destination halfway through.
+    final saveFrames = ref.read(loopSavesFramesProvider);
 
     try {
       await imagingService.startLoopCapture(
           settings: settings,
           targetName: ref.read(sessionStateProvider).targetName,
+          saveFrames: saveFrames,
           onImageCaptured: (image) {
             if (mounted) {
               ref.read(currentImageProvider.notifier).state = image;
               ref.read(lastImageStatsProvider.notifier).state = image.stats;
-              ref.read(sessionStateProvider.notifier).recordExposureComplete(
-                    exposureTime: settings.exposureTime,
-                    hfr: image.stats.hfr,
-                  );
+              // Frame count and integration time describe what the session
+              // KEPT. A discarded live-view frame that still incremented them
+              // made the session panel claim integration the operator does not
+              // have on disk.
+              // Frame count and integration time describe what the session
+              // KEPT. A discarded live-view frame that still incremented them
+              // made the session panel claim integration the operator does not
+              // have on disk.
+              if (saveFrames) {
+                ref.read(sessionStateProvider.notifier).recordExposureComplete(
+                      exposureTime: settings.exposureTime,
+                      hfr: image.stats.hfr,
+                    );
+              }
               _feedToLiveStacker(image);
             }
           },
@@ -271,9 +285,19 @@ extension _ImagingScreenActions on _ImagingScreenState {
   }
 
   void _abortCapture() {
-    if (!_isSingleCapture && !_isLooping) return;
+    // Abort targets the shared imaging service, NOT this screen's own capture
+    // flags. The toolbar decides to SHOW this button from the global
+    // `exposureProgressProvider` (imaging_preview_toolbar's `showAbort`), so
+    // gating the action on `_isSingleCapture || _isLooping` left it offered and
+    // dead for every exposure this screen did not itself start — first light,
+    // centering, a sequencer run — while the countdown ran on.
     ref.read(imagingServiceProvider).cancelExposure();
-    _update(() => _isStoppingCapture = true);
+    // The "stopping" latch is cleared in the capture methods' `finally`, which
+    // only runs for a capture this screen owns. Latching it for a foreign
+    // exposure would hide the abort button for the rest of the session.
+    if (_isSingleCapture || _isLooping) {
+      _update(() => _isStoppingCapture = true);
+    }
   }
 
   /// Feed a newly captured frame to the live stacker if stacking is active.
@@ -305,9 +329,14 @@ extension _ImagingScreenActions on _ImagingScreenState {
   ImagingViewerStateNotifier get _viewer =>
       ref.read(imagingViewerStateProvider.notifier);
 
-  void _zoomIn() => _viewer.zoomIn();
-  void _zoomOut() => _viewer.zoomOut();
+  /// Screen px per image px at zoom 1.0, measured by the preview itself. The
+  /// zoom bounds and 1:1 are absolute intents, so they cannot be expressed in
+  /// the fit-relative multiplier the state stores without it.
+  double get _previewFitScale => ref.read(previewFitScaleProvider);
+
+  void _zoomIn() => _viewer.zoomIn(fitScale: _previewFitScale);
+  void _zoomOut() => _viewer.zoomOut(fitScale: _previewFitScale);
   void _fitToWindow() => _viewer.fitToWindow();
-  void _zoom1to1() => _viewer.zoom1to1();
+  void _zoom1to1() => _viewer.zoom1to1(fitScale: _previewFitScale);
   void _panPreview(Offset delta) => _viewer.pan(delta);
 }

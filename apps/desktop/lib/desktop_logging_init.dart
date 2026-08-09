@@ -28,12 +28,61 @@ class DesktopBootPaths {
 /// Respects a value already supplied by the parent shell or systemd unit.
 /// The path matches [getApplicationSupportDirectory] — the same root used for
 /// logs — so defect maps and other native persistence align with the GUI host.
-void configureNightshadeDataDirectory(String dataDirectory) {
-  final existing = Platform.environment['NIGHTSHADE_DATA_DIR']?.trim();
+void configureNightshadeDataDirectory(
+  String dataDirectory, {
+  Map<String, String>? environment,
+}) {
+  final env = environment ?? Platform.environment;
+  final existing = env['NIGHTSHADE_DATA_DIR']?.trim();
   if (existing != null && existing.isNotEmpty) {
     return;
   }
   _setProcessEnvironment('NIGHTSHADE_DATA_DIR', dataDirectory);
+}
+
+/// Resolves the root that owns this instance's logs and native persistence.
+///
+/// [envDataDir] is the process's `NIGHTSHADE_DATA_DIR`; [appSupportPath] is
+/// [getApplicationSupportDirectory]. When the operator has pointed
+/// `NIGHTSHADE_DATA_DIR` at their own directory — the one supported way to run
+/// a second instance side by side — the logs must follow it.
+///
+/// They did not: the log directory was hard-coded to the platform support
+/// folder while only Rust's persistence honoured the env var, so every
+/// instance on the machine appended to one shared `nightshade.log`. A
+/// diagnostic dump then carried other instances' capture paths, target names
+/// and host names to whoever received the bug report.
+String resolveDesktopDataRoot({
+  required String? envDataDir,
+  required String appSupportPath,
+}) {
+  final trimmed = envDataDir?.trim();
+  if (trimmed != null && trimmed.isNotEmpty) return trimmed;
+  return appSupportPath;
+}
+
+/// Resolves and creates this instance's log directory, publishing the same
+/// root to `NIGHTSHADE_DATA_DIR` for the Rust side.
+///
+/// Split out of [initialiseDesktopLogging] so the path decision is reachable
+/// without the native bridge: everything after this point in the bootstrap
+/// requires a loadable `libnightshade_bridge`.
+Future<({String dataRoot, String logDirectory})> prepareDesktopLogDirectory({
+  Map<String, String>? environment,
+  Future<Directory> Function()? applicationSupportDirectory,
+}) async {
+  final env = environment ?? Platform.environment;
+  final appSupportDir =
+      await (applicationSupportDirectory ?? getApplicationSupportDirectory)();
+  final dataRoot = resolveDesktopDataRoot(
+    envDataDir: env['NIGHTSHADE_DATA_DIR'],
+    appSupportPath: appSupportDir.path,
+  );
+  configureNightshadeDataDirectory(dataRoot, environment: env);
+
+  final logDir = path.join(dataRoot, 'logs');
+  await Directory(logDir).create(recursive: true);
+  return (dataRoot: dataRoot, logDirectory: logDir);
 }
 
 /// Product version from the built app's pubspec (`version` + build number).
@@ -58,15 +107,13 @@ Future<AppVersionInfo> loadDesktopAppVersion() async {
 /// (every backend method goes through `bridge.NativeBridge`), so it lives
 /// outside the Riverpod container.
 Future<DesktopBootPaths> initialiseDesktopLogging() async {
-  final appSupportDir = await getApplicationSupportDirectory();
-  configureNightshadeDataDirectory(appSupportDir.path);
+  final (dataRoot: dataRoot, logDirectory: logDir) =
+      await prepareDesktopLogDirectory();
 
   // Ensure libraw.dll and other deps next to nightshade_bridge.dll resolve when
   // the process working directory is not the Release folder (e.g. shortcuts).
   configureWindowsNativeDllSearchPath();
 
-  final logDir = path.join(appSupportDir.path, 'logs');
-  await Directory(logDir).create(recursive: true);
   await bridge.NativeBridge.init(logDirectory: logDir);
   if (!bridge.NativeBridge.isNativeAvailable) {
     // Name the CURRENT platform's library and layout. This used to hard-code
@@ -107,7 +154,9 @@ Future<DesktopBootPaths> initialiseDesktopLogging() async {
   return DesktopBootPaths(
     logDirectory: logDir,
     profileDirectory: profileDir,
-    dataDirectory: appSupportDir.path,
+    // The root actually in use, so the headless banner names the directory
+    // this process is really reading and writing.
+    dataDirectory: dataRoot,
   );
 }
 

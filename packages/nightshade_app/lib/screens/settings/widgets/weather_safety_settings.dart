@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../../localization/nightshade_localizations.dart';
+import 'safety_fail_mode_labels.dart';
 import 'settings_widgets.dart';
 
 class WeatherSafetySettings extends ConsumerStatefulWidget {
@@ -89,8 +90,9 @@ class _WeatherSafetySettingsState extends ConsumerState<WeatherSafetySettings> {
     // While app settings are still loading fall back to the weather-side toggle
     // rather than defaulting the composed value to false: flashing "off" for a
     // setting that is on is its own small lie.
-    final parkPolicyEnabled =
-        appSettings?.parkOnUnsafeWeather ?? settings?.autoParkEnabled ?? false;
+    final parkPolicyEnabled = appSettings != null
+        ? appSettings.parkOnUnsafeWeather
+        : settings?.autoParkEnabled == true;
 
     if (settings == null) {
       return SettingsPage(
@@ -139,6 +141,10 @@ class _WeatherSafetySettingsState extends ConsumerState<WeatherSafetySettings> {
                 onChanged: (value) =>
                     _updateSettings(weatherSafetyEnabled: value),
               ),
+              isMobile: widget.isMobile,
+            ),
+            WeatherSafetyPolicyRows(
+              masterEnabled: settings.weatherSafetyEnabled,
               isMobile: widget.isMobile,
             ),
             SettingRow(
@@ -261,6 +267,101 @@ class _WeatherSafetySettingsState extends ConsumerState<WeatherSafetySettings> {
               isLast: true,
             ),
           ],
+        ),
+      ],
+    );
+  }
+}
+
+/// The two rows that state what weather safety will actually do: which safety
+/// sources are attached, and the fail mode that decides what happens when none
+/// is. Both live on the page that owns the master switch — before this the
+/// operator could arm weather safety on a sensorless rig with the page showing
+/// neither fact, and only meet the consequence when a run refused to start.
+///
+/// Its own widget because [WeatherSafetySettings] as a whole cannot be pumped
+/// in flutter_test (it hangs the isolate, at HEAD as well as here), and copy
+/// this load-bearing has to be asserted against rendered widgets.
+class WeatherSafetyPolicyRows extends ConsumerWidget {
+  /// Weather safety's master switch. When off, nothing here is in force and the
+  /// rows say so rather than reading as active protection.
+  final bool masterEnabled;
+  final bool isMobile;
+
+  const WeatherSafetyPolicyRows({
+    super.key,
+    required this.masterEnabled,
+    this.isMobile = false,
+  });
+
+  /// What the safety sources currently read, and — when there are none — what
+  /// the stored fail mode does about it.
+  ///
+  /// The readings come from [weatherSafetySourceReadingsProvider], which
+  /// applies the same rule the enforcement path acts on, so this row cannot
+  /// claim a source the safety logic is not counting.
+  static String sourceSummary(
+    ({SafetySourceReading weather, SafetySourceReading monitor}) sources,
+    SafetyFailMode failMode,
+  ) {
+    String describe(String name, SafetySourceReading reading) =>
+        switch (reading) {
+          SafetySourceReading.safe => '$name: reporting safe',
+          SafetySourceReading.unsafe => '$name: reporting UNSAFE',
+          SafetySourceReading.unknown => '$name: connected, not reporting',
+          SafetySourceReading.absent => '$name: not connected',
+        };
+
+    final anyConnected = sources.weather != SafetySourceReading.absent ||
+        sources.monitor != SafetySourceReading.absent;
+    if (!anyConnected) {
+      return 'No weather device or safety monitor is connected. '
+          '${failMode.noSourceConsequence}';
+    }
+    return '${describe('Weather device', sources.weather)} · '
+        '${describe('Safety monitor', sources.monitor)}';
+  }
+
+  /// Append the master-switch prerequisite when weather safety is off.
+  static String _withPrerequisite(String description, bool masterEnabled) {
+    if (masterEnabled) return description;
+    return '$description — inactive until "Enable weather safety" is on';
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final failMode =
+        ref.watch(appSettingsProvider).valueOrNull?.safetyFailMode ??
+            SafetyFailMode.failClosed;
+    final sources = ref.watch(weatherSafetySourceReadingsProvider);
+
+    return Column(
+      children: [
+        SettingRow(
+          icon: LucideIcons.satelliteDish,
+          title: 'Safety sources',
+          subtitle: _withPrerequisite(
+            sourceSummary(sources, failMode),
+            masterEnabled,
+          ),
+          trailing: const SizedBox.shrink(),
+          isMobile: isMobile,
+        ),
+        SettingRow(
+          icon: LucideIcons.alertTriangle,
+          title: 'Safety fail mode',
+          subtitle: failMode.description,
+          trailing: settingsTrailingDropdown(
+            context: context,
+            value: failMode.label,
+            items: SafetyFailModeLabels.labels,
+            designWidth: 180,
+            isMobile: isMobile,
+            onChanged: (value) => ref
+                .read(appSettingsProvider.notifier)
+                .setSafetyFailMode(SafetyFailModeLabels.fromLabel(value)),
+          ),
+          isMobile: isMobile,
         ),
       ],
     );

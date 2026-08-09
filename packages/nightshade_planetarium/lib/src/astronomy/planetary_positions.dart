@@ -2,6 +2,8 @@
 
 import 'dart:math' as math;
 
+import 'astronomy_calculations.dart';
+
 /// VSOP87 planetary position calculations
 /// Implements truncated VSOP87D theory for computing heliocentric ecliptic coordinates
 /// of the major planets (Mercury through Neptune) with sufficient accuracy for
@@ -114,7 +116,18 @@ class PlanetaryPositions {
 
   /// Get position of a specific planet
   /// planetIndex: 0=Mercury, 1=Venus, 2=Mars, 3=Jupiter, 4=Saturn, 5=Uranus, 6=Neptune
-  /// Returns (ra degrees, dec degrees, magnitude)
+  ///
+  /// Returns (ra HOURS, dec degrees, magnitude) referred to the **J2000**
+  /// equator and equinox — the same frame the star and DSO catalogues use, and
+  /// therefore the frame every consumer of this method works in (the chart, the
+  /// finder-chart export, tap identification, search results and the slew
+  /// targets built from them).
+  ///
+  /// VSOP87D is a theory of DATE, so the series below produce an ecliptic
+  /// position for the equinox of [dt]; the final step precesses that back to
+  /// J2000. Skipping it drew the planets ~22 arcmin from the star background in
+  /// 2026 — Jupiter two thirds of a Moon diameter off M44 — because the two
+  /// families were being projected in different frames onto one chart.
   static (double ra, double dec, double magnitude)? getPlanetPosition(
     int planetIndex,
     DateTime dt,
@@ -146,11 +159,19 @@ class PlanetaryPositions {
     final tCenturies = (jd - _j2000) / 36525;
     final obliquity = _obliquityJ2000 - 0.0130042 * tCenturies;
 
-    // Convert to equatorial coordinates
-    final (ra, dec) = eclipticToEquatorial(
+    // Convert to equatorial coordinates of DATE (the obliquity above is of
+    // date, matching the VSOP87D ecliptic these longitudes are referred to)...
+    final (raOfDate, decOfDate) = eclipticToEquatorial(
       lonDeg: geoLon,
       latDeg: geoLat,
       obliquityDeg: obliquity,
+    );
+
+    // ...then back to J2000, the chart's one frame. See the doc comment.
+    final (ra, dec) = AstronomyCalculations.precessFromDateToJ2000(
+      raDeg: raOfDate,
+      decDeg: decOfDate,
+      dt: dt,
     );
 
     // Calculate visual magnitude

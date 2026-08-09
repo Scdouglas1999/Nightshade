@@ -51,6 +51,36 @@ class LiveStackBusyException implements Exception {
   String toString() => 'LiveStackBusyException: $message';
 }
 
+/// Thrown when every follower frame was refused by the stacker, leaving only
+/// the reference in the integration.
+///
+/// A per-frame rejection is survivable — the run counts it and carries on — but
+/// a "stack" containing exactly one sub is not a stack, and persisting it would
+/// report a master built from a single frame. This names the count and the
+/// dominant reason so the operator can act on it (loosen the residual ceiling,
+/// re-pick the reference, drop a bad night) rather than reading "failed".
+class StackAndShareAllFramesRejectedException implements Exception {
+  final int framesRejected;
+  final int framesTotal;
+
+  /// The most common refusal reason across the rejected frames.
+  final String dominantReason;
+
+  const StackAndShareAllFramesRejectedException({
+    required this.framesRejected,
+    required this.framesTotal,
+    required this.dominantReason,
+  });
+
+  String get message =>
+      'Every one of the $framesRejected follower frames was rejected, so only '
+      'the reference remained of $framesTotal selected. Most common reason: '
+      '$dominantReason.';
+
+  @override
+  String toString() => 'StackAndShareAllFramesRejectedException: $message';
+}
+
 /// One-button orchestrator for the **Stack-and-Share Loop** (component C6).
 ///
 /// [run] drives the whole pipeline end-to-end for a single imaging session:
@@ -162,6 +192,39 @@ class StackAndShareService {
       !_retired && _backendNotifier.isCurrentBackend(_backend);
 
   void retire() => _retired = true;
+
+  /// Compact, human-readable cause for a frame the stacker refused. The native
+  /// errors arrive wrapped (`NightshadeError.imageError(field0: …)`), so strip
+  /// the wrapper down to the sentence a user can act on.
+  static String _rejectionReason(Object error) {
+    var text = error.toString().trim();
+    final field = RegExp(
+      r'field0:\s*(.*?)\)\s*$',
+      dotAll: true,
+    ).firstMatch(text);
+    if (field != null) text = field.group(1)!.trim();
+    final colon = text.indexOf(': ');
+    if (colon >= 0 && colon < 40 && text.startsWith(RegExp(r'[A-Za-z]'))) {
+      // Drop a leading exception-type prefix ("StateError: …").
+      final head = text.substring(0, colon);
+      if (!head.contains(' ')) text = text.substring(colon + 2).trim();
+    }
+    return text.isEmpty ? 'unknown' : text;
+  }
+
+  /// The most frequent entry of a reason → count tally.
+  static String _dominantReason(Map<String, int> tally) {
+    if (tally.isEmpty) return 'unknown';
+    var best = '';
+    var bestCount = -1;
+    tally.forEach((reason, count) {
+      if (count > bestCount) {
+        best = reason;
+        bestCount = count;
+      }
+    });
+    return best;
+  }
 
   void _ensureAuthority() {
     if (_hasAuthority) return;
@@ -286,6 +349,9 @@ class StackAndShareService {
       // (3)+(4) Feed the reference, then every follower, into the engine.
       var framesProcessed = 0;
       var framesRejected = 0;
+      // Reason → count for the frames the engine refused, so the run can name
+      // the dominant cause instead of just quoting a number.
+      final rejectionReasons = <String, int>{};
 
       // Start the stack from the reference frame.
       await _startStack(
@@ -315,6 +381,12 @@ class StackAndShareService {
       // follower as accepted (count advanced) or rejected (count unchanged).
       var lastStackedCount = 1;
 
+      // Image ids the engine actually integrated. The persisted `avgHfr` is
+      // averaged over exactly these — a stack's sharpness is the sharpness of
+      // the subs that went INTO it, so a refused (trailed, defocused) sub must
+      // not drag the number it never contributed to.
+      final integratedImageIds = <int>{reference.imageId};
+
       for (final frame in followers) {
         if (calibration != null) {
           emit(
@@ -325,18 +397,52 @@ class StackAndShareService {
           );
         }
 
-        final result = await _addStackFrame(
-          frame: frame,
-          calibration: calibration,
-        );
+        final LiveStackingResult result;
+        try {
+          result = await _addStackFrame(frame: frame, calibration: calibration);
+        } catch (e) {
+          // Losing an entire night's stack to one satellite-trailed or
+          // wind-shaken sub is the most expensive failure this feature has, and
+          // that is exactly what an unguarded await did: every native rejection
+          // path (too few stars, too few matches, residual over the ceiling)
+          // returns Err, so a single refused follower escaped this loop into
+          // the run-level catch, which deleted the partial `stacked_results`
+          // row and never attempted the remaining subs. The `framesRejected`
+          // counter below it was therefore unreachable.
+          //
+          // A refused frame is a PER-FRAME outcome: count it, remember why, and
+          // keep stacking. Authority loss is the one genuine run-level abort
+          // that can surface from in here, so it still propagates.
+          if (!_hasAuthority) rethrow;
+          framesProcessed++;
+          framesRejected++;
+          final reason = _rejectionReason(e);
+          rejectionReasons[reason] = (rejectionReasons[reason] ?? 0) + 1;
+          _logger.warning(
+            'Frame rejected from the stack (${frame.filePath}): $reason',
+            source: 'StackAndShareService',
+          );
+          progress = progress.copyWith(
+            phase: StackAndSharePhase.stacking,
+            framesProcessed: framesProcessed,
+            framesRejected: framesRejected,
+            currentFile: frame.filePath,
+          );
+          emit(progress);
+          continue;
+        }
         _ensureAuthority();
 
         framesProcessed++;
         final stackedCount = result.stats.stackedFrameCount;
         if (stackedCount <= lastStackedCount) {
-          // The engine did not accept this frame (alignment failure / pixel
-          // rejection left the integrated frame count unchanged).
+          // Belt and braces: an engine build that reports a refusal as an Ok
+          // with an unadvanced count is still a rejection.
           framesRejected++;
+          rejectionReasons['not accepted by the stacker'] =
+              (rejectionReasons['not accepted by the stacker'] ?? 0) + 1;
+        } else {
+          integratedImageIds.add(frame.imageId);
         }
         lastStackedCount = stackedCount;
 
@@ -347,6 +453,17 @@ class StackAndShareService {
           currentFile: frame.filePath,
         );
         emit(progress);
+      }
+
+      // A "stack" the engine only ever accepted the reference into is not a
+      // stack; persisting it would report a master built from one sub. Fail
+      // loudly, naming the dominant reason, rather than shipping that.
+      if (followers.isNotEmpty && lastStackedCount <= 1) {
+        throw StackAndShareAllFramesRejectedException(
+          framesRejected: framesRejected,
+          framesTotal: framesTotal,
+          dominantReason: _dominantReason(rejectionReasons),
+        );
       }
 
       // (5) Final integrated result + statistics.
@@ -409,6 +526,11 @@ class StackAndShareService {
       }
 
       // (7) Build + persist the provenance record.
+      final avgHfr = await _averageIntegratedHfr(
+        sessionId: sessionId,
+        imageIds: integratedImageIds,
+      );
+      _ensureAuthority();
       final result = StackAndShareResult(
         sessionId: sessionId,
         targetId: targetId,
@@ -417,12 +539,12 @@ class StackAndShareService {
         height: stacked.height,
         framesStacked: stats.stackedFrameCount,
         framesAttempted: framesTotal,
-        integrationSecs: selection.totalIntegrationSecs,
+        integrationSecs: _integratedIntegrationSecs(
+          selection,
+          integratedImageIds,
+        ),
         avgAlignmentResidual: stats.avgAlignmentResidual,
-        // The live-stacking engine does not measure HFR, so it is left null
-        // rather than fabricated from the reference frame's quality score
-        // (different metric); a later analysis pass may populate it.
-        avgHfr: null,
+        avgHfr: avgHfr,
         filter: _singleFilter(selection, isColor: isColor),
         isColor: isColor,
         channels: channels,
@@ -477,7 +599,9 @@ class StackAndShareService {
       _logger.info(
         'Stack-and-Share complete for session $sessionId: '
         '${stats.stackedFrameCount}/$framesTotal frames stacked, '
-        '${persisted.integrationSecs.toStringAsFixed(0)}s integration '
+        '$framesRejected rejected'
+        '${framesRejected > 0 ? ' (${_dominantReason(rejectionReasons)})' : ''}'
+        ', ${persisted.integrationSecs.toStringAsFixed(0)}s integration '
         '(result id $id)',
         source: 'StackAndShareService',
       );
@@ -596,6 +720,60 @@ class StackAndShareService {
       height: calibrated.height,
       data: calibrated.data,
     );
+  }
+
+  /// Total exposure time, in seconds, of the frames the engine actually
+  /// integrated — summed over [integratedImageIds], not over everything the
+  /// selector offered.
+  ///
+  /// [StackSelectionSummary.totalIntegrationSecs] is fixed before the engine
+  /// runs, so it counts subs the stacker went on to refuse. Now that a refused
+  /// sub is skipped instead of killing the run, quoting it would overstate the
+  /// integration on every stack that rejected anything — on the result screen,
+  /// in the AstroBin sidecar, and on the Share Card the user posts publicly.
+  /// The claim has to describe the master that was built.
+  ///
+  /// Identical to the selection-wide total when nothing is rejected: both sum
+  /// the same per-frame exposure over the same frames.
+  double _integratedIntegrationSecs(
+    StackSelectionSummary selection,
+    Set<int> integratedImageIds,
+  ) {
+    var total = 0.0;
+    for (final frame in selection.selected) {
+      if (integratedImageIds.contains(frame.imageId)) {
+        total += frame.exposureSecs;
+      }
+    }
+    return total;
+  }
+
+  /// Mean HFR, in pixels, of the frames the engine actually integrated.
+  ///
+  /// The live stacker does not measure HFR, but every light already carries the
+  /// focuser-grade HFR the capture pipeline measured (`captured_images.hfr`),
+  /// which is the number an imager judges a stack by. Averaging those over
+  /// [imageIds] is a statement about the subs in the integration — not a
+  /// fabricated engine metric. Frames with no measured HFR are skipped rather
+  /// than counted as zero; when none of them has one, the column stays NULL and
+  /// the viewer's "Avg HFR" row correctly does not render.
+  Future<double?> _averageIntegratedHfr({
+    required int sessionId,
+    required Set<int> imageIds,
+  }) async {
+    if (imageIds.isEmpty) return null;
+    final images = await _imagesDao.getImagesForSession(sessionId);
+    var sum = 0.0;
+    var count = 0;
+    for (final image in images) {
+      if (!imageIds.contains(image.id)) continue;
+      final hfr = image.hfr;
+      if (hfr == null || !hfr.isFinite || hfr <= 0) continue;
+      sum += hfr;
+      count++;
+    }
+    if (count == 0) return null;
+    return sum / count;
   }
 
   /// Load [frame]'s raw linear pixels and apply in-memory calibration

@@ -6,6 +6,41 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'run_dashboard_format.dart';
 
+/// What the header pill is entitled to claim about the sky.
+///
+/// [WeatherSafetyStatus] alone cannot answer this: it collapses "a sensor
+/// reported safe conditions" and "nothing was assessed, so there is no verdict
+/// to report" into the same `safe` value (see the doc on
+/// `WeatherSafetyState.monitoringEnabled`). Rendering that collapse as a green
+/// "Safe" is the single most glanceable lie this card can tell, so the two
+/// unassessed cases get their own states.
+enum RunDashboardSafetyBadge { safe, unsafe, snoozed, notMonitored, noData }
+
+/// Derive the pill state from the whole safety snapshot, not just its status.
+///
+/// Top-level so the claim is testable without building the provider graph.
+RunDashboardSafetyBadge runDashboardSafetyBadge({
+  required WeatherSafetyStatus status,
+  required bool monitoringEnabled,
+  required SafetyDataSource dataSource,
+}) {
+  // Master switch off: nothing is evaluated at all, whatever `status` says.
+  if (!monitoringEnabled) return RunDashboardSafetyBadge.notMonitored;
+  switch (status) {
+    case WeatherSafetyStatus.unsafe:
+      return RunDashboardSafetyBadge.unsafe;
+    case WeatherSafetyStatus.snoozed:
+      return RunDashboardSafetyBadge.snoozed;
+    case WeatherSafetyStatus.safe:
+      // A permissive fail mode resolves no-data to `safe` so the run keeps
+      // going; that is an operational decision, not a measurement, and the
+      // pill must not present it as one.
+      return dataSource == SafetyDataSource.unavailable
+          ? RunDashboardSafetyBadge.noData
+          : RunDashboardSafetyBadge.safe;
+  }
+}
+
 /// Read-only weather/safety snapshot for the Run dashboard.
 ///
 /// Surfaces the same `weatherSafetyProvider` state already evaluated by the
@@ -18,17 +53,37 @@ class RunDashboardWeatherSafetyCard extends ConsumerWidget {
     final colors = NightshadeColors.of(context);
     final safety = ref.watch(weatherSafetyProvider);
 
-    final (statusText, statusColor, statusIcon) = switch (safety.status) {
-      WeatherSafetyStatus.safe => ('Safe', colors.success, LucideIcons.check),
-      WeatherSafetyStatus.unsafe => (
+    final badge = runDashboardSafetyBadge(
+      status: safety.status,
+      monitoringEnabled: safety.monitoringEnabled,
+      dataSource: safety.dataSource,
+    );
+
+    final (statusText, statusColor, statusIcon) = switch (badge) {
+      RunDashboardSafetyBadge.safe => (
+          'Safe',
+          colors.success,
+          LucideIcons.check
+        ),
+      RunDashboardSafetyBadge.unsafe => (
           'Unsafe',
           colors.error,
           LucideIcons.alertTriangle
         ),
-      WeatherSafetyStatus.snoozed => (
+      RunDashboardSafetyBadge.snoozed => (
           'Snoozed',
           colors.warning,
           LucideIcons.bellOff
+        ),
+      RunDashboardSafetyBadge.notMonitored => (
+          'Not monitored',
+          colors.textMuted,
+          LucideIcons.shieldOff
+        ),
+      RunDashboardSafetyBadge.noData => (
+          'No data',
+          colors.warning,
+          LucideIcons.helpCircle
         ),
     };
 

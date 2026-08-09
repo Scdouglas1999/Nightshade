@@ -340,6 +340,68 @@ void main() {
       expect(issues, isEmpty);
     });
 
+    // Audit 2026-08-03: the rule stamped the camera's LIVE setpoint onto every
+    // requirement, so a sequence whose Cool Camera node cools to +15 C was
+    // checked (and offered "Capture missing darks") against darks at the
+    // camera default of -10 C — a temperature the run never reaches.
+    test('uses the setpoint the sequence cools to, not the live one', () async {
+      final container = await _buildContainer(
+        settings: _settings(),
+        camera: const CameraStateSnapshot(targetTemp: -10.0),
+        seed: (db) async {
+          await _insertDark(
+            db,
+            exposureTime: 180,
+            gain: 100,
+            offset: 10,
+            binX: 1,
+            binY: 1,
+            temperature: -10.0,
+            masterDarkPath: '/tmp/master_dark_minus10.fits',
+          );
+        },
+      );
+      final rule = DarkLibraryCoverageRule();
+      final s = _sequenceWith([CoolCameraNode(targetTemp: 15.0), _exposure()]);
+      final issues = await _withRef(container, (ref) async {
+        return rule.validate(s, ValidationContext(ref));
+      });
+
+      expect(issues, isNotEmpty);
+      expect(issues.first.title, 'Missing Dark Frames');
+      expect(issues.first.description, contains('temp=15.0C'));
+      expect(
+        issues.first.description,
+        contains('Temperatures are the setpoints this sequence cools to.'),
+      );
+    });
+
+    test('clean when the library holds darks at the cooled setpoint', () async {
+      final container = await _buildContainer(
+        settings: _settings(),
+        camera: const CameraStateSnapshot(targetTemp: -10.0),
+        seed: (db) async {
+          await _insertDark(
+            db,
+            exposureTime: 180,
+            gain: 100,
+            offset: 10,
+            binX: 1,
+            binY: 1,
+            temperature: 15.0,
+            masterDarkPath: '/tmp/master_dark_plus15.fits',
+          );
+        },
+      );
+      final rule = DarkLibraryCoverageRule();
+      final s = _sequenceWith([CoolCameraNode(targetTemp: 15.0), _exposure()]);
+      final issues = await _withRef(container, (ref) async {
+        return rule.validate(s, ValidationContext(ref));
+      });
+
+      expect(issues, isEmpty);
+    });
+
     test('warns when raw coverage is below quorum', () async {
       final container = await _buildContainer(
         settings: _settings(darkMinCoverage: 10),

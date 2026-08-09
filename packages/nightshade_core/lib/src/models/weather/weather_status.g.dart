@@ -23,7 +23,9 @@ _WeatherStatus _$WeatherStatusFromJson(Map<String, dynamic> json) =>
               .toList() ??
           const [],
       currentFrameIndex: (json['currentFrameIndex'] as num?)?.toInt() ?? 0,
-      lastUpdate: DateTime.parse(json['lastUpdate'] as String),
+      lastUpdate: json['lastUpdate'] == null
+          ? null
+          : DateTime.parse(json['lastUpdate'] as String),
       isLoading: json['isLoading'] as bool? ?? false,
       errorMessage: json['errorMessage'] as String?,
     );
@@ -35,7 +37,7 @@ Map<String, dynamic> _$WeatherStatusToJson(_WeatherStatus instance) =>
       'motion': instance.motion,
       'radarFrames': instance.radarFrames,
       'currentFrameIndex': instance.currentFrameIndex,
-      'lastUpdate': instance.lastUpdate.toIso8601String(),
+      'lastUpdate': instance.lastUpdate?.toIso8601String(),
       'isLoading': instance.isLoading,
       'errorMessage': instance.errorMessage,
     };

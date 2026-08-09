@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../backend/network_backend.dart';
@@ -109,12 +110,17 @@ class DarkLibraryCoverageRule implements AsyncSequenceValidator {
     final settings = ref.read(appSettingsProvider).valueOrNull;
     if (settings == null) return const [];
 
-    // Collect distinct light-frame combos. We use the camera's target
-    // temp as a stand-in when the exposure node doesn't carry one
-    // (ExposureNode currently doesn't model per-exposure temperature
-    // — the camera's setpoint is the operative value).
+    // Collect distinct light-frame combos. ExposureNode does not model a
+    // per-exposure temperature, so the operative value is the sensor setpoint
+    // the run will be AT when the node executes: whatever the most recent
+    // preceding Cool Camera node asked for, and only the camera's live
+    // setpoint before the first one. Reading the live setpoint for the whole
+    // sequence checked (and offered to capture) darks at the camera default
+    // for a run whose Cool Camera node cools to something else entirely.
     final cameraState = ref.read(cameraStateProvider);
     final camTargetTemp = cameraState.targetTemp;
+    final plannedTemps = _plannedSensorTemps(sequence, camTargetTemp);
+    var anyPlannedByNode = false;
 
     final requirements = <DarkFrameRequirement>{};
     for (final node in sequence.nodes.values) {
@@ -129,6 +135,10 @@ class DarkLibraryCoverageRule implements AsyncSequenceValidator {
       final binValue = _binningToInt(node.binning);
       final binX = binValue;
       final binY = binValue;
+      final plannedTemp = plannedTemps.containsKey(node.id)
+          ? plannedTemps[node.id]
+          : camTargetTemp;
+      if (plannedTemp != camTargetTemp) anyPlannedByNode = true;
       requirements.add(
         DarkFrameRequirement(
           gain: gain,
@@ -136,7 +146,7 @@ class DarkLibraryCoverageRule implements AsyncSequenceValidator {
           durationSecs: node.durationSecs,
           binX: binX,
           binY: binY,
-          targetTemp: camTargetTemp,
+          targetTemp: plannedTemp,
         ),
       );
     }
@@ -180,6 +190,12 @@ class DarkLibraryCoverageRule implements AsyncSequenceValidator {
       settings.preflightStrictness,
     );
 
+    // Name where the temperature in each line came from, so an operator who
+    // expects the camera's current setpoint can see the sequence overrode it.
+    final tempSource = anyPlannedByNode
+        ? '\nTemperatures are the setpoints this sequence cools to.'
+        : '';
+
     if (missing.isNotEmpty) {
       final lines = missing.map((r) => '  • ${r.describe()}').join('\n');
       issues.add(
@@ -189,7 +205,7 @@ class DarkLibraryCoverageRule implements AsyncSequenceValidator {
           title: 'Missing Dark Frames',
           description:
               'No matching darks found for ${missing.length} exposure combination'
-              '${missing.length == 1 ? "" : "s"}:\n$lines',
+              '${missing.length == 1 ? "" : "s"}:\n$lines$tempSource',
           resolutionHint:
               'Capture darks for the missing combinations. Open Calibration → '
               'Dark Library to schedule them, or run the "Capture missing darks" '
@@ -212,7 +228,7 @@ class DarkLibraryCoverageRule implements AsyncSequenceValidator {
           title: 'Low Dark Library Coverage',
           description:
               'Some combinations have fewer than ${settings.darkLibraryMinCoverage} '
-              'darks (below the configured quorum):\n$lines',
+              'darks (below the configured quorum):\n$lines$tempSource',
           resolutionHint:
               'Capture additional darks to reach the quorum, then create a '
               'master dark from Calibration → Dark Library.',
@@ -222,6 +238,42 @@ class DarkLibraryCoverageRule implements AsyncSequenceValidator {
 
     return issues;
   }
+}
+
+/// Sensor setpoint each enabled exposure node will execute at, keyed by node id.
+///
+/// Walks the tree in execution order threading the setpoint: a Cool Camera node
+/// changes it for everything that follows (cooling is camera-wide state, so the
+/// change outlives the branch it sits in). [initial] is the camera's live
+/// setpoint, used until the first Cool Camera node.
+///
+/// Nodes unreachable from the root are absent from the result; the caller falls
+/// back to the live setpoint for those, which is all it can honestly assume.
+@visibleForTesting
+Map<String, double?> plannedSensorTemps(Sequence sequence, double? initial) =>
+    _plannedSensorTemps(sequence, initial);
+
+Map<String, double?> _plannedSensorTemps(Sequence sequence, double? initial) {
+  final temps = <String, double?>{};
+  final root = sequence.rootNodeId;
+  if (root == null || sequence.nodes[root] == null) return temps;
+
+  var current = initial;
+  void walk(String nodeId) {
+    final node = sequence.nodes[nodeId];
+    if (node == null || !node.isEnabled) return;
+    if (node is CoolCameraNode) {
+      current = node.targetTemp;
+    } else if (node is ExposureNode) {
+      temps[node.id] = current;
+    }
+    for (final childId in node.childIds) {
+      walk(childId);
+    }
+  }
+
+  walk(root);
+  return temps;
 }
 
 class _HistoricalQualityBucket {

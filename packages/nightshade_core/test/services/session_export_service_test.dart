@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:csv/csv.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -144,6 +145,83 @@ void main() {
       expect(report, contains('not recorded'));
       // The frame table still lists the per-frame HFRs it always did.
       expect(report, contains('2.60'));
+    });
+
+    // Observed defect: the CSV's "FWHM (px)" column was always hfr * 2.3548 —
+    // the sigma->FWHM factor applied to a half-flux RADIUS, an 18% inflation —
+    // and the measured `fwhm` column the pipeline writes was never read.
+    test('exportToCsv prefers the measured FWHM and derives 2x HFR '
+        'only when there is none', () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'nightshade_session_export_fwhm_',
+      );
+      addTearDown(() async {
+        if (await tempDir.exists()) await tempDir.delete(recursive: true);
+      });
+
+      final sessionId = await sessionsDao.createSession(
+        ImagingSessionsCompanion.insert(
+          name: const Value('FWHM PROBE'),
+          startTime: DateTime.utc(2026, 8, 1, 2),
+        ),
+      );
+      // Frame 1: pipeline measured a real FWHM that disagrees with any
+      // multiple of HFR, so a derived column cannot accidentally match it.
+      final measuredId = await imagesDao.createImage(
+        CapturedImagesCompanion.insert(
+          filePath: '/lights/m.fits',
+          fileName: 'm.fits',
+          sessionId: Value(sessionId),
+          exposureDuration: 300.0,
+          frameType: const Value('light'),
+          capturedAt: DateTime.utc(2026, 8, 1, 2, 1),
+          hfr: const Value(2.00),
+          isAccepted: const Value(true),
+        ),
+      );
+      await imagesDao.stampProducingNode(imageId: measuredId, fwhm: 3.11);
+      // Frame 2: no measured FWHM, so the exporter must derive it.
+      await imagesDao.createImage(
+        CapturedImagesCompanion.insert(
+          filePath: '/lights/d.fits',
+          fileName: 'd.fits',
+          sessionId: Value(sessionId),
+          exposureDuration: 300.0,
+          frameType: const Value('light'),
+          capturedAt: DateTime.utc(2026, 8, 1, 2, 2),
+          hfr: const Value(2.00),
+          isAccepted: const Value(true),
+        ),
+      );
+
+      final csvPath = await SessionExportService(
+        sessionsDao: sessionsDao,
+        imagesDao: imagesDao,
+        documentsDirectoryProvider: () async => tempDir,
+      ).exportToCsv(sessionId);
+      addTearDown(() async {
+        final file = File(csvPath);
+        if (await file.exists()) await file.delete();
+      });
+
+      final table = const CsvToListConverter(
+        shouldParseNumbers: false,
+      ).convert(await File(csvPath).readAsString());
+      final header = table.first.cast<String>();
+      final hfrCol = header.indexWhere((c) => c.contains('HFR (px)'));
+      final fwhmCol = header.indexWhere((c) => c.startsWith('FWHM'));
+      expect(hfrCol, isNonNegative);
+      expect(fwhmCol, isNonNegative);
+
+      final measuredRow = table.firstWhere((r) => r[0] == 'm.fits');
+      final derivedRow = table.firstWhere((r) => r[0] == 'd.fits');
+      // The measured column wins outright.
+      expect(measuredRow[fwhmCol], '3.11');
+      // With no measurement, FWHM = 2.0 * HFR — NOT 2.3548 * HFR (4.71).
+      expect(derivedRow[hfrCol], '2.00');
+      expect(derivedRow[fwhmCol], '4.00');
+      // And the header says the number can be derived.
+      expect(header[fwhmCol], contains('HFR'));
     });
 
     test('exportSummary derives Average HFR from frames when null', () async {

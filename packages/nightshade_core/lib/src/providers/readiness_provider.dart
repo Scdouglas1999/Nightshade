@@ -111,6 +111,15 @@ final readinessReportProvider = Provider<ReadinessReport>((ref) {
       )
       .toList(growable: false);
 
+  // The assignment SET, not just the offline subset: an empty offline list
+  // means "nothing assigned is down", which over an empty profile is vacuous.
+  // The profile-devices rule needs the counts to tell those apart.
+  final assignedProfileSlots = ref.watch(assignedProfileDeviceSlotsProvider);
+  final otherAssignedProfileSlots = assignedProfileSlots.where(
+    (slot) =>
+        slot != ProfileDeviceSlot.camera && slot != ProfileDeviceSlot.mount,
+  );
+
   return buildReadinessReport(
     cameraConnected: cameraConnected,
     mountConnected: mountConnected,
@@ -121,6 +130,9 @@ final readinessReportProvider = Provider<ReadinessReport>((ref) {
     darkLibraryHasCoverage: darkLibraryHasCoverage,
     focusKnown: focusKnown,
     offlineProfileDevices: offlineProfileDevices,
+    hasActiveProfile: ref.watch(activeEquipmentProfileProvider) != null,
+    assignedProfileDeviceCount: assignedProfileSlots.length,
+    otherAssignedProfileDeviceCount: otherAssignedProfileSlots.length,
   );
 });
 

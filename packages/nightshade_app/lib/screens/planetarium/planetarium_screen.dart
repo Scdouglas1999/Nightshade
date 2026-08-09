@@ -33,7 +33,9 @@ import '../../widgets/tutorial_keys/planetarium_keys.dart';
 import 'sky_imagery/planetarium_sky_imagery_layer.dart';
 import 'sky_imagery/planetarium_sky_imagery_providers.dart';
 import 'widgets/full_screen_sky_view.dart';
+import 'widgets/sky_hotkey_scope.dart';
 import 'widgets/star_catalog_fallback_banner.dart';
+import 'widgets/star_chart_depth_notice.dart';
 import 'widgets/redesign/command_bar.dart';
 import 'widgets/redesign/layers_panel.dart';
 import 'show_in_sky.dart';
@@ -94,6 +96,17 @@ class PlanetariumView extends ConsumerStatefulWidget {
 class _PlanetariumScreenState extends ConsumerState<PlanetariumView>
     with SingleTickerProviderStateMixin {
   final _searchController = TextEditingController();
+
+  // Focus for the plan panel's search field. Owned here (not by SearchHeader)
+  // because the command bar's "Search ⌘K" control lives outside that widget and
+  // has to put the caret in the field: without this the button only opened the
+  // panel and the next keystroke went nowhere.
+  final _searchFocusNode = FocusNode(debugLabel: 'planetariumSearch');
+
+  // Bumped by every Search command. The plan panel watches it and, on a change,
+  // selects the Search tab and focuses the field. A counter rather than a bool
+  // so a second press while the panel is already open still fires.
+  int _searchFocusToken = 0;
 
   // Popup state
   bool _showPopup = false;
@@ -157,6 +170,7 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumView>
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocusNode.dispose();
     _mountSyncDebounce?.cancel();
     super.dispose();
   }
@@ -256,9 +270,8 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumView>
       reserveSpaceForCard: false,
       child: _NightVisionFilter(
         enabled: nightVision,
-        child: Focus(
-          autofocus: true,
-          onKeyEvent: _handleKeyEvent,
+        child: SkyHotkeyScope(
+          onHotkey: _handleKeyEvent,
           child: GestureDetector(
             onTapDown: (details) {
               if (_showPopup) {

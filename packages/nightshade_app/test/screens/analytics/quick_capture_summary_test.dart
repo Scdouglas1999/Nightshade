@@ -96,7 +96,12 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('Quick Capture'), findsOneWidget);
-    expect(_summaryValues(tester), ['—', '3', '45s', '2.00']);
+    // Exposures counts LIGHT frames as accepted/total, matching the integration
+    // and median-HFR figures beside it (both lights-only). Counting every frame
+    // instead reported "3" next to an integration of a single 45 s sub, because
+    // the rejected light and the flat contributed to one stat but not the
+    // others.
+    expect(_summaryValues(tester), ['—', '1/2', '45s', '2.00']);
   });
 
   testWidgets('standalone image failures stay distinct from empty data',

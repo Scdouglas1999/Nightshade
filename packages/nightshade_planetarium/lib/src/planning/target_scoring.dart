@@ -228,7 +228,9 @@ class TargetScoringService {
     final visibility = AstronomyCalculations.calculateObjectVisibility(
       raDeg: raDeg,
       decDeg: decDeg,
-      date: observationTime,
+      // The night containing [observationTime]; its calendar day is already
+      // tomorrow once the clock passes midnight.
+      date: AstronomyCalculations.nightDateOf(observationTime),
       latitudeDeg: latitude,
       longitudeDeg: longitude,
     );
@@ -350,6 +352,11 @@ class TargetScoringService {
     double bestAirmass = double.infinity;
     int samplesAboveMin = 0;
     int totalSamples = 0;
+    // First sample of the night that is actually usable. This — not
+    // `visibility.riseTime` — is what "the target is not available yet" means
+    // to an operator, because it accounts for the minimum altitude and the
+    // local skyline, and it can only ever name an instant inside the night.
+    DateTime? firstObservableTime;
 
     var sampleTime = nightStart;
     while (!sampleTime.isAfter(nightEnd)) {
@@ -373,6 +380,7 @@ class TargetScoringService {
       final effectiveMin = _effectiveMinAltitude(minAltitude, az);
       if (alt >= effectiveMin) {
         samplesAboveMin++;
+        firstObservableTime ??= sampleTime;
         if (alt > observablePeakAlt) {
           observablePeakAlt = alt;
           observablePeakAz = az;
@@ -407,7 +415,9 @@ class TargetScoringService {
     final visibility = AstronomyCalculations.calculateObjectVisibility(
       raDeg: raDeg,
       decDeg: decDeg,
-      date: nightMid,
+      // nightMid usually lands after midnight, so its calendar day names the
+      // day the night ENDS, not the night itself.
+      date: AstronomyCalculations.nightDateOf(nightMid),
       latitudeDeg: latitude,
       longitudeDeg: longitude,
     );
@@ -468,6 +478,7 @@ class TargetScoringService {
       hoursAboveMin: hoursAboveMin,
       nightStart: nightStart,
       nightEnd: nightEnd,
+      firstObservableTime: firstObservableTime,
     );
 
     // Calculate weighted total score via the shared aggregation contract
@@ -920,6 +931,7 @@ class TargetScoringService {
     required double hoursAboveMin,
     required DateTime nightStart,
     required DateTime nightEnd,
+    DateTime? firstObservableTime,
   }) {
     final warnings = <TargetWarning>[];
 
@@ -1003,23 +1015,33 @@ class TargetScoringService {
       );
     }
 
-    // Rises late in the night
-    if (visibility.riseTime != null && peakAlt >= 0) {
-      final riseTime = visibility.riseTime!;
-      if (riseTime.isAfter(nightStart)) {
-        final nightDuration = nightEnd.difference(nightStart);
-        final riseOffset = riseTime.difference(nightStart);
-        // If the target rises in the last third of the night
-        if (riseOffset > nightDuration * 0.66) {
-          warnings.add(
-            TargetWarning(
-              type: WarningType.notYetRisen,
-              severity: WarningSeverity.info,
-              message: 'Rises late at ${_formatTime(riseTime)}',
-              suggestion: 'Target becomes available late in the night',
-            ),
-          );
-        }
+    // Becomes usable only late in the night.
+    //
+    // Gated on the first SAMPLED instant that clears the minimum altitude, not
+    // on `visibility.riseTime`. That rise time comes from a separate
+    // noon-to-noon solve of the geometric horizon crossing, so for a target
+    // that is already high when darkness falls it names a crossing outside the
+    // night entirely — which is how M92, above 80° at astronomical dark, was
+    // labelled "Rises late at 11:54", in broad daylight. A target that clears
+    // the minimum at nightStart has nothing to warn about, and one that never
+    // clears it is covered by the below-horizon/low-altitude warnings above.
+    if (firstObservableTime != null && peakAlt >= 0) {
+      final nightDuration = nightEnd.difference(nightStart);
+      final availableOffset = firstObservableTime.difference(nightStart);
+      // If the target only becomes usable in the last third of the night.
+      if (nightDuration > Duration.zero &&
+          availableOffset > nightDuration * 0.66) {
+        warnings.add(
+          TargetWarning(
+            type: WarningType.notYetRisen,
+            severity: WarningSeverity.info,
+            // "Usable from", not "Rises at": the threshold crossed here is the
+            // configured minimum altitude over the local skyline, which a
+            // target can clear hours after it geometrically rises.
+            message: 'Usable only from ${_formatTime(firstObservableTime)}',
+            suggestion: 'Target becomes available late in the night',
+          ),
+        );
       }
     }
 

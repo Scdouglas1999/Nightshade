@@ -29,6 +29,12 @@ class _ConstraintBody extends StatelessWidget {
           onChange: (v) =>
               onChange(constraint.copyWith(moonIlluminationMax: v)),
         );
+      case TargetConstraintKind.moonSeparationMin:
+        return _MoonSeparationField(
+          degrees: constraint.moonSeparationMinDeg ?? 30.0,
+          onChange: (v) =>
+              onChange(constraint.copyWith(moonSeparationMinDeg: v)),
+        );
       case TargetConstraintKind.customHorizon:
         return _HorizonField(
           selectedId: constraint.customHorizonId,
@@ -146,6 +152,45 @@ class _MoonField extends StatelessWidget {
           width: 56,
           child: Text(
             '${(value * 100).round()} %',
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              fontSize: NightshadeTypography.fontSize12,
+              fontWeight: FontWeight.w600,
+              color: colors.textPrimary,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Minimum target-to-moon angular separation, in degrees.
+class _MoonSeparationField extends StatelessWidget {
+  final double degrees;
+  final void Function(double) onChange;
+  const _MoonSeparationField({required this.degrees, required this.onChange});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    return Row(
+      children: [
+        Expanded(
+          child: Slider(
+            value: degrees.clamp(0.0, 180.0),
+            min: 0.0,
+            max: 180.0,
+            divisions: 180,
+            label: '${degrees.round()}°',
+            onChanged: onChange,
+          ),
+        ),
+        SizedBox(
+          width: 56,
+          child: Text(
+            '${degrees.round()}°',
             textAlign: TextAlign.right,
             style: TextStyle(
               fontSize: NightshadeTypography.fontSize12,

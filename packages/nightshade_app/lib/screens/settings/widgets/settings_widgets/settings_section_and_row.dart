@@ -21,11 +21,21 @@ class SettingsSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style:
-              (isMobile ? NightshadeTypography.label : NightshadeTypography.h5)
-                  .copyWith(color: colors.textPrimary),
+        // A search result can name this HEADING as well as a row: the
+        // generated index cannot tell a `SettingsSection(title:)` from a
+        // `SettingRow(title:)`, so "Dithering", "Meridian Flip" and
+        // "Notification Events" are all offered as tappable results. Without
+        // this the heading results opened the page at the top and marked
+        // nothing — the dead end the row results exist to end.
+        _HighlightedRow(
+          active: SettingsRowHighlight.targets(context, title: title),
+          child: Text(
+            title,
+            style: (isMobile
+                    ? NightshadeTypography.label
+                    : NightshadeTypography.h5)
+                .copyWith(color: colors.textPrimary),
+          ),
         ),
         SizedBox(
             height:
@@ -39,6 +49,101 @@ class SettingsSection extends StatelessWidget {
         ),
         SizedBox(height: isMobile ? NightshadeTokens.spaceXl : 28),
       ],
+    );
+  }
+}
+
+/// The row a settings search asked to be shown, published to every
+/// [SettingRow] under the detail pane.
+///
+/// Search used to hand back a section name and nothing else: typing "Alpaca"
+/// opened a long Connection page at the top with no indication of where the
+/// match was, even though the index knew exactly which row title had matched.
+class SettingsRowHighlight extends InheritedWidget {
+  const SettingsRowHighlight({
+    super.key,
+    required this.rowTitle,
+    required super.child,
+  });
+
+  /// Title of the row to reveal, or null when nothing is being sought.
+  final String? rowTitle;
+
+  static String? titleOf(BuildContext context) => context
+      .dependOnInheritedWidgetOfExactType<SettingsRowHighlight>()
+      ?.rowTitle;
+
+  /// Is the row described by [title]/[subtitle] the one being sought?
+  ///
+  /// The subtitle counts because the generated search index cannot tell a
+  /// `title:` from a `subtitle:` (its pattern has no left word boundary), so a
+  /// short subtitle can legitimately be the term the operator recognised and
+  /// tapped. Matching only on the title would open the page and then mark
+  /// nothing, which is the state this whole mechanism exists to end.
+  static bool targets(
+    BuildContext context, {
+    required String title,
+    String? subtitle,
+  }) {
+    final sought = titleOf(context);
+    if (sought == null) return false;
+    return sought == title || sought == subtitle;
+  }
+
+  @override
+  bool updateShouldNotify(SettingsRowHighlight oldWidget) =>
+      oldWidget.rowTitle != rowTitle;
+}
+
+/// Scrolls its row into view and tints it while it is the search target.
+class _HighlightedRow extends StatefulWidget {
+  const _HighlightedRow({required this.active, required this.child});
+
+  final bool active;
+  final Widget child;
+
+  @override
+  State<_HighlightedRow> createState() => _HighlightedRowState();
+}
+
+class _HighlightedRowState extends State<_HighlightedRow> {
+  @override
+  void initState() {
+    super.initState();
+    if (widget.active) _reveal();
+  }
+
+  @override
+  void didUpdateWidget(covariant _HighlightedRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.active && !oldWidget.active) _reveal();
+  }
+
+  /// After the frame that placed this row: the enclosing scroll view does not
+  /// exist yet during build, and a settings page mounted by a search result is
+  /// laid out in the same frame the target is chosen in.
+  void _reveal() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (Scrollable.maybeOf(context) == null) return;
+      Scrollable.ensureVisible(
+        context,
+        alignment: 0.15,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 400),
+      color: widget.active
+          ? colors.primary.withValues(alpha: 0.14)
+          : Colors.transparent,
+      child: widget.child,
     );
   }
 }
@@ -127,19 +232,37 @@ class SettingRow extends StatelessWidget {
 
     final iconInnerSize = isMobile ? 14.0 : NightshadeTokens.iconSm;
 
-    return Container(
-      padding: EdgeInsets.symmetric(
-          horizontal: horizontalPadding, vertical: verticalPadding),
-      decoration: BoxDecoration(
-        border: isLast
-            ? null
-            : Border(
-                bottom: BorderSide(color: colors.border.withValues(alpha: 0.5)),
-              ),
+    // The row's title and its trailing control are ONE thing to a screen
+    // reader.
+    //
+    // Without this the switch is a correctly-toggled but ANONYMOUS node:
+    // measured on the running app, Settings > General exposed three toggle
+    // buttons reading "off/ON/ON" with empty names, so assistive technology
+    // could report that something was on without being able to say which
+    // setting it was. Merging binds each control to the label beside it.
+    return MergeSemantics(
+      child: _HighlightedRow(
+        active: SettingsRowHighlight.targets(
+          context,
+          title: title,
+          subtitle: subtitle,
+        ),
+        child: Container(
+          padding: EdgeInsets.symmetric(
+              horizontal: horizontalPadding, vertical: verticalPadding),
+          decoration: BoxDecoration(
+            border: isLast
+                ? null
+                : Border(
+                    bottom:
+                        BorderSide(color: colors.border.withValues(alpha: 0.5)),
+                  ),
+          ),
+          child: shouldStack
+              ? _buildStackedLayout(context, colors, iconSize, iconInnerSize)
+              : _buildRowLayout(context, colors, iconSize, iconInnerSize),
+        ),
       ),
-      child: shouldStack
-          ? _buildStackedLayout(context, colors, iconSize, iconInnerSize)
-          : _buildRowLayout(context, colors, iconSize, iconInnerSize),
     );
   }
 

@@ -44,6 +44,25 @@ extension _ImagingServicePersistence on ImagingService {
     final hasConfiguredSite = appSettings?.isLocationSet ?? false;
     final observerName = appSettings?.observerName.trim();
 
+    // XPIXSZ/YPIXSZ describe the detector, and the driver is the only place
+    // that knows them — the `equipment_profiles` table has no pixel-size
+    // column, which is why this used to pass null with the note "not stored in
+    // the profile yet". The result was that every frame this path wrote
+    // carried FOCALLEN but no pixel pitch, so ASTAP, PixInsight and AstroBin
+    // could not derive the plate scale from the file alone even though the app
+    // displays that scale on the Framing screen.
+    //
+    // The Rust writer multiplies these by XBINNING/YBINNING, so the UNBINNED
+    // sensor pitch is what belongs here. Each axis is written only when the
+    // driver reports a positive value: a camera that reports one axis gets one
+    // card rather than a fabricated square-pixel assumption, and a driver that
+    // reports 0.0 for "unknown" gets none.
+    final (pixelSizeX, pixelSizeY) = await _sensorPixelPitchMicrons(
+      backend: backend,
+      deviceId: deviceId,
+    );
+    if (!_hasBackendAuthority(backend)) return;
+
     // Build FITS header with complete metadata
     final header = FitsWriteHeader(
       objectName: targetName,
@@ -70,8 +89,8 @@ extension _ImagingServicePersistence on ImagingService {
       binY: exposureSettings.binningY,
       focalLength: focalLength,
       aperture: aperture,
-      pixelSizeX: null, // Pixel size not stored in profile yet
-      pixelSizeY: null, // Pixel size not stored in profile yet
+      pixelSizeX: pixelSizeX,
+      pixelSizeY: pixelSizeY,
       siteLatitude: hasConfiguredSite ? appSettings!.latitude : null,
       siteLongitude: hasConfiguredSite ? appSettings!.longitude : null,
       // Sea level is real metadata, not an unset sentinel. Once the lat/long
@@ -87,6 +106,35 @@ extension _ImagingServicePersistence on ImagingService {
       filePath: filePath,
       headerData: header,
     );
+  }
+
+  /// The connected camera's unbinned pixel pitch in microns, per axis.
+  ///
+  /// A camera that reports nothing yields `(null, null)`. So does a capability
+  /// query that fails here: a genuine driver fault has already aborted the
+  /// exposure at the readout-mode step, so the only way to reach this catch is
+  /// a late invalidation, and by then the FITS is on its way to disk — a
+  /// missing header card must never turn a captured frame into a failed one.
+  Future<(double?, double?)> _sensorPixelPitchMicrons({
+    required NightshadeBackend backend,
+    required String deviceId,
+  }) async {
+    if (deviceId.isEmpty) return (null, null);
+    try {
+      final caps = await _ref.read(
+        equipmentCameraCapabilitiesProvider(deviceId).future,
+      );
+      double? micronsOrNull(double? value) =>
+          value != null && value > 0 ? value : null;
+      return (micronsOrNull(caps?.pixelSizeX), micronsOrNull(caps?.pixelSizeY));
+    } catch (e) {
+      _logger.warning(
+        'Camera $deviceId did not report a pixel size ($e) — the FITS will '
+        'omit XPIXSZ/YPIXSZ',
+        source: 'ImagingService',
+      );
+      return (null, null);
+    }
   }
 
   /// Save image metadata to database

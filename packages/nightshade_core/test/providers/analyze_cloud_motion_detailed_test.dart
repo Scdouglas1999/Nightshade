@@ -6,6 +6,7 @@ import 'package:nightshade_core/src/providers/settings_provider.dart';
 import 'package:nightshade_core/src/providers/weather_providers.dart';
 import 'package:nightshade_core/src/services/weather/cloud_motion_analyzer.dart';
 import 'package:nightshade_core/src/services/weather/weather_radar_service.dart';
+import '../harness/in_memory_database.dart';
 
 /// Analyzer that returns a programmed [CloudMotionResult] and records the
 /// frames it was handed, so the test can assert wiring without recomputing
@@ -53,6 +54,7 @@ void main() {
       () async {
         final container = ProviderContainer(
           overrides: [
+            inMemoryDatabaseOverride(),
             appObserverLocationProvider.overrideWithValue(
               const LocationSettings(),
             ),
@@ -87,6 +89,7 @@ void main() {
         late _FakeRadarService radar;
         final container = ProviderContainer(
           overrides: [
+            inMemoryDatabaseOverride(),
             appObserverLocationProvider.overrideWithValue(
               const LocationSettings(latitude: 40, longitude: -74),
             ),
@@ -130,6 +133,7 @@ void main() {
         ];
         final container = ProviderContainer(
           overrides: [
+            inMemoryDatabaseOverride(),
             appObserverLocationProvider.overrideWithValue(
               const LocationSettings(latitude: 40, longitude: -74),
             ),
@@ -169,6 +173,7 @@ void main() {
         ];
         final container = ProviderContainer(
           overrides: [
+            inMemoryDatabaseOverride(),
             appObserverLocationProvider.overrideWithValue(
               const LocationSettings(latitude: 40, longitude: -74),
             ),

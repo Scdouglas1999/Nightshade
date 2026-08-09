@@ -15,6 +15,7 @@ import 'package:nightshade_core/src/providers/profiles_provider.dart';
 import 'package:nightshade_core/src/providers/readiness_provider.dart';
 import 'package:nightshade_core/src/providers/settings_provider.dart';
 import 'package:nightshade_core/src/database/daos/dark_library_dao.dart';
+import '../harness/in_memory_database.dart';
 
 // =============================================================================
 // Test doubles
@@ -120,17 +121,32 @@ ProviderContainer _container({
   DeviceConnectionState focuser = _connected,
   int? focuserPosition = 5000,
   List<String> offlineProfileDevices = const <String>[],
+  // Default = a populated profile (camera, mount, focuser, guider) so the
+  // happy path is a real pass, not the vacuous one an empty profile produced.
+  List<ProfileDeviceSlot> assignedProfileSlots = const [
+    ProfileDeviceSlot.camera,
+    ProfileDeviceSlot.mount,
+    ProfileDeviceSlot.focuser,
+    ProfileDeviceSlot.guider,
+  ],
 }) {
   final container = ProviderContainer(
     overrides: [
+      inMemoryDatabaseOverride(),
       equipmentProfileListProvider.overrideWithValue(
         hasProfile ? [_sampleProfile] : const [],
+      ),
+      activeEquipmentProfileProvider.overrideWithValue(
+        hasProfile ? _sampleProfile : null,
       ),
       // Derived from the active profile + every per-device notifier in
       // production; overridden here so the report stays exercisable without a
       // Drift database (reading the real provider opens one).
       offlineProfileDeviceNamesProvider.overrideWithValue(
         offlineProfileDevices,
+      ),
+      assignedProfileDeviceSlotsProvider.overrideWithValue(
+        assignedProfileSlots,
       ),
       cameraStateProvider.overrideWith(
         (ref) =>
@@ -254,6 +270,7 @@ void main() {
     test('plate-solver detection error -> plateSolver caution', () async {
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           equipmentProfileListProvider.overrideWithValue([_sampleProfile]),
           offlineProfileDeviceNamesProvider.overrideWithValue(const <String>[]),
           cameraStateProvider.overrideWith(
@@ -477,5 +494,56 @@ void main() {
       );
       expect(report.overall, ReadinessLevel.ready);
     });
+
+    // An empty profile produces an empty offline-device list, which used to
+    // read as "every assigned device is connected" — a GREEN row on a fresh
+    // install with the camera, mount and guider all disconnected. The rule
+    // needs the assignment SET, so this asserts the provider actually wires it
+    // through, not just that the model rule exists.
+    test('profile with zero assigned devices -> profileDevices caution, not a '
+        'vacuous all-connected pass', () async {
+      final container = _container(
+        camera: _disconnected,
+        mount: _disconnected,
+        assignedProfileSlots: const <ProfileDeviceSlot>[],
+      );
+      final report = await _resolveReport(container);
+
+      final item = report.itemFor(ReadinessItemId.profileDevices)!;
+      expect(item.level, ReadinessLevel.caution);
+      expect(item.detail, contains('No devices are assigned'));
+      expect(
+        item.detail,
+        isNot(contains('is connected')),
+        reason: 'must not claim connectivity over an empty assignment set',
+      );
+      expect(item.fixRoute, '/equipment');
+    });
+
+    test('camera/mount-only profile -> profileDevices ready without claiming '
+        'every device is connected', () async {
+      final container = _container(
+        assignedProfileSlots: const [
+          ProfileDeviceSlot.camera,
+          ProfileDeviceSlot.mount,
+        ],
+      );
+      final report = await _resolveReport(container);
+
+      final item = report.itemFor(ReadinessItemId.profileDevices)!;
+      expect(item.level, ReadinessLevel.ready);
+      expect(item.detail, contains('no accessories'));
+    });
+
+    test(
+      'no active profile -> profileDevices makes no assignment claim',
+      () async {
+        final container = _container(hasProfile: false);
+        final report = await _resolveReport(container);
+
+        final item = report.itemFor(ReadinessItemId.profileDevices)!;
+        expect(item.detail, contains('No equipment profile is active'));
+      },
+    );
   });
 }

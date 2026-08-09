@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/widgets/transient_alert_badge.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import '../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 void main() {
   testWidgets('a newer alert replaces the older pulse stop timer', (
@@ -11,6 +12,7 @@ void main() {
     final countProvider = StateProvider<int>((ref) => 0);
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         activeTransientAlertsProvider.overrideWith(
           (ref) => Stream.value(const <TransientAlert>[]),
         ),

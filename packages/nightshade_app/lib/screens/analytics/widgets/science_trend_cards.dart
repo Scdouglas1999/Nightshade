@@ -7,6 +7,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'adaptive_chart_container.dart';
+import 'chart_axis.dart';
 
 /// Card: Zero-Point trend across the current session.
 ///
@@ -87,18 +88,29 @@ class HfrTrendCard extends StatelessWidget {
       points.add(_TrendPoint(img.capturedAt, img.hfr!));
     }
 
+    // Frames that DO carry star metrics and were left out because the grader
+    // rejected them. Saying "HFR appears once star metrics are recorded" for
+    // those sends the user hunting a star-detection problem that is not there.
+    final rejectedWithHfr =
+        lightFrames.where((img) => !img.isAccepted && img.hfr != null).length;
+
     return _TrendCardShell(
       colors: colors,
       icon: LucideIcons.focus,
       title: 'HFR over time',
       subtitle:
           'Half-flux radius of detected stars per frame. Spikes usually mean '
-          'focus drift, seeing degradation, or clouds.',
+          'focus drift, seeing degradation, or clouds. '
+          '${_populationNote(rejectedWithHfr)}',
       points: points,
       lineColor: colors.warning,
       yLabel: 'HFR (px)',
       formatY: (v) => v.toStringAsFixed(2),
-      emptyMessage: 'HFR appears once star metrics are recorded on captures.',
+      emptyMessage: rejectedWithHfr > 0
+          ? 'No accepted frames with star metrics — '
+              '$rejectedWithHfr frame${rejectedWithHfr == 1 ? '' : 's'} '
+              'with HFR ${rejectedWithHfr == 1 ? 'was' : 'were'} rejected.'
+          : 'HFR appears once star metrics are recorded on captures.',
     );
   }
 }
@@ -108,19 +120,32 @@ class UniformityTrendCard extends StatelessWidget {
   final NightshadeColors colors;
   final List<ScienceFrameQualityMetricsRow> frameMetrics;
 
+  /// Frames the user rejected. Their metrics rows are dropped so this card and
+  /// [HfrTrendCard] beside it describe the same frames — the two used to
+  /// disagree the moment anything was graded out, with HFR going empty while
+  /// uniformity kept plotting the rejected frames.
+  final Set<int> rejectedImageIds;
+
   const UniformityTrendCard({
     super.key,
     required this.colors,
     required this.frameMetrics,
+    this.rejectedImageIds = const {},
   });
 
   @override
   Widget build(BuildContext context) {
     final points = <_TrendPoint>[];
+    var excluded = 0;
     final sorted = frameMetrics.toList(growable: false)
       ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
     for (final m in sorted) {
       if (!m.uniformityCv.isFinite) continue;
+      final imageId = m.capturedImageId;
+      if (imageId != null && rejectedImageIds.contains(imageId)) {
+        excluded++;
+        continue;
+      }
       points.add(_TrendPoint(m.timestamp, m.uniformityCv));
     }
 
@@ -130,15 +155,27 @@ class UniformityTrendCard extends StatelessWidget {
       title: 'Field uniformity (CV)',
       subtitle:
           'Background brightness coefficient of variation. Values above ~0.28 '
-          'often indicate gradients from vignetting or moon glow.',
+          'often indicate gradients from vignetting or moon glow. '
+          '${_populationNote(excluded)}',
       points: points,
       lineColor: colors.primary,
       yLabel: 'CV',
       formatY: (v) => v.toStringAsFixed(3),
-      emptyMessage:
-          'Uniformity maps appear once frame-quality processing is enabled.',
+      emptyMessage: excluded > 0
+          ? 'No accepted frames with uniformity maps — '
+              '$excluded frame${excluded == 1 ? '' : 's'} '
+              '${excluded == 1 ? 'was' : 'were'} rejected.'
+          : 'Uniformity maps appear once frame-quality processing is enabled.',
     );
   }
+}
+
+/// Names the population the Field Quality cards plot, and how many frames the
+/// grader kept out of it. Both cards carry it so the section reads as one
+/// statement instead of two charts over different frames.
+String _populationNote(int excluded) {
+  if (excluded <= 0) return 'Accepted frames only.';
+  return 'Accepted frames only ($excluded rejected, not plotted).';
 }
 
 class SolveRateTrendCard extends StatelessWidget {
@@ -285,11 +322,18 @@ class _TrendCardShell extends StatelessWidget {
     final values = points.map((p) => p.value);
     final dataMin = values.reduce(math.min);
     final dataMax = values.reduce(math.max);
-    final padding = math.max(0.05, (dataMax - dataMin) * 0.1);
-    final effectiveMinY = minY ?? (dataMin - padding);
-    final effectiveMaxY = maxY ?? (dataMax + padding);
-    final yRange = math.max(1e-6, effectiveMaxY - effectiveMinY);
+    // Snap the axis to tick multiples: with bounds at data +/- 10% and ticks at
+    // range/4, fl_chart's boundary label landed a sliver from the outermost
+    // tick and the two drew on top of each other ("21.21" over "21.20" on the
+    // zero-point card).
+    final axis =
+        NiceAxis.forRange(minY ?? dataMin, maxY ?? dataMax, padFraction: 0.1);
+    final effectiveMinY = minY ?? axis.min;
+    final effectiveMaxY = maxY ?? axis.max;
+    final yInterval = axis.interval;
     final lastX = spots.last.x == 0 ? 1.0 : spots.last.x;
+    // Exact division puts the final tick on the axis end.
+    final xInterval = lastX / 4;
 
     return LineChart(
       LineChartData(
@@ -302,7 +346,8 @@ class _TrendCardShell extends StatelessWidget {
           border: Border.all(color: colors.border),
         ),
         gridData: FlGridData(
-          horizontalInterval: yRange / 4,
+          horizontalInterval: yInterval,
+          verticalInterval: xInterval,
           getDrawingHorizontalLine: (_) =>
               FlLine(color: colors.border.withValues(alpha: 0.3)),
           getDrawingVerticalLine: (_) =>
@@ -319,11 +364,10 @@ class _TrendCardShell extends StatelessWidget {
             sideTitles: SideTitles(
               showTitles: true,
               reservedSize: 22,
-              interval: math.max(1, (lastX / 4).floorToDouble()),
+              interval: xInterval,
               getTitlesWidget: (value, meta) {
-                final mins = (value / 60).round();
                 return Text(
-                  '${mins}m',
+                  elapsedAxisLabel(value),
                   style: TextStyle(
                     fontSize: NightshadeTypography.fontSize10,
                     color: colors.textSecondary,
@@ -341,7 +385,8 @@ class _TrendCardShell extends StatelessWidget {
             ),
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 38,
+              reservedSize: 42,
+              interval: yInterval,
               getTitlesWidget: (value, meta) => Text(
                 formatY(value),
                 style: TextStyle(

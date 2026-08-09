@@ -12,13 +12,20 @@ import 'package:mocktail/mocktail.dart';
 
 import 'package:nightshade_app/screens/framing/altitude_chart.dart';
 import 'package:nightshade_app/screens/planner/planner_screen.dart';
+import 'package:nightshade_app/screens/suggestions/widgets/transient_alerts_panel.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../scheduler/scheduler_test_doubles.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
+import '../../harness/provider_teardown.dart';
 
 class _MockNetworkBackend extends Mock implements NetworkBackend {}
+
+class _MockSettingsDao extends Mock implements SettingsDao {}
+
+class _MockLogger extends Mock implements LoggingService {}
 
 class _SwappableBackendNotifier extends BackendNotifier {
   _SwappableBackendNotifier(super.ref, NightshadeBackend backend) : super() {
@@ -29,6 +36,11 @@ class _SwappableBackendNotifier extends BackendNotifier {
 }
 
 List<Override> _commonOverrides() {
+  final settingsDao = _MockSettingsDao();
+  when(settingsDao.getAllSettings).thenAnswer((_) async => <String, String>{});
+  when(() => settingsDao.getSetting(any())).thenAnswer((_) async => null);
+  when(() => settingsDao.setSetting(any(), any())).thenAnswer((_) async {});
+
   return [
     // Recommendation tab dependencies — empty pool so the loading state
     // resolves quickly into the "no candidates" empty state without
@@ -36,6 +48,11 @@ List<Override> _commonOverrides() {
     tonightSuggestionsProvider.overrideWith((ref) async => const []),
     smartNightExposureContextProvider.overrideWith((ref) async => null),
     appSettingsProvider.overrideWith(() => _StubAppSettingsNotifier()),
+    settingsDaoProvider.overrideWithValue(settingsDao),
+    loggingServiceProvider.overrideWithValue(_MockLogger()),
+    activeTransientAlertsProvider.overrideWith(
+      (ref) => Stream.value(const <TransientAlert>[]),
+    ),
     // Progress tab dependency.
     allTargetProgressProvider.overrideWith(
       (ref) async => <int, TargetProgress>{},
@@ -87,8 +104,21 @@ class _StubAppSettingsNotifier extends AppSettingsNotifier {
 int _selectedTabIndex(WidgetTester tester) =>
     tester.widget<AdaptiveTabBar>(find.byType(AdaptiveTabBar)).selectedIndex;
 
+Future<void> _tapCandidateAction(
+  WidgetTester tester,
+  String label, {
+  bool first = false,
+}) async {
+  final matches = find.widgetWithText(NightshadeButton, label);
+  final button = first ? matches.first : matches;
+  await tester.ensureVisible(button);
+  await tester.pump();
+  await tester.tap(button);
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(() => registerFallbackValue(''));
 
   testWidgets('catalog search fits above a compact landscape keyboard',
       (tester) async {
@@ -119,6 +149,8 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(search.hitTestable(), findsOneWidget);
     expect(find.byType(AdaptiveTabBar), findsNothing);
+
+    await settleProviderTeardown(tester);
   });
 
   testWidgets(
@@ -157,6 +189,8 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(search.hitTestable(), findsOneWidget);
     expect(tester.getSize(search).height, 32);
+
+    await settleProviderTeardown(tester);
   });
 
   group('plannerTabFromQuery', () {
@@ -230,6 +264,8 @@ void main() {
         'Discover',
       ],
     );
+
+    await settleProviderTeardown(tester);
   });
 
   testWidgets('defaults to Recommendation when no query param is supplied',
@@ -253,6 +289,35 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
 
     expect(_selectedTabIndex(tester), PlannerTab.recommendation.index);
+
+    await settleProviderTeardown(tester);
+  });
+
+  testWidgets('Recommendation keeps transient alerts reachable',
+      (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1400, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: _commonOverrides(),
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(body: PlannerScreen()),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.byType(TransientAlertsPanel), findsOneWidget);
+    expect(find.text('Transient Alerts'), findsOneWidget);
+
+    await settleProviderTeardown(tester);
   });
 
   testWidgets(
@@ -279,6 +344,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
 
     expect(_selectedTabIndex(tester), PlannerTab.schedule.index);
+
+    await settleProviderTeardown(tester);
   });
 
   testWidgets(
@@ -305,6 +372,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
 
     expect(_selectedTabIndex(tester), PlannerTab.projects.index);
+
+    await settleProviderTeardown(tester);
   });
 
   // ===========================================================================
@@ -353,6 +422,8 @@ void main() {
         reason: 'Tapping the Schedule tab must mark it as selected; if the '
             'onSelected callback or setState pathway is broken the strip would '
             'continue to show Recommendation as selected.');
+
+    await settleProviderTeardown(tester);
   });
 
   testWidgets('tapping the right-most Discover tab switches the selection',
@@ -387,6 +458,8 @@ void main() {
         reason: 'Tapping Discover must mark it as selected; if the right-most '
             'entry in the tabs loop lost its onSelected, the user gets stuck '
             'on Recommendation.');
+
+    await settleProviderTeardown(tester);
   });
 
   testWidgets('primary recommendation exposes Send to Framing action',
@@ -419,6 +492,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           ..._commonOverrides(),
           tonightSuggestionsProvider.overrideWith((ref) async => [suggestion]),
         ],
@@ -443,6 +517,8 @@ void main() {
       reason:
           'The primary card and the matching candidate row should both offer framing.',
     );
+
+    await settleProviderTeardown(tester);
   });
 
   testWidgets(
@@ -497,6 +573,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           ..._commonOverrides(),
           tonightSuggestionsProvider
               .overrideWith((ref) async => [primary, secondary]),
@@ -525,6 +602,8 @@ void main() {
           'Every candidate row must offer "Review in Sequencer" alongside the '
           'primary card — not just the top recommendation.',
     );
+
+    await settleProviderTeardown(tester);
   });
 
   testWidgets(
@@ -556,6 +635,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           ..._commonOverrides(),
           tonightSuggestionsProvider.overrideWith((ref) async => [suggestion]),
         ],
@@ -578,6 +658,8 @@ void main() {
       reason:
           'Primary recommendation and candidate row should each show an altitude chart.',
     );
+
+    await settleProviderTeardown(tester);
   });
 
   testWidgets(
@@ -634,6 +716,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           ..._commonOverrides(),
           tonightSuggestionsProvider.overrideWith((ref) async => [suggestion]),
           backendProvider.overrideWith(
@@ -652,9 +735,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump(const Duration(milliseconds: 300));
 
-    await tester.tap(
-      find.widgetWithText(NightshadeButton, 'Add to observing list'),
-    );
+    await _tapCandidateAction(tester, 'Add to observing list');
     await tester.pumpAndSettle();
     await tester.tap(
       find.widgetWithText(NightshadeButton, 'Create new list…'),
@@ -674,6 +755,8 @@ void main() {
     );
     verify(() => backend.deleteObservingList(77)).called(1);
     expect(tester.takeException(), isNull);
+
+    await settleProviderTeardown(tester);
   });
 
   testWidgets('candidate add dialog closes on host switch without touching B',
@@ -733,6 +816,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           ..._commonOverrides(),
           tonightSuggestionsProvider.overrideWith((ref) async => [suggestion]),
           backendProvider.overrideWith(
@@ -751,9 +835,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump(const Duration(milliseconds: 300));
 
-    await tester.tap(
-      find.widgetWithText(NightshadeButton, 'Add to observing list'),
-    );
+    await _tapCandidateAction(tester, 'Add to observing list');
     await tester.pumpAndSettle();
     await tester.tap(find.text('Galaxies'));
     await tester.pump();
@@ -778,6 +860,8 @@ void main() {
       ),
     );
     expect(tester.takeException(), isNull);
+
+    await settleProviderTeardown(tester);
   });
 
   testWidgets(
@@ -843,6 +927,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           ..._commonOverrides(),
           tonightSuggestionsProvider.overrideWith((ref) async => [suggestion]),
           backendProvider.overrideWith(
@@ -859,9 +944,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump(const Duration(milliseconds: 300));
 
-    await tester.tap(
-      find.widgetWithText(NightshadeButton, 'Add to observing list').first,
-    );
+    await _tapCandidateAction(tester, 'Add to observing list', first: true);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Summer Galaxies'));
     await tester.pumpAndSettle();
@@ -872,6 +955,8 @@ void main() {
     expect(find.textContaining('Failed to add item'), findsNothing);
     // ...it states what actually happened.
     expect(find.text('NGC6015 is already in this list'), findsOneWidget);
+
+    await settleProviderTeardown(tester);
   });
 
   testWidgets(
@@ -916,6 +1001,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           ..._commonOverrides(),
           tonightSuggestionsProvider.overrideWith((ref) async => [suggestion]),
           backendProvider.overrideWith(
@@ -932,9 +1018,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump(const Duration(milliseconds: 300));
 
-    await tester.tap(
-      find.widgetWithText(NightshadeButton, 'Add to observing list').first,
-    );
+    await _tapCandidateAction(tester, 'Add to observing list', first: true);
     await tester.pumpAndSettle();
 
     expect(find.text('Already added'), findsOneWidget);
@@ -953,6 +1037,8 @@ void main() {
         notes: any(named: 'notes'),
       ),
     );
+
+    await settleProviderTeardown(tester);
   });
 
   testWidgets('the peak chip names which peak it is', (tester) async {
@@ -982,6 +1068,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           ..._commonOverrides(),
           tonightSuggestionsProvider.overrideWith((ref) async => [suggestion]),
         ],
@@ -998,6 +1085,8 @@ void main() {
     // contradicting itself; the label now says which peak it is.
     expect(find.textContaining('Peak in dark'), findsWidgets);
     expect(find.text('Peak 63°'), findsNothing);
+
+    await settleProviderTeardown(tester);
   });
 
   testWidgets('candidates use extra width for more candidates, not more void',
@@ -1044,6 +1133,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            inMemoryDatabaseOverride(),
             ..._commonOverrides(),
             tonightSuggestionsProvider
                 .overrideWith((ref) async => [first, second]),
@@ -1081,6 +1171,8 @@ void main() {
       lessThan(1400),
       reason: 'Each card should now be about half the list width.',
     );
+
+    await settleProviderTeardown(tester);
   });
 
   testWidgets(
@@ -1127,5 +1219,7 @@ void main() {
           'the bottom of a 1000px window (was ~y=870); got $dialog for a chip '
           'at $chip',
     );
+
+    await settleProviderTeardown(tester);
   });
 }

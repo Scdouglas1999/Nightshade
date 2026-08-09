@@ -19,6 +19,7 @@ import 'image_display.dart';
 import 'narrator_ticker.dart';
 import 'overlay_painters.dart';
 import 'overlay_widgets.dart';
+import 'preview_display_scale.dart';
 import 'science_hud.dart';
 import 'sub_quality_badge.dart';
 
@@ -31,6 +32,11 @@ class LivePreviewArea extends ConsumerStatefulWidget {
   final Offset panOffset;
   final bool showCrosshair;
   final bool showStarOverlay;
+
+  /// A manual capture has been asked to stop and the abort has not settled yet.
+  /// The progress overlay drops its countdown while this is true — see
+  /// [ExposureProgressOverlay.isAborting].
+  final bool isStoppingCapture;
 
   /// Scroll-wheel zoom handlers. The discrete zoom/fit/1:1 buttons and overlay
   /// toggles now live in the off-canvas [ImagingPreviewToolbar] above the
@@ -47,6 +53,7 @@ class LivePreviewArea extends ConsumerStatefulWidget {
     required this.panOffset,
     required this.showCrosshair,
     required this.showStarOverlay,
+    required this.isStoppingCapture,
     required this.onZoomIn,
     required this.onZoomOut,
     required this.onPanUpdate,
@@ -75,6 +82,32 @@ const double _cornerReadoutBandHeight = 120.0;
 final previewReadoutsVisibleProvider = StateProvider<bool>((ref) => true);
 
 class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
+  /// Hand the measured display scale to readers outside this subtree (the
+  /// preview toolbar's zoom readout), which cannot see the preview viewport.
+  ///
+  /// Deferred to a post-frame callback because it is computed inside `build`
+  /// and mutating a provider during a build is illegal. The value is a pure
+  /// function of the viewport, the frame size and the zoom multiplier, so the
+  /// equality guard makes this converge in one extra frame rather than looping.
+  void _publishDisplayScale(double scale) {
+    if (ref.read(previewDisplayScaleProvider) == scale) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(previewDisplayScaleProvider.notifier).state = scale;
+    });
+  }
+
+  /// Same contract as [_publishDisplayScale], for the zoom-multiplier-free fit
+  /// scale the zoom mutators need to express "1:1" and the absolute zoom
+  /// ceiling.
+  void _publishFitScale(double scale) {
+    if (ref.read(previewFitScaleProvider) == scale) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(previewFitScaleProvider.notifier).state = scale;
+    });
+  }
+
   /// Gate a measurement readout on [previewReadoutsVisibleProvider].
   ///
   /// Hidden readouts are removed from the tree rather than made transparent so
@@ -202,12 +235,33 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final viewportSize = Size(constraints.maxWidth, constraints.maxHeight);
+        // Screen pixels per IMAGE pixel. `zoomLevel` is only a multiplier on
+        // top of fit-to-window, so it is meaningful to [ImageDisplayWidget]
+        // (which re-derives fit itself) and to nothing else. Every overlay
+        // below maps image coordinates onto this canvas via
+        // `computeImageOffset` / `imageToViewport`, whose
+        // `scaledSize = imageSize * zoomLevel` is native-scale arithmetic —
+        // handing them the raw multiplier spread every marker over
+        // `1 / fitScale` times the frame's real footprint (4.2x on a 4144 px
+        // sensor in a 990 px viewport), so overlays only landed on their
+        // targets at the exact centre of the frame.
+        final fitScale = currentImage == null
+            ? 1.0
+            : previewFitScale(
+                viewportSize: viewportSize,
+                imageSize: Size(currentImage.width.toDouble(),
+                    currentImage.height.toDouble()),
+              );
+        final displayScale =
+            currentImage == null ? zoomLevel : fitScale * zoomLevel;
+        _publishDisplayScale(displayScale);
+        _publishFitScale(fitScale);
         final imageOffset = currentImage != null
             ? computeImageOffset(
                 viewportSize: viewportSize,
                 imageSize: Size(currentImage.width.toDouble(),
                     currentImage.height.toDouble()),
-                zoomLevel: zoomLevel,
+                zoomLevel: displayScale,
                 panOffset: panOffset,
               )
             : Offset.zero;
@@ -381,7 +435,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                         child: CustomPaint(
                           painter: CelestialGridPainter(
                             plateSolve: currentSkySolution.plateSolve!,
-                            zoomLevel: zoomLevel,
+                            zoomLevel: displayScale,
                             imageOffset: imageOffset,
                           ),
                         ),
@@ -398,7 +452,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                         painter: StarOverlayPainter(
                           stars: starDetectionResult.stars,
                           color: colors.accent.withValues(alpha: 0.8),
-                          zoomLevel: zoomLevel,
+                          zoomLevel: displayScale,
                           imageOffset: imageOffset,
                         ),
                       ),
@@ -408,7 +462,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                   if (currentImage != null)
                     Positioned.fill(
                       child: AnnotationOverlayWrapper(
-                        zoomLevel: zoomLevel,
+                        zoomLevel: displayScale,
                         imageOffset: imageOffset,
                         imageSize: Size(currentImage.width.toDouble(),
                             currentImage.height.toDouble()),
@@ -428,7 +482,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                           final currentScreenPos = imageToViewport(
                             imagePoint: imagePoint,
                             imageOffset: imageOffset,
-                            zoomLevel: zoomLevel,
+                            zoomLevel: displayScale,
                           );
                           final delta = previewCenter - currentScreenPos;
                           onPanUpdate(delta);
@@ -444,7 +498,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                     Positioned.fill(
                       child: CatalogOverlayWidget(
                         wcs: currentSkySolution.catalogWcs,
-                        zoomLevel: zoomLevel,
+                        zoomLevel: displayScale,
                         imageOffset: imageOffset,
                         imageSize: Size(currentImage.width.toDouble(),
                             currentImage.height.toDouble()),
@@ -455,7 +509,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                   if (currentImage != null)
                     Positioned.fill(
                       child: CustomAnnotationDrawingLayer(
-                        zoomLevel: zoomLevel,
+                        zoomLevel: displayScale,
                         imageOffset: imageOffset,
                         imageSize: Size(currentImage.width.toDouble(),
                             currentImage.height.toDouble()),
@@ -465,7 +519,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                   // Compass and scale bar overlays (require plate solve data)
                   if (currentImage != null)
                     _CompassScaleBarOverlay(
-                      zoomLevel: zoomLevel,
+                      zoomLevel: displayScale,
                       plateSolve: currentSkySolution.plateSolve,
                     ),
 
@@ -479,7 +533,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                           painter: SciencePsfOverlayPainter(
                             tiles: psfTiles,
                             imageOffset: imageOffset,
-                            zoomLevel: zoomLevel,
+                            zoomLevel: displayScale,
                             imageWidth: currentImage.width.toDouble(),
                             imageHeight: currentImage.height.toDouble(),
                           ),
@@ -498,7 +552,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                           painter: ScienceResidualOverlayPainter(
                             vectors: residualVectors,
                             imageOffset: imageOffset,
-                            zoomLevel: zoomLevel,
+                            zoomLevel: displayScale,
                           ),
                         ),
                       ),
@@ -514,7 +568,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                           painter: ScienceUniformityOverlayPainter(
                             tiles: uniformityTiles,
                             imageOffset: imageOffset,
-                            zoomLevel: zoomLevel,
+                            zoomLevel: displayScale,
                             imageWidth: currentImage.width.toDouble(),
                             imageHeight: currentImage.height.toDouble(),
                             opacity: scienceVizPrefs.overlayOpacity,
@@ -538,7 +592,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                                 ? clipLowTiles
                                 : const <ScienceTileMetricRow>[],
                             imageOffset: imageOffset,
-                            zoomLevel: zoomLevel,
+                            zoomLevel: displayScale,
                             imageWidth: currentImage.width.toDouble(),
                             imageHeight: currentImage.height.toDouble(),
                             opacity: scienceVizPrefs.overlayOpacity,
@@ -558,7 +612,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                             painter: ScienceMovingTrackOverlayPainter(
                               tracks: projectedMovingTracks,
                               imageOffset: imageOffset,
-                              zoomLevel: zoomLevel,
+                              zoomLevel: displayScale,
                             ),
                           ),
                         ),
@@ -571,6 +625,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                       child: ExposureProgressOverlay(
                         progress: exposureProgress,
                         colors: colors,
+                        isAborting: widget.isStoppingCapture,
                       ),
                     ),
 
@@ -607,7 +662,9 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                   // Top-right science chrome column: the Night Narrator
                   // ticker (surface #2) over the Science HUD panel. Both fade
                   // with the rest of the corner readouts on idle. The ticker
-                  // self-gates (hidden when sessionless or the feed is empty)
+                  // self-gates (hidden when its feed has nothing recent to
+                  // say — sessionless manual captures read the sessionless
+                  // bucket rather than going dark)
                   // and the HUD self-gates on advanced mode, so this column
                   // occupies zero height until there is something to show and
                   // the two stack without overlapping when both are present.
@@ -734,7 +791,21 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          AnnotationStatusIndicator(colors: colors),
+                          // Bounded like its sibling banner below: this
+                          // Positioned has no `right`, so without a max width
+                          // the status card is laid out unconstrained and a
+                          // long hint ("install ASTAP or set its path in
+                          // Settings to label objects") runs off the viewport
+                          // and is clipped mid-word by the Stack.
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: Responsive.previewOverlayMaxWidth(
+                                viewportSize.width,
+                                maxAbsolute: 380,
+                              ),
+                            ),
+                            child: AnnotationStatusIndicator(colors: colors),
+                          ),
                           const SizedBox(height: 6),
                           ConstrainedBox(
                             constraints: BoxConstraints(

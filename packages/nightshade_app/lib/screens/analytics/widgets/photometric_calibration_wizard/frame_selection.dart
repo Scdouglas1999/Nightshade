@@ -222,94 +222,217 @@ extension _PhotometricWizardFrameSelection
           );
         }
 
-        return AdaptiveChartContainer(
-          preferredHeight:
-              _PhotometricCalibrationWizardState._frameSelectorPreferredHeight,
-          minHeight: 140,
-          child: ListView.builder(
-            itemCount: solvedImages.length,
-            itemBuilder: (context, index) {
-              final img = solvedImages[index];
-              final isSelected = _selectedImageIds.contains(img.id);
-              final frameFilter = img.filter?.trim();
-              final filterMismatch = !isSelected &&
-                  _filterName.trim().isNotEmpty &&
-                  frameFilter != null &&
-                  frameFilter.isNotEmpty &&
-                  frameFilter.toLowerCase() != _filterName.trim().toLowerCase();
-              return Material(
-                type: MaterialType.transparency,
-                child: ListTile(
-                  dense: true,
-                  selected: isSelected,
-                  selectedColor: colors.primary,
-                  selectedTileColor:
-                      NightshadeDecorations.tintedBadge(colors.primary).color,
-                  title: Text(
-                    img.fileName,
-                    style: NightshadeTypography.bodySm.copyWith(
-                      color: isSelected ? colors.primary : colors.textPrimary,
-                    ),
+        // Frames this wizard can actually fit: the right filter, and a recorded
+        // above-horizon altitude (star matching refuses a frame whose airmass
+        // is unknown rather than inventing X = 1.0).
+        final usable = solvedImages
+            .where((img) =>
+                !_filterMismatches(img) &&
+                airmassForFrame(img.mountAltitude) != null)
+            .toList(growable: false);
+        final skipped = solvedImages.length - usable.length;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Bulk selection. The step's own instructions ask for frames "of
+            // the same field at different altitudes", and a night of 120 solved
+            // frames made that a 120-click job through rows that did not even
+            // show altitude.
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${_selectedImageIds.length} of ${solvedImages.length} '
+                    'selected'
+                    '${skipped > 0 ? ' · $skipped unusable' : ''}',
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.textSecondary),
                   ),
-                  subtitle: Text(
-                    '${img.filter ?? "No filter"} | '
-                    '${img.exposureDuration.toStringAsFixed(1)}s | '
-                    'Stars: ${img.starCount ?? "?"} | '
-                    'RA: ${img.solvedRa?.toStringAsFixed(4) ?? "?"} '
-                    'Dec: ${img.solvedDec?.toStringAsFixed(4) ?? "?"}',
-                    style: NightshadeTypography.captionSm
-                        .copyWith(color: colors.textMuted),
-                  ),
-                  leading: Icon(
-                    isSelected ? LucideIcons.checkCircle2 : LucideIcons.image,
-                    color: isSelected ? colors.primary : colors.textMuted,
-                    size: NightshadeTokens.iconSm,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: NightshadeTokens.borderRadiusLg,
-                  ),
-                  onTap: () {
-                    if (filterMismatch) {
-                      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            '${img.fileName} uses filter $frameFilter; this '
-                            'calibration is for ${_filterName.trim()}.',
-                          ),
-                        ),
-                      );
-                      return;
-                    }
-                    _update(() {
-                      _retireAsyncWork();
-                      // Anchor the implicit default session as soon as the user
-                      // selects a frame. A newly-started session may then move
-                      // to the front of the history stream without hiding this
-                      // selection under a different session.
-                      _selectedSessionId = sessionId;
-                      if (!_selectedImageIds.remove(img.id)) {
-                        _selectedImageIds.add(img.id);
-                      }
-                      if (_filterName.isEmpty && img.filter != null) {
-                        _filterName = img.filter!;
-                        _filterController.text = img.filter!;
-                      }
-                      // New frame selection invalidates downstream products.
-                      _starMatches = const [];
-                      _computedCoefficients = null;
-                      _fitAttempted = false;
-                    });
-                  },
                 ),
-              );
-            },
-          ),
+                TextButton(
+                  onPressed: usable.isEmpty
+                      ? null
+                      : () => _update(() {
+                            _retireAsyncWork();
+                            _selectedSessionId = sessionId;
+                            // Tapping a frame anchors the calibration on that
+                            // frame's filter, after which the tap path refuses
+                            // every other filter. A bulk select has to anchor
+                            // the same way: on a fresh wizard the filter field
+                            // is empty, so without this one click would hand
+                            // the extinction fit a B+V+R selection and the
+                            // saved transform would carry a k fitted across
+                            // filters.
+                            if (_filterName.trim().isEmpty) {
+                              final anchor = usable
+                                  .map((img) => img.filter?.trim())
+                                  .firstWhere(
+                                    (f) => f != null && f.isNotEmpty,
+                                    orElse: () => null,
+                                  );
+                              if (anchor != null) {
+                                _filterName = anchor;
+                                _filterController.text = anchor;
+                              }
+                            }
+                            _selectedImageIds
+                              ..clear()
+                              ..addAll(usable
+                                  .where((img) => !_filterMismatches(img))
+                                  .map((img) => img.id));
+                            _starMatches = const [];
+                            _computedCoefficients = null;
+                            _fitAttempted = false;
+                          }),
+                  child: const Text('Select all usable'),
+                ),
+                TextButton(
+                  onPressed: _selectedImageIds.isEmpty
+                      ? null
+                      : () => _update(() {
+                            _retireAsyncWork();
+                            _selectedImageIds.clear();
+                            _starMatches = const [];
+                            _computedCoefficients = null;
+                            _fitAttempted = false;
+                          }),
+                  child: const Text('Clear'),
+                ),
+              ],
+            ),
+            // Not Expanded: this Column sits in an unbounded scroll view, and
+            // the list already sizes itself through AdaptiveChartContainer.
+            _buildFrameList(colors, sessionId, solvedImages),
+          ],
         );
       },
     );
+  }
+
+  /// Whether [img] carries a different filter from the one being calibrated.
+  bool _filterMismatches(DbCapturedImage img) {
+    final frameFilter = img.filter?.trim();
+    return _filterName.trim().isNotEmpty &&
+        frameFilter != null &&
+        frameFilter.isNotEmpty &&
+        frameFilter.toLowerCase() != _filterName.trim().toLowerCase();
+  }
+
+  Widget _buildFrameList(
+    NightshadeColors colors,
+    int sessionId,
+    List<DbCapturedImage> solvedImages,
+  ) {
+    return AdaptiveChartContainer(
+      preferredHeight:
+          _PhotometricCalibrationWizardState._frameSelectorPreferredHeight,
+      minHeight: 140,
+      child: ListView.builder(
+        itemCount: solvedImages.length,
+        itemBuilder: (context, index) {
+          final img = solvedImages[index];
+          final isSelected = _selectedImageIds.contains(img.id);
+          final frameFilter = img.filter?.trim();
+          final filterMismatch = !isSelected && _filterMismatches(img);
+          return Material(
+            type: MaterialType.transparency,
+            child: ListTile(
+              dense: true,
+              selected: isSelected,
+              selectedColor: colors.primary,
+              selectedTileColor:
+                  NightshadeDecorations.tintedBadge(colors.primary).color,
+              title: Text(
+                img.fileName,
+                style: NightshadeTypography.bodySm.copyWith(
+                  color: isSelected ? colors.primary : colors.textPrimary,
+                ),
+              ),
+              subtitle: Text(
+                '${img.filter ?? "No filter"} | '
+                '${img.exposureDuration.toStringAsFixed(1)}s | '
+                'Stars: ${img.starCount ?? "?"} | '
+                // Altitude and airmass, because this step's own
+                // instructions ask the user to build an airmass spread and
+                // the rows gave them nothing to build it from.
+                '${_altitudeLabel(img.mountAltitude)} | '
+                // solvedRa is HOURS, not degrees (the ASCOM convention this
+                // app carries internally), so a bare "RA: 5.5000" was both
+                // unitless and easy to read as degrees.
+                'RA ${img.solvedRa == null ? "?" : CoordinateParser.formatRaHms(img.solvedRa!)} '
+                'Dec ${img.solvedDec == null ? "?" : CoordinateParser.formatDecDms(img.solvedDec!)}',
+                style: NightshadeTypography.captionSm.copyWith(
+                  color: airmassForFrame(img.mountAltitude) == null
+                      ? colors.warning
+                      : colors.textMuted,
+                ),
+              ),
+              leading: Icon(
+                isSelected ? LucideIcons.checkCircle2 : LucideIcons.image,
+                color: isSelected ? colors.primary : colors.textMuted,
+                size: NightshadeTokens.iconSm,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: NightshadeTokens.borderRadiusLg,
+              ),
+              onTap: () {
+                if (filterMismatch) {
+                  ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        '${img.fileName} uses filter $frameFilter; this '
+                        'calibration is for ${_filterName.trim()}.',
+                      ),
+                    ),
+                  );
+                  return;
+                }
+                _update(() {
+                  _retireAsyncWork();
+                  // Anchor the implicit default session as soon as the user
+                  // selects a frame. A newly-started session may then move
+                  // to the front of the history stream without hiding this
+                  // selection under a different session.
+                  _selectedSessionId = sessionId;
+                  if (!_selectedImageIds.remove(img.id)) {
+                    _selectedImageIds.add(img.id);
+                  }
+                  if (_filterName.isEmpty && img.filter != null) {
+                    _filterName = img.filter!;
+                    _filterController.text = img.filter!;
+                  }
+                  // New frame selection invalidates downstream products.
+                  _starMatches = const [];
+                  _computedCoefficients = null;
+                  _fitAttempted = false;
+                });
+              },
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// `Alt 52.3° · X 1.26`, or a statement that the frame cannot be fitted.
+  String _altitudeLabel(double? altitudeDeg) {
+    final airmass = airmassForFrame(altitudeDeg);
+    if (airmass == null) return 'no recorded altitude — cannot fit';
+    return 'Alt ${altitudeDeg!.toStringAsFixed(1)}° · X '
+        '${airmass.toStringAsFixed(2)}';
   }
 
   // =========================================================================
   // Step 2: Auto-match detected stars to catalog
   // =========================================================================
 }
+
+/// The airmass the extinction fit will use for a frame, or null when the frame
+/// has no usable altitude.
+///
+/// Wraps the product's one airmass model so the frame list and the fit agree
+/// about which frames are usable — the list used to show none of this and the
+/// user first learned a frame was unusable from an error at "Match Stars".
+double? airmassForFrame(double? altitudeDeg) =>
+    altitudeDeg == null ? null : airmassForTrueAltitude(altitudeDeg);

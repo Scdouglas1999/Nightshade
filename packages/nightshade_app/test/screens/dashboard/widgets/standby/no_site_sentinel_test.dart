@@ -15,6 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/dashboard/widgets/standby/moon_card.dart';
 import 'package:nightshade_app/screens/dashboard/widgets/standby/night_timeline.dart';
+import 'package:nightshade_core/nightshade_core.dart' hide TwilightTimes;
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -40,11 +41,17 @@ void main() {
     phaseName: 'Waxing Gibbous',
   );
 
+  // `site` is what the app has on record — null means "never configured", which
+  // is a separate question from the coordinates the planetarium is currently
+  // pointed at. NightTimeline gates on the former (see
+  // test/screens/observing_site_gating_test.dart); MoonCard still reads the
+  // planetarium observer, so both are set per scenario.
   Future<void> pump(
     WidgetTester tester, {
     required Widget child,
     required double latitude,
     required double longitude,
+    required LocationSettings? site,
   }) async {
     tester.view.devicePixelRatio = 1.0;
     tester.view.physicalSize = const Size(900, 700);
@@ -59,6 +66,7 @@ void main() {
         overrides: [
           twilightTimesProvider.overrideWithValue(populatedNight),
           moonInfoProvider.overrideWithValue(populatedMoon),
+          appObserverLocationProvider.overrideWithValue(site),
         ],
         child: Consumer(builder: (ctx, ref, _) {
           container = ProviderScope.containerOf(ctx);
@@ -86,6 +94,7 @@ void main() {
         tester,
         latitude: 0.0,
         longitude: 0.0,
+        site: null,
         child: Builder(builder: timeline),
       );
 
@@ -103,6 +112,7 @@ void main() {
         tester,
         latitude: 40.71,
         longitude: -74.01,
+        site: const LocationSettings(latitude: 40.71, longitude: -74.01),
         child: Builder(builder: timeline),
       );
 
@@ -120,6 +130,7 @@ void main() {
         tester,
         latitude: 0.0,
         longitude: 0.0,
+        site: null,
         child: Builder(
           builder: (context) => MoonCard(colors: NightshadeColors.of(context)),
         ),
@@ -139,6 +150,7 @@ void main() {
         tester,
         latitude: 40.71,
         longitude: -74.01,
+        site: const LocationSettings(latitude: 40.71, longitude: -74.01),
         child: Builder(
           builder: (context) => MoonCard(colors: NightshadeColors.of(context)),
         ),

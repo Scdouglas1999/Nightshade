@@ -64,7 +64,7 @@ void main() {
           mountPosition: center,
           mountStatus: MountRenderStatus.tracking,
           sunPosition: const (75, 0),
-          moonPosition: const (76, 1, 0.6),
+          moonPosition: const (76, 1, 60),
           planets: const [
             PlanetData(
               name: 'Jupiter',

@@ -290,6 +290,15 @@ class DiagnosticDumpService {
     });
   }
 
+  /// How much log history a dump carries.
+  ///
+  /// The native appender (tracing_appender daily roller) has no retention cap,
+  /// so the log directory grows forever and an unbounded export shipped every
+  /// capture path, target name and host name the install had ever written.
+  /// Two days is enough to cover last night plus the night before, which is
+  /// the window a bug report about an imaging session actually needs.
+  static const Duration logRetentionWindow = Duration(hours: 48);
+
   Future<void> _addLogsEntry({
     required Archive archive,
     required List<Map<String, Object?>> entries,
@@ -305,7 +314,7 @@ class DiagnosticDumpService {
         '${tmpDir.path}${Platform.pathSeparator}'
         'nightshade_dump_logs_${DateTime.now().microsecondsSinceEpoch}.txt',
       );
-      await _logging.exportLogs(scratch.path);
+      await _logging.exportLogs(scratch.path, maxAge: logRetentionWindow);
       final bytes = await scratch.readAsBytes();
       archive.addFile(
         ArchiveFile('logs/exported_logs.txt', bytes.length, bytes),
@@ -326,6 +335,13 @@ class DiagnosticDumpService {
         'path': 'logs/exported_logs.txt',
         'status': 'ok',
         'bytes': bytes.length,
+        // The recipient of a bug report must be able to see how much history
+        // they were handed; the UI calls this entry "recent log files".
+        'span_hours': logRetentionWindow.inHours,
+        'span_start': DateTime.now()
+            .toUtc()
+            .subtract(logRetentionWindow)
+            .toIso8601String(),
       });
     } catch (e, st) {
       _logging.error(

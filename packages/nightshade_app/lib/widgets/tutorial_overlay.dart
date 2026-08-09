@@ -11,6 +11,9 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'tutorial_keys/tutorial_keys.dart';
+import 'tutorial_overlay/tutorial_routes.dart';
+
+export 'tutorial_overlay/tutorial_routes.dart' show tutorialRouteForStep;
 
 part 'tutorial_overlay/content.dart';
 part 'tutorial_overlay/spotlight.dart';
@@ -143,6 +146,10 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
   late Animation<double> _ringOpacityAnimation;
   _TutorialOverlayAction? _pendingAction;
 
+  /// Route this tour last asked for. Cleared when the tour ends so replaying it
+  /// routes again.
+  String? _routeRequestedForTour;
+
   void _runAction(
     _TutorialOverlayAction action,
     Future<void> Function() operation,
@@ -218,30 +225,33 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
     super.dispose();
   }
 
-  /// Navigate to the appropriate route based on the tutorial step's target key
-  void _navigateForStep(BuildContext context, String? targetKey) {
-    if (targetKey == null || !context.mounted) return;
+  /// Take the operator to the screen the current step is talking about.
+  ///
+  /// This used to key off the step's `targetKey` against an eight-entry map of
+  /// `nav_*` ids. Almost no tour step uses one, so starting a tour left the
+  /// coach mark sitting on whatever screen the operator was on — "Click the
+  /// Profiles tab" over Settings, where there is no Profiles tab. Resolve the
+  /// route from the step itself instead, so every tour opens where it applies.
+  void _navigateForStep(BuildContext context, TutorialStep step) {
+    if (!context.mounted) return;
 
-    final routes = <String, String>{
-      'nav_dashboard': '/dashboard',
-      'nav_equipment': '/equipment',
-      'nav_imaging': '/imaging',
-      'nav_sequencer': '/sequencer',
-      'nav_planetarium': '/planetarium',
-      'nav_framing': '/framing',
-      'nav_analytics': '/analytics',
-      'nav_flat_wizard': '/flat-wizard',
-    };
+    final route = tutorialRouteForStep(step);
+    if (route == null || route == _routeRequestedForTour) return;
+    final router = GoRouter.maybeOf(context);
+    if (router == null) return;
 
-    final route = routes[targetKey];
-    if (route != null) {
-      // Use a short delay to allow the UI to settle
-      Future.microtask(() {
-        if (context.mounted) {
-          context.go(route);
-        }
-      });
-    }
+    // Compare against what we last asked for, not against the current
+    // location: /planetarium and /framing redirect onto Planner tabs, so the
+    // location never equals the requested path and a location check would
+    // re-navigate on every step of those tours.
+    _routeRequestedForTour = route;
+    if (router.routerDelegate.currentConfiguration.uri.path == route) return;
+
+    // Defer past this build: the route change is a reaction to a provider
+    // update and go_router must not be driven from inside a build phase.
+    Future.microtask(() {
+      if (context.mounted) router.go(route);
+    });
   }
 
   @override
@@ -251,12 +261,14 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
 
     // Listen for tutorial state changes to navigate to appropriate tabs
     ref.listen<TutorialProgress>(tutorialProvider, (previous, current) {
+      if (current.activeCategory != previous?.activeCategory) {
+        _routeRequestedForTour = null;
+      }
       if (current.activeCategory != null && current.currentStepIndex >= 0) {
         final steps =
             TutorialDefinitions.getStepsForCategory(current.activeCategory!);
         if (current.currentStepIndex < steps.length) {
-          final step = steps[current.currentStepIndex];
-          _navigateForStep(context, step.targetKey);
+          _navigateForStep(context, steps[current.currentStepIndex]);
         }
       }
     });

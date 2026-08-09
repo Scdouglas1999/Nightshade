@@ -27,6 +27,7 @@ import 'package:nightshade_core/src/models/settings/app_settings.dart'
     as models;
 import 'package:nightshade_core/src/providers/backend_provider.dart';
 import 'package:nightshade_core/src/providers/settings_provider.dart';
+import '../harness/in_memory_database.dart';
 
 class _MockNetworkBackend extends Mock implements NetworkBackend {}
 
@@ -57,6 +58,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith(
             (ref) => _FixedBackendNotifier(ref, backend),
           ),
@@ -110,6 +112,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith(
             (ref) => _FixedBackendNotifier(ref, backend),
           ),
@@ -151,6 +154,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith(
             (ref) => _FixedBackendNotifier(ref, backend),
           ),

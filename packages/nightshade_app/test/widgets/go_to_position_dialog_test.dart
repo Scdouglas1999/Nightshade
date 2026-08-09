@@ -24,6 +24,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/screens/imaging/widgets/focus_panel.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 class _MockDeviceService extends Mock implements DeviceService {}
 
@@ -220,7 +221,10 @@ void main() {
     when(() => device.moveFocuserTo(any())).thenAnswer((_) async {});
 
     final container = ProviderContainer(
-      overrides: [deviceServiceProvider.overrideWithValue(device)],
+      overrides: [
+        inMemoryDatabaseOverride(),
+        deviceServiceProvider.overrideWithValue(device)
+      ],
     );
     addTearDown(container.dispose);
 

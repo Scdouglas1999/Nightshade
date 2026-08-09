@@ -495,13 +495,30 @@ class SafeRigService {
     if (result.domeClosed) steps.add('dome closed');
     if (result.coverClosed) steps.add('cover closed');
     if (result.coolerDisabled) steps.add('cooler disabled');
-    final detail = steps.isEmpty ? 'no action was possible' : steps.join(', ');
     final gap = result.mountAbsent
         ? ' NO MOUNT CONNECTED — nothing was parked; if a mount is tracking '
               'under another program it is still exposed.'
         : '';
+
+    if (steps.isEmpty) {
+      // Not a safing event: no run was active and no device answered, so
+      // nothing was commanded. The old text posted this at CRITICAL as
+      // "Rig safed: no action was possible" — one sentence asserting both
+      // that the rig had been secured and that nothing had been possible. On
+      // an idle, disconnected app (weather safety resolves fail-closed to
+      // unsafe when no weather source exists) that red alert was all the
+      // operator saw.
+      notifier.showWarning(
+        'Nothing to safe: $reason. No run was active and no mount, dome or '
+        'cover is connected.$gap',
+        title: 'Safe the rig',
+        duration: const Duration(seconds: 16),
+      );
+      return;
+    }
+
     notifier.showError(
-      'CRITICAL: $reason. Rig safed: $detail.$gap',
+      'CRITICAL: $reason. Rig safed: ${steps.join(', ')}.$gap',
       title: 'Safe the rig',
       duration: const Duration(seconds: 16),
     );
@@ -520,7 +537,11 @@ Future<bool> _stopSecondaryRigReportingWhetherItRan(Ref ref) async {
   var wasArmed = false;
   try {
     wasArmed = await controller.isArmed();
-  } catch (_) {
+  } catch (error, stackTrace) {
+    debugPrint(
+      'Could not determine whether the secondary rig was armed: $error\n'
+      '$stackTrace',
+    );
     wasArmed = false;
   }
   await controller.stop();

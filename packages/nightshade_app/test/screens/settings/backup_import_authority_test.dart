@@ -143,12 +143,10 @@ void main() {
         replaceExisting: false,
       ),
     ).called(1);
-    expect(
-      find.text(
-        'Restored 7 items. Restart Nightshade before the next run.',
-      ),
-      findsOneWidget,
-    );
+    // The outcome is a banner that stays, not a snackbar that fades: after a
+    // restore the running app is showing pre-restore state.
+    expect(find.text('Restart required'), findsOneWidget);
+    expect(find.textContaining('Restored 7 items'), findsOneWidget);
     expect(
       find.widgetWithText(NightshadeButton, 'Import Backup'),
       findsOneWidget,

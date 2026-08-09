@@ -107,6 +107,13 @@ class SchedulerConfig extends Equatable {
   /// Minimum altitude (degrees) below which a target's altitude factor
   /// drops to 0 regardless of dec/latitude. Operator-tunable for site
   /// horizon limitations not captured by a custom horizon profile.
+  ///
+  /// This is THE site minimum altitude for the whole product: the sequence
+  /// builder and the planner's altitude charts read it through
+  /// `siteMinimumAltitudeDegProvider` rather than carrying their own number.
+  /// They used to, and the two disagreed — the scheduler admitted a target at
+  /// 27° that the sequence builder then refused for being under 30°, so the
+  /// autopilot would happily queue something the operator could not build.
   final double minAltitudeDegrees;
 
   /// Maximum moon separation penalty radius (degrees). Targets within this
@@ -128,7 +135,13 @@ class SchedulerConfig extends Equatable {
   const SchedulerConfig({
     this.tickInterval = const Duration(seconds: 60),
     this.hysteresisRatio = 1.20,
-    this.minAltitudeDegrees = 25.0,
+    // 30°, matching SmartNightSettings.minAltitudeDeg, the `targets`
+    // table's min_altitude column and the planner's altitude threshold.
+    // This used to be 25, which is the direction that BREAKS: the scheduler
+    // promised a target the builder would then refuse. Raising it only makes
+    // the unattended engine stricter, and the operator can still lower it —
+    // that choice now flows out to the builder and the charts as well.
+    this.minAltitudeDegrees = 30.0,
     this.moonAvoidanceRadiusDegrees = 60.0,
     this.maxSunAltitudeDegrees = -12.0,
     this.weights = SchedulerWeights.defaults,

@@ -7,6 +7,51 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+/// Index of the frame a radar timeline should sit on when nobody has scrubbed:
+/// the newest OBSERVATION, i.e. the live edge of the loop.
+///
+/// Chosen by TIMESTAMP, never by list position. The providers do not agree on
+/// an order: RainViewer sorts ascending, Open-Meteo / MET Norway walk an
+/// ascending hourly series, but NOAA NEXRAD builds its frames from timestamps
+/// sorted reverse-chronologically (noaa_radar_provider.dart:348), so its
+/// newest frame is `frames.first` and its two-hour-old frame is `frames.last`.
+/// Nothing between the provider and the widget re-sorts. Picking "the last
+/// non-forecast entry" would therefore open a NOAA user on the OLDEST frame —
+/// exactly the staleness this helper exists to prevent.
+///
+/// Forecast frames are skipped: RainViewer appends nowcast tiles and
+/// Open-Meteo / MET Norway append hours past `now`, and opening on one would
+/// show predicted cloud as though it had been measured.
+///
+/// When every frame is a forecast there is no observation to show, so the one
+/// nearest to now is the least-wrong choice. An empty list yields 0 (nothing
+/// to point at).
+int latestObservedRadarFrameIndex(List<RadarFrame> frames) {
+  if (frames.isEmpty) return 0;
+
+  int? newestObserved;
+  for (var i = 0; i < frames.length; i++) {
+    if (frames[i].isForecast) continue;
+    if (newestObserved == null ||
+        frames[i].timestamp.isAfter(frames[newestObserved].timestamp)) {
+      newestObserved = i;
+    }
+  }
+  if (newestObserved != null) return newestObserved;
+
+  final now = DateTime.now();
+  var nearest = 0;
+  var nearestDistance = frames[0].timestamp.difference(now).abs();
+  for (var i = 1; i < frames.length; i++) {
+    final distance = frames[i].timestamp.difference(now).abs();
+    if (distance < nearestDistance) {
+      nearest = i;
+      nearestDistance = distance;
+    }
+  }
+  return nearest;
+}
+
 /// Timeline scrubber for radar frame animation
 /// Shows past frames, current time, and forecast frames
 class RadarTimelineScrubber extends ConsumerStatefulWidget {

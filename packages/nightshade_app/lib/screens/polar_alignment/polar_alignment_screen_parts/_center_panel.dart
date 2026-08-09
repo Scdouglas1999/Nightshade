@@ -17,6 +17,16 @@ extension _CenterPanel on _PolarAlignmentScreenState {
         !detectionAsync.valueOrNull!
             .supports(preferenceAsync.valueOrNull!.choice);
 
+    // The az/alt decomposition of a polar-axis error is a function of site
+    // latitude, and with no site set the observer falls back to 0°N 0°E — the
+    // corrections would be for an observer on the equator. Disclose it on the
+    // idle screen alongside the solver prerequisite; _startAlignment refuses
+    // outright.
+    final settingsLoaded = ref.watch(appSettingsProvider).hasValue;
+    final showSiteBanner = state.phase == PolarAlignPhase.idle &&
+        settingsLoaded &&
+        ref.watch(appObserverLocationProvider) == null;
+
     return Container(
       color: colors.background,
       child: Column(
@@ -58,16 +68,62 @@ extension _CenterPanel on _PolarAlignmentScreenState {
                               ? constraints.maxWidth
                               : 400,
                         ),
-                        child: state.phase == PolarAlignPhase.idle
-                            ? _buildSetupInstructions(colors)
-                            : state.phase == PolarAlignPhase.measuring
-                                ? _buildMeasuringStatus(colors, state)
-                                : state.phase == PolarAlignPhase.adjusting
-                                    ? _buildAdjustmentInstructions(
-                                        colors, state, config)
-                                    : state.phase == PolarAlignPhase.complete
-                                        ? _buildCompleteStatus(colors, state)
-                                        : _buildErrorStatus(colors, state),
+                        // The site warning rides INSIDE the scroll area: the
+                        // outer Column has no slack left once the solver banner
+                        // is up, and a second fixed-height child overflows an
+                        // 800x600 window.
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (showSiteBanner)
+                              Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                                child: Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration:
+                                      NightshadeDecorations.emphasisSurface(
+                                    colors.warning,
+                                    borderRadius:
+                                        NightshadeTokens.borderRadiusInline8,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(NightshadeIcons.warning,
+                                          size: 16, color: colors.warning),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text(
+                                          'No observing location set. Polar '
+                                          'error is measured relative to your '
+                                          'site latitude — set an observing '
+                                          'location in Settings before '
+                                          'aligning.',
+                                          style: TextStyle(
+                                            fontSize:
+                                                NightshadeTypography.fontSize12,
+                                            color: colors.warning,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            state.phase == PolarAlignPhase.idle
+                                ? _buildSetupInstructions(colors)
+                                : state.phase == PolarAlignPhase.measuring
+                                    ? _buildMeasuringStatus(colors, state)
+                                    : state.phase == PolarAlignPhase.adjusting
+                                        ? _buildAdjustmentInstructions(
+                                            colors, state, config)
+                                        : state.phase ==
+                                                PolarAlignPhase.complete
+                                            ? _buildCompleteStatus(
+                                                colors, state)
+                                            : _buildErrorStatus(colors, state),
+                          ],
+                        ),
                       ),
                     ),
                   ),

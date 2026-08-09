@@ -5,6 +5,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import 'radar_timeline_scrubber.dart' show latestObservedRadarFrameIndex;
 import 'weather_radar_map.dart';
 
 /// Responsive weather widget for the dashboard.
@@ -490,9 +491,13 @@ class _RadarPreview extends StatelessWidget {
     final motionAsync = ref.watch(analyzeCloudMotionProvider);
     final motionDirection = motionAsync.valueOrNull?.directionDegrees;
 
-    // Get the first radar frame (most recent)
-    final currentFrame = weatherStatus.radarFrames.isNotEmpty
-        ? weatherStatus.radarFrames.first
+    // The live edge of the loop, picked by timestamp. `frames.first` used to
+    // be taken for "most recent" and is not: RainViewer/Open-Meteo/MET Norway
+    // hand back oldest → newest, so this thumbnail was showing cloud up to two
+    // hours old on the dashboard the operator glances at.
+    final frames = weatherStatus.radarFrames;
+    final currentFrame = frames.isNotEmpty
+        ? frames[latestObservedRadarFrameIndex(frames)]
         : null;
 
     return Container(

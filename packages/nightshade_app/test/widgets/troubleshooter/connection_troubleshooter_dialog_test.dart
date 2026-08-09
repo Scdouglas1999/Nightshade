@@ -192,6 +192,30 @@ void main() {
     expect(result, isFalse);
   });
 
+  // The rendered end of the built-in-guider defect: the dialog held a
+  // fully-specified first-party error and told the operator "we couldn't pin
+  // down the exact cause", then offered four steps for hardware the built-in
+  // guider does not have.
+  testWidgets('the built-in guider preflight renders the setting, not a cable',
+      (tester) async {
+    await _showDialog(
+      tester,
+      deviceType: DeviceType.guider,
+      driverType: DriverType.native,
+      rawError: 'Failed to connect built-in guider: Operation failed: Built-in '
+          'guider requires positive guide focal length and camera pixel size '
+          '(focal_length_mm=0, pixel_size_x_um=3.76, pixel_size_y_um=3.76)',
+    );
+
+    expect(find.textContaining("couldn't pin down"), findsNothing);
+    expect(find.textContaining('Reseat the cable'), findsNothing);
+    expect(find.textContaining('Restart Nightshade'), findsNothing);
+    expect(
+      find.textContaining('Focal Length', findRichText: true),
+      findsWidgets,
+    );
+  });
+
   testWidgets('a null raw error renders no Technical details section',
       (tester) async {
     // An empty discovery result classifies as USB with concrete steps and no

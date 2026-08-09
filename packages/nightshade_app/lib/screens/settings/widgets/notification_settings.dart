@@ -8,6 +8,7 @@ import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
 
 import '../../../services/push_delivery_targets_provider.dart';
 import '../../../utils/snackbar_helper.dart';
+import '../../../utils/user_facing_error.dart';
 import '../../../widgets/tutorial_keys/settings_keys.dart';
 import 'notification_routing_settings.dart';
 import 'settings_widgets.dart';
@@ -112,7 +113,9 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
             generation,
             _NotificationTest.discord,
           )) {
-        context.showErrorSnackBar('Failed to test Discord notification: $e');
+        context.showErrorSnackBar(
+          'Failed to test Discord notification: ${userFacingError(e)}',
+        );
       }
     } finally {
       if (mounted &&
@@ -162,7 +165,9 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
             generation,
             _NotificationTest.pushover,
           )) {
-        context.showErrorSnackBar('Failed to test Pushover notification: $e');
+        context.showErrorSnackBar(
+          'Failed to test Pushover notification: ${userFacingError(e)}',
+        );
       }
     } finally {
       if (mounted &&
@@ -194,7 +199,9 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
     } catch (e) {
       if (mounted &&
           _isCurrentTest(authority, generation, _NotificationTest.push)) {
-        context.showErrorSnackBar('Failed to send test notification: $e');
+        context.showErrorSnackBar(
+          'Failed to send test notification: ${userFacingError(e)}',
+        );
       }
     } finally {
       if (_isCurrentTest(authority, generation, _NotificationTest.push)) {
@@ -425,7 +432,7 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                   SettingRow(
                     icon: LucideIcons.alertTriangle,
                     title: 'Could not load push configuration',
-                    subtitle: pushConfigAsync.error.toString(),
+                    subtitle: userFacingError(pushConfigAsync.error),
                     trailing: NightshadeButton(
                       label: 'Retry',
                       variant: ButtonVariant.outline,
@@ -584,103 +591,115 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                   ),
                 ],
               ),
-            SettingsSection(
-              title: 'Discord',
-              children: [
-                SettingRow(
-                  icon: LucideIcons.messageSquare,
-                  title: 'Webhook URL',
-                  subtitle: 'Discord channel webhook for notifications',
-                  trailing: settingsTrailingTextInput(
-                    context: context,
-                    controller: _discordController,
-                    authoritativeValue: settings.discordWebhook,
-                    authorityKey: authority,
-                    hint: 'https://discord.com/api/webhooks/...',
-                    isMobile: widget.isMobile,
-                    obscure: true,
-                    onChanged: (value) {
-                      return ref
-                          .read(appSettingsProvider.notifier)
-                          .setDiscordWebhook(value);
-                    },
+            // Legacy `app_settings`-backed Discord/Pushover credentials. They
+            // are shown ONLY on a remote controller: locally the keyring-backed
+            // sections inside NotificationRoutingSettings below are the single
+            // Discord/Pushover configuration on this page (they adopt and keep
+            // these same legacy keys in step, so the pre-router
+            // NotificationService keeps sending to whatever is on screen).
+            // Rendering both locally is what let one half of the page report
+            // "unconfigured" while the other half held a saved webhook.
+            // A remote controller cannot reach the host's keyring, so there the
+            // legacy keys — which ride the settings remote-sync to the host —
+            // remain the only way to configure these two transports.
+            if (isRemoteController)
+              SettingsSection(
+                title: 'Discord',
+                children: [
+                  SettingRow(
+                    icon: LucideIcons.messageSquare,
+                    title: 'Webhook URL',
+                    subtitle: 'Discord channel webhook for notifications',
+                    trailing: settingsTrailingTextInput(
+                      context: context,
+                      controller: _discordController,
+                      authoritativeValue: settings.discordWebhook,
+                      authorityKey: authority,
+                      hint: 'https://discord.com/api/webhooks/...',
+                      isMobile: widget.isMobile,
+                      obscure: true,
+                      onChanged: (value) {
+                        return ref
+                            .read(appSettingsProvider.notifier)
+                            .setDiscordWebhook(value);
+                      },
+                    ),
                   ),
-                ),
-                SettingRow(
-                  icon: LucideIcons.send,
-                  title: 'Test Discord',
-                  subtitle: 'Send a test notification to your Discord channel',
-                  trailing: NightshadeButton(
-                    label: 'Test',
-                    variant: ButtonVariant.primary,
-                    size: ButtonSize.small,
-                    isLoading: _activeTest == _NotificationTest.discord,
-                    onPressed: _activeTest == null ? _testDiscord : null,
+                  SettingRow(
+                    icon: LucideIcons.send,
+                    title: 'Test Discord',
+                    subtitle:
+                        'Send a test notification to your Discord channel',
+                    trailing: NightshadeButton(
+                      label: 'Test',
+                      variant: ButtonVariant.primary,
+                      size: ButtonSize.small,
+                      isLoading: _activeTest == _NotificationTest.discord,
+                      onPressed: _activeTest == null ? _testDiscord : null,
+                    ),
+                    isLast: true,
                   ),
-                  isLast: true,
-                ),
-              ],
-            ),
-            SettingsSection(
-              title: 'Pushover',
-              children: [
-                SettingRow(
-                  icon: LucideIcons.key,
-                  title: 'API Key',
-                  subtitle: 'Pushover application API key',
-                  trailing: SettingsTextInput(
-                    controller: _pushoverKeyController,
-                    authoritativeValue: settings.pushoverKey,
-                    authorityKey: authority,
-                    hint: 'API key',
-                    width: 200,
-                    obscure: true,
-                    onChanged: (value) {
-                      return ref
-                          .read(appSettingsProvider.notifier)
-                          .setPushoverKey(value);
-                    },
+                ],
+              ),
+            if (isRemoteController)
+              SettingsSection(
+                title: 'Pushover',
+                children: [
+                  SettingRow(
+                    icon: LucideIcons.key,
+                    title: 'API Key',
+                    subtitle: 'Pushover application API key',
+                    trailing: SettingsTextInput(
+                      controller: _pushoverKeyController,
+                      authoritativeValue: settings.pushoverKey,
+                      authorityKey: authority,
+                      hint: 'API key',
+                      width: 200,
+                      obscure: true,
+                      onChanged: (value) {
+                        return ref
+                            .read(appSettingsProvider.notifier)
+                            .setPushoverKey(value);
+                      },
+                    ),
                   ),
-                ),
-                SettingRow(
-                  icon: LucideIcons.user,
-                  title: 'User Key',
-                  subtitle: 'Pushover user/group key',
-                  trailing: SettingsTextInput(
-                    controller: _pushoverUserController,
-                    authoritativeValue: settings.pushoverUser,
-                    authorityKey: authority,
-                    hint: 'User key',
-                    width: 200,
-                    obscure: true,
-                    onChanged: (value) {
-                      return ref
-                          .read(appSettingsProvider.notifier)
-                          .setPushoverUser(value);
-                    },
+                  SettingRow(
+                    icon: LucideIcons.user,
+                    title: 'User Key',
+                    subtitle: 'Pushover user/group key',
+                    trailing: SettingsTextInput(
+                      controller: _pushoverUserController,
+                      authoritativeValue: settings.pushoverUser,
+                      authorityKey: authority,
+                      hint: 'User key',
+                      width: 200,
+                      obscure: true,
+                      onChanged: (value) {
+                        return ref
+                            .read(appSettingsProvider.notifier)
+                            .setPushoverUser(value);
+                      },
+                    ),
                   ),
-                ),
-                SettingRow(
-                  icon: LucideIcons.send,
-                  title: 'Test Pushover',
-                  subtitle: 'Send a test notification to your device',
-                  trailing: NightshadeButton(
-                    label: 'Test',
-                    variant: ButtonVariant.primary,
-                    size: ButtonSize.small,
-                    isLoading: _activeTest == _NotificationTest.pushover,
-                    onPressed: _activeTest == null ? _testPushover : null,
+                  SettingRow(
+                    icon: LucideIcons.send,
+                    title: 'Test Pushover',
+                    subtitle: 'Send a test notification to your device',
+                    trailing: NightshadeButton(
+                      label: 'Test',
+                      variant: ButtonVariant.primary,
+                      size: ButtonSize.small,
+                      isLoading: _activeTest == _NotificationTest.pushover,
+                      onPressed: _activeTest == null ? _testPushover : null,
+                    ),
+                    isLast: true,
                   ),
-                  isLast: true,
-                ),
-              ],
-            ),
-            // Comprehensive per-event routing matrix +
-            // Email/Webhook/Telegram/MQTT credentials. Lives inside the
-            // same Notifications page so users see one place for every
-            // transport. Routing-aware Pushover / Discord configs above
-            // are separate keys to keep legacy NotificationService
-            // (Discord + Pushover only) working unchanged.
+                ],
+              ),
+            // Comprehensive per-event routing matrix + every transport's
+            // credentials, including the only local Discord / Pushover
+            // configuration. Lives inside the same Notifications page so users
+            // see one place for every transport.
             NotificationRoutingSettings(
               isMobile: widget.isMobile,
             ),

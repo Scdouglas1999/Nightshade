@@ -9,6 +9,7 @@ import 'package:nightshade_core/nightshade_core.dart' hide TwilightTimes;
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
 import '../../../localization/nightshade_localizations.dart';
+import '../../../services/observing_site.dart';
 import 'connection_quality_chip.dart';
 import 'dashboard_header_actions.dart';
 import 'glance_mode_toggle.dart';
@@ -99,7 +100,7 @@ class DashboardCommandBar extends ConsumerWidget {
                 // Night-context chip (darkness countdown + moon). Self-hides
                 // — including its own leading divider — when there's no
                 // location/twilight data to show.
-                _NightContextChip(colors: colors),
+                NightContextChip(colors: colors),
                 const SizedBox(width: 24),
                 Container(
                   width: 1,
@@ -180,10 +181,12 @@ String _formatCountdown(Duration d) {
   return '${minutes}m';
 }
 
-/// Format a [DateTime] as a zero-padded local HH:MM clock string.
-String _formatClock(DateTime t) {
-  final h = t.hour.toString().padLeft(2, '0');
-  final m = t.minute.toString().padLeft(2, '0');
+/// Format a [DateTime] as a zero-padded HH:MM clock face in the zone the
+/// operator chose (Settings → Location → Timezone), not the host's.
+String _formatClock(DateTime t, Clock clock) {
+  final shown = clock.fromUtc(t.toUtc());
+  final h = shown.hour.toString().padLeft(2, '0');
+  final m = shown.minute.toString().padLeft(2, '0');
   return '$h:$m';
 }
 
@@ -196,7 +199,17 @@ String _formatClock(DateTime t) {
 ///
 /// Returns null when the necessary twilight field is missing (no location), so
 /// the caller renders nothing.
-NightContextFact? resolveNightContext(TwilightTimes twilight, DateTime now) {
+///
+/// [clock] is required rather than defaulting to the system clock: the sunset
+/// branch is the only clock FACE on this chip, and a silent host-local default
+/// is exactly how it kept reading the laptop's zone while the status bar, the
+/// dashboard header and the night timeline beside it all rendered the site
+/// timezone the operator picked.
+NightContextFact? resolveNightContext(
+  TwilightTimes twilight,
+  DateTime now, {
+  required Clock clock,
+}) {
   final dusk = twilight.astronomicalDusk;
   final dawn = twilight.astronomicalDawn;
 
@@ -224,7 +237,7 @@ NightContextFact? resolveNightContext(TwilightTimes twilight, DateTime now) {
     return NightContextFact(
       kind: NightContextKind.afterDark,
       l10nKey: 'sunsetAt',
-      time: _formatClock(sunset),
+      time: _formatClock(sunset, clock),
     );
   }
 
@@ -543,27 +556,24 @@ class _CommandBarStat extends StatelessWidget {
 /// fact (countdown to dark / dark remaining / next sunset) plus a compact moon
 /// illumination readout. Owns its own leading divider so it disappears wholly
 /// — divider included — when there's no location/twilight data.
-class _NightContextChip extends ConsumerWidget {
+class NightContextChip extends ConsumerWidget {
   final NightshadeColors colors;
 
-  const _NightContextChip({required this.colors});
+  const NightContextChip({super.key, required this.colors});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
-    final twilight = ref.watch(twilightTimesProvider);
     final now = ref.watch(observationTimeProvider.select((s) => s.time));
+    final clock = ref.watch(clockProvider);
 
-    // lat/lon both 0.0 means no site is on record. The sun rises and sets at
-    // Null Island, so the twilight fields come back fully populated and the chip
-    // would state a stranger's sunset as the user's. Self-hide instead; the
-    // Tonight's-targets card carries the "Set location" call to action.
-    final observer = ref.watch(observerLocationProvider);
-    if (observer.latitude == 0.0 && observer.longitude == 0.0) {
-      return const SizedBox.shrink();
-    }
+    // `null` = no site on record, so there is no truthful darkness fact to
+    // state. Self-hide (divider included); the Tonight's-targets card carries
+    // the "Set location" call to action.
+    final twilight = ref.watch(siteTwilightTimesProvider);
+    if (twilight == null) return const SizedBox.shrink();
 
-    final fact = resolveNightContext(twilight, now);
+    final fact = resolveNightContext(twilight, now, clock: clock);
     // Polar day/night leaves the twilight fields null and resolveNightContext
     // returns null — render nothing at all (the chip self-hides).
     if (fact == null) return const SizedBox.shrink();

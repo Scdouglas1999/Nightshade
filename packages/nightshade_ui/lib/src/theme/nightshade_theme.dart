@@ -221,6 +221,14 @@ class NightshadeTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: colors.surfaceAlt,
+        // Flutter's default for helperMaxLines is null, which means a helper
+        // that overflows the field width is ELLIPSISED rather than wrapped.
+        // Our helpers are sentences that explain a choice ("Broadcast only
+        // keeps memory clean; Record also writes JPEG snapshots to disk"), and
+        // the half that names the alternative is exactly the half that got
+        // cut. Every field carrying one lives in a scrolling panel or dialog,
+        // so letting them wrap costs nothing.
+        helperMaxLines: 4,
         border: OutlineInputBorder(
           borderRadius: NightshadeTokens.borderRadiusMd,
           borderSide: BorderSide(color: colors.border),

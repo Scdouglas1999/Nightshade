@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:nightshade_core/nightshade_core.dart';
+import '../harness/in_memory_database.dart';
 
 class _FixedBackendNotifier extends BackendNotifier {
   _FixedBackendNotifier(super.ref, NightshadeBackend backend) : super() {
@@ -38,6 +39,7 @@ void main() {
       addTearDown(backend.dispose);
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith(
             (ref) => _FixedBackendNotifier(ref, backend),
           ),
@@ -68,6 +70,7 @@ void main() {
     addTearDown(backend.dispose);
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith(
           (ref) => _FixedBackendNotifier(ref, backend),
         ),
@@ -97,6 +100,7 @@ void main() {
     addTearDown(backend.dispose);
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith(
           (ref) => _FixedBackendNotifier(ref, backend),
         ),
@@ -125,7 +129,9 @@ void main() {
   test(
     'exposure events are IGNORED on the host path (no network backend)',
     () async {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: [inMemoryDatabaseOverride()],
+      );
       addTearDown(container.dispose);
 
       await applyRemoteSyncEvent(

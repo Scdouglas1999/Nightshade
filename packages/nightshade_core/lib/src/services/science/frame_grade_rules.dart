@@ -43,6 +43,15 @@ class FrameGradeRules {
   /// no thresholds are configured.
   bool get hasActiveRules => !isEmpty;
 
+  /// Rejection reason for a frame whose star detector ran and found nothing.
+  ///
+  /// A measured zero is a rejection because all other star-derived thresholds
+  /// are unavailable. `null` remains distinct and means no detector ran. Keep
+  /// this text aligned with the native grader's persisted reason.
+  static const _unmeasurableFrameReason =
+      'no stars detected — frame quality is unmeasurable '
+      '(clouds, trailing, off-target slew, or an obstructed aperture)';
+
   FrameGradeRules copyWith({
     double? maxHfr,
     bool clearHfr = false,
@@ -76,19 +85,35 @@ class FrameGradeRules {
   /// is a raw-DDL column added by the v30 migration but never declared on the
   /// Drift table; FWHM is not persisted on `captured_images` at all). They are
   /// therefore supplied by the caller via [eccentricity] / [fwhm], exactly the
-  /// way [gradeStats] takes its out-of-band metrics. Both production callers
-  /// (FrameAutoGrader and the Image Grader dialog) source them from the
-  /// frame's PSF field-map tiles.
+  /// way [gradeStats] takes its out-of-band metrics.
+  ///
+  /// **What [eccentricity] must be**: the per-frame median star eccentricity
+  /// the native grader graded on — the `captured_images.eccentricity` column,
+  /// stamped from `ImageStats.eccentricity` by the imaging persistence path.
+  /// That is the number that decided which folder the file is in, so grading
+  /// on anything else is how the badge and the on-disk grade end up
+  /// contradicting each other on the same frame. A PSF field-map tile median
+  /// is *not* that number: it is a later, optional, per-tile computation that
+  /// is absent whenever the science stage did not run and that is measured
+  /// from a different, narrower star population.
   ///
   /// A `null` metric means "cannot grade this dimension" and the rule is
   /// skipped — a frame whose science pipeline produced no PSF data (stage
   /// disabled, starless field) is legitimately ungradeable on these two
-  /// dimensions and must never be rejected without evidence.
+  /// dimensions and must never be rejected without evidence. A *measured*
+  /// `starCount` of zero is the one exception and rejects outright; see
+  /// [_unmeasurableFrameReason].
   String? gradeFrame(
     db.CapturedImage img, {
     double? eccentricity,
     double? fwhm,
   }) {
+    // Mirrors the native grader's `check.is_active()` early-out: with no
+    // thresholds configured nothing is graded at all, including the
+    // zero-star rule below.
+    if (isEmpty) return null;
+    if (img.starCount == 0) return 'Auto-grade: $_unmeasurableFrameReason';
+
     final reasons = <String>[];
     if (maxHfr != null && img.hfr != null && img.hfr! > maxHfr!) {
       reasons.add(
@@ -135,12 +160,16 @@ class FrameGradeRules {
   /// has a more authoritative value (e.g. the persisted science row); when
   /// omitted the engine falls back to the live measured value. As in
   /// [gradeFrame], a `null` metric means "cannot grade this dimension" and that
-  /// rule is skipped — never a no-evidence reject.
+  /// rule is skipped — never a no-evidence reject — while a measured
+  /// `starCount` of zero rejects outright (see [_unmeasurableFrameReason]).
   String? gradeStats(
     ImageStats stats, {
     double? guidingRmsTotal,
     double? eccentricity,
   }) {
+    if (isEmpty) return null;
+    if (stats.starCount == 0) return 'Auto-grade: $_unmeasurableFrameReason';
+
     final reasons = <String>[];
     // Caller override wins; otherwise use the live measured frame value.
     final effectiveEccentricity = eccentricity ?? stats.eccentricity;

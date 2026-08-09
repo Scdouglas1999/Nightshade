@@ -53,7 +53,13 @@ static void my_application_activate(GApplication* application) {
     gtk_window_set_title(window, "nightshade_desktop");
   }
 
-  gtk_window_set_default_size(window, 1280, 720);
+  // Must match WindowOptions.size in lib/main.dart. When they disagree, Dart's
+  // windowManager resize lands while the engine is still producing its first
+  // frame, and the embedder blocks in "Timed out waiting for OpenGL frame of
+  // size 1600x900 (have 1280x720)". On a slow GL stack (software rasterisers,
+  // remote X, old drivers) that first frame misses the deadline and the app
+  // dies during startup with no user-visible error.
+  gtk_window_set_default_size(window, 1600, 900);
 
   // Set the window icon from the bundled icon file.
   // Resolve the executable's directory via /proc/self/exe so the icon is

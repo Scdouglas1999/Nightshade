@@ -54,15 +54,19 @@ class FirstLightFlowDialog extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(firstLightControllerProvider);
 
-    // The orchestrator has no cancel path: dismissing mid-run orphans the
-    // capture and leaves the controller marked running, so a later Start
-    // would do nothing. Block back-button and barrier dismissal while a
-    // stage is active; idle/success/failed stay freely dismissible.
+    // Dismissing mid-run used to orphan the capture: the exposure kept running
+    // on the sensor with nothing holding a handle on it. PopScope covers the
+    // back button and the modal barrier, but NOT the header close button —
+    // NightshadeDialog pops the route directly, which PopScope does not
+    // intercept — so `closeEnabled` has to gate that separately. The exit
+    // mid-run is the footer's Stop capture, which actually aborts at the
+    // camera.
     return PopScope(
       canPop: !state.isRunning,
       child: NightshadeDialog(
         title: 'Your first light',
         icon: LucideIcons.sparkles,
+        closeEnabled: !state.isRunning,
         width: 720,
         // No fixed height: the body is adaptive across the four flow surfaces.
         actions: _actionsFor(context, ref, state),
@@ -109,13 +113,26 @@ class FirstLightFlowDialog extends ConsumerWidget {
                 ref.read(firstLightControllerProvider.notifier).reset(),
           ),
         ];
-      case FirstLightPhase.idle:
       case FirstLightPhase.exposing:
       case FirstLightPhase.stretching:
       case FirstLightPhase.solving:
       case FirstLightPhase.annotating:
-        // idle has its own inline Start button; while running there is no
-        // footer action (the flow can't be interrupted from here).
+        // A progress modal whose only exit does not cancel is the shape that
+        // costs a night: the operator closed it, the exposure kept running,
+        // and the camera stayed busy. This is the one exit while a stage is
+        // in flight, and it aborts at the camera rather than just hiding the
+        // dialog.
+        return [
+          NightshadeButton(
+            label: 'Stop capture',
+            variant: ButtonVariant.outline,
+            icon: LucideIcons.x,
+            onPressed: () =>
+                ref.read(firstLightControllerProvider.notifier).cancel(),
+          ),
+        ];
+      case FirstLightPhase.idle:
+        // idle has its own inline Start button.
         return null;
     }
   }
@@ -220,6 +237,17 @@ class _IntroPanel extends ConsumerStatefulWidget {
 class _IntroPanelState extends ConsumerState<_IntroPanel> {
   static const _defaultExposureSeconds = 5.0;
 
+  /// Hard ceiling on the guided first-light exposure, in seconds.
+  ///
+  /// This panel is the only producer of the exposure the orchestrator runs, and
+  /// nothing downstream bounds it: an unbounded field let a single extra
+  /// keystroke (5 → 999999) commit the camera to an 11-day exposure that the
+  /// flow has no cancel path for. Two minutes is already far longer than any
+  /// first light needs while staying inside the panel's own "a few seconds"
+  /// promise; a genuinely long sub belongs on the Imaging screen, which has a
+  /// stop button.
+  static const _maxExposureSeconds = 120.0;
+
   late final TextEditingController _exposureController;
   String? _exposureError;
 
@@ -237,19 +265,37 @@ class _IntroPanelState extends ConsumerState<_IntroPanel> {
     super.dispose();
   }
 
-  double? _parseExposure() {
+  /// The entered exposure, or the reason it cannot be run.
+  ///
+  /// Both bounds live here rather than only in the formatter so the refusal is
+  /// visible: the field keeps whatever the user typed and the error names the
+  /// limit, instead of silently rewriting the number under their cursor.
+  ({double? seconds, String? error}) _parseExposure() {
     final raw = _exposureController.text.trim();
     final value = double.tryParse(raw);
-    if (value == null || value <= 0) return null;
-    return value;
+    if (value == null || value <= 0) {
+      return (
+        seconds: null,
+        error: 'Enter an exposure length greater than 0 seconds.',
+      );
+    }
+    if (value > _maxExposureSeconds) {
+      return (
+        seconds: null,
+        error:
+            'First light is capped at ${_maxExposureSeconds.toStringAsFixed(0)} '
+            'seconds. Enter a shorter exposure, or take a long one from the '
+            'Imaging screen where you can stop it.',
+      );
+    }
+    return (seconds: value, error: null);
   }
 
   void _start() {
-    final exposure = _parseExposure();
+    final parsed = _parseExposure();
+    final exposure = parsed.seconds;
     if (exposure == null) {
-      setState(() {
-        _exposureError = 'Enter an exposure length greater than 0 seconds.';
-      });
+      setState(() => _exposureError = parsed.error);
       return;
     }
     setState(() => _exposureError = null);
@@ -303,7 +349,9 @@ class _IntroPanelState extends ConsumerState<_IntroPanel> {
         const SizedBox(height: NightshadeTokens.spaceSm),
         Text(
           'A few seconds is plenty for a first light — long enough to capture '
-          'stars, short enough to finish quickly.',
+          'stars, short enough to finish quickly. '
+          '${_maxExposureSeconds.toStringAsFixed(0)} seconds is the most this '
+          'flow will run; longer subs belong on the Imaging screen.',
           style: NightshadeTypography.bodySm.copyWith(color: colors.textMuted),
         ),
         const SizedBox(height: NightshadeTokens.spaceXl),

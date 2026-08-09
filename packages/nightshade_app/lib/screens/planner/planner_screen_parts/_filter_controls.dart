@@ -107,65 +107,10 @@ class _ObjectTypeMultiSelect extends ConsumerWidget {
       label: label,
       active: selected.isNotEmpty,
       onTap: () async {
-        // A centered dialog, like every other filter chip in this row
-        // (magnitude, size, altitude, moon separation). This one used to be
-        // the only `showModalBottomSheet` on the desktop planner, so clicking
-        // two neighbouring chips threw their panels to opposite ends of the
-        // window.
-        final result = await showDialog<Set<String>>(
+        final result = await _showObjectTypeDialog(
           context: context,
-          builder: (dialogCtx) {
-            final draft = Set<String>.of(selected);
-            return StatefulBuilder(
-              builder: (dialogCtx, setDialogState) {
-                return AlertDialog(
-                  backgroundColor: colors.surface,
-                  title: Text(
-                    'Object types',
-                    style: NightshadeTypography.h5.copyWith(
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                  content: SizedBox(
-                    width: dialogMaxWidth(context, 380),
-                    child: Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: _options
-                          .map((opt) => FilterChip(
-                                label: Text(_displayLabel(opt)),
-                                selected: draft.contains(opt),
-                                onSelected: (on) {
-                                  setDialogState(() {
-                                    if (on) {
-                                      draft.add(opt);
-                                    } else {
-                                      draft.remove(opt);
-                                    }
-                                  });
-                                },
-                              ))
-                          .toList(),
-                    ),
-                  ),
-                  actions: [
-                    NightshadeButton(
-                      label: 'Clear',
-                      variant: ButtonVariant.ghost,
-                      size: ButtonSize.small,
-                      onPressed: () => setDialogState(draft.clear),
-                    ),
-                    NightshadeButton(
-                      label: 'Apply',
-                      variant: ButtonVariant.primary,
-                      size: ButtonSize.small,
-                      onPressed: () => Navigator.of(dialogCtx).pop(draft),
-                    ),
-                  ],
-                );
-              },
-            );
-          },
+          colors: colors,
+          selected: selected,
         );
         if (result != null) {
           final notifier = ref.read(suggestionFilterProvider.notifier);
@@ -185,6 +130,121 @@ class _ObjectTypeMultiSelect extends ConsumerWidget {
   }
 }
 
+/// Object-type multi-select sheet.
+///
+/// Returns `null` when dismissed, otherwise the chosen set.
+Future<Set<String>?> _showObjectTypeDialog({
+  required BuildContext context,
+  required NightshadeColors colors,
+  required Set<String> selected,
+}) {
+  return showDialog<Set<String>>(
+    context: context,
+    builder: (dialogCtx) {
+      final draft = Set<String>.of(selected);
+      return StatefulBuilder(
+        builder: (dialogCtx, setDialogState) {
+          return AlertDialog(
+            backgroundColor: colors.surface,
+            title: Text(
+              'Object types',
+              style: NightshadeTypography.h5.copyWith(
+                color: colors.textPrimary,
+              ),
+            ),
+            content: SizedBox(
+              width: dialogMaxWidth(context, 380),
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: _ObjectTypeMultiSelect._options
+                    .map((opt) => FilterChip(
+                          label: Text(
+                            _ObjectTypeMultiSelect._displayLabel(opt),
+                          ),
+                          selected: draft.contains(opt),
+                          showCheckmark: false,
+                          onSelected: (on) {
+                            setDialogState(() {
+                              if (on) {
+                                draft.add(opt);
+                              } else {
+                                draft.remove(opt);
+                              }
+                            });
+                          },
+                        ))
+                    .toList(),
+              ),
+            ),
+            actions: [
+              NightshadeButton(
+                label: 'Clear',
+                variant: ButtonVariant.ghost,
+                size: ButtonSize.small,
+                onPressed: () => setDialogState(draft.clear),
+              ),
+              NightshadeButton(
+                label: 'Apply',
+                variant: ButtonVariant.primary,
+                size: ButtonSize.small,
+                onPressed: () => Navigator.of(dialogCtx).pop(draft),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+}
+
+/// Test-only seam exposing the constellation picker.
+///
+/// Returns the dialog's result: null for a barrier dismiss, the empty string
+/// for "Any constellation", otherwise the chosen abbreviation.
+@visibleForTesting
+Future<String?> showConstellationPickerForTest({
+  required BuildContext context,
+  required NightshadeColors colors,
+  required List<String> available,
+  String? selected,
+}) {
+  return showDialog<String?>(
+    context: context,
+    builder: (dCtx) => _ConstellationPickerDialog(
+      colors: colors,
+      available: available,
+      selected: selected,
+    ),
+  );
+}
+
+/// Test-only seam exposing the object-types sheet.
+///
+/// Same rationale as [showAngleSliderForTest]: the sheet is a private helper
+/// inside a `part` file, and pumping the whole PlannerScreen runs a 1 s sky
+/// clock that never settles. Nothing in production calls this.
+@visibleForTesting
+Future<Set<String>?> showObjectTypeDialogForTest({
+  required BuildContext context,
+  required NightshadeColors colors,
+  required Set<String> selected,
+}) {
+  return _showObjectTypeDialog(
+    context: context,
+    colors: colors,
+    selected: selected,
+  );
+}
+
+/// Constellation filter.
+///
+/// Catalog rows store the three-letter IAU abbreviation, and this control used
+/// to be a bare [DropdownButton] of up to 88 of them ("And", "Aql", "CVn"…)
+/// with the words "Constellation: " repeated on every row and no way to type.
+/// Finding a constellation meant knowing its abbreviation and scrolling. It is
+/// now a searchable dialog, like every other filter chip in this row, listing
+/// the full name with the abbreviation in tow so both spellings are matchable.
 class _ConstellationDropdown extends ConsumerWidget {
   final NightshadeColors colors;
   final List<String> available;
@@ -198,53 +258,152 @@ class _ConstellationDropdown extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final items = <DropdownMenuItem<String?>>[
-      const DropdownMenuItem<String?>(
-        value: null,
-        child: Text('Constellation: any'),
-      ),
-      for (final c in available)
-        DropdownMenuItem<String?>(
-          value: c,
-          child: Text('Constellation: $c'),
-        ),
-    ];
+    final active = selected != null;
+    return _ControlChip(
+      colors: colors,
+      icon: LucideIcons.star,
+      label: active ? constellationFullName(selected!) : 'Constellation: any',
+      active: active,
+      onTap: () async {
+        final result = await showDialog<String?>(
+          context: context,
+          builder: (dCtx) => _ConstellationPickerDialog(
+            colors: colors,
+            available: available,
+            selected: selected,
+          ),
+        );
+        // A barrier dismiss returns null and must NOT clear the filter; the
+        // dialog signals both "any" and a pick through a wrapper.
+        if (result == null) return;
+        final picked = result.isEmpty ? null : result;
+        final notifier = ref.read(suggestionFilterProvider.notifier);
+        notifier.state = notifier.state.copyWith(
+          selectedConstellations:
+              picked == null ? <String>{} : <String>{picked},
+        );
+        ref.read(_plannerVisibleCountProvider.notifier).state =
+            _kPlannerPageSize;
+      },
+    );
+  }
+}
 
-    return Container(
-      height: 32,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: selected == null
-            ? colors.surfaceAlt
-            : NightshadeDecorations.tintedBadge(colors.primary).color,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusXl),
-        border: Border.all(
-          color: selected == null
-              ? colors.border
-              : colors.primary.withValues(alpha: 0.5),
+class _ConstellationPickerDialog extends StatefulWidget {
+  final NightshadeColors colors;
+  final List<String> available;
+  final String? selected;
+
+  const _ConstellationPickerDialog({
+    required this.colors,
+    required this.available,
+    required this.selected,
+  });
+
+  @override
+  State<_ConstellationPickerDialog> createState() =>
+      _ConstellationPickerDialogState();
+}
+
+class _ConstellationPickerDialogState
+    extends State<_ConstellationPickerDialog> {
+  final TextEditingController _search = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = widget.colors;
+    // Sorted by the name the user reads, not by the abbreviation, so the list
+    // is alphabetical on screen.
+    final entries = [
+      for (final abbr in widget.available) (abbr, constellationFullName(abbr)),
+    ]..sort((a, b) => a.$2.toLowerCase().compareTo(b.$2.toLowerCase()));
+    final q = _query.trim().toLowerCase();
+    final matches = q.isEmpty
+        ? entries
+        : entries
+            .where((e) =>
+                e.$2.toLowerCase().contains(q) ||
+                e.$1.toLowerCase().contains(q))
+            .toList();
+
+    return AlertDialog(
+      backgroundColor: colors.surface,
+      title: Text(
+        'Constellation',
+        style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+      ),
+      content: SizedBox(
+        width: dialogMaxWidth(context, 380),
+        height: 380,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _SearchField(
+              controller: _search,
+              colors: colors,
+              compact: true,
+              onChanged: (v) => setState(() => _query = v),
+            ),
+            const SizedBox(height: NightshadeTokens.spaceSm),
+            Text(
+              '${entries.length} constellation'
+              '${entries.length == 1 ? '' : 's'} in tonight’s candidates',
+              style: NightshadeTypography.caption.copyWith(
+                color: colors.textMuted,
+              ),
+            ),
+            const SizedBox(height: NightshadeTokens.spaceXs),
+            Expanded(
+              child: matches.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No constellation matches "$_query".',
+                        style: NightshadeTypography.caption.copyWith(
+                          color: colors.textMuted,
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: matches.length,
+                      itemBuilder: (context, i) {
+                        final (abbr, name) = matches[i];
+                        final isSelected = widget.selected == abbr;
+                        return ListTile(
+                          dense: true,
+                          selected: isSelected,
+                          title: Text(
+                            '$name ($abbr)',
+                            style: NightshadeTypography.bodySm.copyWith(
+                              color: isSelected
+                                  ? colors.primary
+                                  : colors.textPrimary,
+                            ),
+                          ),
+                          onTap: () => Navigator.of(context).pop(abbr),
+                        );
+                      },
+                    ),
+            ),
+          ],
         ),
       ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String?>(
-          value: selected,
-          items: items,
-          isDense: true,
-          style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              color: colors.textPrimary),
-          dropdownColor: colors.surface,
-          iconSize: 14,
-          onChanged: (value) {
-            final notifier = ref.read(suggestionFilterProvider.notifier);
-            notifier.state = notifier.state.copyWith(
-              selectedConstellations:
-                  value == null ? <String>{} : <String>{value},
-            );
-            ref.read(_plannerVisibleCountProvider.notifier).state =
-                _kPlannerPageSize;
-          },
+      actions: [
+        NightshadeButton(
+          label: 'Any constellation',
+          variant: ButtonVariant.ghost,
+          size: ButtonSize.small,
+          // Empty string, not null: null is what a barrier dismiss returns and
+          // must stay distinguishable from "clear the filter".
+          onPressed: () => Navigator.of(context).pop(''),
         ),
-      ),
+      ],
     );
   }
 }

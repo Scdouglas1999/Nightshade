@@ -22,11 +22,24 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../../harness/mock_backend.dart';
 import '../../../harness/pump_app_screen.dart';
 
+/// A real rig: 500 mm scope + a 4144x2822 / 4.63 um sensor. The wizard
+/// derives its panel size from this, and refuses to plan without it.
+const _testOptics = OpticalConfig(
+  telescopeName: 'Test scope',
+  focalLength: 500,
+  aperture: 100,
+  cameraName: 'Test cam',
+  sensorWidth: 4144,
+  sensorHeight: 2822,
+  pixelSize: 4.63,
+);
+
 Future<void> _pumpMosaic(
   WidgetTester tester, {
   MockBackend? backend,
   SmartNightExposureContext? exposureContext,
   CurrentSequenceNotifier? editor,
+  OpticalConfig? optics = _testOptics,
 }) async {
   tester.view.devicePixelRatio = 1.0;
   tester.view.physicalSize = const Size(1600, 1000);
@@ -59,6 +72,7 @@ Future<void> _pumpMosaic(
             .overrideWith((ref) => TestBackendNotifier(ref, resolvedBackend)),
         smartNightExposureContextProvider
             .overrideWith((ref) async => exposureContext),
+        opticalConfigProvider.overrideWithValue(optics),
         if (editor != null)
           currentSequenceProvider.overrideWith((ref) => editor),
       ],
@@ -106,6 +120,51 @@ void main() {
       expect(find.text('Center Dec (degrees)'), findsOneWidget);
       expect(find.text('Panel width (arcmin)'), findsOneWidget);
       expect(find.text('Panel height (arcmin)'), findsOneWidget);
+    });
+
+    // With no rig to measure, the wizard used to quote its field
+    // INITIALISERS as fact ("Panel size: 1.00° × 0.67°") and plan the whole
+    // mosaic from them, while the framing dialog on the same screen refused
+    // to guess. It must now admit the panel size is unknown and refuse to
+    // build until it is supplied.
+    testWidgets(
+        'with no rig it says the panel size is unknown and refuses '
+        'to build', (tester) async {
+      await _pumpMosaic(tester, optics: null);
+
+      expect(
+        find.byKey(const ValueKey('mosaic_unknown_panel_size_banner')),
+        findsOneWidget,
+      );
+      expect(find.text('unknown'), findsOneWidget);
+      expect(find.text('1.00° × 0.67°'), findsNothing);
+
+      final loadBtn = tester.widget<NightshadeButton>(
+        find.byKey(const ValueKey('mosaic_generate_sequence_btn')),
+      );
+      expect(loadBtn.onPressed, isNull);
+      final createBtn = tester.widget<NightshadeButton>(
+        find.byKey(const ValueKey('mosaic_create_project_btn')),
+      );
+      expect(createBtn.onPressed, isNull);
+    });
+
+    testWidgets('with a rig the panel size is the rig\'s field, not 60x40',
+        (tester) async {
+      await _pumpMosaic(tester);
+
+      expect(
+        find.byKey(const ValueKey('mosaic_unknown_panel_size_banner')),
+        findsNothing,
+      );
+      // 500 mm + 4144x2822 px at 4.63 um => 2.20° × 1.50°.
+      expect(find.text('2.20° × 1.50°'), findsOneWidget);
+      expect(find.text('1.00° × 0.67°'), findsNothing);
+
+      final loadBtn = tester.widget<NightshadeButton>(
+        find.byKey(const ValueKey('mosaic_generate_sequence_btn')),
+      );
+      expect(loadBtn.onPressed, isNotNull);
     });
 
     testWidgets('does not show the resume banner when no checkpoint exists',

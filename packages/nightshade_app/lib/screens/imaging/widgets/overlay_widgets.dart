@@ -319,16 +319,30 @@ class ExposureProgressOverlay extends StatelessWidget {
   final ExposureProgress progress;
   final NightshadeColors colors;
 
+  /// The operator has asked for this exposure to stop and the abort is in
+  /// flight.
+  ///
+  /// The countdown MUST stop here. `ExposureProgress` keeps ticking after a
+  /// cancel — the native waiter goes on publishing progress until the driver
+  /// reports not-exposing or the duration deadline passes — so the ring ran on
+  /// to "97% · 1.0s remaining" seconds after the operator was told the frame
+  /// was cancelled, i.e. the screen counted down to a frame that will never
+  /// arrive. Nothing is known about how long the driver takes to honour an
+  /// abort, so this state is indeterminate by construction.
+  final bool isAborting;
+
   const ExposureProgressOverlay({
     super.key,
     required this.progress,
     required this.colors,
+    this.isAborting = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final statusText =
-        progress.isDownloading ? 'Downloading...' : 'Exposing...';
+    final statusText = isAborting
+        ? 'Stopping exposure...'
+        : (progress.isDownloading ? 'Downloading...' : 'Exposing...');
     final progressValue = (progress.percent / 100.0).clamp(0.0, 1.0);
 
     return Container(
@@ -344,21 +358,22 @@ class ExposureProgressOverlay extends StatelessWidget {
               child: Stack(
                 children: [
                   CircularProgressIndicator(
-                    value: progressValue,
+                    value: isAborting ? null : progressValue,
                     strokeWidth: 4,
                     backgroundColor: colors.surfaceAlt,
                     valueColor: AlwaysStoppedAnimation<Color>(colors.primary),
                   ),
-                  Center(
-                    child: Text(
-                      '${progress.percent.toStringAsFixed(0)}%',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize16,
-                        fontWeight: FontWeight.bold,
-                        color: colors.primary,
+                  if (!isAborting)
+                    Center(
+                      child: Text(
+                        '${progress.percent.toStringAsFixed(0)}%',
+                        style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize16,
+                          fontWeight: FontWeight.bold,
+                          color: colors.primary,
+                        ),
                       ),
                     ),
-                  ),
                 ],
               ),
             ),
@@ -373,7 +388,7 @@ class ExposureProgressOverlay extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
-            if (!progress.isDownloading)
+            if (!isAborting && !progress.isDownloading)
               Text(
                 '${progress.remaining.toStringAsFixed(1)}s remaining',
                 style: const TextStyle(

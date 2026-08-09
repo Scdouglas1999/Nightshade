@@ -1,5 +1,196 @@
 part of '../profile_service.dart';
 
+/// Marker written into every profile export so the importer can tell a
+/// Nightshade profile from any other JSON the operator happens to pick.
+const String kProfileExportFormat = 'nightshade.equipment-profile';
+
+/// Format version of what [ProfileExportData.toJson] writes. Bumped only when
+/// a reader of an older build could misread the document; an export carrying a
+/// higher number is refused with a message that says so rather than being
+/// half-parsed.
+const int kProfileExportVersion = 2;
+
+/// A profile import that failed for a reason the operator can act on.
+///
+/// [message] is user-facing prose — it is what the settings screen shows — so
+/// it never names a Dart type, a character offset, or a JSON key path.
+/// Messages about the chosen document deliberately open with `That file` so a
+/// caller that knows the file's name can substitute it.
+class ProfileImportException implements Exception {
+  const ProfileImportException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+/// Wraps a single profile document in the export envelope.
+Map<String, dynamic> profileExportEnvelope(
+  List<Map<String, dynamic>> profiles,
+) {
+  return {
+    'format': kProfileExportFormat,
+    'version': kProfileExportVersion,
+    'exportDate': DateTime.now().toIso8601String(),
+    'profiles': profiles,
+  };
+}
+
+/// Reads the profile list out of an export document, rejecting anything that
+/// is not one with prose the operator can act on.
+///
+/// Accepts three shapes: the current envelope, the pre-envelope
+/// `{"version":2,"profiles":[...]}` batch export, and a bare single-profile
+/// map — the last two are what every build up to 6.1.0 wrote, and those files
+/// are on people's disks.
+List<dynamic> profilesFromExportDocument(String json) {
+  final Object? data;
+  try {
+    data = jsonDecode(json);
+  } on FormatException {
+    throw const ProfileImportException(
+      'That file is not a Nightshade equipment profile — it is not JSON at '
+      'all. Pick a .json file exported from Settings > Equipment Profiles.',
+    );
+  }
+
+  if (data is List) return data;
+  if (data is! Map) {
+    throw const ProfileImportException(
+      'That file is not a Nightshade equipment profile.',
+    );
+  }
+
+  final format = data['format'];
+  if (format is String && format != kProfileExportFormat) {
+    throw ProfileImportException(
+      'That file is a "$format" export, not a Nightshade equipment profile.',
+    );
+  }
+
+  final version = data['version'];
+  if (version is num && version > kProfileExportVersion) {
+    throw ProfileImportException(
+      'That profile was exported by a newer version of Nightshade '
+      '(export format ${version.toInt()}; this build reads up to '
+      '$kProfileExportVersion). Update Nightshade and import it again.',
+    );
+  }
+
+  if (data.containsKey('profiles')) {
+    final profiles = data['profiles'];
+    if (profiles is! List) {
+      throw const ProfileImportException(
+        'That file looks like a Nightshade export but its profile list is '
+        'damaged.',
+      );
+    }
+    return profiles;
+  }
+
+  // A sequence export is the neighbouring `.json` in the same folder and the
+  // import picker offers it, so name it rather than letting the bare-map path
+  // below mistake its `name` field for a profile's.
+  if (data.containsKey('nodes') && data.containsKey('rootNodeId')) {
+    throw const ProfileImportException(
+      'That file is a Nightshade sequence, not an equipment profile. Import '
+      'it from the Sequencer instead.',
+    );
+  }
+
+  // Legacy single-profile export: a bare field map with no envelope. Every
+  // build that wrote one wrote it with ProfileExportData.toJson, which always
+  // emits the optical, binning and cooling fields — so requiring one of them
+  // alongside the name is what separates a real profile from any other
+  // document that merely happens to carry a `name`.
+  if (data.containsKey('name') &&
+      data.keys.any(_legacyProfileFields.contains)) {
+    return [data];
+  }
+
+  throw const ProfileImportException(
+    'That file is not a Nightshade equipment profile — it contains no '
+    'profile data.',
+  );
+}
+
+/// Fields only an equipment-profile export carries, used to recognise the
+/// pre-envelope bare-map export without accepting unrelated JSON.
+const Set<String> _legacyProfileFields = {
+  'focalLength',
+  'aperture',
+  'focalRatio',
+  'defaultBinX',
+  'defaultBinY',
+  'defaultGain',
+  'defaultOffset',
+  'defaultCoolingTemp',
+  'coolOnConnect',
+  'defaultCenteringExposure',
+  'cameraId',
+  'mountId',
+  'focuserId',
+  'filterWheelId',
+  'guiderId',
+  'rotatorId',
+  'filterNames',
+  'filterFocusOffsets',
+  'telescopeFocalLength',
+  'telescopeAperture',
+  'profileIcon',
+  'profileColor',
+};
+
+/// Parses one entry, restating any field-level rejection in plain language.
+ProfileExportData parseExportedProfile(Object? entry, {required int index}) {
+  if (entry is! Map<String, dynamic>) {
+    throw ProfileImportException(
+      'Entry ${index + 1} in that file is not a profile.',
+    );
+  }
+  String subject() {
+    final name = entry['name'];
+    return name is String && name.trim().isNotEmpty
+        ? '"${name.trim()}"'
+        : 'entry ${index + 1}';
+  }
+
+  try {
+    return ProfileExportData.fromJson(entry);
+  } on FormatException catch (e) {
+    throw ProfileImportException(
+      'Nightshade could not import ${subject()}: ${_sentence(e.message)}',
+    );
+  } catch (e) {
+    // A hand-edited file can put anything in any field. The typed readers
+    // above turn the ones we know about into prose; this keeps a stray cast
+    // from reaching the operator as a Dart type error while still leaving the
+    // real thing in the log.
+    developer.log(
+      'ProfileService: unexpected error importing profile entry $index: $e',
+      name: 'ProfileService',
+      level: 1000,
+      error: e,
+    );
+    throw ProfileImportException(
+      'Nightshade could not import ${subject()}: one of its fields is not '
+      'the kind of value a profile stores there.',
+    );
+  }
+}
+
+/// Lower-cases the leading `Profile ` the field validators prefix, so the
+/// message reads as the tail of a sentence.
+String _sentence(String message) {
+  final trimmed = message.trim();
+  if (trimmed.isEmpty) return 'the profile data is not valid.';
+  final body = trimmed.startsWith('Profile ')
+      ? trimmed.substring('Profile '.length)
+      : '${trimmed[0].toLowerCase()}${trimmed.substring(1)}';
+  return body.endsWith('.') ? body : '$body.';
+}
+
 /// Data class for profile import/export
 class ProfileExportData {
   final String name;
@@ -219,48 +410,69 @@ class ProfileExportData {
     }
     final data = ProfileExportData(
       name: name.trim(),
-      description: json['description'] as String?,
-      cameraId: json['cameraId'] as String?,
-      mountId: json['mountId'] as String?,
-      focuserId: json['focuserId'] as String?,
-      filterWheelId: json['filterWheelId'] as String?,
-      guiderId: json['guiderId'] as String?,
-      rotatorId: json['rotatorId'] as String?,
-      domeId: json['domeId'] as String?,
-      weatherId: json['weatherId'] as String?,
-      safetyMonitorId: json['safetyMonitorId'] as String?,
-      switchId: json['switchId'] as String?,
-      coverCalibratorId: json['coverCalibratorId'] as String?,
-      cameraName: json['cameraName'] as String?,
-      mountName: json['mountName'] as String?,
-      focuserName: json['focuserName'] as String?,
-      filterWheelName: json['filterWheelName'] as String?,
-      guiderName: json['guiderName'] as String?,
-      rotatorName: json['rotatorName'] as String?,
-      safetyMonitorName: json['safetyMonitorName'] as String?,
-      switchName: json['switchName'] as String?,
-      telescopeName: json['telescopeName'] as String?,
-      telescopeFocalLength: (json['telescopeFocalLength'] as num?)?.toDouble(),
-      telescopeAperture: (json['telescopeAperture'] as num?)?.toDouble(),
-      focalLength: (json['focalLength'] as num?)?.toDouble() ?? 0.0,
-      aperture: (json['aperture'] as num?)?.toDouble() ?? 0.0,
-      focalRatio: (json['focalRatio'] as num?)?.toDouble(),
-      defaultGain: (json['defaultGain'] as num?)?.toInt(),
-      defaultOffset: (json['defaultOffset'] as num?)?.toInt(),
-      defaultBinX: (json['defaultBinX'] as num?)?.toInt() ?? 1,
-      defaultBinY: (json['defaultBinY'] as num?)?.toInt() ?? 1,
-      defaultCoolingTemp: (json['defaultCoolingTemp'] as num?)?.toDouble(),
-      coolOnConnect: json['coolOnConnect'] as bool? ?? false,
-      defaultCenteringExposure: (json['defaultCenteringExposure'] as num?)
-          ?.toDouble(),
+      description: _profileText(json['description'], 'description'),
+      cameraId: _profileText(json['cameraId'], 'cameraId'),
+      mountId: _profileText(json['mountId'], 'mountId'),
+      focuserId: _profileText(json['focuserId'], 'focuserId'),
+      filterWheelId: _profileText(json['filterWheelId'], 'filterWheelId'),
+      guiderId: _profileText(json['guiderId'], 'guiderId'),
+      rotatorId: _profileText(json['rotatorId'], 'rotatorId'),
+      domeId: _profileText(json['domeId'], 'domeId'),
+      weatherId: _profileText(json['weatherId'], 'weatherId'),
+      safetyMonitorId: _profileText(json['safetyMonitorId'], 'safetyMonitorId'),
+      switchId: _profileText(json['switchId'], 'switchId'),
+      coverCalibratorId: _profileText(
+        json['coverCalibratorId'],
+        'coverCalibratorId',
+      ),
+      cameraName: _profileText(json['cameraName'], 'cameraName'),
+      mountName: _profileText(json['mountName'], 'mountName'),
+      focuserName: _profileText(json['focuserName'], 'focuserName'),
+      filterWheelName: _profileText(json['filterWheelName'], 'filterWheelName'),
+      guiderName: _profileText(json['guiderName'], 'guiderName'),
+      rotatorName: _profileText(json['rotatorName'], 'rotatorName'),
+      safetyMonitorName: _profileText(
+        json['safetyMonitorName'],
+        'safetyMonitorName',
+      ),
+      switchName: _profileText(json['switchName'], 'switchName'),
+      telescopeName: _profileText(json['telescopeName'], 'telescopeName'),
+      telescopeFocalLength: _profileDouble(
+        json['telescopeFocalLength'],
+        'telescopeFocalLength',
+      ),
+      telescopeAperture: _profileDouble(
+        json['telescopeAperture'],
+        'telescopeAperture',
+      ),
+      focalLength: _profileDouble(json['focalLength'], 'focalLength') ?? 0.0,
+      aperture: _profileDouble(json['aperture'], 'aperture') ?? 0.0,
+      focalRatio: _profileDouble(json['focalRatio'], 'focalRatio'),
+      defaultGain: _profileInt(json['defaultGain'], 'defaultGain'),
+      defaultOffset: _profileInt(json['defaultOffset'], 'defaultOffset'),
+      defaultBinX: _profileInt(json['defaultBinX'], 'defaultBinX') ?? 1,
+      defaultBinY: _profileInt(json['defaultBinY'], 'defaultBinY') ?? 1,
+      defaultCoolingTemp: _profileDouble(
+        json['defaultCoolingTemp'],
+        'defaultCoolingTemp',
+      ),
+      coolOnConnect:
+          _profileBool(json['coolOnConnect'], 'coolOnConnect') ?? false,
+      defaultCenteringExposure: _profileDouble(
+        json['defaultCenteringExposure'],
+        'defaultCenteringExposure',
+      ),
       filterNames: _profileStringList(json['filterNames'], 'filterNames'),
       filterFocusOffsets: _profileIntMap(
         json['filterFocusOffsets'],
         'filterFocusOffsets',
       ),
-      meridianFlipOverrides: json['meridianFlipOverrides'] as String?,
-      profileIcon: json['profileIcon'] as String?,
-      profileColor: (json['profileColor'] as num?)?.toInt(),
+      meridianFlipOverrides: _profileText(
+        json['meridianFlipOverrides'],
+        'meridianFlipOverrides',
+      ),
+      profileIcon: _profileText(json['profileIcon'], 'profileIcon'),
+      profileColor: _profileInt(json['profileColor'], 'profileColor'),
     );
     if (!data.focalLength.isFinite || data.focalLength < 0) {
       throw const FormatException('Profile focalLength must be non-negative');
@@ -315,7 +527,16 @@ class ProfileExportData {
     }
     final overrides = data.meridianFlipOverrides;
     if (overrides != null && overrides.trim().isNotEmpty) {
-      final decoded = jsonDecode(overrides);
+      final Object? decoded;
+      try {
+        decoded = jsonDecode(overrides);
+      } on FormatException {
+        // Restated: the raw message is a character offset into a nested
+        // string, which tells the operator nothing about the field.
+        throw const FormatException(
+          'Profile meridian flip overrides are damaged',
+        );
+      }
       if (decoded is! Map) {
         throw const FormatException(
           'Profile meridian flip overrides must be a JSON object',
@@ -368,6 +589,43 @@ class ProfileExportData {
       'profileColor': profileColor,
     };
   }
+}
+
+/// Typed field readers. A hand-edited or foreign document can put any JSON
+/// value in any key; a bare `as String?` turns that into a Dart `TypeError`,
+/// which escapes [ProfileExportData.fromJson]'s `FormatException` contract and
+/// reaches the operator as "type 'int' is not a subtype of type 'String?' in
+/// type cast". These state the field instead.
+String? _profileText(Object? raw, String field) {
+  if (raw == null) return null;
+  if (raw is! String) {
+    throw FormatException('Profile $field must be text');
+  }
+  return raw;
+}
+
+double? _profileDouble(Object? raw, String field) {
+  if (raw == null) return null;
+  if (raw is! num) {
+    throw FormatException('Profile $field must be a number');
+  }
+  return raw.toDouble();
+}
+
+int? _profileInt(Object? raw, String field) {
+  if (raw == null) return null;
+  if (raw is! num || !raw.isFinite) {
+    throw FormatException('Profile $field must be a whole number');
+  }
+  return raw.toInt();
+}
+
+bool? _profileBool(Object? raw, String field) {
+  if (raw == null) return null;
+  if (raw is! bool) {
+    throw FormatException('Profile $field must be true or false');
+  }
+  return raw;
 }
 
 List<String>? _profileStringList(Object? raw, String field) {

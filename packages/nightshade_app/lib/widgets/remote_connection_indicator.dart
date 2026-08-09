@@ -6,6 +6,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import 'work_locally.dart';
+
 /// Four-state model for the shared remote-connection indicator.
 ///
 /// Distinct from `BackendConnectionState` so we can render a sane
@@ -519,6 +521,24 @@ class _RemoteConnectionSheetState
                   label: _disconnecting ? 'Disconnecting...' : 'Disconnect',
                   variant: ButtonVariant.destructive,
                 ),
+              ),
+            ),
+          // With no backend at all this sheet had no action whatsoever — it
+          // stated "Not connected to a server" and stopped, which on the
+          // desktop that owns the hardware was the dead end one failed
+          // "Connect to Server" left behind. Same recovery the shell banner
+          // and Settings > Connection offer, on the surface the title-bar
+          // indicator opens.
+          //
+          // Gated on the backend TYPE, not on `status`: a local FFI desktop is
+          // also "notConnected" to a server, and offering it a way to local
+          // mode it is already in would be a control that does nothing.
+          if (activeBackend is DisconnectedBackend && canWorkLocally)
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: WorkLocallyButton(
+                icon: LucideIcons.hardDrive,
+                fullWidth: true,
               ),
             ),
         ],

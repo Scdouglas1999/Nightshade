@@ -3,6 +3,43 @@
 
 part of '../polar_alignment_screen.dart';
 
+/// How a persisted run must be presented in Alignment History.
+///
+/// A row is written for every terminal run — including one the operator
+/// cancelled — so "there is a row" is not evidence of anything. Only the
+/// residual against the threshold that run was configured with says whether the
+/// polar axis actually got where the operator asked.
+enum PolarAlignmentHistoryOutcome { reachedTarget, stopped }
+
+/// Threshold (arcsec) the run was configured with, read back from the stored
+/// config. Falls back to the model default when the JSON is unreadable — an
+/// unparseable config must not be allowed to grade a row as a success.
+double polarAlignmentHistoryThreshold(String configJson) {
+  try {
+    final decoded = jsonDecode(configJson);
+    if (decoded is Map<String, dynamic>) {
+      final value = decoded['autoCompleteThreshold'];
+      if (value is num) return value.toDouble();
+    }
+  } on FormatException {
+    // fall through to the default below
+  }
+  return const PolarAlignmentConfig().autoCompleteThreshold;
+}
+
+/// Grade a history row.
+///
+/// The measured final error determines the outcome; `autoCompleted` only says
+/// who ended the run.
+PolarAlignmentHistoryOutcome polarAlignmentHistoryOutcome({
+  required double finalTotalError,
+  required String configJson,
+}) {
+  return finalTotalError <= polarAlignmentHistoryThreshold(configJson)
+      ? PolarAlignmentHistoryOutcome.reachedTarget
+      : PolarAlignmentHistoryOutcome.stopped;
+}
+
 extension _HistoryPanel on _PolarAlignmentScreenState {
   Widget _buildAdjustmentTips(NightshadeColors colors) {
     return Container(
@@ -110,11 +147,13 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
                     color: _getErrorMagnitudeColor(colors, azMagnitude),
                   ),
                   const SizedBox(width: 6),
-                  Text(
-                    'Azimuth: $azDirection ${azMagnitude.toStringAsFixed(0)}"',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: _getErrorMagnitudeColor(colors, azMagnitude),
+                  Expanded(
+                    child: Text(
+                      'Azimuth: $azDirection ${formatPolarError(azMagnitude)}',
+                      style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize11,
+                        color: _getErrorMagnitudeColor(colors, azMagnitude),
+                      ),
                     ),
                   ),
                 ],
@@ -132,11 +171,13 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
                   color: _getErrorMagnitudeColor(colors, altMagnitude),
                 ),
                 const SizedBox(width: 6),
-                Text(
-                  'Altitude: $altDirection ${altMagnitude.toStringAsFixed(0)}"',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    color: _getErrorMagnitudeColor(colors, altMagnitude),
+                Expanded(
+                  child: Text(
+                    'Altitude: $altDirection ${formatPolarError(altMagnitude)}',
+                    style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: _getErrorMagnitudeColor(colors, altMagnitude),
+                    ),
                   ),
                 ),
               ],
@@ -208,6 +249,12 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
                               100)
                           .clamp(0.0, 100.0)
                       : 0.0;
+                  final outcome = polarAlignmentHistoryOutcome(
+                    finalTotalError: entry.finalTotalError,
+                    configJson: entry.configJson,
+                  );
+                  final reachedTarget =
+                      outcome == PolarAlignmentHistoryOutcome.reachedTarget;
 
                   final dateStr = _formatDate(entry.completedAt);
 
@@ -221,13 +268,12 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
                     child: Row(
                       children: [
                         Icon(
-                          entry.autoCompleted
+                          reachedTarget
                               ? NightshadeIcons.target
-                              : NightshadeIcons.check,
+                              : LucideIcons.circleSlash,
                           size: 14,
-                          color: entry.finalTotalError < 60
-                              ? colors.success
-                              : colors.warning,
+                          color:
+                              reachedTarget ? colors.success : colors.textMuted,
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -243,32 +289,36 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                'Final: ${entry.finalTotalError.toStringAsFixed(0)}"',
+                                'Final: ${formatPolarError(entry.finalTotalError)}',
                                 style: NightshadeTypography.labelQuiet
                                     .copyWith(color: colors.textPrimary),
                               ),
                             ],
                           ),
                         ),
+                        // A stopped run gets the word "Stopped", not a
+                        // percentage: its "improvement" is the difference
+                        // between two solves of an axis nobody touched, i.e.
+                        // measurement noise dressed up as an achievement.
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
                             vertical: 4,
                           ),
                           decoration: NightshadeDecorations.tintedBadge(
-                            improvementPercent > 50
-                                ? colors.success
-                                : colors.info,
+                            reachedTarget ? colors.success : colors.textMuted,
                             borderRadius: NightshadeTokens.borderRadiusInline4,
                           ),
                           child: Text(
-                            '+${improvementPercent.toStringAsFixed(0)}%',
+                            reachedTarget
+                                ? '+${improvementPercent.toStringAsFixed(0)}%'
+                                : 'Stopped',
                             style: TextStyle(
                               fontSize: NightshadeTypography.fontSize10,
                               fontWeight: FontWeight.w600,
-                              color: improvementPercent > 50
+                              color: reachedTarget
                                   ? colors.success
-                                  : colors.info,
+                                  : colors.textMuted,
                             ),
                           ),
                         ),

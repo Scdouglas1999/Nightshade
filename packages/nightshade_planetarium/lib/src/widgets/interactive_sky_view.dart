@@ -471,8 +471,34 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
     return totalVelocity / (recent.length - 1).toDouble();
   }
 
+  /// Field of view the view is *heading for*: the in-flight zoom target while
+  /// the 300 ms glide is running, otherwise the live value.
+  ///
+  /// Relative zoom steps must compound onto this, never onto the live FOV. The
+  /// glide only covers a fraction of the distance in the ~50 ms between two
+  /// wheel notches, so basing the next notch on the live (barely-moved) value
+  /// silently discarded every notch that arrived mid-glide — measured live, 20
+  /// fast notches moved the FOV by exactly one notch and it took 172 notches to
+  /// get from 60 deg to 29 deg.
+  double get _pendingFOV => _zoomController.isAnimating
+      ? _targetFOV
+      : ref.read(skyViewStateProvider).fieldOfView;
+
+  /// Compound one relative zoom step onto the pending target.
+  ///
+  /// [factor] > 1 zooms out (widens the field), < 1 zooms in. The step size is
+  /// picked from the pending FOV too, so a burst of notches crossing the
+  /// coarse/fine boundary steps the same way it would one notch at a time.
+  void _zoomByStep({required bool zoomOut}) {
+    final baseFOV = _pendingFOV;
+    final zoomFactor = baseFOV > 30 ? 1.2 : 1.15;
+    _animateZoom(zoomOut ? baseFOV * zoomFactor : baseFOV / zoomFactor);
+  }
+
   /// Animate FOV to a new target value
   void _animateZoom(double newFOV) {
+    // The tween BEGINS at the live FOV so the glide stays visually continuous
+    // when a new step lands mid-animation; only the END accumulates.
     final currentFOV = ref.read(skyViewStateProvider).fieldOfView;
     _startFOV = currentFOV;
     _targetFOV = newFOV.clamp(1.0, 180.0);
@@ -655,17 +681,7 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
         return Listener(
           onPointerSignal: (event) {
             if (event is PointerScrollEvent) {
-              final currentFOV = ref.read(skyViewStateProvider).fieldOfView;
-              // Determine zoom factor (faster at wide FOV, finer at narrow FOV)
-              final zoomFactor = currentFOV > 30 ? 1.2 : 1.15;
-
-              if (event.scrollDelta.dy > 0) {
-                // Zoom out
-                _animateZoom(currentFOV * zoomFactor);
-              } else {
-                // Zoom in
-                _animateZoom(currentFOV / zoomFactor);
-              }
+              _zoomByStep(zoomOut: event.scrollDelta.dy > 0);
             }
           },
           child: GestureDetector(
@@ -1071,7 +1087,7 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
       // the canvas right now; if it is not, the gradient stays and the sky
       // chart is unchanged.
       paintsOpaqueBackground:
-          !isBase || !(widget.backgroundLayer?.occludesSkyGradient ?? false),
+          !isBase || widget.backgroundLayer?.occludesSkyGradient != true,
     );
 
     return painter;
@@ -1118,6 +1134,7 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
     // Convert min hit radius from pixels to degrees for angular comparison
     final minHitRadiusDegrees = minHitRadiusPixels / scale;
 
+    Star? nearestStar;
     for (final star in stars) {
       final distance = _angularDistance(coord, star.coordinates);
 
@@ -1134,8 +1151,11 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
 
       if (distance < hitRadiusDegrees && distance < nearestDistance) {
         nearestDistance = distance;
-        nearestObject = star;
+        nearestStar = star;
       }
+    }
+    if (nearestStar != null) {
+      nearestObject = _resolveCoincidentStar(nearestStar, stars, scale);
     }
 
     for (final dso in dsos) {
@@ -1171,15 +1191,15 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
 
       if (distance < satelliteHitRadiusDegrees && distance < nearestDistance) {
         nearestDistance = distance;
-        // Create a CelestialObject for the satellite so it can be displayed
-        // in the popup. We use a Star object as the closest match since satellites
-        // are point sources. The name, coordinates, and magnitude are the key fields.
-        nearestObject = Star(
+        // Carried as a SolarSystemBody: it renders and hit-tests like the point
+        // sources Star covers, but the popup and the observation log need to be
+        // able to say what it actually is.
+        nearestObject = SolarSystemBody(
           id: 'SAT_${sat.catalogNumber}',
           name: sat.name,
           coordinates: satCoord,
+          kind: SolarSystemBodyKind.satellite,
           magnitude: null, // Satellites don't have a fixed magnitude
-          spectralType: null,
         );
       }
     }
@@ -1195,12 +1215,12 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
 
       if (distance < planetHitRadiusDegrees && distance < nearestDistance) {
         nearestDistance = distance;
-        nearestObject = Star(
+        nearestObject = SolarSystemBody(
           id: 'PLANET_${planet.name}',
           name: planet.name,
           coordinates: planetCoord,
+          kind: SolarSystemBodyKind.planet,
           magnitude: planet.magnitude,
-          spectralType: null,
         );
       }
     }
@@ -1223,6 +1243,45 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
       nearestObject?.coordinates ?? coord,
       position,
     );
+  }
+
+  /// Pixels within which two catalogue rows are drawn as ONE star.
+  ///
+  /// Below the pointer's own addressable resolution: at this separation no user
+  /// can aim at one row rather than the other, and the renderer has already
+  /// drawn a single glyph with a single label.
+  static const double _coincidentStarPixels = 2.0;
+
+  /// Resolve a star hit that landed on a cluster of coincident catalogue rows
+  /// to the one the chart actually labelled — the brightest.
+  ///
+  /// HYG lists the components of a multiple star as separate rows. Capella's
+  /// Aa (mag 0.08, named "Capella") and Ab (mag 0.96, no name, no HIP) sit
+  /// 9 arcsec apart, which at any field wider than a fraction of a degree is
+  /// well under one pixel. Taking the strictly nearest row therefore made the
+  /// pick a coin flip: clicking the star the chart labels "Capella" opened a
+  /// panel headed "HYG118360" reporting magnitude 1.0, contradicting both the
+  /// label and the glyph size drawn from mag 0.08.
+  CelestialObject _resolveCoincidentStar(
+    Star nearest,
+    List<Star> stars,
+    double scale,
+  ) {
+    final mergeDegrees = _coincidentStarPixels / scale;
+    var best = nearest;
+    var bestMag = nearest.magnitude ?? 99.0;
+    for (final star in stars) {
+      if (identical(star, nearest)) continue;
+      final mag = star.magnitude ?? 99.0;
+      if (mag >= bestMag) continue;
+      if (_angularDistance(nearest.coordinates, star.coordinates) >
+          mergeDegrees) {
+        continue;
+      }
+      best = star;
+      bestMag = mag;
+    }
+    return best;
   }
 
   CelestialCoordinate? _screenToCelestial(

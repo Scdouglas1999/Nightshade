@@ -19,9 +19,15 @@ import '../../../widgets/narrator/narrator_feed.dart';
 ///
 /// Visibility mirrors the other imaging HUD chrome:
 ///   * Session id comes from [sessionStateProvider] (the same source
-///     `SubQualityBadge` / the Science HUD use); when there is no DB session
-///     the strip is hidden — captures on the imaging screen always run inside a
-///     session, so a sessionless fallback would only ever be empty here.
+///     `SubQualityBadge` / the Science HUD use). It is null for every manual
+///     capture on this screen — `SessionStateNotifier.startSession` is only
+///     ever called by the sequencer — and reading only the session feed made
+///     the strip permanently invisible for anyone driving the imaging screen by
+///     hand: a whole night of manual frames, autofocus runs and cooldowns and
+///     not one line. `NarratorService` deliberately runs sessionless in that
+///     case (its guiding / weather / autofocus / last-image detectors still
+///     fire and persist with a null `session_id`), so the sessionless bucket is
+///     read from [recentNarratorFeedProvider] instead.
 ///   * Like [SubQualityBadge] it renders [SizedBox.shrink] when there is
 ///     nothing honest to show — here, when the feed is empty — so the canvas
 ///     gains no idle clutter before the first insight fires.
@@ -32,15 +38,21 @@ import '../../../widgets/narrator/narrator_feed.dart';
 class NarratorTicker extends ConsumerWidget {
   const NarratorTicker({super.key});
 
+  /// Clock used to age events out of the rotation window. Overridable so a
+  /// test can move time forward without sleeping — production is
+  /// [DateTime.now]. Mirrors `NarratorService.setClock`.
+  @visibleForTesting
+  static DateTime Function() clock = DateTime.now;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sessionId = ref.watch(sessionStateProvider).dbSessionId;
-    // No session → nothing to narrate on the imaging canvas. (Captures here
-    // always belong to a session, so the sessionless feed would be empty.)
-    if (sessionId == null) return const SizedBox.shrink();
-
-    final events = ref.watch(narratorFeedProvider(sessionId)).valueOrNull ??
-        const <NarratorEvent>[];
+    // No DB session (every manual capture on this screen) → the sessionless
+    // bucket, which is where the narrator writes for those frames.
+    final feed = sessionId == null
+        ? ref.watch(recentNarratorFeedProvider)
+        : ref.watch(narratorFeedProvider(sessionId));
+    final events = feed.valueOrNull ?? const <NarratorEvent>[];
     if (events.isEmpty) return const SizedBox.shrink();
 
     return _NarratorTickerView(sessionId: sessionId, events: events);
@@ -50,7 +62,10 @@ class NarratorTicker extends ConsumerWidget {
 /// The animated strip itself, separated from the provider watch so the rotation
 /// [Timer] lives in a [State] without forcing the consumer to be stateful.
 class _NarratorTickerView extends StatefulWidget {
-  final int sessionId;
+  /// Null when the frames being narrated belong to no DB session (manual
+  /// captures). Decides which feed the sheet reads and whether a stale event
+  /// may be used as the resting headline.
+  final int? sessionId;
   final List<NarratorEvent> events;
 
   const _NarratorTickerView({required this.sessionId, required this.events});
@@ -111,24 +126,48 @@ class _NarratorTickerViewState extends State<_NarratorTickerView> {
   /// The events that participate in the auto-advance rotation: those within
   /// [_recentWindow] of now, newest/pinned-first (the provider already orders
   /// the feed that way, so we keep its order). Capped so a long burst of events
-  /// doesn't make the rotation crawl. Falls back to just the single newest
-  /// event when nothing is recent, so the strip always rests on the latest.
+  /// doesn't make the rotation crawl.
+  ///
+  /// With a session, falling back to the single newest event keeps the strip
+  /// resting on the latest thing this run said. Without one there is no run to
+  /// scope it to: the sessionless bucket outlives the app, so its newest entry
+  /// could be from a previous night — nothing honest to rest on, so stay quiet.
   List<NarratorEvent> _buildRotation(List<NarratorEvent> events) {
-    final now = DateTime.now();
+    final now = NarratorTicker.clock();
     final recent = events
         .where((e) => now.difference(e.timestamp).abs() <= _recentWindow)
         .take(6)
         .toList(growable: false);
     if (recent.isNotEmpty) return recent;
+    if (widget.sessionId == null) return const <NarratorEvent>[];
     return events.isEmpty ? const <NarratorEvent>[] : [events.first];
   }
 
+  /// Drives both the auto-advance and the re-evaluation of [_recentWindow].
+  ///
+  /// The window has to be re-checked on a clock, not only when the feed
+  /// changes. `recentNarratorFeedProvider` is a DB watch, so on a hand-driven
+  /// night it emits when an insight is written and then stays silent — one
+  /// event at 22:00 and nothing after would leave that headline (and its
+  /// "2m ago" label) pinned over the canvas for the rest of the night, which
+  /// is the same stale-headline failure the sessionless window exists to
+  /// prevent, only displaced in time. So the timer runs for a single event
+  /// too, and each tick rebuilds the rotation before advancing.
   void _restartTimer() {
     _timer?.cancel();
-    if (_rotation.length < 2) return;
+    if (_rotation.isEmpty) return;
     _timer = Timer.periodic(_advanceInterval, (_) {
       if (!mounted) return;
-      setState(() => _index = (_index + 1) % _rotation.length);
+      setState(() {
+        _rotation = _buildRotation(widget.events);
+        if (_rotation.isEmpty) {
+          _index = 0;
+          _timer?.cancel();
+          _timer = null;
+          return;
+        }
+        _index = (_index + 1) % _rotation.length;
+      });
     });
   }
 
@@ -297,15 +336,20 @@ class _CountChip extends StatelessWidget {
 /// so the cards open their own detail sheets on tap. Capped height so the sheet
 /// never swallows the whole screen on a tall feed.
 class _NarratorFeedSheet extends ConsumerWidget {
-  final int sessionId;
+  /// Null for manual captures; the sheet then shows the sessionless bucket, so
+  /// it never contradicts the strip that opened it.
+  final int? sessionId;
 
   const _NarratorFeedSheet({required this.sessionId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
-    final events = ref.watch(narratorFeedProvider(sessionId)).valueOrNull ??
-        const <NarratorEvent>[];
+    final id = sessionId;
+    final feed = id == null
+        ? ref.watch(recentNarratorFeedProvider)
+        : ref.watch(narratorFeedProvider(id));
+    final events = feed.valueOrNull ?? const <NarratorEvent>[];
     final maxHeight = MediaQuery.of(context).size.height * 0.7;
 
     return SafeArea(

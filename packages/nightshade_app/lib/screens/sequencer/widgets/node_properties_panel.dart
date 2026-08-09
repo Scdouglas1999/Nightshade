@@ -19,6 +19,7 @@ import 'node_property_widgets.dart';
 import 'node_timing_section.dart';
 import 'science_photometry_properties.dart';
 import 'smart_exposure_properties.dart';
+import 'target_coordinates.dart';
 import 'target_node_properties.dart';
 import 'target_scheduler_properties.dart';
 

@@ -17,7 +17,6 @@ import 'package:nightshade_app/screens/imaging/imaging_screen.dart';
 import 'package:nightshade_app/screens/planner/planner_screen.dart';
 import 'package:nightshade_app/screens/sequencer/sequencer_screen.dart';
 import 'package:nightshade_app/screens/weather/weather_screen.dart';
-import 'package:vector_math/vector_math_64.dart' show Matrix4;
 
 import '../harness/harness.dart';
 
@@ -46,33 +45,20 @@ class _Target {
 
 /// Every tappable semantics node, with rects resolved to global coordinates —
 /// the same traversal Flutter's own tap-target guideline performs.
-List<_Target> measureTapTargets(WidgetTester tester) {
-  final owner = tester.binding.pipelineOwner.semanticsOwner;
-  final root = owner?.rootSemanticsNode;
-  final found = <_Target>[];
-  if (root == null) return found;
-
-  void visit(SemanticsNode node, Matrix4 inherited) {
-    final transform = inherited.clone();
-    if (node.transform != null) transform.multiply(node.transform!);
+List<_Target> _measureTapTargets() {
+  final tappableNodes = find.semantics.byPredicate((node) {
     final data = node.getSemanticsData();
-    final isTappable = data.hasAction(SemanticsAction.tap) &&
-        !data.hasFlag(SemanticsFlag.isHidden) &&
-        !data.hasFlag(SemanticsFlag.isTextField);
-    if (isTappable) {
-      found.add(_Target(
-        MatrixUtils.transformRect(transform, node.rect),
-        data.label,
-      ));
-    }
-    node.visitChildren((child) {
-      visit(child, transform);
-      return true;
-    });
-  }
-
-  visit(root, Matrix4.identity());
-  return found;
+    return data.hasAction(SemanticsAction.tap) &&
+        !data.flagsCollection.isHidden &&
+        !data.flagsCollection.isTextField;
+  });
+  return [
+    for (final candidate in tappableNodes.evaluate())
+      _Target(
+        candidate.rect,
+        candidate.getSemanticsData().label,
+      ),
+  ];
 }
 
 const _phoneSizes = <(String, Size)>[
@@ -97,7 +83,7 @@ void main() {
     for (final (label, size) in _phoneSizes) {
       testWidgets('${entry.key} meets the 48dp Android tap target at $label',
           (tester) async {
-        final handle = await tester.ensureSemantics();
+        final handle = tester.ensureSemantics();
         final app = await pumpAppScreen(
           tester,
           entry.value(),
@@ -106,7 +92,7 @@ void main() {
         );
         await _drainFrames(tester);
 
-        final undersized = measureTapTargets(tester)
+        final undersized = _measureTapTargets()
             .where((t) => t.shortestEdge < kMinTapTarget)
             .toList()
           ..sort((a, b) => a.shortestEdge.compareTo(b.shortestEdge));

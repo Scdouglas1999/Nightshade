@@ -13,6 +13,7 @@ import 'package:path_provider/path_provider.dart';
 import '../session_review/widgets/master_overlay_view.dart';
 import '../session_review/widgets/master_preview_view.dart';
 import 'mosaic_contribute_sheet.dart';
+import 'mosaic_format.dart';
 import 'mosaic_project_controller.dart';
 import 'widgets/mosaic_panel_grid.dart';
 
@@ -405,6 +406,12 @@ class _BackBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Truthful by construction. This screen is pushed from four places —
+    // the projects list, Framing, the sequencer mosaic wizard and the
+    // Collaborative Sky mosaic detail — and the control POPS, so it can only
+    // promise "Mosaic projects" in the one case where it really goes there:
+    // an empty stack, where _leave falls back to context.go('/mosaic').
+    final label = Navigator.of(context).canPop() ? 'Back' : 'Mosaic projects';
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: NightshadeTokens.spaceSm,
@@ -420,11 +427,11 @@ class _BackBar extends StatelessWidget {
               size: NightshadeTokens.iconMd,
             ),
             color: colors.textSecondary,
-            tooltip: 'Back',
+            tooltip: label,
             onPressed: () => _leave(context),
           ),
           Text(
-            'Mosaic projects',
+            label,
             style:
                 NightshadeTypography.bodySm.copyWith(color: colors.textMuted),
           ),
@@ -467,7 +474,7 @@ class MosaicProjectHeader extends StatelessWidget {
       icon: NightshadeIcons.grid,
       title: project.name.isEmpty ? 'Mosaic project' : project.name,
       subtitle: [
-        '${project.cols}x${project.rows} grid',
+        formatMosaicGrid(cols: project.cols, rows: project.rows),
         _panelCountLabel(project, state.panels),
         if (center != null) center,
         '$integrated integrated',
@@ -752,8 +759,14 @@ class MosaicCollaborativeSection extends StatelessWidget {
             ),
             const SizedBox(height: NightshadeTokens.spaceSm),
             Text(
-              '${state.panelsUploaded} of ${state.panels.length} panels '
-              'uploaded to the hub'
+              // How many panels THIS rig still owes the swarm, not just how
+              // many have landed on the hub: a claim is a commitment to shoot a
+              // panel (and to block the rest of the club from it), so the count
+              // that matters when deciding whether to claim more — or hand some
+              // back — is the outstanding held one. Uploaded panels are counted
+              // by the clause after it, never as still-held work.
+              'You hold ${state.heldPanelCount} of ${state.panels.length} '
+              'panels · ${state.panelsUploaded} uploaded to the hub'
               '${isOwner ? '' : ' · claim a panel below to contribute'}',
               style: NightshadeTypography.captionSm
                   .copyWith(color: colors.textMuted),

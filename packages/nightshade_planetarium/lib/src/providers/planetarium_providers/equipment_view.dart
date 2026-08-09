@@ -147,7 +147,7 @@ final selectedObjectVisibilityProvider = Provider<ObjectVisibility?>((ref) {
   if (coords == null) return null;
 
   final location = ref.watch(observerLocationProvider);
-  final date = ref.watch(_currentDateProvider);
+  final date = ref.watch(_currentNightDateProvider);
 
   return AstronomyCalculations.calculateObjectVisibility(
     raDeg: coords.raDegrees,

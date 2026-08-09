@@ -7,6 +7,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import '../services/mount_command_service.dart';
 import '../screens/imaging/centering_dialog.dart';
 import '../utils/authority_bound_dialog.dart';
+import '../utils/confirm_dialog.dart';
 import '../utils/snackbar_helper.dart';
 
 /// The slew mode selection for the dropdown.
@@ -110,76 +111,97 @@ class _SlewDropdownButtonState extends ConsumerState<SlewDropdownButton> {
     // Determine if slew+center+rotate option should be shown
     final showRotateOption = hasRotator && widget.targetRotation != null;
 
-    return PopupMenuButton<SlewMode>(
-      enabled: enabled,
-      onSelected: _handleSlewMode,
-      offset: const Offset(0, 40),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      color: colors.surface,
-      itemBuilder: (context) => [
-        PopupMenuItem<SlewMode>(
-          value: SlewMode.slew,
-          child: Row(
-            children: [
-              Icon(LucideIcons.move, size: 16, color: colors.textPrimary),
-              const SizedBox(width: 8),
-              Text('Slew', style: TextStyle(color: colors.textPrimary)),
-            ],
+    final visibleLabel =
+        _operationInFlight ? 'Working...' : (widget.label ?? 'Slew');
+
+    // The filled half runs the default action; the chevron opens alternatives.
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Expanded(
+          // Carries its own name/role/state: NightshadeButton already publishes
+          // Semantics(button, enabled, label) and is keyboard-focusable.
+          child: NightshadeButton(
+            label: visibleLabel,
+            icon: widget.icon ?? LucideIcons.move,
+            variant: widget.variant,
+            onPressed: enabled ? () => _handleSlewMode(SlewMode.slew) : null,
           ),
         ),
-        PopupMenuItem<SlewMode>(
-          value: SlewMode.slewAndCenter,
-          child: Row(
-            children: [
-              Icon(LucideIcons.target, size: 16, color: colors.textPrimary),
-              const SizedBox(width: 8),
-              Text('Slew & Center',
-                  style: TextStyle(color: colors.textPrimary)),
-            ],
-          ),
-        ),
-        if (showRotateOption)
-          PopupMenuItem<SlewMode>(
-            value: SlewMode.slewCenterRotate,
-            child: Row(
-              children: [
-                Icon(LucideIcons.rotateCw, size: 16, color: colors.textPrimary),
-                const SizedBox(width: 8),
-                Text('Slew, Center & Rotate',
-                    style: TextStyle(color: colors.textPrimary)),
-              ],
-            ),
-          ),
-      ],
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Expanded(
-            child: IgnorePointer(
-              child: ExcludeSemantics(
-                child: NightshadeButton(
-                  label: _operationInFlight
-                      ? 'Working...'
-                      : widget.label ?? 'Slew',
-                  icon: widget.icon ?? LucideIcons.move,
-                  variant: widget.variant,
-                  // PopupMenuButton owns the gesture and semantics. A no-op
-                  // callback here only gives the visual child the correct
-                  // enabled styling; IgnorePointer prevents a nested gesture
-                  // recognizer from stealing the popup tap.
-                  onPressed: enabled ? () {} : null,
+        const SizedBox(width: 4),
+        // PopupMenuButton publishes no name of its own — its child path is
+        // Tooltip('Show menu') > InkWell — so the chevron would reach a screen
+        // reader as an unnamed control sitting beside "Slew". Name it for what
+        // it opens.
+        Semantics(
+          button: true,
+          enabled: enabled,
+          label: 'More slew options',
+          child: PopupMenuButton<SlewMode>(
+            enabled: enabled,
+            onSelected: _handleSlewMode,
+            offset: const Offset(0, 40),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            color: colors.surface,
+            tooltip: 'More slew options',
+            itemBuilder: (context) => [
+              PopupMenuItem<SlewMode>(
+                value: SlewMode.slew,
+                child: Row(
+                  children: [
+                    Icon(LucideIcons.move, size: 16, color: colors.textPrimary),
+                    const SizedBox(width: 8),
+                    Text('Slew', style: TextStyle(color: colors.textPrimary)),
+                  ],
                 ),
+              ),
+              PopupMenuItem<SlewMode>(
+                value: SlewMode.slewAndCenter,
+                child: Row(
+                  children: [
+                    Icon(LucideIcons.target,
+                        size: 16, color: colors.textPrimary),
+                    const SizedBox(width: 8),
+                    Text('Slew & Center',
+                        style: TextStyle(color: colors.textPrimary)),
+                  ],
+                ),
+              ),
+              if (showRotateOption)
+                PopupMenuItem<SlewMode>(
+                  value: SlewMode.slewCenterRotate,
+                  child: Row(
+                    children: [
+                      Icon(LucideIcons.rotateCw,
+                          size: 16, color: colors.textPrimary),
+                      const SizedBox(width: 8),
+                      Text('Slew, Center & Rotate',
+                          style: TextStyle(color: colors.textPrimary)),
+                    ],
+                  ),
+                ),
+            ],
+            // The chevron is its own control now and it is the ONLY route to
+            // Slew & Center / Slew, Center & Rotate, so it gets the design
+            // system's touch minimum rather than a glyph-sized hit box.
+            // Padding to 28x36 (the first attempt) still missed
+            // [NightshadeTokens.minTouchTarget] in both axes. The row is
+            // already 48 tall from the primary half, so the height is free.
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                minWidth: NightshadeTokens.minTouchTarget,
+                minHeight: NightshadeTokens.minTouchTarget,
+              ),
+              child: Icon(
+                LucideIcons.chevronDown,
+                size: 16,
+                color: enabled ? colors.textPrimary : colors.textMuted,
               ),
             ),
           ),
-          const SizedBox(width: 4),
-          Icon(
-            LucideIcons.chevronDown,
-            size: 16,
-            color: enabled ? colors.textPrimary : colors.textMuted,
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -189,6 +211,13 @@ class _SlewDropdownButtonState extends ConsumerState<SlewDropdownButton> {
     if (_operationInFlight) return;
     final revision = ++_operationRevision;
     final backend = ref.read(backendProvider);
+
+    // The horizon gate runs before anything is dispatched and before the
+    // button latches into its working state, so a refused slew leaves the
+    // control exactly as it was.
+    if (!await _confirmHorizon()) return;
+    if (!_isCurrentOperation(revision, backend)) return;
+
     setState(() => _operationInFlight = true);
     try {
       switch (mode) {
@@ -342,6 +371,76 @@ class _SlewDropdownButtonState extends ConsumerState<SlewDropdownButton> {
     }
   }
 
+  /// Confirms a below-horizon GoTo before dispatching it.
+  ///
+  /// No configured site means there is no altitude to judge. A settings-load
+  /// failure blocks the command because it cannot be distinguished from a
+  /// hidden configured site.
+  Future<bool> _confirmHorizon() async {
+    try {
+      await ref.read(appSettingsProvider.future);
+    } catch (error) {
+      if (mounted) {
+        context.showErrorSnackBar(
+          'Unable to verify target altitude because settings could not be '
+          'loaded. Slew was not sent.',
+        );
+      }
+      return false;
+    }
+    if (!mounted) return false;
+
+    // Whether a site exists at all is [appObserverLocationProvider]'s call, not
+    // ours — (0, 0) is a real place and only that provider gets to decide it
+    // means "unset".
+    final site = ref.read(appObserverLocationProvider);
+    if (site == null) return true;
+
+    // Same alt/az model the scheduler uses to decide what is worth imaging, so
+    // the slew gate and the planner never disagree about where a target is.
+    final (altitudeDeg, azimuthDeg) =
+        ref.read(schedulerServiceProvider).calculateAltAz(
+              raHours: widget.ra,
+              decDegrees: widget.dec,
+              time: DateTime.now().toUtc(),
+              latitudeDegrees: site.latitude,
+              longitudeDegrees: site.longitude,
+            );
+
+    // Settings → Location → effective horizon. 0° (the mathematical horizon)
+    // is the default and the floor: a site cannot opt out of the ground.
+    final floorDeg = ref.read(effectiveHorizonDegProvider);
+    if (altitudeDeg >= 0 && altitudeDeg >= floorDeg) return true;
+    if (!mounted) return false;
+
+    final target = widget.targetName ?? 'That target';
+    final where = 'azimuth ${azimuthDeg.toStringAsFixed(0)}°';
+
+    if (altitudeDeg < 0) {
+      return ConfirmDialog.show(
+        context: context,
+        title: 'Target is below the horizon',
+        message: '$target is ${(-altitudeDeg).toStringAsFixed(1)}° below the '
+            'horizon right now ($where) — it is under the ground. Slewing '
+            'there can drive the telescope into the pier, a tripod leg or the '
+            'ground. Check the coordinates, and check your site in '
+            'Settings → Location.',
+        confirmLabel: 'Slew anyway',
+        isDestructive: true,
+      );
+    }
+
+    return ConfirmDialog.show(
+      context: context,
+      title: 'Target is below your horizon limit',
+      message: '$target is only ${altitudeDeg.toStringAsFixed(1)}° above the '
+          'horizon ($where), under the ${floorDeg.toStringAsFixed(0)}° '
+          'effective horizon set in Settings → Location. It may be behind '
+          'trees or a roof, and it will be looking through a lot of air.',
+      confirmLabel: 'Slew anyway',
+    );
+  }
+
   Future<bool> _preflightCentering(
     int revision,
     NightshadeBackend backend,
@@ -410,19 +509,10 @@ class _CenteringDialogWithResultState
   bool _cancelInFlight = false;
   ProviderSubscription<NightshadeBackend>? _backendSubscription;
 
-  /// Settings this run depends on (solver path/timeout plus the centering mount
-  /// sync), awaited rather than read cold: a run started before the provider
-  /// resolves would silently use an empty solver path and the built-in
-  /// defaults instead of the operator's configuration.
-  Future<AppSettingsState?> _resolvedAppSettings() async {
-    try {
-      return await ref.read(appSettingsProvider.future);
-    } catch (_) {
-      return ref.read(appSettingsProvider).valueOrNull;
-    }
-  }
+  Future<AppSettingsState> _resolvedAppSettings() =>
+      ref.read(appSettingsProvider.future);
 
-  CenteringConfig _centeringConfig(AppSettingsState? settings) {
+  CenteringConfig _centeringConfig(AppSettingsState settings) {
     final profile = ref.read(activeEquipmentProfileProvider);
     final exposureTime = profile?.defaultCenteringExposure ?? 5.0;
     return CenteringConfig(
@@ -435,7 +525,7 @@ class _CenteringDialogWithResultState
       // Settings → Plate Solving → "Sync mount when centering". Without the
       // sync each correction re-issues the slew that produced the mis-pointed
       // frame, so the offset never changes and the run ends on max iterations.
-      syncMount: settings?.centeringSyncMount ?? true,
+      syncMount: settings.centeringSyncMount,
     );
   }
 
@@ -467,14 +557,29 @@ class _CenteringDialogWithResultState
     });
 
     final centeringService = ref.read(centeringServiceProvider);
-    final appSettings = await _resolvedAppSettings();
+    late final AppSettingsState appSettings;
+    try {
+      appSettings = await _resolvedAppSettings();
+    } catch (error) {
+      if (mounted) {
+        setState(() => _isCentering = false);
+        Navigator.of(context).pop(
+          CenteringResult.failure(
+            errorMessage: 'Unable to load plate-solving settings: $error',
+            iterations: 0,
+            iterationHistory: const [],
+          ),
+        );
+      }
+      return;
+    }
     if (!mounted) return;
 
     final solverConfig = PlateSolverConfig(
       type: PlateSolverType.astap,
-      executablePath: appSettings?.astapPath ?? '',
-      timeoutSeconds: appSettings?.plateSolveTimeout ?? 60,
-      searchRadius: appSettings?.plateSolveSearchRadius,
+      executablePath: appSettings.astapPath,
+      timeoutSeconds: appSettings.plateSolveTimeout,
+      searchRadius: appSettings.plateSolveSearchRadius,
     );
 
     try {

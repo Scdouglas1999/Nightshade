@@ -50,9 +50,12 @@ class _StartersSection extends ConsumerWidget {
               colors: colors,
               icon: LucideIcons.library,
               title: 'Starters',
-              subtitle:
-                  'Bundled, ready-to-run sample sequences. Tap a card to copy '
-                  'one into your current sequence.',
+              // "copy one into your current sequence" read as append/merge.
+              // _useStarter calls loadSequence, which REPLACES the loaded
+              // sequence outright (it only pauses to confirm when the current
+              // one is dirty).
+              subtitle: 'Bundled, ready-to-run sample sequences. Loading one '
+                  'replaces your current sequence.',
             ),
             const SizedBox(height: 12),
             LayoutBuilder(
@@ -102,8 +105,8 @@ class _StarterCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Trust-patch §B: "Use this starter" calls loadSequence which replaces
-    // the current sequence — disable while running.
+    // Trust-patch §B: "Replace with this starter" calls loadSequence, which
+    // replaces the current sequence — disable while running.
     final canEdit = ref.watch(canEditSequenceProvider);
     return Container(
       decoration: BoxDecoration(
@@ -209,7 +212,7 @@ class _StarterCard extends ConsumerWidget {
                       onPressed: canEdit
                           ? () async => _useStarter(context, ref)
                           : null,
-                      label: 'Use this starter',
+                      label: 'Replace with this starter',
                       icon: LucideIcons.copy,
                       variant: ButtonVariant.primary,
                       size: ButtonSize.small,

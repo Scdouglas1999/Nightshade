@@ -26,6 +26,7 @@ import 'package:nightshade_app/screens/sequencer/widgets/target_queue_panel.dart
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 Future<ProviderContainer> _pumpPanel(
   WidgetTester tester, {
@@ -39,6 +40,7 @@ Future<ProviderContainer> _pumpPanel(
   });
 
   final container = ProviderContainer(overrides: [
+    inMemoryDatabaseOverride(),
     tickerProvider(TickerCadence.thirtySeconds).overrideWith(
       (ref) => Stream.value(DateTime.utc(2024, 6, 15, 22)),
     ),

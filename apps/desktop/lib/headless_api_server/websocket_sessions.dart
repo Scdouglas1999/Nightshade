@@ -79,6 +79,7 @@ extension _HeadlessApiServerWebSocketSessions on HeadlessApiServer {
   void _handleWebSocket(WebSocketChannel socket, String? protocol) {
     _sockets.add(socket);
     _socketLastSeenAt[socket] = DateTime.now();
+    _publishConnectedClientCount();
     _ensureWebSocketHeartbeatTimer();
     _logInfo('New WebSocket connection');
     socket.sink.add(
@@ -134,6 +135,7 @@ extension _HeadlessApiServerWebSocketSessions on HeadlessApiServer {
     _socketAuthIdentities.remove(socket);
     _socketLastSeenAt.remove(socket);
     _sockets.remove(socket);
+    _publishConnectedClientCount();
     if (_sockets.isEmpty) {
       _webSocketHeartbeatTimer?.cancel();
       _webSocketHeartbeatTimer = null;

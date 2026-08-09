@@ -202,15 +202,24 @@ class EquipmentHealthService {
     final recentGuiding = _mean(
       latest.map((session) => session.avgGuidingRms).whereType<double>(),
     );
-    final baselineGuiding = _mean(
+    // Null when there is no history to compare against, NOT a stand-in number.
+    //
+    // `baseline` is sessions 6..15, so it is empty for every user with five or
+    // fewer sessions. `_mean([])` returns 0.0 and the old `.clamp(0.1, 100.0)`
+    // turned that into a 0.1 arcsec / 0.1 px "baseline" — a value no rig has
+    // ever produced. Every new user therefore cleared the 1.25x and 1.15x
+    // triggers on their first night and was told their guiding had degraded
+    // roughly sevenfold, losing 32 of 100 health points, on the strength of a
+    // comparison against nothing.
+    final baselineGuiding = _meanOrNull(
       baseline.map((session) => session.avgGuidingRms).whereType<double>(),
-    ).clamp(0.1, 100.0);
+    );
     final recentHfr = _mean(
       latest.map((session) => session.avgHfr).whereType<double>(),
     );
-    final baselineHfr = _mean(
+    final baselineHfr = _meanOrNull(
       baseline.map((session) => session.avgHfr).whereType<double>(),
-    ).clamp(0.1, 100.0);
+    );
     final failureRate = _failureRate(latest);
     final unhealthyDevices = deviceHealth
         .where((snapshot) => !snapshot.isHealthy)
@@ -219,7 +228,9 @@ class EquipmentHealthService {
     var score = 100.0;
     final insights = <EquipmentHealthInsight>[];
 
-    if (recentGuiding > 0 && recentGuiding > baselineGuiding * 1.25) {
+    if (baselineGuiding != null &&
+        recentGuiding > 0 &&
+        recentGuiding > baselineGuiding * 1.25) {
       score -= 18;
       insights.add(
         EquipmentHealthInsight(
@@ -231,7 +242,9 @@ class EquipmentHealthService {
       );
     }
 
-    if (recentHfr > 0 && recentHfr > baselineHfr * 1.15) {
+    if (baselineHfr != null &&
+        recentHfr > 0 &&
+        recentHfr > baselineHfr * 1.15) {
       score -= 14;
       insights.add(
         const EquipmentHealthInsight(
@@ -319,6 +332,16 @@ class EquipmentHealthService {
       insights: insights,
       assessed: assessed,
     );
+  }
+
+  /// Mean of [values], or null when there is nothing to average.
+  ///
+  /// Distinct from [_mean], which returns 0.0 for an empty input. That zero was
+  /// being clamped into a plausible-looking baseline and compared against, so
+  /// "no history" was indistinguishable from "excellent history".
+  double? _meanOrNull(Iterable<double> values) {
+    final list = values.toList(growable: false);
+    return list.isEmpty ? null : _mean(list);
   }
 
   double _mean(Iterable<double> values) {

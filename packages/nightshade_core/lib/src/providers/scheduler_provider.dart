@@ -12,6 +12,9 @@ import '../models/scheduler/scheduler_decision.dart';
 import '../models/scheduler/scheduler_status.dart';
 import '../models/scheduler/target_constraint.dart';
 import '../models/planning/project.dart';
+import '../models/readiness/readiness_models.dart';
+import '../models/scheduler/scheduler_readiness.dart';
+import '../models/equipment/equipment_models.dart' show DeviceConnectionState;
 import '../models/sequence/active_plan_owner.dart';
 import '../models/sequence/sequence_models.dart';
 import '../services/planning/project_service.dart'
@@ -20,14 +23,20 @@ import '../services/planning/project_service.dart'
         projectTargetsSchemaSql,
         projectsSchemaSql;
 import '../services/safe_rig_service.dart';
+import '../services/disk_space_guard.dart' show kSafetyMarginBytes;
 import '../services/scheduler/horizon_profile.dart';
 import '../services/scheduler/integration_goal_service.dart';
 import '../services/scheduler/scheduler_engine.dart';
 import '../services/scheduler/target_constraint_service.dart';
+import '../services/smart_night_models.dart' show smartNightPlanningFilters;
 import 'backend_provider.dart';
 import 'clock_provider.dart';
 import 'database_provider.dart';
+import 'disk_space_provider.dart';
 import 'event_provider.dart';
+import 'readiness_provider.dart';
+import 'equipment/guider_state_provider.dart';
+import 'weather_safety_provider.dart';
 // Multi-night planning (component C6): the active-project selection and the
 // live project list scope the scheduler's candidate set to one campaign and
 // re-trigger evaluation when the operator switches projects or edits
@@ -551,9 +560,20 @@ class SchedulerCandidateLoader {
 
   List<String> _availableFilters() {
     // Pull from the active equipment profile via the existing provider.
+    //
+    // A profile with no named filters is the NORMAL state of an OSC/DSLR rig
+    // with no wheel, not a misconfiguration. Handing the engine a bare empty
+    // list made every filter containment check false, so an unfiltered goal
+    // (filter == smartNightUnfilteredName, the empty string) scored 0 in
+    // _filterCoverageFactor and its frames were dropped from the dispatched
+    // sequence. smartNightPlanningFilters yields [''] for that rig — the same
+    // one-unfiltered-row contract Smart Night plans against — so admission,
+    // scoring and sequence building all agree.
     try {
       final profile = ref.read(activeEquipmentProfileProvider);
-      if (profile != null) return List<String>.from(profile.filterNames);
+      if (profile != null) {
+        return smartNightPlanningFilters(profile.filterNames);
+      }
     } catch (_) {
       // activeEquipmentProfileProvider may not yet be initialized in a
       // background tick; that's fine — fall through to an empty list and
@@ -632,6 +652,30 @@ final schedulerPersistedConfigProvider = FutureProvider<SchedulerConfig>((ref) {
 /// settings row was still loading.
 final schedulerConfigUserDirtyProvider = StateProvider<bool>((ref) => false);
 
+/// The site's minimum imaging altitude in degrees — the ONE number.
+///
+/// The scheduler's [SchedulerConfig.minAltitudeDegrees] is the only
+/// operator-editable minimum altitude in the product (Plan Tonight → Schedule →
+/// Scoring weights), so it is the authority. Everything that gates on "is this
+/// target high enough" reads it here instead of carrying a private constant:
+/// the Smart Night sequence builder, the mosaic panel altitude waits, and the
+/// threshold line the altitude charts draw. Those used to hold their own 30°
+/// while the scheduler held 25°, so the app both admitted and refused the same
+/// 27° target on one screen.
+///
+/// Per-target overrides (`targets.min_altitude`, carried on
+/// `ForecastTarget.minAltitudeDeg`) are a deliberate exception: a specific
+/// target may need to clear more than the site does. This provider is the
+/// FLOOR, not a replacement for those.
+final siteMinimumAltitudeDegProvider = Provider<double>((ref) {
+  final persisted = ref.watch(schedulerPersistedConfigProvider).valueOrNull;
+  // Before the durable row has loaded (or when it has never been written) the
+  // engine itself runs on SchedulerConfig.defaults, so that is the honest
+  // answer here too — never a second hard-coded number.
+  return persisted?.minAltitudeDegrees ??
+      SchedulerConfig.defaults.minAltitudeDegrees;
+});
+
 /// The single engine instance for the app.
 final schedulerEngineProvider = Provider<SchedulerEngine>((ref) {
   final settingsAsync = ref.read(appSettingsProvider);
@@ -647,12 +691,19 @@ final schedulerEngineProvider = Provider<SchedulerEngine>((ref) {
       persistedAsync.valueOrNull ?? SchedulerConfig.defaults;
   // Why: route the scheduler's current-time reads through the user's
   // configured clock so window evaluations, scoring, and meridian-factor
-  // calculations all reflect the operator's chosen timezone
-  // The local offset still comes from
-  // the system clock — the scheduler internally rebases to UTC for
-  // ephemeris math.
+  // calculations all reflect the operator's chosen timezone.
+  //
+  // Two separate things are needed and they used to be conflated. The engine
+  // wants a real instant for ephemeris (`SchedulerEngine` does
+  // `now.toUtc().add(site.localOffset)`), and it wants the *site's* offset to
+  // decide whether "image between 22:00 and 04:00 local" is satisfied. Feeding
+  // it `clock.now` supplied a zone rendering where an instant was expected, and
+  // `DateTime.now().timeZoneOffset` supplied the laptop's offset where the
+  // observatory's was meant — so a remote operator's time windows were
+  // evaluated in their own zone, which is exactly what the Timezone setting
+  // exists to stop.
   final clock = ref.read(clockProvider);
-  final localOffset = DateTime.now().timeZoneOffset;
+  final localOffset = clock.utcOffset;
 
   // Build a candidate loader bound to a specific active-project scope. When
   // [activeId] is null the loader runs unfiltered (the full catalog — current
@@ -680,7 +731,7 @@ final schedulerEngineProvider = Provider<SchedulerEngine>((ref) {
     sequenceSink: _ExecutorSequenceSink(ref),
     candidateLoader: loaderFor(initialActiveId),
     triggerStream: ref.read(schedulerTriggerStreamProvider),
-    clock: clock.now,
+    clock: clock.nowUtc,
   );
 
   // Hydrate a late settings/config read in place. Watching either async
@@ -695,7 +746,11 @@ final schedulerEngineProvider = Provider<SchedulerEngine>((ref) {
     final nextSite = SchedulerSite(
       latitudeDegrees: value.latitude,
       longitudeDegrees: value.longitude,
-      localOffset: DateTime.now().timeZoneOffset,
+      // The zone belongs to the clock listener below, not here. Re-reading
+      // `clockProvider` at this point returns the pre-change clock — Riverpod
+      // has not flushed it yet — so a Timezone edit would be compared against
+      // itself, look unchanged, and leave the engine on the old offset.
+      localOffset: engine.site.localOffset,
     );
     final currentSite = engine.site;
     if (nextSite.latitudeDegrees == currentSite.latitudeDegrees &&
@@ -705,6 +760,21 @@ final schedulerEngineProvider = Provider<SchedulerEngine>((ref) {
     }
     engine.updateSite(nextSite);
     engine.requestReevaluation(reason: 'observer location changed');
+  });
+  // Settings → Location → Timezone decides what "22:00 local" means to a
+  // time-window constraint. Nothing propagated it before: the site was built
+  // once from the laptop's offset, so a remote operator's windows opened and
+  // closed on their own evening rather than the observatory's.
+  ref.listen<Clock>(clockProvider, (previous, next) {
+    if (next.utcOffset == engine.site.localOffset) return;
+    engine.updateSite(
+      SchedulerSite(
+        latitudeDegrees: engine.site.latitudeDegrees,
+        longitudeDegrees: engine.site.longitudeDegrees,
+        localOffset: next.utcOffset,
+      ),
+    );
+    engine.requestReevaluation(reason: 'site timezone changed');
   });
   ref.listen<AsyncValue<SchedulerConfig>>(schedulerPersistedConfigProvider, (
     previous,
@@ -761,7 +831,10 @@ final schedulerEngineReadyProvider = FutureProvider<SchedulerEngine>((
     SchedulerSite(
       latitudeDegrees: settings.latitude,
       longitudeDegrees: settings.longitude,
-      localOffset: DateTime.now().timeZoneOffset,
+      // The ready gate hydrates the site AFTER construction, so taking the
+      // host's offset here would silently overwrite the observatory's on every
+      // cold start — the same defect as the constructor's, one call site later.
+      localOffset: ref.read(clockProvider).utcOffset,
     ),
   );
   if (!ref.read(schedulerConfigUserDirtyProvider)) {
@@ -924,21 +997,193 @@ final schedulerPreviewDecisionProvider =
       // so the read-only view tracks live evaluation. Watching the decision (not
       // just reading it once) keeps the headline current after ticks/triggers.
       ref.watch(currentSchedulerDecisionProvider);
-      return engine.previewDecision(clock.now());
+      // The engine treats its argument as an instant to rebase (see
+      // `SchedulerEngine`), so the preview has to be handed the same instant
+      // the live tick gets, not a zone rendering of it — otherwise the
+      // read-only preview and the autopilot disagree about what time it is.
+      return engine.previewDecision(clock.nowUtc());
     });
 
 /// Host-authoritative state consumed by the scheduler tab on a remote client.
-/// Keeping status, decision, and configuration in one response prevents a UI
-/// refresh from combining snapshots from different scheduler ticks.
+/// Readiness is computed on the scheduler host and sent to remote clients.
+/// Scheduler sequences center each target, so a usable plate solver is required.
+final schedulerStartReadinessProvider = Provider<SchedulerStartReadiness>((
+  ref,
+) {
+  final report = ref.watch(readinessReportProvider);
+  final issues = <SchedulerReadinessIssue>[];
+  final critical = report.itemFor(ReadinessItemId.criticalDevices);
+  if (critical?.level == ReadinessLevel.blocked) {
+    issues.add(
+      const SchedulerReadinessIssue(
+        id: SchedulerReadinessIssueId.camera,
+        severity: SchedulerReadinessSeverity.blocker,
+        title: 'Camera and mount',
+        detail: 'The camera or mount is not connected.',
+      ),
+    );
+  }
+  final location = report.itemFor(ReadinessItemId.location);
+  if (location?.level == ReadinessLevel.blocked) {
+    issues.add(
+      const SchedulerReadinessIssue(
+        id: SchedulerReadinessIssueId.location,
+        severity: SchedulerReadinessSeverity.blocker,
+        title: 'Observing location',
+        detail: 'Set the site location before starting unattended.',
+      ),
+    );
+  }
+  final output = report.itemFor(ReadinessItemId.outputPath);
+  if (output?.level == ReadinessLevel.blocked) {
+    issues.add(
+      const SchedulerReadinessIssue(
+        id: SchedulerReadinessIssueId.outputPath,
+        severity: SchedulerReadinessSeverity.blocker,
+        title: 'Capture output path',
+        detail: 'Choose a writable capture directory.',
+      ),
+    );
+  }
+  final accessories = report.itemFor(ReadinessItemId.profileDevices);
+  if (accessories?.level != null &&
+      accessories!.level != ReadinessLevel.ready) {
+    issues.add(
+      const SchedulerReadinessIssue(
+        id: SchedulerReadinessIssueId.guider,
+        severity: SchedulerReadinessSeverity.warning,
+        title: 'Assigned accessories',
+        detail: 'One or more configured accessories are unavailable.',
+      ),
+    );
+  }
+  final solver = report.itemFor(ReadinessItemId.plateSolver);
+  if (solver?.level != ReadinessLevel.ready) {
+    issues.add(
+      const SchedulerReadinessIssue(
+        id: SchedulerReadinessIssueId.solver,
+        severity: SchedulerReadinessSeverity.blocker,
+        title: 'Plate solver',
+        detail: 'Configure a working plate solver before unattended centering.',
+      ),
+    );
+  }
+
+  final weather = ref.watch(weatherSafetyProvider);
+  if (!weather.monitoringEnabled) {
+    issues.add(
+      const SchedulerReadinessIssue(
+        id: SchedulerReadinessIssueId.weather,
+        severity: SchedulerReadinessSeverity.warning,
+        title: 'Weather monitoring disabled',
+        detail: 'Start requires confirmation without weather protection.',
+      ),
+    );
+  } else if (!weather.isSafe) {
+    issues.add(
+      SchedulerReadinessIssue(
+        id: SchedulerReadinessIssueId.weather,
+        severity: SchedulerReadinessSeverity.blocker,
+        title: 'Weather safety',
+        detail: weather.failModeWarning ?? 'Weather is unsafe or unknown.',
+      ),
+    );
+  }
+
+  final guider = ref.watch(guiderStateProvider);
+  if (guider.deviceId != null &&
+      guider.connectionState != DeviceConnectionState.connected) {
+    issues.add(
+      const SchedulerReadinessIssue(
+        id: SchedulerReadinessIssueId.guider,
+        severity: SchedulerReadinessSeverity.warning,
+        title: 'Guider',
+        detail: 'The configured guider is not connected.',
+      ),
+    );
+  }
+
+  final disk = ref.watch(captureDirDiskSpaceProvider);
+  disk.when(
+    loading: () => issues.add(
+      const SchedulerReadinessIssue(
+        id: SchedulerReadinessIssueId.disk,
+        severity: SchedulerReadinessSeverity.warning,
+        title: 'Disk space',
+        detail: 'Waiting for the capture volume check.',
+      ),
+    ),
+    error: (_, __) => issues.add(
+      const SchedulerReadinessIssue(
+        id: SchedulerReadinessIssueId.disk,
+        severity: SchedulerReadinessSeverity.blocker,
+        title: 'Disk space',
+        detail: 'The capture volume could not be checked.',
+      ),
+    ),
+    data: (snapshot) {
+      if (snapshot == null) {
+        issues.add(
+          const SchedulerReadinessIssue(
+            id: SchedulerReadinessIssueId.disk,
+            severity: SchedulerReadinessSeverity.blocker,
+            title: 'Disk space',
+            detail: 'The capture volume has no readable free-space snapshot.',
+          ),
+        );
+      } else if (snapshot.freeBytes < kSafetyMarginBytes) {
+        issues.add(
+          const SchedulerReadinessIssue(
+            id: SchedulerReadinessIssueId.disk,
+            severity: SchedulerReadinessSeverity.blocker,
+            title: 'Disk space',
+            detail: 'Less than 2 GB remains on the capture volume.',
+          ),
+        );
+      } else if (snapshot.freeBytes < 8 * 1024 * 1024 * 1024) {
+        issues.add(
+          const SchedulerReadinessIssue(
+            id: SchedulerReadinessIssueId.disk,
+            severity: SchedulerReadinessSeverity.warning,
+            title: 'Disk space',
+            detail: 'Less than 8 GB remains on the capture volume.',
+          ),
+        );
+      }
+    },
+  );
+
+  final settings = ref.watch(appSettingsProvider).valueOrNull;
+  if (settings == null || !settings.parkBeforeDawn) {
+    issues.add(
+      const SchedulerReadinessIssue(
+        id: SchedulerReadinessIssueId.dawn,
+        severity: SchedulerReadinessSeverity.warning,
+        title: 'Dawn policy',
+        detail: 'Park before dawn is not confirmed enabled.',
+      ),
+    );
+  }
+  return SchedulerStartReadiness(
+    issues: issues,
+    available: true,
+    solverRequired: true,
+  );
+});
+
+/// Keeping status, decision, configuration, and admission in one response
+/// prevents a remote client from making a local safety decision.
 class SchedulerRemoteSnapshot {
   final SchedulerStatus status;
   final SchedulerDecision decision;
   final SchedulerConfig config;
+  final SchedulerStartReadiness readiness;
 
   const SchedulerRemoteSnapshot({
     required this.status,
     required this.decision,
     required this.config,
+    required this.readiness,
   });
 
   factory SchedulerRemoteSnapshot.fromJson(Map<String, dynamic> json) {
@@ -954,6 +1199,7 @@ class SchedulerRemoteSnapshot {
       status: SchedulerStatus.fromJson(status.cast<String, dynamic>()),
       decision: SchedulerDecision.fromJson(decision.cast<String, dynamic>()),
       config: SchedulerConfig.fromStorageJson(config.cast<String, dynamic>()),
+      readiness: SchedulerStartReadiness.fromStorageJson(json['readiness']),
     );
   }
 }
@@ -978,7 +1224,7 @@ final schedulerPreviewRankingProvider =
       final engine = await ref.watch(schedulerEngineReadyProvider.future);
       final clock = ref.watch(clockProvider);
       ref.watch(currentSchedulerDecisionProvider);
-      return engine.previewRanking(clock.now());
+      return engine.previewRanking(clock.nowUtc());
     });
 
 /// Quick-access provider for the list of all integration goals (refreshes

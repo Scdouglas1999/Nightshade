@@ -48,6 +48,9 @@ class _AddConstraintWizardDialogState
     endMinutes: 2 * 60,
   );
   double _moonMax = 0.30;
+  // 30° is the separation NINA's default avoidance curve reaches at full moon
+  // and the value this app's own planner filter seeds.
+  double _moonSeparationDeg = 30.0;
   int? _horizonId;
   late ScheduledWindow _scheduledWindow;
 
@@ -126,11 +129,13 @@ class _AddConstraintWizardDialogState
           kind: _kind!,
           timeWindow: _timeWindow,
           moonMax: _moonMax,
+          moonSeparationDeg: _moonSeparationDeg,
           horizonId: _horizonId,
           horizonProfiles: widget.horizonProfiles,
           scheduledWindow: _scheduledWindow,
           onTimeWindow: (w) => setState(() => _timeWindow = w),
           onMoonMax: (v) => setState(() => _moonMax = v),
+          onMoonSeparation: (v) => setState(() => _moonSeparationDeg = v),
           onHorizon: (id) => setState(() => _horizonId = id),
           onScheduledWindow: (w) => setState(() => _scheduledWindow = w),
         );
@@ -140,6 +145,7 @@ class _AddConstraintWizardDialogState
           kind: _kind!,
           timeWindow: _timeWindow,
           moonMax: _moonMax,
+          moonSeparationDeg: _moonSeparationDeg,
           horizonId: _horizonId,
           horizonProfiles: widget.horizonProfiles,
           scheduledWindow: _scheduledWindow,
@@ -209,6 +215,13 @@ class _AddConstraintWizardDialogState
           targetId: widget.targetId,
           kind: _kind!,
           moonIlluminationMax: _moonMax,
+        );
+        break;
+      case TargetConstraintKind.moonSeparationMin:
+        c = TargetConstraint(
+          targetId: widget.targetId,
+          kind: _kind!,
+          moonSeparationMinDeg: _moonSeparationDeg,
         );
         break;
       case TargetConstraintKind.customHorizon:

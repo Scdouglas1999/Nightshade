@@ -18,6 +18,7 @@ import 'package:nightshade_app/screens/sequencer/widgets/framing_assistant_inlin
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 void main() {
   testWidgets('FramingAssistantDialog shows target name in header',
@@ -29,7 +30,8 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    final container = ProviderContainer();
+    final container =
+        ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
     addTearDown(container.dispose);
 
     final target = TargetHeaderNode(
@@ -64,7 +66,8 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    final container = ProviderContainer();
+    final container =
+        ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
     addTearDown(container.dispose);
 
     double? result;
@@ -119,7 +122,8 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    final container = ProviderContainer();
+    final container =
+        ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
     addTearDown(container.dispose);
 
     double? result = -999;
@@ -168,7 +172,8 @@ void main() {
     // hit the internal sync function indirectly by checking that
     // setting EquipmentFOV rotation honours the .rotation field on
     // the target.
-    final container = ProviderContainer();
+    final container =
+        ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
     addTearDown(container.dispose);
     container.read(equipmentFOVProvider.notifier).setRotation(33.0);
     expect(container.read(equipmentFOVProvider).rotation, 33.0);

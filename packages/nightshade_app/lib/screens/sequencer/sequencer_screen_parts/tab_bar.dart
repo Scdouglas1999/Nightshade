@@ -14,7 +14,13 @@ part of '../sequencer_screen.dart';
 class _SequencerTabBar extends StatelessWidget {
   final NightshadeColors colors;
   final TabController controller;
-  final bool isRunning;
+
+  /// The run's live state, not a boolean. The chip used to be driven by an
+  /// `isRunning` flag that was true for BOTH running and paused, so a paused
+  /// run showed a green "Sequence Running" chip one row above the toolbar's
+  /// amber "Paused 75%" — the app's most prominent run indicator contradicting
+  /// the one beside it about whether the rig was exposing.
+  final SequenceExecutionState executionState;
 
   /// Form-factor decision computed once at the screen level (§17) so the
   /// strip and the builder body agree on phone-vs-desktop.
@@ -23,7 +29,7 @@ class _SequencerTabBar extends StatelessWidget {
   const _SequencerTabBar({
     required this.colors,
     required this.controller,
-    this.isRunning = false,
+    this.executionState = SequenceExecutionState.idle,
     required this.isPhone,
   });
 
@@ -59,8 +65,20 @@ class _SequencerTabBar extends StatelessWidget {
         ),
     ];
 
+    // The chip states the run's state verbatim; `null` draws no chip at all.
+    // Paused deliberately gets its own amber label rather than reusing the
+    // running one, because a paused rig is not exposing.
+    final String? chipLabel = switch (executionState) {
+      SequenceExecutionState.running => 'Sequence Running',
+      SequenceExecutionState.paused => 'Sequence Paused',
+      _ => null,
+    };
+    final chipColor = executionState == SequenceExecutionState.paused
+        ? colors.warning
+        : colors.success;
+
     // On phone the running state is surfaced by the playback bar, so the
-    // trailing "Sequence Running" chip is desktop/tablet only.
+    // trailing run chip is desktop/tablet only.
     final trailing = <Widget>[
       // §4: a discoverable entry point to the full keyboard-shortcut
       // cheat-sheet. Keyboard-only, so desktop/tablet just like the
@@ -80,13 +98,13 @@ class _SequencerTabBar extends StatelessWidget {
             ),
           ),
         ),
-      if (isRunning && !isPhone)
+      if (chipLabel != null && !isPhone)
         Padding(
           padding: const EdgeInsets.only(left: 4, right: 12),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: NightshadeDecorations.statusChip(
-              colors.success,
+              chipColor,
               borderRadius:
                   BorderRadius.circular(NightshadeTokens.radiusInline8),
             ),
@@ -97,11 +115,11 @@ class _SequencerTabBar extends StatelessWidget {
                   width: 8,
                   height: 8,
                   decoration: BoxDecoration(
-                    color: colors.success,
+                    color: chipColor,
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: colors.success.withValues(alpha: 0.5),
+                        color: chipColor.withValues(alpha: 0.5),
                         blurRadius: 6,
                       ),
                     ],
@@ -109,9 +127,8 @@ class _SequencerTabBar extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'Sequence Running',
-                  style:
-                      NightshadeTypography.h6.copyWith(color: colors.success),
+                  chipLabel,
+                  style: NightshadeTypography.h6.copyWith(color: chipColor),
                 ),
               ],
             ),

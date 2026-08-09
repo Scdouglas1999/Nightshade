@@ -159,7 +159,6 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
       (json['smartNightSubExposureCeilingSecs'] as num?)?.toDouble() ?? 300.0,
   smartNightTargetSnr:
       (json['smartNightTargetSnr'] as num?)?.toDouble() ?? 30.0,
-  coolingBehavior: json['coolingBehavior'] as String? ?? 'On Connect',
   defaultGain: (json['defaultGain'] as num?)?.toInt() ?? 100,
   defaultOffset: (json['defaultOffset'] as num?)?.toInt() ?? 50,
   webServerEnabled: json['webServerEnabled'] as bool? ?? false,
@@ -333,7 +332,6 @@ Map<String, dynamic> _$AppSettingsToJson(
   'smartNightSubExposureFloorSecs': instance.smartNightSubExposureFloorSecs,
   'smartNightSubExposureCeilingSecs': instance.smartNightSubExposureCeilingSecs,
   'smartNightTargetSnr': instance.smartNightTargetSnr,
-  'coolingBehavior': instance.coolingBehavior,
   'defaultGain': instance.defaultGain,
   'defaultOffset': instance.defaultOffset,
   'webServerEnabled': instance.webServerEnabled,

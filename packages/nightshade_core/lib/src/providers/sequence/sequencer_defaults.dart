@@ -14,9 +14,9 @@ final sequencerDefaultsProvider =
     });
 
 /// Single [SequenceOverheadConfig] derived from the user's
-/// [SequencerDefaults] so the time estimator, the tree-row rollup, and
-/// [Sequence.estimateWithOverhead] can all share ONE overhead model instead
-/// of three divergent sets of literals.
+/// [SequencerDefaults] so the time estimator, the tree-row rollup and the
+/// pre-flight simulation all share ONE overhead model instead of divergent
+/// sets of literals.
 ///
 /// The app constructs both `SequenceTimeEstimator(overhead: <this>)` and the
 /// rollup from this provider so the node chip, the timeline, and the

@@ -1,10 +1,11 @@
-import 'dart:math' show max;
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:intl/intl.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart' show DbCapturedImage;
 
 import 'adaptive_chart_container.dart';
+import 'chart_axis.dart';
 
 /// Chart data point with timestamp and value
 class ChartDataPoint {
@@ -17,23 +18,45 @@ class ChartDataPoint {
   });
 }
 
-/// Generic session chart widget for displaying time-series data
+/// Generic session chart for a measured time series.
+///
+/// Draws what was measured: samples are joined with straight segments (a spline
+/// invents values between samples and overshoots past the real minimum, which
+/// on an HFR trace reads as focus the run never achieved), and the median is
+/// marked so a frame can be judged against the night rather than by eye.
 class SessionChart extends StatelessWidget {
   final String title;
+
+  /// Axis label including units, e.g. `HFR (px)`.
   final String yAxisLabel;
+
+  /// What the series measures, as a noun phrase for prose — "sensor
+  /// temperature", "guiding RMS". Separate from [yAxisLabel] because the axis
+  /// label carries units and reads as a typo in a sentence: composing the empty
+  /// state from it produced "No HFR (px) recorded for these frames" and, for
+  /// the temperature chart whose axis is just the unit, "No °C recorded for
+  /// these frames". Falls back to the card title.
+  final String? measurementName;
+
   final List<ChartDataPoint> dataPoints;
   final Color lineColor;
   final double? minY;
   final double? maxY;
+
+  /// Values above this read as a problem; drawn as a threshold line when the
+  /// data comes near it. Optional — most series have no meaningful limit.
+  final double? warnAbove;
 
   const SessionChart({
     super.key,
     required this.title,
     required this.yAxisLabel,
     required this.dataPoints,
+    this.measurementName,
     this.lineColor = NightshadeChartColors.seriesBlue,
     this.minY,
     this.maxY,
+    this.warnAbove,
   });
 
   @override
@@ -41,208 +64,331 @@ class SessionChart extends StatelessWidget {
     final colors = NightshadeColors.of(context);
 
     if (dataPoints.isEmpty) {
-      return NightshadeCard(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: NightshadeTypography.h5.copyWith(
-                  color: colors.textPrimary,
-                ),
+      return _ChartShell(
+        title: title,
+        yAxisLabel: yAxisLabel,
+        colors: colors,
+        child: AdaptiveChartContainer.fixed(
+          height: 150,
+          child: Center(
+            child: Text(
+              'No ${measurementName ?? title.toLowerCase()} recorded for '
+              'these frames',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12,
+                color: colors.textMuted,
               ),
-              const SizedBox(height: 16),
-              AdaptiveChartContainer.fixed(
-                height: 150,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: colors.surfaceAlt,
-                    borderRadius:
-                        BorderRadius.circular(NightshadeTokens.radiusInline8),
-                  ),
-                  child: Center(
-                    child: Text(
-                      'No data',
-                      style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize12,
-                          color: colors.textMuted),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       );
     }
 
-    // Find min/max for scaling
-    final values = dataPoints.map((p) => p.value).toList();
-    final dataMinY = minY ?? values.reduce((a, b) => a < b ? a : b);
-    final dataMaxY = maxY ?? values.reduce((a, b) => a > b ? a : b);
-    // Ensure minimum range to avoid division by zero with single datapoint
-    final yRange = max(dataMaxY - dataMinY, 1.0);
-    final yPadding = yRange * 0.1;
-    final yInterval = yRange / 4;
-    // Label precision follows the tick interval. At a fixed 1 decimal a narrow
-    // range collapsed neighbouring labels into the same string — an HFR chart
-    // spanning 2.26-2.76 rendered its axis as "2.8, 2.8, 2.5, 2.3, 2.2", with
-    // 2.8 twice, because fl_chart emits both interval ticks and the axis
-    // boundary and those two rounded alike.
-    final yDecimals = yInterval >= 1.0
-        ? 1
-        : yInterval >= 0.1
-            ? 2
-            : 3;
+    // Never trust the caller's ordering: the standalone-image query returns
+    // newest-first while the per-session query returns oldest-first, and an
+    // unsorted series silently draws the night backwards (and, with x measured
+    // from the first point, produced a negative axis whose labels vanished).
+    final points = dataPoints.toList()
+      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
 
-    final chartMinY = dataMinY - yPadding;
-    final chartMaxY = dataMaxY + yPadding;
+    final values = points.map((p) => p.value).toList(growable: false);
+    final sorted = values.toList()..sort();
+    final median = _percentile(sorted, 0.5);
+    final p90 = _percentile(sorted, 0.9);
+    final dataMin = sorted.first;
+    final dataMax = sorted.last;
 
-    // Convert timestamps to x values (seconds from first point)
-    final firstTimestamp = dataPoints.first.timestamp;
-    final spots = dataPoints.map((point) {
-      final x = point.timestamp.difference(firstTimestamp).inSeconds.toDouble();
-      return FlSpot(x, point.value);
-    }).toList();
-    final maxX = spots.last.x == 0 ? 1.0 : spots.last.x;
+    final NiceAxis axis = NiceAxis.forRange(minY ?? dataMin, maxY ?? dataMax);
+    final isFlat = dataMax - dataMin <= 0;
 
+    final firstTimestamp = points.first.timestamp;
+    final spots = points
+        .map((point) => FlSpot(
+              point.timestamp.difference(firstTimestamp).inMilliseconds /
+                  1000.0,
+              point.value,
+            ))
+        .toList(growable: false);
+    final maxX = spots.last.x <= 0 ? 1.0 : spots.last.x;
+    // Divide the span exactly rather than snapping to a round step: that puts
+    // the final tick ON the axis end, so fl_chart's boundary label coincides
+    // with a tick instead of drawing a second offset copy of it — and it does
+    // not pad the plot out to a tick the data never reaches.
+    final xInterval = maxX / 4;
+
+    return _ChartShell(
+      title: title,
+      yAxisLabel: yAxisLabel,
+      colors: colors,
+      summary: _ChartSummary(
+        colors: colors,
+        median: axis.label(median),
+        spread: '${axis.label(dataMin)}–${axis.label(dataMax)}',
+        p90: axis.label(p90),
+        count: points.length,
+      ),
+      child: AdaptiveChartContainer(
+        preferredHeight: 150,
+        child: LineChart(
+          LineChartData(
+            gridData: FlGridData(
+              show: true,
+              drawVerticalLine: true,
+              horizontalInterval: axis.interval,
+              verticalInterval: xInterval,
+              getDrawingHorizontalLine: (_) => FlLine(
+                color: colors.border.withValues(alpha: 0.3),
+                strokeWidth: 1,
+              ),
+              getDrawingVerticalLine: (_) => FlLine(
+                color: colors.border.withValues(alpha: 0.3),
+                strokeWidth: 1,
+              ),
+            ),
+            titlesData: FlTitlesData(
+              show: true,
+              rightTitles:
+                  const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              topTitles:
+                  const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              bottomTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  reservedSize: 28,
+                  interval: xInterval,
+                  getTitlesWidget: (value, meta) => Padding(
+                    padding: const EdgeInsets.only(top: 6.0),
+                    child: Text(
+                      elapsedAxisLabel(value),
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: NightshadeTypography.fontSize10,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              leftTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  reservedSize: 44,
+                  interval: axis.interval,
+                  getTitlesWidget: (value, meta) => Text(
+                    axis.label(value),
+                    style: TextStyle(
+                      color: colors.textSecondary,
+                      fontSize: NightshadeTypography.fontSize10,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            borderData: FlBorderData(
+              show: true,
+              border: Border.all(color: colors.border),
+            ),
+            minX: 0,
+            maxX: maxX,
+            minY: axis.min,
+            maxY: axis.max,
+            extraLinesData: ExtraLinesData(
+              horizontalLines: [
+                // The median is the honest "typical" value for a skewed
+                // quantity like HFR, where a few clouded frames drag the mean.
+                HorizontalLine(
+                  y: median,
+                  color: colors.textMuted.withValues(alpha: 0.55),
+                  strokeWidth: 1,
+                  dashArray: const [4, 4],
+                ),
+                if (warnAbove != null &&
+                    warnAbove! <= axis.max &&
+                    warnAbove! >= axis.min)
+                  HorizontalLine(
+                    y: warnAbove!,
+                    color: colors.warning.withValues(alpha: 0.5),
+                    strokeWidth: 1,
+                    dashArray: const [2, 4],
+                  ),
+              ],
+            ),
+            lineBarsData: [
+              LineChartBarData(
+                spots: spots,
+                // Straight segments only: these are measurements, not a model.
+                isCurved: false,
+                color: lineColor,
+                barWidth: 1.6,
+                isStrokeCapRound: true,
+                dotData: FlDotData(show: spots.length <= 40),
+                belowBarData: BarAreaData(
+                  // A filled area under a constant series implies a magnitude
+                  // that isn't being measured — the sensor sitting at 20.0 C
+                  // filled half the card.
+                  show: !isFlat,
+                  color: lineColor.withValues(alpha: 0.08),
+                ),
+              ),
+            ],
+            lineTouchData: LineTouchData(
+              touchTooltipData: LineTouchTooltipData(
+                getTooltipColor: (_) => colors.surfaceElevated,
+                getTooltipItems: (touchedSpots) => touchedSpots.map((spot) {
+                  final when = firstTimestamp
+                      .add(Duration(milliseconds: (spot.x * 1000).round()));
+                  return LineTooltipItem(
+                    '${axis.label(spot.y)} $yAxisLabel\n'
+                    '${DateFormat('HH:mm:ss').format(when)}'
+                    '  ·  +${elapsedAxisLabel(spot.x)}',
+                    NightshadeTypography.labelQuiet.copyWith(
+                      color: colors.textPrimary,
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Linear-interpolated percentile of an already-sorted list.
+  static double _percentile(List<double> sorted, double fraction) {
+    if (sorted.isEmpty) return 0;
+    if (sorted.length == 1) return sorted.first;
+    final position = fraction * (sorted.length - 1);
+    final lower = position.floor();
+    final upper = position.ceil();
+    if (lower == upper) return sorted[lower];
+    final weight = position - lower;
+    return sorted[lower] * (1 - weight) + sorted[upper] * weight;
+  }
+}
+
+/// Card, title and axis caption shared by the populated and empty states so the
+/// two never differ in height or padding.
+class _ChartShell extends StatelessWidget {
+  final String title;
+  final String yAxisLabel;
+  final NightshadeColors colors;
+  final Widget child;
+  final Widget? summary;
+
+  const _ChartShell({
+    required this.title,
+    required this.yAxisLabel,
+    required this.colors,
+    required this.child,
+    this.summary,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return NightshadeCard(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: NightshadeTypography.h5.copyWith(
-                color: colors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 16),
-            AdaptiveChartContainer(
-              preferredHeight: 150,
-              child: LineChart(
-                LineChartData(
-                  gridData: FlGridData(
-                    show: true,
-                    drawVerticalLine: true,
-                    horizontalInterval: yRange / 4,
-                    getDrawingHorizontalLine: (value) {
-                      return FlLine(
-                        color: colors.border.withValues(alpha: 0.3),
-                        strokeWidth: 1,
-                      );
-                    },
-                    getDrawingVerticalLine: (value) {
-                      return FlLine(
-                        color: colors.border.withValues(alpha: 0.3),
-                        strokeWidth: 1,
-                      );
-                    },
-                  ),
-                  titlesData: FlTitlesData(
-                    show: true,
-                    rightTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    topTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 30,
-                        interval: maxX / 4,
-                        getTitlesWidget: (value, meta) {
-                          final duration = Duration(seconds: value.toInt());
-                          final hours = duration.inHours;
-                          final minutes = duration.inMinutes.remainder(60);
-                          return Padding(
-                            padding: const EdgeInsets.only(top: 8.0),
-                            child: Text(
-                              hours > 0
-                                  ? '${hours}h${minutes}m'
-                                  : '${minutes}m',
-                              style: TextStyle(
-                                color: colors.textSecondary,
-                                fontSize: NightshadeTypography.fontSize10,
-                              ),
-                            ),
-                          );
-                        },
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: NightshadeTypography.h5
+                            .copyWith(color: colors.textPrimary),
                       ),
-                    ),
-                    leftTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 40,
-                        interval: yInterval,
-                        getTitlesWidget: (value, meta) {
-                          return Text(
-                            value.toStringAsFixed(yDecimals),
-                            style: TextStyle(
-                              color: colors.textSecondary,
-                              fontSize: NightshadeTypography.fontSize10,
-                            ),
-                          );
-                        },
+                      Text(
+                        yAxisLabel,
+                        style: NightshadeTypography.caption
+                            .copyWith(color: colors.textMuted),
                       ),
-                    ),
-                  ),
-                  borderData: FlBorderData(
-                    show: true,
-                    border: Border.all(color: colors.border),
-                  ),
-                  minX: 0,
-                  maxX: maxX,
-                  minY: chartMinY,
-                  maxY: chartMaxY,
-                  lineBarsData: [
-                    LineChartBarData(
-                      spots: spots,
-                      isCurved: true,
-                      color: lineColor,
-                      barWidth: 2,
-                      isStrokeCapRound: true,
-                      dotData: const FlDotData(show: false),
-                      belowBarData: BarAreaData(
-                        show: true,
-                        color: lineColor.withValues(alpha: 0.1),
-                      ),
-                    ),
-                  ],
-                  lineTouchData: LineTouchData(
-                    touchTooltipData: LineTouchTooltipData(
-                      getTooltipColor: (spot) => colors.surface,
-                      getTooltipItems: (touchedSpots) {
-                        return touchedSpots.map((spot) {
-                          final duration = Duration(seconds: spot.x.toInt());
-                          final hours = duration.inHours;
-                          final minutes = duration.inMinutes.remainder(60);
-                          final timeStr = hours > 0
-                              ? '${hours}h ${minutes}m'
-                              : '${minutes}m';
-                          return LineTooltipItem(
-                            '$yAxisLabel\n${spot.y.toStringAsFixed(2)}\n$timeStr',
-                            NightshadeTypography.labelQuiet.copyWith(
-                              color: colors.textPrimary,
-                            ),
-                          );
-                        }).toList();
-                      },
-                    ),
+                    ],
                   ),
                 ),
-              ),
+                if (summary != null) summary!,
+              ],
             ),
+            const SizedBox(height: 12),
+            child,
           ],
         ),
       ),
     );
   }
 }
+
+/// Median / spread / n, so the chart answers "was this a good night?" without
+/// the user reading values off the line.
+class _ChartSummary extends StatelessWidget {
+  final NightshadeColors colors;
+  final String median;
+  final String spread;
+  final String p90;
+  final int count;
+
+  const _ChartSummary({
+    required this.colors,
+    required this.median,
+    required this.spread,
+    required this.p90,
+    required this.count,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    Widget stat(String label, String value) => Padding(
+          padding: const EdgeInsets.only(left: 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: NightshadeTypography.caption
+                    .copyWith(color: colors.textMuted),
+              ),
+              Text(
+                value,
+                style: NightshadeTypography.labelSm
+                    .copyWith(color: colors.textPrimary),
+              ),
+            ],
+          ),
+        );
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        stat('median', median),
+        stat('p90', p90),
+        stat('range', spread),
+        stat('n', '$count'),
+      ],
+    );
+  }
+}
+
+/// The one frame population every chart on the session card plots.
+///
+/// Each chart used to pick its own: HFR filtered `isAccepted` and the other
+/// three filtered nothing, so a single card reported n=10 beside n=12 and n=16
+/// for the same night. Worse than untidy — the guiding trace then averaged in
+/// the frames the grader had already thrown out and claimed a p90 of 3.9" for a
+/// session whose accepted subs never guided past 0.95", which reads as a mount
+/// fault that does not exist. Calibration frames are excluded for the same
+/// reason: a dark's sensor temperature is real but it is not part of the night
+/// the rest of the card describes.
+List<DbCapturedImage> sessionChartFrames(List<DbCapturedImage> images) => images
+    .where(
+        (image) => image.isAccepted && image.frameType.toLowerCase() == 'light')
+    .toList(growable: false);
 
 /// HFR (Half-Flux Radius) trend chart
 class HfrChart extends StatelessWidget {
@@ -252,8 +398,10 @@ class HfrChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // No per-chart population filter here (or in the three charts below): the
+    // caller passes [sessionChartFrames] so all four describe the same frames.
     final dataPoints = images
-        .where((img) => img.hfr != null && img.isAccepted)
+        .where((img) => img.hfr != null)
         .map((img) => ChartDataPoint(
               timestamp: img.capturedAt,
               value: img.hfr!,
@@ -261,8 +409,9 @@ class HfrChart extends StatelessWidget {
         .toList();
 
     return SessionChart(
-      title: 'Image Quality',
+      title: 'Image quality',
       yAxisLabel: 'HFR (px)',
+      measurementName: 'half-flux radius',
       dataPoints: dataPoints,
       lineColor: NightshadeChartColors.seriesBlue,
     );
@@ -286,7 +435,7 @@ class TemperatureChart extends StatelessWidget {
         .toList();
 
     return SessionChart(
-      title: 'Temperature',
+      title: 'Sensor temperature',
       yAxisLabel: '°C',
       dataPoints: dataPoints,
       lineColor: NightshadeChartColors.seriesOrange,
@@ -311,10 +460,14 @@ class GuidingRmsChart extends StatelessWidget {
         .toList();
 
     return SessionChart(
-      title: 'Guiding Performance',
-      yAxisLabel: 'RMS (")',
+      title: 'Guiding performance',
+      yAxisLabel: 'RMS (arcsec)',
+      measurementName: 'guiding RMS',
       dataPoints: dataPoints,
       lineColor: NightshadeChartColors.seriesGreen,
+      // Guiding worse than about 1" starts to bloat stars at typical
+      // amateur focal lengths, so it is worth marking on the plot.
+      warnAbove: 1.0,
     );
   }
 }
@@ -336,8 +489,9 @@ class FocuserPositionChart extends StatelessWidget {
         .toList();
 
     return SessionChart(
-      title: 'Focus Drift',
-      yAxisLabel: 'Position',
+      title: 'Focus drift',
+      yAxisLabel: 'Focuser position (steps)',
+      measurementName: 'focuser position',
       dataPoints: dataPoints,
       lineColor: NightshadeChartColors.seriesViolet,
     );

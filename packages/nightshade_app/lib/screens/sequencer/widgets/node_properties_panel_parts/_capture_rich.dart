@@ -345,6 +345,10 @@ class _NotificationProperties extends ConsumerWidget {
             colors: colors,
             value: node.title,
             hint: r'e.g. Frame ${frame} of ${target.name} done',
+            // The hint advertises ${...} tokens; without a picker the operator
+            // has to know the catalog by heart. Same list the Rust evaluator
+            // resolves.
+            variables: interpolationCatalog,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
                     node.copyWith(title: value),
@@ -360,6 +364,7 @@ class _NotificationProperties extends ConsumerWidget {
             value: node.message,
             hint: r'e.g. Captured ${frame} frames at ${time.local}',
             maxLines: 4,
+            variables: interpolationCatalog,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
                     node.copyWith(message: value),

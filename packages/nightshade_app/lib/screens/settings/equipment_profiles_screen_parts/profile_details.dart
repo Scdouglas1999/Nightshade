@@ -8,6 +8,7 @@ class _ProfileDetails extends ConsumerStatefulWidget {
   final Future<void> Function(EquipmentProfileModel) onSave;
   final VoidCallback onCancel;
   final VoidCallback onSetActive;
+  final VoidCallback onSetDefault;
   final VoidCallback onDuplicate;
   final VoidCallback onDelete;
   final VoidCallback onExport;
@@ -23,6 +24,7 @@ class _ProfileDetails extends ConsumerStatefulWidget {
     required this.onSave,
     required this.onCancel,
     required this.onSetActive,
+    required this.onSetDefault,
     required this.onDuplicate,
     required this.onDelete,
     required this.onExport,
@@ -64,6 +66,19 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
   bool _isSaving = false;
   int _operationGeneration = 0;
 
+  /// Per-field rejection messages from the last Save attempt, keyed by the
+  /// field labels below. The summary snackbar sits at the bottom of the window
+  /// underneath the persistent status bar, so a rejected save had to be read
+  /// through the accessibility tree to be found at all — the message has to be
+  /// on the field the user is looking at.
+  final Map<String, String> _fieldErrors = <String, String>{};
+
+  static const String _focalLengthField = 'Focal Length';
+  static const String _apertureField = 'Aperture';
+  static const String _gainField = 'Default Gain';
+  static const String _offsetField = 'Default Offset';
+  static const String _coolingField = 'Cooling Temp';
+
   @override
   void initState() {
     super.initState();
@@ -80,19 +95,32 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
         _isSaving = false;
         _isSyncingFilters = false;
       }
+      _fieldErrors.clear();
       _disposeControllers();
       _initControllers();
     }
   }
 
+  /// Editor text for an optic (focal length / aperture).
+  ///
+  /// `0` is the model's documented "unspecified" sentinel (see
+  /// [ProfileValidator.parseFocalLength]), and the very same validator rejects
+  /// a typed `0` as "must be a positive number". Rendering the sentinel as a
+  /// literal `0` therefore pre-loaded the editor with a value its own Save
+  /// refused: a profile created without optics could not be edited at all
+  /// until the user guessed that both fields had to be cleared. Blank in,
+  /// blank out.
+  static String _opticText(double value) =>
+      value > 0 ? value.toStringAsFixed(0) : '';
+
   void _initControllers() {
     _nameController = TextEditingController(text: widget.profile.name);
     _descController =
         TextEditingController(text: widget.profile.description ?? '');
-    _focalLengthController = TextEditingController(
-        text: widget.profile.focalLength.toStringAsFixed(0));
+    _focalLengthController =
+        TextEditingController(text: _opticText(widget.profile.focalLength));
     _apertureController =
-        TextEditingController(text: widget.profile.aperture.toStringAsFixed(0));
+        TextEditingController(text: _opticText(widget.profile.aperture));
     _gainController = TextEditingController(
         text: widget.profile.defaultGain?.toString() ?? '');
     _offsetController = TextEditingController(
@@ -216,8 +244,25 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
     ];
 
     if (errors.isNotEmpty) {
+      // Pin each message to its own field as well as summarising it, so the
+      // reason a Save was refused is visible where the user is typing.
+      setState(() {
+        _fieldErrors
+          ..clear()
+          ..addAll({
+            if (!focalResult.isValid) _focalLengthField: focalResult.error!,
+            if (!apertureResult.isValid) _apertureField: apertureResult.error!,
+            if (!gainResult.isValid) _gainField: gainResult.error!,
+            if (!offsetResult.isValid) _offsetField: offsetResult.error!,
+            if (!coolingResult.isValid) _coolingField: coolingResult.error!,
+          });
+      });
       context.showErrorSnackBar(errors.join('\n'));
       return null;
+    }
+
+    if (_fieldErrors.isNotEmpty) {
+      setState(_fieldErrors.clear);
     }
 
     final focalLength = focalResult.value!;

@@ -2,8 +2,9 @@ part of '../status_bar.dart';
 
 class _SequenceIndicator extends ConsumerStatefulWidget {
   final NightshadeColors colors;
+  final NightshadeLocalizations l10n;
 
-  const _SequenceIndicator({required this.colors});
+  const _SequenceIndicator({required this.colors, required this.l10n});
 
   @override
   ConsumerState<_SequenceIndicator> createState() => _SequenceIndicatorState();
@@ -61,9 +62,15 @@ class _SequenceIndicatorState extends ConsumerState<_SequenceIndicator>
     final tooltipLines = <String>[
       statusText,
       if ((progress.currentTarget ?? '').isNotEmpty)
-        'Target: ${progress.currentTarget}',
+        widget.l10n.text(
+          'statusSequenceTarget',
+          params: {'name': progress.currentTarget!},
+        ),
       if ((progress.currentNodeName ?? '').isNotEmpty)
-        'Step: ${progress.currentNodeName}',
+        widget.l10n.text(
+          'statusSequenceStep',
+          params: {'name': progress.currentNodeName!},
+        ),
       if ((progress.message ?? '').isNotEmpty) progress.message!,
     ];
 
@@ -144,27 +151,28 @@ class _SequenceIndicatorState extends ConsumerState<_SequenceIndicator>
   }
 
   String _statusText(SequenceExecutionState state) {
+    final l10n = widget.l10n;
     switch (state) {
       case SequenceExecutionState.idle:
-        return 'Idle';
+        return l10n.text('idle');
       case SequenceExecutionState.running:
-        return 'Running';
+        return l10n.text('sequenceRunning');
       case SequenceExecutionState.paused:
-        return 'Paused';
+        return l10n.text('sequencePaused');
       case SequenceExecutionState.stopping:
-        return 'Stopping';
+        return l10n.text('statusSequenceStopping');
       case SequenceExecutionState.completed:
-        return 'Completed';
+        return l10n.text('statusSequenceCompleted');
       case SequenceExecutionState.failed:
-        return 'Failed';
+        return l10n.text('statusSequenceFailed');
       case SequenceExecutionState.recovering:
-        return 'Recovering';
+        return l10n.text('statusSequenceRecovering');
       case SequenceExecutionState.stopFailed:
-        return 'Stop failed';
+        return l10n.text('statusSequenceStopFailed');
       case SequenceExecutionState.cleanupFailed:
-        return 'Cleanup failed';
+        return l10n.text('statusSequenceCleanupFailed');
       case SequenceExecutionState.finalizing:
-        return 'Finalizing';
+        return l10n.text('statusSequenceFinalizing');
     }
   }
 }

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../utils/fwhm_conversion.dart';
 import '../backend/disconnected_backend.dart';
 import '../backend/network_backend.dart';
 import '../backend/nightshade_backend.dart';
@@ -177,7 +178,7 @@ CapturedImageData capturedImageDataFromResult({
       stdDev: capturedImage.stats.stdDev,
       hfr: capturedImage.stats.hfr,
       fwhm: capturedImage.stats.hfr != null
-          ? capturedImage.stats.hfr! * 2.35
+          ? capturedImage.stats.hfr! * kFwhmPerHfr
           : null,
       eccentricity: capturedImage.stats.eccentricity,
       starCount: capturedImage.stats.starCount > 0

@@ -460,7 +460,11 @@ extension _ObjectDetailsPanelContentSections on ObjectDetailsPanel {
     final visibility = AstronomyCalculations.calculateObjectVisibility(
       raDeg: object.coordinates.ra * 15,
       decDeg: object.coordinates.dec,
-      date: obsTime.time,
+      // The NIGHT containing the observation time. The scan runs local noon to
+      // noon, so handing it the raw instant described the FOLLOWING night from
+      // midnight until noon — the panel would report a rise/transit/set a whole
+      // sidereal day away from the one the user is actually observing.
+      date: AstronomyCalculations.nightDateOf(obsTime.time),
       latitudeDeg: location.latitude,
       longitudeDeg: location.longitude,
       minAltitude: horizonDeg,
@@ -850,7 +854,10 @@ extension _ObjectDetailsPanelContentSections on ObjectDetailsPanel {
     final visibility = AstronomyCalculations.calculateObjectVisibility(
       raDeg: object.coordinates.ra * 15,
       decDeg: object.coordinates.dec,
-      date: obsTime.time,
+      // Same night anchor as the Rise/Transit/Set section above, so the quick
+      // stats bar cannot quote a different night's transit than the panel it
+      // sits in.
+      date: AstronomyCalculations.nightDateOf(obsTime.time),
       latitudeDeg: location.latitude,
       longitudeDeg: location.longitude,
     );

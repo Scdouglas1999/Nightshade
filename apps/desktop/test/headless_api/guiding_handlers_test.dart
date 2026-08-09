@@ -314,6 +314,41 @@ void main() {
       expect(backend.isRunningHost, isNull);
     });
 
+    Future<Response> probe(String qs) => translateHandlerErrors(
+      handlers.handlePhd2Probe(
+        Request('GET', Uri.parse('http://localhost/api/phd2/probe$qs')),
+      ),
+    );
+
+    test(
+      'probe: forwards the endpoint and returns version + profile',
+      () async {
+        // A remote client cannot reach the host's loopback PHD2 socket, so the
+        // version/profile readout on its Settings page is only as good as this
+        // endpoint.
+        final r = await probe('?host=10.0.0.5&port=4402');
+        expect(r.statusCode, HttpStatus.ok);
+        expect(backend.probeHost, '10.0.0.5');
+        expect(backend.probePort, 4402);
+        final body = jsonDecode(await r.readAsString()) as Map<String, dynamic>;
+        expect(body['outcome'], 'identified');
+        expect(body['version'], '2.6.13');
+        expect(body['profile'], 'Main rig');
+      },
+    );
+
+    test('probe: absent host+port forwards localhost:4400', () async {
+      expect((await probe('')).statusCode, HttpStatus.ok);
+      expect(backend.probeHost, 'localhost');
+      expect(backend.probePort, 4400);
+    });
+
+    test('probe: rejects a bad port (400, no probe)', () async {
+      final r = await probe('?port=70000');
+      expect(r.statusCode, HttpStatus.badRequest);
+      expect(backend.probePort, isNull);
+    });
+
     Future<Response> phd2StarImage(String qs) => translateHandlerErrors(
       handlers.handlePhd2GetStarImage(
         Request('GET', Uri.parse('http://localhost/api/phd2/star-image$qs')),
@@ -422,6 +457,8 @@ void main() {
 class _CapturingGuidingBackend extends DisconnectedBackend {
   String? isRunningHost;
   int? isRunningPort;
+  String? probeHost;
+  int? probePort;
   int? phd2StarImageSize;
   int? guiderStarImageSize;
 
@@ -433,6 +470,20 @@ class _CapturingGuidingBackend extends DisconnectedBackend {
     isRunningHost = host;
     isRunningPort = port;
     return true;
+  }
+
+  @override
+  Future<Phd2ProbeResult> phd2Probe({
+    String host = 'localhost',
+    int port = 4400,
+  }) async {
+    probeHost = host;
+    probePort = port;
+    return const Phd2ProbeResult(
+      outcome: Phd2ProbeOutcome.identified,
+      version: '2.6.13',
+      profile: 'Main rig',
+    );
   }
 
   @override

@@ -6,6 +6,7 @@ import 'package:nightshade_app/screens/analytics/widgets/image_grader_dialog.dar
 import 'package:nightshade_app/screens/analytics/widgets/science_export_hub.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 class _MockNetworkBackend extends Mock implements NetworkBackend {}
 
@@ -63,6 +64,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith((ref) {
             notifier = _SwappableBackendNotifier(ref, hostA);
             return notifier;
@@ -118,6 +120,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith((ref) {
             notifier = _SwappableBackendNotifier(ref, hostA);
             return notifier;

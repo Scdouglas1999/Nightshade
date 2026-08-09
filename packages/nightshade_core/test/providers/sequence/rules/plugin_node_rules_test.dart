@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/providers/sequence/rules/plugin_node_rules.dart';
+import '../../../harness/in_memory_database.dart';
 
 final _availabilityIssuesProvider =
     Provider.family<List<ValidationIssue>, Sequence>((ref, sequence) {
@@ -91,6 +92,7 @@ void main() {
     test('accepts an enabled node type loaded on the local host', () {
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           pluginNodeBlueprintsProvider.overrideWithValue([
             const PluginNodeBlueprint(
               pluginId: 'com.example.notify',
@@ -112,7 +114,9 @@ void main() {
     });
 
     test('blocks a missing or disabled local plugin node type', () {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: [inMemoryDatabaseOverride()],
+      );
       addTearDown(container.dispose);
 
       final issues = container.read(
@@ -125,7 +129,9 @@ void main() {
     });
 
     test('ignores disabled nodes', () {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: [inMemoryDatabaseOverride()],
+      );
       addTearDown(container.dispose);
 
       expect(
@@ -143,6 +149,7 @@ void main() {
       );
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith(
             (ref) => _FixedBackendNotifier(ref, backend),
           ),

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_timeline.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 class _SettingsNotifier extends AppSettingsNotifier {
   @override
@@ -44,6 +45,7 @@ void main() {
     editor.state = sequence;
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         currentSequenceProvider.overrideWith((_) => editor),
         appSettingsProvider.overrideWith(_SettingsNotifier.new),
         sequencerOverheadConfigProvider.overrideWithValue(

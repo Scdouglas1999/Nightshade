@@ -58,6 +58,12 @@ Future<ProviderContainer> _pump(
       overrides: [
         databaseProvider.overrideWithValue(db),
         onboardingDraftProvider.overrideWith(notifier),
+        // The step reads the connected wheel's position count to cap the slot
+        // list, which builds the real filter-wheel notifier; that notifier
+        // listens to the active profile, and an un-stubbed profile stream
+        // leaves a drift query open past the end of the test.
+        activeProfileProvider.overrideWith((ref) => Stream.value(null)),
+        allProfilesProvider.overrideWith((ref) => Stream.value(const [])),
       ],
       child: Consumer(builder: (ctx, ref, _) {
         container = ProviderScope.containerOf(ctx);

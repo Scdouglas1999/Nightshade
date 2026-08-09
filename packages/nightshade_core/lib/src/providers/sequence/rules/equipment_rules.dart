@@ -1,6 +1,7 @@
 import '../../../models/backend/device_types.dart';
 import '../../../models/equipment/equipment_models.dart';
 import '../../../models/sequence/sequence_models.dart';
+import '../../../utils/device_id.dart';
 import '../../equipment_provider.dart';
 import '../sequence_validation.dart';
 
@@ -101,32 +102,48 @@ class EquipmentConnectionRule implements RefAwareSequenceValidator {
     if (required.contains(DeviceType.guider)) {
       final gs = ref.read(guiderStateProvider);
       if (!isConnected(gs.connectionState)) {
-        // Add a top-level summary issue + per-node warnings so the tree
-        // borders highlight the affected nodes.
-        issues.add(
-          const ValidationIssue(
-            severity: ValidationSeverity.warning,
-            category: ValidationCategory.equipment,
-            title: 'No Guider Connected',
-            description:
-                'This sequence includes guiding or dithering operations that require PHD2.',
-            resolutionHint: 'Connect to PHD2 in the Guiding panel.',
-          ),
-        );
+        // Per-node warnings carry an affectedNodeId, so the tree borders
+        // highlight the nodes that need the guider AND the pre-flight list
+        // names them. A top-level summary on top of those was the SAME
+        // missing guider counted twice — identical hint and all — which
+        // inflated the "N warnings" badge. It is emitted only as a fallback,
+        // when no enabled node could be attributed.
+        //
+        // The remediation follows the guider actually in hand — see
+        // [_guiderResolutionHint]. Naming PHD2 unconditionally sent an
+        // operator running the built-in guider to a panel that has no
+        // Connect button for it.
+        final hint = _guiderResolutionHint(gs);
+        final perNode = <ValidationIssue>[];
         for (final node in sequence.nodes.values) {
           if (!node.isEnabled) continue;
           if (!node.requiredDevices.contains(DeviceType.guider)) continue;
-          issues.add(
+          perNode.add(
             ValidationIssue(
               severity: ValidationSeverity.warning,
               category: ValidationCategory.equipment,
               title: 'Guider Not Connected',
               description:
-                  '${node.name} requires a guider (PHD2) but none is connected.',
+                  '${node.name} requires a guider but none is connected.',
               affectedNodeId: node.id,
-              resolutionHint: 'Connect to PHD2 in the Guiding panel.',
+              resolutionHint: hint,
             ),
           );
+        }
+        if (perNode.isEmpty) {
+          issues.add(
+            ValidationIssue(
+              severity: ValidationSeverity.warning,
+              category: ValidationCategory.equipment,
+              title: 'No Guider Connected',
+              description:
+                  'This sequence includes guiding or dithering operations '
+                  'that require a guider.',
+              resolutionHint: hint,
+            ),
+          );
+        } else {
+          issues.addAll(perNode);
         }
       }
     }
@@ -164,6 +181,26 @@ class EquipmentConnectionRule implements RefAwareSequenceValidator {
 
     return issues;
   }
+}
+
+/// Remediation text for a missing guider, routed to the panel that can
+/// actually connect the guider [gs] refers to.
+///
+/// Only PHD2 has a Connect button on the Guiding panel (it has to launch and
+/// socket into an external process). Every other backend — including the
+/// built-in multi-star guider this build ships — is connected from Equipment,
+/// where the Guiding panel's own button sends you.
+String _guiderResolutionHint(GuiderState gs) {
+  final id = gs.deviceId;
+  if (id == null) {
+    return 'Connect a guider in the Equipment panel — the built-in '
+        'multi-star guider, or PHD2.';
+  }
+  if (isPhd2DeviceId(id)) return 'Connect to PHD2 in the Guiding panel.';
+  final name = gs.deviceName;
+  return name == null
+      ? 'Connect the selected guider in the Equipment panel.'
+      : 'Connect $name in the Equipment panel.';
 }
 
 /// Warns when a target specifies a rotation angle but no rotator is

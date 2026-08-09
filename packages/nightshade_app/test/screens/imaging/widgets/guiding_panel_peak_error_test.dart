@@ -7,9 +7,13 @@
 // per-axis peak excursion alongside the RMS figures.
 //
 // Scope: drive the panel with a guideStatsProvider seeded to known peak values
-// and assert the formatted tiles render. The values are formatted to two
-// decimals + an arcsecond suffix, matching the existing RMS tiles, so the
-// assertions pin both the labels and the seeded numbers.
+// and assert the formatted tiles render.
+//
+// The tiles used to carry an arcsecond suffix "matching the existing RMS
+// tiles"; both were wrong. `Phd2GuideStats` residuals are guide-camera PIXELS
+// (PHD2's RADistanceRaw), so the suffix is px unless a real pixel scale is
+// known — the same rule guiding_no_measurement_readouts_test.dart pins for the
+// Guiding screen.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -54,6 +58,25 @@ class _SeededGuideStatsNotifier extends GuideStatsNotifier {
   }
 }
 
+/// Same snapshot but with a known guide-camera pixel scale, which is the only
+/// condition under which these residuals may be shown in arcseconds.
+class _ScaledGuideStatsNotifier extends GuideStatsNotifier {
+  _ScaledGuideStatsNotifier(super.ref) {
+    // ignore: invalid_use_of_protected_member
+    state = const Phd2GuideStats(
+      rmsRa: 0.42,
+      rmsDec: 0.37,
+      rmsTotal: 0.56,
+      peakRa: 1.23,
+      peakDec: 0.89,
+      snr: 18.0,
+      starMass: 4200,
+      pixelScale: 2.0,
+      frameCount: 100,
+    );
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -85,10 +108,36 @@ void main() {
     expect(find.text('Dec Peak'), findsOneWidget,
         reason: 'The Dec peak tile must render alongside Dec RMS.');
 
-    // The seeded peak values, formatted to two decimals + arcsecond suffix.
-    expect(find.text('1.23"'), findsOneWidget,
+    // The seeded peak values, formatted to two decimals. The seeded stats carry
+    // no pixel scale, so they stay in guide-camera pixels.
+    expect(find.text('1.23 px'), findsOneWidget,
         reason: 'Peak RA must render the seeded value verbatim.');
-    expect(find.text('0.89"'), findsOneWidget,
+    expect(find.text('0.89 px'), findsOneWidget,
         reason: 'Peak Dec must render the seeded value verbatim.');
+    expect(find.text('1.23"'), findsNothing,
+        reason: 'a pixel residual labelled arcsec understates the real error '
+            'by the pixel scale.');
+  });
+
+  testWidgets('converts to arcseconds only when a pixel scale is known',
+      (tester) async {
+    await pumpAppScreen(
+      tester,
+      const GuidingPanel(colors: NightshadeColors.dark),
+      size: const Size(380, 900),
+      extraOverrides: [
+        guiderStateProvider.overrideWith(_ConnectedGuiderNotifier.new),
+        guideStatsProvider.overrideWith(_ScaledGuideStatsNotifier.new),
+        isBuiltinGuiderProvider.overrideWithValue(false),
+      ],
+      settle: false,
+    );
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 25));
+    }
+
+    // 1.23 px at 2.00"/px.
+    expect(find.text('2.46"'), findsOneWidget);
+    expect(find.text('1.78"'), findsOneWidget);
   });
 }

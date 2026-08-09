@@ -68,8 +68,9 @@ class ShareExportBufferException implements Exception {
 ///  * [buildAstroBinMetadata] fills the equipment block from the active
 ///    equipment profile (telescope / camera / focal length / aperture) and the
 ///    run's frames / integration / filter.
-///  * [exportAstroBinSidecar] writes a `.md` (copy-paste acquisition block) and
-///    a `.json` (machine-readable payload) next to the image.
+///  * [exportAstroBinAcquisition] writes the acquisition export in the format
+///    the chosen filename asks for — AstroBin's import CSV, the JSON payload,
+///    or the copy-paste Markdown block — plus the Markdown block beside it.
 ///
 /// **Why no OS-share call here:** `share_plus` lives in the UI packages'
 /// pubspecs, not `nightshade_core`. To respect the package boundary, this
@@ -78,11 +79,11 @@ class ShareExportBufferException implements Exception {
 /// This keeps `nightshade_core` free of a Flutter-plugin dependency it would
 /// otherwise have to take on solely for one call site.
 ///
-/// **Why a copy-paste AstroBin sidecar rather than an upload:** AstroBin
-/// exposes no open public API for unattended image upload. The honest,
-/// non-stub deliverable is therefore the acquisition block (Markdown) plus a
-/// JSON payload that the user pastes into AstroBin's upload form — a real,
-/// complete export, not a placeholder for a non-existent API.
+/// **Why a file rather than an upload:** AstroBin exposes no open public API
+/// for unattended image upload. The honest, non-stub deliverable is therefore
+/// the acquisition CSV its importer reads, plus the Markdown block for a
+/// description or a forum post — a real, complete export, not a placeholder for
+/// a non-existent API.
 ///
 /// The PNG/JPEG save paths delegate to the native bridge by default (so the
 /// pixel write matches every other image export in the app), but the save
@@ -367,6 +368,7 @@ class StackShareExportService {
   AstroBinExportMetadata buildAstroBinMetadata({
     required StackAndShareResult result,
     EquipmentProfileModel? profile,
+    DateTime? acquisitionDate,
   }) {
     final p0 = profile ?? _ref.read(activeEquipmentProfileProvider);
 
@@ -397,20 +399,30 @@ class StackShareExportService {
       filter: result.filter,
       focalLength: focalLength,
       aperture: aperture,
+      // The night the subs were taken when the caller can resolve it (the
+      // session's start time); otherwise the run's own timestamp, which for the
+      // usual stack-it-now flow is the same night.
+      date: acquisitionDate ?? result.createdAt,
     );
   }
 
-  /// Write the AstroBin acquisition sidecar for [meta] next to the image.
+  /// Write the AstroBin acquisition export for [meta] to [outputPath].
   ///
-  /// [outputPath] is the path of the exported image (e.g. `/exports/m51.png`);
-  /// the sidecar files are written alongside it with the image's basename and a
-  /// `.md` / `.json` extension (e.g. `/exports/m51.md`, `/exports/m51.json`).
-  /// The `.md` file is the copy-paste acquisition block ([toMarkdown]); the
-  /// `.json` file is the machine-readable payload ([toJson]).
+  /// The format follows the extension the caller asked for, because ignoring it
+  /// is how this ended up writing `rsr-astrobin.json` + `rsr-astrobin.md` for a
+  /// user who typed `rsr-astrobin.csv`:
   ///
-  /// Returns the path of the Markdown sidecar (the primary, human-facing file).
-  /// The JSON sidecar shares its basename and sits beside it.
-  Future<String> exportAstroBinSidecar({
+  ///  * `.csv` — AstroBin's acquisition CSV ([toAstroBinCsv]), the one file the
+  ///    importer accepts;
+  ///  * `.json` — the machine-readable payload ([toJson]);
+  ///  * anything else (including an image path, so a sidecar can still be
+  ///    dropped beside an exported PNG) — the copy-paste Markdown block
+  ///    ([toMarkdown]), written to `<base>.md`.
+  ///
+  /// A non-Markdown primary also gets the `<base>.md` block beside it, so the
+  /// forum-post text is never lost by choosing the importable format. Returns
+  /// the path actually written for the requested format.
+  Future<String> exportAstroBinAcquisition({
     required AstroBinExportMetadata meta,
     required String outputPath,
   }) async {
@@ -420,21 +432,32 @@ class StackShareExportService {
     final dir = p.dirname(absolutePath);
     final base = p.basenameWithoutExtension(absolutePath);
     final markdownPath = p.join(dir, '$base.md');
-    final jsonPath = p.join(dir, '$base.json');
+    final ext = p.extension(absolutePath).toLowerCase();
+
+    final csv = meta.toAstroBinCsv();
+    final String primaryPath;
+    if (ext == '.csv' && csv != null) {
+      primaryPath = absolutePath;
+      await File(primaryPath).writeAsString(csv, flush: true);
+    } else if (ext == '.json') {
+      primaryPath = absolutePath;
+      await File(primaryPath).writeAsString(
+        '${const JsonEncoder.withIndent('  ').convert(meta.toJson())}\n',
+        flush: true,
+      );
+    } else {
+      primaryPath = markdownPath;
+    }
 
     await File(
       markdownPath,
     ).writeAsString('${meta.toMarkdown()}\n', flush: true);
-    await File(jsonPath).writeAsString(
-      '${const JsonEncoder.withIndent('  ').convert(meta.toJson())}\n',
-      flush: true,
-    );
 
     _logger.info(
-      'Stack-and-Share wrote AstroBin sidecar: $markdownPath + $jsonPath',
+      'Stack-and-Share wrote AstroBin acquisition export: $primaryPath',
       source: 'StackShareExportService',
     );
-    return markdownPath;
+    return primaryPath;
   }
 
   // ===========================================================================

@@ -278,15 +278,16 @@ class CameraPresetsNotifier
     _ref.read(selectedPresetIdProvider.notifier).state = id;
 
     // Applying a preset is an explicit user choice of gain/offset. Mark the
-    // exposure settings dirty so the equipment-profile / Smart Night auto-seed
+    // exposure settings dirty so profile hydration does not overwrite the
     // (syncExposureFromProfileProvider) does not immediately overwrite the
     // values the user just selected.
-    _ref.read(exposureSettingsUserDirtyProvider.notifier).state = true;
-
     // Update exposure settings
     final currentSettings = _ref.read(exposureSettingsProvider);
-    _ref.read(exposureSettingsProvider.notifier).state = currentSettings
-        .copyWith(gain: preset.gain, offset: preset.offset);
+    _ref
+        .read(manualExposureSettingsUpdaterProvider)
+        .update(
+          currentSettings.copyWith(gain: preset.gain, offset: preset.offset),
+        );
   }
 
   /// Seed the factory unity-gain preset from a camera's manufacturer

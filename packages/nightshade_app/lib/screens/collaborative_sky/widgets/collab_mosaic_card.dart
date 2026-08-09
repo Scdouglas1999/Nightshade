@@ -3,6 +3,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../mosaic/mosaic_format.dart';
 import '../../your_sky/sky_atlas_format.dart';
 import '../collaborative_sky_format.dart';
 
@@ -83,8 +84,8 @@ class CollabMosaicCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${mosaic.rows}×${mosaic.cols} grid · '
-                      '${formatCenter(mosaic.centerRaDeg, mosaic.centerDecDeg)}',
+                      '${formatMosaicGrid(cols: mosaic.cols, rows: mosaic.rows)}'
+                      ' · ${formatCenter(mosaic.centerRaDeg, mosaic.centerDecDeg)}',
                       style: NightshadeTypography.captionSm.copyWith(
                         color: colors.textMuted,
                       ),

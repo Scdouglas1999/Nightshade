@@ -539,6 +539,26 @@ final plannerInstalledCatalogSearchProvider = FutureProvider.autoDispose
           .toList(growable: false);
     });
 
+/// Installed-catalog name search with NO exclusions.
+///
+/// [plannerInstalledCatalogSearchProvider] deliberately hides objects that are
+/// already in tonight's scored candidate list, because there it is a
+/// "beyond tonight's candidates" supplement. Anything that needs to put a
+/// catalog object INTO the target library (the project Add Target sheet) needs
+/// the opposite: M31 must be findable precisely because it is a good target
+/// tonight. Same underlying search, different question.
+final installedCatalogSearchProvider = FutureProvider.autoDispose
+    .family<List<CatalogSearchResult>, String>((ref, query) async {
+      final trimmed = query.trim();
+      if (trimmed.length < 2) return const <CatalogSearchResult>[];
+
+      final manager = CatalogManager.instance;
+      if (!manager.isInitialized) return const <CatalogSearchResult>[];
+
+      final results = await manager.search(trimmed);
+      return results.take(20).toList(growable: false);
+    });
+
 String _catalogSearchKey(String value) =>
     value.trim().toUpperCase().replaceAll(RegExp(r'\s+'), '');
 

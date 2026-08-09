@@ -309,6 +309,10 @@ class FramingEquipmentSection extends StatelessWidget {
             // the status badge off a narrow phone-landscape controls panel.
             Flexible(
               child: equipmentAsync.when(
+                // See the card below: keep the resolved badge on screen while
+                // framingFOVProvider re-runs, instead of blanking to an empty
+                // SizedBox on every camera-telemetry tick.
+                skipLoadingOnReload: true,
                 data: (result) {
                   if (result.isReady) {
                     return Row(
@@ -349,7 +353,24 @@ class FramingEquipmentSection extends StatelessWidget {
                     ],
                   );
                 },
-                loading: () => const SizedBox(),
+                // An empty SizedBox here meant a stuck first load looked
+                // identical to "no badge for this state" — the spinner below
+                // was the only hint anything was pending. Name it.
+                loading: () => Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        'Loading…',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: NightshadeTypography.fontSize10,
+                            color: colors.textMuted),
+                      ),
+                    ),
+                  ],
+                ),
                 error: (error, _) => Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -374,6 +395,17 @@ class FramingEquipmentSection extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         equipmentAsync.when(
+          // framingFOVProvider watches cameraStateProvider, so every telemetry
+          // tick (cooler power, sensor temperature, exposure progress) re-runs
+          // its async getCameraStatus round-trip. With the default
+          // skipLoadingOnReload: false this card threw away the equipment it
+          // had already resolved and painted a bare spinner for the duration of
+          // each of those round-trips — measured at 8 of 10 samples over 30 s,
+          // which is what read as "spinning for twenty minutes". The rows below
+          // never flickered because they read `valueOrNull` and keep the
+          // retained value; this makes the card behave the same way. A genuine
+          // first load still shows the spinner.
+          skipLoadingOnReload: true,
           data: (result) {
             switch (result.status) {
               case EquipmentStatus.noProfile:

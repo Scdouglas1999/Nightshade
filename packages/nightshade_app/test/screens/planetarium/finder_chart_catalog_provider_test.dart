@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/planetarium/providers/finder_chart_catalog_provider.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 const _subjectRegion = (
   centerRaHours: 8.63,
@@ -42,6 +43,7 @@ ProviderContainer _container({
 }) {
   final container = ProviderContainer(
     overrides: [
+      inMemoryDatabaseOverride(),
       starSpatialIndexProvider.overrideWith(
         (ref) => switch (starIndex ?? AsyncValue.data(_starIndex(const []))) {
           AsyncData(:final value) => Future.value(value),

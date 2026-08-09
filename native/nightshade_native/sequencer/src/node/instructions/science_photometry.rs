@@ -409,23 +409,23 @@ async fn run_filter_change(
 /// active target after a slew).
 async fn read_frame_metrics(context: &ExecutionContext) -> (Option<f64>, Option<f64>, Option<f64>) {
     let altitude_deg = context.calculate_altitude();
-    let airmass = altitude_deg.and_then(|alt| {
-        if alt <= 0.0 {
-            None
-        } else {
-            // Pickering 2002 approximation — accurate to 0.01 across
-            // 0.1° altitude up to zenith. Matches the AIRMASS keyword
-            // computed by the bridge's `calculate_airmass` for the
-            // FITS write path.
-            let alt_rad = alt.to_radians();
-            let denom = alt_rad.sin() + 244.0 / (165.0 + 47.0 * alt.powf(1.1));
-            if denom > 0.0 {
-                Some(1.0 / denom)
-            } else {
-                None
-            }
-        }
-    });
+    // The same function that writes the frame's `AIRMASS` card, so the number
+    // this gate rejects on is the number the file will claim.
+    //
+    // This used to be a third hand-rolled copy that added Pickering's
+    // refraction term to sin(h) instead of to h. That is not Pickering's
+    // formula or anyone's: it peaked at 2.02 near 10° altitude and then FELL
+    // back toward the horizon, reporting 0.86 at 1° — below 1.0, which no
+    // airmass can be. Because its maximum over the whole sky was 2.02, the
+    // default `max_airmass` of 2.5 could never fire on any frame at any
+    // altitude, and the gate that exists to throw out horizon-hugging
+    // photometry passed all of it.
+    //
+    // `None` now means only "below the horizon" (`calculate_airmass` refuses
+    // it), which `PhotometryQualityGates::evaluate` treats as a reject rather
+    // than a pass — the same verdict as before, with a reason that names the
+    // measured value instead of claiming nothing was measurable.
+    let airmass = altitude_deg.and_then(|alt| nightshade_imaging::calculate_airmass(alt).ok());
 
     // FWHM estimate from the HFR baseline (HFR -> arcsec FWHM under
     // Gaussian PSF: FWHM ≈ 2.0 × HFR for a well-sampled stellar
@@ -659,6 +659,90 @@ mod tests {
                 assert!(reason.contains("SNR not measured"));
             }
             other => panic!("expected reject for missing SNR, got {:?}", other),
+        }
+    }
+
+    /// Put a target at the celestial pole and the observer at latitude L, and
+    /// its altitude is exactly L at every instant — no hour angle, no clock, no
+    /// mock. That makes the whole gate drivable end to end: real
+    /// `ExecutionContext`, real `read_frame_metrics`, real gates.
+    fn context_pointed_at_altitude(altitude_deg: f64) -> ExecutionContext {
+        let mut ctx = ExecutionContext::new("photometry-gate-test".to_string());
+        ctx.target_ra = Some(3.0);
+        ctx.target_dec = Some(90.0);
+        ctx.latitude = Some(altitude_deg);
+        ctx.longitude = Some(0.0);
+        ctx
+    }
+
+    /// The `max_airmass` gate has to be able to fire.
+    ///
+    /// 20° altitude is airmass 2.90, comfortably past the default 2.5 cut-off
+    /// (AAVSO's, ~24°), so a frame taken there is exactly what the gate exists
+    /// to throw out. It was passing. The airmass fed to the gate came from a
+    /// hand-rolled formula whose maximum over the ENTIRE sky was 2.02 — so no
+    /// altitude whatsoever could trip a 2.5 threshold, and the horizon frames
+    /// that most need rejecting scored best of all.
+    #[tokio::test]
+    async fn max_airmass_gate_rejects_a_frame_taken_at_twenty_degrees() {
+        let ctx = context_pointed_at_altitude(20.0);
+        assert!(
+            (ctx.calculate_altitude()
+                .expect("pole target has an altitude")
+                - 20.0)
+                .abs()
+                < 1e-9,
+            "the fixture's geometry is wrong, so the rest of this test proves nothing"
+        );
+
+        let (airmass, _fwhm, _snr) = read_frame_metrics(&ctx).await;
+        let measured = airmass.expect("20° is above the horizon");
+
+        let gates = PhotometryQualityGates::default();
+        // SNR and FWHM handed in well inside their limits so the only gate
+        // that can speak is airmass.
+        match gates.evaluate(Some(120.0), Some(2.1), airmass, 2, 2) {
+            PhotometryFrameVerdict::Reject { reason } => {
+                assert!(
+                    reason.contains("Airmass"),
+                    "rejected, but for the wrong reason: {reason}"
+                );
+            }
+            other => panic!(
+                "a frame at 20° altitude was accepted against a {:.2} airmass limit \
+                 — the gate saw {measured:.2}: {other:?}",
+                gates.max_airmass
+            ),
+        }
+
+        // And the value it rejected on is the real one, not merely something
+        // large enough to trip the threshold.
+        assert!(
+            (measured - 2.900).abs() < 0.01,
+            "airmass at 20° should be ~2.90, got {measured}"
+        );
+    }
+
+    /// The number the gate rejects on and the number the file claims are the
+    /// same number. Anything else means a user can read a rejection reason off
+    /// the log and find the header disagreeing with it.
+    #[tokio::test]
+    async fn gate_airmass_is_the_value_written_to_the_fits_header() {
+        for altitude in [70.0_f64, 45.0, 30.0, 20.0, 8.0] {
+            let ctx = context_pointed_at_altitude(altitude);
+            let (airmass, _, _) = read_frame_metrics(&ctx).await;
+            // Fed the altitude the context itself reports, not the nominal
+            // `altitude` — `calculate_altitude` round-trips through asin(sin())
+            // and lands an ULP away, and the claim under test is that one
+            // function is used, not that two agree to a tolerance.
+            let observed = ctx.calculate_altitude().expect("pole target");
+            let written = nightshade_imaging::calculate_airmass(observed)
+                .expect("above the horizon, so a card is written");
+            assert_eq!(
+                airmass,
+                Some(written),
+                "at {altitude}° the gate sees {airmass:?} and the header records {written}"
+            );
         }
     }
 

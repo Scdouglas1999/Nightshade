@@ -25,7 +25,9 @@
 //! into every calibrated light. The model below is instead built out of
 //! electrons: a bias pedestal, dark current and sky that accumulate with
 //! exposure, stars that accumulate only on light frames, shot and read noise,
-//! and a hard clip at the sensor's advertised ceiling.
+//! and a hard clip at the sensor's advertised ceiling. Charge is collected
+//! first and read out once, so binning sums WELLS rather than summing reads —
+//! see [`read_out`] for what the earlier ordering cost.
 
 use nightshade_native::camera::FrameType;
 
@@ -78,7 +80,9 @@ const SIM_STAR_E_PER_SEC: f64 = 45_000.0;
 const SIM_SKY_E_PER_SEC: f64 = 30.0;
 /// Dark current electrons per second per pixel at the sensor's nominal setpoint.
 const SIM_DARK_E_PER_SEC: f64 = 0.6;
-/// Read noise in electrons RMS, applied to every frame including bias.
+/// Read noise in electrons RMS, drawn once per READ-OUT pixel — so a binned
+/// pixel carries the same read noise as an unbinned one, which is the whole
+/// reason binning buys SNR.
 const SIM_READ_NOISE_E: f64 = 3.2;
 /// Illumination electrons per second per pixel on a flat frame.
 const SIM_FLAT_E_PER_SEC: f64 = 9_000.0;
@@ -88,6 +92,40 @@ const SIM_OFFSET_ADU_PER_UNIT: f64 = 50.0;
 const SIM_VIGNETTE_DEPTH: f64 = 0.28;
 /// Exposure used by the parameterless convenience constructor.
 pub const SIM_DEFAULT_EXPOSURE_SECS: f64 = 10.0;
+
+/// Total electrons per second from the FAINTEST star rendered in a real-sky
+/// field.
+///
+/// Anchoring on the faintest rather than on an absolute zero point is what
+/// `tools/sim_fidelity/plate_solve_probe.py` proved out, and it is deliberate:
+/// the field is truncated to the brightest [`SIM_SKY_STAR_LIMIT`], so the faint
+/// end is set by the truncation, not by the sky. Pinning it to a known SNR makes
+/// every field solvable at every focal length, and the true magnitude scale
+/// above it means bright stars still bloom and saturate exactly as they should.
+/// Sized so the faintest star peaks around 20x the sky noise at the default 10 s
+/// exposure and stays detectable down to about 1 s.
+const SIM_SKY_FAINT_E_PER_SEC: f64 = 650.0;
+
+/// How many catalogue stars a real-sky frame renders, brightest first.
+pub const SIM_SKY_STAR_LIMIT: usize = 1500;
+
+/// Extra field radius requested beyond the sensor's half-diagonal, so a star
+/// just outside the corner still contributes its wings.
+const SIM_SKY_RADIUS_MARGIN: f64 = 1.15;
+
+/// A pointing to render instead of the pseudo-random field: the sky the mount
+/// says it is looking at, projected onto the sensor.
+#[derive(Debug, Clone)]
+pub struct SimSkyView {
+    pub centre_ra_deg: f64,
+    pub centre_dec_deg: f64,
+    /// Rotator angle, degrees, applied about the sensor centre.
+    pub rotation_deg: f64,
+    /// Unbinned plate scale. Binning is applied later, by [`read_out`], because
+    /// charge is collected at sensor resolution.
+    pub arcsec_per_px: f64,
+    pub stars: Vec<crate::sim_sky::SkyStar>,
+}
 
 /// Everything the simulated sensor needs to produce one frame.
 #[derive(Debug, Clone)]
@@ -109,6 +147,10 @@ pub struct SimFrameRequest {
     /// separate fixed seed, so a given seed reproduces a given frame exactly
     /// while successive frames still differ the way real reads do.
     pub seed: u64,
+    /// When set, paint the real sky at this pointing instead of the pseudo-random
+    /// field. `None` is the default and reproduces the old frame byte for byte —
+    /// see [`add_stars`] for why that matters to the sim's own test suite.
+    pub sky: Option<SimSkyView>,
 }
 
 impl Default for SimFrameRequest {
@@ -128,6 +170,7 @@ impl Default for SimFrameRequest {
             subframe: None,
             max_adu: SIM_MAX_ADU,
             seed: 0,
+            sky: None,
         }
     }
 }
@@ -193,25 +236,40 @@ impl Lcg {
 }
 
 /// Build the simulator's synthetic frame for `request`.
+///
+/// Two stages, in the order a real sensor does them: collect charge over the
+/// whole exposure, then read that charge out once. Binning happens between the
+/// two because on-chip binning sums CHARGE and reads the sum through a single
+/// amplifier — see [`read_out`] for what went wrong while the read was folded
+/// into the collection step.
 pub fn synthesize_sim_frame(request: &SimFrameRequest) -> Vec<u16> {
     let (region_x, region_y, region_w, region_h) = resolved_region(request);
-    let full = synthesize_full_region(request, region_x, region_y, region_w, region_h);
-    bin_region(
-        &full,
+    // One RNG for the whole frame: shot noise is drawn per SENSOR pixel and read
+    // noise per OUTPUT pixel, so both have to come off the same seeded stream to
+    // keep a given seed reproducing a given frame.
+    let mut noise = Lcg::new(request.seed);
+    let electrons = collect_electrons(request, region_x, region_y, region_w, region_h, &mut noise);
+    read_out(
+        &electrons,
         region_w as usize,
         region_h as usize,
-        request.bin_x.max(1) as usize,
-        request.bin_y.max(1) as usize,
-        request.max_adu,
+        request,
+        &mut noise,
     )
 }
 
-fn synthesize_full_region(
+/// Charge collected in each SENSOR pixel of the region, in electrons.
+///
+/// Shot noise belongs here rather than in the read: it is already in the well
+/// when the charge is summed, so binning correctly adds it in quadrature. The
+/// pedestal and read noise are not — they arrive once, at the amplifier.
+fn collect_electrons(
     request: &SimFrameRequest,
     region_x: u32,
     region_y: u32,
     region_w: u32,
     region_h: u32,
+    noise: &mut Lcg,
 ) -> Vec<f64> {
     let width = region_w as usize;
     let height = region_h as usize;
@@ -256,26 +314,32 @@ fn synthesize_full_region(
     }
 
     if collects_stars {
-        add_stars(
-            &mut signal,
-            request,
-            region_x,
-            region_y,
-            region_w,
-            region_h,
-            effective_exposure,
-        );
+        match &request.sky {
+            Some(sky) => add_sky_stars(
+                &mut signal,
+                request,
+                sky,
+                region_x,
+                region_y,
+                region_w,
+                region_h,
+                effective_exposure,
+            ),
+            None => add_stars(
+                &mut signal,
+                request,
+                region_x,
+                region_y,
+                region_w,
+                region_h,
+                effective_exposure,
+            ),
+        }
     }
-
-    let adu_per_e = adu_per_electron(request.gain);
-    let pedestal = f64::from(request.offset.max(0)) * SIM_OFFSET_ADU_PER_UNIT;
-    let mut noise = Lcg::new(request.seed);
 
     for value in signal.iter_mut() {
         let electrons = *value;
-        let shot = noise.next_normal() * electrons.max(0.0).sqrt();
-        let read = noise.next_normal() * SIM_READ_NOISE_E;
-        *value = pedestal + (electrons + shot + read) * adu_per_e;
+        *value = electrons + noise.next_normal() * electrons.max(0.0).sqrt();
     }
 
     signal
@@ -343,24 +407,191 @@ fn add_stars(
     }
 }
 
-/// Sum `bin_x` x `bin_y` blocks the way a real sensor bins charge, clipping the
-/// result at the well ceiling.
-fn bin_region(
-    source: &[f64],
+/// Smallest `cos` of the angular distance from the tangent point that still
+/// projects. Guards the gnomonic divide, which blows up at 90 degrees and
+/// mirrors the sky onto the frame beyond it.
+const TAN_HORIZON: f64 = 0.05;
+
+/// Field radius, in degrees, that covers a sensor at a given plate scale.
+///
+/// The half-diagonal plus a margin, so a star just outside a corner still lands
+/// its wings on the sensor.
+pub fn sim_sky_field_radius_deg(width: usize, height: usize, arcsec_per_px: f64) -> f64 {
+    let w_deg = width as f64 * arcsec_per_px / 3600.0;
+    let h_deg = height as f64 * arcsec_per_px / 3600.0;
+    w_deg.hypot(h_deg) / 2.0 * SIM_SKY_RADIUS_MARGIN
+}
+
+/// Gnomonic (TAN) projection of one catalogue star onto the simulated sensor.
+///
+/// Returns full-sensor pixel coordinates with the origin at the top-left corner,
+/// before the subframe origin or the mount's guide offset are applied. `None`
+/// when the star is too far from the tangent point to project.
+///
+/// TAN because that is the projection ASTAP writes into the WCS it solves for,
+/// so a frame rendered this way and then solved is being measured against its
+/// own geometry rather than against an approximation of it.
+pub fn project_star(
+    sky: &SimSkyView,
+    sensor_w: f64,
+    sensor_h: f64,
+    star: &crate::sim_sky::SkyStar,
+) -> Option<(f64, f64)> {
+    let scale_rad = (sky.arcsec_per_px / 3600.0).to_radians();
+    if !scale_rad.is_finite() || scale_rad <= 0.0 {
+        return None;
+    }
+    let (sin_dec0, cos_dec0) = sky.centre_dec_deg.to_radians().sin_cos();
+    let (sin_dec, cos_dec) = star.dec_deg.to_radians().sin_cos();
+    let (sin_dra, cos_dra) = (star.ra_deg - sky.centre_ra_deg).to_radians().sin_cos();
+
+    let cos_c = sin_dec0 * sin_dec + cos_dec0 * cos_dec * cos_dra;
+    if cos_c <= TAN_HORIZON {
+        return None;
+    }
+    // Standard coordinates about the tangent point, in radians on the sky.
+    let xi = cos_dec * sin_dra / cos_c;
+    let eta = (cos_dec0 * sin_dec - sin_dec0 * cos_dec * cos_dra) / cos_c;
+
+    // RA increases to the LEFT of a sky-side-up frame and north (+eta) is up,
+    // while raster rows run downward — so both standard coordinates negate on
+    // the way into pixels.
+    let px = -xi / scale_rad;
+    let py = -eta / scale_rad;
+    let (sin_rot, cos_rot) = sky.rotation_deg.to_radians().sin_cos();
+    Some((
+        sensor_w / 2.0 + px * cos_rot - py * sin_rot,
+        sensor_h / 2.0 + px * sin_rot + py * cos_rot,
+    ))
+}
+
+/// Paint the catalogue field described by `sky` into the collected charge.
+///
+/// Everything downstream of this is shared with the pseudo-random field: shot
+/// noise, the read, the offset pedestal and the well clip are all applied by
+/// [`collect_electrons`] and [`read_out`] afterwards, and the PSF width still
+/// comes from [`sim_star_sigma`], so a real-sky frame defocuses on the focuser
+/// and saturates at the ceiling exactly like the old one.
+///
+/// No RNG runs here: a given pointing and star list render a given frame, and
+/// only the seeded noise draw varies between frames.
+#[allow(clippy::too_many_arguments)]
+fn add_sky_stars(
+    signal: &mut [f64],
+    request: &SimFrameRequest,
+    sky: &SimSkyView,
+    region_x: u32,
+    region_y: u32,
+    region_w: u32,
+    region_h: u32,
+    exposure: f64,
+) {
+    let sigma = sim_star_sigma(request.focus_position);
+    let two_sigma_sq = 2.0 * sigma * sigma;
+    // Peak electrons per electron/second of total flux.
+    let unit_peak = exposure / (std::f64::consts::TAU * sigma * sigma);
+    if unit_peak <= 0.0 {
+        return;
+    }
+    // Four sigma, where the pseudo-random field uses three: a catalogue field is
+    // dominated by stars near the detection floor, and clipping their wings a
+    // sigma early costs exactly the flux the solver centroids on.
+    let radius = (4.0 * sigma).ceil() as isize;
+
+    let sensor_w = request.width as f64;
+    let sensor_h = request.height as f64;
+    let margin = radius as f64 + 2.0;
+
+    let mut placed: Vec<(f64, f64, f64)> = Vec::with_capacity(sky.stars.len());
+    for star in &sky.stars {
+        let Some((x, y)) = project_star(sky, sensor_w, sensor_h, star) else {
+            continue;
+        };
+        // The guide offset rides on top of the pointing: the simulated mount
+        // accumulates guide-pulse and drift displacement that its reported
+        // RA/Dec does not carry, so without this the built-in guider would see
+        // its own pulses move nothing.
+        let x = x + request.offset_x;
+        let y = y + request.offset_y;
+        if x < -margin || y < -margin || x > sensor_w + margin || y > sensor_h + margin {
+            continue;
+        }
+        placed.push((x, y, star.mag));
+    }
+    if placed.is_empty() {
+        return;
+    }
+
+    // Anchor the brightness scale on the faintest star that landed — see
+    // [`SIM_SKY_FAINT_E_PER_SEC`]. Above that anchor the TRUE magnitude scale
+    // applies, so the bright end blooms and saturates on its own.
+    let faintest = placed
+        .iter()
+        .map(|(_, _, mag)| *mag)
+        .fold(f64::MIN, f64::max);
+    let faint_peak_e = SIM_SKY_FAINT_E_PER_SEC * unit_peak;
+
+    let width = region_w as isize;
+    let height = region_h as isize;
+    for (sensor_cx, sensor_cy, mag) in placed {
+        let peak_e = faint_peak_e * 10f64.powf(0.4 * (faintest - mag));
+        let cx = sensor_cx - f64::from(region_x);
+        let cy = sensor_cy - f64::from(region_y);
+        let cxi = cx.round() as isize;
+        let cyi = cy.round() as isize;
+        for dy in -radius..=radius {
+            let py = cyi + dy;
+            if py < 0 || py >= height {
+                continue;
+            }
+            for dx in -radius..=radius {
+                let px = cxi + dx;
+                if px < 0 || px >= width {
+                    continue;
+                }
+                let r_sq = (px as f64 - cx).powi(2) + (py as f64 - cy).powi(2);
+                let value = peak_e * (-r_sq / two_sigma_sq).exp();
+                if value < 1.0 {
+                    continue;
+                }
+                signal[py as usize * region_w as usize + px as usize] += value;
+            }
+        }
+    }
+}
+
+/// Read the collected charge out: sum `bin_x` x `bin_y` blocks the way a real
+/// sensor sums charge on chip, then apply ONE read per output pixel — one read
+/// noise draw and one offset pedestal — and clip at the ADC ceiling.
+///
+/// The ordering is the whole point. While the pedestal and the read noise were
+/// applied per sensor pixel and then summed by the binning loop, both scaled
+/// with bin area: a bias frame read 499.5 ADU at bin 1 but 1999.5 ADU at bin 2,
+/// and read noise grew by sqrt(bin area) instead of staying put. No camera
+/// behaves that way — the offset is injected once at the amplifier — so a bias
+/// or dark master captured binned sat four pedestals high, calibration that
+/// subtracted an unbinned master from a binned light was wrong by 1500 ADU, and
+/// any offset-derived check that passed against the simulator passed for a
+/// reason the hardware does not share.
+fn read_out(
+    electrons: &[f64],
     width: usize,
     height: usize,
-    bin_x: usize,
-    bin_y: usize,
-    max_adu: u16,
+    request: &SimFrameRequest,
+    noise: &mut Lcg,
 ) -> Vec<u16> {
+    let bin_x = request.bin_x.max(1) as usize;
+    let bin_y = request.bin_y.max(1) as usize;
     let out_w = (width / bin_x).max(1);
     let out_h = (height / bin_y).max(1);
-    let ceiling = f64::from(max_adu);
+    let adu_per_e = adu_per_electron(request.gain);
+    let pedestal = f64::from(request.offset.max(0)) * SIM_OFFSET_ADU_PER_UNIT;
+    let ceiling = f64::from(request.max_adu);
     let mut out = vec![0u16; out_w * out_h];
 
     for oy in 0..out_h {
         for ox in 0..out_w {
-            let mut sum = 0.0;
+            let mut charge = 0.0;
             for by in 0..bin_y {
                 let sy = oy * bin_y + by;
                 if sy >= height {
@@ -371,10 +602,12 @@ fn bin_region(
                     if sx >= width {
                         continue;
                     }
-                    sum += source[sy * width + sx];
+                    charge += electrons[sy * width + sx];
                 }
             }
-            out[oy * out_w + ox] = sum.clamp(0.0, ceiling) as u16;
+            let read = noise.next_normal() * SIM_READ_NOISE_E;
+            out[oy * out_w + ox] =
+                (pedestal + (charge + read) * adu_per_e).clamp(0.0, ceiling) as u16;
         }
     }
     out
@@ -415,6 +648,16 @@ mod tests {
 
     fn mean(buffer: &[u16]) -> f64 {
         buffer.iter().map(|&v| f64::from(v)).sum::<f64>() / buffer.len() as f64
+    }
+
+    fn stddev(buffer: &[u16]) -> f64 {
+        let mean = mean(buffer);
+        (buffer
+            .iter()
+            .map(|&v| (f64::from(v) - mean).powi(2))
+            .sum::<f64>()
+            / buffer.len() as f64)
+            .sqrt()
     }
 
     fn detect(focus_position: Option<i32>) -> (usize, Option<f64>) {
@@ -853,6 +1096,100 @@ mod tests {
         );
     }
 
+    /// The bias pedestal is injected once at the amplifier, so it must not move
+    /// when the sensor bins. It previously scaled with bin area — 499.5 ADU at
+    /// bin 1 but 1999.5 ADU at bin 2 — because the offset was added per sensor
+    /// pixel and then carried into the sum by the binning loop. Binning sums
+    /// charge; the offset is not charge. A camera that reported four pedestals
+    /// on a binned bias would have every binned calibration master, every
+    /// offset-derived check and every "is this pedestal sane" heuristic
+    /// agreeing with the simulator and disagreeing with the hardware.
+    #[test]
+    fn bias_level_is_independent_of_binning() {
+        // 500 ADU from the default offset of 10, at every binning the simulated
+        // camera advertises — including the asymmetric ones, which is where a
+        // per-pixel pedestal would scale by only one of the two factors.
+        for (bin_x, bin_y) in [(1u32, 1u32), (2, 2), (3, 3), (4, 4), (1, 2), (2, 1)] {
+            let bias = mean(&frame(&SimFrameRequest {
+                frame_type: FrameType::Bias,
+                bin_x,
+                bin_y,
+                ..Default::default()
+            }));
+            assert!(
+                (bias - 500.0).abs() < 5.0,
+                "bin {bin_x}x{bin_y} bias frame sat at {bias:.1} ADU; one read \
+                 applies the offset-derived 500 ADU pedestal once, whatever the \
+                 binning"
+            );
+        }
+    }
+
+    /// ...and the charge underneath the pedestal must still sum, or binning
+    /// would have stopped meaning anything. Measured ABOVE the pedestal, since
+    /// that is the only part binning is entitled to multiply.
+    #[test]
+    fn binned_signal_scales_with_bin_area_above_the_pedestal() {
+        let base = SimFrameRequest {
+            frame_type: FrameType::Dark,
+            exposure_secs: 600.0,
+            ..Default::default()
+        };
+        let pedestal = f64::from(base.offset) * SIM_OFFSET_ADU_PER_UNIT;
+        let unbinned = mean(&frame(&base)) - pedestal;
+        for (bin_x, bin_y) in [(2u32, 2u32), (4, 4), (2, 1)] {
+            let binned = mean(&frame(&SimFrameRequest {
+                bin_x,
+                bin_y,
+                ..base.clone()
+            })) - pedestal;
+            let area = f64::from(bin_x * bin_y);
+            let ratio = binned / unbinned;
+            assert!(
+                (ratio - area).abs() < 0.15 * area,
+                "bin {bin_x}x{bin_y} collected {ratio:.2}x the unbinned signal \
+                 ({unbinned:.1} -> {binned:.1} ADU above pedestal); summing \
+                 {area:.0} wells collects {area:.0}x the charge"
+            );
+        }
+    }
+
+    /// One read means one read-noise draw. Summing a draw per sensor pixel
+    /// inflated binned read noise by sqrt(bin area), so a binned simulated frame
+    /// was noisier than the hardware it stands in for — the direction that lets
+    /// a real noise regression hide inside the simulator's own noise floor, and
+    /// that makes binning look like it buys less SNR than it does.
+    #[test]
+    fn read_noise_does_not_grow_with_binning() {
+        // A bias frame collects no charge, so its spread is read noise alone.
+        // Gain 300 puts the conversion at 1 ADU/e-, clear of the quantisation
+        // floor that would otherwise swamp a 3.2 e- measurement.
+        let bias_noise = |bin_x, bin_y| {
+            stddev(&frame(&SimFrameRequest {
+                frame_type: FrameType::Bias,
+                gain: 300,
+                bin_x,
+                bin_y,
+                ..Default::default()
+            }))
+        };
+        let unbinned = bias_noise(1, 1);
+        assert!(
+            (unbinned - SIM_READ_NOISE_E).abs() < 0.5,
+            "unbinned bias spread {unbinned:.2} ADU should sit at the sensor's \
+             {SIM_READ_NOISE_E} e- read noise at 1 ADU/e-"
+        );
+        for (bin_x, bin_y) in [(2u32, 2u32), (4, 4)] {
+            let binned = bias_noise(bin_x, bin_y);
+            assert!(
+                (binned - unbinned).abs() < 0.25 * unbinned,
+                "bin {bin_x}x{bin_y} bias spread {binned:.2} ADU against {unbinned:.2} \
+                 unbinned; a binned pixel is read once, not {} times",
+                bin_x * bin_y
+            );
+        }
+    }
+
     /// A subframe returns exactly the requested region.
     #[test]
     fn subframe_returns_the_requested_region() {
@@ -862,5 +1199,370 @@ mod tests {
         };
         assert_eq!(sim_frame_dimensions(&request), (640, 480));
         assert_eq!(frame(&request).len(), 640 * 480);
+    }
+
+    // =====================================================================
+    // Real-sky rendering
+    // =====================================================================
+
+    fn digest(buffer: &[u16]) -> u64 {
+        let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+        for value in buffer {
+            hash ^= u64::from(*value);
+            hash = hash.wrapping_mul(0x100_0000_01b3);
+        }
+        hash
+    }
+
+    /// The pseudo-random field is untouched by the real-sky path.
+    ///
+    /// These digests were taken from a build with `add_sky_stars` and the `sky`
+    /// field deleted outright, so they pin the frame as it stood BEFORE real-sky
+    /// rendering existed rather than merely pinning it against itself. That
+    /// matters because the sim's own suite asserts star counts, HFR and the
+    /// autofocus V-curve against this exact field: if the default frame moves,
+    /// every one of those numbers silently means something else.
+    ///
+    /// A digest that fails here is a REGRESSION, not a golden to re-bless,
+    /// unless the pseudo-random field was deliberately changed.
+    #[test]
+    fn no_sky_view_reproduces_the_original_field_byte_for_byte() {
+        let cases: [(&str, SimFrameRequest, u64); 7] = [
+            ("light", SimFrameRequest::default(), 0x9c63_c844_c0e1_10de),
+            (
+                "dark",
+                SimFrameRequest {
+                    exposure_secs: 30.0,
+                    frame_type: FrameType::Dark,
+                    ..Default::default()
+                },
+                0x2842_208c_5180_d708,
+            ),
+            (
+                "flat",
+                SimFrameRequest {
+                    exposure_secs: 2.0,
+                    frame_type: FrameType::Flat,
+                    gain: 90,
+                    offset: 25,
+                    ..Default::default()
+                },
+                0xa185_4d18_04e7_0657,
+            ),
+            (
+                "bias",
+                SimFrameRequest {
+                    frame_type: FrameType::Bias,
+                    ..Default::default()
+                },
+                0xb6de_c7f0_0293_c0b1,
+            ),
+            (
+                "defocused",
+                SimFrameRequest {
+                    focus_position: Some(25_250),
+                    seed: 42,
+                    ..Default::default()
+                },
+                0xcfe0_bec5_606a_0b37,
+            ),
+            (
+                "guide-offset",
+                SimFrameRequest {
+                    offset_x: 13.5,
+                    offset_y: -7.25,
+                    seed: 9,
+                    ..Default::default()
+                },
+                0x3b9e_3b8c_6829_e5eb,
+            ),
+            (
+                "binned-subframe",
+                SimFrameRequest {
+                    bin_x: 2,
+                    bin_y: 2,
+                    subframe: Some((100, 60, 640, 480)),
+                    seed: 3,
+                    ..Default::default()
+                },
+                0xe73a_6a13_2dc0_4fcb,
+            ),
+        ];
+        for (name, request, expected) in cases {
+            assert!(request.sky.is_none(), "{name} must not carry a sky view");
+            assert_eq!(
+                digest(&frame(&request)),
+                expected,
+                "{name} frame changed; the pseudo-random field must stay identical \
+                 when no catalogue is configured"
+            );
+        }
+    }
+
+    fn sky_view(stars: Vec<crate::sim_sky::SkyStar>) -> SimSkyView {
+        SimSkyView {
+            centre_ra_deg: 83.822,
+            centre_dec_deg: -5.391,
+            rotation_deg: 0.0,
+            // 3.76 um pixels at 1000 mm, the simulated rig's declared geometry.
+            arcsec_per_px: 0.7756,
+            stars,
+        }
+    }
+
+    /// Detected position of the brightest star in a full-sensor frame.
+    fn brightest_star_in(buffer: &[u16]) -> (f64, f64) {
+        let image = ImageData::from_u16(SIM_W as u32, SIM_H as u32, 1, buffer);
+        let result = detect_stars_with_stats(&image, &StarDetectionConfig::default());
+        let star = result
+            .stars
+            .iter()
+            .max_by(|a, b| a.flux.partial_cmp(&b.flux).unwrap())
+            .expect("stars detected");
+        (star.x, star.y)
+    }
+
+    fn star(ra_deg: f64, dec_deg: f64, mag: f64) -> crate::sim_sky::SkyStar {
+        crate::sim_sky::SkyStar {
+            ra_deg,
+            dec_deg,
+            mag,
+        }
+    }
+
+    /// A star at the tangent point lands on the sensor's centre pixel.
+    #[test]
+    fn tan_projection_puts_the_pointing_at_the_frame_centre() {
+        let sky = sky_view(Vec::new());
+        let centre = project_star(
+            &sky,
+            SIM_W as f64,
+            SIM_H as f64,
+            &star(sky.centre_ra_deg, sky.centre_dec_deg, 8.0),
+        )
+        .expect("the tangent point always projects");
+        assert!((centre.0 - SIM_W as f64 / 2.0).abs() < 1e-6, "{centre:?}");
+        assert!((centre.1 - SIM_H as f64 / 2.0).abs() < 1e-6, "{centre:?}");
+    }
+
+    /// A known angular offset lands on the pixel the plate scale predicts, in
+    /// the orientation a sky-side-up frame has: north up, east (increasing RA)
+    /// to the LEFT.
+    #[test]
+    fn tan_projection_places_a_known_offset_on_the_predicted_pixel() {
+        let sky = sky_view(Vec::new());
+        // 100 pixels' worth of declination, straight north.
+        let north_deg = 100.0 * sky.arcsec_per_px / 3600.0;
+        let north = project_star(
+            &sky,
+            SIM_W as f64,
+            SIM_H as f64,
+            &star(sky.centre_ra_deg, sky.centre_dec_deg + north_deg, 8.0),
+        )
+        .unwrap();
+        assert!((north.0 - SIM_W as f64 / 2.0).abs() < 0.05, "{north:?}");
+        assert!(
+            (north.1 - (SIM_H as f64 / 2.0 - 100.0)).abs() < 0.05,
+            "north must be UP (smaller row): {north:?}"
+        );
+
+        // 100 pixels' worth of RA east, which shrinks by cos(dec) on the sky.
+        let east_deg = 100.0 * sky.arcsec_per_px / 3600.0 / sky.centre_dec_deg.to_radians().cos();
+        let east = project_star(
+            &sky,
+            SIM_W as f64,
+            SIM_H as f64,
+            &star(sky.centre_ra_deg + east_deg, sky.centre_dec_deg, 8.0),
+        )
+        .unwrap();
+        assert!(
+            (east.0 - (SIM_W as f64 / 2.0 - 100.0)).abs() < 0.05,
+            "east must be LEFT (smaller column): {east:?}"
+        );
+        assert!((east.1 - SIM_H as f64 / 2.0).abs() < 0.05, "{east:?}");
+    }
+
+    /// A rotator angle turns the field about the sensor centre.
+    #[test]
+    fn rotation_turns_the_field_about_the_frame_centre() {
+        let mut sky = sky_view(Vec::new());
+        let north_deg = 100.0 * sky.arcsec_per_px / 3600.0;
+        let target = star(sky.centre_ra_deg, sky.centre_dec_deg + north_deg, 8.0);
+        sky.rotation_deg = 90.0;
+        let rotated = project_star(&sky, SIM_W as f64, SIM_H as f64, &target).unwrap();
+        // What was 100 px above the centre is now 100 px to one side of it, at
+        // the same radius.
+        let dx = rotated.0 - SIM_W as f64 / 2.0;
+        let dy = rotated.1 - SIM_H as f64 / 2.0;
+        assert!(dx.hypot(dy) - 100.0 < 0.05, "radius must be preserved");
+        assert!(dy.abs() < 0.05, "{rotated:?}");
+        assert!((dx.abs() - 100.0).abs() < 0.05, "{rotated:?}");
+    }
+
+    /// The far side of the sky does not fold back onto the frame.
+    #[test]
+    fn stars_beyond_the_tangent_horizon_do_not_project() {
+        let sky = sky_view(Vec::new());
+        assert!(project_star(
+            &sky,
+            SIM_W as f64,
+            SIM_H as f64,
+            &star(sky.centre_ra_deg + 180.0, -sky.centre_dec_deg, 8.0),
+        )
+        .is_none());
+    }
+
+    /// A catalogue field renders stars the REAL detector finds, which is the
+    /// whole bar: a frame the detector cannot measure is one the solver cannot
+    /// solve either.
+    #[test]
+    fn a_sky_field_yields_detectable_stars() {
+        // A synthetic grid rather than a real catalogue, so the test does not
+        // need a star database installed.
+        let sky = sky_view(grid_field(0.7756));
+        let request = SimFrameRequest {
+            sky: Some(sky),
+            ..Default::default()
+        };
+        let buffer = frame(&request);
+        let image = ImageData::from_u16(SIM_W as u32, SIM_H as u32, 1, &buffer);
+        let found = detect_stars_with_stats(&image, &StarDetectionConfig::default());
+        assert!(
+            found.stars.len() >= 10,
+            "sky field produced only {} detectable stars; autofocus alone needs 10",
+            found.stars.len()
+        );
+    }
+
+    /// Stars are placed where the projection says, not merely somewhere.
+    #[test]
+    fn the_brightest_sky_star_lands_at_its_projected_pixel() {
+        let sky = sky_view(vec![star(83.822, -5.391, 8.0)]);
+        let (want_x, want_y) =
+            project_star(&sky, SIM_W as f64, SIM_H as f64, &sky.stars[0]).unwrap();
+        let buffer = frame(&SimFrameRequest {
+            sky: Some(sky),
+            ..Default::default()
+        });
+        let (got_x, got_y) = brightest_star_in(&buffer);
+        assert!(
+            (got_x - want_x).abs() < 1.0 && (got_y - want_y).abs() < 1.0,
+            "star rendered at ({got_x:.1}, {got_y:.1}), projection said \
+             ({want_x:.1}, {want_y:.1})"
+        );
+    }
+
+    /// A pointing change moves the field, which is what makes Slew & Center and
+    /// the centring loop exercisable offline.
+    #[test]
+    fn moving_the_pointing_moves_the_rendered_field() {
+        let stars = vec![star(83.822, -5.391, 8.0)];
+        let centred = frame(&SimFrameRequest {
+            sky: Some(sky_view(stars.clone())),
+            ..Default::default()
+        });
+        let mut nudged_view = sky_view(stars);
+        // 200 pixels' worth of declination.
+        nudged_view.centre_dec_deg -= 200.0 * nudged_view.arcsec_per_px / 3600.0;
+        let nudged = frame(&SimFrameRequest {
+            sky: Some(nudged_view),
+            ..Default::default()
+        });
+
+        let before = brightest_star_in(&centred);
+        let after = brightest_star_in(&nudged);
+        // The star is fixed on the sky, so dropping the pointing south puts it
+        // further north of centre — UP the frame, at a smaller row.
+        assert!(
+            (before.1 - after.1 - 200.0).abs() < 2.0,
+            "dropping the pointing 200 px south should move the star 200 px up \
+             the frame: {before:?} -> {after:?}"
+        );
+        assert!(
+            (after.0 - before.0).abs() < 2.0,
+            "a declination-only move must not shift the star in x: \
+             {before:?} -> {after:?}"
+        );
+    }
+
+    /// Same pointing and same seed, same frame.
+    #[test]
+    fn sky_rendering_is_deterministic() {
+        let request = || SimFrameRequest {
+            sky: Some(sky_view(grid_field(0.7756))),
+            seed: 1234,
+            ..Default::default()
+        };
+        assert_eq!(digest(&frame(&request())), digest(&frame(&request())));
+    }
+
+    /// A field with nothing in it falls back to a clean sky rather than a
+    /// division by an empty magnitude range.
+    #[test]
+    fn an_empty_sky_field_renders_a_starless_frame() {
+        let buffer = frame(&SimFrameRequest {
+            sky: Some(sky_view(Vec::new())),
+            ..Default::default()
+        });
+        let image = ImageData::from_u16(SIM_W as u32, SIM_H as u32, 1, &buffer);
+        let found = detect_stars_with_stats(&image, &StarDetectionConfig::default());
+        assert!(found.stars.is_empty(), "got {} stars", found.stars.len());
+    }
+
+    /// The sky path still defocuses on the focuser, so autofocus keeps working
+    /// against a real-sky frame.
+    #[test]
+    fn sky_stars_defocus_with_the_focuser() {
+        let hfr = |position: i32| {
+            let buffer = frame(&SimFrameRequest {
+                sky: Some(sky_view(grid_field(0.7756))),
+                focus_position: Some(position),
+                ..Default::default()
+            });
+            let image = ImageData::from_u16(SIM_W as u32, SIM_H as u32, 1, &buffer);
+            let result = detect_stars_with_stats(&image, &StarDetectionConfig::default());
+            let mut hfrs: Vec<f64> = result.stars.iter().map(|s| s.hfr).collect();
+            assert!(!hfrs.is_empty(), "no stars at focuser {position}");
+            hfrs.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            hfrs[hfrs.len() / 2]
+        };
+        let sharp = hfr(SIM_TRUE_FOCUS);
+        let blurred = hfr(SIM_TRUE_FOCUS + 200);
+        assert!(
+            blurred > sharp * 1.3,
+            "defocused HFR {blurred:.2} should exceed in-focus {sharp:.2}"
+        );
+    }
+
+    /// A field radius covers the sensor's corners, not just its centre.
+    #[test]
+    fn field_radius_covers_the_sensor_diagonal() {
+        let scale = 0.7756;
+        let radius = sim_sky_field_radius_deg(SIM_W, SIM_H, scale);
+        let half_diagonal =
+            (SIM_W as f64 * scale / 3600.0).hypot(SIM_H as f64 * scale / 3600.0) / 2.0;
+        assert!(radius > half_diagonal, "{radius} vs {half_diagonal}");
+        assert!(radius < half_diagonal * 1.5, "{radius} vs {half_diagonal}");
+    }
+
+    /// A grid of stars spanning the sensor, spaced far enough apart that the
+    /// detector resolves them individually.
+    fn grid_field(arcsec_per_px: f64) -> Vec<crate::sim_sky::SkyStar> {
+        let centre_ra: f64 = 83.822;
+        let centre_dec: f64 = -5.391;
+        let step_deg = 90.0 * arcsec_per_px / 3600.0;
+        let mut stars = Vec::new();
+        for row in -4i32..=4 {
+            for col in -8i32..=8 {
+                stars.push(star(
+                    centre_ra + f64::from(col) * step_deg / centre_dec.to_radians().cos(),
+                    centre_dec + f64::from(row) * step_deg,
+                    // A spread wide enough that the brightness ladder is
+                    // exercised rather than 153 identical stars.
+                    9.0 + f64::from((row + col).rem_euclid(5)),
+                ));
+            }
+        }
+        stars
     }
 }

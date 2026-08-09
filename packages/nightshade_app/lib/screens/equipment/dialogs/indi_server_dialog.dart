@@ -124,16 +124,31 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
       if (!mounted) return;
       setState(() {
         _isTesting = false;
-        _statusSuccess = true;
         final n = devices.length;
-        _statusMessage = 'Connected. Found $n device${n == 1 ? '' : 's'}.';
+        // An EMPTY result is not evidence of a connection. The FFI backend
+        // catches a refused/timed-out INDI socket and returns an empty device
+        // list (ffi_backend/discovery_camera_operations.dart
+        // `_discoverAddressDevices`), so "connected to a server with no drivers
+        // loaded" and "nothing is listening on that address at all" arrive here
+        // as the exact same value. Reporting the first as a green tick sent an
+        // operator who had typo'd their Raspberry Pi's address off to hunt the
+        // wrong problem all night. Only a device we actually enumerated proves
+        // the server answered.
+        _statusSuccess = n > 0;
+        _statusMessage = n > 0
+            ? 'Connected. Found $n device${n == 1 ? '' : 's'}.'
+            : 'No INDI devices at ${inputs.host}:${inputs.port}. If '
+                'indiserver is running there, it has no drivers loaded — '
+                'otherwise check the host and port.';
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _isTesting = false;
         _statusSuccess = false;
-        _statusMessage = 'Connection failed: $e';
+        // Name the endpoint that was actually probed, matching the PHD2 test's
+        // wording on the guider step.
+        _statusMessage = 'No response on ${inputs.host}:${inputs.port}. $e';
       });
     }
   }

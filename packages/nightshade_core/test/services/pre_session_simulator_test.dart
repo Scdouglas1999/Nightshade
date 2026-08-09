@@ -468,5 +468,67 @@ void main() {
         ),
       );
     });
+    test('a sequence that ends in a Count loop is billed for every iteration, '
+        'the same total the Builder estimate chip shows', () {
+      // The Builder's estimate chip reads SequenceTimeEstimator
+      // .estimateTotalDuration; Pre-Flight's "Duration"/"Ends" pair reads
+      // this simulation. `estimateSequenceTiming` renders ONE pass of a
+      // Count loop (each entry carries a "Showing 1 of N" note) while
+      // advancing its own clock by the whole loop, so taking the last
+      // rendered segment's end billed the pre-flight for a single
+      // iteration and the two surfaces printed different totals for one
+      // sequence.
+      final start = DateTime(2026, 5, 21, 22);
+      const estimator = SequenceTimeEstimator();
+      final exposure = ExposureNode(
+        id: 'exp-loop-body',
+        name: 'Lum 120s',
+        durationSecs: 120,
+        count: 2,
+        filter: 'L',
+      );
+      final loop = LoopNode(
+        id: 'loop-3x',
+        name: 'Loop 3x',
+        conditionType: LoopConditionType.count,
+        repeatCount: 3,
+        childIds: const ['exp-loop-body'],
+      );
+      final target = TargetHeaderNode(
+        id: 'target-m31',
+        name: 'M31 Target',
+        targetName: 'M31',
+        raHours: 0.7,
+        decDegrees: 41.3,
+        childIds: const ['loop-3x'],
+      );
+      final sequence = Sequence.create(
+        name: 'Loop Simulation',
+        nodes: {
+          'target-m31': target,
+          'loop-3x': loop.copyWith(parentId: 'target-m31'),
+          'exp-loop-body': exposure.copyWith(parentId: 'loop-3x'),
+        },
+      );
+
+      final result = simulator.simulate(
+        sequence,
+        start: start,
+        latitude: 40,
+        longitude: -75,
+      );
+      final builderChipTotal = estimator.estimateTotalDuration(
+        sequence,
+        start,
+        latitude: 40,
+        longitude: -75,
+      );
+
+      // One pass of the body; three of them must be billed.
+      final onePass = result.segments.last.end.difference(start);
+      expect(result.duration, builderChipTotal);
+      expect(result.duration, onePass * 3);
+      expect(result.end, start.add(builderChipTotal));
+    });
   });
 }

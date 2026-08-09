@@ -184,6 +184,58 @@ void main() {
     await disposeScreen(tester);
   });
 
+  testWidgets('the card says how many panels THIS rig is holding',
+      (tester) async {
+    // Deciding whether to claim more (or hand some back) needs the count of
+    // panels you are committed to shooting; the card only ever reported how
+    // many had been uploaded to the hub.
+    final projectId = await seedProject(cols: 3);
+    await projectsDao.setHubMosaic(projectId, 'mos-1', 'participant');
+    final claimed = await panelsDao.getByIndex(projectId, 0);
+    await panelsDao.setClaim(
+      claimed!.id!,
+      claimToken: 'baton-0',
+      rigId: 'rig-1',
+      accountId: 'acct-1',
+    );
+    await pumpScreen(tester, projectId);
+
+    expect(find.textContaining('You hold 1 of 3 panels'), findsOneWidget);
+    await disposeScreen(tester);
+  });
+
+  testWidgets('an uploaded panel is no longer counted as held', (tester) async {
+    // A delivered panel is not outstanding work: the hub refuses to release an
+    // uploaded panel and never re-opens it, and the grid already hides Release
+    // for it. Counting it as held told the operator they had panels to shoot
+    // (or hand back) that they had in fact already finished.
+    final projectId = await seedProject(cols: 3);
+    await projectsDao.setHubMosaic(projectId, 'mos-1', 'participant');
+    final masterId = await mastersDao.insertMaster(
+      name: 'Panel 0',
+      masterFitsPath: '/tmp/p0.fits',
+      status: IntegratedMasterStatus.finalized,
+      accumulationMode: AccumulationMode.batch,
+    );
+    for (final index in [0, 1]) {
+      final panel = await panelsDao.getByIndex(projectId, index);
+      await panelsDao.setClaim(
+        panel!.id!,
+        claimToken: 'baton-$index',
+        rigId: 'rig-1',
+        accountId: 'acct-1',
+      );
+      // Panel 0 has already been delivered; panel 1 is still being shot.
+      if (index == 0) await panelsDao.setUploaded(panel.id!, masterId);
+    }
+    await pumpScreen(tester, projectId);
+
+    expect(find.textContaining('You hold 1 of 3 panels'), findsOneWidget);
+    expect(find.textContaining('You hold 2 of 3 panels'), findsNothing);
+    expect(find.textContaining('1 uploaded to the hub'), findsOneWidget);
+    await disposeScreen(tester);
+  });
+
   testWidgets('an unclaimed (pending) panel offers no Force release button',
       (tester) async {
     final projectId = await seedProject();

@@ -29,6 +29,7 @@ import 'package:nightshade_core/src/models/plate_solver.dart';
 import 'package:nightshade_core/src/providers/backend_provider.dart';
 
 import '../fakes/fakes.dart';
+import '../harness/in_memory_database.dart';
 
 NetworkBackend _buildBackend(
   FakeNetworkClient fake, {
@@ -688,7 +689,9 @@ void main() {
     test(
       'rolls back to a disconnected backend when the handshake fails',
       () async {
-        final container = ProviderContainer();
+        final container = ProviderContainer(
+          overrides: [inMemoryDatabaseOverride()],
+        );
         addTearDown(container.dispose);
 
         // Nothing is listening on this port, so the `/api/info` handshake is
@@ -731,7 +734,9 @@ void main() {
     );
 
     test('a failed connect stays retryable', () async {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: [inMemoryDatabaseOverride()],
+      );
       addTearDown(container.dispose);
       final notifier = container.read(backendProvider.notifier);
 

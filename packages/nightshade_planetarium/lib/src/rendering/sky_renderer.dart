@@ -46,7 +46,11 @@ class SkyCanvasPainter extends CustomPainter {
   final CelestialCoordinate? mountPosition;
   final MountRenderStatus mountStatus;
   final (double ra, double dec)? sunPosition;
-  final (double ra, double dec, double illumination)? moonPosition;
+
+  /// Moon RA/Dec in degrees plus its illuminated fraction AS A PERCENT (0-100),
+  /// the unit [AstronomyCalculations.moonIllumination] returns and the unit the
+  /// Dashboard and Plan Tonight moon cards display.
+  final (double ra, double dec, double illuminationPercent)? moonPosition;
   final List<PlanetData> planets;
   final List<SatelliteData> satellites;
   final List<VariableStarData> variableStars;

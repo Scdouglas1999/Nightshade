@@ -111,7 +111,7 @@ fn exposure_abort_generations() -> &'static Mutex<HashMap<String, u64>> {
     EXPOSURE_ABORT_GENERATIONS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-async fn exposure_abort_generation(camera_id: &str) -> u64 {
+pub(crate) async fn exposure_abort_generation(camera_id: &str) -> u64 {
     *exposure_abort_generations()
         .lock()
         .await
@@ -134,10 +134,17 @@ fn exposure_completion_timeout(duration_secs: f64) -> std::time::Duration {
     std::time::Duration::from_secs_f64(duration_secs.max(0.0)) + EXPOSURE_COMPLETION_MARGIN
 }
 
+/// [acquisition_generation] is the abort generation read when this acquisition
+/// started. Once it moves the operator has aborted, and this returns
+/// immediately: a driver that answers "not complete" for an exposure it has
+/// already been told to stop would otherwise keep this loop publishing
+/// `ExposureProgress` until the duration+margin deadline, so the preview went
+/// on counting down a frame that was never going to arrive.
 async fn wait_for_camera_exposure_complete<F, Fut>(
     camera_id: &str,
     duration_secs: f64,
     timeout_after: std::time::Duration,
+    acquisition_generation: u64,
     app_state: &SharedAppState,
     mut is_complete: F,
 ) -> DeviceResult<()>
@@ -149,6 +156,9 @@ where
     let mut poller: AdaptivePoller<bool> = AdaptivePoller::from_preset(PollerPreset::Exposure);
 
     loop {
+        if exposure_abort_generation(camera_id).await != acquisition_generation {
+            return Ok(());
+        }
         let elapsed_now = start_time.elapsed();
         if elapsed_now >= timeout_after {
             return Err(format!(
@@ -630,6 +640,7 @@ impl DeviceOps for UnifiedDeviceOps {
             camera_id,
             duration_secs,
             exposure_completion_timeout(duration_secs),
+            acquisition_generation,
             &self.app_state,
             || async {
                 mgr.camera_is_exposure_complete(camera_id)
@@ -727,13 +738,37 @@ impl DeviceOps for UnifiedDeviceOps {
 
             tracing::debug!("[EXPOSURE] Starting image validation...");
 
+            // Ask the sensor where it clips. Saturation is meaningless without a
+            // ceiling, and no constant can supply one: a driver that
+            // right-justifies a 12-bit sensor clips at 4095 and an 8-bit
+            // container (the SVBony RAW8 connect fallback) at 255, both far
+            // under any 16-bit threshold, so without this every clipped frame
+            // off those cameras passes in silence. Best-effort by design — a
+            // driver that cannot answer its own status must not cost us the
+            // frame, so failure just leaves the validator on the frame's own
+            // clipping evidence.
+            let sensor_max_adu = match api_get_camera_status(camera_id.to_string()).await {
+                Ok(status) => Some(status.max_adu).filter(|&max_adu| max_adu > 0),
+                Err(e) => {
+                    tracing::debug!(
+                        "[EXPOSURE] No sensor ceiling from {camera_id} ({e}); \
+                         judging saturation from the frame alone"
+                    );
+                    None
+                }
+            };
+
             // Use comprehensive validation - bias frames (very short exposures) are allowed to have uniform data
             let is_bias_frame = duration_secs < 0.1; // Bias frames are typically < 100ms
-            let validation = nightshade_imaging::validate_image_with_options(
+            let validation = nightshade_imaging::validate_image_comprehensive(
                 &img_for_validation,
-                Some(native_image.width),
-                Some(native_image.height),
-                is_bias_frame,
+                nightshade_imaging::ImageValidationOptions {
+                    expected_width: Some(native_image.width),
+                    expected_height: Some(native_image.height),
+                    is_bias_frame,
+                    sensor_max_adu,
+                    ..Default::default()
+                },
             );
 
             tracing::debug!(
@@ -1000,6 +1035,19 @@ impl DeviceOps for UnifiedDeviceOps {
         status
             .cooler_power
             .ok_or_else(|| "Cooler power not available".to_string())
+    }
+
+    async fn camera_get_pixel_size_um(&self, camera_id: &str) -> DeviceResult<Option<(f64, f64)>> {
+        let status = api_get_camera_status(camera_id.to_string())
+            .await
+            .map_err(|e| format!("Failed to get camera status: {}", e))?;
+
+        // A driver with nothing to say reports 0.0 here, which is not a pitch —
+        // writing it would tell a solver the sensor has zero-sized pixels.
+        Ok(match (status.pixel_size_x, status.pixel_size_y) {
+            (x, y) if x > 0.0 && y > 0.0 => Some((x, y)),
+            _ => None,
+        })
     }
 
     // =========================================================================
@@ -1474,6 +1522,21 @@ impl DeviceOps for UnifiedDeviceOps {
     // =========================================================================
     // DOME OPERATIONS
     // =========================================================================
+
+    /// The sequencer's dome/cover role slots are never populated (see
+    /// `DeviceOps::active_dome_id`), so answer with whatever is connected —
+    /// the same first-connected lookup `resolve_safety_device_id` uses.
+    async fn active_dome_id(&self) -> Option<String> {
+        get_device_manager()
+            .first_connected_device_id(DeviceType::Dome)
+            .await
+    }
+
+    async fn active_cover_calibrator_id(&self) -> Option<String> {
+        get_device_manager()
+            .first_connected_device_id(DeviceType::CoverCalibrator)
+            .await
+    }
 
     async fn dome_open(&self, dome_id: &str) -> DeviceResult<()> {
         tracing::info!("Opening dome shutter {}", dome_id);
@@ -2080,6 +2143,7 @@ mod tests {
             "native:test_hung_camera",
             300.0,
             std::time::Duration::from_millis(20),
+            exposure_abort_generation("native:test_hung_camera").await,
             crate::api::get_state(),
             || {
                 let poll_count = Arc::clone(&poll_count);

@@ -29,6 +29,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/widgets/remote_directory_picker_dialog.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 class _MockNetworkBackend extends Mock implements NetworkBackend {}
 
@@ -83,6 +84,7 @@ void main() {
 
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith(
           (ref) => _SwappableBackendNotifier(ref, backend),
         ),

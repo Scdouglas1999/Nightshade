@@ -219,6 +219,34 @@ class _SettingsDropdownState extends State<SettingsDropdown> {
     unawaited(operation);
   }
 
+  /// Width the longest option needs, at the text scale in force right now.
+  ///
+  /// The design widths below are logical pixels, but "UI scale" is applied as a
+  /// TEXT scaler (see `_calculateUiScaleFactor` in app.dart): at Extra Large
+  /// (1.4x) every label grows 40% inside a box that does not, which is why the
+  /// UI scale row itself rendered "Extra Lar...". Measuring the labels — rather
+  /// than trusting a constant — is what keeps a dropdown able to show the value
+  /// it holds. The widest option is used, not the selected one, so the control
+  /// does not resize under the pointer when the selection changes.
+  double _widestLabelWidth(BuildContext context) {
+    final labels = widget.itemLabels ?? widget.items;
+    final painter = TextPainter(
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+    );
+    var widest = 0.0;
+    for (final label in labels) {
+      painter.text = TextSpan(
+        text: label,
+        style: NightshadeDropdown.labelStyle,
+      );
+      painter.layout();
+      if (painter.width > widest) widest = painter.width;
+    }
+    painter.dispose();
+    return widest;
+  }
+
   @override
   Widget build(BuildContext context) {
     final designWidth = widget.width ?? (widget.isMobile ? 120.0 : 140.0);
@@ -237,9 +265,18 @@ class _SettingsDropdownState extends State<SettingsDropdown> {
       return dropdown;
     }
 
-    return SizedBox(
-      width: effectiveWidth,
-      child: dropdown,
+    final needed = _widestLabelWidth(context) + NightshadeDropdown.chromeWidth;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        var width = math.max(effectiveWidth, needed);
+        // Never take more than the row actually offers: growing past it would
+        // trade an ellipsis for a yellow overflow stripe.
+        if (constraints.hasBoundedWidth && width > constraints.maxWidth) {
+          width = constraints.maxWidth;
+        }
+        return SizedBox(width: width, child: dropdown);
+      },
     );
   }
 }

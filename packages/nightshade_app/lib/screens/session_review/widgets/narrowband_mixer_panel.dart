@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -74,10 +75,19 @@ class NarrowbandMixerPanel extends StatefulWidget {
   final void Function(String paletteOrCustom, List<List<double>> weights)
       onApply;
 
+  /// True while a combine started from this panel is still running.
+  ///
+  /// Apply is the mixer's only action and a combine takes tens of seconds. With
+  /// no in-flight state the control looked identical before, during and after a
+  /// press, which made a stalled or failed combine indistinguishable from a
+  /// dead button.
+  final bool busy;
+
   const NarrowbandMixerPanel({
     super.key,
     required this.channels,
     required this.onApply,
+    this.busy = false,
   });
 
   @override
@@ -94,29 +104,45 @@ class _NarrowbandMixerPanelState extends State<NarrowbandMixerPanel> {
   @override
   void initState() {
     super.initState();
-    _weights = _seedWeights();
-    // Adopt the first preset that maps cleanly onto the available channels.
-    for (final preset in _kPresets) {
-      if (_presetApplies(preset)) {
-        _applyPreset(preset, notify: false);
-        break;
-      }
-    }
+    _seedForChannels();
   }
 
   @override
   void didUpdateWidget(covariant NarrowbandMixerPanel old) {
     super.didUpdateWidget(old);
-    if (old.channels.length != widget.channels.length) {
-      setState(() {
-        _weights = _seedWeights();
-        _palette = 'custom';
-      });
+    // Re-seed on the channel SET, not its length. The masters load
+    // asynchronously, so the panel is first built with zero channels and the
+    // real Ha/OIII/SII arrive in a later rebuild; keying off the length alone
+    // reset the mixer to a zero matrix — a palette that renders pure black —
+    // exactly when the channels the preset needs finally showed up. Comparing
+    // the resolved keys also catches a same-size swap (Ha/OIII → Ha/SII).
+    if (!listEquals(
+        _channelKeys(old.channels), _channelKeys(widget.channels))) {
+      setState(_seedForChannels);
     }
   }
 
-  List<List<double>> _seedWeights() =>
-      List.generate(widget.channels.length, (_) => <double>[0, 0, 0]);
+  static List<String> _channelKeys(List<NarrowbandChannelRef> channels) =>
+      [for (final c in channels) '${c.masterId}:${c.filter}'];
+
+  /// Seed [_weights]/[_palette] from the best palette the available channels
+  /// can actually produce. Never leaves an all-zero matrix behind: a mixer that
+  /// opens on weights of 0.00 can only combine to black, and three clicks to
+  /// escape that is three clicks nobody wants at 2am.
+  void _seedForChannels() {
+    for (final preset in _kPresets) {
+      if (_presetApplies(preset)) {
+        _applyPreset(preset, notify: false);
+        return;
+      }
+    }
+    // No named palette is satisfied (a lone Ha master, or an NII/Hb-only set).
+    // Fall back to a luminance mapping — every channel into all three outputs —
+    // which at least renders the data. It is a hand-made mapping, so it is
+    // honestly labelled 'custom' rather than borrowing a palette name.
+    _weights = List.generate(widget.channels.length, (_) => <double>[1, 1, 1]);
+    _palette = 'custom';
+  }
 
   /// Canonicalise a raw filter label to the preset key it maps to, mirroring the
   /// controller's fuzzy narrowband hints so real names ('Ha 7nm', 'O3', 'Sii')
@@ -129,10 +155,19 @@ class _NarrowbandMixerPanelState extends State<NarrowbandMixerPanel> {
     return null;
   }
 
-  bool _presetApplies(_NarrowbandPreset preset) => widget.channels.any((c) {
-        final key = _canon(c.filter);
-        return key != null && preset.filterToRgb.containsKey(key);
-      });
+  /// True only when EVERY filter the preset maps is present in [channels].
+  ///
+  /// A partial match is not the palette: SHO built from Ha+OIII alone leaves
+  /// the red channel at zero, so offering (and auto-adopting) it for a bicolor
+  /// set produced a red-less "Hubble palette". Requiring full coverage is what
+  /// makes Ha+OIII resolve to HOO instead.
+  bool _presetApplies(_NarrowbandPreset preset) {
+    final available = <String>{
+      for (final c in widget.channels)
+        if (_canon(c.filter) case final key?) key,
+    };
+    return preset.filterToRgb.keys.every(available.contains);
+  }
 
   void _applyPreset(_NarrowbandPreset preset, {bool notify = true}) {
     final next = List.generate(widget.channels.length, (i) {
@@ -193,12 +228,15 @@ class _NarrowbandMixerPanelState extends State<NarrowbandMixerPanel> {
           Align(
             alignment: Alignment.centerRight,
             child: NightshadeButton(
-              label: 'Apply palette',
+              label: widget.busy ? 'Combining…' : 'Apply palette',
               icon: NightshadeIcons.check,
-              onPressed: () => widget.onApply(
-                _palette,
-                _weights.map((row) => List<double>.from(row)).toList(),
-              ),
+              isLoading: widget.busy,
+              onPressed: widget.busy
+                  ? null
+                  : () => widget.onApply(
+                        _palette,
+                        _weights.map((row) => List<double>.from(row)).toList(),
+                      ),
             ),
           ),
         ],

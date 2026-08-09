@@ -67,13 +67,40 @@ class ImagingService {
   String? _activeCaptureDeviceId;
   Future<void>? _activeAbortFuture;
 
+  /// True between "this capture told the app an exposure is running" and
+  /// "this capture took that back". `cameraStateProvider.isExposing` and
+  /// `exposureProgressProvider` are shared with the sequencer and the remote
+  /// mirror, so the release must fire exactly once and only from the capture
+  /// that armed them — see [_releaseSharedExposureState].
+  bool _ownsSharedExposureState = false;
+
+  /// The notifiers the in-flight capture armed, held on the instance so
+  /// [retire] can put them back without touching its own `Ref`, which is
+  /// already being disposed by the time [retire] runs.
+  CameraStateNotifier? _activeCameraNotifier;
+  ExposureProgressNotifier? _activeProgressNotifier;
+
   static const _imageDownloadTimeout = Duration(seconds: 60);
+
+  /// How far [_nextKeeperFrameNumber] will walk past an occupied sequence
+  /// number before giving up and letting [_ensureUniqueFilePath] handle the
+  /// collision. One `stat` per step, so a full night of frames costs well
+  /// under a millisecond; the ceiling only exists so a pathological folder
+  /// cannot stall a capture.
+  static const int _keeperProbeLimit = 100000;
 
   ImagingService(this._ref)
     : _backendOwner = _ref.read(backendProvider.notifier),
       _logger = _ref.read(loggingServiceProvider);
 
-  /// Start a single exposure capture
+  /// Start a single exposure and KEEP the frame: it is written to the
+  /// operator's configured image folder under the naming pattern and indexed
+  /// in `captured_images`.
+  ///
+  /// Live view goes through [startLoopCapture] instead, which routes frames to
+  /// a scratch path. This entry point stays keeper-only so a subclass that
+  /// stubs it (tests, remote shims) cannot accidentally change where an
+  /// acquisition frame lands.
   Future<CapturedImageData?> captureImage({
     required ExposureSettings settings,
     String? targetName,
@@ -86,6 +113,51 @@ class ImagingService {
     // Imaging tab simply leave this `null`.
     String? producingNodeId,
     String? producingRunId,
+  }) {
+    return _capture(
+      settings: settings,
+      targetName: targetName,
+      frameNumber: frameNumber,
+      producingNodeId: producingNodeId,
+      producingRunId: producingRunId,
+      persistFrame: true,
+    );
+  }
+
+  /// Start a single exposure that is a MEANS, not a product: a plate-solve
+  /// frame for centering/verification, a focus check, an alignment shot.
+  ///
+  /// It lands on the same reused scratch path [startLoopCapture] uses, so the
+  /// solver, annotation and the preview loader keep working, but it never
+  /// enters the operator's light-frame folder, `captured_images`, or the
+  /// session's frame and integration totals. Centering runs up to
+  /// [CenteringConfig.maxIterations] of these per target; as keepers they
+  /// inflated the night's frame count with images nobody will ever stack.
+  Future<CapturedImageData?> captureUtilityFrame({
+    required ExposureSettings settings,
+    String? targetName,
+  }) {
+    return _capture(
+      settings: settings,
+      targetName: targetName,
+      persistFrame: false,
+    );
+  }
+
+  /// The single exposure pipeline.
+  ///
+  /// [persistFrame] decides whether the frame is a keeper. `false` marks it a
+  /// live-view frame: it still lands on disk — one reused scratch file per
+  /// camera — so plate solving, annotation and the preview loader keep
+  /// working, but it never enters the light-frame folder, the database, or the
+  /// session's frame/integration totals.
+  Future<CapturedImageData?> _capture({
+    required ExposureSettings settings,
+    String? targetName,
+    int? frameNumber,
+    String? producingNodeId,
+    String? producingRunId,
+    required bool persistFrame,
   }) async {
     if (_isCapturing) {
       throw const DeviceBusyException(
@@ -104,9 +176,39 @@ class ImagingService {
       );
     }
 
+    // The wheel the light actually passed through is the only truthful source
+    // of a frame's filter. Carrying it on [ExposureSettings] makes every UI
+    // that changes a filter responsible for mirroring the name back into the
+    // settings object, and the Imaging screen's own filter strip shipped
+    // without doing so: every manual capture was written with no FILTER card,
+    // a "NoFilter" filename and an empty `captured_images.filter`, while the
+    // banner displayed the active filter one row below. Resolving from the
+    // live wheel here means no call site can drop it again.
+    settings = _withLiveFilter(settings);
+
     _isCapturing = true;
     _cancelRequested = false;
-    _frameNumber = frameNumber ?? (_frameNumber + 1);
+
+    // `$SEQ`/`$FRAMENUM` number the operator's KEEPERS. Live-view and utility
+    // frames are never saved under the naming pattern and never indexed, so
+    // letting them move this counter made the next saved frame claim a
+    // sequence number that counts throwaway exposures: a 30-minute framing
+    // loop left the next Snapshot numbered 0361, and a short loop pushed it
+    // BACKWARDS onto a number already on disk (which then landed as
+    // `..._0003_001.fits`). They still get a number for the progress ring —
+    // just a local one.
+    final int captureFrameNumber;
+    if (persistFrame) {
+      _frameNumber =
+          frameNumber ??
+          await _nextKeeperFrameNumber(
+            exposureSettings: settings,
+            targetName: targetName,
+          );
+      captureFrameNumber = _frameNumber;
+    } else {
+      captureFrameNumber = frameNumber ?? (_frameNumber + 1);
+    }
 
     final cameraNotifier = _ref.read(cameraStateProvider.notifier);
     final progressNotifier = _ref.read(exposureProgressProvider.notifier);
@@ -156,8 +258,15 @@ class ImagingService {
       }
 
       // Update state to exposing
+      _activeCameraNotifier = cameraNotifier;
+      _activeProgressNotifier = progressNotifier;
+      _ownsSharedExposureState = true;
       cameraNotifier.setExposing(true, progress: 0.0);
-      progressNotifier.startExposure(settings.exposureTime, _frameNumber, null);
+      progressNotifier.startExposure(
+        settings.exposureTime,
+        captureFrameNumber,
+        null,
+      );
 
       // Set up event listener BEFORE starting exposure to avoid race condition
       // The exposure call blocks until complete, so events would be missed if
@@ -220,16 +329,44 @@ class ImagingService {
         // Start the real exposure via backend with gain/offset from UI settings
         // This call may block until the exposure completes (depending on backend)
         // Events are published during the exposure, so the listener above catches them
-        final exposureStartedAt = DateTime.now();
-        await backend.cameraStartExposure(
-          deviceId: deviceId,
-          exposureTime: settings.exposureTime,
-          frameType: settings.frameType,
-          gain: settings.gain,
-          offset: settings.offset,
-          binX: settings.binningX,
-          binY: settings.binningY,
-        );
+        // Reference instant for the staleness check below only. It goes
+        // through `clockProvider` rather than `DateTime.now()` so tests can
+        // control it — bypassing that seam is how an earlier attempt at the
+        // DATE-OBS fix silently made the written timestamp untestable.
+        //
+        // `nowUtc()`, not `now().toUtc()`: `now()` renders the operator's
+        // chosen zone by re-tagging shifted fields as host-local, so
+        // converting it back to UTC lands offset+hostOffset away from reality.
+        // Against a Tokyo site that pushed this reference hours into the
+        // future and made the stale-frame check below reject every frame a
+        // timed-out exposure returned; a site west of the host pushed it into
+        // the past and the check stopped firing at all.
+        final exposureStartedAt = _ref.read(clockProvider).nowUtc();
+        try {
+          await backend.cameraStartExposure(
+            deviceId: deviceId,
+            exposureTime: settings.exposureTime,
+            frameType: settings.frameType,
+            gain: settings.gain,
+            offset: settings.offset,
+            binX: settings.binningX,
+            binY: settings.binningY,
+          );
+        } catch (e) {
+          // An abort reaches the driver while this call is still blocked on the
+          // exposure, so the driver reports the acquisition as failed
+          // ("Exposure cancelled"). That is the abort working. Reported as a
+          // capture error it put "Capture failed: Exposure cancelled" on screen
+          // every time the operator pressed the X. Only a cancel THIS service
+          // asked for is swallowed; every other driver failure still propagates.
+          if (!_cancelRequested) rethrow;
+          _logger.info(
+            'Exposure ended by operator abort: $e',
+            source: 'ImagingService',
+          );
+          _releaseSharedExposureState();
+          return null;
+        }
         if (!_hasBackendAuthority(backend)) return null;
         _logger.debug('cameraStartExposure returned', source: 'ImagingService');
 
@@ -262,10 +399,7 @@ class ImagingService {
           if (_cancelRequested) {
             await _abortActiveExposure();
           }
-          if (_hasBackendAuthority(backend)) {
-            cameraNotifier.setExposing(false);
-            progressNotifier.reset();
-          }
+          _releaseSharedExposureState();
           return null;
         }
 
@@ -331,12 +465,31 @@ class ImagingService {
           );
           // Why: when the bridge timestamp is unparseable we fall back to
           // the user-chosen clock so the recovered timestamp matches the
-          // rest of the session's records
-          captureTimestamp = _ref.read(clockProvider).now();
+          // rest of the session's records. It must be the same UTC instant
+          // `parseUtcTimestamp` would have produced — this value becomes
+          // FITS DATE-OBS and the database's capture time, and a zone-shifted
+          // rendering there is an untrue observation time, not a display
+          // preference.
+          captureTimestamp = _ref.read(clockProvider).nowUtc();
         }
         _logger.debug(
           'Timestamp parsed: $captureTimestamp',
           source: 'ImagingService',
+        );
+
+        // FITS DATE-OBS means the START of the observation, and every
+        // photometry, occultation and astrometry tool reads it that way. The
+        // bridge reports when the frame finished downloading, so stamping that
+        // straight into the header made DATE-OBS late by exactly EXPTIME on
+        // every frame the app has ever written (measured: a 30 s exposure
+        // starting 14:04:37 recorded 14:05:09).
+        //
+        // Derived from the camera's own timestamp rather than the host clock on
+        // purpose. The hardware instant is the authoritative one, its timezone
+        // handling is pinned by tests, and using `DateTime.now()` here instead
+        // both bypassed that and left the file disagreeing with the database.
+        final observationStartedAt = captureTimestamp.subtract(
+          Duration(microseconds: (settings.exposureTime * 1e6).round()),
         );
 
         if (exposureTimedOut &&
@@ -367,7 +520,7 @@ class ImagingService {
           imageData = capturedImageDataFromResult(
             capturedImage: capturedImage,
             settings: settings,
-            capturedAt: captureTimestamp,
+            capturedAt: observationStartedAt,
             targetName: targetName,
             previewSource: backend is NetworkBackend
                 ? CapturePreviewSource.remote
@@ -411,14 +564,16 @@ class ImagingService {
           final appSettingsAsync = _ref.read(appSettingsProvider);
           final appSettings = appSettingsAsync.valueOrNull;
 
-          if (appSettings != null && appSettings.imageOutputPath.isNotEmpty) {
+          if (persistFrame &&
+              appSettings != null &&
+              appSettings.imageOutputPath.isNotEmpty) {
             // Generate file path using naming pattern
             savedFilePath = await _generateImageFilePath(
               appSettings: appSettings,
               exposureSettings: settings,
               targetName: targetName,
-              frameNumber: _frameNumber,
-              timestamp: captureTimestamp,
+              frameNumber: captureFrameNumber,
+              timestamp: observationStartedAt,
             );
             if (!_hasBackendAuthority(backend)) return null;
           } else {
@@ -432,20 +587,36 @@ class ImagingService {
               await nightshadeTemp.create(recursive: true);
             }
             if (!_hasBackendAuthority(backend)) return null;
-            // Why: temp capture filenames should reflect the operator's
-            // chosen clock so two parallel sessions (one local TZ, one
-            // observatory TZ) don't collide on the same epoch millis.
-            final timestamp = _ref
-                .read(clockProvider)
-                .now()
-                .millisecondsSinceEpoch;
-            savedFilePath = path.join(
-              nightshadeTemp.path,
-              'capture_$timestamp.fits',
-            );
+            if (!persistFrame) {
+              // A live-view frame. It still has to reach the disk so "solve the
+              // latest camera frame", annotation and the preview loader keep
+              // working, but it reuses ONE scratch path per camera instead of
+              // accumulating: looping 5 s subs used to write a fresh 23 MB FITS
+              // (~7.5 MB/s, ~27 GB/hour) into the operator's LIGHT folder and
+              // index every one of them as a light frame.
+              savedFilePath = path.join(
+                nightshadeTemp.path,
+                'liveview_${_scratchKey(deviceId)}.fits',
+              );
+            } else {
+              // Epoch millis of the real instant. `now()` renders a zone and
+              // is not an instant, so its `millisecondsSinceEpoch` is a
+              // fabricated number — fine for uniqueness, misleading in a
+              // filename an operator may later sort by.
+              final timestamp = _ref
+                  .read(clockProvider)
+                  .nowUtc()
+                  .millisecondsSinceEpoch;
+              savedFilePath = path.join(
+                nightshadeTemp.path,
+                'capture_$timestamp.fits',
+              );
+            }
             isTempFile = true;
             _logger.debug(
-              'No output path configured, saving to temp: $savedFilePath',
+              persistFrame
+                  ? 'No output path configured, saving to temp: $savedFilePath'
+                  : 'Live-view frame, using scratch path: $savedFilePath',
               source: 'ImagingService',
             );
           }
@@ -462,7 +633,7 @@ class ImagingService {
             exposureSettings: settings,
             appSettings: appSettings,
             targetName: targetName,
-            timestamp: captureTimestamp,
+            timestamp: observationStartedAt,
           );
           if (!_hasBackendAuthority(backend)) return null;
 
@@ -487,7 +658,12 @@ class ImagingService {
                 exposureSettings: settings,
                 appSettings: appSettings,
                 targetName: targetName,
-                timestamp: captureTimestamp,
+                // Same instant the FITS records as DATE-OBS. Storing the
+                // download time here instead would leave the database and the
+                // file it points at disagreeing about when the frame was taken,
+                // by the length of the exposure -- and the session charts and
+                // night grouping are built on this column.
+                timestamp: observationStartedAt,
               );
               if (!_hasBackendAuthority(backend)) return null;
               // Thumbnail provenance is UI-only and remains best-effort.
@@ -640,7 +816,12 @@ class ImagingService {
 
         final processedFilePath = effectiveFilePath ?? savedFilePath;
         if (!_hasBackendAuthority(backend)) return null;
-        if (processedFilePath.isNotEmpty) {
+        // Live-view frames are scratch, so they get neither science processing
+        // nor a place in the session's frame list — the same rule the
+        // `captured_images` insert above already follows. Without this a
+        // framing loop still inflated the session's frame count and queued
+        // photometry on a throwaway file that the next frame overwrites.
+        if (persistFrame && processedFilePath.isNotEmpty) {
           final sessionState = _ref.read(sessionStateProvider);
           // Science processing is informational-only and runs in background.
           unawaited(
@@ -655,22 +836,24 @@ class ImagingService {
           );
         }
 
-        // Store as session image
+        // Store as session image. Keepers only, per the note above.
         try {
-          _ref
-              .read(sessionImagesProvider.notifier)
-              .addImage(
-                CapturedImage(
-                  id:
-                      dbImageId?.toString() ??
-                      DateTime.now().millisecondsSinceEpoch.toString(),
-                  filePath: processedFilePath,
-                  capturedAt: imageData.capturedAt,
-                  settings: settings,
-                  stats: imageData.stats,
-                  targetName: targetName,
-                ),
-              );
+          if (persistFrame) {
+            _ref
+                .read(sessionImagesProvider.notifier)
+                .addImage(
+                  CapturedImage(
+                    id:
+                        dbImageId?.toString() ??
+                        DateTime.now().millisecondsSinceEpoch.toString(),
+                    filePath: processedFilePath,
+                    capturedAt: imageData.capturedAt,
+                    settings: settings,
+                    stats: imageData.stats,
+                    targetName: targetName,
+                  ),
+                );
+          }
         } catch (e) {
           _logger.warning(
             'Error adding to session images: $e',
@@ -686,10 +869,7 @@ class ImagingService {
           source: 'ImagingService',
         );
         _isCapturing = false;
-        if (_hasBackendAuthority(backend)) {
-          cameraNotifier.setExposing(false);
-          progressNotifier.reset();
-        }
+        _releaseSharedExposureState();
         _logger.debug(
           'State reset, returning imageData from captureImage',
           source: 'ImagingService',
@@ -728,17 +908,50 @@ class ImagingService {
       );
       _isCapturing = false;
       _activeExposureCompleter = null;
-      final backend = _activeCaptureBackend;
-      final hasAuthority = backend != null && _hasBackendAuthority(backend);
       _activeCaptureBackend = null;
       _activeCaptureDeviceId = null;
       _activeAbortFuture = null;
-      if (hasAuthority) {
-        cameraNotifier.setExposing(false);
-        progressNotifier.reset();
-      }
+      _releaseSharedExposureState();
       _logger.debug('captureImage complete!', source: 'ImagingService');
     }
+  }
+
+  /// Stamp [settings] with the filter the connected wheel is actually parked
+  /// on, so the FITS `FILTER` card, the `$FILTER` filename token and the
+  /// `captured_images.filter` column all describe the same physical glass.
+  ///
+  /// The live wheel wins over [ExposureSettings.filter] whenever it can name
+  /// its current slot: the settings copy is a UI mirror that any call site can
+  /// forget to update (and one did), whereas the wheel position is the state
+  /// the photons went through. With no wheel connected — or a wheel that
+  /// cannot name its slot — the caller-supplied value is kept untouched, which
+  /// is what a filter-less imaging train and the sequencer's explicit
+  /// per-instruction filter both need.
+  @visibleForTesting
+  ExposureSettings withLiveFilterForTest(ExposureSettings settings) =>
+      _withLiveFilter(settings);
+
+  /// Filesystem-safe key for [deviceId], used to give each camera its own
+  /// live-view scratch file so two cameras looping at once cannot overwrite
+  /// each other's frame mid-read.
+  static String _scratchKey(String deviceId) =>
+      deviceId.replaceAll(RegExp(r'[^A-Za-z0-9_.-]'), '_');
+
+  ExposureSettings _withLiveFilter(ExposureSettings settings) {
+    final FilterWheelState wheel;
+    try {
+      wheel = _ref.read(filterWheelStateProvider);
+    } catch (_) {
+      // Provider unavailable (minimal test container) — keep the caller's value.
+      return settings;
+    }
+    if (wheel.connectionState != DeviceConnectionState.connected) {
+      return settings;
+    }
+    final name = wheel.currentFilterName;
+    if (name == null || name.isEmpty) return settings;
+    if (settings.filter == name) return settings;
+    return settings.copyWith(filter: name);
   }
 
   /// Resolve the concrete readout-mode index to send to the camera for
@@ -798,24 +1011,49 @@ class ImagingService {
   ///
   /// Includes a circuit breaker: after [maxConsecutiveErrors] consecutive
   /// failures the loop aborts to avoid hammering a broken device endlessly.
+  ///
+  /// [saveFrames] defaults to FALSE because Loop is a live-view/framing mode,
+  /// not an acquisition run. Callers that need persisted frames opt in.
   Future<void> startLoopCapture({
     required ExposureSettings settings,
     String? targetName,
     int? maxFrames,
     int maxConsecutiveErrors = 10,
+    bool saveFrames = false,
     void Function(CapturedImageData)? onImageCaptured,
     void Function(String)? onError,
   }) async {
     int frameNum = 0;
     int consecutiveErrors = 0;
 
+    // A new run is not the cancelled one.
+    //
+    // `cancelExposure()` latches `_cancelRequested`, and the only place that
+    // clears it is `_capture` — which this loop reaches only AFTER testing the
+    // flag below. So a Stop, or an Abort taken mid-exposure, left the latch set
+    // and the NEXT press of Loop started and ended without ever exposing: a
+    // silently dead button, with no error and nothing in the log.
+    //
+    // This already bit the Imaging screen, whose Stop Loop calls
+    // `cancelExposure()`, and moving the Dashboard capture card onto this entry
+    // point inherited it.
+    _cancelRequested = false;
+
     while (!_cancelRequested && (maxFrames == null || frameNum < maxFrames)) {
       frameNum++;
       try {
-        final image = await captureImage(
+        final image = await _capture(
           settings: settings,
           targetName: targetName,
-          frameNumber: frameNum,
+          // A saving loop is an acquisition run, so its frames continue the
+          // session's keeper numbering. Restarting at 1 every run made the
+          // second Loop of the night rewrite `..._0001` over the first one's
+          // numbers — survivable only because _ensureUniqueFilePath appends
+          // `_001`, which is not a sequence number the operator asked for.
+          // A live-view run keeps its own 1..N index; it only feeds the
+          // progress ring.
+          frameNumber: saveFrames ? null : frameNum,
+          persistFrame: saveFrames,
         );
 
         if (image != null) {
@@ -879,6 +1117,28 @@ class ImagingService {
     );
   }
 
+  /// Take back the "an exposure is running" claim this capture made.
+  ///
+  /// `cameraStateProvider.isExposing` and `exposureProgressProvider` are NOT
+  /// per-backend. [_ownsSharedExposureState] releases them exactly once from
+  /// the capture that armed them, including after a backend switch.
+  void _releaseSharedExposureState() {
+    if (!_ownsSharedExposureState) return;
+    _ownsSharedExposureState = false;
+    final cameraNotifier = _activeCameraNotifier;
+    final progressNotifier = _activeProgressNotifier;
+    _activeCameraNotifier = null;
+    _activeProgressNotifier = null;
+    // `mounted` is false when the whole container is going down (app shutdown,
+    // test teardown) — there is no graph left to correct.
+    if (cameraNotifier != null && cameraNotifier.mounted) {
+      cameraNotifier.setExposing(false);
+    }
+    if (progressNotifier != null && progressNotifier.mounted) {
+      progressNotifier.reset();
+    }
+  }
+
   /// Retire this service when its backend dependency changes. The old
   /// instance may still have asynchronous driver work unwinding, but it must
   /// never publish into the replacement host's provider graph.
@@ -893,6 +1153,12 @@ class ImagingService {
     }
 
     unawaited(_abortActiveExposure().catchError((_) {}));
+
+    // Promptly, not when the abandoned exposure's own unwinding gets around to
+    // it: a 300 s sub would otherwise leave the UI narrating a dead frame for
+    // five more minutes. Uses the notifiers captured at exposure start because
+    // this runs inside `ref.onDispose`, where this service's own `Ref` is gone.
+    _releaseSharedExposureState();
   }
 
   bool _hasBackendAuthority(NightshadeBackend backend) =>
@@ -1195,7 +1461,13 @@ class ImagingService {
       r'$BINNING': '${exposureSettings.binningX}x${exposureSettings.binningY}',
       r'$CAMERA': camera,
       r'$TELESCOPE': telescope,
-      r'$SEQUENCE': targetName ?? 'Sequence',
+      // The sequence this frame belongs to, matching `$SEQUENCE` in the Rust
+      // FilenameGenerator (naming.rs), whose no-sequence value is the literal
+      // "Sequence". Nothing on this path — manual Snapshot, Loop, plate-solve
+      // frame — belongs to a sequence, so substituting the TARGET here labelled
+      // a plain target folder as a sequence and made the same pattern produce
+      // two different trees depending on which capture path wrote the frame.
+      r'$SEQUENCE': 'Sequence',
       r'$SESSION': dateStr.replaceAll('-', ''),
     };
   }

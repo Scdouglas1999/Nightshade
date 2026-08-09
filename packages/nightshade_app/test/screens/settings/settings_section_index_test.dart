@@ -38,6 +38,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/settings/integrations_settings.dart';
 import 'package:nightshade_app/screens/settings/settings_catalog.dart';
 import 'package:nightshade_app/screens/settings/settings_screen.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 // ignore: implementation_imports
 import 'package:nightshade_core/src/providers/plugin_enablement_provider.dart';
 import 'package:nightshade_plugins/nightshade_plugins.dart';
@@ -217,18 +218,25 @@ void main() {
     // pane (no Text). We pump with settle:false and swallow FlutterErrors so a
     // heavyweight pane that wants providers the base harness does not stub still
     // pumps its scaffold + at least one Text; the routing assertion holds.
+    // The Files & Storage pane watches `autoSaveLifecycleProvider`, which
+    // genuinely starts the host's backup scheduler (and its periodic timers).
+    // Those outlive the widget tree, and flutter_test's pending-timer invariant
+    // runs before tearDown, so the schedulers this loop starts have to be
+    // stopped inside the body.
+    final containers = <ProviderContainer>[];
     for (final key in _allContractKeys) {
       final previousOnError = FlutterError.onError;
       FlutterError.onError = (_) {};
       try {
         await tester.pumpWidget(const SizedBox());
-        await pumpAppScreen(
+        final handle = await pumpAppScreen(
           tester,
           SettingsScreen(initialSection: key),
           size: const Size(1280, 800),
           extraOverrides: _integrationsOverrides(host),
           settle: false,
         );
+        containers.add(handle.container);
         for (var i = 0; i < 6; i++) {
           await tester.pump(const Duration(milliseconds: 16));
         }
@@ -239,6 +247,12 @@ void main() {
       expect(find.byType(Text), findsWidgets,
           reason: 'Section key "$key" must resolve to a real pane that renders '
               'content; an empty pane means the key points nowhere.');
+    }
+
+    for (final container in containers) {
+      if (container.exists(autoSaveServiceProvider)) {
+        container.read(autoSaveServiceProvider).dispose();
+      }
     }
   });
 }

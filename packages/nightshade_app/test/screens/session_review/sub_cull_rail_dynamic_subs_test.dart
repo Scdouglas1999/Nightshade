@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/screens/session_review/session_review_controller.dart';
 import 'package:nightshade_app/screens/session_review/widgets/sub_cull_rail.dart';
-import 'package:nightshade_app/screens/session_review/widgets/sub_gallery_panel.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -16,6 +15,12 @@ class _ReviewController extends Mock implements SessionReviewController {
   }) {
     return () {};
   }
+
+  /// No curve in this fixture, so the rail offers no cull. Stubbed rather than
+  /// left to `noSuchMethod` because the rail reads it during initState.
+  @override
+  CullRecommendationOffer get cullRecommendationOffer =>
+      CullRecommendationOffer.none;
 }
 
 DbCapturedImage _sub() => DbCapturedImage(
@@ -59,48 +64,6 @@ void main() {
               builder: (context, value, child) => SubCullRail(
                 subs: value,
                 controller: controller,
-                onTapSub: (_) {},
-                onSetAccepted: (_, __) {},
-                onBulkCull: ({hfrThreshold, qualityThreshold}) {},
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-    await tester.pump();
-
-    await tester.tap(find.text('Blink mode'));
-    await tester.pump();
-    subs.value = const [];
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 700));
-
-    expect(find.text('No light subs'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('narrative gallery blink also stops when subs become empty',
-      (tester) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(1000, 800);
-    addTearDown(() {
-      tester.view.resetDevicePixelRatio();
-      tester.view.resetPhysicalSize();
-    });
-
-    final subs = ValueNotifier<List<DbCapturedImage>>([_sub()]);
-    addTearDown(subs.dispose);
-
-    await tester.pumpWidget(
-      ProviderScope(
-        child: MaterialApp(
-          theme: NightshadeTheme.dark,
-          home: Scaffold(
-            body: ValueListenableBuilder<List<DbCapturedImage>>(
-              valueListenable: subs,
-              builder: (context, value, child) => SubGalleryPanel(
-                subs: value,
                 onTapSub: (_) {},
                 onSetAccepted: (_, __) {},
                 onBulkCull: ({hfrThreshold, qualityThreshold}) {},

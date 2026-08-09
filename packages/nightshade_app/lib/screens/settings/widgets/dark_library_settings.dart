@@ -76,11 +76,13 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                 isMobile: widget.isMobile,
               ),
             if (librarySettings != null)
+              // This is the shared dark, flat, and bias calibration switch.
               SettingRow(
                 icon: LucideIcons.zap,
-                title: 'Auto dark subtraction',
+                title: 'Auto-calibrate light frames',
                 subtitle:
-                    'Automatically subtract matching darks from light frames',
+                    'Apply dark, flat, and bias correction to captured images '
+                    'automatically. Same setting as Settings > Calibration.',
                 trailing: SettingsSwitch(
                   value: librarySettings.autoCalibrate,
                   onChanged: (value) {

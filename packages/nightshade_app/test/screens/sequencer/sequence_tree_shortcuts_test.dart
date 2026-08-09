@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree_shortcuts.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 ({Sequence sequence, List<String> visibleIds}) _threeNodeTree() {
   final a = ExposureNode(name: 'a', durationSecs: 1, count: 1);
@@ -31,6 +32,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 
 ProviderContainer _container(Sequence sequence) {
   final container = ProviderContainer(overrides: [
+    inMemoryDatabaseOverride(),
     currentSequenceProvider.overrideWith((ref) {
       final n = CurrentSequenceNotifier();
       // ignore: invalid_use_of_protected_member

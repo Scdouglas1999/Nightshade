@@ -48,6 +48,17 @@ enum TransientSource {
   manual,
 }
 
+/// The sources [TransientAlertService] actually queries.
+///
+/// The enum above is the vocabulary an alert can be TAGGED with (a manually
+/// entered alert, an imported one); this is the much shorter list of feeds the
+/// product fetches. `mpec` and `cbat` have never had an implementation, and
+/// `aavso` had one that could not work — VSX's `api.list` is a positional
+/// catalog search, not an alert feed. Presenting any of them as monitored told
+/// the operator a dead source was a quiet sky, so every surface that offers or
+/// reports sources reads this one list.
+const Set<TransientSource> kFetchableTransientSources = {TransientSource.tns};
+
 /// Current state of a transient alert
 enum TransientAlertState {
   /// New alert, not yet reviewed
@@ -124,14 +135,14 @@ abstract class TransientAlert with _$TransientAlert {
 @freezed
 abstract class TransientAlertSettings with _$TransientAlertSettings {
   const factory TransientAlertSettings({
-    /// Which alert sources to monitor
-    /// Note: TNS requires an API key to be configured (see tnsApiKey)
-    @Default({
-      TransientSource.aavso,
-      TransientSource.mpec,
-      TransientSource.cbat,
-      TransientSource.manual,
-    })
+    /// Which alert sources to monitor.
+    ///
+    /// Defaults to the fetchable feed plus manual entry. It used to default to
+    /// {aavso, mpec, cbat, manual} — three sources that are never queried — so
+    /// out of the box the app reported it was monitoring feeds it was not.
+    /// TNS still needs its bot credentials before it can return anything (see
+    /// tnsApiKey and Settings > Science).
+    @Default({TransientSource.tns, TransientSource.manual})
     Set<TransientSource> enabledSources,
 
     /// Only show alerts brighter than this magnitude

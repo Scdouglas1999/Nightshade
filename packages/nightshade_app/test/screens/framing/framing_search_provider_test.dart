@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/framing/framing_search_provider.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 const _m42 = DeepSkyObject(
   id: 'M42',
@@ -21,6 +22,7 @@ void main() {
     var catalogRead = false;
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         loadedDsosProvider.overrideWith((ref) {
           catalogRead = true;
           return const <DeepSkyObject>[_m42];
@@ -39,6 +41,7 @@ void main() {
   test('catalog failure is represented as an error, not no matches', () async {
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         loadedDsosProvider.overrideWith(
           (ref) => Future<List<DeepSkyObject>>.error(
             StateError('catalog unreadable'),
@@ -62,6 +65,7 @@ void main() {
     final catalog = Completer<List<DeepSkyObject>>();
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         loadedDsosProvider.overrideWith((ref) => catalog.future),
         loggingServiceProvider.overrideWithValue(LoggingService()),
       ],

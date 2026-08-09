@@ -180,6 +180,12 @@ class HeadlessApiServer {
   /// falls back to whatever the client provides.
   final Map<WebSocketChannel, String?> _socketAuthIdentities = {};
   final Map<WebSocketChannel, DateTime> _socketLastSeenAt = {};
+
+  /// Broadcasts [_sockets].length on every attach/drop. Broadcast (not single
+  /// subscription) because both the GUI status bar and tests observe it, and it
+  /// outlives individual `start()`/`stop()` cycles of the same server object.
+  final StreamController<int> _connectedClientCountController =
+      StreamController<int>.broadcast();
   Timer? _webSocketHeartbeatTimer;
   int _requestCounter = 0;
   StreamSubscription? _eventSubscription;
@@ -231,6 +237,19 @@ class HeadlessApiServer {
   // the hard backstop. The ceiling is far above any realistic paired-device
   // count, so legitimate devices are never evicted in practice.
   final BoundedTokenGrantMap _pairedSessionTokens = BoundedTokenGrantMap();
+
+  /// When each paired session token last had its device row stamped as seen.
+  ///
+  /// `paired_devices.last_connected_at` was written by exactly nothing in
+  /// production: the only writer, `TokenManager.verifySessionToken`, had no
+  /// caller, because the middleware authenticates against the in-memory
+  /// [_pairedSessionTokens] map instead. Every phone therefore reported
+  /// "Not seen yet / No connection recorded yet" on the Paired Devices screen
+  /// while it was actively driving the rig. This map throttles the write to at
+  /// most one per token per [_lastConnectedThrottle] so an actively polling
+  /// client does not issue an UPDATE per request.
+  final Map<String, DateTime> _pairedDeviceSeenStamps = <String, DateTime>{};
+  static const Duration _lastConnectedThrottle = Duration(minutes: 1);
 
   /// periodic sweep that walks `PairedDevices` and drops expired
   /// rows + evicts revoked entries from [_pairedSessionTokens]. Interval is
@@ -842,6 +861,25 @@ class HeadlessApiServer {
   /// and exposing it avoids duplicating that wiring for one more listener.
   LiveCollaborationSessionManager get collaborationManager =>
       _collaborationManager;
+
+  /// Number of remote clients currently holding an event socket open.
+  ///
+  /// The collaboration manager's viewer list only counts co-imaging
+  /// participants, so a paired phone that just streams `/events` all night was
+  /// invisible to every "is anyone connected?" indicator in the GUI. This is
+  /// the socket registry itself.
+  int get connectedClientCount => _sockets.length;
+
+  /// Emits [connectedClientCount] whenever a client attaches or drops.
+  Stream<int> get connectedClientCountStream =>
+      _connectedClientCountController.stream;
+
+  /// Publish the current socket count. Called from the two places that mutate
+  /// [_sockets] plus shutdown, so the GUI never has to poll.
+  void _publishConnectedClientCount() {
+    if (_connectedClientCountController.isClosed) return;
+    _connectedClientCountController.add(_sockets.length);
+  }
 }
 
 class _RequestBodyLimitResult {

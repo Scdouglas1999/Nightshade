@@ -11,6 +11,8 @@ void showScienceRungSheet(
   RungState state, {
   String? prerequisite,
   VoidCallback? onCta,
+  String? unlockLabel,
+  VoidCallback? onUnlock,
 }) {
   showDialog<void>(
     context: context,
@@ -19,6 +21,8 @@ void showScienceRungSheet(
       state: state,
       prerequisite: prerequisite,
       onCta: onCta,
+      unlockLabel: unlockLabel,
+      onUnlock: onUnlock,
     ),
   );
 }
@@ -29,11 +33,21 @@ class _ScienceRungSheet extends ConsumerWidget {
   final String? prerequisite;
   final VoidCallback? onCta;
 
+  /// Where the operator has to go to satisfy [prerequisite], for a locked rung.
+  ///
+  /// Without it the locked sheet named a precondition and offered only "Got
+  /// it": it told the user what to do and then made them close it and go find
+  /// the control themselves.
+  final String? unlockLabel;
+  final VoidCallback? onUnlock;
+
   const _ScienceRungSheet({
     required this.spec,
     required this.state,
     this.prerequisite,
     this.onCta,
+    this.unlockLabel,
+    this.onUnlock,
   });
 
   @override
@@ -112,6 +126,15 @@ class _ScienceRungSheet extends ConsumerWidget {
             label: 'Got it',
             variant: ButtonVariant.ghost,
           ),
+          if (onUnlock != null && unlockLabel != null)
+            NightshadeButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                onUnlock!.call();
+              },
+              label: unlockLabel!,
+              icon: LucideIcons.arrowRight,
+            ),
         ];
       case RungState.done:
         return [

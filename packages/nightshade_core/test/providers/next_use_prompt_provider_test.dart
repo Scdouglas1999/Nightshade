@@ -30,6 +30,9 @@ ReadinessReport _readyReport() => buildReadinessReport(
   plateSolverReady: true,
   darkLibraryHasCoverage: true,
   focusKnown: true,
+  hasActiveProfile: true,
+  assignedProfileDeviceCount: 4,
+  otherAssignedProfileDeviceCount: 2,
 );
 
 /// A blocked report: no profile -> criticalDevices blocked -> overall blocked.
@@ -42,6 +45,9 @@ ReadinessReport _blockedReport() => buildReadinessReport(
   plateSolverReady: false,
   darkLibraryHasCoverage: false,
   focusKnown: false,
+  hasActiveProfile: false,
+  assignedProfileDeviceCount: 0,
+  otherAssignedProfileDeviceCount: 0,
 );
 
 void main() {

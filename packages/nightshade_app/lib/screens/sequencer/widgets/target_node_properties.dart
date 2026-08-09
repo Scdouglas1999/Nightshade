@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'framing_assistant_inline.dart';
 import 'node_property_widgets.dart';
+import 'target_coordinates.dart';
 
+part 'target_node_properties/coordinate_lookup.dart';
 part 'target_node_properties/trigger_section.dart';
 part 'target_node_properties/trigger_params_and_preview.dart';
 part 'target_node_properties/integration_budget_section.dart';
@@ -119,6 +122,10 @@ class TargetGroupProperties extends ConsumerWidget {
               ),
             ],
           ),
+          // Name resolution. Typing a name never used to touch RA/Dec, so
+          // "M31" at the 0h/+0° default was a reachable, runnable state that
+          // every downstream surface then reported as a real pointing.
+          _CoordinateLookupSection(colors: colors, node: node),
           NodePropertyField(
             colors: colors,
             label: 'Rotation (optional)',
@@ -141,24 +148,28 @@ class TargetGroupProperties extends ConsumerWidget {
           // user can drag the FOV outline to align rotation against the
           // sky. Disabled while the sequencer is running (the wrapping
           // IgnorePointer above the whole TargetGroupProperties handles
-          // that case for us).
+          // that case for us), and disabled while the coordinates are the
+          // 0h/+0° default — framing a target the app cannot locate showed
+          // an unrelated patch of Pisces under the target's name.
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 6),
             child: SizedBox(
               width: double.infinity,
               child: NightshadeButton(
-                onPressed: () async {
-                  final newRotation = await showFramingAssistantDialog(
-                    context: context,
-                    ref: ref,
-                    target: node,
-                  );
-                  if (newRotation != null) {
-                    ref.read(currentSequenceProvider.notifier).updateNode(
-                          node.copyWith(rotation: newRotation),
+                onPressed: targetCoordinatesUnset(node)
+                    ? null
+                    : () async {
+                        final newRotation = await showFramingAssistantDialog(
+                          context: context,
+                          ref: ref,
+                          target: node,
                         );
-                  }
-                },
+                        if (newRotation != null) {
+                          ref.read(currentSequenceProvider.notifier).updateNode(
+                                node.copyWith(rotation: newRotation),
+                              );
+                        }
+                      },
                 icon: LucideIcons.scanLine,
                 label: 'Frame target',
                 variant: ButtonVariant.outline,

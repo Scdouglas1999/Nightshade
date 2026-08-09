@@ -539,59 +539,88 @@ void main() {
     });
   });
 
-  group('exportAstroBinSidecar', () {
-    test(
-      'writes a .md and .json beside the image and the json round-trips',
-      () async {
-        final meta = service().buildAstroBinMetadata(
-          result: _sampleResult(),
-          profile: const EquipmentProfileModel(
-            id: 1,
-            name: 'Rig',
-            telescopeName: 'RC8',
-            telescopeFocalLength: 1624,
-            telescopeAperture: 203,
-            cameraName: 'QHY268M',
-            focalLength: 1624,
-            aperture: 203,
-          ),
-        );
-        final imagePath = p.join(tempDir.path, 'm51.png');
-
-        final mdPath = await service().exportAstroBinSidecar(
-          meta: meta,
-          outputPath: imagePath,
-        );
-
-        expect(mdPath, p.join(tempDir.path, 'm51.md'));
-        final jsonPath = p.join(tempDir.path, 'm51.json');
-        expect(File(mdPath).existsSync(), isTrue);
-        expect(File(jsonPath).existsSync(), isTrue);
-
-        final mdContents = File(mdPath).readAsStringSync();
-        expect(mdContents, contains('**Integration:** 01:16:00'));
-        expect(mdContents, contains('RC8'));
-
-        final decoded =
-            jsonDecode(File(jsonPath).readAsStringSync())
-                as Map<String, dynamic>;
-        final roundTripped = AstroBinExportMetadata.fromJson(decoded);
-        expect(roundTripped, meta);
-      },
+  group('exportAstroBinAcquisition', () {
+    AstroBinExportMetadata rigMeta() => service().buildAstroBinMetadata(
+      result: _sampleResult(),
+      profile: const EquipmentProfileModel(
+        id: 1,
+        name: 'Rig',
+        telescopeName: 'RC8',
+        telescopeFocalLength: 1624,
+        telescopeAperture: 203,
+        cameraName: 'QHY268M',
+        focalLength: 1624,
+        aperture: 203,
+      ),
+      acquisitionDate: DateTime(2026, 7, 30, 22, 15),
     );
 
-    test('creates missing parent directories for the sidecar', () async {
+    test('a .csv request writes the CSV the user asked for', () async {
+      // The whole point of the button: one file the AstroBin importer reads.
+      // It used to answer a .csv filename with a .json + .md pair.
+      final csvPath = p.join(tempDir.path, 'rsr-astrobin.csv');
+
+      final written = await service().exportAstroBinAcquisition(
+        meta: rigMeta(),
+        outputPath: csvPath,
+      );
+
+      expect(written, csvPath);
+      expect(File(csvPath).existsSync(), isTrue);
+      expect(
+        File(p.join(tempDir.path, 'rsr-astrobin.json')).existsSync(),
+        isFalse,
+      );
+
+      final rows = File(csvPath).readAsLinesSync();
+      expect(rows.first, 'date,number,duration');
+      // 38 frames x 120 s on the night of 2026-07-30.
+      expect(rows[1], '2026-07-30,38,120');
+    });
+
+    test('the copy-paste block is still written beside the CSV', () async {
+      final csvPath = p.join(tempDir.path, 'rsr-astrobin.csv');
+      await service().exportAstroBinAcquisition(
+        meta: rigMeta(),
+        outputPath: csvPath,
+      );
+
+      final md = File(
+        p.join(tempDir.path, 'rsr-astrobin.md'),
+      ).readAsStringSync();
+      expect(md, contains('**Date:** 2026-07-30'));
+      expect(md, contains('**Integration:** 01:16:00'));
+      expect(md, contains('RC8'));
+    });
+
+    test('a .json request writes the payload and it round-trips', () async {
+      final meta = rigMeta();
+      final jsonPath = p.join(tempDir.path, 'm51.json');
+
+      final written = await service().exportAstroBinAcquisition(
+        meta: meta,
+        outputPath: jsonPath,
+      );
+
+      expect(written, jsonPath);
+      final decoded =
+          jsonDecode(File(jsonPath).readAsStringSync()) as Map<String, dynamic>;
+      expect(AstroBinExportMetadata.fromJson(decoded), meta);
+    });
+
+    test('an image path still drops the Markdown block beside it', () async {
       final meta = service().buildAstroBinMetadata(result: _sampleResult());
       final imagePath = p.join(tempDir.path, 'a', 'b', 'm51.jpg');
-      final mdPath = await service().exportAstroBinSidecar(
+
+      final written = await service().exportAstroBinAcquisition(
         meta: meta,
         outputPath: imagePath,
       );
-      expect(File(mdPath).existsSync(), isTrue);
-      expect(
-        File(p.join(tempDir.path, 'a', 'b', 'm51.json')).existsSync(),
-        isTrue,
-      );
+
+      expect(written, p.join(tempDir.path, 'a', 'b', 'm51.md'));
+      expect(File(written).existsSync(), isTrue);
+      // Nothing is written over the image itself.
+      expect(File(imagePath).existsSync(), isFalse);
     });
   });
 }

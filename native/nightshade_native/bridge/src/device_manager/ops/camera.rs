@@ -53,6 +53,7 @@
 use crate::device::*;
 use crate::device_manager::DeviceManager;
 use crate::dispatch::DeviceOpError;
+use crate::sim_frame::SimSkyView;
 use nightshade_native::camera::{ExposureParams, ImageData, SubFrame};
 #[cfg(windows)]
 use nightshade_native::traits::NativeCamera;
@@ -92,6 +93,98 @@ fn parse_fits_card_u32(card: &[u8]) -> Option<u32> {
     let after_eq = text.split_once('=')?.1;
     let value = after_eq.split('/').next()?.trim();
     value.parse::<u32>().ok()
+}
+
+/// Focal length assumed when no equipment profile has been chosen.
+///
+/// Matches `storage`'s own default, so a simulator run with no profile renders
+/// the same field the default 1000 mm profile would.
+const SIM_DEFAULT_FOCAL_LENGTH_MM: f64 = 1000.0;
+
+/// Arcseconds subtended by one millimetre at one metre of focal length — the
+/// 206265 in `scale = 206265 * pixel_um / focal_mm`.
+const ARCSEC_PER_RADIAN: f64 = 206_264.806_247_096_36;
+
+/// Unbinned plate scale, in arcseconds per pixel.
+///
+/// The one number the whole simulated sky hangs off: get it wrong and every
+/// frame is rendered at a field of view the solver's hint contradicts, which
+/// reads as "ASTAP cannot solve the simulator" rather than as an arithmetic bug.
+fn sim_plate_scale_arcsec_per_px(pixel_size_um: f64, focal_length_mm: f64) -> f64 {
+    ARCSEC_PER_RADIAN * (pixel_size_um / 1000.0) / focal_length_mm
+}
+
+/// The sky the simulated camera is pointing at, or `None` to keep painting the
+/// pseudo-random field.
+///
+/// `None` whenever the simulator cannot honestly say what it is looking at or
+/// what it would be matched against:
+///
+/// * no plate-solver catalogue configured, or the directory holds no `.1476`
+///   files — rendering a sky the solver has no database for produces a frame
+///   that cannot be solved, which is worse than not pretending; and
+/// * no simulated mount connected — a camera-only rig has no pointing, and
+///   inventing one would silently move every focus/HFR measurement the sim's own
+///   test suite takes onto a different star field.
+async fn sim_sky_view(pixel_size_um: f64, sensor_w: usize, sensor_h: usize) -> Option<SimSkyView> {
+    if !pixel_size_um.is_finite() || pixel_size_um <= 0.0 {
+        return None;
+    }
+    let (centre_ra_deg, centre_dec_deg) = {
+        let mount = crate::api::devices::simulation::get_sim_mount()
+            .read()
+            .await;
+        if !mount.status.connected {
+            return None;
+        }
+        (
+            mount.status.right_ascension * 15.0,
+            mount.status.declination,
+        )
+    };
+    if !centre_ra_deg.is_finite() || !centre_dec_deg.is_finite() {
+        return None;
+    }
+
+    // Reads the SAME preference the solver reads, so the simulated sky and the
+    // catalogue ASTAP matches against are the same data by construction.
+    let index = crate::sim_sky::configured_index()?;
+
+    let rotation_deg = {
+        let rotator = crate::api::devices::simulation::get_sim_rotator()
+            .read()
+            .await;
+        if rotator.status.connected {
+            rotator.status.position
+        } else {
+            0.0
+        }
+    };
+    let focal_length_mm = crate::get_state()
+        .get_profile()
+        .await
+        .map(|profile| profile.telescope_focal_length)
+        .filter(|focal| focal.is_finite() && *focal > 0.0)
+        .unwrap_or(SIM_DEFAULT_FOCAL_LENGTH_MM);
+
+    let arcsec_per_px = sim_plate_scale_arcsec_per_px(pixel_size_um, focal_length_mm);
+    let radius_deg = crate::sim_frame::sim_sky_field_radius_deg(sensor_w, sensor_h, arcsec_per_px);
+    let stars = index.field(
+        centre_ra_deg,
+        centre_dec_deg,
+        radius_deg,
+        crate::sim_frame::SIM_SKY_STAR_LIMIT,
+    );
+    if stars.is_empty() {
+        return None;
+    }
+    Some(SimSkyView {
+        centre_ra_deg,
+        centre_dec_deg,
+        rotation_deg,
+        arcsec_per_px,
+        stars,
+    })
 }
 
 impl DeviceManager {
@@ -1112,9 +1205,19 @@ impl DeviceManager {
                 // tracking drift are visible to whatever is measuring the frame.
                 let (offset_x, offset_y) =
                     crate::api::devices::simulation::sim_guide_offset_px().await;
+                let sensor_w = sim.sensor_width.max(1) as usize;
+                let sensor_h = sim.sensor_height.max(1) as usize;
+                // Paint the sky the mount is actually on when the plate solver's
+                // own star database is available. Without this the simulator
+                // renders a fixed pseudo-random field that no solver can match,
+                // which left Slew & Center, the framing wizard, mosaic tile
+                // solving, meridian-flip recentre, blind solve, the catalog
+                // overlay and polar alignment's solve path unexercisable
+                // offline.
+                let sky = sim_sky_view(sim.pixel_size_x, sensor_w, sensor_h).await;
                 let frame_request = crate::sim_frame::SimFrameRequest {
-                    width: sim.sensor_width.max(1) as usize,
-                    height: sim.sensor_height.max(1) as usize,
+                    width: sensor_w,
+                    height: sensor_h,
                     exposure_secs: request.secs,
                     gain: sim.gain,
                     offset: sim.offset,
@@ -1127,6 +1230,7 @@ impl DeviceManager {
                     subframe: request.subframe,
                     max_adu: sim.max_adu.clamp(1, u32::from(u16::MAX)) as u16,
                     seed: crate::api::devices::simulation::next_sim_frame_seed(),
+                    sky,
                 };
                 let (width, height) = crate::sim_frame::sim_frame_dimensions(&frame_request);
                 let sim_data = crate::sim_frame::synthesize_sim_frame(&frame_request);
@@ -2686,6 +2790,313 @@ mod sim_camera_tests {
         assert!(
             err.contains("No exposure"),
             "expected a no-exposure error, got: {err}"
+        );
+    }
+}
+
+/// The seam between the simulated mount's pointing and the frame the simulated
+/// camera hands back.
+#[cfg(test)]
+mod sim_sky_wiring_tests {
+    use super::*;
+    use crate::api::devices::simulation::{
+        clear_sim_exposure, get_sim_camera, get_sim_mount, sim_singleton_test_lock,
+    };
+    use crate::api::get_device_manager;
+    use crate::device::{DeviceInfo, DeviceType, DriverType};
+    use nightshade_native::camera::FrameType;
+
+    /// The declared simulated rig: 3.76 um pixels behind the default 1000 mm
+    /// profile. If this number moves, every rendered field is at a scale the
+    /// solver's own hint contradicts.
+    #[test]
+    fn plate_scale_matches_the_declared_simulated_rig() {
+        let scale = sim_plate_scale_arcsec_per_px(3.76, 1000.0);
+        assert!((scale - 0.7756).abs() < 0.001, "{scale}");
+        // Halving the focal length doubles the scale, and the wide end matches
+        // the reference probe's 5.74"/px at 135 mm.
+        assert!((sim_plate_scale_arcsec_per_px(3.76, 500.0) - 2.0 * scale).abs() < 1e-9);
+        assert!((sim_plate_scale_arcsec_per_px(3.76, 135.0) - 5.744).abs() < 0.001);
+    }
+
+    /// A rig with no mount keeps the pseudo-random field.
+    ///
+    /// This is the guard on the whole change: the sim's own suite measures star
+    /// counts, HFR and the autofocus V-curve against that field, so a camera-only
+    /// rig — which has no pointing to render — must never be switched onto a
+    /// catalogue sky.
+    #[tokio::test]
+    async fn a_rig_with_no_mount_gets_no_sky_view() {
+        let _serialized = sim_singleton_test_lock().lock().await;
+        get_sim_mount().write().await.status.connected = false;
+        assert!(
+            sim_sky_view(3.76, crate::sim_frame::SIM_W, crate::sim_frame::SIM_H)
+                .await
+                .is_none(),
+            "a disconnected mount must not produce a pointing"
+        );
+    }
+
+    /// A nonsense pixel size is not a pointing either.
+    #[tokio::test]
+    async fn an_unreadable_pixel_size_gets_no_sky_view() {
+        let _serialized = sim_singleton_test_lock().lock().await;
+        get_sim_mount().write().await.status.connected = true;
+        for bad in [0.0, -3.76, f64::NAN] {
+            assert!(
+                sim_sky_view(bad, crate::sim_frame::SIM_W, crate::sim_frame::SIM_H)
+                    .await
+                    .is_none(),
+                "pixel size {bad} must not produce a plate scale"
+            );
+        }
+        get_sim_mount().write().await.status.connected = false;
+    }
+
+    /// The capture-path wiring, on CI.
+    ///
+    /// `a_downloaded_simulator_frame_solves_at_the_mounts_pointing` below is the
+    /// stronger proof, but it is `#[ignore]`d because it needs `astap_cli` and a
+    /// real star database — which left the single line that attaches the sky view
+    /// to the frame request unguarded on every machine that does not have them.
+    /// Replacing that line with `sky: None` kept all 498 default tests green.
+    ///
+    /// This test needs neither binary nor database: it synthesises its own area
+    /// file and drives the real parser, index, cap lookup, TAN projection and
+    /// renderer through `camera_download_image`. Sever the wiring and it fails.
+    #[tokio::test]
+    async fn a_downloaded_frame_carries_the_catalogue_field() {
+        let _serialized = sim_singleton_test_lock().lock().await;
+
+        // A grid of catalogue stars centred on the pointing, spaced ~90 px at the
+        // simulated rig's 0.776"/px so the detector resolves them individually.
+        let ra_hours = 5.59_f64;
+        let dec_deg = -5.39_f64;
+        let ra_deg = ra_hours * 15.0;
+        let step_deg =
+            90.0 * sim_plate_scale_arcsec_per_px(3.76, SIM_DEFAULT_FOCAL_LENGTH_MM) / 3600.0;
+        let mut stars = Vec::new();
+        for row in -4i32..=4 {
+            for col in -8i32..=8 {
+                stars.push((
+                    ra_deg + f64::from(col) * step_deg / dec_deg.to_radians().cos(),
+                    dec_deg + f64::from(row) * step_deg,
+                    9.0 + f64::from((row + col).rem_euclid(5)),
+                ));
+            }
+        }
+        let catalog = tempfile::TempDir::new().unwrap();
+        crate::sim_sky::astap_integration::write_synthetic_area(
+            &catalog.path().join("d05_0001.1476"),
+            &stars,
+        );
+
+        // Exactly what the Plate Solving settings screen writes.
+        let store = tempfile::TempDir::new().unwrap();
+        let _ = crate::state::init_platesolver_storage(store.path().to_path_buf());
+        let previous = crate::state::get_platesolver_preference().unwrap_or_default();
+        crate::state::save_platesolver_preference(&crate::storage::PlateSolverPreference {
+            catalog_path: catalog.path().to_string_lossy().to_string(),
+            ..previous.clone()
+        })
+        .expect("save plate-solver preference");
+
+        {
+            let mut mount = get_sim_mount().write().await;
+            mount.status.connected = true;
+            mount.status.right_ascension = ra_hours;
+            mount.status.declination = dec_deg;
+        }
+        // So the field sits where the projection puts it rather than where an
+        // earlier test's accumulated drift left it.
+        crate::api::devices::simulation::reset_sim_guide_offset().await;
+
+        let device_id = "sim_camera_sky_wiring";
+        let info = DeviceInfo {
+            id: device_id.to_string(),
+            name: "Simulated Camera".to_string(),
+            device_type: DeviceType::Camera,
+            driver_type: DriverType::Simulator,
+            description: "Simulated camera".to_string(),
+            driver_version: "1.0".to_string(),
+            serial_number: None,
+            unique_id: None,
+            display_name: "Simulated Camera".to_string(),
+        };
+        let mgr = get_device_manager();
+        mgr.register_device(info, false).await;
+        get_sim_camera().write().await.status.connected = true;
+        clear_sim_exposure().await;
+
+        mgr.camera_start_exposure(device_id, 1.0, None, None, 1, 1, FrameType::Light)
+            .await
+            .expect("start exposure");
+        while !mgr.camera_is_exposure_complete(device_id).await.unwrap() {
+            tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+        }
+        let image = mgr
+            .camera_download_image(device_id)
+            .await
+            .expect("download frame");
+
+        // Put the singletons back before asserting, so a failure here does not
+        // leave a catalogue sky armed for every other simulator test.
+        get_sim_mount().write().await.status.connected = false;
+        get_sim_camera().write().await.status.connected = false;
+        let _ = crate::state::save_platesolver_preference(&previous);
+
+        let data =
+            nightshade_imaging::ImageData::from_u16(image.width, image.height, 1, &image.data);
+        let found = nightshade_imaging::detect_stars_with_stats(
+            &data,
+            &nightshade_imaging::StarDetectionConfig::default(),
+        );
+        assert!(
+            found.stars.len() > 60,
+            "the downloaded frame carried {} stars; the catalogue grid holds {} and \
+             the pseudo-random fallback exactly 45, so the sky view never reached \
+             the frame request",
+            found.stars.len(),
+            stars.len()
+        );
+
+        // Placed by the projection, not merely present: the grid's centre star
+        // sits at the tangent point, which lands on the sensor's centre pixel at
+        // any plate scale.
+        let centre_x = f64::from(image.width) / 2.0;
+        let centre_y = f64::from(image.height) / 2.0;
+        let nearest = found
+            .stars
+            .iter()
+            .map(|star| (star.x - centre_x).hypot(star.y - centre_y))
+            .fold(f64::MAX, f64::min);
+        assert!(
+            nearest < 12.0,
+            "nearest star to the frame centre is {nearest:.1} px away; the rendered \
+             field is not the one the mount is pointing at"
+        );
+    }
+
+    /// The whole point, end to end: a frame DOWNLOADED FROM THE SIMULATED CAMERA
+    /// solves against the real ASTAP binary at the pointing the mount reports.
+    ///
+    /// Ignored by default because it needs `astap_cli` and a star database. Run
+    /// it the same way as the renderer-level test:
+    ///
+    /// ```text
+    /// NIGHTSHADE_SIM_SKY_ASTAP_DIR=~/.local/share/nightshade-audit/astap/bin \
+    ///   cargo test -p nightshade_bridge --lib sim_sky_wiring -- --ignored --nocapture
+    /// ```
+    #[tokio::test]
+    #[ignore = "needs astap_cli and a star database; see the doc comment to run it"]
+    async fn a_downloaded_simulator_frame_solves_at_the_mounts_pointing() {
+        use crate::sim_sky::astap_integration::{astap_dir, read_crval, write_fits, PIXEL_UM};
+
+        let _serialized = sim_singleton_test_lock().lock().await;
+        let dir = astap_dir();
+        let binary = dir.join("astap_cli");
+        assert!(
+            binary.exists(),
+            "no astap_cli in {dir:?}; set NIGHTSHADE_SIM_SKY_ASTAP_DIR"
+        );
+
+        // Point the app's plate-solver preference at the same database, which is
+        // exactly what the settings screen writes.
+        let store = tempfile::TempDir::new().unwrap();
+        let _ = crate::state::init_platesolver_storage(store.path().to_path_buf());
+        let previous = crate::state::get_platesolver_preference().unwrap_or_default();
+        crate::state::save_platesolver_preference(&crate::storage::PlateSolverPreference {
+            astap_path: binary.to_string_lossy().to_string(),
+            catalog_path: dir.to_string_lossy().to_string(),
+            ..previous.clone()
+        })
+        .expect("save plate-solver preference");
+
+        // M42, and a mount that says so.
+        let ra_hours = 5.59_f64;
+        let dec_deg = -5.39_f64;
+        {
+            let mut mount = get_sim_mount().write().await;
+            mount.status.connected = true;
+            mount.status.right_ascension = ra_hours;
+            mount.status.declination = dec_deg;
+        }
+
+        let device_id = "sim_camera_sky_solve";
+        let info = DeviceInfo {
+            id: device_id.to_string(),
+            name: "Simulated Camera".to_string(),
+            device_type: DeviceType::Camera,
+            driver_type: DriverType::Simulator,
+            description: "Simulated camera".to_string(),
+            driver_version: "1.0".to_string(),
+            serial_number: None,
+            unique_id: None,
+            display_name: "Simulated Camera".to_string(),
+        };
+        let mgr = get_device_manager();
+        mgr.register_device(info, false).await;
+        get_sim_camera().write().await.status.connected = true;
+        clear_sim_exposure().await;
+
+        mgr.camera_start_exposure(device_id, 0.3, None, None, 1, 1, FrameType::Light)
+            .await
+            .expect("start exposure");
+        while !mgr.camera_is_exposure_complete(device_id).await.unwrap() {
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+        let image = mgr
+            .camera_download_image(device_id)
+            .await
+            .expect("download frame");
+
+        // Put the singletons back before asserting, so a failure here does not
+        // leave a catalogue sky armed for every other simulator test.
+        get_sim_mount().write().await.status.connected = false;
+        get_sim_camera().write().await.status.connected = false;
+        let _ = crate::state::save_platesolver_preference(&previous);
+
+        let scratch = tempfile::TempDir::new().unwrap();
+        let path = scratch.path().join("downloaded.fits");
+        write_fits(&path, &image.data, ra_hours, dec_deg, 1000.0);
+        let base = path.with_extension("");
+        let scale = sim_plate_scale_arcsec_per_px(PIXEL_UM, 1000.0);
+        let fov_h_deg = scale * f64::from(image.height) / 3600.0;
+        let output = std::process::Command::new(&binary)
+            .args([
+                "-f".into(),
+                path.to_string_lossy().to_string(),
+                "-r".into(),
+                "10".into(),
+                "-fov".into(),
+                format!("{fov_h_deg:.4}"),
+                "-ra".into(),
+                format!("{ra_hours:.5}"),
+                "-spd".into(),
+                format!("{:.5}", dec_deg + 90.0),
+                "-d".into(),
+                dir.to_string_lossy().to_string(),
+                "-o".into(),
+                base.to_string_lossy().to_string(),
+                "-wcs".into(),
+            ])
+            .output()
+            .expect("run astap_cli");
+
+        let (solved_ra, solved_dec) = read_crval(&base).unwrap_or_else(|| {
+            panic!(
+                "the downloaded simulator frame did not solve:\n{}",
+                String::from_utf8_lossy(&output.stdout).trim()
+            )
+        });
+        let error_arcsec = ((solved_ra - ra_hours * 15.0) * dec_deg.to_radians().cos())
+            .hypot(solved_dec - dec_deg)
+            * 3600.0;
+        println!("downloaded frame solved, centre error {error_arcsec:.1}\"");
+        assert!(
+            error_arcsec < scale,
+            "solved centre {error_arcsec:.1}\" from the mount's pointing, over one \
+             {scale:.2}\" pixel"
         );
     }
 }

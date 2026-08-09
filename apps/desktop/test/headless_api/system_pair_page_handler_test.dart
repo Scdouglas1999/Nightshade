@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_desktop/headless_api/handlers/static_file_handlers.dart';
 import 'package:nightshade_desktop/headless_api/handlers/system_handlers.dart';
-import 'package:nightshade_desktop/headless_api/handlers/system_pair_page_handler.dart';
 import 'package:shelf/shelf.dart';
 
 void main() {

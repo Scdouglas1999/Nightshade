@@ -7,6 +7,7 @@ import 'package:nightshade_core/nightshade_core.dart'
         FirstNightWizardState,
         firstNightWizardProvider,
         FirstNightWizardNotifier,
+        guidedFlowActiveProvider,
         // Alias for the model-layer `FirstNightWizard` (hidden from the
         // barrel because it collides with this widget class of the same
         // name). Defined in `src/legacy_aliases.dart`.
@@ -60,6 +61,26 @@ class _FirstNightWizardState extends ConsumerState<FirstNightWizard> {
   bool _isSaving = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Claim the user's attention for this walkthrough so the per-screen
+    // "New to this screen?" nudges stand down. Released explicitly in Done /
+    // Skip forever / Close — NOT in dispose, because "Show me on the X screen"
+    // pops this dialog to park the walkthrough on that screen, and a nudge
+    // offering a tour of the screen the walkthrough just sent you to is the
+    // second guided flow this flag exists to prevent.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(guidedFlowActiveProvider.notifier).state = true;
+    });
+  }
+
+  /// Hand the screen back to the ordinary per-screen tour offers.
+  void _releaseGuidedFlow() {
+    ref.read(guidedFlowActiveProvider.notifier).state = false;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final state = ref.watch(firstNightWizardProvider);
     final notifier = ref.read(firstNightWizardProvider.notifier);
@@ -95,7 +116,10 @@ class _FirstNightWizardState extends ConsumerState<FirstNightWizard> {
       // steps through, so re-opening from Settings → Help resumes at the same
       // step. The wizard is replay-only and no longer auto-launches, so closing
       // here makes no promise about a next-launch reopen.
-      onClose: () => Navigator.of(context).pop(),
+      onClose: () {
+        _releaseGuidedFlow();
+        Navigator.of(context).pop();
+      },
       actions: _buildActions(context, state, notifier),
       child: TutorialStepWidget(
         step: currentStep,
@@ -134,7 +158,12 @@ class _FirstNightWizardState extends ConsumerState<FirstNightWizard> {
           label: l10n.text('commonClose'),
           variant: ButtonVariant.outline,
           size: ButtonSize.small,
-          onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
+          onPressed: _isSaving
+              ? null
+              : () {
+                  _releaseGuidedFlow();
+                  Navigator.of(context).pop();
+                },
         )
       else
         NightshadeButton(
@@ -194,6 +223,7 @@ class _FirstNightWizardState extends ConsumerState<FirstNightWizard> {
     FirstNightWizardNotifier notifier,
   ) async {
     await _run(notifier.dismissForever, onSuccess: () {
+      _releaseGuidedFlow();
       Navigator.of(context).pop();
     });
   }
@@ -203,6 +233,7 @@ class _FirstNightWizardState extends ConsumerState<FirstNightWizard> {
     FirstNightWizardNotifier notifier,
   ) async {
     await _run(notifier.complete, onSuccess: () {
+      _releaseGuidedFlow();
       Navigator.of(context).pop();
     });
   }

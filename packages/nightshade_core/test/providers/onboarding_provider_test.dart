@@ -661,10 +661,17 @@ void main() {
         expect(id, 42);
         verify(() => backend.saveProfile(any())).called(1);
         verify(() => backend.loadProfile('42')).called(1);
+        // `.single`: the capture directory and the driver step's backend
+        // choice go up in ONE read-modify-write, so a second round trip cannot
+        // race the first and drop whichever field it did not carry.
         final settings =
             verify(() => backend.updateSettings(captureAny())).captured.single
                 as remote_settings.AppSettings;
         expect(settings.imageOutputPath, '/srv/nightshade/captures');
+        // Driver-step defaults (everything but the simulator) reach the host's
+        // startup-discovery flags instead of dying with the draft.
+        expect(settings.indiAutoConnect, isTrue);
+        expect(settings.alpacaAutoDiscover, isTrue);
       } finally {
         remoteContainer.dispose();
       }

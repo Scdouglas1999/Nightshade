@@ -1,0 +1,95 @@
+// Regression: pre-flight could not see an evening target set under it.
+//
+// `calculateObjectVisibility` scans local noon to local noon. A target that is
+// already above the horizon when that window opens — everything that culminates
+// in the afternoon, i.e. the whole early-evening half of the sky — used to come
+// back with the NEXT day's rise and a set hunted forward to match it, so both
+// ends sat ~24 h after the events they described.
+//
+// The "target sets mid-block" conflict is gated on `end.isAfter(setTime)`, and
+// no node ending tonight is after a set instant reported for tomorrow night. So
+// a six-hour block on a target that drops below the horizon three hours in
+// passed pre-flight in silence.
+import 'package:flutter_test/flutter_test.dart';
+import 'package:nightshade_core/nightshade_core.dart';
+
+void main() {
+  const estimator = SequenceTimeEstimator();
+  const latitude = 40.0;
+  const longitude = -105.0;
+
+  // RA 22h / Dec +20 at 40 N culminates in the early afternoon in mid-January
+  // and sets in the evening: the exact shape that used to slip a day.
+  Sequence buildSequence(DateTime start) {
+    final target = TargetHeaderNode(
+      id: 'target1',
+      name: 'Evening Target',
+      targetName: 'Evening Target',
+      raHours: 22.0,
+      decDegrees: 20.0,
+      childIds: const ['exposure1'],
+      startAfter: start,
+    );
+    return Sequence.create(
+      name: 'Evening target',
+      rootNodeId: 'target1',
+      nodes: {
+        'target1': target,
+        'exposure1': ExposureNode(
+          id: 'exposure1',
+          name: 'Light 300s',
+          // Six hours of subs on a target that sets partway through.
+          durationSecs: 300,
+          count: 72,
+          parentId: 'target1',
+        ),
+      },
+    );
+  }
+
+  test('the window names the set on the night the run is in', () {
+    final start = DateTime(2024, 1, 15, 18, 0);
+    final window = estimator.calculateTargetWindows(
+      buildSequence(start),
+      start,
+      latitude: latitude,
+      longitude: longitude,
+    )['target1']!;
+
+    expect(window.riseTime, isNotNull);
+    expect(window.setTime, isNotNull);
+    expect(window.transitTime, isNotNull);
+
+    // The three timestamps are one pass of the sky, so the target cannot rise
+    // after it culminates nor stay up for more than a day.
+    expect(window.riseTime!.isBefore(window.transitTime!), isTrue);
+    expect(window.setTime!.isAfter(window.transitTime!), isTrue);
+    expect(window.setTime!.difference(window.riseTime!).inHours, lessThan(24));
+
+    // And the set is the one that ends THIS evening, hours after the run
+    // starts — not the same clock time a day later.
+    expect(window.setTime!.difference(start).inHours, lessThan(12));
+  });
+
+  test('a block that outlasts the target raises the conflict', () {
+    final start = DateTime(2024, 1, 15, 18, 0);
+    final sequence = buildSequence(start);
+
+    final analysis = estimator.analyzeSequence(
+      sequence,
+      start,
+      latitude: latitude,
+      longitude: longitude,
+    );
+
+    expect(
+      analysis.conflicts.any(
+        (c) => c.contains('Evening Target') && c.contains('after target sets'),
+      ),
+      isTrue,
+      reason:
+          'six hours of subs on a target that sets partway through must not '
+          'pass pre-flight in silence — conflicts were ${analysis.conflicts}',
+    );
+  });
+}

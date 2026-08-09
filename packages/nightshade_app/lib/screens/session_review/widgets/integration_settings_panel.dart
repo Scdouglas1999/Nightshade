@@ -21,6 +21,54 @@ class IntegrationSettingsPanel extends StatefulWidget {
     required this.onChanged,
   });
 
+  /// Human-readable list of the knobs [settings] changes relative to the
+  /// Balanced baseline ([IntegrationSettings.defaults]), e.g.
+  /// `['RANSAC 1.0 px', 'Max ref stars 120', 'Normalization Local grid']`.
+  /// Empty when the settings are the baseline.
+  ///
+  /// Derived by diffing, never hand-written per preset: the readout under the
+  /// chips therefore cannot claim a distinction a profile does not make. That
+  /// matters because "Maximum Quality" once shipped as a byte-identical copy of
+  /// Balanced, and every surface described the two runs the same way.
+  static List<String> deltasFromBalanced(IntegrationSettings s) {
+    const base = IntegrationSettings.defaults;
+    final out = <String>[];
+    void add(bool changed, String text) {
+      if (changed) out.add(text);
+    }
+
+    add(s.model != base.model,
+        'Model ${_IntegrationSettingsPanelState._transformLabel(s.model)}');
+    add(s.resampler != base.resampler,
+        _IntegrationSettingsPanelState._resamplerLabel(s.resampler));
+    add(s.ransacThresholdPx != base.ransacThresholdPx,
+        'RANSAC ${s.ransacThresholdPx.toStringAsFixed(1)} px');
+    add(s.maxRefStars != base.maxRefStars, 'Max ref stars ${s.maxRefStars}');
+    add(s.weighting != base.weighting,
+        'Weight ${_IntegrationSettingsPanelState._weightLabel(s.weighting)}');
+    add(!s.weightingEnabled, 'No weighting');
+    add(
+        s.normalization != base.normalization,
+        'Normalization '
+        '${_IntegrationSettingsPanelState._normLabel(s.normalization)}');
+    add(!s.normalizationEnabled, 'No normalization');
+    add(s.reject != base.reject,
+        'Reject ${_IntegrationSettingsPanelState._rejectLabel(s.reject)}');
+    add(s.rejectLow != base.rejectLow || s.rejectHigh != base.rejectHigh,
+        'Thresholds ${s.rejectLow}/${s.rejectHigh}');
+    add(s.generateRejectionMap != base.generateRejectionMap,
+        s.generateRejectionMap ? 'Rejection map' : 'No rejection map');
+    add(
+        s.cosmeticCorrection != base.cosmeticCorrection,
+        s.cosmeticCorrection
+            ? 'Cosmetic correction'
+            : 'No cosmetic correction');
+    add(s.outputBitDepth != base.outputBitDepth,
+        s.outputBitDepth == OutputBitDepth.f32 ? '32-bit float' : '16-bit');
+    add(s.drizzle != base.drizzle, s.drizzle ? 'Drizzle' : 'No drizzle');
+    return out;
+  }
+
   @override
   State<IntegrationSettingsPanel> createState() =>
       _IntegrationSettingsPanelState();
@@ -56,6 +104,7 @@ class _IntegrationSettingsPanelState extends State<IntegrationSettingsPanel> {
           subCount: widget.subCount,
           resolvedReject: resolved,
           autoCullPercentile: _s.autoCull ? _s.cullPercentile : null,
+          deltas: IntegrationSettingsPanel.deltasFromBalanced(_s),
         ),
         const SizedBox(height: NightshadeTokens.spaceMd),
         _AdvancedToggle(
@@ -351,10 +400,16 @@ class _ReadoutCard extends StatelessWidget {
   final RejectAlgorithm resolvedReject;
   final double? autoCullPercentile;
 
+  /// Knobs the active settings change relative to the Balanced baseline; see
+  /// [IntegrationSettingsPanel.deltasFromBalanced]. Rendered verbatim so two
+  /// profiles that stack identically cannot describe themselves differently.
+  final List<String> deltas;
+
   const _ReadoutCard({
     required this.subCount,
     required this.resolvedReject,
     required this.autoCullPercentile,
+    required this.deltas,
   });
 
   @override
@@ -374,18 +429,34 @@ class _ReadoutCard extends StatelessWidget {
       variant: CardVariant.subtle,
       padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(NightshadeIcons.info, size: 16, color: colors.info),
           const SizedBox(width: NightshadeTokens.spaceSm),
           Expanded(
-            child: Text(
-              'Will integrate $subCount accepted sub'
-              '${subCount == 1 ? '' : 's'} using $rejectLabel'
-              '${cull != null ? '. Recommends culling the worst '
-                  '${(cull * 100).round()}%' : ''}.',
-              style: NightshadeTypography.bodySm.copyWith(
-                color: colors.textSecondary,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Will integrate $subCount accepted sub'
+                  '${subCount == 1 ? '' : 's'} using $rejectLabel'
+                  '${cull != null ? '. Recommends culling the worst '
+                      '${(cull * 100).round()}%' : ''}.',
+                  style: NightshadeTypography.bodySm.copyWith(
+                    color: colors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: NightshadeTokens.spaceXs),
+                Text(
+                  deltas.isEmpty
+                      ? 'Same knobs as Balanced.'
+                      : 'Differs from Balanced: ${deltas.join(' · ')}.',
+                  style: NightshadeTypography.bodySm.copyWith(
+                    color: colors.textMuted,
+                  ),
+                ),
+              ],
             ),
           ),
         ],

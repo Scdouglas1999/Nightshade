@@ -6,6 +6,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import '../../../utils/snackbar_helper.dart';
+import '../../../widgets/focus_model_curve_card.dart';
 import '../../../widgets/focuser_controls.dart';
 import 'panel_widgets.dart';
 
@@ -446,6 +447,29 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
               ],
             ),
           ),
+
+          const SizedBox(height: 20),
+
+          // The temperature-compensation model those autofocus runs are
+          // building. This tab had no surface for it at all: the only mounted
+          // view of the model was the mobile Devices tab, and Settings' focus
+          // model page is remote-only, so an operator running autofocus on
+          // this very screen could never see the slope/R² their runs produced.
+          // FocusModelCurveCard is backend-aware (focusProfileDataProvider), so
+          // it is honest here both on the rig and on a paired companion.
+          //
+          // Deliberately not wrapped in PanelSection: the card draws its own
+          // surface + border, and PanelSection would nest a second one.
+          Text(
+            'Temperature Compensation',
+            style: TextStyle(
+              fontSize: NightshadeTokens.fontSizePanelLabel,
+              fontWeight: FontWeight.w600,
+              color: widget.colors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          const FocusModelCurveCard(),
         ],
       ),
     );

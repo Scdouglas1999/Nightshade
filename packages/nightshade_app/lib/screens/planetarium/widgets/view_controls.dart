@@ -272,6 +272,8 @@ class ViewControls extends ConsumerWidget {
                 viewState.viewMode == SkyViewMode.horizontal
                     ? SkyViewMode.equatorial
                     : SkyViewMode.horizontal,
+                observer: ref.read(observerLocationProvider),
+                instant: ref.read(observationTimeProvider).time,
               );
             },
             tooltip: viewState.viewMode == SkyViewMode.horizontal

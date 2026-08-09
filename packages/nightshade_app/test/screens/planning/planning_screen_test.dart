@@ -17,6 +17,8 @@ import 'package:nightshade_app/screens/planner/planner_screen.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
+import '../../harness/provider_teardown.dart';
 
 class _TestAppSettingsNotifier extends AppSettingsNotifier {
   final AppSettingsState _settings;
@@ -253,6 +255,7 @@ Future<void> _pumpPlanner(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        inMemoryDatabaseOverride(),
         appSettingsProvider.overrideWith(
           () => _TestAppSettingsNotifier(
             const AppSettingsState(latitude: 40.0, longitude: -75.0),
@@ -297,6 +300,8 @@ void main() {
     expect(find.text('NGC 6960 Veil'), findsOneWidget);
     expect(find.text('IC 1396'), findsOneWidget);
     expect(find.text('M51 Whirlpool'), findsOneWidget);
+
+    await settleProviderTeardown(tester);
   });
 
   testWidgets('search field narrows the visible candidate list',
@@ -323,11 +328,14 @@ void main() {
     expect(find.text('M31 Andromeda'), findsNothing);
     expect(find.text('M13'), findsNothing);
     expect(find.text('M81 Bode'), findsNothing);
+
+    await settleProviderTeardown(tester);
   });
 
   test('object-type filter removes non-matching candidates', () async {
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         tonightSuggestionsProvider.overrideWith(
           (ref) async => _tenCandidates(),
         ),
@@ -404,12 +412,15 @@ void main() {
     expect(framing.target?.name, 'NGC 7000');
     expect(framing.target!.raHours, closeTo(5.0, 1e-3));
     expect(framing.target!.decDegrees, closeTo(-5.0, 1e-3));
+
+    await settleProviderTeardown(tester);
   });
 
   test('size filter narrows the candidate list to the requested range',
       () async {
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         tonightSuggestionsProvider.overrideWith(
           (ref) async => _sizedCandidates(),
         ),
@@ -455,6 +466,7 @@ void main() {
   test('size sort orders by descending size with nulls sinking', () async {
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         tonightSuggestionsProvider.overrideWith(
           (ref) async => _sizedCandidates(),
         ),

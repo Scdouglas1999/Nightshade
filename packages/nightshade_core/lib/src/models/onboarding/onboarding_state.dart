@@ -164,6 +164,14 @@ class OnboardingDraft {
   final int? defaultBinY;
   final double? defaultCoolingTempC;
 
+  /// Whether the created profile should drive the cooler down to
+  /// [defaultCoolingTempC] as soon as the camera connects.
+  ///
+  /// Opt-in, and asked as its own question in the wizard: a set-point on its
+  /// own is only a preference, and a rig set up at noon must not pin the TEC at
+  /// full power for the rest of the afternoon.
+  final bool coolOnConnect;
+
   const OnboardingDraft({
     this.currentStep = OnboardingStep.welcome,
     this.selectedDrivers = const {},
@@ -192,6 +200,7 @@ class OnboardingDraft {
     this.defaultBinX,
     this.defaultBinY,
     this.defaultCoolingTempC,
+    this.coolOnConnect = false,
   });
 
   OnboardingDraft copyWith({
@@ -222,6 +231,7 @@ class OnboardingDraft {
     int? defaultBinX,
     int? defaultBinY,
     double? defaultCoolingTempC,
+    bool? coolOnConnect,
     bool clearCamera = false,
     bool clearMount = false,
     bool clearFocuser = false,
@@ -278,7 +288,59 @@ class OnboardingDraft {
       defaultCoolingTempC: clearCoolingTempC
           ? null
           : (defaultCoolingTempC ?? this.defaultCoolingTempC),
+      // Clearing the set-point clears the promise that goes with it.
+      coolOnConnect: clearCoolingTempC
+          ? false
+          : (coolOnConnect ?? this.coolOnConnect),
     );
+  }
+
+  /// Whether [step] actually put something on record in this draft.
+  ///
+  /// Distinct from "the user walked past it". The wizard's step list used to
+  /// tick every step behind the cursor, so a guider the user tested, failed to
+  /// reach and then skipped carried the same filled tick as the camera they
+  /// really configured — while the Review screen honestly reported it as
+  /// "— not set —". A tick is a claim about the rig being built and must be
+  /// backed by a value.
+  ///
+  /// [siteConfigured] is supplied by the caller: the observing site is a
+  /// global observer setting persisted to app settings, not to this draft.
+  ///
+  /// [OnboardingStep.welcome] and [OnboardingStep.nextSteps] carry no captured
+  /// value — reading them IS the step — so passing them counts as done.
+  bool producedValueFor(OnboardingStep step, {required bool siteConfigured}) {
+    switch (step) {
+      case OnboardingStep.welcome:
+      case OnboardingStep.nextSteps:
+        return true;
+      case OnboardingStep.drivers:
+        return selectedDrivers.isNotEmpty;
+      case OnboardingStep.camera:
+        return cameraId != null;
+      case OnboardingStep.mount:
+        return mountId != null;
+      case OnboardingStep.focuser:
+        return focuserId != null;
+      case OnboardingStep.filterWheel:
+        return filterWheelId != null;
+      case OnboardingStep.guider:
+        return guiderId != null;
+      case OnboardingStep.opticalTrain:
+        return focalLengthMm != null;
+      case OnboardingStep.cameraDefaults:
+        return defaultGain != null ||
+            defaultOffset != null ||
+            defaultBinX != null ||
+            defaultBinY != null ||
+            defaultCoolingTempC != null;
+      case OnboardingStep.captureDir:
+        return (captureDirectory ?? '').trim().isNotEmpty;
+      case OnboardingStep.site:
+        return siteConfigured;
+      case OnboardingStep.summary:
+        return (profileName ?? '').trim().isNotEmpty;
+    }
   }
 
   /// Effective focal length after applying the reducer factor.
@@ -327,6 +389,7 @@ class OnboardingDraft {
     'defaultBinX': defaultBinX,
     'defaultBinY': defaultBinY,
     'defaultCoolingTempC': defaultCoolingTempC,
+    'coolOnConnect': coolOnConnect,
   };
 
   /// Deserialize a draft. Returns the default draft on parse failure so a
@@ -388,6 +451,7 @@ class OnboardingDraft {
       defaultBinX: (json['defaultBinX'] as num?)?.toInt(),
       defaultBinY: (json['defaultBinY'] as num?)?.toInt(),
       defaultCoolingTempC: (json['defaultCoolingTempC'] as num?)?.toDouble(),
+      coolOnConnect: json['coolOnConnect'] as bool? ?? false,
     );
   }
 
@@ -437,7 +501,8 @@ class OnboardingDraft {
         other.defaultOffset == defaultOffset &&
         other.defaultBinX == defaultBinX &&
         other.defaultBinY == defaultBinY &&
-        other.defaultCoolingTempC == defaultCoolingTempC;
+        other.defaultCoolingTempC == defaultCoolingTempC &&
+        other.coolOnConnect == coolOnConnect;
   }
 
   @override
@@ -467,6 +532,7 @@ class OnboardingDraft {
       defaultBinX,
       defaultBinY,
       defaultCoolingTempC,
+      coolOnConnect,
     ),
   );
 }

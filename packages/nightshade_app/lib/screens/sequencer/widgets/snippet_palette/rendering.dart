@@ -38,7 +38,11 @@ extension _SnippetPaletteRendering on _SnippetPaletteState {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Templates',
+                      // The panel is the Snippets tab and it stores
+                      // TemplateSnippets; calling it "Templates" collided with
+                      // the top-level Templates tab, which holds whole saved
+                      // sequences instead.
+                      'Snippets',
                       style: TextStyle(
                         fontSize: NightshadeTypography.fontSize18,
                         fontWeight: FontWeight.w700,
@@ -153,7 +157,7 @@ extension _SnippetPaletteRendering on _SnippetPaletteState {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Templates',
+                        'Snippets',
                         style: NightshadeTypography.labelStrong
                             .copyWith(color: widget.colors.textPrimary),
                       ),
@@ -273,7 +277,8 @@ extension _SnippetPaletteRendering on _SnippetPaletteState {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Drag templates to the sequence tree or tap to insert',
+                    'Drag snippets to the sequence tree, or press + '
+                    '(or double-click) to insert',
                     style: TextStyle(
                       fontSize: NightshadeTypography.fontSize10,
                       color: widget.colors.info,
@@ -317,7 +322,7 @@ extension _SnippetPaletteRendering on _SnippetPaletteState {
                 color: widget.colors.textPrimary,
               ),
               decoration: InputDecoration(
-                hintText: 'Search templates...',
+                hintText: 'Search snippets...',
                 hintStyle: TextStyle(
                   fontSize: isMobile
                       ? NightshadeTypography.fontSize14
@@ -357,8 +362,8 @@ extension _SnippetPaletteRendering on _SnippetPaletteState {
       padding: EdgeInsets.all(isMobile ? 16 : 12),
       child: Tooltip(
         message: hasSelection
-            ? 'Create a reusable template from the selected node'
-            : 'Select a node in the sequence to create a template',
+            ? 'Create a reusable snippet from the selected node'
+            : 'Select a node in the sequence to create a snippet',
         child: Material(
           color: Colors.transparent,
           child: InkWell(

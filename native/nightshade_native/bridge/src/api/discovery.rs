@@ -481,15 +481,23 @@ pub(crate) fn drivers_for_device_type(device_type: DeviceType) -> Vec<DriverType
             DriverType::Indi,
             DriverType::Simulator,
         ],
-        DeviceType::CoverCalibrator => {
-            vec![DriverType::Ascom, DriverType::Alpaca, DriverType::Indi]
-        }
+        DeviceType::CoverCalibrator => vec![
+            DriverType::Ascom,
+            DriverType::Alpaca,
+            DriverType::Indi,
+            DriverType::Simulator,
+        ],
         // The Built-in guider and PHD2 are reported under DriverType::Native;
         // INDI guiders also fall under (Guider, Indi).
         DeviceType::Guider => vec![DriverType::Native, DriverType::Indi],
         // ASCOM exposes a Switch interface; Alpaca and INDI do too (INDI via
         // generic switch properties). Native vendor SDKs do not ship switches.
-        DeviceType::Switch => vec![DriverType::Ascom, DriverType::Alpaca, DriverType::Indi],
+        DeviceType::Switch => vec![
+            DriverType::Ascom,
+            DriverType::Alpaca,
+            DriverType::Indi,
+            DriverType::Simulator,
+        ],
     }
 }
 
@@ -871,13 +879,15 @@ fn scan_simulator_for_type(device_type: DeviceType) -> Vec<DeviceInfo> {
         DeviceType::Dome => ("sim_dome_1", "Simulated Dome"),
         DeviceType::Weather => ("sim_weather_1", "Simulated Weather Station"),
         DeviceType::SafetyMonitor => ("sim_safety_monitor_1", "Simulated Safety Monitor"),
+        DeviceType::Switch => ("sim_switch_1", "Simulated Power Switch"),
+        DeviceType::CoverCalibrator => ("sim_cover_calibrator_1", "Simulated Flat Panel"),
         _ => return Vec::new(),
     };
 
     // The `sim_` prefix is the simulator id convention the native device layer
     // keys off. Only advertise device types backed by simulation.rs singletons;
-    // switch and cover calibrator still fail loudly until they have real
-    // simulator implementations.
+    // a type listed here without one would connect "successfully" and then fail
+    // every op, which is worse than not being discovered.
     vec![DeviceInfo {
         id: id.to_string(),
         name: name.to_string(),
@@ -1183,6 +1193,20 @@ mod tests {
 
         let safety = scan_simulator_for_type(DeviceType::SafetyMonitor);
         assert_eq!(safety[0].id, "sim_safety_monitor_1");
+
+        // Advertising the device is only half of it: a type whose driver list
+        // omits `Simulator` never runs the simulator scan, which is why the app
+        // logged "Discovery complete for Switch: 0 devices" while this function
+        // was perfectly willing to return one.
+        for device_type in [DeviceType::Switch, DeviceType::CoverCalibrator] {
+            let scanned = scan_simulator_for_type(device_type);
+            assert_eq!(scanned.len(), 1, "{:?} has no simulator", device_type);
+            assert!(
+                drivers_for_device_type(device_type).contains(&DriverType::Simulator),
+                "{:?} advertises a simulator that discovery never asks for",
+                device_type
+            );
+        }
     }
 
     /// A fresh cache entry within TTL must be returned without rescanning the

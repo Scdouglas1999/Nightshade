@@ -5,6 +5,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../../localization/nightshade_localizations.dart';
 import '../glass_card.dart';
 
 /// Recap of the most recent sequence run: status, name, relative time, and —
@@ -40,13 +41,13 @@ class LastNightRecapCard extends ConsumerWidget {
           DashboardCardHeader(
             colors: colors,
             icon: LucideIcons.history,
-            title: isRecent ? 'Last night' : 'Last run',
+            title: context.l10n.text(isRecent ? 'dbLastNight' : 'dbLastRun'),
             accent: colors.textMuted,
           ),
           const SizedBox(height: DashboardCardStyle.headerGap),
           if (lastRun == null)
             Text(
-              'No runs yet — your first night will appear here.',
+              context.l10n.text('dbNoRunsYet'),
               style: NightshadeTypography.bodySm.copyWith(
                 color: colors.textMuted,
               ),
@@ -85,7 +86,8 @@ class LastNightRecapCard extends ConsumerWidget {
         ),
         const SizedBox(height: 2),
         Text(
-          '${_statusLabel(run.status)} · ${_relativeTime(run.startedAt)}',
+          '${_statusLabel(context, run.status)} · '
+          '${_relativeTime(context, run.startedAt)}',
           style: NightshadeTypography.withTabular(
             NightshadeTypography.caption.copyWith(color: colors.textMuted),
           ),
@@ -100,27 +102,27 @@ class LastNightRecapCard extends ConsumerWidget {
                 colors: colors,
                 icon: LucideIcons.timer,
                 value: stats.formatDuration(stats.integrationSecs),
-                label: 'integration',
+                label: context.l10n.text('dbIntegration'),
               ),
               _StatChip(
                 colors: colors,
                 icon: LucideIcons.image,
                 value: '${stats.framesCaptured}',
-                label: 'frames',
+                label: context.l10n.text('dbFrames'),
               ),
               if (stats.framesRejected > 0)
                 _StatChip(
                   colors: colors,
                   icon: LucideIcons.xCircle,
                   value: '${stats.framesRejected}',
-                  label: 'rejected',
+                  label: context.l10n.text('dbRejected'),
                   tint: colors.warning,
                 ),
               _StatChip(
                 colors: colors,
                 icon: LucideIcons.clock,
                 value: stats.formatDuration(stats.wallClockSecs),
-                label: 'duration',
+                label: context.l10n.text('dbDuration'),
               ),
             ],
           ),
@@ -129,7 +131,7 @@ class LastNightRecapCard extends ConsumerWidget {
         Align(
           alignment: Alignment.centerRight,
           child: NightshadeButton(
-            label: 'Open last run',
+            label: context.l10n.text('dbOpenLastRun'),
             variant: ButtonVariant.ghost,
             size: ButtonSize.small,
             // History deep-linking by run id isn't a stable route, so we link
@@ -184,38 +186,43 @@ class LastNightRecapCard extends ConsumerWidget {
     }
   }
 
-  String _statusLabel(String status) {
+  String _statusLabel(BuildContext context, String status) {
+    final l10n = context.l10n;
     switch (status) {
       case 'completed':
-        return 'Completed';
+        return l10n.text('dbRunCompleted');
       case 'failed':
-        return 'Failed';
+        return l10n.text('dbRunFailed');
       case 'aborted':
-        return 'Aborted';
+        return l10n.text('dbRunAborted');
       case 'running':
-        return 'Running';
+        return l10n.text('dbRunRunning');
       default:
+        // An unrecognised status is data, not copy: show it rather than
+        // inventing a translated label for a state we do not know.
         return status.isEmpty
-            ? 'Unknown'
+            ? l10n.text('dbRunUnknown')
             : '${status[0].toUpperCase()}${status.substring(1)}';
     }
   }
 
-  String _relativeTime(DateTime when) {
+  String _relativeTime(BuildContext context, DateTime when) {
+    final l10n = context.l10n;
+    String plural(int value, String oneKey, String manyKey) => value == 1
+        ? l10n.text(oneKey)
+        : l10n.text(manyKey, params: {'value': '$value'});
+
     final diff = DateTime.now().difference(when);
-    if (diff.isNegative || diff.inMinutes < 1) return 'just now';
+    if (diff.isNegative || diff.inMinutes < 1) return l10n.text('dbJustNow');
     if (diff.inMinutes < 60) {
-      final m = diff.inMinutes;
-      return '$m minute${m == 1 ? '' : 's'} ago';
+      return plural(diff.inMinutes, 'dbMinuteAgo', 'dbMinutesAgo');
     }
     if (diff.inHours < 24) {
-      final h = diff.inHours;
-      return '$h hour${h == 1 ? '' : 's'} ago';
+      return plural(diff.inHours, 'dbHourAgo', 'dbHoursAgo');
     }
     final d = diff.inDays;
-    if (d < 30) return '$d day${d == 1 ? '' : 's'} ago';
-    final months = (d / 30).floor();
-    return '$months month${months == 1 ? '' : 's'} ago';
+    if (d < 30) return plural(d, 'dbDayAgo', 'dbDaysAgo');
+    return plural((d / 30).floor(), 'dbMonthAgo', 'dbMonthsAgo');
   }
 }
 

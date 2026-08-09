@@ -118,7 +118,6 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       // knobs (equipment defaults / web-server / PHD2 / notifications /
       // session-lifecycle + campaign-rollup / detailed autofocus sweep / misc
       // FITS+imaging config) now round-trip through the wire model.
-      coolingBehavior: remote.coolingBehavior,
       defaultGain: remote.defaultGain,
       defaultOffset: remote.defaultOffset,
       webServerEnabled: remote.webServerEnabled,
@@ -307,7 +306,6 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       // Full remote-settings parity 2026-06-05 — push the remaining live
       // unattended-night knobs to the host so a remote save doesn't silently
       // drop them.
-      coolingBehavior: settings.coolingBehavior,
       defaultGain: settings.defaultGain,
       defaultOffset: settings.defaultOffset,
       webServerEnabled: settings.webServerEnabled,
@@ -740,10 +738,6 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       // Full remote-settings parity 2026-06-05 — keys mirror
       // models.AppSettings.toJson() (camelCase). Remaining unattended-night
       // knobs pushed live from the host via the settings.changed event.
-      case 'coolingBehavior':
-        return value is String
-            ? current.copyWith(coolingBehavior: value)
-            : null;
       case 'defaultGain':
         return value is num
             ? current.copyWith(defaultGain: value.toInt())

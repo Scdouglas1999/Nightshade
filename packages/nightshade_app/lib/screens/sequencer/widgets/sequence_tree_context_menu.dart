@@ -5,6 +5,8 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'delete_node_confirmation.dart';
+import 'node_palette_empty_state.dart';
+import 'node_palette_search.dart';
 import 'palette_icon_map.dart';
 
 /// Right-click / long-press context menu for nodes in the sequencer tree.
@@ -198,6 +200,20 @@ class SequenceTreeContextMenu extends ConsumerWidget {
         ? 'This action is not available on the root sequence node.'
         : null;
 
+    // Reorder. Node order is load-bearing in a sequence (unpark must precede
+    // slew), and drag-and-drop inside a long scrolling tree is a poor way to
+    // move one row. The kebab menu carries the same two entries; having them
+    // here as well means a right-click — the reflex for "move this" — finds
+    // them.
+    final parent = isRoot ? null : sequence.nodes[node.parentId];
+    final siblingIndex = parent?.childIds.indexOf(node.id) ?? -1;
+    final moveUpDisabledReason = rootOnlyDisabledReason ??
+        (siblingIndex <= 0 ? 'Already the first node in its container.' : null);
+    final moveDownDisabledReason = rootOnlyDisabledReason ??
+        (siblingIndex < 0 || siblingIndex >= (parent!.childIds.length - 1)
+            ? 'Already the last node in its container.'
+            : null);
+
     return [
       // "Skip to here" — only enabled while a sequence is
       // running. Mutating: false because skipping does not edit the
@@ -224,6 +240,19 @@ class SequenceTreeContextMenu extends ConsumerWidget {
         LucideIcons.arrowDownToLine,
         'Insert Below',
         disabledReason: isRoot ? rootDisabledReason : null,
+      ),
+      const PopupMenuDivider(height: 8),
+      entry(
+        _TreeMenuAction.moveUp,
+        LucideIcons.arrowUp,
+        'Move Up',
+        disabledReason: moveUpDisabledReason,
+      ),
+      entry(
+        _TreeMenuAction.moveDown,
+        LucideIcons.arrowDown,
+        'Move Down',
+        disabledReason: moveDownDisabledReason,
       ),
       const PopupMenuDivider(height: 8),
       entry(
@@ -309,6 +338,12 @@ class SequenceTreeContextMenu extends ConsumerWidget {
         break;
       case _TreeMenuAction.insertBelow:
         _insertSibling(context, ref, sequence, node, offset: 1);
+        break;
+      case _TreeMenuAction.moveUp:
+        _moveSibling(ref, sequence, node, delta: -1);
+        break;
+      case _TreeMenuAction.moveDown:
+        _moveSibling(ref, sequence, node, delta: 1);
         break;
       case _TreeMenuAction.duplicate:
         notifier.duplicateNode(node.id);
@@ -440,6 +475,32 @@ class SequenceTreeContextMenu extends ConsumerWidget {
     }
   }
 
+  /// Shift [node] one slot within its own parent. Uses the same
+  /// `moveNode(id, parentId, index)` call the tree's drag-drop and kebab
+  /// Move Up / Move Down go through, so the three surfaces produce one
+  /// undo entry shape and one reindex path.
+  void _moveSibling(
+    WidgetRef ref,
+    Sequence sequence,
+    SequenceNode node, {
+    required int delta,
+  }) {
+    final parentId = node.parentId;
+    if (parentId == null) return;
+    final parent = sequence.nodes[parentId];
+    if (parent == null) return;
+    final index = parent.childIds.indexOf(node.id);
+    final target = index + delta;
+    // The menu entries are pre-disabled at the ends; this guard only covers
+    // a programmatic call.
+    if (index < 0 || target < 0 || target >= parent.childIds.length) return;
+    ref.read(currentSequenceProvider.notifier).moveNode(
+          node.id,
+          parentId,
+          target,
+        );
+  }
+
   void _showSnackBar(BuildContext context, String message) {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -515,6 +576,8 @@ class SequenceTreeContextMenu extends ConsumerWidget {
 enum _TreeMenuAction {
   insertAbove,
   insertBelow,
+  moveUp,
+  moveDown,
   duplicate,
   groupSequential,
   groupParallel,
@@ -580,23 +643,12 @@ class _InsertNodePickerState extends ConsumerState<_InsertNodePicker> {
     final colors = widget.colors;
     final categories = ref.watch(nodePaletteProvider);
 
-    // Same per-keystroke filter as the palette: lower-case the query once,
-    // match name + description, drop categories that end up empty.
-    final q = _query.toLowerCase();
-    final filtered = q.isEmpty
-        ? categories
-        : categories
-            .map((category) => NodePaletteCategory(
-                  name: category.name,
-                  icon: category.icon,
-                  items: category.items
-                      .where((item) =>
-                          item.name.toLowerCase().contains(q) ||
-                          item.description.toLowerCase().contains(q))
-                      .toList(),
-                ))
-            .where((c) => c.items.isNotEmpty)
-            .toList();
+    // Same relevance ranking as the two main palettes (see
+    // node_palette_search.dart). This picker used to filter on
+    // `name || description` and render the survivors in catalogue order, so
+    // typing "Dither" here still offered Smart Exposure first — the third
+    // copy of the bug the shared ranker exists to prevent.
+    final filtered = rankNodePaletteMatches(categories, _query);
 
     return DraggableScrollableSheet(
       expand: false,
@@ -682,85 +734,101 @@ class _InsertNodePickerState extends ConsumerState<_InsertNodePicker> {
                   ),
                 ),
                 Expanded(
-                  child: ListView(
-                    controller: scrollController,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    children: [
-                      for (final category in filtered) ...[
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(4, 12, 4, 6),
-                          child: Text(
-                            category.name,
-                            style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize11,
-                              fontWeight: FontWeight.w600,
-                              color: colors.textMuted,
-                              letterSpacing: 0.4,
-                            ),
-                          ),
-                        ),
-                        for (final item in category.items)
-                          Builder(builder: (context) {
-                            final categoryColor =
-                                nodePaletteCategoryColor(category.name, colors);
-                            return InkWell(
-                              borderRadius: BorderRadius.circular(
-                                  NightshadeTokens.radiusInline8),
-                              onTap: () => _insert(item),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 10),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 28,
-                                      height: 28,
-                                      decoration:
-                                          NightshadeDecorations.tintedBadge(
-                                        categoryColor,
-                                        borderRadius: BorderRadius.circular(
-                                            NightshadeTokens.radiusMd),
-                                      ),
-                                      child: Icon(
-                                        nodePaletteIconFor(item.icon),
-                                        size: 14,
-                                        color: categoryColor,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
+                  child: filtered.isEmpty
+                      ? NodePaletteEmptyState(
+                          colors: colors,
+                          query: _query,
+                          onClear: () {
+                            _searchController.clear();
+                            setState(() => _query = '');
+                          },
+                        )
+                      : ListView(
+                          controller: scrollController,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          children: [
+                            for (final category in filtered) ...[
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(4, 12, 4, 6),
+                                child: Text(
+                                  category.name,
+                                  style: TextStyle(
+                                    fontSize: NightshadeTypography.fontSize11,
+                                    fontWeight: FontWeight.w600,
+                                    color: colors.textMuted,
+                                    letterSpacing: 0.4,
+                                  ),
+                                ),
+                              ),
+                              for (final item in category.items)
+                                Builder(builder: (context) {
+                                  final categoryColor =
+                                      nodePaletteCategoryColor(
+                                          category.name, colors);
+                                  return InkWell(
+                                    borderRadius: BorderRadius.circular(
+                                        NightshadeTokens.radiusInline8),
+                                    onTap: () => _insert(item),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 10),
+                                      child: Row(
                                         children: [
-                                          Text(
-                                            item.name,
-                                            style: NightshadeTypography.label
-                                                .copyWith(
-                                                    color: colors.textPrimary),
-                                          ),
-                                          Text(
-                                            item.description,
-                                            style: TextStyle(
-                                              fontSize: NightshadeTypography
-                                                  .fontSize11,
-                                              color: colors.textMuted,
+                                          Container(
+                                            width: 28,
+                                            height: 28,
+                                            decoration: NightshadeDecorations
+                                                .tintedBadge(
+                                              categoryColor,
+                                              borderRadius:
+                                                  BorderRadius.circular(
+                                                      NightshadeTokens
+                                                          .radiusMd),
                                             ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
+                                            child: Icon(
+                                              nodePaletteIconFor(item.icon),
+                                              size: 14,
+                                              color: categoryColor,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  item.name,
+                                                  style: NightshadeTypography
+                                                      .label
+                                                      .copyWith(
+                                                          color: colors
+                                                              .textPrimary),
+                                                ),
+                                                Text(
+                                                  item.description,
+                                                  style: TextStyle(
+                                                    fontSize:
+                                                        NightshadeTypography
+                                                            .fontSize11,
+                                                    color: colors.textMuted,
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ],
+                                            ),
                                           ),
                                         ],
                                       ),
                                     ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          }),
-                      ],
-                      const SizedBox(height: 16),
-                    ],
-                  ),
+                                  );
+                                }),
+                            ],
+                            const SizedBox(height: 16),
+                          ],
+                        ),
                 ),
               ],
             ),

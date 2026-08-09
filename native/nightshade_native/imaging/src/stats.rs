@@ -148,6 +148,43 @@ pub struct CameraNoiseModel {
     pub exposure_s: f64,
 }
 
+/// Detection-time eccentricity ceiling used by [`StarDetectionConfig::default`].
+///
+/// This filter's job is to cull sources that are *not stars* — cosmic-ray
+/// hits and satellite trails, which are effectively one-dimensional (axis
+/// ratio worse than ~1:3, so e > 0.94). It is deliberately NOT the
+/// image-grading eccentricity threshold, which operators set around 0.6-0.8.
+///
+/// Why the two must not be the same number: a wind-trailed star at a 2:1 axis
+/// ratio measures e = 0.87 and is still a star. When the detector's ceiling
+/// sat at 0.7 it discarded exactly those stars, so a trailed frame came back
+/// with no measurable stars, [`frame_eccentricity`] returned `None`, and the
+/// grading gate read that as "unknown — do not reject". The frame that the
+/// gate exists to catch was the one frame it could never see. Clipping the
+/// measurement at the decision threshold makes the decision un-fireable, so
+/// the detector must measure well past anything a grader would reject.
+pub const DETECTION_MAX_ECCENTRICITY: f64 = 0.95;
+
+/// Working-star eccentricity ceiling: how round a source must be before we
+/// will *centroid on it, focus by it, or solve with it*.
+///
+/// [`DETECTION_MAX_ECCENTRICITY`] answers a different question — "is this
+/// source a star at all?" — and must stay permissive so a trailed frame is
+/// still measurable. Answering both questions with one number is what broke:
+/// widening detection to 0.95 so grading could finally see trailing also
+/// widened guide-star picking, autofocus HFR and star masking, which had been
+/// tuned against the old 0.7 and want the *tight* answer. A guide star at
+/// e = 0.9 is a smear whose centroid wanders along its major axis, and a
+/// trailed star's HFR reads as defocus, so a focuser chases a shape error.
+///
+/// 0.7 (a ~1.4:1 axis ratio) is the value every one of those consumers was
+/// tuned against before the two questions were conflated. Use
+/// [`detect_stars_for_selection`] — or [`detect_stars_with_stats`], which
+/// applies this to the stars it returns — to get the tight answer;
+/// [`detect_stars`] deliberately still returns everything the detector
+/// measured so per-frame shape statistics stay honest.
+pub const SELECTION_MAX_ECCENTRICITY: f64 = 0.7;
+
 /// Star detection configuration
 #[derive(Debug, Clone)]
 pub struct StarDetectionConfig {
@@ -157,7 +194,13 @@ pub struct StarDetectionConfig {
     pub min_area: u32,
     /// Maximum star area in pixels
     pub max_area: u32,
-    /// Maximum eccentricity (0 = circle, 1 = line)
+    /// Maximum eccentricity for a source to count as a star at all
+    /// (0 = circle, 1 = line). See [`DETECTION_MAX_ECCENTRICITY`] for why this
+    /// ceiling must stay well above any image-grading eccentricity threshold.
+    ///
+    /// This is **not** the "is this star good enough to use" filter — that is
+    /// [`SELECTION_MAX_ECCENTRICITY`], applied by
+    /// [`detect_stars_for_selection`] and [`detect_stars_with_stats`].
     pub max_eccentricity: f64,
     /// Saturation threshold (0-65535)
     pub saturation_limit: u16,
@@ -187,7 +230,9 @@ impl Default for StarDetectionConfig {
             detection_sigma: 5.0, // Increased from 3.0 - more conservative
             min_area: 9,          // Increased from 5 - hot pixels rarely exceed this
             max_area: 10000,
-            max_eccentricity: 0.7, // Slightly tighter - real stars are round
+            // Culls streaks (cosmic rays, satellites), NOT trailed stars —
+            // see DETECTION_MAX_ECCENTRICITY.
+            max_eccentricity: DETECTION_MAX_ECCENTRICITY,
             saturation_limit: 60000,
             hfr_radius: 20,
             min_hfr: 1.0,        // Real stars have HFR > ~1.0; hot pixels < 0.8
@@ -201,7 +246,18 @@ impl Default for StarDetectionConfig {
     }
 }
 
-/// Detect stars in a 16-bit image
+/// Detect stars in a 16-bit image.
+///
+/// This is the **measurement** entry point: it returns every source that
+/// survives `config`'s detection filters, including trailed stars up to
+/// [`DETECTION_MAX_ECCENTRICITY`]. Per-frame shape statistics
+/// ([`frame_eccentricity`]) must be computed from this population, because a
+/// population pre-filtered at the grader's own threshold can never report a
+/// value above it.
+///
+/// Callers that need stars to *work with* rather than to *count* — guide-star
+/// picking, autofocus HFR, plate-solve centroids, star masking — want
+/// [`detect_stars_for_selection`] instead.
 pub fn detect_stars(image: &ImageData, config: &StarDetectionConfig) -> Vec<DetectedStar> {
     let width = image.width as usize;
     let height = image.height as usize;
@@ -360,6 +416,66 @@ pub fn detect_stars(image: &ImageData, config: &StarDetectionConfig) -> Vec<Dete
     // Sort by flux (brightest first)
     stars.sort_by(|a, b| b.flux.total_cmp(&a.flux));
 
+    stars
+}
+
+/// The eccentricity a star must beat to be *usable* under `config`.
+///
+/// Takes the tighter of the caller's own ceiling and
+/// [`SELECTION_MAX_ECCENTRICITY`], so a config that deliberately asks for
+/// rounder-than-usual stars (e.g. the PSF-estimation configs) keeps its
+/// choice, while a config left at the permissive detection default gets the
+/// working-star answer rather than the "is it a star at all" answer.
+///
+/// The asymmetry is deliberate and is why [`StarDetectionResult::sources`]
+/// exists: a caller asking for something *looser* than the working-star
+/// ceiling is not asking for guide stars, it is measuring the field, and this
+/// function cannot tell that apart from the crate default (both are 0.95).
+/// Rather than guess, we keep the safe answer in `stars` and hand the caller's
+/// verbatim population back in `sources`.
+fn selection_eccentricity_ceiling(config: &StarDetectionConfig) -> f64 {
+    config.max_eccentricity.min(SELECTION_MAX_ECCENTRICITY)
+}
+
+/// The ceiling the *measurement* pass of [`detect_stars_with_stats`] runs at:
+/// the caller's own ceiling widened to at least [`DETECTION_MAX_ECCENTRICITY`].
+///
+/// Deliberately ignores a caller that asks for something tighter, because a
+/// shape statistic computed from a population pre-filtered at the caller's own
+/// threshold can never exceed that threshold — the same self-blinding that made
+/// the grading gate un-fireable at 0.7. `api_detect_stars_in_file` still ships a
+/// config with `max_eccentricity: 0.7`, so without this widening the FITS
+/// star-analysis screen reports every trailed frame as `e <= 0.70` no matter how
+/// badly it is smeared.
+///
+/// Widening is safe because eccentricity is the *only* filter relaxed: area,
+/// HFR, SNR and sharpness limits still apply, and a cosmic ray or satellite
+/// streak sits above 0.95 and is still culled. What the widening admits is
+/// trailed stars, which is exactly what the statistic needs to see.
+///
+/// The caller's ceiling is still honoured for everything it hands back —
+/// [`StarDetectionResult::stars`] is narrowed by
+/// [`selection_eccentricity_ceiling`], which reads the *original* config.
+fn measurement_eccentricity_ceiling(config: &StarDetectionConfig) -> f64 {
+    config.max_eccentricity.max(DETECTION_MAX_ECCENTRICITY)
+}
+
+/// Detect stars and keep only the ones round enough to work with.
+///
+/// Use this wherever a star's *shape* is load-bearing for the operation:
+/// guide-star selection (a smear's centroid slides along its major axis),
+/// autofocus HFR (a trail reads as defocus), plate-solve centroids, and PSF
+/// fitting. See [`SELECTION_MAX_ECCENTRICITY`].
+///
+/// [`detect_stars`] remains the measurement entry point and is what per-frame
+/// eccentricity must be computed from.
+pub fn detect_stars_for_selection(
+    image: &ImageData,
+    config: &StarDetectionConfig,
+) -> Vec<DetectedStar> {
+    let ceiling = selection_eccentricity_ceiling(config);
+    let mut stars = detect_stars(image, config);
+    stars.retain(|s| s.eccentricity <= ceiling);
     stars
 }
 
@@ -831,7 +947,12 @@ fn compute_snr(
 /// Calculate median HFR for detected stars
 pub fn calculate_median_hfr(image: &ImageData) -> Option<f64> {
     let config = StarDetectionConfig::default();
-    let stars = detect_stars(image, &config);
+    // Round stars only: HFR is a FOCUS metric, and a trailed star's half-flux
+    // radius is inflated by the trail, not by defocus. Measuring it over the
+    // permissive detection population makes a windy night look like a focus
+    // drift — and the sequencer answers focus drift by running an autofocus,
+    // which cannot fix trailing and costs the exposures it burns.
+    let stars = detect_stars_for_selection(image, &config);
 
     if stars.is_empty() {
         return None;
@@ -916,16 +1037,68 @@ pub fn calculate_display_histogram(image: &ImageData, logarithmic: bool) -> Vec<
     }
 }
 
-/// Star detection summary
+/// Star detection summary.
+///
+/// Three different populations come out of one detection pass, because three
+/// different questions are being asked of the same frame. Reading the wrong
+/// one is what this type exists to prevent:
+///
+/// | field | eccentricity ceiling | the question it answers |
+/// |---|---|---|
+/// | [`Self::stars`] | `min(config, `[`SELECTION_MAX_ECCENTRICITY`]`)` | "which stars can I centroid on / focus by?" |
+/// | [`Self::sources`] | `config.max_eccentricity` | "what did I ask the detector for?" |
+/// | [`Self::detected_star_count`] / [`Self::median_eccentricity`] | `max(config, `[`DETECTION_MAX_ECCENTRICITY`]`)` | "what is actually in this frame?" |
 #[derive(Debug, Clone)]
 pub struct StarDetectionResult {
+    /// Stars round enough to work with — filtered at
+    /// [`SELECTION_MAX_ECCENTRICITY`]. This is what a guider centroids on and
+    /// what the HFR/FWHM/SNR medians below are computed from.
+    ///
+    /// **This list is narrowed past what the caller asked for.** A caller that
+    /// deliberately passes a *looser* `max_eccentricity` because it is
+    /// measuring the field rather than working in it — PSF/tilt maps,
+    /// photometry, astrometric residuals — must read [`Self::sources`], or it
+    /// silently gets the 0.7 answer to a question it asked at 0.95.
     pub stars: Vec<DetectedStar>,
+    /// `stars.len()`, i.e. the count of *usable* stars.
     pub star_count: u32,
+    /// Every source that passed the caller's **own** `config`, unnarrowed by
+    /// the working-star ceiling.
+    ///
+    /// Why this exists: the working-star ceiling is a *policy* about what is
+    /// safe to guide or focus on, and applying it to `stars` fixed the guider.
+    /// But it is not a fact about the frame, and silently imposing it on a
+    /// caller who asked for a wider population re-creates the original defect
+    /// one level up — a shape measurement clipped at a threshold can never
+    /// report a value above that threshold. `sources` is the honest answer to
+    /// "run the config I gave you", which is the contract every
+    /// caller-supplied-config entry point has.
+    pub sources: Vec<DetectedStar>,
+    /// Sources the detector measured before the selection filter, i.e. every
+    /// star up to at least [`DETECTION_MAX_ECCENTRICITY`] (see
+    /// `measurement_eccentricity_ceiling`) — which is why this can exceed
+    /// `star_count`, and `sources.len()`, even for a caller whose own ceiling
+    /// is tighter.
+    ///
+    /// Why it is reported separately: "0 usable stars" and "0 stars at all"
+    /// are different nights. A frame full of 2:1 trails yields
+    /// `star_count == 0` with `detected_star_count == 40`, and calling that
+    /// "no stars detected" would send the operator hunting for clouds or a
+    /// dust cap instead of for the mount.
+    pub detected_star_count: u32,
     pub median_hfr: f64,
     pub median_fwhm: f64,
     pub median_snr: f64,
     /// Per-frame median eccentricity across the brightest, most reliable
     /// detected stars (0.0 = perfectly round, →1.0 = trailed/elongated).
+    ///
+    /// Measured over [`Self::detected_star_count`] — the population *before*
+    /// the selection filter, and at a ceiling of at least
+    /// [`DETECTION_MAX_ECCENTRICITY`] even when the caller's config asks for
+    /// something tighter — so it can and routinely does exceed
+    /// [`SELECTION_MAX_ECCENTRICITY`] or the caller's own threshold. Measuring
+    /// it over `stars`, or at the caller's ceiling, would clip it at that
+    /// ceiling and report a trailed frame as round.
     ///
     /// `None` (not `0.0`) when the metric cannot be honestly measured —
     /// either no stars were detected or too few survived the reliability
@@ -1029,11 +1202,38 @@ pub fn detect_stars_with_stats(
         config.detection_sigma
     );
 
-    let stars = detect_stars(image, config);
+    // Three populations, three questions, one detection pass. `detected`
+    // answers "what is in this frame" and is what the shape statistics must be
+    // measured from. `stars` answers "what can I work with" and is what the
+    // guider, autofocus and frame weighting consume. `sources` answers "what
+    // did the caller ask for" — it is the caller's own ceiling, honoured
+    // verbatim, because narrowing a caller who deliberately widened the ceiling
+    // to measure the field is the same self-blinding bug as clipping the
+    // eccentricity median at the grading threshold, just moved one level up.
+    let measurement_config = StarDetectionConfig {
+        max_eccentricity: measurement_eccentricity_ceiling(config),
+        ..config.clone()
+    };
+    let detected = detect_stars(image, &measurement_config);
+    let detected_star_count = detected.len() as u32;
+
+    let median_eccentricity = frame_eccentricity(&detected);
+
+    let mut sources = detected;
+    sources.retain(|s| s.eccentricity <= config.max_eccentricity);
+
+    let selection_ceiling = selection_eccentricity_ceiling(config);
+    let mut stars = sources.clone();
+    stars.retain(|s| s.eccentricity <= selection_ceiling);
     let star_count = stars.len() as u32;
     tracing::info!(
-        "[STAR_DETECT] Detected {} stars after filtering",
-        star_count
+        "[STAR_DETECT] Measured {} sources (eccentricity <= {:.2}), {} at the requested ceiling (<= {:.2}), {} usable (<= {:.2})",
+        detected_star_count,
+        measurement_config.max_eccentricity,
+        sources.len(),
+        config.max_eccentricity,
+        star_count,
+        selection_ceiling
     );
 
     // Calculate median statistics
@@ -1057,11 +1257,11 @@ pub fn detect_stars_with_stats(
         (0.0, 0.0, 0.0)
     };
 
-    let median_eccentricity = frame_eccentricity(&stars);
-
     StarDetectionResult {
         stars,
         star_count,
+        sources,
+        detected_star_count,
         median_hfr,
         median_fwhm,
         median_snr,
@@ -1533,6 +1733,449 @@ mod tests {
             })
             .collect();
         assert_eq!(frame_eccentricity(&stars), None);
+    }
+
+    /// Render a whole field of identically-trailed elliptical Gaussians.
+    ///
+    /// Wind shake or a dropped guide correction smears *every* star in the
+    /// frame along the same axis — a single elongated blob among round stars
+    /// is a cosmic ray, which is a different (and correctly filtered) thing.
+    fn render_trailed_field_u16(
+        width: u32,
+        height: u32,
+        centers: &[(f64, f64)],
+        sigma_major: f64,
+        sigma_minor: f64,
+    ) -> ImageData {
+        const BACKGROUND: f64 = 1000.0;
+        const PEAK: f64 = 30000.0;
+        let mut data = vec![BACKGROUND as u16; (width * height) as usize];
+        let two_sx_sq = 2.0 * sigma_major * sigma_major;
+        let two_sy_sq = 2.0 * sigma_minor * sigma_minor;
+        for y in 0..height {
+            for x in 0..width {
+                let mut v = BACKGROUND;
+                for &(cx, cy) in centers {
+                    let dx = x as f64 - cx;
+                    let dy = y as f64 - cy;
+                    v += PEAK * (-(dx * dx) / two_sx_sq - (dy * dy) / two_sy_sq).exp();
+                }
+                data[(y * width + x) as usize] = v.clamp(0.0, 65535.0) as u16;
+            }
+        }
+        ImageData::from_u16(width, height, 1, &data)
+    }
+
+    fn trailed_field_centers() -> Vec<(f64, f64)> {
+        (0..8)
+            .map(|i| (40.0 + (i % 4) as f64 * 60.0, 40.0 + (i / 4) as f64 * 60.0))
+            .collect()
+    }
+
+    #[test]
+    fn trailed_field_stays_measurable_under_the_production_default_config() {
+        // 2.5:1 smear — analytic e = √(1 − (2.4/6.0)²) = 0.917. That is a bad
+        // gust or a dropped guide correction, not a satellite streak, and it
+        // is the frame the grading gate exists to cull.
+        //
+        // The config here is deliberately `default()`, not a loosened test
+        // config: it is verbatim what `real_device_ops` /
+        // `unified_device_ops` hand to `detect_stars` before calling
+        // `frame_eccentricity`. With the old 0.7 ceiling every one of these
+        // stars was discarded, the frame reported zero stars, and the median
+        // eccentricity came back `None` = "unknown, don't reject".
+        let (sigma_major, sigma_minor) = (6.0_f64, 2.4_f64);
+        let image =
+            render_trailed_field_u16(280, 160, &trailed_field_centers(), sigma_major, sigma_minor);
+        let stars = detect_stars(&image, &StarDetectionConfig::default());
+
+        assert!(
+            stars.len() >= MIN_STARS_FOR_FRAME_ECCENTRICITY,
+            "a trailed star field must still be detectable, got {} stars",
+            stars.len()
+        );
+        let ecc = frame_eccentricity(&stars)
+            .expect("a trailed field must yield a measurable eccentricity, not None");
+        assert!(
+            ecc > 0.8,
+            "a 2.5:1 trail must measure above every plausible grading threshold, got {:.3}",
+            ecc
+        );
+        // And it must be the *physical* value, not merely "some number above
+        // 0.8" — a measurement pinned near the ceiling would be just as
+        // uninformative as one pinned below it.
+        let analytic = (1.0 - (sigma_minor / sigma_major).powi(2)).sqrt();
+        assert!(
+            (ecc - analytic).abs() < 0.05,
+            "measured {:.3} should track the analytic axis-ratio eccentricity {:.3}",
+            ecc,
+            analytic
+        );
+    }
+
+    #[test]
+    fn satellite_streak_is_still_culled_by_the_detection_ceiling() {
+        // The detection ceiling still has to do its original job. A 10:1
+        // source (analytic e = 0.995) is a cosmic ray or a satellite trail,
+        // never a star, and must not be admitted as one — otherwise raising
+        // the ceiling would just trade a false pass for a false reject.
+        let image = render_elliptical_gaussian_u16(160, 64, 80.0, 32.0, 20.0, 2.0);
+        let stars = detect_stars(&image, &StarDetectionConfig::default());
+        assert!(
+            stars.is_empty(),
+            "a 10:1 streak must not be admitted as a star, got {} (ecc {:?})",
+            stars.len(),
+            stars.first().map(|s| s.eccentricity)
+        );
+    }
+
+    /// One elliptical Gaussian source: (cx, cy, σ_major, σ_minor, peak).
+    ///
+    /// Unlike [`render_trailed_field_u16`] every source carries its own shape
+    /// and brightness, which is what a real frame looks like when the mount is
+    /// misbehaving on only some sources (a passing satellite, a blended
+    /// double) or when everything trails but the operator still has round
+    /// stars from an earlier part of the field.
+    type Source = (f64, f64, f64, f64, f64);
+
+    fn render_sources_u16(width: u32, height: u32, sources: &[Source]) -> ImageData {
+        const BACKGROUND: f64 = 1000.0;
+        let mut data = vec![BACKGROUND as u16; (width * height) as usize];
+        for y in 0..height {
+            for x in 0..width {
+                let mut v = BACKGROUND;
+                for &(cx, cy, sx, sy, peak) in sources {
+                    let dx = x as f64 - cx;
+                    let dy = y as f64 - cy;
+                    v += peak * (-(dx * dx) / (2.0 * sx * sx) - (dy * dy) / (2.0 * sy * sy)).exp();
+                }
+                data[(y * width + x) as usize] = v.clamp(0.0, 65535.0) as u16;
+            }
+        }
+        ImageData::from_u16(width, height, 1, &data)
+    }
+
+    /// A grid of round stars, optionally with the same grid of trailed
+    /// sources offset below it. Trailed sources are given the HIGHER peak so
+    /// they sort to the front by flux — if the selection filter is not doing
+    /// its job they, not the round stars, are what a consumer picks up.
+    fn mixed_round_and_trailed_field(include_trailed: bool) -> ImageData {
+        let mut sources: Vec<Source> = (0..8)
+            .map(|i| {
+                (
+                    40.0 + (i % 4) as f64 * 60.0,
+                    40.0 + (i / 4) as f64 * 60.0,
+                    2.5,
+                    2.5,
+                    20000.0,
+                )
+            })
+            .collect();
+        if include_trailed {
+            sources.extend((0..8).map(|i| {
+                (
+                    40.0 + (i % 4) as f64 * 60.0,
+                    180.0 + (i / 4) as f64 * 60.0,
+                    6.0,
+                    2.4,
+                    30000.0,
+                )
+            }));
+        }
+        render_sources_u16(280, 300, &sources)
+    }
+
+    #[test]
+    fn guide_star_selection_skips_the_brightest_smear() {
+        // Verbatim the guide-frame path: `builtin_guider::capture_guide_frame`
+        // calls `detect_stars_with_stats(&image, &StarDetectionConfig::default())`
+        // and then takes the brightest entry of `summary.stars` as the guide
+        // star. Widening the *detection* ceiling to 0.95 so grading could
+        // measure trailing also let a 2.5:1 smear — brighter than every round
+        // star in the frame — become the thing the mount chases. A smear's
+        // centroid slides along its major axis, so guiding on it injects the
+        // very error it is supposed to correct.
+        let image = mixed_round_and_trailed_field(true);
+        let summary = detect_stars_with_stats(&image, &StarDetectionConfig::default());
+
+        let mut stars = summary.stars.clone();
+        stars.sort_by(|a, b| b.flux.total_cmp(&a.flux));
+        let guide_star = stars
+            .first()
+            .expect("round stars are present, so a guide star must be selectable");
+
+        assert!(
+            guide_star.eccentricity <= SELECTION_MAX_ECCENTRICITY,
+            "the guider must not lock onto a smear: picked ecc {:.3} (> {:.2}) from {} usable stars",
+            guide_star.eccentricity,
+            SELECTION_MAX_ECCENTRICITY,
+            summary.star_count
+        );
+
+        // The smear was still *seen* — it is excluded from selection, not
+        // erased from the frame. Reporting it as absent would be the same
+        // class of lie in the other direction.
+        assert!(
+            summary.detected_star_count > summary.star_count,
+            "the trailed sources must be measured and then excluded, not undetected \
+             (detected {}, usable {})",
+            summary.detected_star_count,
+            summary.star_count
+        );
+    }
+
+    #[test]
+    fn trailed_field_is_measurable_but_yields_no_usable_stars() {
+        // The two answers, from one call, on the frame that forced the
+        // detection ceiling open in the first place. Grading needs the shape
+        // (`median_eccentricity` above every plausible threshold); selection
+        // needs to say "nothing here is round enough to work with" without
+        // claiming the frame is empty.
+        let image = render_trailed_field_u16(280, 160, &trailed_field_centers(), 6.0_f64, 2.4_f64);
+        let summary = detect_stars_with_stats(&image, &StarDetectionConfig::default());
+
+        let ecc = summary
+            .median_eccentricity
+            .expect("a trailed field must still yield a measurable eccentricity");
+        assert!(
+            ecc > 0.8,
+            "shape measurement must survive the selection filter, got {:.3}",
+            ecc
+        );
+        assert!(
+            summary
+                .stars
+                .iter()
+                .all(|s| s.eccentricity <= SELECTION_MAX_ECCENTRICITY),
+            "no smear may be handed out as a usable star"
+        );
+        assert!(
+            summary.detected_star_count >= MIN_STARS_FOR_FRAME_ECCENTRICITY as u32,
+            "the sources were detected, got {}",
+            summary.detected_star_count
+        );
+    }
+
+    #[test]
+    fn median_hfr_is_not_inflated_by_trailed_sources() {
+        // HFR is the focus metric the sequencer compares against its baseline
+        // and its autofocus trigger. A trail's half-flux radius is inflated by
+        // the trail, so measuring HFR over the permissive detection population
+        // makes a windy night read as focus drift — and the sequencer answers
+        // focus drift by burning exposures on an autofocus run that cannot fix
+        // trailing. The trailed sources here are the BRIGHTEST in the frame,
+        // so they dominate the brightest-50% window `calculate_median_hfr`
+        // uses unless they are filtered out.
+        let round_only = calculate_median_hfr(&mixed_round_and_trailed_field(false))
+            .expect("round field must yield an HFR");
+        let with_trails = calculate_median_hfr(&mixed_round_and_trailed_field(true))
+            .expect("adding trailed sources must not make the frame unmeasurable");
+
+        let drift = (with_trails - round_only).abs() / round_only;
+        assert!(
+            drift < 0.15,
+            "HFR must track focus, not trailing: {:.3} px with trails vs {:.3} px without \
+             ({:.0}% drift)",
+            with_trails,
+            round_only,
+            drift * 100.0
+        );
+    }
+
+    /// Field-for-field what `api_detect_stars_in_file` builds from
+    /// `StarDetectionConfigApi::default()` before calling
+    /// `detect_stars_with_stats` — the manual FITS star-analysis screen's
+    /// production config. Its `max_eccentricity` is still 0.7 (that struct
+    /// lives in the bridge crate and carries its own default), which is the
+    /// whole point of the test below.
+    fn fits_analysis_screen_default_config() -> StarDetectionConfig {
+        StarDetectionConfig {
+            detection_sigma: 5.0,
+            min_area: 9,
+            max_area: 10000,
+            max_eccentricity: 0.7,
+            saturation_limit: 60000,
+            hfr_radius: 20,
+            min_hfr: 1.0,
+            min_snr: 5.0,
+            max_sharpness: 0.95,
+            noise_model: None,
+        }
+    }
+
+    #[test]
+    fn shape_stays_measurable_for_a_caller_whose_own_ceiling_is_the_threshold() {
+        // The self-blinding bug, one level up: a caller may hand in its own
+        // eccentricity ceiling, and if the shape statistic is measured from a
+        // population already filtered at that ceiling it can never report a
+        // value above it. Widening only the DETECTION default fixed the
+        // sequencer's grading path and left this one exactly as broken —
+        // `StarDetectionConfigApi::default()` still says 0.7, so the FITS
+        // analysis screen reported a 2.5:1 smear as e <= 0.70 (or, once every
+        // star was culled, as no stars at all).
+        let config = fits_analysis_screen_default_config();
+        let image = render_trailed_field_u16(280, 160, &trailed_field_centers(), 6.0_f64, 2.4_f64);
+        let summary = detect_stars_with_stats(&image, &config);
+
+        let ecc = summary.median_eccentricity.expect(
+            "a caller-supplied ceiling must not blind the shape statistic to a trailed frame",
+        );
+        let analytic = (1.0_f64 - (2.4_f64 / 6.0_f64).powi(2)).sqrt();
+        assert!(
+            (ecc - analytic).abs() < 0.05,
+            "measured {:.3} must track the physical eccentricity {:.3}, not the caller's \
+             {:.2} ceiling",
+            ecc,
+            analytic,
+            config.max_eccentricity
+        );
+
+        // The caller's ceiling is still honoured for what it gets handed back:
+        // widening the measurement pass must not smuggle smears into the star
+        // list a consumer works from.
+        assert!(
+            summary
+                .stars
+                .iter()
+                .all(|s| s.eccentricity <= config.max_eccentricity),
+            "the caller asked for stars rounder than {:.2} and must get exactly that",
+            config.max_eccentricity
+        );
+        assert!(
+            summary.detected_star_count >= MIN_STARS_FOR_FRAME_ECCENTRICITY as u32,
+            "the trailed sources must be measured, got {}",
+            summary.detected_star_count
+        );
+    }
+
+    /// Field-for-field what `api_detect_stars_in_file` builds from the
+    /// `StarDetectionConfigApi` that `DefaultScienceBackend.measureStars`
+    /// sends (default_science_backend.dart:107-117 with the default
+    /// `PhotometryOptions`: `apertureRadiusPixels: 6`, `minSnr: 4.0`).
+    ///
+    /// This is the science pipeline's own detector config, and it asks for
+    /// `max_eccentricity: 0.95` **on purpose** — everything downstream of it
+    /// (the PSF field map and its `medianEccentricity` / `roundness` tiles,
+    /// photometry, astrometric residuals, transient search) is measuring the
+    /// shape of the field, not picking stars to work with.
+    fn science_pipeline_config() -> StarDetectionConfig {
+        StarDetectionConfig {
+            detection_sigma: 4.0,
+            min_area: 4,
+            max_area: 1024,
+            max_eccentricity: 0.95,
+            saturation_limit: 60000,
+            hfr_radius: 6,
+            min_hfr: 0.6,
+            min_snr: 4.0,
+            max_sharpness: 100.0,
+            noise_model: None,
+        }
+    }
+
+    #[test]
+    fn a_caller_that_widened_the_ceiling_to_measure_the_field_still_gets_its_stars() {
+        // Applying the working-star ceiling to `stars` is what restored the
+        // guider — but `stars` was also the only list this function handed
+        // back, so it silently narrowed a caller who had deliberately asked
+        // for 0.95 down to 0.7. That is the original defect relocated: a
+        // shape measurement clipped at a threshold cannot report a value
+        // above that threshold. The casualty was the whole science pipeline
+        // (`DefaultScienceBackend.measureStars`), including the PSF-tile
+        // eccentricity that `FrameAutoGrader` grades frames on — so a
+        // `maxEccentricity` rule above 0.7 became un-fireable again, on the
+        // persisted grading path this time.
+        let config = science_pipeline_config();
+        let image = mixed_round_and_trailed_field(true);
+        let summary = detect_stars_with_stats(&image, &config);
+
+        assert!(
+            summary
+                .sources
+                .iter()
+                .any(|s| s.eccentricity > SELECTION_MAX_ECCENTRICITY),
+            "a caller asking for e <= {:.2} must get the trailed sources back; \
+             got {} sources, max ecc {:?}",
+            config.max_eccentricity,
+            summary.sources.len(),
+            summary
+                .sources
+                .iter()
+                .map(|s| s.eccentricity)
+                .fold(f64::NEG_INFINITY, f64::max)
+        );
+
+        // ...and no further than it asked. `sources` is the caller's ceiling
+        // verbatim, not the widened measurement pass leaking through.
+        assert!(
+            summary
+                .sources
+                .iter()
+                .all(|s| s.eccentricity <= config.max_eccentricity),
+            "sources must honour the caller's ceiling exactly, not exceed it"
+        );
+
+        // The guider fix is untouched: `stars` is still the round-only list.
+        assert!(
+            summary
+                .stars
+                .iter()
+                .all(|s| s.eccentricity <= SELECTION_MAX_ECCENTRICITY),
+            "widening `sources` must not put smears back into the working set"
+        );
+        assert!(
+            summary.sources.len() > summary.stars.len(),
+            "the two populations must actually differ on this frame \
+             (sources {}, stars {})",
+            summary.sources.len(),
+            summary.stars.len()
+        );
+    }
+
+    #[test]
+    fn sources_honours_a_caller_that_asked_for_a_tight_ceiling() {
+        // The other direction: `sources` is "what you asked for", so the FITS
+        // analysis screen's 0.7 config must NOT receive the widened
+        // measurement population. Only `median_eccentricity` is allowed to
+        // see past the caller's ceiling, because that is a statement about the
+        // frame rather than a list of stars the caller will work with.
+        let config = fits_analysis_screen_default_config();
+        let image = mixed_round_and_trailed_field(true);
+        let summary = detect_stars_with_stats(&image, &config);
+
+        assert!(
+            summary
+                .sources
+                .iter()
+                .all(|s| s.eccentricity <= config.max_eccentricity),
+            "a caller that asked for e <= {:.2} must not be handed smears",
+            config.max_eccentricity
+        );
+        assert!(
+            summary.detected_star_count as usize > summary.sources.len(),
+            "the smears must still have been measured for the shape statistic \
+             (detected {}, sources {})",
+            summary.detected_star_count,
+            summary.sources.len()
+        );
+    }
+
+    #[test]
+    fn selection_respects_a_caller_that_asks_for_rounder_stars() {
+        // The selection ceiling is a floor on strictness, not an override: a
+        // config that deliberately asks for rounder stars than 0.7 (the PSF
+        // and mask configs do) must keep its own, tighter answer.
+        let image = mixed_round_and_trailed_field(true);
+        let strict = StarDetectionConfig {
+            max_eccentricity: 0.05,
+            ..StarDetectionConfig::default()
+        };
+        assert!(
+            detect_stars_for_selection(&image, &strict)
+                .iter()
+                .all(|s| s.eccentricity <= 0.05),
+            "a caller-supplied ceiling tighter than SELECTION_MAX_ECCENTRICITY must win"
+        );
     }
 
     #[test]

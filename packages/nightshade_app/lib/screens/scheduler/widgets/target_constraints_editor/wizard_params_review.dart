@@ -5,11 +5,13 @@ class _Step2Params extends StatelessWidget {
   final TargetConstraintKind kind;
   final TargetTimeWindow timeWindow;
   final double moonMax;
+  final double moonSeparationDeg;
   final int? horizonId;
   final List<HorizonProfile> horizonProfiles;
   final ScheduledWindow scheduledWindow;
   final void Function(TargetTimeWindow) onTimeWindow;
   final void Function(double) onMoonMax;
+  final void Function(double) onMoonSeparation;
   final void Function(int) onHorizon;
   final void Function(ScheduledWindow) onScheduledWindow;
 
@@ -18,11 +20,13 @@ class _Step2Params extends StatelessWidget {
     required this.kind,
     required this.timeWindow,
     required this.moonMax,
+    required this.moonSeparationDeg,
     required this.horizonId,
     required this.horizonProfiles,
     required this.scheduledWindow,
     required this.onTimeWindow,
     required this.onMoonMax,
+    required this.onMoonSeparation,
     required this.onHorizon,
     required this.onScheduledWindow,
   });
@@ -65,6 +69,26 @@ class _Step2Params extends StatelessWidget {
             ),
             const SizedBox(height: NightshadeTokens.spaceMd),
             _MoonField(value: moonMax, onChange: onMoonMax),
+          ],
+        );
+        break;
+      case TargetConstraintKind.moonSeparationMin:
+        body = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Default 30° — below that the moon\'s glow reaches the frame '
+              'even at modest phase. Narrowband tolerates less separation; '
+              'broadband wants more, especially past first quarter.',
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textSecondary),
+            ),
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            _MoonSeparationField(
+              degrees: moonSeparationDeg,
+              onChange: onMoonSeparation,
+            ),
           ],
         );
         break;
@@ -135,6 +159,7 @@ class _Step3Review extends StatelessWidget {
   final TargetConstraintKind kind;
   final TargetTimeWindow timeWindow;
   final double moonMax;
+  final double moonSeparationDeg;
   final int? horizonId;
   final List<HorizonProfile> horizonProfiles;
   final ScheduledWindow scheduledWindow;
@@ -144,6 +169,7 @@ class _Step3Review extends StatelessWidget {
     required this.kind,
     required this.timeWindow,
     required this.moonMax,
+    required this.moonSeparationDeg,
     required this.horizonId,
     required this.horizonProfiles,
     required this.scheduledWindow,
@@ -161,9 +187,19 @@ class _Step3Review extends StatelessWidget {
             'Only image $targetName between ${_fmt(timeWindow.startMinutes)} and ${_fmt(timeWindow.endMinutes)} local time.';
         break;
       case TargetConstraintKind.moonIlluminationMax:
-        typeLabel = 'Moon avoidance';
+        // Must match the Step 1 card title. 'Moon avoidance' was the name
+        // when illumination was the ONLY moon constraint; with a separation
+        // sibling in the list it no longer identifies which of the two is
+        // about to be saved.
+        typeLabel = 'Moon illumination';
         summary =
-            'Skip $targetName when the moon illumination is above ${(moonMax * 100).round()}%.';
+            'Skip $targetName when the moon illumination is above ${(moonMax * 100).round()}%, '
+            'wherever the moon is in the sky.';
+        break;
+      case TargetConstraintKind.moonSeparationMin:
+        typeLabel = 'Moon separation';
+        summary = 'Skip $targetName whenever the moon is within '
+            '${moonSeparationDeg.round()}° of it.';
         break;
       case TargetConstraintKind.customHorizon:
         final profile = horizonProfiles.firstWhere(

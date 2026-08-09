@@ -62,9 +62,19 @@ class _SessionHistoryCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
 
-    final duration = session.endTime != null
-        ? session.endTime!.difference(session.startTime)
-        : DateTime.now().difference(session.startTime);
+    // A row with no end_time used to accrue `now - startTime` forever, so a
+    // session the app never closed reported days of "elapsed" time — and the
+    // Session tab printed 0s for the very same row. Both surfaces now go
+    // through sessionElapsed(), which only prints wall-clock time for the
+    // session that is genuinely running.
+    final sessionState = ref.watch(sessionStateProvider);
+    final isLive =
+        sessionState.isActive && sessionState.dbSessionId == session.id;
+    final elapsed = sessionElapsed(
+      session,
+      isLive: isLive,
+      lastFrameAt: ref.watch(lastFrameBySessionProvider)[session.id],
+    );
 
     final titleRow = Row(
       children: [
@@ -106,25 +116,32 @@ class _SessionHistoryCard extends ConsumerWidget {
 
     // Stats reflow as a Wrap so a narrow phone column never overflows; on wide
     // layouts the chips sit on a single line beside the session info.
+    // Every chip carries a caption. Four bare numbers behind icons ("4h 12m",
+    // "206", "3.4h", "2.14") left the two durations indistinguishable and gave
+    // no clue that the last figure was HFR in pixels.
     final statChips = <Widget>[
       _StatChip(
         icon: LucideIcons.clock,
-        label: _formatDuration(duration),
+        caption: elapsed.captionLabel,
+        label: elapsed.valueLabel,
         colors: colors,
       ),
       _StatChip(
         icon: LucideIcons.image,
+        caption: 'frames',
         label: '${session.successfulExposures}',
         colors: colors,
       ),
       _StatChip(
         icon: LucideIcons.timer,
-        label: '${(session.totalIntegrationSecs / 3600).toStringAsFixed(1)}h',
+        caption: 'integration',
+        label: _formatIntegrationHours(session.totalIntegrationSecs),
         colors: colors,
       ),
       if (session.avgHfr != null)
         _StatChip(
           icon: LucideIcons.focus,
+          caption: 'HFR px',
           label: session.avgHfr!.toStringAsFixed(2),
           colors: colors,
         ),
@@ -214,13 +231,13 @@ class _SessionHistoryCard extends ConsumerWidget {
     }
   }
 
-  String _formatDuration(Duration duration) {
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes.remainder(60);
-    if (hours > 0) {
-      return '${hours}h ${minutes}m';
-    }
-    return '${minutes}m';
+  /// Integration in hours, dropping to minutes and seconds below the point
+  /// where "0.0h" stops carrying information.
+  static String _formatIntegrationHours(double seconds) {
+    if (!seconds.isFinite || seconds <= 0) return '0';
+    if (seconds >= 3600) return '${(seconds / 3600).toStringAsFixed(1)}h';
+    if (seconds >= 60) return '${(seconds / 60).round()}m';
+    return '${seconds.round()}s';
   }
 
   void _showSessionDetail(
@@ -235,12 +252,16 @@ class _SessionHistoryCard extends ConsumerWidget {
 class _StatChip extends StatelessWidget {
   final IconData icon;
   final String label;
+
+  /// What the number means. Without it a row of icon+number chips is a puzzle.
+  final String? caption;
   final NightshadeColors colors;
 
   const _StatChip({
     required this.icon,
     required this.label,
     required this.colors,
+    this.caption,
   });
 
   @override
@@ -255,12 +276,25 @@ class _StatChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 14, color: colors.textSecondary),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: NightshadeTypography.labelSm.copyWith(
-              color: colors.textPrimary,
-            ),
+          const SizedBox(width: 6),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: NightshadeTypography.labelSm.copyWith(
+                  color: colors.textPrimary,
+                ),
+              ),
+              if (caption != null)
+                Text(
+                  caption!,
+                  style: NightshadeTypography.caption.copyWith(
+                    color: colors.textMuted,
+                  ),
+                ),
+            ],
           ),
         ],
       ),

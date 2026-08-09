@@ -116,4 +116,20 @@ void main() {
     expect(find.text('APP-CONTENT'), findsOneWidget);
     expect(find.byType(OnboardingOverlay), findsNothing);
   });
+
+  testWidgets('a fresh install (notStarted) is not handed the tour',
+      (tester) async {
+    // The replay-only coach-mark tour used to auto-fire on every fresh
+    // install, because "no persisted row" resolved to `pending`. A brand-new
+    // user has just been walked through equipment onboarding; telling them to
+    // "set up equipment and a profile" on arrival is a second, contradictory
+    // walkthrough.
+    await _pump(
+      tester,
+      status: const AsyncData(FirstLaunchTourStatus.notStarted),
+    );
+
+    expect(find.text('APP-CONTENT'), findsOneWidget);
+    expect(find.byType(OnboardingOverlay), findsNothing);
+  });
 }

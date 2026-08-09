@@ -45,9 +45,10 @@ class _TnsObjectOutcome {
 /// Transient alerts notify astronomers of time-critical events like novae,
 /// supernovae, and other variable star outbursts that require prompt observation.
 ///
-/// Supported sources:
-/// - AAVSO (American Association of Variable Star Observers)
-/// - TNS (Transient Name Server) - uses the authenticated Search/Get APIs
+/// Supported source:
+/// - TNS (Transient Name Server) - uses the authenticated Search/Get APIs.
+///   It is the ONLY source this service fetches; see the note in the class
+///   body for why AAVSO/VSX is not one, and [TransientSource] for the rest.
 ///
 /// Usage:
 /// ```dart
@@ -69,16 +70,12 @@ class TransientAlertService {
 
   /// The enabled upstreams and TNS bot identity used to populate the cache.
   /// Filtering-only changes can reuse a cache, but enabling a new source or
-  /// changing credentials must fetch again instead of serving an AAVSO-only
+  /// changing credentials must fetch again instead of serving a stale
   /// snapshot for another 15 minutes.
   String? _cacheFetchSignature;
 
   /// Cache time-to-live duration (15 minutes).
   static const Duration _cacheTtl = Duration(minutes: 15);
-
-  /// AAVSO API endpoint for variable star data.
-  static const String _aavsoApiUrl =
-      'https://www.aavso.org/vsx/index.php?view=api.list&format=json&maxrec=50';
 
   /// Creates a new transient alert service instance.
   ///
@@ -110,189 +107,9 @@ class TransientAlertService {
     );
   }
 
-  /// Fetches variable star alerts from AAVSO.
-  ///
-  /// Queries the AAVSO VSX (Variable Star Index) API for recent alerts.
-  /// Maps AAVSO variable types to [TransientType] enum values.
-  ///
-  /// Throws [TransientAlertFetchException] when the upstream response cannot
-  /// be trusted. An empty successful VSX result still returns an empty list.
-  Future<List<TransientAlert>> fetchAavsoAlerts() async {
-    _logger.debug(
-      'Fetching AAVSO alerts from: $_aavsoApiUrl',
-      source: 'TransientAlertService',
-    );
-
-    try {
-      final response = await _httpClient
-          .get(Uri.parse(_aavsoApiUrl))
-          .timeout(const Duration(seconds: 30));
-
-      if (response.statusCode != 200) {
-        throw TransientAlertFetchException(
-          'AAVSO',
-          'HTTP ${response.statusCode}: '
-              '${response.reasonPhrase ?? 'request failed'}',
-        );
-      }
-
-      final dynamic data;
-      try {
-        data = json.decode(response.body);
-      } catch (error) {
-        throw TransientAlertFetchException(
-          'AAVSO',
-          'response was not valid JSON',
-          error,
-        );
-      }
-
-      // AAVSO VSX returns an object with 'VSXObjects' containing the list
-      if (data is! Map) {
-        throw const TransientAlertFetchException(
-          'AAVSO',
-          'response was not an object',
-        );
-      }
-      final vsxObjects = data['VSXObjects'];
-      if (vsxObjects is! List) {
-        throw const TransientAlertFetchException(
-          'AAVSO',
-          'response had no VSXObjects list',
-        );
-      }
-
-      if (vsxObjects.isEmpty) {
-        return [];
-      }
-
-      final alerts = <TransientAlert>[];
-      final now = DateTime.now();
-      var rejectedObjects = 0;
-
-      for (final obj in vsxObjects) {
-        if (obj is! Map) {
-          rejectedObjects++;
-          continue;
-        }
-
-        try {
-          final alert = _parseAavsoObject(Map<String, dynamic>.from(obj), now);
-          if (alert != null) {
-            alerts.add(alert);
-          } else {
-            rejectedObjects++;
-          }
-        } catch (e) {
-          rejectedObjects++;
-          _logger.warning(
-            'Failed to parse AAVSO object: $e',
-            source: 'TransientAlertService',
-          );
-          // Continue processing other objects
-        }
-      }
-
-      if (alerts.isEmpty && rejectedObjects > 0) {
-        throw TransientAlertFetchException(
-          'AAVSO',
-          'all $rejectedObjects returned objects were malformed',
-        );
-      }
-      if (rejectedObjects > 0) {
-        _logger.warning(
-          'AAVSO returned $rejectedObjects malformed objects; retained '
-          '${alerts.length} valid alerts',
-          source: 'TransientAlertService',
-        );
-      }
-
-      _logger.info(
-        'Fetched ${alerts.length} alerts from AAVSO',
-        source: 'TransientAlertService',
-      );
-      return alerts;
-    } on TransientAlertFetchException catch (error) {
-      _logger.error(error.toString(), source: 'TransientAlertService');
-      rethrow;
-    } catch (error) {
-      final failure = TransientAlertFetchException(
-        'AAVSO',
-        'network request failed',
-        error,
-      );
-      _logger.error(failure.toString(), source: 'TransientAlertService');
-      throw failure;
-    }
-  }
-
-  /// Parses a single AAVSO VSX object into a TransientAlert.
-  ///
-  /// Returns null if the object cannot be parsed.
-  TransientAlert? _parseAavsoObject(Map<String, dynamic> obj, DateTime now) {
-    // Extract name - required field
-    final name = obj['Name'] as String?;
-    if (name == null || name.isEmpty) {
-      return null;
-    }
-
-    // Extract coordinates - required fields
-    final raStr = obj['RA2000'] as String?;
-    final decStr = obj['Declination2000'] as String?;
-    if (raStr == null || decStr == null) {
-      return null;
-    }
-
-    // Parse RA from hours:minutes:seconds format (e.g., "18:23:54.67")
-    final raHours = _parseRaString(raStr);
-    if (raHours == null) {
-      return null;
-    }
-
-    // Parse Dec from degrees:arcmin:arcsec format (e.g., "+23:45:12.3")
-    final decDegrees = _parseDecString(decStr);
-    if (decDegrees == null) {
-      return null;
-    }
-
-    // Extract variable type and map to TransientType
-    final varType = obj['Type'] as String?;
-    final transientType = _mapAavsoTypeToTransientType(varType);
-
-    // Extract magnitude if available
-    final maxMagStr = obj['MaxMag'] as String?;
-    final minMagStr = obj['MinMag'] as String?;
-    final magnitude = _finiteDoubleOrNull(maxMagStr);
-    final peakMagnitude = _finiteDoubleOrNull(minMagStr);
-
-    // Generate unique ID from AAVSO OID or name
-    final oid = obj['OID'] as String?;
-    final id = 'aavso_${oid ?? name.replaceAll(' ', '_').toLowerCase()}';
-
-    // Extract constellation for classification
-    final constellation = obj['Constellation'] as String?;
-
-    // Calculate priority based on type and magnitude
-    final priority = _calculatePriority(transientType, magnitude);
-
-    return TransientAlert(
-      id: id,
-      name: name,
-      type: transientType,
-      raHours: raHours,
-      decDegrees: decDegrees,
-      magnitude: magnitude,
-      peakMagnitude: peakMagnitude,
-      discoveryTime: now, // AAVSO doesn't provide discovery time in list API
-      lastUpdated: now,
-      source: TransientSource.aavso,
-      sourceUrl: 'https://www.aavso.org/vsx/index.php?view=detail.top&oid=$oid',
-      priority: priority,
-      classification: constellation != null
-          ? 'Constellation: $constellation'
-          : null,
-    );
-  }
+  // AAVSO/VSX is intentionally not fetchable here: it has no supported recent
+  // alert-notice endpoint. TNS is the sole external feed and requires bot
+  // credentials; manual and imported alerts remain local sources.
 
   double? _finiteDoubleOrNull(String? raw) {
     if (raw == null) return null;
@@ -374,66 +191,6 @@ class TransientAlertService {
     } catch (e) {
       return null;
     }
-  }
-
-  /// Maps AAVSO variable type codes to TransientType enum.
-  ///
-  /// AAVSO type codes: https://www.aavso.org/vsx/help/VariableStarTypeDesignations.html
-  TransientType _mapAavsoTypeToTransientType(String? varType) {
-    if (varType == null) {
-      return TransientType.other;
-    }
-
-    final type = varType.toUpperCase();
-
-    // Nova types
-    if (type.contains('N') && !type.contains('SN')) {
-      if (type == 'N' ||
-          type == 'NA' ||
-          type == 'NB' ||
-          type == 'NC' ||
-          type == 'NR') {
-        return TransientType.nova;
-      }
-    }
-
-    // Supernova
-    if (type.contains('SN')) {
-      return TransientType.supernova;
-    }
-
-    // Cataclysmic variables (dwarf novae, AM CVn, etc.)
-    if (type.contains('UG') ||
-        type.contains('AM') ||
-        type.contains('CV') ||
-        type.contains('DQ') ||
-        type.contains('UGSS') ||
-        type.contains('UGSU') ||
-        type.contains('UGZ') ||
-        type.contains('UGWZ')) {
-      return TransientType.cataclysmic;
-    }
-
-    // Variable stars (Mira, Cepheids, RR Lyrae, etc.)
-    if (type.contains('M') ||
-        type.contains('SR') ||
-        type.contains('CEP') ||
-        type.contains('RR') ||
-        type.contains('DCEP') ||
-        type.contains('RRAB') ||
-        type.contains('RRC')) {
-      return TransientType.variableStar;
-    }
-
-    // Eruptive/irregular variables are often interesting
-    if (type.contains('UV') ||
-        type.contains('IN') ||
-        type.contains('BE') ||
-        type.contains('GCAS')) {
-      return TransientType.variableStar;
-    }
-
-    return TransientType.other;
   }
 
   /// Calculates alert priority (1-10, 1=highest) based on type and magnitude.
@@ -840,10 +597,6 @@ class TransientAlertService {
     // fails must not be cached as a trustworthy empty feed.
     final futures = <Future<_TransientFetchOutcome>>[];
 
-    if (settings.enabledSources.contains(TransientSource.aavso)) {
-      futures.add(_fetchOutcome(TransientSource.aavso, fetchAavsoAlerts()));
-    }
-
     if (settings.enabledSources.contains(TransientSource.tns)) {
       if (settings.tnsApiKey != null && settings.tnsApiKey!.isNotEmpty) {
         futures.add(
@@ -858,17 +611,10 @@ class TransientAlertService {
           ),
         );
       } else {
-        futures.add(
-          Future<_TransientFetchOutcome>.value(
-            const _TransientFetchOutcome.failure(
-              TransientSource.tns,
-              TransientAlertFetchException(
-                'TNS',
-                'source is enabled but no API key is configured',
-              ),
-            ),
-          ),
-        );
+        // An enabled TNS source without credentials is a setup state, not a
+        // failed network fetch. Leave it out of this refresh; the UI can point
+        // the operator to Science settings while manual/local alerts remain
+        // usable.
       }
     }
 
@@ -942,11 +688,7 @@ class TransientAlertService {
   }) {
     final implementedSources =
         settings.enabledSources
-            .where(
-              (source) =>
-                  source == TransientSource.aavso ||
-                  source == TransientSource.tns,
-            )
+            .where(kFetchableTransientSources.contains)
             .map((source) => source.name)
             .toList()
           ..sort();

@@ -165,11 +165,24 @@ class ReadinessPanel extends ConsumerWidget {
 
     // Session-dismissed items are filtered out only in dismissible mode. We
     // keep the count so the footer can offer to restore them.
+    //
+    // Blocked rows are never hidden, even if their id is in the dismissed set:
+    // hiding a hard blocker put the panel's own summary at odds with its list
+    // ("2 items are blocking first light" over a single blocking row), and a
+    // blocker is by definition the thing the operator cannot defer. Only
+    // caution rows are dismissable — which is what the ✕ was added for
+    // (plate solver, dark library, …).
     final dismissed =
         dismissible ? ref.watch(dismissedReadinessItemsProvider) : null;
     final allItems = dismissed == null
         ? baseItems
-        : baseItems.where((i) => !dismissed.contains(i.id)).toList();
+        : baseItems
+            .where(
+              (i) =>
+                  i.level == ReadinessLevel.blocked ||
+                  !dismissed.contains(i.id),
+            )
+            .toList();
     final dismissedVisible = baseItems.length - allItems.length;
 
     final cap = maxItems;
@@ -184,7 +197,7 @@ class ReadinessPanel extends ConsumerWidget {
         if (showHeader) ...[
           NightshadeAlert(
             title: report.summaryLabel,
-            message: _summaryDetail(report),
+            message: _summaryDetail(report, dismissedVisible),
             severity: readinessLevelAlertSeverity(report.overall),
           ),
           const SizedBox(height: NightshadeTokens.spaceLg),
@@ -199,7 +212,9 @@ class ReadinessPanel extends ConsumerWidget {
             _ReadinessRow(
               item: items[i],
               onFixTapped: onFixTapped,
-              onDismiss: dismissible
+              // No ✕ on a blocking row: the filter above would refuse to hide
+              // it anyway, so offering the control would be a dead affordance.
+              onDismiss: dismissible && items[i].level != ReadinessLevel.blocked
                   ? () => ref
                       .read(dismissedReadinessItemsProvider.notifier)
                       .update((s) => {...s, items[i].id})
@@ -251,13 +266,21 @@ class ReadinessPanel extends ConsumerWidget {
     );
   }
 
-  String _summaryDetail(ReadinessReport report) {
+  /// [dismissedVisible] is how many rows the session-dismiss filter removed
+  /// from the list rendered below this banner. It is subtracted from the
+  /// caution count so the number the banner quotes is the number of rows the
+  /// reader can actually see; blocked rows are never dismissable, so the
+  /// blocking count needs no adjustment.
+  String _summaryDetail(ReadinessReport report, int dismissedVisible) {
     final blocked = report.blockedItems.length;
-    final caution = report.cautionItems.length;
+    final caution = report.cautionItems.length - dismissedVisible;
     switch (report.overall) {
       case ReadinessLevel.ready:
         return 'Everything required for first light is in place.';
       case ReadinessLevel.caution:
+        if (caution <= 0) {
+          return 'Every remaining item has been dismissed for this session.';
+        }
         return '$caution ${_plural(caution, 'item needs', 'items need')} '
             'attention, but you can still begin imaging.';
       case ReadinessLevel.blocked:

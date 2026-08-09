@@ -136,7 +136,9 @@ class StaticFileHandlers {
   /// view. The SPAs declare their own inline `data:` icon, so there is no file to
   /// serve here — "nothing here, stop asking" is the honest answer.
   Future<Response> handleFavicon(Request request) async {
-    return Response(204, headers: {'cache-control': 'public, max-age=86400'});
+    return noContentResponse(
+      headers: const {'cache-control': 'public, max-age=86400'},
+    );
   }
 
   /// `GET /dashboard/<path>` — serve any nested asset, blocking

@@ -2,8 +2,15 @@ import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+// CatalogSearchResult: the Add Target sheet searches the installed sky
+// catalogs, not only the target library. catalogStateProvider: and when no
+// catalog has been downloaded there is nothing on this machine to search, so
+// the sheet must say that instead of "nothing matches".
+import 'package:nightshade_planetarium/nightshade_planetarium.dart'
+    show CatalogSearchResult, catalogStateProvider;
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../scheduler/widgets/integration_goals_editor.dart';

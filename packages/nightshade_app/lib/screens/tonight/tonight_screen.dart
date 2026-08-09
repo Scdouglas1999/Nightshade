@@ -34,7 +34,22 @@ class _TonightScreenState extends ConsumerState<TonightScreen> {
   /// wired to the real providers/helpers here, where a [WidgetRef] is in hand.
   OneTapTonightController _liveController() {
     return _controller ??= OneTapTonightController(
-      pick: () => ref.read(oneTapTargetProvider.future),
+      pick: () async {
+        final target = await ref.read(oneTapTargetProvider.future);
+        if (target != null) return target;
+        // An empty pick with no site configured is not "the sky is empty" —
+        // the suggestion pipeline bails before it looks at the sky. Say which
+        // it is instead of listing every possible cause.
+        final settings = await ref.read(appSettingsProvider.future);
+        if (settings.latitude == 0.0 && settings.longitude == 0.0) {
+          throw const NoTonightTargetException(
+            'Your observing location is not set, so Nightshade cannot tell '
+            'what is above your horizon. Set your latitude and longitude in '
+            'Settings → Location.',
+          );
+        }
+        return null;
+      },
       frame: (target) =>
           ref.read(framingProvider.notifier).setTargetSuggestion(target),
       plan: (target) => buildPlanTonightTargetSequenceFromSuggestion(
@@ -266,17 +281,11 @@ class _TargetConfirmCard extends StatelessWidget {
         colors: colors,
         title: 'Could not pick a target',
         body: '$e',
-        onRetry: onRefreshPick,
+        onAction: onRefreshPick,
       ),
       data: (target) {
         if (target == null) {
-          return _NoTargetCard(
-            colors: colors,
-            title: 'Nothing imageable right now',
-            body: 'The sky may be below your horizon or your location is not '
-                'set. Check Settings, then refresh.',
-            onRetry: onRefreshPick,
-          );
+          return _NoPickCard(colors: colors, onRetry: onRefreshPick);
         }
         return _cardForTarget(target);
       },
@@ -675,17 +684,73 @@ class _ErrorBanner extends StatelessWidget {
   }
 }
 
+/// Shown when the picker came back with nothing.
+///
+/// "Nothing imageable right now — the sky may be below your horizon OR your
+/// location is not set" hedged about a fact the app knows for certain: with no
+/// site configured the suggestion pipeline returns an empty list before it
+/// looks at the sky at all, and Refresh can never change that. Every other
+/// surface (planner, weather, dashboard) names the missing location and offers
+/// a way to fix it; this one now does the same, and keeps the honest
+/// "nothing is up" message for when the site IS set.
+class _NoPickCard extends ConsumerWidget {
+  final NightshadeColors colors;
+  final VoidCallback onRetry;
+
+  const _NoPickCard({required this.colors, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(appSettingsProvider).valueOrNull;
+    final locationUnset = settings != null &&
+        settings.latitude == 0.0 &&
+        settings.longitude == 0.0;
+
+    if (locationUnset) {
+      return _NoTargetCard(
+        colors: colors,
+        icon: LucideIcons.mapPin,
+        title: 'Location not configured',
+        body: 'Nightshade cannot tell what is above your horizon until it '
+            'knows where you are. Set your observing latitude and longitude '
+            'in Settings.',
+        actionLabel: 'Open Settings',
+        actionIcon: LucideIcons.mapPin,
+        onAction: () => context.go('/settings?section=location'),
+      );
+    }
+
+    return _NoTargetCard(
+      colors: colors,
+      icon: LucideIcons.cloudOff,
+      title: 'Nothing imageable right now',
+      body: 'Nothing in the catalog clears your horizon and moon limits at '
+          'this moment. Try again later tonight, or widen the limits in '
+          'Plan Tonight.',
+      actionLabel: 'Refresh',
+      actionIcon: LucideIcons.refreshCw,
+      onAction: onRetry,
+    );
+  }
+}
+
 class _NoTargetCard extends StatelessWidget {
   final NightshadeColors colors;
   final String title;
   final String body;
-  final VoidCallback onRetry;
+  final IconData icon;
+  final String actionLabel;
+  final IconData actionIcon;
+  final VoidCallback onAction;
 
   const _NoTargetCard({
     required this.colors,
     required this.title,
     required this.body,
-    required this.onRetry,
+    required this.onAction,
+    this.icon = LucideIcons.cloudOff,
+    this.actionLabel = 'Refresh',
+    this.actionIcon = LucideIcons.refreshCw,
   });
 
   @override
@@ -698,7 +763,7 @@ class _NoTargetCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(LucideIcons.cloudOff, size: 16, color: colors.warning),
+              Icon(icon, size: 16, color: colors.warning),
               const SizedBox(width: NightshadeTokens.spaceSm),
               Expanded(
                 child: Text(
@@ -717,10 +782,10 @@ class _NoTargetCard extends StatelessWidget {
           ),
           const SizedBox(height: NightshadeTokens.spaceMd),
           NightshadeButton(
-            label: 'Refresh',
-            icon: LucideIcons.refreshCw,
+            label: actionLabel,
+            icon: actionIcon,
             variant: ButtonVariant.outline,
-            onPressed: onRetry,
+            onPressed: onAction,
           ),
         ],
       ),

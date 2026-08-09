@@ -368,7 +368,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
               const SizedBox(height: 4),
               if (error != null)
                 Text(
-                  '$azDir ${error.azimuthError.abs().toStringAsFixed(1)}"',
+                  '$azDir ${formatPolarError(error.azimuthError.abs())}',
                   style: TextStyle(
                     fontSize: NightshadeTypography.fontSize22,
                     fontWeight: FontWeight.bold,
@@ -402,7 +402,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
               const SizedBox(height: 4),
               if (error != null)
                 Text(
-                  '$altDir ${error.altitudeError.abs().toStringAsFixed(1)}"',
+                  '$altDir ${formatPolarError(error.altitudeError.abs())}',
                   style: TextStyle(
                     fontSize: NightshadeTypography.fontSize22,
                     fontWeight: FontWeight.bold,
@@ -438,7 +438,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
               const SizedBox(height: 4),
               if (error != null)
                 Text(
-                  '${error.totalError.toStringAsFixed(1)}"',
+                  formatPolarError(error.totalError),
                   style: TextStyle(
                     fontSize: NightshadeTypography.fontSize28,
                     fontWeight: FontWeight.bold,
@@ -463,7 +463,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
 
               // Progress toward threshold
               Text(
-                'Threshold: ${config.autoCompleteThreshold.toStringAsFixed(0)}"',
+                'Threshold: ${formatPolarError(config.autoCompleteThreshold)}',
                 style: TextStyle(
                   fontSize: NightshadeTypography.fontSize10,
                   color: colors.textMuted,

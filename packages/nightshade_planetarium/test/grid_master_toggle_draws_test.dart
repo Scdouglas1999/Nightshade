@@ -52,7 +52,11 @@ void main() {
 
     container
         .read(skyViewStateProvider.notifier)
-        .setViewMode(SkyViewMode.horizontal);
+        .setViewMode(
+          SkyViewMode.horizontal,
+          observer: container.read(observerLocationProvider),
+          instant: DateTime.utc(2026, 7, 29, 15, 52),
+        );
     container.read(skyRenderConfigProvider.notifier).toggleGrid();
 
     final config = container.read(skyRenderConfigProvider);

@@ -5,6 +5,11 @@
 //     through an unknown filter) — no silent swallow.
 //   * The filter-wheel settle is STATE-DRIVEN: capture does not begin until the
 //     wheel reports it has stopped moving (not a blind fixed delay).
+//   * Both the settle and the "already there, skip the move" decision are read
+//     from the DEVICE, never from the cached provider — nothing publishes a
+//     position event on a bare filterWheelSetPosition, so a cached position can
+//     be wrong in either direction (the move never confirms, or a needed move is
+//     skipped and the flat is shot through the wrong filter).
 //   * A mid-run camera disconnect fails the run FAST (between filters), not only
 //     after a full exposure timeout.
 //   * A flat-history write failure surfaces a NON-FATAL warning (de-silenced
@@ -107,11 +112,30 @@ class _WorkflowBackend extends Mock implements NightshadeBackend {
         'bitDepth': 16,
       });
 
+  /// What the wheel REPORTS, independently of what it was told to do.
+  ///
+  /// The settle loop reads the wheel from the backend rather than from the
+  /// provider (a provider nothing refreshed could never change, so every filter
+  /// move failed closed after the full timeout). Tests therefore drive
+  /// settling by moving these, not by poking the provider.
+  int wheelPosition = 0;
+  bool wheelMoving = false;
+
   @override
   Future<void> filterWheelSetPosition(String deviceId, int position) async {
     if (failWheelMove) throw StateError('wheel jammed');
     wheelMoves.add(position);
   }
+
+  @override
+  Future<FilterWheelStatus> getFilterWheelStatus(String deviceId) async =>
+      FilterWheelStatus(
+        connected: true,
+        position: wheelPosition,
+        moving: wheelMoving,
+        filterCount: 2,
+        filterNames: const ['L', 'R'],
+      );
 
   @override
   Future<void> cameraStartExposure({
@@ -408,17 +432,10 @@ void main() {
       );
       expect(backend.wheelMoves, contains(1), reason: 'the move was commanded');
 
-      // The wheel finishes moving and reports settled at the target.
-      (container.read(filterWheelStateProvider.notifier)
-              as _MutableFilterWheelNotifier)
-          .set(
-            const FilterWheelState(
-              connectionState: DeviceConnectionState.connected,
-              deviceId: _fw,
-              filterNames: ['L', 'R'],
-              currentPosition: 1,
-            ),
-          );
+      // The wheel finishes moving and reports settled at the target. Driven
+      // through the backend because that is what the settle loop reads.
+      backend.wheelMoving = false;
+      backend.wheelPosition = 1;
       await run;
 
       expect(
@@ -458,6 +475,82 @@ void main() {
     expect(backend.wheelMoves, [1]);
     expect(error, contains('did not confirm position 1'));
     expect(backend.saveCount, 0);
+  });
+
+  test('a completed move is confirmed from the DEVICE, not from a provider '
+      'nothing refreshes', () async {
+    final backend = _WorkflowBackend();
+    addTearDown(backend.dispose);
+    final container = makeContainer(
+      backend,
+      wheel: const FilterWheelState(
+        connectionState: DeviceConnectionState.connected,
+        deviceId: _fw,
+        filterNames: ['L', 'R'],
+        currentPosition: 0,
+      ),
+    );
+    final notifier = container.read(flatWizardProvider.notifier);
+
+    final move = notifier.moveFilterWheelAndWait(
+      1,
+      FlatCancelToken(),
+      maxWait: const Duration(seconds: 2),
+      pollInterval: const Duration(milliseconds: 5),
+      settleFloor: Duration.zero,
+    );
+    // The DEVICE completes the move. Nothing pushes a position event and the
+    // test never pokes the provider — exactly the shape that made every flat
+    // run with a filter change time out after the full 15 s.
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    backend.wheelPosition = 1;
+
+    expect(await move, isNull, reason: 'the settle must see the real wheel');
+    expect(backend.wheelMoves, [1]);
+    expect(
+      container.read(filterWheelStateProvider).currentPosition,
+      1,
+      reason: 'the confirmed position is pushed back into the provider',
+    );
+  });
+
+  test('a provider that wrongly claims the wheel is already on target does NOT '
+      'skip the move', () async {
+    final backend = _WorkflowBackend();
+    addTearDown(backend.dispose);
+    // The DEVICE is on position 0 while the provider still believes 1 — what a
+    // filter move made outside DeviceService (e.g. the headless endpoint the
+    // web dashboard calls) leaves behind, since no position event is published.
+    backend.wheelPosition = 0;
+    final container = makeContainer(
+      backend,
+      wheel: const FilterWheelState(
+        connectionState: DeviceConnectionState.connected,
+        deviceId: _fw,
+        filterNames: ['L', 'R'],
+        currentPosition: 1,
+      ),
+    );
+    final notifier = container.read(flatWizardProvider.notifier);
+
+    final move = notifier.moveFilterWheelAndWait(
+      1,
+      FlatCancelToken(),
+      maxWait: const Duration(seconds: 2),
+      pollInterval: const Duration(milliseconds: 5),
+      settleFloor: Duration.zero,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    backend.wheelPosition = 1;
+
+    expect(await move, isNull);
+    expect(
+      backend.wheelMoves,
+      [1],
+      reason:
+          'the move is commanded against the device, not skipped on a '
+          'stale cache — otherwise the flat is shot through the wrong filter',
+    );
   });
 
   test(

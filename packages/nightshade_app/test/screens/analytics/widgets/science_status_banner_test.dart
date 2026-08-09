@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/analytics/widgets/science_status_banner.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 Widget _harness({
   required Widget child,
@@ -14,6 +15,7 @@ Widget _harness({
 }) {
   return ProviderScope(
     overrides: [
+      inMemoryDatabaseOverride(),
       scienceProcessingStatusTrackerProvider.overrideWith((_) => tracker),
     ],
     child: MaterialApp(
@@ -106,6 +108,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           scienceProcessingStatusProvider.overrideWith((ref) {
             attempts++;
             return Stream<ScienceProcessingStatusSnapshot>.error(

@@ -5,6 +5,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../../localization/nightshade_localizations.dart';
 import '../glass_card.dart';
 
 /// Builds tonight's optimized target plan, guarded by a configured location.
@@ -64,7 +65,7 @@ class TonightTargetsCard extends ConsumerWidget {
           DashboardCardHeader(
             colors: colors,
             icon: LucideIcons.target,
-            title: "Tonight's targets",
+            title: context.l10n.text('dbTonightTargets'),
             accent: colors.primary,
           ),
           const SizedBox(height: DashboardCardStyle.headerGap),
@@ -86,7 +87,7 @@ class TonightTargetsCard extends ConsumerWidget {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Text(
-          'Planning tonight’s best targets…',
+          context.l10n.text('dbTargetsPlanning'),
           style: NightshadeTypography.bodySm.copyWith(
             color: colors.textMuted,
           ),
@@ -99,8 +100,7 @@ class TonightTargetsCard extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            'Couldn’t generate target recommendations. Check the catalog or '
-            'remote connection and try again.',
+            context.l10n.text('dbTargetsError'),
             style: NightshadeTypography.bodySm.copyWith(
               color: colors.error,
               height: 1.4,
@@ -108,7 +108,7 @@ class TonightTargetsCard extends ConsumerWidget {
           ),
           const SizedBox(height: NightshadeTokens.spaceMd),
           NightshadeButton(
-            label: 'Retry',
+            label: context.l10n.text('dbRetry'),
             icon: LucideIcons.refreshCw,
             variant: ButtonVariant.outline,
             size: ButtonSize.small,
@@ -137,7 +137,8 @@ class TonightTargetsCard extends ConsumerWidget {
         Align(
           alignment: Alignment.centerLeft,
           child: NightshadeButton(
-            label: needsLocation ? 'Set location' : 'Open planner',
+            label: context.l10n
+                .text(needsLocation ? 'dbSetLocation' : 'dbOpenPlanner'),
             icon: needsLocation ? LucideIcons.mapPin : LucideIcons.arrowRight,
             variant: ButtonVariant.outline,
             size: ButtonSize.small,
@@ -183,7 +184,7 @@ class TonightTargetsCard extends ConsumerWidget {
           children: [
             _Stat(
               colors: colors,
-              label: 'Exposure',
+              label: context.l10n.text('dbExposure'),
               value: plan.recommendedExposureSeconds > 0
                   ? '${plan.recommendedExposureSeconds.toStringAsFixed(0)}s'
                   : '--',
@@ -191,7 +192,7 @@ class TonightTargetsCard extends ConsumerWidget {
             const SizedBox(width: NightshadeTokens.spaceLg),
             _Stat(
               colors: colors,
-              label: 'Usable',
+              label: context.l10n.text('dbUsable'),
               value: plan.estimatedUsableHours > 0
                   ? '${plan.estimatedUsableHours.toStringAsFixed(1)}h'
                   : '--',
@@ -199,7 +200,7 @@ class TonightTargetsCard extends ConsumerWidget {
             const SizedBox(width: NightshadeTokens.spaceLg),
             _Stat(
               colors: colors,
-              label: 'Score',
+              label: context.l10n.text('dbScore'),
               value: primary.totalScore.toStringAsFixed(0),
             ),
           ],
@@ -217,7 +218,7 @@ class TonightTargetsCard extends ConsumerWidget {
         Align(
           alignment: Alignment.centerRight,
           child: NightshadeButton(
-            label: 'Open planner',
+            label: context.l10n.text('dbOpenPlanner'),
             icon: LucideIcons.arrowRight,
             variant: ButtonVariant.ghost,
             size: ButtonSize.small,

@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../localization/nightshade_localizations.dart';
 import '../../../services/sequence_action_service.dart';
 import '../../../utils/snackbar_helper.dart';
 import 'preflight_validation_dialog.dart';
@@ -320,7 +321,7 @@ class _StatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     // Single source of truth for color/icon so the mobile badge cannot
     // diverge from the toolbar badge and recovery LED.
-    final visuals = SequenceStatusVisuals.of(state, colors);
+    final visuals = SequenceStatusVisuals.of(state, colors, context.l10n);
     final badgeColor = visuals.color;
     final icon = visuals.icon;
 

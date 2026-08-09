@@ -163,6 +163,77 @@ void main() {
       expect(d.category, DiagnosticCategory.unknown);
     });
 
+    // The built-in guider is a SOFTWARE guider: it reuses the imaging camera
+    // and pulses the mount, so it has no cable, no power switch and no vendor
+    // driver. Its preflight names the exact missing profile value, and the
+    // dialog used to answer "we couldn't pin down the exact cause" while
+    // holding that message — then told the operator to reseat a cable that
+    // does not exist and restart the app.
+    group('built-in guider preflight', () {
+      const focalLengthError =
+          'Failed to connect built-in guider: Operation failed: Built-in '
+          'guider requires positive guide focal length and camera pixel size '
+          '(focal_length_mm=0, pixel_size_x_um=3.76, pixel_size_y_um=3.76)';
+
+      ConnectionDiagnosis diagnose(String raw) => diagnoseConnectionFailure(
+        deviceType: DeviceType.guider,
+        driverType: DriverType.native,
+        rawError: raw,
+      );
+
+      test('a zero focal length is a configuration cause, not unknown', () {
+        final d = diagnose(focalLengthError);
+        expect(d.category, DiagnosticCategory.configuration);
+        expect(d.plainLanguage, isNot(contains("couldn't pin down")));
+      });
+
+      test('the steps name the focal length and never a cable or power', () {
+        final steps = _stepsText(diagnose(focalLengthError)).toLowerCase();
+        expect(steps, contains('focal length'));
+        expect(
+          steps,
+          isNot(contains('cable')),
+          reason: 'the built-in guider has no cable to reseat',
+        );
+        expect(steps, isNot(contains('power')));
+        expect(steps, isNot(contains('restart nightshade')));
+      });
+
+      test('the missing-profile variant is classified the same way', () {
+        final d = diagnose(
+          'Operation failed: Built-in guider requires an active profile with '
+          'a guide focal length',
+        );
+        expect(d.category, DiagnosticCategory.configuration);
+        expect(_allText(d).toLowerCase(), contains('focal length'));
+      });
+
+      test(
+        'the unassigned-camera variant names the assignment, not a cable',
+        () {
+          final steps = _stepsText(
+            diagnose(
+              'Operation failed: Built-in guider requires a connected camera in '
+              'the active profile',
+            ),
+          ).toLowerCase();
+          expect(steps, contains('profile'));
+          expect(steps, isNot(contains('cable')));
+        },
+      );
+
+      test('a real ASCOM guider failure still gets the driver playbook', () {
+        // Anti-inversion: the new rule must not swallow genuine hardware
+        // failures on the same device type.
+        final d = diagnoseConnectionFailure(
+          deviceType: DeviceType.guider,
+          driverType: DriverType.ascom,
+          rawError: '0x800706ba RPC server unavailable',
+        );
+        expect(d.category, DiagnosticCategory.driver);
+      });
+    });
+
     test('classification is case-insensitive', () {
       final lower = diagnoseConnectionFailure(
         deviceType: DeviceType.camera,
@@ -455,6 +526,18 @@ ConnectionDiagnosis _diagnosisForCategory(DiagnosticCategory category) {
         rawError: 'totally novel failure',
       );
   }
+}
+
+/// Concatenates only the remediation STEPS — the "what do I do now" list the
+/// operator acts on, separate from the explanation above it.
+String _stepsText(ConnectionDiagnosis d) {
+  final buffer = StringBuffer();
+  for (final step in d.steps) {
+    buffer
+      ..writeln(step.instruction)
+      ..writeln(step.detail ?? '');
+  }
+  return buffer.toString();
 }
 
 /// Concatenates all user-facing copy of a diagnosis for substring assertions.

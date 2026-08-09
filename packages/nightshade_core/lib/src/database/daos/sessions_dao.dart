@@ -114,6 +114,49 @@ class SessionsDao extends DatabaseAccessor<NightshadeDatabase>
     );
   }
 
+  /// Close a session that was left `active` — a crash, a kill, a sequencer
+  /// reset — stamping `end_time` at the session's LAST ACTUAL ACTIVITY rather
+  /// than at the wall clock of the recovery.
+  ///
+  /// Wall-clock closure is what [endSession] does, and it is right when a run
+  /// really did just finish. It is badly wrong here: a session abandoned on
+  /// Wednesday and recovered on Friday was stamped with Friday's clock, so its
+  /// History card, its wall-clock duration and every efficiency figure derived
+  /// from it (campaign efficiency, effective imaging %) reported a 60-hour
+  /// night. One crash permanently corrupted the night's duration.
+  ///
+  /// The last frame's timestamp is the only durable record of when imaging
+  /// actually stopped. With no frames at all the session produced nothing, so
+  /// it collapses to `start_time` (zero duration) rather than inventing one.
+  /// Clamped to `[start_time, now]` so a bad clock or a future-dated frame
+  /// cannot produce a negative or still-growing duration.
+  Future<void> abortSession(int id) async {
+    final session = await getSessionById(id);
+    if (session == null) return;
+    final lastFrame = await customSelect(
+      'SELECT MAX(captured_at) AS last_at FROM captured_images '
+      'WHERE session_id = ?',
+      variables: [Variable<int>(id)],
+      readsFrom: {attachedDatabase.capturedImages},
+    ).getSingleOrNull();
+    final lastAt = lastFrame?.data['last_at'] as int?;
+    final now = DateTime.now();
+    // Drift stores DateTime columns as unix seconds and decodes them as local
+    // instants; matching that here keeps the round trip lossless.
+    var endTime = lastAt == null
+        ? session.startTime
+        : DateTime.fromMillisecondsSinceEpoch(lastAt * 1000);
+    if (endTime.isBefore(session.startTime)) endTime = session.startTime;
+    if (endTime.isAfter(now)) endTime = now;
+
+    await (update(imagingSessions)..where((s) => s.id.equals(id))).write(
+      ImagingSessionsCompanion(
+        endTime: Value(endTime),
+        status: const Value('aborted'),
+      ),
+    );
+  }
+
   /// Update session statistics
   Future<void> updateSessionStats(
     int id, {

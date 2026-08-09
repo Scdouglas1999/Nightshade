@@ -62,7 +62,16 @@ class NodeSummaryLine extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final fragments = nodeSummary(node);
+    // With `useSettingsDefaults` on, the executor resolves the AF method from
+    // AppSettings and ignores the node's own field — the row must report the
+    // global value, not the dead one.
+    final localNode = node;
+    final globalAfMethod =
+        localNode is AutofocusNode && localNode.useSettingsDefaults
+            ? ref.watch(autofocusSettingsProvider).method
+            : null;
+    final fragments =
+        nodeSummary(localNode, globalAutofocusMethod: globalAfMethod);
     if (fragments.isEmpty) return const SizedBox.shrink();
 
     final canEdit = ref.watch(canEditSequenceProvider);

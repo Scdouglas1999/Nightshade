@@ -9,6 +9,8 @@
 /// Each test uses a unique device id because [AlpacaClient] shares circuit
 /// breakers per device id through a process-wide registry.
 
+library;
+
 import 'dart:convert';
 import 'dart:io';
 

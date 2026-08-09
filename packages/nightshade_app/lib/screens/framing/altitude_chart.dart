@@ -1,7 +1,8 @@
+import 'dart:async';
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 // Hide TwilightTimes from the core barrel (the scheduler's
 // sky_calculations.dart adds its own). This chart consumes planetarium's
@@ -55,13 +56,45 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
   /// specific claim that the target is on the horizon — immediately above the
   /// "Set location in Settings" panel that admits the app has no location.
   double? _currentAltitude;
+
+  /// The clock every HH:MM face in this widget renders through. Assigned from
+  /// [clockProvider] at the top of [build]; see the note there.
+  Clock _clock = const SystemClock();
   double _currentAirmass = 0;
   bool _showAirmass = false;
+
+  /// Wall clock for the present-tense readouts.
+  ///
+  /// [_calculateData] runs on mount and on a ra/dec (or settings) change only,
+  /// so the chips labelled "Alt:" and "Airmass:" — present tense, no timestamp
+  /// — froze at whatever the sky looked like when the card first built and then
+  /// kept stating it as current. On the planner's hero card that meant 14.7° /
+  /// airmass 3.88 still on screen seventeen minutes later, and the list card
+  /// for the same object disagreeing with it purely because scrolling had
+  /// recycled it through initState again.
+  ///
+  /// Only the "now" quantities are recomputed on the tick. The night curve and
+  /// the twilight window are properties of the night, not of the minute, so
+  /// re-solving them on every candidate card every minute would be wasted work.
+  Timer? _nowTicker;
 
   @override
   void initState() {
     super.initState();
     _calculateData();
+    // One minute: the fastest a target's altitude moves is ~0.25°/min at the
+    // horizon, so the 0.1° the chip prints can never be more than a rounding
+    // step behind.
+    _nowTicker = Timer.periodic(
+      const Duration(minutes: 1),
+      (_) => _refreshCurrentPosition(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _nowTicker?.cancel();
+    super.dispose();
   }
 
   @override
@@ -71,6 +104,40 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
         oldWidget.decDegrees != widget.decDegrees) {
       _calculateData();
     }
+  }
+
+  /// Re-solve the target's altitude/airmass for the current instant.
+  void _refreshCurrentPosition() {
+    if (!mounted) return;
+    final settings = ref.read(appSettingsProvider).valueOrNull;
+    if (settings == null) return;
+
+    final lat = settings.latitude;
+    final lon = settings.longitude;
+    // No observing site: the chips already say '--' and there is nothing to
+    // refresh them to.
+    if (lat == 0.0 && lon == 0.0) return;
+
+    final now = widget.nowValue();
+    // Left open past the end of the plotted night: the whole solve is stale,
+    // not just the marker, so redo it rather than moving a dot around a window
+    // that has finished.
+    if (now.isAfter(_endTime)) {
+      _calculateData();
+      return;
+    }
+
+    final (alt, _) = AstronomyCalculations.objectAltAz(
+      raDeg: widget.raHours * 15.0,
+      decDeg: widget.decDegrees,
+      dt: now,
+      latitudeDeg: lat,
+      longitudeDeg: lon,
+    );
+    setState(() {
+      _currentAltitude = alt;
+      _currentAirmass = alt > 0 ? AstronomyCalculations.airmass(alt) : 0;
+    });
   }
 
   void _calculateData() {
@@ -152,11 +219,24 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
       _endTime = now.add(const Duration(hours: 10));
     }
 
-    // Calculate visibility info
+    // Calculate visibility info for the night this chart is PLOTTING.
+    //
+    // `date` selects a noon-to-noon search window, so passing the raw `now`
+    // described a different night than the curve above whenever the clock was
+    // on the other side of local noon from the plotted window — and the
+    // planner scorer anchors on `nightDateOf` of its own night. One card then
+    // printed the warning's rise time and this footer's rise time a sidereal
+    // day apart for the same event. Anchoring both on the same rule makes that
+    // structurally impossible.
+    final plottedNightMid = _startTime.add(
+      Duration(
+        milliseconds: _endTime.difference(_startTime).inMilliseconds ~/ 2,
+      ),
+    );
     _visibility = AstronomyCalculations.calculateObjectVisibility(
       raDeg: raDeg,
       decDeg: decDeg,
-      date: now,
+      date: AstronomyCalculations.nightDateOf(plottedNightMid),
       latitudeDeg: lat,
       longitudeDeg: lon,
       minAltitude: 0,
@@ -216,6 +296,13 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
     ref.listen(appSettingsProvider, (prev, next) {
       if (next.hasValue) _calculateData();
     });
+
+    // Captured here, in build, rather than read inside the formatter: the axis
+    // and tooltip label callbacks run during the chart's layout, where
+    // `ref.watch` is illegal, and `ref.read` would leave the faces on whatever
+    // clock existed before `appSettingsProvider` resolved — i.e. host-local
+    // forever, which is the defect this replaced.
+    _clock = ref.watch(clockProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -386,6 +473,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
   }
 
   Widget _buildChart(NightshadeColors colors) {
+    final siteMinimumAltitude = ref.watch(siteMinimumAltitudeDegProvider);
     final now = widget.nowValue();
     final nowX = now.difference(_startTime).inMinutes.toDouble();
     final totalMinutes = _endTime.difference(_startTime).inMinutes.toDouble();
@@ -405,14 +493,9 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
             horizontalInterval: _showAirmass ? 1 : 30,
             verticalInterval: 60, // Every hour
             getDrawingHorizontalLine: (value) {
-              // Highlight 30° line for altitude
-              if (!_showAirmass && value == 30) {
-                return FlLine(
-                  color: colors.warning.withValues(alpha: 0.5),
-                  strokeWidth: 1,
-                  dashArray: [4, 4],
-                );
-              }
+              // The site minimum is drawn as an explicit HorizontalLine below
+              // (it is rarely a multiple of the 30° grid step), so the grid
+              // itself no longer pretends 30 is special.
               return FlLine(
                 color: colors.border.withValues(alpha: 0.3),
                 strokeWidth: 0.5,
@@ -466,7 +549,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
                 getTitlesWidget: (value, meta) {
                   final time = _startTime.add(Duration(minutes: value.toInt()));
                   return Text(
-                    DateFormat('HH:mm').format(time),
+                    _siteHhmm(time),
                     style: TextStyle(
                         fontSize: NightshadeTypography.fontSize9,
                         color: colors.textMuted),
@@ -568,10 +651,14 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
                   color: colors.error.withValues(alpha: 0.5),
                   strokeWidth: 1,
                 ),
-              // Good altitude threshold (30°)
+              // The SITE's minimum imaging altitude, not a hard-coded 30°.
+              // This chart drew 30 while the scheduler was gating on its own
+              // configured value, so the dashed line the operator reads as
+              // "below this I cannot image" disagreed with the engine that
+              // decides it.
               if (!_showAirmass)
                 HorizontalLine(
-                  y: 30,
+                  y: siteMinimumAltitude,
                   color: colors.warning.withValues(alpha: 0.5),
                   strokeWidth: 1,
                   dashArray: [4, 4],
@@ -587,7 +674,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
                 return touchedSpots.map((spot) {
                   final time =
                       _startTime.add(Duration(minutes: spot.x.toInt()));
-                  final timeStr = DateFormat('HH:mm').format(time);
+                  final timeStr = _siteHhmm(time);
                   if (_showAirmass) {
                     return LineTooltipItem(
                       '$timeStr\nAirmass: ${spot.y.toStringAsFixed(2)}',
@@ -621,15 +708,28 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
     );
   }
 
+  /// HH:MM as the OBSERVING SITE reads it.
+  ///
+  /// Only the DISPLAY moves: the rise/transit/set solve and the plotted window
+  /// still run on the true instant from [AltitudeChart.nowValue], because
+  /// shifting the input would skew the astronomy itself (see the doc on
+  /// `nowOverride`). Every face in this widget — axis, touch tooltip and the
+  /// three chips — goes through here together, so the chart can never label its
+  /// axis in one zone and its chips in another.
+  String _siteHhmm(DateTime t) {
+    final shown = _clock.fromUtc(t.toUtc());
+    return '${shown.hour.toString().padLeft(2, '0')}:'
+        '${shown.minute.toString().padLeft(2, '0')}';
+  }
+
   Widget _buildVisibilityInfo(NightshadeColors colors) {
-    final timeFormat = DateFormat('HH:mm');
     final items = <Widget>[];
 
     if (_visibility!.riseTime != null) {
       items.add(_buildTimeChip(
         colors,
         'Rise',
-        timeFormat.format(_visibility!.riseTime!),
+        _siteHhmm(_visibility!.riseTime!),
         NightshadeIcons.sunrise,
       ));
     }
@@ -638,7 +738,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
       items.add(_buildTimeChip(
         colors,
         'Transit',
-        timeFormat.format(_visibility!.transitTime!),
+        _siteHhmm(_visibility!.transitTime!),
         NightshadeIcons.arrowUp,
       ));
     }
@@ -647,7 +747,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
       items.add(_buildTimeChip(
         colors,
         'Set',
-        timeFormat.format(_visibility!.setTime!),
+        _siteHhmm(_visibility!.setTime!),
         NightshadeIcons.sunset,
       ));
     }

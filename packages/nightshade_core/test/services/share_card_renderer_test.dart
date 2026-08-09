@@ -475,6 +475,198 @@ void main() {
       expect(expandWatermarkTokens('just text', {}), 'just text');
     });
   });
+
+  // The caption is the artefact the feature exists to produce — the thing a
+  // user posts publicly. It shipped truncated: on a 512px-wide card the bar
+  // read "M51  Integration 00:35:00  Frames 7  Fil" and ran off the right edge
+  // mid-word, because the font is derived from the image HEIGHT and nothing
+  // ever measured the composed caption against the available WIDTH.
+  group('bottom-bar caption fits the card width', () {
+    const segments = ['M51', 'Integration  00:35:00', 'Frames  7', 'Filter  L'];
+
+    /// An opaque black RGBA buffer, so the only bright pixels in the caption
+    /// band are glyphs (the bar fill is black over black; its stroke is white
+    /// at alpha 40, i.e. dim).
+    Uint8List blackRgba(int width, int height) {
+      final out = Uint8List(width * height * 4);
+      for (var i = 3; i < out.length; i += 4) {
+        out[i] = 255;
+      }
+      return out;
+    }
+
+    const spec = ShareCardSpec(
+      title: 'M51',
+      stats: [
+        ShareStatLine(label: 'Integration', value: '00:35:00'),
+        ShareStatLine(label: 'Frames', value: '7'),
+        ShareStatLine(label: 'Filter', value: 'L'),
+      ],
+      targetWidth: 512,
+      targetHeight: 512,
+      layout: ShareCardLayout.bottomBar,
+    );
+
+    test('no glyph is drawn in the right-hand padding of a 512px card', () {
+      final png = renderer.renderPngFromRgba(
+        width: 512,
+        height: 512,
+        rgba: blackRgba(512, 512),
+        spec: spec,
+      );
+      final decoded = img.decodePng(png)!;
+      expect(decoded.width, 512);
+
+      final fitted = renderer.fitCaption(
+        renderer.fontForHeight(512),
+        segments,
+        512,
+      );
+      final geometry = renderer.panelGeometry(fitted.font);
+      final barHeight =
+          fitted.rows.length * geometry.lineHeight +
+          (fitted.rows.length - 1) * geometry.gap +
+          geometry.pad * 2;
+
+      // Scan the right-hand padding over the TEXT rows only, excluding the
+      // final column: the bar's rounded stroke is drawn opaque white on the
+      // rect outline, so column 511 is legitimately bright everywhere.
+      // Clipped text, by contrast, paints glyphs across the padding right up
+      // to the edge.
+      var brightest = 0;
+      final y0 = 512 - barHeight;
+      for (var row = 0; row < fitted.rows.length; row++) {
+        final top =
+            y0 + geometry.pad + row * (geometry.lineHeight + geometry.gap);
+        for (var y = top; y < top + geometry.lineHeight; y++) {
+          for (var x = 512 - geometry.pad; x < 511; x++) {
+            final p = decoded.getPixel(x, y);
+            final lum = (p.r * 0.3 + p.g * 0.59 + p.b * 0.11).round();
+            if (lum > brightest) brightest = lum;
+          }
+        }
+      }
+      expect(
+        brightest,
+        lessThan(120),
+        reason:
+            'caption glyphs are being drawn into the right padding '
+            '- the last stat is clipped',
+      );
+    });
+
+    test(
+      'every wrapped row measures within the card width, losing nothing',
+      () {
+        final fitted = renderer.fitCaption(
+          renderer.fontForHeight(512),
+          segments,
+          512,
+        );
+        final geometry = renderer.panelGeometry(fitted.font);
+        final available = 512 - geometry.pad * 2;
+
+        int measure(String text) {
+          var width = 0;
+          for (final c in text.codeUnits) {
+            final ch = fitted.font.characters[c];
+            if (ch == null) continue;
+            width += ch.xAdvance;
+          }
+          return width;
+        }
+
+        // Nothing is dropped and nothing is reordered.
+        expect(fitted.rows.expand((r) => r).toList(), segments);
+        for (final row in fitted.rows) {
+          final width =
+              row.fold<int>(0, (sum, s) => sum + measure(s)) +
+              (row.length - 1) * geometry.gap * 3;
+          expect(
+            width,
+            lessThanOrEqualTo(available),
+            reason:
+                'row "${row.join(' | ')}" is $width px in a $available px bar',
+          );
+        }
+      },
+    );
+
+    test('a title too wide for the smallest font is ellipsized, not sliced by '
+        'the card edge', () {
+      // 115 characters: wider than a 512 px card even at arial14, so the
+      // font ladder cannot rescue it and the caption used to be handed to
+      // drawString whole — which painted glyphs at full brightness across
+      // the right padding and off the edge mid-word.
+      const longTitle =
+          'NGC 7000 North America Nebula and the Pelican, Panel 3 of 9, '
+          'Ha 3nm 300s, wide field mosaic from the back garden';
+      const longSpec = ShareCardSpec(
+        title: longTitle,
+        stats: [ShareStatLine(label: 'Integration', value: '00:35:00')],
+        targetWidth: 512,
+        targetHeight: 512,
+        layout: ShareCardLayout.bottomBar,
+      );
+
+      final fitted = renderer.fitCaption(renderer.fontForHeight(512), const [
+        longTitle,
+        'Integration  00:35:00',
+      ], 512);
+      final geometry = renderer.panelGeometry(fitted.font);
+      final available = 512 - geometry.pad * 2;
+
+      int measure(String text) {
+        var width = 0;
+        for (final c in text.codeUnits) {
+          final ch = fitted.font.characters[c];
+          if (ch == null) continue;
+          width += ch.xAdvance;
+        }
+        return width;
+      }
+
+      final shortened = fitted.rows.expand((r) => r).first;
+      expect(
+        shortened,
+        endsWith('...'),
+        reason: 'a shortened caption must say that it was shortened',
+      );
+      expect(measure(shortened), lessThanOrEqualTo(available));
+
+      final png = renderer.renderPngFromRgba(
+        width: 512,
+        height: 512,
+        rgba: blackRgba(512, 512),
+        spec: longSpec,
+      );
+      final decoded = img.decodePng(png)!;
+      final barHeight =
+          fitted.rows.length * geometry.lineHeight +
+          (fitted.rows.length - 1) * geometry.gap +
+          geometry.pad * 2;
+      var brightest = 0;
+      final y0 = 512 - barHeight;
+      for (var row = 0; row < fitted.rows.length; row++) {
+        final top =
+            y0 + geometry.pad + row * (geometry.lineHeight + geometry.gap);
+        for (var y = top; y < top + geometry.lineHeight; y++) {
+          for (var x = 512 - geometry.pad; x < 511; x++) {
+            final p = decoded.getPixel(x, y);
+            final lum = (p.r * 0.3 + p.g * 0.59 + p.b * 0.11).round();
+            if (lum > brightest) brightest = lum;
+          }
+        }
+      }
+      expect(
+        brightest,
+        lessThan(120),
+        reason:
+            'the over-long title is being drawn into the right padding '
+            '- it is clipped by the card edge instead of ellipsized',
+      );
+    });
+  });
 }
 
 /// Build a fully-opaque flat-grey RGBA buffer (mid grey) for overlay tests.

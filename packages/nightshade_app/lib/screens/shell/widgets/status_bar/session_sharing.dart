@@ -16,7 +16,10 @@ class _ShareSessionButtonState extends ConsumerState<_ShareSessionButton> {
   @override
   Widget build(BuildContext context) {
     final webState = ref.watch(webServerStateProvider);
-    final hasViewers = webState.activeViewers > 0;
+    // This chip is the remote-access indicator (its tap target is the Remote
+    // Access dialog), so it counts attached remote clients. It used to read
+    // the co-imaging viewer list and stayed dark with a phone connected.
+    final hasViewers = webState.connectedClients > 0;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -67,7 +70,7 @@ class _ShareSessionButtonState extends ConsumerState<_ShareSessionButton> {
                       borderRadius: NightshadeTokens.borderRadiusInline8,
                     ),
                     child: Text(
-                      '${webState.activeViewers}',
+                      '${webState.connectedClients}',
                       style: TextStyle(
                         fontSize: NightshadeTypography.fontSize9,
                         fontWeight: FontWeight.w600,
@@ -113,6 +116,10 @@ class _ShareSessionDialog extends ConsumerWidget {
     final hasLanAccess = networkUrl.isNotEmpty;
     final viewerLabel =
         currentState.requiresAuthentication ? 'authenticated viewer' : 'viewer';
+    // Remote clients attached to this server. Reading the co-imaging viewer
+    // list here made this panel say "No viewers connected" to an operator whose
+    // phone was holding an authenticated event socket.
+    final connected = currentState.connectedClients;
 
     return AlertDialog(
       backgroundColor: colors.surface,
@@ -174,12 +181,12 @@ class _ShareSessionDialog extends ConsumerWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: currentState.activeViewers > 0
+                color: connected > 0
                     ? colors.success.withValues(alpha: 0.08)
                     : colors.surfaceAlt,
                 borderRadius: NightshadeTokens.borderRadiusInline8,
                 border: Border.all(
-                  color: currentState.activeViewers > 0
+                  color: connected > 0
                       ? colors.success.withValues(alpha: 0.3)
                       : colors.border,
                 ),
@@ -189,20 +196,16 @@ class _ShareSessionDialog extends ConsumerWidget {
                   Icon(
                     LucideIcons.users,
                     size: 14,
-                    color: currentState.activeViewers > 0
-                        ? colors.success
-                        : colors.textMuted,
+                    color: connected > 0 ? colors.success : colors.textMuted,
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    currentState.activeViewers > 0
-                        ? '${currentState.activeViewers} $viewerLabel${currentState.activeViewers == 1 ? '' : 's'} connected'
+                    connected > 0
+                        ? '$connected $viewerLabel${connected == 1 ? '' : 's'} connected'
                         : 'No viewers connected',
                     style: TextStyle(
                       fontSize: NightshadeTypography.fontSize13,
-                      color: currentState.activeViewers > 0
-                          ? colors.success
-                          : colors.textMuted,
+                      color: connected > 0 ? colors.success : colors.textMuted,
                     ),
                   ),
                 ],

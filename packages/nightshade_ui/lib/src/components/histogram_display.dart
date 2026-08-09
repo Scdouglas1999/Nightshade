@@ -139,32 +139,40 @@ class _HistogramDisplayState extends State<HistogramDisplay> {
             Positioned(
               top: 2,
               right: 2,
-              child: GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _isLogarithmic = !_isLogarithmic;
-                  });
-                  widget.onLogToggled?.call(_isLogarithmic);
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: NightshadeTokens.spaceXs,
-                    vertical: NightshadeTokens.spaceXs - 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colors.surfaceOverlay.withValues(alpha: 0.92),
-                    borderRadius: NightshadeTokens.borderRadiusXs,
-                    border: Border.all(
-                      color: colors.border.withValues(alpha: 0.5),
+              // The only operable control on the histogram, and the axis scale
+              // it switches changes how the data reads -- so it has to be
+              // announced with its current state, not just be a tappable box.
+              child: Semantics(
+                button: true,
+                toggled: _isLogarithmic,
+                label: 'Logarithmic histogram scale',
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _isLogarithmic = !_isLogarithmic;
+                    });
+                    widget.onLogToggled?.call(_isLogarithmic);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: NightshadeTokens.spaceXs,
+                      vertical: NightshadeTokens.spaceXs - 2,
                     ),
-                  ),
-                  child: Text(
-                    _isLogarithmic ? 'LOG' : 'LIN',
-                    style: NightshadeTypography.overline.copyWith(
-                      fontSize: 8,
-                      color: _isLogarithmic
-                          ? primaryColor
-                          : colors.textSecondary,
+                    decoration: BoxDecoration(
+                      color: colors.surfaceOverlay.withValues(alpha: 0.92),
+                      borderRadius: NightshadeTokens.borderRadiusXs,
+                      border: Border.all(
+                        color: colors.border.withValues(alpha: 0.5),
+                      ),
+                    ),
+                    child: Text(
+                      _isLogarithmic ? 'LOG' : 'LIN',
+                      style: NightshadeTypography.overline.copyWith(
+                        fontSize: 8,
+                        color: _isLogarithmic
+                            ? primaryColor
+                            : colors.textSecondary,
+                      ),
                     ),
                   ),
                 ),

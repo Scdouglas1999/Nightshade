@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/flat_wizard_dialog.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 class _ConnectedCameraNotifier extends CameraStateNotifier {
   _ConnectedCameraNotifier(super.ref) {
@@ -26,6 +27,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           cameraStateProvider.overrideWith(_ConnectedCameraNotifier.new),
           profileFiltersProvider.overrideWithValue(
             const ['L', 'R', 'G', 'B'],
@@ -85,6 +87,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           cameraStateProvider.overrideWith(_ConnectedCameraNotifier.new),
           profileFiltersProvider.overrideWithValue(const []),
         ],

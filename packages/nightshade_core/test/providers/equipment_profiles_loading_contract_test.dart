@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/database/database.dart' as db;
+import '../harness/in_memory_database.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -15,6 +16,7 @@ void main() {
       final active = Completer<db.EquipmentProfile?>();
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           allProfilesProvider.overrideWith(
             (_) => Stream.fromFuture(profiles.future),
           ),
@@ -48,6 +50,7 @@ void main() {
     () async {
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           allProfilesProvider.overrideWith(
             (_) => Stream<List<db.EquipmentProfile>>.error(
               StateError('profile database unavailable'),

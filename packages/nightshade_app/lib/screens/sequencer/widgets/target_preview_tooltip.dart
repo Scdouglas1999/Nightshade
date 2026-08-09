@@ -55,7 +55,9 @@ final targetAltitudeProvider = FutureProvider.autoDispose
   final visibility = AstronomyCalculations.calculateObjectVisibility(
     raDeg: raDeg,
     decDeg: decDeg,
-    date: now,
+    // The NIGHT containing [now] — after local midnight the raw instant names
+    // tomorrow, so transit and hours-above-horizon described the next night.
+    date: AstronomyCalculations.nightDateOf(now),
     latitudeDeg: lat,
     longitudeDeg: lon,
     minAltitude: minAlt,
@@ -124,10 +126,13 @@ class TargetPreviewTooltip extends ConsumerWidget {
     return "$sign$degrees° $minutes' $seconds\"";
   }
 
-  String _formatTime(DateTime time) {
-    final local = time.toLocal();
-    final hour = local.hour.toString().padLeft(2, '0');
-    final minute = local.minute.toString().padLeft(2, '0');
+  /// Transit is a fact about the OBSERVING SITE, so it reads in the site's
+  /// zone (Settings → Location → Timezone), not the controlling laptop's.
+  /// [SystemClock.fromUtc] is `toLocal()`, so "use system time" is unchanged.
+  String _formatTime(DateTime time, Clock clock) {
+    final shown = clock.fromUtc(time.toUtc());
+    final hour = shown.hour.toString().padLeft(2, '0');
+    final minute = shown.minute.toString().padLeft(2, '0');
     return '$hour:$minute';
   }
 
@@ -334,7 +339,8 @@ class TargetPreviewTooltip extends ConsumerWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Transit: ${_formatTime(data.transitTime)}',
+                                    'Transit: '
+                                    '${_formatTime(data.transitTime, ref.watch(clockProvider))}',
                                     style: NightshadeTypography.labelStrongSm
                                         .copyWith(color: colors.textPrimary),
                                   ),

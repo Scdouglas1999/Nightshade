@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nightshade_core/src/backend/disconnected_backend.dart';
 import 'package:nightshade_core/src/backend/network_backend.dart';
 import 'package:nightshade_core/src/backend/nightshade_backend.dart';
 import 'package:nightshade_core/src/providers/backend_provider.dart';
 import 'package:nightshade_core/src/providers/connection_quality_provider.dart';
+import '../harness/in_memory_database.dart';
 
 class _MockNetworkBackend extends Mock implements NetworkBackend {}
 
@@ -44,6 +46,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith(
             (ref) => _FixedBackendNotifier(ref, backend),
           ),
@@ -107,6 +110,7 @@ void main() {
 
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith(
           (ref) => _FixedBackendNotifier(ref, backend),
         ),
@@ -131,5 +135,32 @@ void main() {
     expect(async.requireValue.liveness, ConnectionLiveness.error);
     expect(async.requireValue.remoteHost, 'remote-rig');
     expect(async.requireValue.latency, isNull);
+  });
+
+  // A rolled-back connect leaves a DisconnectedBackend installed. It is not a
+  // NetworkBackend either, and folding it into the local snapshot told the
+  // dashboard chip that this machine was driving the rig when nothing was.
+  test('a DisconnectedBackend is not reported as local', () async {
+    final container = ProviderContainer(
+      overrides: [
+        inMemoryDatabaseOverride(),
+        backendProvider.overrideWith(
+          (ref) => _FixedBackendNotifier(ref, DisconnectedBackend()),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    final subscription = container.listen(
+      connectionQualityProvider,
+      (_, __) {},
+      fireImmediately: true,
+    );
+    addTearDown(subscription.close);
+    await _pump();
+
+    final quality = container.read(connectionQualityProvider).requireValue;
+    expect(quality.mode, isNot(ConnectionMode.local));
+    expect(quality.mode, ConnectionMode.none);
+    expect(quality.isHealthy, isFalse);
   });
 }

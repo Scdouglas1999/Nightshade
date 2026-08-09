@@ -62,12 +62,14 @@ class _HealthGradeCard extends StatelessWidget {
             label: context.l10n.text('diagnosticsTilt'),
             value: diagnostics.tiltScore,
             colors: colors,
+            measured: diagnostics.tiltMeasured,
           ),
           const SizedBox(height: 6),
           _ScoreBar(
             label: context.l10n.text('diagnosticsCollimation'),
             value: diagnostics.collimationScore,
             colors: colors,
+            measured: diagnostics.collimationMeasured,
           ),
         ],
       ),
@@ -96,20 +98,28 @@ class _ScoreBar extends StatelessWidget {
   final double value;
   final NightshadeColors colors;
 
+  /// False when the axis had no data behind it. A penalty of 0 is the best
+  /// score, so an unmeasured axis otherwise draws an empty green bar reading
+  /// "0" — visually identical to a perfect optical train.
+  final bool measured;
+
   const _ScoreBar({
     required this.label,
     required this.value,
     required this.colors,
+    this.measured = true,
   });
 
   @override
   Widget build(BuildContext context) {
     final clampedValue = value.clamp(0.0, 100.0);
-    final barColor = clampedValue < 18
-        ? colors.success
-        : clampedValue < 30
-            ? colors.warning
-            : colors.error;
+    final barColor = !measured
+        ? colors.textMuted
+        : clampedValue < 18
+            ? colors.success
+            : clampedValue < 30
+                ? colors.warning
+                : colors.error;
 
     return Row(
       children: [
@@ -131,7 +141,7 @@ class _ScoreBar extends StatelessWidget {
             ),
             child: FractionallySizedBox(
               alignment: Alignment.centerLeft,
-              widthFactor: clampedValue / 100.0,
+              widthFactor: measured ? clampedValue / 100.0 : 0.0,
               child: Container(
                 decoration: BoxDecoration(
                   color: barColor,
@@ -146,7 +156,7 @@ class _ScoreBar extends StatelessWidget {
         SizedBox(
           width: 36,
           child: Text(
-            clampedValue.toStringAsFixed(0),
+            measured ? clampedValue.toStringAsFixed(0) : '—',
             textAlign: TextAlign.right,
             style: NightshadeTypography.labelStrongSm.copyWith(color: barColor),
           ),
@@ -171,16 +181,26 @@ class _TiltAssessmentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final direction = diagnostics.dominantTiltDirection;
     final score = diagnostics.tiltScore;
-    final severity = score >= 30
-        ? 'Strong tilt'
-        : score >= 18
-            ? 'Watch tilt'
-            : 'Within range';
-    final severityColor = score >= 30
-        ? colors.error
-        : score >= 18
-            ? colors.warning
-            : colors.success;
+    // A tilt penalty of 0 is the BEST possible score, so a session with no PSF
+    // field tiles produced the same number as a perfectly flat field — and this
+    // card badged it "Within range" and stated "tilt looks controlled for this
+    // session" beside its own "0 tiles" panel. A user who came here suspecting
+    // tilt read a green verdict and stopped investigating.
+    final measured = diagnostics.tiltMeasured;
+    final severity = !measured
+        ? 'Not measured'
+        : score >= 30
+            ? 'Strong tilt'
+            : score >= 18
+                ? 'Watch tilt'
+                : 'Within range';
+    final severityColor = !measured
+        ? colors.textMuted
+        : score >= 30
+            ? colors.error
+            : score >= 18
+                ? colors.warning
+                : colors.success;
 
     return _DiagCard(
       colors: colors,
@@ -191,12 +211,17 @@ class _TiltAssessmentCard extends StatelessWidget {
             children: [
               Icon(LucideIcons.move, size: 16, color: colors.primary),
               const SizedBox(width: 8),
-              Text(
-                'Tilt',
-                style:
-                    NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+              // See the matching note on the Collimation card: a fixed-width
+              // title beside the widest badge overflows the 320 px column.
+              Expanded(
+                child: Text(
+                  'Tilt',
+                  overflow: TextOverflow.ellipsis,
+                  style: NightshadeTypography.h5
+                      .copyWith(color: colors.textPrimary),
+                ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
@@ -243,11 +268,15 @@ class _TiltAssessmentCard extends StatelessWidget {
           const SizedBox(height: 4),
           Center(
             child: Text(
-              score >= 30
-                  ? 'Score ${score.toStringAsFixed(1)}: check tilt adjusters, focuser sag, or adapter seating.'
-                  : score >= 18
-                      ? 'Score ${score.toStringAsFixed(1)}: compare corners before making a mechanical change.'
-                      : 'Score ${score.toStringAsFixed(1)}: tilt looks controlled for this session.',
+              !measured
+                  ? 'No PSF field tiles for this session, so tilt was not '
+                      'measured. Capture plate-solved frames with science '
+                      'field metrics enabled.'
+                  : score >= 30
+                      ? 'Score ${score.toStringAsFixed(1)}: check tilt adjusters, focuser sag, or adapter seating.'
+                      : score >= 18
+                          ? 'Score ${score.toStringAsFixed(1)}: compare corners before making a mechanical change.'
+                          : 'Score ${score.toStringAsFixed(1)}: tilt looks controlled for this session.',
               style: TextStyle(
                 fontSize: NightshadeTypography.fontSize11,
                 color: colors.textMuted,

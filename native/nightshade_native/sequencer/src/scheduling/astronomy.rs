@@ -4,6 +4,12 @@
 //! `angularSeparation`, `airmass`, `calculateObjectVisibility`. The formulae,
 //! constants, and conventions are byte-for-byte copies of the Dart source so
 //! the parity test in `scoring::tests` can assert numeric equality.
+//!
+//! [`airmass`] is the one deliberate exception: it delegates to
+//! `nightshade_imaging::calculate_airmass` rather than carrying its own copy,
+//! so the atmosphere the scheduler ranks targets under and the atmosphere
+//! written into the `AIRMASS` card of the resulting frames are the same one.
+//! See its doc comment for why the Dart parity survives that.
 
 use chrono::{DateTime, Datelike, Timelike, Utc};
 
@@ -91,16 +97,34 @@ pub fn object_alt_az(
     equatorial_to_horizontal(ra_deg, dec_deg, latitude_deg, lst)
 }
 
-/// Pickering (2002) airmass formula.
+/// Airmass at a true altitude, for target scoring.
 ///
-/// Returns `f64::INFINITY` for `altitude_deg <= 0`, matching the Dart
-/// behaviour.
+/// The formula is not here: it is `nightshade_imaging::calculate_airmass`, the
+/// same function that fills the `AIRMASS` card of every frame this scheduler's
+/// decisions produce. A scheduler ranking targets under a different atmosphere
+/// than the one recorded in the files can rank a target above a rival that its
+/// own headers then describe as the worse observation, and there is no way to
+/// tell from either surface which number was meant.
+///
+/// What stays here is the scheduler's own convention, which is a policy and
+/// not a formula: `f64::INFINITY` for `altitude_deg <= 0`, which
+/// [`super::scoring::score_airmass`] maps to a zero score. Note `<= 0`, not
+/// `< 0` — a target exactly on the horizon is unobservable and must not be
+/// scheduled, even though its airmass is finite (~31.7) and the FITS writer
+/// will quite correctly record it for a frame that was somehow taken there.
+/// That is the "31.73 vs infinity" disagreement, now stated once, in the one
+/// place that means it.
+///
+/// Dart parity is unaffected. `calculate_airmass` uses the identical Pickering
+/// (2002) expression at h ≥ 10° and switches to Young (1994) below it, where
+/// the two differ by at most 0.7 airmass out of >5 — every altitude in that
+/// band already scores in `score_airmass`'s bottom bucket under either, so the
+/// scores the parity test compares are unchanged.
 pub fn airmass(altitude_deg: f64) -> f64 {
     if altitude_deg <= 0.0 {
         return f64::INFINITY;
     }
-    let h = altitude_deg;
-    1.0 / ((h + 244.0 / (165.0 + 47.0 * h.powf(1.1))) * DEG2RAD).sin()
+    nightshade_imaging::calculate_airmass(altitude_deg).unwrap_or(f64::INFINITY)
 }
 
 /// Angular separation between two sky positions (degrees).
@@ -217,6 +241,33 @@ mod tests {
     fn airmass_below_horizon_is_infinity() {
         assert!(airmass(-1.0).is_infinite());
         assert!(airmass(0.0).is_infinite());
+    }
+
+    /// The scheduler and the FITS writer must be describing one atmosphere.
+    ///
+    /// This module used to carry its own Pickering copy, which agreed with the
+    /// writer's `calculate_airmass` above 10° and diverged below it — by 7
+    /// airmass at the horizon, where the writer switches to Young 1994. So the
+    /// scheduler could rank a target on one airmass while every frame it then
+    /// produced recorded a different one, with nothing on either surface
+    /// saying which was meant.
+    ///
+    /// Equality is asserted exactly, not to a tolerance: the point is that
+    /// there is one function, not two that currently happen to be close.
+    #[test]
+    fn airmass_is_the_same_function_the_fits_writer_uses() {
+        let mut h = 0.25_f64;
+        while h <= 90.0 {
+            let written = nightshade_imaging::calculate_airmass(h)
+                .expect("above the horizon, so the writer computes a card");
+            let scheduled = airmass(h);
+            assert_eq!(
+                scheduled, written,
+                "at {h}° the scheduler scores airmass {scheduled} while the frame it \
+                 produces would record {written}"
+            );
+            h += 0.25;
+        }
     }
 
     #[test]

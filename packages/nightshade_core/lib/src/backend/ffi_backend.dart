@@ -1,9 +1,7 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show visibleForTesting;
-import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import '../models/settings/app_settings.dart' as models;
@@ -12,8 +10,6 @@ import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_api;
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_caps;
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_device;
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_error;
-import 'package:nightshade_bridge/nightshade_bridge.dart'
-    show safelyCast, safelyCastOpt;
 
 // Import pure Dart types from backend_types for return types
 import '../models/backend/device_capabilities.dart' as dart_caps;
@@ -21,6 +17,7 @@ import '../models/backend/device_status.dart' as dart_status;
 import '../models/backend/device_types.dart' as dart_types;
 import '../models/errors/nightshade_error.dart' as dart_error;
 import 'bridge_event_mapper.dart' show recoveryFieldsFromTyped;
+import '../services/ip_geolocation.dart';
 
 part 'ffi_backend/event_mapping.dart';
 part 'ffi_backend/type_mappers.dart';
@@ -149,4 +146,18 @@ class FfiBackend extends _FfiBackendBase
   @visibleForTesting
   bridge.EquipmentProfile profileToBridgeForTesting(EquipmentProfile value) =>
       _toBridgeProfile(value);
+
+  /// The `(eventType, data)` pair a typed sequencer payload becomes on its way
+  /// into [NightshadeEvent.data].
+  ///
+  /// A seam, not a reimplementation: it calls the same private mapper the event
+  /// stream uses, so a test can assert what actually reaches the map without
+  /// standing up the native bridge. Worth the seam because this is the only
+  /// hop between the typed FRB payload and the untyped map every listener
+  /// reads — dropping a field here puts NULLs back in `captured_images` with
+  /// nothing on either side of it noticing.
+  @visibleForTesting
+  (String, Map<String, dynamic>) sequencerEventInfoForTesting(
+    bridge.SequencerEvent event,
+  ) => _extractSequencerEventInfo(event);
 }

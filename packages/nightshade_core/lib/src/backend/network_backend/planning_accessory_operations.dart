@@ -423,8 +423,14 @@ mixin _NetworkBackendPlanningAccessoryOperations on _NetworkBackendTransport {
   }
 
   /// Run a lifecycle command against the imaging host's scheduler engine.
-  Future<Map<String, dynamic>> controlScheduler(String action) async {
-    return _post('scheduler/control', {'action': action});
+  Future<Map<String, dynamic>> controlScheduler(
+    String action, {
+    bool confirmWarnings = false,
+  }) async {
+    return _post('scheduler/control', {
+      'action': action,
+      if (confirmWarnings) 'confirmWarnings': true,
+    });
   }
 
   /// Persist and apply scheduler scoring configuration on the imaging host.

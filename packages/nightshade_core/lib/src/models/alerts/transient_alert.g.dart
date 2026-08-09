@@ -80,12 +80,7 @@ _TransientAlertSettings _$TransientAlertSettingsFromJson(
       (json['enabledSources'] as List<dynamic>?)
           ?.map((e) => $enumDecode(_$TransientSourceEnumMap, e))
           .toSet() ??
-      const {
-        TransientSource.aavso,
-        TransientSource.mpec,
-        TransientSource.cbat,
-        TransientSource.manual,
-      },
+      const {TransientSource.tns, TransientSource.manual},
   magnitudeThreshold: (json['magnitudeThreshold'] as num?)?.toDouble() ?? 15.0,
   typesToMonitor:
       (json['typesToMonitor'] as List<dynamic>?)

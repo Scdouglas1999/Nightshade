@@ -318,7 +318,11 @@ void main() {
       expect(night.score, 0.0);
       // The week is still "available" overall; the night just scores 0.
       expect(week.available, isTrue);
-      expect(week.bestNight, isNotNull); // the single available night
+      expect(
+        week.bestNight,
+        isNull,
+        reason: 'a night with no darkness at all is not a "best night"',
+      );
     });
   });
 

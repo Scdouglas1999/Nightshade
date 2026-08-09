@@ -10,6 +10,7 @@ import 'package:nightshade_app/utils/authority_bound_dialog.dart';
 import 'package:nightshade_app/utils/snackbar_helper.dart';
 import '../widgets/quick_start_wizard_dialog.dart';
 import '../../../utils/count_label.dart';
+import '../sequence_counts.dart';
 
 // ---------------------------------------------------------------------------
 // File split: the rest of this library lives in `templates_tab_parts/`.

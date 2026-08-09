@@ -65,14 +65,18 @@ Future<bool> confirmAndDeleteSequenceNode({
           designMaxWidth: 440,
         ),
         child: Text(
+          // Name the toolbar button first. Ctrl+Z is real but needs keyboard
+          // focus inside the builder; the toolbar Undo always works, and a
+          // recovery instruction that only sometimes applies is worse than
+          // none.
           descendants == 0
               ? 'This node will be removed from the sequence. '
-                  'This cannot be undone except via Undo (Ctrl+Z).'
+                  'Recover it with Undo in the toolbar (or Ctrl+Z).'
               : descendants == 1
                   ? 'This will also remove its 1 descendant. '
-                      'This cannot be undone except via Undo (Ctrl+Z).'
+                      'Recover it with Undo in the toolbar (or Ctrl+Z).'
                   : 'This will also remove its $descendants descendants. '
-                      'This cannot be undone except via Undo (Ctrl+Z).',
+                      'Recover it with Undo in the toolbar (or Ctrl+Z).',
           style: TextStyle(color: resolvedColors.textSecondary),
         ),
       ),

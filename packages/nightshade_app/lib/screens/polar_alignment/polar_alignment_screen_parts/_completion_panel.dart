@@ -3,20 +3,47 @@
 
 part of '../polar_alignment_screen.dart';
 
+/// Whether a finished run actually got the polar axis inside the threshold the
+/// operator configured.
+///
+/// The terminal phase only says "the task ended" — it is reached by Done, by
+/// Stop and by the native auto-complete alike. Grading the success tick off the
+/// phase told an operator sitting on 30' of residual error that they were
+/// aligned. Top-level so the claim is testable without the screen.
+bool polarAlignmentReachedThreshold(PolarAlignmentState state) {
+  final threshold = state.config?.autoCompleteThreshold;
+  if (threshold == null || state.currentError == null) return false;
+  return state.isWithinThreshold(threshold);
+}
+
+/// Signed change in total error, arcseconds removed (positive = improved).
+///
+/// `PolarAlignmentState.improvementPercent` clamps to 0..100, so a run that
+/// made the alignment *worse* is indistinguishable from one that changed
+/// nothing. The panel needs the sign, so it recomputes from the two errors.
+double polarAlignmentImprovementArcsec(PolarAlignmentState state) {
+  final initial = state.initialError;
+  final current = state.currentError;
+  if (initial == null || current == null) return 0;
+  return initial.totalError - current.totalError;
+}
+
 extension _CompletionPanel on _PolarAlignmentScreenState {
   Widget _buildCompleteStatus(
       NightshadeColors colors, PolarAlignmentState state) {
+    final reached = polarAlignmentReachedThreshold(state);
+    final threshold = state.config?.autoCompleteThreshold;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Icon(
-          NightshadeIcons.success,
+          reached ? NightshadeIcons.success : NightshadeIcons.warning,
           size: 64,
-          color: colors.success,
+          color: reached ? colors.success : colors.warning,
         ),
         const SizedBox(height: 16),
         Text(
-          'Alignment Complete',
+          reached ? 'Alignment Complete' : 'Alignment Stopped',
           style: TextStyle(
             fontSize: NightshadeTypography.fontSize20,
             fontWeight: FontWeight.bold,
@@ -26,10 +53,14 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
         const SizedBox(height: 8),
         if (state.currentError != null)
           Text(
-            'Final error: ${state.currentError!.totalError.toStringAsFixed(1)} arcseconds',
+            reached || threshold == null
+                ? 'Final error: ${formatPolarError(state.currentError!.totalError)}'
+                : 'Still ${formatPolarError(state.currentError!.totalError)} off — '
+                    'the ${formatPolarError(threshold)} target was not reached',
+            textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: NightshadeTypography.fontSize14,
-              color: colors.textSecondary,
+              color: reached ? colors.textSecondary : colors.warning,
             ),
           ),
         const SizedBox(height: 24),
@@ -46,6 +77,20 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
     final initial = state.initialError!;
     final current = state.currentError!;
     final improvementPercent = state.improvementPercent ?? 0.0;
+    // Grade the chip by the SIGN of the change, not by the clamped percent:
+    // a run that removed nothing (or made it worse) must not wear the same
+    // green "+0%" as one that halved the error.
+    final improvedArcsec = polarAlignmentImprovementArcsec(state);
+    final roundedPercent = improvementPercent.round();
+    final improved = improvedArcsec > 0 && roundedPercent > 0;
+    final worsened = improvedArcsec < 0;
+    final chipColor = improved
+        ? colors.success
+        : worsened
+            ? colors.error
+            : colors.textMuted;
+    final chipLabel =
+        improved ? '+$roundedPercent%' : (worsened ? 'Worse' : 'No change');
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -64,8 +109,14 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
               children: [
                 Row(
                   children: [
-                    Icon(LucideIcons.trendingDown,
-                        size: 18, color: colors.success),
+                    Icon(
+                        improved
+                            ? LucideIcons.trendingDown
+                            : worsened
+                                ? LucideIcons.trendingUp
+                                : LucideIcons.minus,
+                        size: 18,
+                        color: chipColor),
                     const SizedBox(width: 8),
                     Text(
                       'Alignment Summary',
@@ -100,7 +151,7 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              '${initial.totalError.toStringAsFixed(0)}"',
+                              formatPolarError(initial.totalError),
                               style: TextStyle(
                                 fontSize: NightshadeTypography.fontSize24,
                                 fontWeight: FontWeight.bold,
@@ -109,13 +160,13 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Az: ${initial.azimuthError.toStringAsFixed(1)}"',
+                              'Az: ${formatPolarError(initial.azimuthError)}',
                               style: TextStyle(
                                   fontSize: NightshadeTypography.fontSize10,
                                   color: colors.textMuted),
                             ),
                             Text(
-                              'Alt: ${initial.altitudeError.toStringAsFixed(1)}"',
+                              'Alt: ${formatPolarError(initial.altitudeError)}',
                               style: TextStyle(
                                   fontSize: NightshadeTypography.fontSize10,
                                   color: colors.textMuted),
@@ -135,12 +186,14 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
                       ),
                     ),
 
-                    // After
+                    // After — tinted by the outcome, not by being the second
+                    // box. A green "After" beside an unchanged number reads as
+                    // a result the run did not produce.
                     Expanded(
                       child: Container(
                         padding: const EdgeInsets.all(12),
                         decoration: NightshadeDecorations.tintedBadge(
-                          colors.success,
+                          chipColor,
                           borderRadius: NightshadeTokens.borderRadiusInline8,
                         ),
                         child: Column(
@@ -151,12 +204,12 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
                               style: TextStyle(
                                 fontSize: NightshadeTypography.fontSize10,
                                 fontWeight: FontWeight.w600,
-                                color: colors.success,
+                                color: chipColor,
                               ),
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              '${current.totalError.toStringAsFixed(0)}"',
+                              formatPolarError(current.totalError),
                               style: TextStyle(
                                 fontSize: NightshadeTypography.fontSize24,
                                 fontWeight: FontWeight.bold,
@@ -165,13 +218,13 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Az: ${current.azimuthError.toStringAsFixed(1)}"',
+                              'Az: ${formatPolarError(current.azimuthError)}',
                               style: TextStyle(
                                   fontSize: NightshadeTypography.fontSize10,
                                   color: colors.textMuted),
                             ),
                             Text(
-                              'Alt: ${current.altitudeError.toStringAsFixed(1)}"',
+                              'Alt: ${formatPolarError(current.altitudeError)}',
                               style: TextStyle(
                                   fontSize: NightshadeTypography.fontSize10,
                                   color: colors.textMuted),
@@ -216,15 +269,15 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 4),
                       decoration: NightshadeDecorations.tintedBadge(
-                        colors.success,
+                        chipColor,
                         borderRadius: NightshadeTokens.borderRadiusInline4,
                       ),
                       child: Text(
-                        '+${improvementPercent.toStringAsFixed(0)}%',
+                        chipLabel,
                         style: TextStyle(
                           fontSize: NightshadeTypography.fontSize14,
                           fontWeight: FontWeight.bold,
-                          color: colors.success,
+                          color: chipColor,
                         ),
                       ),
                     ),

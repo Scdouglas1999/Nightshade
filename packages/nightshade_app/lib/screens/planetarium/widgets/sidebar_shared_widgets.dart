@@ -279,9 +279,14 @@ class TargetCard extends StatefulWidget {
   final String name;
   final String catalog;
   final String type;
-  final String? altitude;
+
+  /// Headline value for this card — hours of usable darkness on the Tonight
+  /// tab, magnitude in the catalog list. Rendered in the success colour.
+  final String? metric;
   final String? magnitude;
-  final String transit;
+
+  /// One-line qualifier under the headline (peak altitude and time, 'mag', …).
+  final String caption;
   final NightshadeColors colors;
   final VoidCallback? onTap;
   final VoidCallback? onSendToFraming;
@@ -292,9 +297,9 @@ class TargetCard extends StatefulWidget {
     required this.name,
     required this.catalog,
     required this.type,
-    this.altitude,
+    this.metric,
     this.magnitude,
-    required this.transit,
+    required this.caption,
     required this.colors,
     this.onTap,
     this.onSendToFraming,
@@ -425,27 +430,38 @@ class _TargetCardState extends State<TargetCard> {
                 ),
               ],
               const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    widget.magnitude ?? widget.altitude ?? '-',
-                    style: NightshadeTypography.labelStrong.copyWith(
-                      // Magnitude is a neutral catalog value, not a transit
-                      // altitude — keep it out of the success-green slot.
-                      color: widget.magnitude != null
-                          ? widget.colors.textSecondary
-                          : widget.colors.success,
+              // Bounded: the trailing column used to size to its text, so a
+              // caption longer than a bare HH:MM pushed the row past a narrow
+              // sidebar and struck the overflow stripe.
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 96),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      widget.magnitude ?? widget.metric ?? '-',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: NightshadeTypography.labelStrong.copyWith(
+                        // Magnitude is a neutral catalog value, not a measure
+                        // of how good tonight is — keep it out of the
+                        // success-green slot.
+                        color: widget.magnitude != null
+                            ? widget.colors.textSecondary
+                            : widget.colors.success,
+                      ),
                     ),
-                  ),
-                  Text(
-                    widget.transit,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize10,
-                      color: widget.colors.textMuted,
+                    Text(
+                      widget.caption,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize10,
+                        color: widget.colors.textMuted,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),

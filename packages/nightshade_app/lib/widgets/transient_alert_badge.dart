@@ -343,12 +343,18 @@ class _TransientAlertDropdownContent extends ConsumerWidget {
                   color: colors.primary,
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  'Transient Alerts',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
+                // Flexible: the dropdown is a fixed ~280px, so a wide text
+                // scale or a longer translation of this title would otherwise
+                // overflow the header row rather than shorten.
+                Flexible(
+                  child: Text(
+                    'Transient Alerts',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: colors.textPrimary,
+                    ),
                   ),
                 ),
               ],
@@ -430,9 +436,12 @@ class _TransientAlertDropdownContent extends ConsumerWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: displayedAlerts.map((alert) {
-        final alertState = states[alert.id];
-        final isNew =
-            alertState == null || alertState == TransientAlertState.newAlert;
+        // Resolve through the alert's own state, not the overrides map alone.
+        // That map only ever holds the queue/dismiss actions taken on THIS
+        // surface, so reading it bare re-badged a First Light detection the
+        // user had already confirmed as "new" here.
+        final isNew = resolveTransientAlertState(alert, states) ==
+            TransientAlertState.newAlert;
 
         return _AlertListItem(
           alert: alert,

@@ -29,6 +29,7 @@ import 'package:nightshade_app/screens/sequencer/widgets/run_dashboard/session_w
 import 'package:nightshade_app/utils/sequence_mutator_helper.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -45,6 +46,7 @@ void main() {
         SequenceExecutionState.stopping,
       ]) {
         final c = ProviderContainer(overrides: [
+          inMemoryDatabaseOverride(),
           sequenceExecutionStateProvider.overrideWith((ref) => state),
         ]);
         addTearDown(c.dispose);
@@ -60,6 +62,7 @@ void main() {
         SequenceExecutionState.failed,
       ]) {
         final c = ProviderContainer(overrides: [
+          inMemoryDatabaseOverride(),
           sequenceExecutionStateProvider.overrideWith((ref) => state),
         ]);
         addTearDown(c.dispose);
@@ -80,6 +83,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            inMemoryDatabaseOverride(),
             sequenceExecutionStateProvider
                 .overrideWith((ref) => SequenceExecutionState.idle),
           ],
@@ -126,6 +130,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            inMemoryDatabaseOverride(),
             sequenceExecutionStateProvider
                 .overrideWith((ref) => SequenceExecutionState.idle),
           ],
@@ -277,6 +282,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            inMemoryDatabaseOverride(),
             liveSequenceStatsProvider.overrideWith((ref) => null),
           ],
           child: MaterialApp(
@@ -304,6 +310,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            inMemoryDatabaseOverride(),
             liveSequenceStatsProvider.overrideWith((ref) => stats),
           ],
           child: MaterialApp(
@@ -348,6 +355,7 @@ void main() {
     //     throws SequenceLockedException.
     test('canEditSequenceProvider is false while running', () {
       final c = ProviderContainer(overrides: [
+        inMemoryDatabaseOverride(),
         sequenceExecutionStateProvider
             .overrideWith((ref) => SequenceExecutionState.running),
       ]);

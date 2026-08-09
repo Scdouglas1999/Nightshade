@@ -200,8 +200,16 @@ class WeekForecast extends Equatable {
       unavailableReason = reason;
 
   /// The available night with the highest [NightForecast.score], or null when
-  /// no night is available. Unavailable nights are ignored entirely; ties keep
-  /// the earliest (first) qualifying night.
+  /// no night is available or no night scores above zero. Unavailable nights
+  /// are ignored entirely; ties keep the earliest (first) qualifying night.
+  ///
+  /// The zero-score guard is what stops the week strip recommending a night.
+  /// [NightForecast.score] is 0 for every night that has no darkness, no clear
+  /// dark time, or no project target up — so with an empty project EVERY night
+  /// scores 0 and the "keep the earliest on a tie" rule would star night one
+  /// regardless of its weather, putting the "best night" marker on a fully
+  /// clouded night while a clear one sits next to it. There is no best night
+  /// when nothing is imageable on any of them; say so instead of guessing.
   NightForecast? get bestNight {
     NightForecast? best;
     for (final night in nights) {
@@ -210,6 +218,7 @@ class WeekForecast extends Equatable {
         best = night;
       }
     }
+    if (best != null && best.score <= 0.0) return null;
     return best;
   }
 

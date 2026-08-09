@@ -7,6 +7,6 @@
 // individual file directly.
 
 export 'mock_backend.dart' show MockBackend, mockBackend;
-export 'mock_database.dart' show mockDatabase;
+export 'mock_database.dart' show mockDatabase, inMemoryDatabaseOverride;
 export 'pump_app_screen.dart'
     show HarnessHandle, TestBackendNotifier, findByDataKey, pumpAppScreen;

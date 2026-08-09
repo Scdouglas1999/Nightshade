@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../services/logging_service.dart';
 import 'settings_provider.dart';
 
 /// Time-source abstraction for Nightshade.
@@ -27,7 +28,31 @@ import 'settings_provider.dart';
 /// `DateTime.now()` directly (the system clock is not what the user
 /// chose — it is what the OS scheduler counts on).
 abstract class Clock {
+  /// The current time **as the operator wants to read it** — field values
+  /// (hour, minute…) in the chosen zone, for putting on screen.
+  ///
+  /// This is a rendering, not an instant. Dart has no arbitrary-offset
+  /// `DateTime`, so [FixedOffsetClock] returns the shifted fields tagged
+  /// `isUtc: false`; the host then treats them as its own local time.
+  /// `now().toUtc()`, `now().millisecondsSinceEpoch` and
+  /// `now().difference(someRealTimestamp)` are therefore all wrong by the
+  /// chosen offset *plus* the host's. Use [nowUtc] for any of those.
   DateTime now();
+
+  /// The current instant, as UTC — always the true moment, whatever zone the
+  /// operator picked.
+  ///
+  /// Everything that stores, compares, subtracts or serialises a time wants
+  /// this: capture timestamps, filenames, scheduler evaluation, staleness
+  /// checks. Only code putting digits on a screen wants [now].
+  DateTime nowUtc();
+
+  /// How far ahead of UTC the chosen zone runs.
+  ///
+  /// Consumers that do their own zone arithmetic against a real instant (the
+  /// scheduler evaluates time-window constraints in site-local minutes) need
+  /// the offset rather than a pre-rendered `DateTime`.
+  Duration get utcOffset;
 
   /// Translate an arbitrary [DateTime] (assumed UTC) into the user's
   /// chosen clock zone. Useful when the underlying source is UTC-based
@@ -43,12 +68,19 @@ class SystemClock implements Clock {
   DateTime now() => DateTime.now();
 
   @override
+  DateTime nowUtc() => DateTime.now().toUtc();
+
+  @override
+  Duration get utcOffset => DateTime.now().timeZoneOffset;
+
+  @override
   DateTime fromUtc(DateTime utc) => utc.toLocal();
 }
 
 /// Clock that returns `DateTime.now()` shifted by a fixed offset relative
 /// to UTC. Constructed when the user picks a non-system timezone.
 class FixedOffsetClock implements Clock {
+  @override
   final Duration utcOffset;
   final String label;
 
@@ -81,6 +113,13 @@ class FixedOffsetClock implements Clock {
   @override
   DateTime now() => _wallClock(DateTime.now().toUtc());
 
+  /// Deliberately *not* derived from [now]: `_wallClock` throws the offset
+  /// away by re-tagging the shifted fields as host-local, so rebasing it
+  /// would double-count. The instant is the same whatever zone you display
+  /// it in.
+  @override
+  DateTime nowUtc() => DateTime.now().toUtc();
+
   @override
   DateTime fromUtc(DateTime utc) {
     final asUtc = utc.isUtc ? utc : utc.toUtc();
@@ -92,9 +131,10 @@ class FixedOffsetClock implements Clock {
 ///
 /// Default falls back to [SystemClock] whenever settings are loading,
 /// the user has chosen "use system time", or the configured TZ label
-/// cannot be parsed. Failure to parse is explicit and logged at the
-/// `Clock.fromUtc` call sites — we do not silently return the system
-/// clock for unknown TZ strings.
+/// cannot be parsed. An unparseable label is logged here (once per rebuild
+/// of this provider, not once per `now()`), because a silent fallback makes
+/// the Timezone picker look applied while every timestamp stays on host
+/// local time.
 final clockProvider = Provider<Clock>((ref) {
   final settings = ref.watch(appSettingsProvider).valueOrNull;
   if (settings == null || settings.useSystemTime) {
@@ -102,11 +142,18 @@ final clockProvider = Provider<Clock>((ref) {
   }
   final offset = _parseTimezoneOffset(settings.timezone);
   if (offset == null) {
-    // Why: surface unparseable TZ as system clock so the app keeps
-    // working, but log the issue so the user/operator sees the
-    // misconfiguration. Settings UI should validate the picker
-    // contents; an unrecognised value here is a contract bug we want
-    // visible.
+    // Surface an unparseable TZ as the system clock so the app keeps
+    // working, but say so. The doc comment above claimed this was logged and
+    // it was not, so a picker value the parser rejects produced a clock
+    // silently identical to "use system time".
+    ref
+        .read(loggingServiceProvider)
+        .warning(
+          'Timezone "${settings.timezone}" is not a recognised UTC offset; '
+          'falling back to host system time. Choose a "UTC" or "UTC±HH:MM" '
+          'entry in Settings → Location → Timezone.',
+          source: 'clockProvider',
+        );
     return const SystemClock();
   }
   return FixedOffsetClock(utcOffset: offset, label: settings.timezone);

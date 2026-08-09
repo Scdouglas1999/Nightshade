@@ -581,6 +581,12 @@ pub enum SequencerEvent {
         /// frames via `FrameRejected.reject_path`. `None` for legacy /
         /// non-grading emit sites that did not thread the path through.
         save_path: Option<String>,
+        /// Per-frame capture truth, taken from the `FrameContext` the FITS
+        /// writer stamped this frame's header from. Dart persists it straight
+        /// into `captured_images`, which is why the row and the file agree:
+        /// both are written from one struct rather than two independent
+        /// reconstructions of the same exposure.
+        capture: FrameCaptureMetadata,
     },
     /// Image Grading: a frame failed at least one
     /// quality threshold and was routed to the reject folder. Mirrors
@@ -624,6 +630,10 @@ pub enum SequencerEvent {
         guide_rms_at_capture: Option<f64>,
         /// Sensor temperature (°C) at capture time.
         sensor_temp_at_capture: Option<f64>,
+        /// Per-frame capture truth — see [`SequencerEvent::FrameAccepted`].
+        /// A rejected frame is still on disk and still gets a row, so it is
+        /// stamped from the same struct.
+        capture: FrameCaptureMetadata,
     },
     /// TargetScheduler decision. Mirrors
     /// `ProgressDetail::Scheduler`. The score table is exposed as a
@@ -954,6 +964,67 @@ pub struct SchedulerScoreEntry {
     /// Human-readable reason, populated when `runnable == false`
     /// (e.g. "below altitude limit", "before start window").
     pub reason: Option<String>,
+}
+
+/// Per-frame capture truth carried across FRB on the frame events. Mirrors
+/// `nightshade_sequencer::scheduling::FrameCaptureMetadata` field for field,
+/// living in the bridge crate for the same reason [`SchedulerScoreEntry`] does.
+///
+/// Every one of these values is already in the FITS header the sequencer wrote
+/// for the same exposure. Shipping them on the event is what lets Dart write
+/// the `captured_images` row from the header's own source instead of
+/// reconstructing a second, thinner version of the frame from the sequence
+/// tree — the reconstruction that left rows with NULL gain, offset, sensor
+/// temperature, pointing, focuser position and rotator angle.
+#[frb]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct FrameCaptureMetadata {
+    pub gain: Option<i32>,
+    pub offset: Option<i32>,
+    pub sensor_temp_c: Option<f64>,
+    pub cooler_power_percent: Option<f64>,
+    /// Mount right ascension in HOURS, matching `captured_images.mount_ra`.
+    /// The FITS `RA` card is degrees; do not copy this into a degrees-valued
+    /// field without multiplying by 15.
+    pub mount_ra_hours: Option<f64>,
+    pub mount_dec_degrees: Option<f64>,
+    pub mount_altitude_deg: Option<f64>,
+    pub mount_azimuth_deg: Option<f64>,
+    /// `"East"` / `"West"`, or `None` when no mount answered.
+    pub pier_side: Option<String>,
+    pub focuser_position: Option<i32>,
+    pub focuser_temperature_c: Option<f64>,
+    pub rotator_angle_deg: Option<f64>,
+    pub exposure_secs: f64,
+    pub bin_x: u32,
+    pub bin_y: u32,
+    /// "Light" / "Dark" / "Flat" / "Bias" — the FITS `IMAGETYP` string.
+    pub frame_type: String,
+    pub target_id: Option<String>,
+}
+
+impl From<&nightshade_sequencer::scheduling::FrameCaptureMetadata> for FrameCaptureMetadata {
+    fn from(m: &nightshade_sequencer::scheduling::FrameCaptureMetadata) -> Self {
+        Self {
+            gain: m.gain,
+            offset: m.offset,
+            sensor_temp_c: m.sensor_temp_c,
+            cooler_power_percent: m.cooler_power_percent,
+            mount_ra_hours: m.mount_ra_hours,
+            mount_dec_degrees: m.mount_dec_degrees,
+            mount_altitude_deg: m.mount_altitude_deg,
+            mount_azimuth_deg: m.mount_azimuth_deg,
+            pier_side: m.pier_side.clone(),
+            focuser_position: m.focuser_position,
+            focuser_temperature_c: m.focuser_temperature_c,
+            rotator_angle_deg: m.rotator_angle_deg,
+            exposure_secs: m.exposure_secs,
+            bin_x: m.bin_x,
+            bin_y: m.bin_y,
+            frame_type: m.frame_type.clone(),
+            target_id: m.target_id.clone(),
+        }
+    }
 }
 
 /// Safety-specific events

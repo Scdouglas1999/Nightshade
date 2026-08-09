@@ -163,7 +163,12 @@ class SessionService {
 
   /// Start a new imaging session
   /// Returns the session ID
-  Future<int> startSession({String? name, int? targetId, int? profileId}) {
+  Future<int> startSession({
+    String? name,
+    int? targetId,
+    int? profileId,
+    int? sequenceId,
+  }) {
     if (_disposed) {
       return Future<int>.error(
         StateError('Cannot start a session after SessionService disposal.'),
@@ -190,6 +195,7 @@ class SessionService {
           name: name,
           targetId: targetId,
           profileId: profileId,
+          sequenceId: sequenceId,
         ).whenComplete(() {
           if (identical(_startInFlight, operation)) {
             _startInFlight = null;
@@ -203,17 +209,20 @@ class SessionService {
     String? name,
     int? targetId,
     int? profileId,
+    int? sequenceId,
   }) async {
     _logger.debug('Starting new session...', source: 'SessionService');
     _logger.debug('  Name: $name', source: 'SessionService');
     _logger.debug('  Target ID: $targetId', source: 'SessionService');
     _logger.debug('  Profile ID: $profileId', source: 'SessionService');
+    _logger.debug('  Sequence ID: $sequenceId', source: 'SessionService');
 
     // Create database session record with 'active' status
     final sessionId = await _records.startSession(
       name: name,
       profileId: profileId,
       targetId: targetId,
+      sequenceId: sequenceId,
     );
     if (_disposed) {
       try {
@@ -541,7 +550,7 @@ class SessionService {
       'Marking session $sessionId as aborted',
       source: 'SessionService',
     );
-    await _records.endSession(sessionId, status: 'aborted');
+    await _records.abortSession(sessionId);
   }
 
   /// Update checkpoint configuration

@@ -6,6 +6,8 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../constellation/constellation_format.dart';
 import '../mosaic/mosaic_contribute_sheet.dart';
+import '../sequencer/widgets/target_node_properties.dart'
+    show TargetCoordinateMatch, targetCoordinateLookupProvider;
 
 /// Open the "Start a live co-imaging session" sheet (Collaborative Sky WS3) and
 /// return the created [CoImagingSession], or null if the user cancelled.
@@ -110,6 +112,11 @@ class _CoImagingCreateSheetState extends ConsumerState<_CoImagingCreateSheet> {
   bool _busy = false;
   String? _error;
 
+  /// The name that was submitted for catalog resolution, or null when no lookup
+  /// is open. Kept separate from the name field so the result list does not
+  /// churn while the user is still typing.
+  String? _lookupQuery;
+
   @override
   void initState() {
     super.initState();
@@ -152,10 +159,12 @@ class _CoImagingCreateSheetState extends ConsumerState<_CoImagingCreateSheet> {
         radiusDeg != null &&
         !_busy;
 
-    return NightshadeDialog(
+    // Surface, not NightshadeDialog: showAdaptiveModal already supplies the
+    // frame (a Dialog on desktop, a bottom sheet on a phone). Nesting a second
+    // dialog stretched that frame into a full-height slab.
+    return NightshadeDialogSurface(
       title: 'Start co-imaging session',
       icon: LucideIcons.radio,
-      width: 560,
       showCloseButton: !_busy,
       closeEnabled: !_busy,
       actions: [
@@ -191,10 +200,30 @@ class _CoImagingCreateSheetState extends ConsumerState<_CoImagingCreateSheet> {
             hint: 'e.g. NGC 7000',
             prefixIcon: LucideIcons.target,
             textInputAction: TextInputAction.next,
-            onChanged: (_) => setState(() {}),
+            onChanged: (_) => setState(() {
+              // A newly typed name invalidates the last resolution.
+              _lookupQuery = null;
+            }),
             errorText:
                 _submitted && name.isEmpty ? 'Enter a target name.' : null,
           ),
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          // Nobody should be hand-typing RA/Dec for a target the app can
+          // already resolve: the installed catalogs and the target library
+          // answer the name above, and a connected mount is by definition
+          // pointing at what the operator wants to share.
+          _CoordinateSources(
+            canLookUp: name.length >= 2,
+            onLookUp: () => setState(() => _lookupQuery = name),
+            onUseMount: _applyMountPosition,
+          ),
+          if (_lookupQuery != null) ...[
+            const SizedBox(height: NightshadeTokens.spaceSm),
+            _LookupResults(
+              query: _lookupQuery!,
+              onApply: _applyMatch,
+            ),
+          ],
           const SizedBox(height: NightshadeTokens.spaceMd),
           NightshadeTextField(
             controller: _raController,
@@ -262,6 +291,35 @@ class _CoImagingCreateSheetState extends ConsumerState<_CoImagingCreateSheet> {
     );
   }
 
+  /// Fill the centre from a resolved catalog / library match, adopting its
+  /// canonical name so the session is advertised under the name other rigs will
+  /// search for.
+  void _applyMatch(TargetCoordinateMatch match) {
+    setState(() {
+      _nameController.text = match.name;
+      // The lookup speaks RA HOURS; this form's field is RA DEGREES.
+      _raController.text = _formatDegrees((match.raHours * 15.0) % 360);
+      _decController.text = _formatDegrees(match.decDegrees);
+      _lookupQuery = null;
+      _error = null;
+    });
+  }
+
+  /// Fill the centre from where the mount is actually pointing. The name is
+  /// left alone: only the operator knows what they are looking at.
+  void _applyMountPosition() {
+    final mount = ref.read(mountStateProvider);
+    final ra = mount.ra;
+    final dec = mount.dec;
+    if (ra == null || dec == null) return;
+    setState(() {
+      // MountState reports RA in HOURS; this form's field is RA DEGREES.
+      _raController.text = _formatDegrees((ra * 15.0) % 360);
+      _decController.text = _formatDegrees(dec);
+      _error = null;
+    });
+  }
+
   /// The error string for a coordinate/radius field: a "required" message only
   /// after a submit attempt, else an "invalid format" message while the field is
   /// non-empty but does not parse (and no error once it parses).
@@ -310,6 +368,138 @@ class _CoImagingCreateSheetState extends ConsumerState<_CoImagingCreateSheet> {
         _error = describeConstellationError(error);
       });
     }
+  }
+}
+
+/// The two ways to fill the centre without typing coordinates: resolve the
+/// typed name against the installed catalogs / target library, or take the
+/// mount's current pointing.
+class _CoordinateSources extends ConsumerWidget {
+  final bool canLookUp;
+  final VoidCallback onLookUp;
+  final VoidCallback onUseMount;
+
+  const _CoordinateSources({
+    required this.canLookUp,
+    required this.onLookUp,
+    required this.onUseMount,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mount = ref.watch(mountStateProvider);
+    final mountReady =
+        mount.connectionState == DeviceConnectionState.connected &&
+            mount.ra != null &&
+            mount.dec != null;
+
+    return Wrap(
+      spacing: NightshadeTokens.spaceSm,
+      runSpacing: NightshadeTokens.spaceXs,
+      children: [
+        Tooltip(
+          message: canLookUp
+              ? 'Resolve the name above against your catalogs'
+              : 'Type at least two characters of a target name',
+          child: NightshadeButton(
+            label: 'Look up coordinates',
+            icon: LucideIcons.search,
+            variant: ButtonVariant.outline,
+            size: ButtonSize.small,
+            onPressed: canLookUp ? onLookUp : null,
+          ),
+        ),
+        Tooltip(
+          message: mountReady
+              ? 'Use where the mount is pointing right now'
+              : 'Connect a mount to use its position',
+          child: NightshadeButton(
+            label: 'From mount',
+            icon: LucideIcons.move,
+            variant: ButtonVariant.outline,
+            size: ButtonSize.small,
+            onPressed: mountReady ? onUseMount : null,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Candidate list for a resolved name.
+///
+/// Reuses [targetCoordinateLookupProvider] — the app's single name-to-
+/// coordinates resolver, which searches the target library (over the wire on a
+/// remote client) and then the installed planetarium catalogs. It lives beside
+/// the sequencer's Target editor today; this is the second consumer.
+class _LookupResults extends ConsumerWidget {
+  final String query;
+  final void Function(TargetCoordinateMatch match) onApply;
+
+  const _LookupResults({required this.query, required this.onApply});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NightshadeColors.of(context);
+    final lookup = ref.watch(targetCoordinateLookupProvider(query));
+
+    Widget message(String text, {bool isProblem = false}) => Text(
+          text,
+          style: NightshadeTypography.captionSm.copyWith(
+            color: isProblem ? colors.warning : colors.textMuted,
+          ),
+        );
+
+    return lookup.when(
+      loading: () => message('Searching for "$query"…'),
+      error: (_, __) => message(
+        'Lookup failed. Enter RA/Dec below.',
+        isProblem: true,
+      ),
+      data: (matches) {
+        if (matches.isEmpty) {
+          return message(
+            'No match for "$query" in your target library or installed '
+            'catalogs. Install a catalog from Settings → Catalogs, or enter '
+            'RA/Dec below.',
+            isProblem: true,
+          );
+        }
+        return Container(
+          constraints: const BoxConstraints(maxHeight: 170),
+          decoration: BoxDecoration(
+            color: colors.surfaceAlt,
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+            border: Border.all(color: colors.border),
+          ),
+          child: Material(
+            type: MaterialType.transparency,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: matches.length,
+              itemBuilder: (context, index) {
+                final match = matches[index];
+                return ListTile(
+                  dense: true,
+                  title: Text(
+                    match.name,
+                    style: NightshadeTypography.captionSm
+                        .copyWith(color: colors.textPrimary),
+                  ),
+                  subtitle: Text(
+                    '${_formatDegrees((match.raHours * 15.0) % 360)}°  '
+                    '${_formatDegrees(match.decDegrees)}°',
+                    style: NightshadeTypography.captionSm
+                        .copyWith(color: colors.textMuted),
+                  ),
+                  onTap: () => onApply(match),
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
   }
 }
 

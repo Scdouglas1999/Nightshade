@@ -36,6 +36,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_core/src/backend/nightshade_backend.dart';
 import 'package:nightshade_core/src/database/database.dart';
+import 'package:nightshade_core/src/database/daos/images_dao.dart';
 import 'package:nightshade_core/src/database/daos/sessions_dao.dart';
 import 'package:nightshade_core/src/database/daos/stacked_results_dao.dart';
 import 'package:nightshade_core/src/models/imaging/stack_and_share_models.dart';
@@ -338,30 +339,35 @@ class _ReplaceableBackendNotifier extends BackendNotifier {
 
 /// Build a selection with [followerCount] followers after a single reference.
 /// Frame ids run 1..N; frame 1 is the reference. Paths are `/lights/N.fits`.
+/// Every frame is a 60s exposure, so the selection-wide total and the per-frame
+/// sum agree exactly the way the real selector makes them agree.
 StackSelectionSummary _selection({
   required int followerCount,
   String filter = 'L',
   String targetName = 'M51',
 }) {
+  const exposureSecs = 60.0;
   final frames = <StackedFrameSelection>[
     StackedFrameSelection(
       imageId: 1,
       filePath: '/lights/1.fits',
       filter: filter,
       isReference: true,
+      exposureSecs: exposureSecs,
     ),
     for (var i = 2; i <= followerCount + 1; i++)
       StackedFrameSelection(
         imageId: i,
         filePath: '/lights/$i.fits',
         filter: filter,
+        exposureSecs: exposureSecs,
       ),
   ];
   return StackSelectionSummary(
     selected: frames,
     referencePath: '/lights/1.fits',
     perFilterCounts: {filter: frames.length},
-    totalIntegrationSecs: frames.length * 60.0,
+    totalIntegrationSecs: frames.length * exposureSecs,
     targetName: targetName,
   );
 }
@@ -747,9 +753,205 @@ void main() {
         expect(terminalStacking.framesProcessed, 4); // reference + 3 followers
       },
     );
+
+    test('avgHfr is the mean HFR of the frames the engine integrated, not of '
+        'every selected frame', () async {
+      // captured_images ids 1..4 line up with the selection's frame ids.
+      // Frame 3 is the one the engine refuses, and it is deliberately the
+      // worst sub: if it leaked into the average the result would read 3.05
+      // instead of 2.20.
+      final images = ImagesDao(db);
+      for (var i = 0; i < 4; i++) {
+        const hfrs = [2.0, 2.4, 8.75, 2.2];
+        await images.insertSequenceFrame(
+          filePath: '/lights/${i + 1}.fits',
+          fileName: '${i + 1}.fits',
+          fileFormat: 'fits',
+          exposureDuration: 60,
+          capturedAt: DateTime.utc(2026, 7, 15),
+          isAccepted: true,
+          producingNodeId: 'node-1',
+          sessionId: sessionId,
+          hfr: hfrs[i],
+        );
+      }
+
+      final engine = _FakeStackingEngine();
+      // Reference (id 1) + followers 2 and 4 integrate; follower 3 does not
+      // advance the count, so it is rejected.
+      final live = _FakeLiveStacking(
+        followerCounts: const [2, 2, 3],
+        finalResult: _integrated(stackedFrameCount: 3),
+      );
+      final c = container(
+        selection: _selection(followerCount: 3),
+        liveStacking: live,
+      );
+      addTearDown(c.dispose);
+      final service = StackAndShareService(
+        c.read(_refProvider),
+        engine: engine,
+      );
+
+      final result = await service.run(
+        sessionId: sessionId,
+        config: const StackAndShareConfig(applyCalibration: false),
+      );
+
+      expect(result.avgHfr, isNotNull);
+      expect(result.avgHfr!, closeTo((2.0 + 2.4 + 2.2) / 3, 1e-9));
+
+      // …and it is the PERSISTED value, so the result viewer's "Avg HFR" row
+      // renders after a reopen rather than reading NULL out of the column.
+      final persisted = await c
+          .read(stackedResultsDaoProvider)
+          .getResultById(result.id!);
+      expect(persisted!.avgHfr, closeTo((2.0 + 2.4 + 2.2) / 3, 1e-9));
+    });
   });
 
   group('release on failure (d)', () {
+    // A frame the stacker refuses is a per-frame outcome, not a run-level
+    // abort. The reproduced defect: with 8 subs and calibration off, the very
+    // first follower was rejected for alignment residual, the Err escaped the
+    // followers loop into the run-level catch, the partial stacked_results row
+    // was deleted, and frames 3..8 were never attempted — one bad sub cost the
+    // whole night. The framesRejected counter beside the await was unreachable.
+    test(
+      'a rejected follower is counted and skipped; the run continues',
+      () async {
+        final engine = _FakeStackingEngine();
+        final live = _RejectingLiveStacking(
+          rejectPaths: {'/lights/3.fits'},
+          // Three followers accepted (2, 3, 4 of 5 attempted); frame 3 throws.
+          followerCounts: const [2, 3, 4],
+          finalResult: _integrated(stackedFrameCount: 4),
+        );
+        final c = container(
+          selection: _selection(followerCount: 4),
+          liveStacking: live,
+        );
+        addTearDown(c.dispose);
+        final service = StackAndShareService(
+          c.read(_refProvider),
+          engine: engine,
+        );
+
+        final progress = <StackAndShareProgress>[];
+        final result = await service.run(
+          sessionId: sessionId,
+          config: const StackAndShareConfig(applyCalibration: false),
+          onProgress: progress.add,
+        );
+
+        // Every follower after the rejected one was still attempted.
+        expect(live.addCalls, [
+          'addFile:/lights/2.fits',
+          'addFile:/lights/3.fits',
+          'addFile:/lights/4.fits',
+          'addFile:/lights/5.fits',
+        ]);
+        // The run completed and persisted a real row.
+        expect(progress.last.phase, StackAndSharePhase.complete);
+        expect(result.id, isNotNull);
+        expect(
+          await c.read(stackedResultsDaoProvider).getResultById(result.id!),
+          isNotNull,
+        );
+        // The rejection was counted, not swallowed.
+        final stacking = progress
+            .where((p) => p.phase == StackAndSharePhase.stacking)
+            .toList();
+        expect(stacking.last.framesRejected, 1);
+        expect(stacking.last.framesProcessed, 5);
+
+        // ...and the integration time describes the master that was built.
+        // 5 subs x 60s were offered; the engine took 4, so the stack is 4
+        // minutes, not 5. Quoting the selection-wide total here would overstate
+        // every stack that rejected anything — on the result screen, in the
+        // AstroBin sidecar and on the Share Card the user posts publicly.
+        expect(result.integrationSecs, 240);
+        expect(
+          (await c.read(stackedResultsDaoProvider).getResultById(result.id!))!
+              .integrationSecs,
+          240,
+          reason: 'the persisted row must carry the same honest total',
+        );
+      },
+    );
+
+    test('with nothing rejected the integration time is the whole '
+        'selection', () async {
+      // Guard against over-correcting: when the engine takes every sub, the
+      // per-frame sum must still equal the selection-wide total.
+      final engine = _FakeStackingEngine();
+      final live = _FakeLiveStacking(
+        followerCounts: const [2, 3, 4],
+        finalResult: _integrated(stackedFrameCount: 4),
+      );
+      final c = container(
+        selection: _selection(followerCount: 3),
+        liveStacking: live,
+      );
+      addTearDown(c.dispose);
+      final service = StackAndShareService(
+        c.read(_refProvider),
+        engine: engine,
+      );
+
+      final result = await service.run(
+        sessionId: sessionId,
+        config: const StackAndShareConfig(applyCalibration: false),
+      );
+
+      expect(result.integrationSecs, 240); // 4 subs x 60s, none refused
+    });
+
+    test(
+      'a run whose followers are ALL rejected fails with the dominant reason '
+      'instead of persisting a one-frame "stack"',
+      () async {
+        final engine = _FakeStackingEngine();
+        final live = _RejectingLiveStacking(
+          rejectPaths: {'/lights/2.fits', '/lights/3.fits'},
+          followerCounts: const [],
+          finalResult: _integrated(stackedFrameCount: 1),
+        );
+        final c = container(
+          selection: _selection(followerCount: 2),
+          liveStacking: live,
+        );
+        addTearDown(c.dispose);
+        final service = StackAndShareService(
+          c.read(_refProvider),
+          engine: engine,
+        );
+
+        await expectLater(
+          service.run(
+            sessionId: sessionId,
+            config: const StackAndShareConfig(applyCalibration: false),
+          ),
+          throwsA(
+            isA<StackAndShareAllFramesRejectedException>().having(
+              (e) => e.dominantReason,
+              'dominantReason',
+              contains('Alignment residual too high'),
+            ),
+          ),
+        );
+        // Both followers were still attempted before the run gave up.
+        expect(live.addCalls, [
+          'addFile:/lights/2.fits',
+          'addFile:/lights/3.fits',
+        ]);
+        expect(
+          await c.read(stackedResultsDaoProvider).getRecentResults(),
+          isEmpty,
+        );
+      },
+    );
+
     test('stops the engine even when a mid-run step throws, and surfaces the '
         'original error', () async {
       // getCurrentResult throws after the frames are stacked: the finally must
@@ -1263,6 +1465,33 @@ void main() {
 
 /// A [LiveStackingService] fake whose [getCurrentResult] throws, used to prove
 /// the finally still releases the engine on a mid-run failure.
+/// Rejects the named follower paths the way the native stacker actually does —
+/// by returning an `Err` that surfaces as a thrown `NightshadeError` — while
+/// accepting the rest. Every rejection path in stacking.rs (too few stars, too
+/// few matches, residual over the ceiling) behaves this way; none of them come
+/// back as an `Ok` with an unadvanced stacked count.
+class _RejectingLiveStacking extends _FakeLiveStacking {
+  _RejectingLiveStacking({
+    required this.rejectPaths,
+    required super.followerCounts,
+    required super.finalResult,
+  });
+
+  final Set<String> rejectPaths;
+
+  @override
+  Future<LiveStackingResult> addFrameFromFile(String imagePath) async {
+    addCalls.add('addFile:$imagePath');
+    if (rejectPaths.contains(imagePath)) {
+      throw Exception(
+        'NightshadeError.imageError(field0: Alignment residual too high: '
+        '10.34px (max 10.00px))',
+      );
+    }
+    return _nextResult();
+  }
+}
+
 class _ThrowingLiveStacking extends _FakeLiveStacking {
   _ThrowingLiveStacking({required super.followerCounts, required this.error})
     : super(finalResult: _integrated());

@@ -14,6 +14,12 @@ void main() {
 
   /// Brute-force: first descending (or rising) crossing of [targetAlt]
   /// in [start, end), scanning at 1-minute resolution.
+  ///
+  /// [targetAlt] is a GEOMETRIC sun-centre altitude (the -0.8333 deg rise/set
+  /// limb already contains the -34' refraction allowance), so the scan reads
+  /// geometric altitude. Scanning the refracted altitude against it would
+  /// count refraction twice and make this oracle agree with the very bug it
+  /// exists to catch.
   DateTime? bruteForceCrossing({
     required DateTime start,
     required DateTime end,
@@ -28,6 +34,7 @@ void main() {
           dt: t,
           latitudeDeg: lat,
           longitudeDeg: lon,
+          apparent: false,
         ) -
         targetAlt;
     while (t.isBefore(end)) {
@@ -37,6 +44,7 @@ void main() {
             dt: next,
             latitudeDeg: lat,
             longitudeDeg: lon,
+            apparent: false,
           ) -
           targetAlt;
       if (rising ? (prev < 0 && cur >= 0) : (prev > 0 && cur <= 0)) {

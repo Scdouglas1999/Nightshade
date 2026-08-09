@@ -3,7 +3,7 @@
 // camera, mount, focuser, and guider hardware behaviours.
 //
 // Owns:
-//   * Camera: coolingBehavior, defaultGain, defaultOffset
+//   * Camera: defaultGain, defaultOffset
 //   * Mount: enableMeridianFlip
 //   * Focuser: tempCompensation, tempCoefficient, backlashCompensation
 //   * Guider: ditherScale, settleThreshold, settleTimeout, settleTime,
@@ -22,11 +22,6 @@ part of '../settings_provider.dart';
 /// Setters for per-device-type equipment-default knobs.
 extension EquipmentSettingsSection on AppSettingsNotifier {
   // -------- Camera defaults --------
-  Future<void> setCoolingBehavior(String value) async {
-    await _saveSetting('cooling_behavior', value);
-    _patchState((s) => s.copyWith(coolingBehavior: value));
-  }
-
   Future<void> setDefaultGain(int value) async {
     await _saveSetting('default_gain', value.toString());
     _patchState((s) => s.copyWith(defaultGain: value));

@@ -40,7 +40,14 @@ final sequenceTimelineProvider = Provider<PreSessionSimulationResult?>((ref) {
   final twilight = ref.watch(preSessionTwilightTimesProvider);
   final hasLocation = settings != null &&
       (settings.latitude != 0.0 || settings.longitude != 0.0);
-  return const PreSessionSimulator().simulate(
+  // Shared overhead model — see the same construction in
+  // preflight_validation_dialog.dart. Two surfaces describing one sequence
+  // must not bill it differently.
+  return PreSessionSimulator(
+    estimator: SequenceTimeEstimator(
+      overhead: ref.watch(sequencerOverheadConfigProvider),
+    ),
+  ).simulate(
     sequence,
     start: DateTime.now(),
     latitude: hasLocation ? settings.latitude : null,

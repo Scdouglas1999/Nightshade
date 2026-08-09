@@ -8,7 +8,8 @@
 ///   id            INTEGER PRIMARY KEY AUTOINCREMENT
 ///   target_id     INTEGER NOT NULL  (FK targets.id, ON DELETE CASCADE)
 ///   kind          TEXT NOT NULL     ('timeWindow' | 'moonIlluminationMax'
-///                                    | 'customHorizon')
+///                                    | 'moonSeparationMin' | 'customHorizon'
+///                                    | 'scheduledWindow')
 ///   payload_json  TEXT NOT NULL     (kind-specific JSON payload)
 ///   enabled       INTEGER NOT NULL DEFAULT 1
 ///

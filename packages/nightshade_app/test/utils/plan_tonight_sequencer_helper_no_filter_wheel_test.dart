@@ -6,6 +6,7 @@ import 'package:nightshade_app/utils/plan_tonight_sequencer_helper.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart'
     show TargetVisibilityInfo;
+import '../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 class _ConfiguredSettingsNotifier extends AppSettingsNotifier {
   @override
@@ -69,6 +70,7 @@ List<Override> _overrides({bool wheelConnected = false}) {
   final goals = _FakeGoalService();
   when(() => goals.progressForTarget(any())).thenAnswer((_) async => const []);
   return [
+    inMemoryDatabaseOverride(),
     appSettingsProvider.overrideWith(_ConfiguredSettingsNotifier.new),
     activeEquipmentProfileProvider.overrideWithValue(_oscProfile),
     effectiveFiltersProvider.overrideWithValue(const <String>[]),

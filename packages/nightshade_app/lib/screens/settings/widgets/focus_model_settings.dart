@@ -12,14 +12,22 @@ import 'settings_widgets.dart';
 
 /// View the connected appliance's temperature-compensation focus model.
 ///
-/// The model is built on the rig (where autofocus runs); the orphaned local
-/// FocusModelPanel computes from local state and would be empty over the
-/// network. This pulls the rig's model (slope/R²/reliability) over REST so a
-/// remote operator can confirm temp-comp is healthy. Remote-only.
+/// The model is built on the rig (where autofocus runs). This pulls the rig's
+/// model (slope/R²/reliability) over REST so a remote operator can confirm
+/// temp-comp is healthy from Settings. Remote-only — the live, backend-aware
+/// view lives on Imaging → Focus (`FocusModelCurveCard`).
 class FocusModelSettings extends ConsumerStatefulWidget {
   final bool isMobile;
 
-  const FocusModelSettings({super.key, this.isMobile = false});
+  /// When true, render without an own scroll view / header (embedded in a
+  /// merged section). Same contract as [PredictiveAfSettingsPage].
+  final bool embedded;
+
+  const FocusModelSettings({
+    super.key,
+    this.isMobile = false,
+    this.embedded = false,
+  });
 
   @override
   ConsumerState<FocusModelSettings> createState() => _FocusModelSettingsState();
@@ -168,7 +176,8 @@ class _FocusModelSettingsState extends ConsumerState<FocusModelSettings> {
       title: 'Focus Model',
       description: 'Temperature-compensation focus model on the connected rig',
       isMobile: widget.isMobile,
-      hideHeader: widget.isMobile,
+      hideHeader: widget.isMobile || widget.embedded,
+      scrollable: !widget.embedded,
       children: [
         if (backend == null)
           _info(colors, LucideIcons.info,

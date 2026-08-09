@@ -125,6 +125,10 @@ export 'package:nightshade_bridge/nightshade_bridge.dart'
         SequencerEvent_Resumed,
         SequencerEvent_Stopped,
         SequencerEvent_Completed,
+        // The terminal-failure variant. Consumers need it by name to tell a
+        // NEW failure from the terminal event RESTATING a mid-run
+        // `SequencerEvent_Error` reason.
+        SequencerEvent_Failed,
         SequencerEvent_NodeStarted,
         SequencerEvent_NodeCompleted,
         SequencerEvent_Progress,
@@ -167,6 +171,9 @@ export 'package:nightshade_bridge/nightshade_bridge.dart'
         // Scheduler decision detail carried by
         // `SequencerEvent_SchedulerDecision.scores`.
         SchedulerScoreEntry,
+        // Per-frame capture truth carried by
+        // `SequencerEvent_FrameAccepted/FrameRejected.capture`.
+        FrameCaptureMetadata,
         // Display helpers + critical-event classification used by the Run
         // Dashboard event feed / banner.
         nightshadeEventDisplayTitle,

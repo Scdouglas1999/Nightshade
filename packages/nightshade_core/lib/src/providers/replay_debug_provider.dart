@@ -400,6 +400,36 @@ class ReplayDebugSettingsController {
     _ref.invalidate(replayDebugRetentionDaysProvider);
   });
 
+  /// How many decision rows the active authority currently holds.
+  ///
+  /// Returns null when the number cannot be established (an older host without
+  /// the unfiltered count endpoint, or a read failure). Callers must then say
+  /// they do not know rather than implying zero.
+  Future<int?> countAllHistory() => _serialize(() async {
+    final backend = _ref.read(backendProvider);
+    try {
+      if (backend is NetworkBackend) {
+        final count = await backend.replayCountAllDecisions();
+        if (!identical(_ref.read(backendProvider), backend)) return null;
+        return count;
+      }
+      final service = _ref.read(replayDebugServiceProvider);
+      final count = await service.countAll();
+      if (!identical(_ref.read(backendProvider), backend) ||
+          !identical(_ref.read(replayDebugServiceProvider), service)) {
+        return null;
+      }
+      return count;
+    } catch (error) {
+      developer.log(
+        'Could not count replay history: $error',
+        name: 'ReplayDebug',
+        level: 900,
+      );
+      return null;
+    }
+  });
+
   /// Delete every persisted decision row on the active authority. Returns the
   /// number of rows removed. Remote clears the host log; local clears the
   /// host's own database.

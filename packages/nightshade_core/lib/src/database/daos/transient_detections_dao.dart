@@ -71,10 +71,44 @@ class TransientDetectionsDao extends DatabaseAccessor<NightshadeDatabase>
   /// scan on the night-companion surface. Backed by `idx_transient_detections_detected`
   /// so the order-by + limit is an index range, not a full sort of all history.
   Stream<List<TransientDetectionRow>> watchRecentDetections({int limit = 200}) {
-    return (select(transientDetections)
-          ..orderBy([(t) => OrderingTerm.desc(t.detectedAt)])
-          ..limit(limit))
-        .watch();
+    return customSelect(
+      'SELECT * FROM transient_detections '
+      'ORDER BY detected_at DESC LIMIT ?',
+      variables: [Variable<int>(limit)],
+      readsFrom: {transientDetections},
+    ).watch().map(_mapSkippingUndecodable);
+  }
+
+  /// Map raw result rows to [TransientDetectionRow]s, dropping any row that
+  /// cannot be decoded instead of failing the whole read.
+  ///
+  /// SQLite's type affinity permits a TEXT value in an INTEGER column, so a
+  /// single row written by an external tool with e.g. `tile_id = 'tile-042'`
+  /// made the generated mapper throw `FormatException: Invalid radix-10
+  /// number` — and that killed the entire First Light candidate feed, not just
+  /// the bad row. Worse, a drift stream query that has thrown stays thrown for
+  /// the life of the process: its cached query stream replays the failure to
+  /// every later subscriber, so the surface could not recover even after the
+  /// offending value was corrected (verified in-process — an in-app UPDATE plus
+  /// `ref.invalidate` still read back the same error).
+  ///
+  /// One corrupt row must cost that row, not the feature.
+  List<TransientDetectionRow> _mapSkippingUndecodable(List<QueryRow> rows) {
+    final out = <TransientDetectionRow>[];
+    for (final row in rows) {
+      try {
+        out.add(transientDetections.map(row.data));
+      } catch (error) {
+        // No logger is wired into the DAO layer; surface it on the debug
+        // console rather than vanishing the row silently.
+        // ignore: avoid_print
+        print(
+          'transient_detections: skipping undecodable row '
+          '${row.data['id']}: $error',
+        );
+      }
+    }
+    return out;
   }
 
   /// Future variant of [watchRecentDetections] for the REST snapshot, with an
@@ -82,11 +116,16 @@ class TransientDetectionsDao extends DatabaseAccessor<NightshadeDatabase>
   Future<List<TransientDetectionRow>> recentDetections({
     int limit = 200,
     int offset = 0,
-  }) {
-    return (select(transientDetections)
-          ..orderBy([(t) => OrderingTerm.desc(t.detectedAt)])
-          ..limit(limit, offset: offset))
-        .get();
+  }) async {
+    // Same undecodable-row tolerance as the watch variant — see
+    // [_mapSkippingUndecodable].
+    final rows = await customSelect(
+      'SELECT * FROM transient_detections '
+      'ORDER BY detected_at DESC LIMIT ? OFFSET ?',
+      variables: [Variable<int>(limit), Variable<int>(offset)],
+      readsFrom: {transientDetections},
+    ).get();
+    return _mapSkippingUndecodable(rows);
   }
 
   /// A single detection by id, or null if it has been removed.

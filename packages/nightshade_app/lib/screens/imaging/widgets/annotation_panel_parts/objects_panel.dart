@@ -427,7 +427,11 @@ class _AnnotationObjectsPanelState
           // Objects list
           Expanded(
             child: filteredObjects.isEmpty
-                ? _buildEmptyState(annotation)
+                ? AnnotationEmptyState(
+                    colors: widget.colors,
+                    annotation: annotation,
+                    hasSearchQuery: _searchQuery.isNotEmpty,
+                  )
                 : ListView.builder(
                     padding: const EdgeInsets.symmetric(vertical: 4),
                     // AnnotationObjectListItem fixed height: 28 icon +
@@ -842,35 +846,6 @@ class _AnnotationObjectsPanelState
             ),
           ),
           const SizedBox(height: 8),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyState(ImageAnnotation? annotation) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            annotation == null
-                ? LucideIcons.sparkle
-                : NightshadeIcons.searchEmpty,
-            size: 32,
-            color: widget.colors.textMuted.withValues(alpha: 0.5),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            annotation == null
-                ? 'No image annotated'
-                : _searchQuery.isNotEmpty
-                    ? 'No matching objects'
-                    : 'No objects match filters',
-            style: TextStyle(
-              color: widget.colors.textMuted,
-              fontSize: NightshadeTypography.fontSize13,
-            ),
-          ),
         ],
       ),
     );

@@ -35,18 +35,13 @@ class EquipmentSettingsTab extends ConsumerWidget {
       error: (e, _) => Center(child: Text('Error loading settings: $e')),
       data: (settings) => SingleChildScrollView(
         padding: const EdgeInsets.all(24),
+        // No in-content title: both hosts (the desktop NightshadeDialog and
+        // the phone AppBar) already render "Equipment Settings" directly
+        // above this body, so repeating it cost a heading's worth of the
+        // dialog's fixed 500 px height and said nothing new.
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Equipment Settings',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize20,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 24),
             ResponsiveCardGrid(
               children: [
                 _CameraSettingsCard(settings: settings),
@@ -297,6 +292,13 @@ class _BuiltinGuiderSettingsCardState
     _minPulseController = TextEditingController();
     _maxPulseController = TextEditingController();
     _settleSleepController = TextEditingController();
+    // Every field feeds the pending-edits check below. Without it the Apply
+    // button looked identical whether or not anything was waiting to be sent,
+    // and eight hand-typed numbers vanished silently when the dialog closed —
+    // while every other section in this dialog had already saved on edit.
+    for (final controller in _guiderControllers) {
+      controller.addListener(_onGuiderFieldChanged);
+    }
     ref.listenManual<NightshadeBackend>(backendProvider, (previous, next) {
       if (identical(previous, next)) return;
       _backendGeneration++;
@@ -383,16 +385,59 @@ class _BuiltinGuiderSettingsCardState
     _settleSleepController.text = config.settleSleepMs.toString();
   }
 
+  List<TextEditingController> get _guiderControllers => [
+        _exposureController,
+        _gainController,
+        _offsetController,
+        _binningController,
+        _calibrationMsController,
+        _minPulseController,
+        _maxPulseController,
+        _settleSleepController,
+      ];
+
+  void _onGuiderFieldChanged() {
+    // Pending-ness is derived in build from the fields vs [_lastApplied];
+    // this just asks for the rebuild that re-derives it.
+    if (mounted) setState(() {});
+  }
+
+  /// True when what is on screen differs from the config the guider is
+  /// actually running. This block is the one part of Equipment Settings that
+  /// does NOT save on edit — it pushes eight interdependent values to a guider
+  /// that may be running right now, so it commits atomically on Apply — and
+  /// that difference has to be visible rather than remembered.
+  bool get _hasPendingEdits {
+    final c = _lastApplied;
+    return _differsNum(_exposureController, c.exposureSecs) ||
+        _differsNum(_gainController, c.gain) ||
+        _differsNum(_offsetController, c.offset) ||
+        _differsNum(_binningController, c.binning) ||
+        _differsNum(_calibrationMsController, c.calibrationMs) ||
+        _differsNum(_minPulseController, c.minPulseMs) ||
+        _differsNum(_maxPulseController, c.maxPulseMs) ||
+        _differsNum(_settleSleepController, c.settleSleepMs);
+  }
+
+  /// Compare the field to the running value as a NUMBER, not as text.
+  ///
+  /// Three of these fields are doubles, so `_applyConfig` parses "1500" into
+  /// 1500.0 and stores it — and a text-vs-`toString()` comparison then never
+  /// agrees again. The card would go on warning "Not applied yet" about a
+  /// value the guider is already running, with Apply live to re-send it, for
+  /// the rest of the session. Text the user has not finished typing (empty, a
+  /// bare "-") parses to null and counts as pending, which is what it is.
+  static bool _differsNum(TextEditingController controller, num applied) {
+    final typed = num.tryParse(controller.text.trim());
+    return typed == null || typed != applied;
+  }
+
   @override
   void dispose() {
-    _exposureController.dispose();
-    _gainController.dispose();
-    _offsetController.dispose();
-    _binningController.dispose();
-    _calibrationMsController.dispose();
-    _minPulseController.dispose();
-    _maxPulseController.dispose();
-    _settleSleepController.dispose();
+    for (final controller in _guiderControllers) {
+      controller.removeListener(_onGuiderFieldChanged);
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -652,9 +697,14 @@ class _BuiltinGuiderSettingsCardState
               ),
               const SizedBox(width: 8),
               Expanded(
+                // Disabled with nothing pending: an always-live Apply next to
+                // sections that save on edit gave no way to tell "already
+                // saved" from "typed and not sent".
                 child: FilledButton.icon(
                   key: const ValueKey('builtin-guider-apply'),
-                  onPressed: _initialized && !_saving ? _applyConfig : null,
+                  onPressed: _initialized && !_saving && _hasPendingEdits
+                      ? _applyConfig
+                      : null,
                   icon: const Icon(NightshadeIcons.check, size: 14),
                   label: const Text('Apply',
                       style:
@@ -706,7 +756,8 @@ class _BuiltinGuiderSettingsCardState
             const SizedBox(height: 6),
             Text(
               'Multi-star software guider that uses the imaging camera and mount '
-              'pulse-guide. No second guide camera required.',
+              'pulse-guide. No second guide camera required. These values are '
+              'sent to the guider together when you press Apply.',
               style: TextStyle(
                 fontSize: NightshadeTypography.fontSize11,
                 color: colors.textMuted,
@@ -716,6 +767,16 @@ class _BuiltinGuiderSettingsCardState
             body,
             if (!_loading && _loadError == null) ...[
               const SizedBox(height: 10),
+              if (_hasPendingEdits)
+                Text(
+                  key: const ValueKey('builtin-guider-pending'),
+                  'Not applied yet — press Apply to send these to the guider.',
+                  style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize10,
+                    fontWeight: FontWeight.w600,
+                    color: colors.warning,
+                  ),
+                ),
               Text(
                 key: const ValueKey('builtin-guider-last-applied'),
                 'Last applied: ${_describeConfig(_lastApplied)}',

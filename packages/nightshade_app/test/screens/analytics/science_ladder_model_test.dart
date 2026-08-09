@@ -36,7 +36,9 @@ void main() {
     });
 
     test('every later rung is locked', () {
-      expect(p.states[ScienceRung.track], RungState.locked);
+      // Track is the exception: picking a star to follow needs nothing to have
+      // happened first, so locking it only ever hid an available action.
+      expect(p.states[ScienceRung.track], RungState.ready);
       expect(p.states[ScienceRung.curve], RungState.locked);
       expect(p.states[ScienceRung.period], RungState.locked);
       expect(p.states[ScienceRung.contribute], RungState.locked);
@@ -64,8 +66,8 @@ void main() {
   });
 
   group('track rung', () {
-    test('locked until calibration', () {
-      expect(_eval().states[ScienceRung.track], RungState.locked);
+    test('never locked — a star can be picked before anything else', () {
+      expect(_eval().states[ScienceRung.track], RungState.ready);
     });
 
     test('ready once calibrated', () {
@@ -73,6 +75,15 @@ void main() {
         _eval(hasCalibration: true).states[ScienceRung.track],
         RungState.ready,
       );
+    });
+
+    test('a stored curve counts as tracked when nothing is live', () {
+      // Reviewing a finished night: the points exist, so the star was tracked.
+      // Asking the user to "Pick a target" above their own finished light
+      // curve was the ladder reading the LIVE selection instead of the data.
+      final p = _eval(hasCalibration: true, lightCurvePoints: 120);
+      expect(p.states[ScienceRung.track], RungState.done);
+      expect(p.states[ScienceRung.curve], RungState.done);
     });
 
     test('done only when photometry is live and a target is set', () {

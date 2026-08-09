@@ -61,6 +61,38 @@ SchedulerEngine _emptyTestEngine() => SchedulerEngine(
   clock: () => DateTime.utc(2026, 7, 13, 4),
 );
 
+const _healthySchedulerReadiness = SchedulerStartReadiness(
+  issues: <SchedulerReadinessIssue>[],
+  available: true,
+  solverRequired: true,
+);
+
+const _blockedSchedulerReadiness = SchedulerStartReadiness(
+  issues: [
+    SchedulerReadinessIssue(
+      id: SchedulerReadinessIssueId.camera,
+      severity: SchedulerReadinessSeverity.blocker,
+      title: 'Camera',
+      detail: 'Camera is not connected.',
+    ),
+  ],
+  available: true,
+  solverRequired: true,
+);
+
+const _warningSchedulerReadiness = SchedulerStartReadiness(
+  issues: [
+    SchedulerReadinessIssue(
+      id: SchedulerReadinessIssueId.weather,
+      severity: SchedulerReadinessSeverity.warning,
+      title: 'Weather monitoring',
+      detail: 'Weather monitoring is disabled.',
+    ),
+  ],
+  available: true,
+  solverRequired: true,
+);
+
 void main() {
   group('SchedulerHandlers', () {
     late ProviderContainer container;
@@ -238,6 +270,9 @@ void main() {
           overrides: [
             schedulerEngineProvider.overrideWithValue(engine),
             schedulerEngineReadyProvider.overrideWith((ref) async => engine),
+            schedulerStartReadinessProvider.overrideWithValue(
+              _healthySchedulerReadiness,
+            ),
           ],
         );
         addTearDown(() async {
@@ -294,6 +329,9 @@ void main() {
           overrides: [
             schedulerEngineProvider.overrideWithValue(engine),
             schedulerEngineReadyProvider.overrideWith((ref) async => engine),
+            schedulerStartReadinessProvider.overrideWithValue(
+              _healthySchedulerReadiness,
+            ),
           ],
         );
         addTearDown(() async {
@@ -316,6 +354,81 @@ void main() {
         final body = jsonDecode(await response.readAsString()) as Map;
         expect(body['error'], contains('Add at least one target'));
         expect(engine.status.state, SchedulerState.idle);
+      },
+    );
+
+    test('scheduler start blocks at the host command boundary', () async {
+      final engine = _testEngine();
+      final scoped = ProviderContainer(
+        overrides: [
+          schedulerEngineProvider.overrideWithValue(engine),
+          schedulerEngineReadyProvider.overrideWith((ref) async => engine),
+          schedulerStartReadinessProvider.overrideWithValue(
+            _blockedSchedulerReadiness,
+          ),
+        ],
+      );
+      addTearDown(() async {
+        scoped.dispose();
+        await engine.dispose();
+      });
+
+      final response = await translateHandlerErrors(
+        SchedulerHandlers(scoped).handleControl(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/scheduler/control'),
+            body: jsonEncode({'action': 'start'}),
+          ),
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.badRequest);
+      expect(engine.status.state, SchedulerState.idle);
+    });
+
+    test(
+      'scheduler warning requires confirmation and accepts it explicitly',
+      () async {
+        final engine = _testEngine();
+        final scoped = ProviderContainer(
+          overrides: [
+            schedulerEngineProvider.overrideWithValue(engine),
+            schedulerEngineReadyProvider.overrideWith((ref) async => engine),
+            schedulerStartReadinessProvider.overrideWithValue(
+              _warningSchedulerReadiness,
+            ),
+          ],
+        );
+        addTearDown(() async {
+          scoped.dispose();
+          await engine.dispose();
+        });
+        final handlers = SchedulerHandlers(scoped);
+
+        final denied = await translateHandlerErrors(
+          handlers.handleControl(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/scheduler/control'),
+              body: jsonEncode({'action': 'start'}),
+            ),
+          ),
+        );
+        expect(denied.statusCode, HttpStatus.badRequest);
+        expect(engine.status.state, SchedulerState.idle);
+
+        final accepted = await translateHandlerErrors(
+          handlers.handleControl(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/scheduler/control'),
+              body: jsonEncode({'action': 'start', 'confirmWarnings': true}),
+            ),
+          ),
+        );
+        expect(accepted.statusCode, HttpStatus.ok);
+        expect(engine.status.state, SchedulerState.running);
       },
     );
 

@@ -1,24 +1,40 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:geolocator/geolocator.dart';
 
 class GeolocationService {
+  /// Client used for the IP-geolocation lookups. Injectable so a test can
+  /// assert what actually goes on the wire — the transport of these requests
+  /// is the point (see [fetchLocationFromIPAlternative]), and a hard-coded
+  /// `http.get` cannot be inspected.
+  @visibleForTesting
+  static http.Client Function() clientFactory = http.Client.new;
+
+  /// Read a JSON coordinate that may arrive as an int (a whole-degree
+  /// latitude serialises as `40`, not `40.0`). A bare `as double?` throws on
+  /// that, and every call site here swallows the throw — so the lookup would
+  /// silently report "no location" for anyone who happens to sit on a round
+  /// degree.
+  static double? _coord(Object? value) => (value as num?)?.toDouble();
+
   /// Fetch location from IP using ipapi.co (free, no API key required)
   /// Returns (latitude, longitude, locationName) or null if failed
   static Future<(double latitude, double longitude, String? locationName)?>
   fetchLocationFromIP() async {
+    final client = clientFactory();
     try {
       // Use ipapi.co for free IP geolocation (no API key required)
-      final response = await http
+      final response = await client
           .get(Uri.parse('https://ipapi.co/json/'))
           .timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body) as Map<String, dynamic>;
 
-        final lat = data['latitude'] as double?;
-        final lon = data['longitude'] as double?;
+        final lat = _coord(data['latitude']);
+        final lon = _coord(data['longitude']);
         final city = data['city'] as String?;
         final region = data['region'] as String?;
         final country = data['country_name'] as String?;
@@ -45,27 +61,34 @@ class GeolocationService {
         level: 900,
         error: e,
       );
+    } finally {
+      client.close();
     }
 
     return null;
   }
 
-  /// Alternative: Use ip-api.com (also free, no API key)
+  /// Fallback for when the primary service is unreachable or rate-limited
+  /// (ipapi.co answers `{"error":true,"reason":"RateLimited"}` with HTTP 200,
+  /// which parses to a null coordinate and lands here).
+  /// The fallback must remain HTTPS because its coordinates become the active
+  /// observing site.
   static Future<(double latitude, double longitude, String? locationName)?>
   fetchLocationFromIPAlternative() async {
+    final client = clientFactory();
     try {
-      final response = await http
-          .get(Uri.parse('http://ip-api.com/json/'))
+      final response = await client
+          .get(Uri.parse('https://ipwho.is/'))
           .timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body) as Map<String, dynamic>;
 
-        if (data['status'] == 'success') {
-          final lat = data['lat'] as double?;
-          final lon = data['lon'] as double?;
+        if (data['success'] == true) {
+          final lat = _coord(data['latitude']);
+          final lon = _coord(data['longitude']);
           final city = data['city'] as String?;
-          final region = data['regionName'] as String?;
+          final region = data['region'] as String?;
           final country = data['country'] as String?;
 
           if (lat != null && lon != null) {
@@ -89,6 +112,8 @@ class GeolocationService {
         level: 900,
         error: e,
       );
+    } finally {
+      client.close();
     }
 
     return null;

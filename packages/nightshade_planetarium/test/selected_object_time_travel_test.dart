@@ -113,7 +113,11 @@ void main() {
       // A deliberately misleading equatorial pose left behind by the last
       // equatorial session.
       view.setCenter(0, 0);
-      view.setViewMode(SkyViewMode.horizontal);
+      view.setViewMode(
+        SkyViewMode.horizontal,
+        observer: container.read(observerLocationProvider),
+        instant: time,
+      );
       view.setHorizontalCenter(134, 90); // zenith
 
       final (ra, dec) = container.read(viewCenterEquatorialProvider);
@@ -141,7 +145,11 @@ void main() {
           .setTime(DateTime.utc(2026, 7, 29, 15, 52));
 
       final view = container.read(skyViewStateProvider.notifier);
-      view.setViewMode(SkyViewMode.horizontal);
+      view.setViewMode(
+        SkyViewMode.horizontal,
+        observer: container.read(observerLocationProvider),
+        instant: DateTime.utc(2026, 7, 29, 15, 52),
+      );
       view.setHorizontalCenter(134, 90);
       final before = container.read(viewCenterEquatorialProvider);
 

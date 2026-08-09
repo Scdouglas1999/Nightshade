@@ -15244,6 +15244,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  FrameCaptureMetadata dco_decode_box_autoadd_frame_capture_metadata(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_frame_capture_metadata(raw);
+  }
+
+  @protected
   GuidingEvent dco_decode_box_autoadd_guiding_event(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_guiding_event(raw);
@@ -16329,6 +16337,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       stepSize: dco_decode_f_64(arr[5]),
       isAbsolute: dco_decode_bool(arr[6]),
       hasTemperature: dco_decode_bool(arr[7]),
+    );
+  }
+
+  @protected
+  FrameCaptureMetadata dco_decode_frame_capture_metadata(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 17)
+      throw Exception('unexpected arr length: expect 17 but see ${arr.length}');
+    return FrameCaptureMetadata(
+      gain: dco_decode_opt_box_autoadd_i_32(arr[0]),
+      offset: dco_decode_opt_box_autoadd_i_32(arr[1]),
+      sensorTempC: dco_decode_opt_box_autoadd_f_64(arr[2]),
+      coolerPowerPercent: dco_decode_opt_box_autoadd_f_64(arr[3]),
+      mountRaHours: dco_decode_opt_box_autoadd_f_64(arr[4]),
+      mountDecDegrees: dco_decode_opt_box_autoadd_f_64(arr[5]),
+      mountAltitudeDeg: dco_decode_opt_box_autoadd_f_64(arr[6]),
+      mountAzimuthDeg: dco_decode_opt_box_autoadd_f_64(arr[7]),
+      pierSide: dco_decode_opt_String(arr[8]),
+      focuserPosition: dco_decode_opt_box_autoadd_i_32(arr[9]),
+      focuserTemperatureC: dco_decode_opt_box_autoadd_f_64(arr[10]),
+      rotatorAngleDeg: dco_decode_opt_box_autoadd_f_64(arr[11]),
+      exposureSecs: dco_decode_f_64(arr[12]),
+      binX: dco_decode_u_32(arr[13]),
+      binY: dco_decode_u_32(arr[14]),
+      frameType: dco_decode_String(arr[15]),
+      targetId: dco_decode_opt_String(arr[16]),
     );
   }
 
@@ -17885,6 +17920,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           acceptedTotal: dco_decode_u_32(raw[7]),
           rejectedTotal: dco_decode_u_32(raw[8]),
           savePath: dco_decode_opt_String(raw[9]),
+          capture: dco_decode_box_autoadd_frame_capture_metadata(raw[10]),
         );
       case 19:
         return SequencerEvent_FrameRejected(
@@ -17906,6 +17942,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           windAtCapture: dco_decode_opt_box_autoadd_f_64(raw[16]),
           guideRmsAtCapture: dco_decode_opt_box_autoadd_f_64(raw[17]),
           sensorTempAtCapture: dco_decode_opt_box_autoadd_f_64(raw[18]),
+          capture: dco_decode_box_autoadd_frame_capture_metadata(raw[19]),
         );
       case 20:
         return SequencerEvent_SchedulerDecision(
@@ -18926,6 +18963,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_focuser_capabilities(deserializer));
+  }
+
+  @protected
+  FrameCaptureMetadata sse_decode_box_autoadd_frame_capture_metadata(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_frame_capture_metadata(deserializer));
   }
 
   @protected
@@ -20390,6 +20435,49 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       stepSize: var_stepSize,
       isAbsolute: var_isAbsolute,
       hasTemperature: var_hasTemperature,
+    );
+  }
+
+  @protected
+  FrameCaptureMetadata sse_decode_frame_capture_metadata(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_gain = sse_decode_opt_box_autoadd_i_32(deserializer);
+    var var_offset = sse_decode_opt_box_autoadd_i_32(deserializer);
+    var var_sensorTempC = sse_decode_opt_box_autoadd_f_64(deserializer);
+    var var_coolerPowerPercent = sse_decode_opt_box_autoadd_f_64(deserializer);
+    var var_mountRaHours = sse_decode_opt_box_autoadd_f_64(deserializer);
+    var var_mountDecDegrees = sse_decode_opt_box_autoadd_f_64(deserializer);
+    var var_mountAltitudeDeg = sse_decode_opt_box_autoadd_f_64(deserializer);
+    var var_mountAzimuthDeg = sse_decode_opt_box_autoadd_f_64(deserializer);
+    var var_pierSide = sse_decode_opt_String(deserializer);
+    var var_focuserPosition = sse_decode_opt_box_autoadd_i_32(deserializer);
+    var var_focuserTemperatureC = sse_decode_opt_box_autoadd_f_64(deserializer);
+    var var_rotatorAngleDeg = sse_decode_opt_box_autoadd_f_64(deserializer);
+    var var_exposureSecs = sse_decode_f_64(deserializer);
+    var var_binX = sse_decode_u_32(deserializer);
+    var var_binY = sse_decode_u_32(deserializer);
+    var var_frameType = sse_decode_String(deserializer);
+    var var_targetId = sse_decode_opt_String(deserializer);
+    return FrameCaptureMetadata(
+      gain: var_gain,
+      offset: var_offset,
+      sensorTempC: var_sensorTempC,
+      coolerPowerPercent: var_coolerPowerPercent,
+      mountRaHours: var_mountRaHours,
+      mountDecDegrees: var_mountDecDegrees,
+      mountAltitudeDeg: var_mountAltitudeDeg,
+      mountAzimuthDeg: var_mountAzimuthDeg,
+      pierSide: var_pierSide,
+      focuserPosition: var_focuserPosition,
+      focuserTemperatureC: var_focuserTemperatureC,
+      rotatorAngleDeg: var_rotatorAngleDeg,
+      exposureSecs: var_exposureSecs,
+      binX: var_binX,
+      binY: var_binY,
+      frameType: var_frameType,
+      targetId: var_targetId,
     );
   }
 
@@ -22585,6 +22673,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var var_acceptedTotal = sse_decode_u_32(deserializer);
         var var_rejectedTotal = sse_decode_u_32(deserializer);
         var var_savePath = sse_decode_opt_String(deserializer);
+        var var_capture = sse_decode_box_autoadd_frame_capture_metadata(
+          deserializer,
+        );
         return SequencerEvent_FrameAccepted(
           nodeId: var_nodeId,
           frame: var_frame,
@@ -22595,6 +22686,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           acceptedTotal: var_acceptedTotal,
           rejectedTotal: var_rejectedTotal,
           savePath: var_savePath,
+          capture: var_capture,
         );
       case 19:
         var var_nodeId = sse_decode_String(deserializer);
@@ -22623,6 +22715,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var var_sensorTempAtCapture = sse_decode_opt_box_autoadd_f_64(
           deserializer,
         );
+        var var_capture = sse_decode_box_autoadd_frame_capture_metadata(
+          deserializer,
+        );
         return SequencerEvent_FrameRejected(
           nodeId: var_nodeId,
           frame: var_frame,
@@ -22642,6 +22737,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           windAtCapture: var_windAtCapture,
           guideRmsAtCapture: var_guideRmsAtCapture,
           sensorTempAtCapture: var_sensorTempAtCapture,
+          capture: var_capture,
         );
       case 20:
         var var_nodeId = sse_decode_String(deserializer);
@@ -23999,6 +24095,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_frame_capture_metadata(
+    FrameCaptureMetadata self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_frame_capture_metadata(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_guiding_event(
     GuidingEvent self,
     SseSerializer serializer,
@@ -25118,6 +25223,31 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_f_64(self.stepSize, serializer);
     sse_encode_bool(self.isAbsolute, serializer);
     sse_encode_bool(self.hasTemperature, serializer);
+  }
+
+  @protected
+  void sse_encode_frame_capture_metadata(
+    FrameCaptureMetadata self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_opt_box_autoadd_i_32(self.gain, serializer);
+    sse_encode_opt_box_autoadd_i_32(self.offset, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.sensorTempC, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.coolerPowerPercent, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.mountRaHours, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.mountDecDegrees, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.mountAltitudeDeg, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.mountAzimuthDeg, serializer);
+    sse_encode_opt_String(self.pierSide, serializer);
+    sse_encode_opt_box_autoadd_i_32(self.focuserPosition, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.focuserTemperatureC, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.rotatorAngleDeg, serializer);
+    sse_encode_f_64(self.exposureSecs, serializer);
+    sse_encode_u_32(self.binX, serializer);
+    sse_encode_u_32(self.binY, serializer);
+    sse_encode_String(self.frameType, serializer);
+    sse_encode_opt_String(self.targetId, serializer);
   }
 
   @protected
@@ -26992,6 +27122,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         acceptedTotal: final acceptedTotal,
         rejectedTotal: final rejectedTotal,
         savePath: final savePath,
+        capture: final capture,
       ):
         sse_encode_i_32(18, serializer);
         sse_encode_String(nodeId, serializer);
@@ -27003,6 +27134,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_u_32(acceptedTotal, serializer);
         sse_encode_u_32(rejectedTotal, serializer);
         sse_encode_opt_String(savePath, serializer);
+        sse_encode_box_autoadd_frame_capture_metadata(capture, serializer);
       case SequencerEvent_FrameRejected(
         nodeId: final nodeId,
         frame: final frame,
@@ -27022,6 +27154,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         windAtCapture: final windAtCapture,
         guideRmsAtCapture: final guideRmsAtCapture,
         sensorTempAtCapture: final sensorTempAtCapture,
+        capture: final capture,
       ):
         sse_encode_i_32(19, serializer);
         sse_encode_String(nodeId, serializer);
@@ -27042,6 +27175,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_opt_box_autoadd_f_64(windAtCapture, serializer);
         sse_encode_opt_box_autoadd_f_64(guideRmsAtCapture, serializer);
         sse_encode_opt_box_autoadd_f_64(sensorTempAtCapture, serializer);
+        sse_encode_box_autoadd_frame_capture_metadata(capture, serializer);
       case SequencerEvent_SchedulerDecision(
         nodeId: final nodeId,
         decisionCounter: final decisionCounter,

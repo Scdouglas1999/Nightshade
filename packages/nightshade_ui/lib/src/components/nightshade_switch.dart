@@ -34,6 +34,7 @@ class NightshadeSwitch extends StatefulWidget {
 
 class _NightshadeSwitchState extends State<NightshadeSwitch> {
   bool _isHovered = false;
+  bool _isFocused = false;
 
   @override
   Widget build(BuildContext context) {
@@ -67,44 +68,82 @@ class _NightshadeSwitchState extends State<NightshadeSwitch> {
       enabled: isEnabled,
     );
 
-    return MouseRegion(
-      onEnter: isEnabled ? (_) => setState(() => _isHovered = true) : null,
-      onExit: isEnabled ? (_) => setState(() => _isHovered = false) : null,
-      cursor: isEnabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
-      child: GestureDetector(
-        onTap: isEnabled ? () => widget.onChanged!(!widget.value) : null,
-        child: Opacity(
-          opacity: isEnabled ? 1.0 : NightshadeTokens.opacityDisabled,
-          child: AnimatedContainer(
-            duration: NightshadeTokens.durationNormal,
-            curve: NightshadeTokens.curvePrecise,
-            width: trackWidth,
-            height: trackHeight,
-            padding: const EdgeInsets.all(NightshadeSwitchStyle.trackPadding),
-            decoration: BoxDecoration(
-              color: trackColor,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-              border: Border.all(color: trackBorder),
-            ),
-            child: AnimatedAlign(
-              duration: NightshadeTokens.durationNormal,
-              curve: NightshadeTokens.curvePrecise,
-              alignment: widget.value
-                  ? Alignment.centerRight
-                  : Alignment.centerLeft,
-              child: Container(
-                width: thumbSize,
-                height: thumbSize,
+    void toggle() => widget.onChanged!(!widget.value);
+
+    // The enclosing row supplies the accessible label; this node supplies the
+    // switch state and keyboard action.
+    return Semantics(
+      toggled: widget.value,
+      enabled: isEnabled,
+      onTap: isEnabled ? toggle : null,
+      child: FocusableActionDetector(
+        enabled: isEnabled,
+        onShowFocusHighlight: (focused) => setState(() => _isFocused = focused),
+        // Space and Enter both map to ActivateIntent by default, so binding it
+        // here is what lets the control be operated without a pointer.
+        actions: <Type, Action<Intent>>{
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) {
+              toggle();
+              return null;
+            },
+          ),
+        },
+        // Hover stays on its own MouseRegion rather than moving to the
+        // detector's onShowHoverHighlight: that callback is gated on the focus
+        // highlight mode, so it does not fire for a plain pointer hover, and
+        // moving hover onto it silently dropped the hover styling.
+        child: MouseRegion(
+          onEnter: isEnabled ? (_) => setState(() => _isHovered = true) : null,
+          onExit: isEnabled ? (_) => setState(() => _isHovered = false) : null,
+          cursor: isEnabled
+              ? SystemMouseCursors.click
+              : SystemMouseCursors.basic,
+          child: GestureDetector(
+            onTap: isEnabled ? toggle : null,
+            child: Opacity(
+              opacity: isEnabled ? 1.0 : NightshadeTokens.opacityDisabled,
+              child: AnimatedContainer(
+                duration: NightshadeTokens.durationNormal,
+                curve: NightshadeTokens.curvePrecise,
+                width: trackWidth,
+                height: trackHeight,
+                padding: const EdgeInsets.all(
+                  NightshadeSwitchStyle.trackPadding,
+                ),
                 decoration: BoxDecoration(
-                  color: thumbColor,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.18),
-                      blurRadius: 2,
-                      offset: const Offset(0, 1),
+                  color: trackColor,
+                  borderRadius: BorderRadius.circular(
+                    NightshadeTokens.radiusMd,
+                  ),
+                  // Keyboard focus has to be visible or reaching the control is
+                  // no better than not reaching it.
+                  border: Border.all(
+                    color: _isFocused ? colors.primary : trackBorder,
+                    width: _isFocused ? 2 : 1,
+                  ),
+                ),
+                child: AnimatedAlign(
+                  duration: NightshadeTokens.durationNormal,
+                  curve: NightshadeTokens.curvePrecise,
+                  alignment: widget.value
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
+                  child: Container(
+                    width: thumbSize,
+                    height: thumbSize,
+                    decoration: BoxDecoration(
+                      color: thumbColor,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.18),
+                          blurRadius: 2,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),

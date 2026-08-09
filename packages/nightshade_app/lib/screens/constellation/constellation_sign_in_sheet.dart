@@ -50,10 +50,12 @@ class _ConstellationSignInSheetState
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    return NightshadeDialog(
+    // Surface, not NightshadeDialog: showAdaptiveModal already supplies the
+    // frame (a Dialog on desktop, a bottom sheet on a phone). Nesting a second
+    // dialog stretched that frame into a full-height slab.
+    return NightshadeDialogSurface(
       title: 'Connect to a hub',
       icon: LucideIcons.radioTower,
-      width: 520,
       showCloseButton: !_busy,
       actions: [
         NightshadeButton(

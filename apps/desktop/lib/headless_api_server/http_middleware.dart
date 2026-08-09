@@ -672,6 +672,10 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
                   path: path,
                 )) {
               _tokenResolver.clearFailures(wsClientKey);
+              // The event stream is how a phone stays live all night; a client
+              // that only ever holds this socket open must still register as
+              // seen.
+              _touchPairedDeviceSeen(queryToken);
               _logWarning(
                 '[AUTH][$requestId] WS upgrade to $path used legacy ?token=. '
                 'Switch to POST /api/ws/ticket + ?ticket=.',
@@ -840,6 +844,7 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
         // Token recognised — clear stale failures so a successful login
         // resets the counter for that client.
         _tokenResolver.clearFailures(clientKey);
+        _touchPairedDeviceSeen(token);
 
         if (!HeadlessAuthPolicy.permits(
           grant: tokenGrant,
@@ -1040,5 +1045,66 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
   /// token is unknown.
   HeadlessTokenScope? _scopeForToken(String? token) {
     return _grantForToken(token)?.coarseScope;
+  }
+
+  /// Record that the device holding [token] is talking to us right now.
+  ///
+  /// Fire-and-forget: a paired client's request must never wait on, or fail
+  /// because of, a bookkeeping write. Requests authenticated by a configured
+  /// (non-pairing) token match no row and cost one throttled read.
+  ///
+  /// Goes through [TokenManager.verifySessionToken] rather than writing the
+  /// column directly because that method is the auditable pairing-token check —
+  /// it re-tests `is_active` and expiry in constant time and stamps
+  /// `last_connected_at` as its documented effect — so this cannot record a
+  /// device as seen on the strength of a credential the pairing layer would
+  /// reject.
+  void _touchPairedDeviceSeen(String? token) {
+    if (token == null || token.isEmpty) return;
+    final service = _pairingService;
+    // Never lazily construct the service here: on a GUI host with no pairing DB
+    // that would open Drift purely to bookkeep.
+    if (service == null) return;
+
+    final now = DateTime.now();
+    final last = _pairedDeviceSeenStamps[token];
+    if (last != null &&
+        now.difference(last) < HeadlessApiServer._lastConnectedThrottle) {
+      return;
+    }
+    _pairedDeviceSeenStamps[token] = now;
+    // Bounded alongside the token map it shadows: entries whose token is no
+    // longer paired (revoked, expired, evicted) can never be refreshed, so drop
+    // everything stale rather than let a long-lived appliance accumulate.
+    if (_pairedDeviceSeenStamps.length > _pairedSessionTokens.maxEntries) {
+      _pairedDeviceSeenStamps.removeWhere(
+        (_, stamped) =>
+            now.difference(stamped) >= HeadlessApiServer._lastConnectedThrottle,
+      );
+    }
+
+    unawaited(
+      Future<void>(() async {
+        try {
+          final rows = await service.tokenManager
+              .getActiveUnexpiredPairedDevices();
+          String? deviceId;
+          for (final row in rows) {
+            if (constantTimeCompareStrings(row.sessionToken, token)) {
+              deviceId = row.deviceId;
+            }
+          }
+          if (deviceId == null) return;
+          await service.tokenManager.verifySessionToken(
+            deviceId: deviceId,
+            token: token,
+          );
+        } catch (e) {
+          // Let the next request retry instead of waiting out the throttle.
+          _pairedDeviceSeenStamps.remove(token);
+          _logWarning('[AUTH] Could not record paired-device activity: $e');
+        }
+      }),
+    );
   }
 }

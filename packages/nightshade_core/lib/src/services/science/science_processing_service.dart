@@ -19,6 +19,7 @@ import '../../models/science/science_models.dart';
 import '../../utils/utc_timestamp.dart';
 import '../wcs/gnomonic_projection.dart';
 import '../wcs/wcs_sip_codec.dart';
+import 'airmass.dart';
 import 'default_science_backend.dart';
 import 'fits_header_writer.dart';
 import 'photometric_transform_service.dart';
@@ -884,6 +885,154 @@ class ScienceProcessingService {
     final magnitude =
         zeroPoint - 2.5 * math.log(fluxEstimate / exposureSeconds) / math.ln10;
     return magnitude.isFinite ? magnitude : null;
+  }
+
+  /// 1-sigma magnitude error implied by a measured signal-to-noise ratio.
+  ///
+  /// `PhotometryMeasurements.uncertainty` is a magnitude everywhere it is
+  /// consumed — AAVSO export writes it straight into MAGERR, and the period
+  /// analysis weights the light curve by it — so every role must populate it in
+  /// magnitudes. For a single star with no differential to propagate, that is
+  /// the Poisson limit 2.5/ln(10) / SNR ≈ 1.0857/SNR.
+  ///
+  /// Exposed as a pure function so the unit contract can be asserted without
+  /// standing up Riverpod, the database and the native bridge.
+  static double magnitudeSigmaFromSnr(double snr) {
+    // Clamped the same way the differential-magnitude path clamps SNR: a
+    // non-finite or sub-unity SNR would otherwise emit an infinite or absurd
+    // error bar rather than a merely pessimistic one.
+    final safeSnr = snr.isFinite ? snr.clamp(1.0, 1e6).toDouble() : 1.0;
+    return 1.0857 / safeSnr;
+  }
+
+  /// Build the `photometry_measurements` rows for one frame: the target,
+  /// the optional check star, and every comparison star.
+  ///
+  /// Exposed as a pure function so the unit contract of the stored columns —
+  /// in particular that `uncertainty` is a magnitude for EVERY role — can be
+  /// asserted without standing up Riverpod, the database, the star detector
+  /// and the native bridge. [standardMagnitudeFor] is folded in via
+  /// [transform]/[airmass]/[exposureSeconds] rather than a callback so the
+  /// exposure normalization stays in one place.
+  static List<db.PhotometryMeasurementsCompanion>
+  buildPhotometryMeasurementRows({
+    required int? capturedImageId,
+    required int? sessionId,
+    required DateTime frameTimestamp,
+    required String targetObjectId,
+    required StarMeasurement target,
+    required double targetFlux,
+    required double targetFluxSigma,
+    required List<({String objectId, StarMeasurement star})> comparisons,
+    required String? checkObjectId,
+    required Set<String> outlierObjectIds,
+    required double comparisonFlux,
+    required double comparisonFluxUncertainty,
+    required PhotometricTransformCoefficients? transform,
+    required double? airmass,
+    required double exposureSeconds,
+  }) {
+    final safeComparisonFlux = comparisonFlux.clamp(1e-6, double.infinity);
+    final differentialMag =
+        -2.5 *
+        math.log((targetFlux / comparisonFlux).clamp(1e-6, double.infinity)) /
+        math.ln10;
+    final fractionalVariance =
+        math.pow(targetFluxSigma / targetFlux, 2) +
+        math.pow(comparisonFluxUncertainty / safeComparisonFlux, 2);
+    final uncertainty =
+        1.0857 *
+        math.sqrt(fractionalVariance.isFinite ? fractionalVariance : 0.0);
+
+    double? standardMagForFlux(double rawFlux) {
+      if (transform == null || airmass == null || airmass <= 0) return null;
+      final flux = (rawFlux / exposureSeconds).clamp(1e-6, double.infinity);
+      final instMag =
+          -2.5 * math.log(flux.clamp(1e-30, double.infinity)) / math.ln10;
+      // Use color index 0.0 as default when unknown — the color term
+      // contribution is typically small for broadband filters.
+      final standard = transform.applyTransform(
+        instrumentalMag: instMag,
+        airmass: airmass,
+        colorIndex: 0.0,
+      );
+      return standard.isFinite ? standard : null;
+    }
+
+    final entries = <db.PhotometryMeasurementsCompanion>[
+      db.PhotometryMeasurementsCompanion.insert(
+        capturedImageId: drift.Value(capturedImageId),
+        sessionId: drift.Value(sessionId),
+        objectId: targetObjectId,
+        role: const drift.Value('target'),
+        x: target.x,
+        y: target.y,
+        flux: targetFlux,
+        differentialMagnitude: drift.Value(differentialMag),
+        standardMagnitude: drift.Value(standardMagForFlux(targetFlux)),
+        snr: drift.Value(target.snr),
+        uncertainty: drift.Value(uncertainty),
+        timestamp: drift.Value(frameTimestamp),
+      ),
+    ];
+
+    for (final entry in comparisons) {
+      final objectId = entry.objectId;
+      final star = entry.star;
+      final isCheck = checkObjectId != null && objectId == checkObjectId;
+
+      // The check star gets its own differential magnitude against the
+      // SAME ensemble used for the target, so its light curve directly
+      // exposes systematics. Plain comparisons keep a null differential —
+      // they ARE the reference.
+      double? checkDiffMag;
+      double? checkUncertainty;
+      if (isCheck) {
+        final checkFlux = star.flux.clamp(1e-6, double.infinity);
+        checkDiffMag =
+            -2.5 *
+            math.log(
+              (checkFlux / safeComparisonFlux).clamp(1e-6, double.infinity),
+            ) /
+            math.ln10;
+        final checkSnr = star.snr.isFinite
+            ? star.snr.clamp(1.0, 1e6).toDouble()
+            : 1.0;
+        final checkVariance =
+            math.pow(1.0 / checkSnr, 2) +
+            math.pow(comparisonFluxUncertainty / safeComparisonFlux, 2);
+        checkUncertainty =
+            1.0857 * math.sqrt(checkVariance.isFinite ? checkVariance : 0.0);
+      }
+
+      entries.add(
+        db.PhotometryMeasurementsCompanion.insert(
+          capturedImageId: drift.Value(capturedImageId),
+          sessionId: drift.Value(sessionId),
+          objectId: objectId,
+          role: drift.Value(isCheck ? 'check' : 'comparison'),
+          x: star.x,
+          y: star.y,
+          flux: star.flux,
+          differentialMagnitude: drift.Value<double?>(checkDiffMag),
+          standardMagnitude: drift.Value(standardMagForFlux(star.flux)),
+          snr: drift.Value(star.snr),
+          // A plain comparison star has no differential magnitude to
+          // propagate, so its uncertainty is its own Poisson-limited magnitude
+          // sigma. Storing the raw ADU flux noise (flux/SNR) here — as this
+          // fallback used to — put two physical quantities differing by ~10^6
+          // in a single column that AAVSO export publishes as MAGERR and the
+          // period analysis weights the light curve by.
+          uncertainty: drift.Value<double?>(
+            checkUncertainty ?? magnitudeSigmaFromSnr(star.snr),
+          ),
+          isOutlier: drift.Value(outlierObjectIds.contains(objectId)),
+          timestamp: drift.Value(frameTimestamp),
+        ),
+      );
+    }
+
+    return entries;
   }
 
   /// Fallback build tag stamped into the FITS header when the caller does

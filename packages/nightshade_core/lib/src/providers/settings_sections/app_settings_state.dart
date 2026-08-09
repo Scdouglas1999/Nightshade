@@ -4,7 +4,6 @@ class AppSettingsState {
   // General
   final bool startMinimized;
   final bool autoConnectEquipment;
-  final bool autoSaveSequences;
   final bool confirmBeforeClosing;
   final bool autoDiscoverOnLaunch;
 
@@ -117,7 +116,6 @@ class AppSettingsState {
   final int webServerPort;
 
   // Equipment Settings - Camera
-  final String coolingBehavior; // 'On Connect', 'Manual', 'Never'
   final int defaultGain;
   final int defaultOffset;
 
@@ -461,7 +459,6 @@ class AppSettingsState {
     // General
     this.startMinimized = false,
     this.autoConnectEquipment = true,
-    this.autoSaveSequences = true,
     this.confirmBeforeClosing = true,
     this.autoDiscoverOnLaunch = true,
 
@@ -551,7 +548,6 @@ class AppSettingsState {
     this.webServerPort = 8080,
 
     // Equipment Settings - Camera
-    this.coolingBehavior = 'On Connect',
     this.defaultGain = 100,
     this.defaultOffset = 50,
 
@@ -659,7 +655,6 @@ class AppSettingsState {
   AppSettingsState copyWith({
     bool? startMinimized,
     bool? autoConnectEquipment,
-    bool? autoSaveSequences,
     bool? confirmBeforeClosing,
     bool? autoDiscoverOnLaunch,
     String? theme,
@@ -728,7 +723,6 @@ class AppSettingsState {
     bool? webServerEnabled,
     int? webServerPort,
     // Equipment Settings
-    String? coolingBehavior,
     int? defaultGain,
     int? defaultOffset,
     bool? enableMeridianFlip,
@@ -835,7 +829,6 @@ class AppSettingsState {
     return AppSettingsState(
       startMinimized: startMinimized ?? this.startMinimized,
       autoConnectEquipment: autoConnectEquipment ?? this.autoConnectEquipment,
-      autoSaveSequences: autoSaveSequences ?? this.autoSaveSequences,
       confirmBeforeClosing: confirmBeforeClosing ?? this.confirmBeforeClosing,
       autoDiscoverOnLaunch: autoDiscoverOnLaunch ?? this.autoDiscoverOnLaunch,
       theme: theme ?? this.theme,
@@ -923,7 +916,6 @@ class AppSettingsState {
       webServerEnabled: webServerEnabled ?? this.webServerEnabled,
       webServerPort: webServerPort ?? this.webServerPort,
       // Equipment Settings
-      coolingBehavior: coolingBehavior ?? this.coolingBehavior,
       defaultGain: defaultGain ?? this.defaultGain,
       defaultOffset: defaultOffset ?? this.defaultOffset,
       enableMeridianFlip: enableMeridianFlip ?? this.enableMeridianFlip,

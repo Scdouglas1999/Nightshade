@@ -214,8 +214,10 @@ class _SequenceHeader extends ConsumerWidget {
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  '${sequence.nodes.length} '
-                  '${sequence.nodes.length == 1 ? 'node' : 'nodes'}',
+                  // The implicit root container is not a node the user put
+                  // there or can select, so counting it made this chip read
+                  // "1 node" next to a tree body reading "0 steps".
+                  countLabel(visibleInstructionCount(sequence), 'node'),
                   style: TextStyle(
                     fontSize: NightshadeTypography.fontSize11,
                     color: colors.textSecondary,

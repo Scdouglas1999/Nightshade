@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/providers/settings_provider.dart';
+import '../harness/in_memory_database.dart';
 
 class _SettingsNotifier extends AppSettingsNotifier {
   final AppSettingsState _settings;
@@ -38,6 +39,7 @@ void main() {
     test('observer selector maps only the 0,0 sentinel to null', () async {
       final unset = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           appSettingsProvider.overrideWith(
             () => _SettingsNotifier(const AppSettingsState()),
           ),
@@ -49,6 +51,7 @@ void main() {
 
       final equator = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           appSettingsProvider.overrideWith(
             () => _SettingsNotifier(
               const AppSettingsState(latitude: 0, longitude: 12.5),

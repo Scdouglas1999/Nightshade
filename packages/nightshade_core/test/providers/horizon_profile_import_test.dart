@@ -92,4 +92,87 @@ void main() {
       );
     });
   });
+
+  // An imported survey used to be reduced to eight numbers and the rest of the
+  // file thrown away, so one 29° tree at azimuth 190 marked the whole S sector
+  // (157.5°–202.5°) as blocked and the planner refused targets that were
+  // clear. `altitudeAtAzimuth` is the single question every visibility
+  // decision in the app asks — the planner's filter and the planetarium's
+  // 360-entry terrain table both call it — so these pin its answer.
+  group('imported surveys keep their resolution', () {
+    /// One sample every 10°, flat 5° except a 29° obstruction at azimuth 190.
+    String thirtySix() {
+      final lines = <String>[];
+      for (var az = 0; az < 360; az += 10) {
+        lines.add('$az ${az == 190 ? 29 : 5}');
+      }
+      return lines.join('\n');
+    }
+
+    test('a sample-backed profile answers at the file resolution', () {
+      final profile = HorizonProfile.parseHorizonText(thirtySix());
+
+      expect(profile.sampleCount, 36);
+      // The summary the settings page shows is unchanged: sector maximum.
+      expect(profile.altitudeAt('S'), 29);
+      // ...but a target 30° away from the tree is not refused any more.
+      expect(profile.altitudeAtAzimuth(190), closeTo(29, 1e-9));
+      expect(profile.altitudeAtAzimuth(160), closeTo(5, 1e-9));
+      expect(profile.altitudeAtAzimuth(220), closeTo(5, 1e-9));
+      expect(profile.isAboveHorizon(10, 160), isTrue);
+      expect(profile.isAboveHorizon(10, 190), isFalse);
+    });
+
+    test('between samples it interpolates linearly, wrapping at 360', () {
+      final profile = HorizonProfile.parseHorizonText('0 10\n180 30');
+      expect(profile.altitudeAtAzimuth(90), closeTo(20, 1e-9));
+      // 270 is halfway back round the wrap from 180 to 360/0.
+      expect(profile.altitudeAtAzimuth(270), closeTo(20, 1e-9));
+      expect(profile.altitudeAtAzimuth(0), closeTo(10, 1e-9));
+      expect(profile.altitudeAtAzimuth(360), closeTo(10, 1e-9));
+    });
+
+    test('the samples survive the JSON round trip', () {
+      final profile = HorizonProfile.parseHorizonText(thirtySix());
+      final restored = HorizonProfile.fromJson(profile.toJson());
+
+      expect(restored.sampleCount, 36);
+      expect(restored.altitudeAtAzimuth(160), closeTo(5, 1e-9));
+      expect(restored.altitudeAt('S'), 29);
+    });
+
+    test('an 8-key blob with no samples still reads as the coarse mask', () {
+      const legacy =
+          '{"N":25.0,"NE":0.0,"E":0.0,"SE":0.0,'
+          '"S":29.0,"SW":0.0,"W":0.0,"NW":0.0}';
+      final profile = HorizonProfile.fromJson(legacy);
+
+      expect(profile.sampleCount, 0);
+      expect(profile.altitudeAt('S'), 29);
+      // Smoothstep across the sector, exactly as before.
+      expect(profile.altitudeAtAzimuth(180), closeTo(29, 1e-9));
+      expect(profile.altitudeAtAzimuth(0), closeTo(25, 1e-9));
+    });
+
+    test('a hand-edited eight-value mask carries no samples', () {
+      final profile = HorizonProfile({
+        for (final dir in horizonDirections) dir: 12.0,
+      });
+      expect(profile.sampleCount, 0);
+      expect(profile.toJson().contains('samples'), isFalse);
+      expect(profile.altitudeAtAzimuth(190), closeTo(12, 1e-9));
+    });
+
+    test('a single sample is a flat horizon, not an interpolation', () {
+      final profile = HorizonProfile.parseHorizonText('180 21');
+      expect(profile.sampleCount, 0);
+      expect(profile.altitudeAt('S'), 21);
+    });
+
+    test('a truncated blob still yields the compass values it has', () {
+      final profile = HorizonProfile.fromJson('{"N":25.0,"S":29.0');
+      expect(profile.altitudeAt('N'), 25);
+      expect(profile.altitudeAt('S'), 29);
+    });
+  });
 }

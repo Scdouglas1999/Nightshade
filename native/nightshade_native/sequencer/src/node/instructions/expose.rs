@@ -6,7 +6,8 @@
 
 use crate::expressions::{interpolate, EvaluationFrame};
 use crate::instructions::{
-    execute_autofocus, execute_exposure_with_renderer, FrameSavePathRenderer, InstructionResult,
+    execute_autofocus, execute_exposure_with_renderer, resolve_burst_filter, BurstFilter,
+    FrameSavePathRenderer, InstructionResult,
 };
 use crate::node::context::ExecutionContext;
 use crate::node::instructions::autofocus::parse_autofocus_detail;
@@ -49,6 +50,50 @@ impl InstructionNode for ExposeInstruction {
         context.current_binning = config.binning;
         let mut ctx = context.to_instruction_context(node_id).await;
         ctx.current_binning = config.binning;
+
+        // Settle WHICH FILTER these frames are taken through before anything
+        // that records it runs: the save-path renderer below snapshots the
+        // context, and `build_frame_context_for_save` stamps the FITS header
+        // and the `captured_images` row from it. Until this ran, all three
+        // read `ExecutionContext.current_filter`, which only a Change Filter
+        // node or a Smart Exposure plan ever wrote — so a plain Take Exposures
+        // burst on a rig with a filter wheel produced `..._nofilter_0001.fits`
+        // and a FITS header with no FILTER card while the wheel sat on a
+        // known slot. Resolving it once, here, is also what stops the
+        // filename, the header and the database row from being able to
+        // disagree about the same frame.
+        if let BurstFilter::Resolved { name, index } = resolve_burst_filter(config, &ctx).await {
+            context.current_filter = name.clone();
+            context.current_filter_index = index;
+            ctx.current_filter = name.clone();
+            ctx.current_filter_index = index;
+            // Publish the resolved identity, because the recording surfaces on
+            // the OTHER side of the bridge cannot see `context.current_filter`.
+            //
+            // `ProgressDetail::Filter` is the only thing that ever told Dart
+            // which filter is in use, and only a Change Filter node emitted it.
+            // Dart writes `captured_images.filter` and the run-stats bucket
+            // from that published value, so a burst that addresses the wheel
+            // itself — by `filter_index` alone, or by inheriting the slot the
+            // wheel is parked on — stamped its resolved name into the FITS
+            // FILTER card and the filename here while the database row kept
+            // whatever an earlier Change Filter had left behind. One frame,
+            // two different filters recorded for it.
+            if let (Some(resolved), Some(cb)) =
+                (name.as_deref(), context.progress_callback.as_ref())
+            {
+                cb(ProgressUpdate::instruction_progress(
+                    node_id.to_string(),
+                    "Exposure",
+                    0.0,
+                    ProgressDetail::Filter {
+                        name: resolved.to_string(),
+                        position: index,
+                    },
+                ));
+            }
+        }
+
         if previous_binning != config.binning {
             tracing::warn!(
                 "Exposure binning changed from {:?} to {:?}; invalidating autofocus baseline",

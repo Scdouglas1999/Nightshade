@@ -126,6 +126,9 @@ void main() {
     await tester.pumpWidget(host(CoImagingSessionCard(
       session: session(),
       joined: true,
+      // The pooling caption is a claim about contribution, not membership, so
+      // it now requires sharing consent on record.
+      contributing: true,
       onJoin: null,
     )));
     await tester.pumpAndSettle();

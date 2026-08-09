@@ -78,6 +78,76 @@ class CullToRecommendedResult {
       CullToRecommendedResult(CullOutcome.alreadyOptimal, 0);
 }
 
+/// Whether the improvement curve's "keep best N" cull can be offered *right
+/// now*. Every guard [SessionReviewController.cullToRecommended] enforces is
+/// evaluated here instead, so the rail decides at build time exactly what the
+/// press handler would decide. Keeping the two in one place is the point: a
+/// control must never render a specific, quantified action ("Keep best 1
+/// (+0%)") that it would then unconditionally refuse.
+enum CullOfferStatus {
+  /// No curve, or a recommendation with no keep-set: render no action at all.
+  none,
+
+  /// A curve exists but its population no longer covers the live accepted subs,
+  /// so the cull would bail without rejecting anything. Surface "analysis out
+  /// of date" — never a keep-best action.
+  stale,
+
+  /// The recommendation keeps every accepted sub, or predicts no SNR gain, so
+  /// pressing would reject nothing (or would reject subs for no benefit).
+  alreadyOptimal,
+
+  /// The cull would reject real subs for a real predicted gain.
+  offerable,
+}
+
+/// [CullOfferStatus] plus the numbers a label may quote. The numbers are only
+/// safe to render as a promise when [status] is [CullOfferStatus.offerable].
+class CullRecommendationOffer {
+  final CullOfferStatus status;
+
+  /// The recommendation's keep count (0 when [status] is
+  /// [CullOfferStatus.none]).
+  final int keepN;
+
+  /// Predicted SNR gain of the keep-set, in percent.
+  final double gainPct;
+
+  /// Size of the population the curve was computed over.
+  final int populationSize;
+
+  const CullRecommendationOffer({
+    required this.status,
+    required this.keepN,
+    required this.gainPct,
+    required this.populationSize,
+  });
+
+  static const none = CullRecommendationOffer(
+    status: CullOfferStatus.none,
+    keepN: 0,
+    gainPct: 0,
+    populationSize: 0,
+  );
+
+  /// True only when the cull would actually run — the single condition the UI
+  /// may gate an enabled, quantified action on.
+  bool get isOfferable => status == CullOfferStatus.offerable;
+
+  // Value equality: the rail re-evaluates the offer on every controller tick
+  // and only rebuilds when it actually changed.
+  @override
+  bool operator ==(Object other) =>
+      other is CullRecommendationOffer &&
+      other.status == status &&
+      other.keepN == keepN &&
+      other.gainPct == gainPct &&
+      other.populationSize == populationSize;
+
+  @override
+  int get hashCode => Object.hash(status, keepN, gainPct, populationSize);
+}
+
 /// One point of a master's multi-night integration-time growth, projected for
 /// the [GrowthCurvePanel]: cumulative integration *hours* as of a calendar
 /// [date]. A thin UI mirror of the core [IntegrationGrowthPoint] (which carries
@@ -500,18 +570,84 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
   /// and the auto-process hook.
   static const String kDefaultSettingsKey = 'post_session.default_settings';
 
+  /// What an integration run actually did, when it did not do what was asked.
+  ///
+  /// Returns null when every sub made it into the master; otherwise a single
+  /// sentence naming the counts and the dominant reason, e.g.
+  /// `Integrated 1 of 9 subs — 8 were dropped: registration failed: too few
+  /// stars to register: reference=0, frame=4, need >= 3`.
+  ///
+  /// A run that silently keeps 1 of 9 subs and presents the result as a
+  /// finished master loses a night's data with no signal anywhere in the UI:
+  /// the master card only ever showed the frame count it *did* integrate, and
+  /// the outcome's `framesRejected` was never rendered on the manual path. Both
+  /// the toast and the persistent workbench banner read this.
+  ///
+  /// Pure so the sentence can be asserted without a running integration.
+  static String? integrationShortfall(PostSessionIntegrationOutcome? outcome) {
+    if (outcome == null) return null;
+    final result = outcome.result;
+    final rejected = result.framesRejected;
+    if (rejected <= 0) return null;
+    final total = result.framesIntegrated + rejected;
+
+    // The dominant reason, not the first: a run usually fails the same way for
+    // every sub, and naming the common cause is what makes the message
+    // actionable.
+    final tally = <String, int>{};
+    for (final frame in result.perFrameStats) {
+      if (frame.accepted) continue;
+      final reason = (frame.reason ?? '').trim();
+      if (reason.isEmpty) continue;
+      tally[reason] = (tally[reason] ?? 0) + 1;
+    }
+    String? dominant;
+    var dominantCount = 0;
+    tally.forEach((reason, count) {
+      if (count > dominantCount) {
+        dominant = reason;
+        dominantCount = count;
+      }
+    });
+
+    final headline = 'Integrated ${result.framesIntegrated} of $total subs — '
+        '$rejected ${rejected == 1 ? 'was' : 'were'} dropped';
+    return dominant == null ? '$headline.' : '$headline: $dominant';
+  }
+
   ImagesDao get _images => _ref.read(imagesDaoProvider);
   IntegratedMastersDao get _mastersDao =>
       _ref.read(integratedMastersDaoProvider);
   NarrowbandCompositesDao get _compositesDao =>
       _ref.read(narrowbandCompositesDaoProvider);
 
+  /// Run [body] as a live-progress-reporting action: whatever the native side
+  /// pushes onto the shared progress stream while it runs belongs to *this*
+  /// action, so the strip is torn down when it returns — on success, on failure
+  /// and on every early-out.
+  ///
+  /// This exists because the strip's lifetime cannot be left to each action's
+  /// own completion handler. The stream's terminal event is a full 1.0 fraction
+  /// that [_bindProgress] deliberately leaves on screen (so the bar lands full
+  /// rather than vanishing mid-way); an action that returns without clearing it
+  /// therefore pins a "Preview… 100%" strip under the header forever, claiming
+  /// a job is still running. Every seam-driven action routes through here so
+  /// the clear cannot be forgotten by the next one added.
+  Future<T> _withLiveProgress<T>(Future<T> Function() body) async {
+    try {
+      return await body();
+    } finally {
+      if (mounted) state = state.copyWith(clearLiveProgress: true);
+    }
+  }
+
   /// Bind [SessionReviewState.progress] to the seam's live integration-progress
   /// stream. Each native `IntegrationProgress` event maps straight to the
   /// `(phase, fraction)` record the `NightshadeProgressBar` renders. The stream
   /// is long-lived (broadcast off the backend event channel) and only carries
-  /// data while a run is in flight; the run completion / failure paths clear the
-  /// field. Bound once for the controller's lifetime.
+  /// data while a run is in flight; [_withLiveProgress] clears the field when
+  /// the action that raised it returns. Bound once for the controller's
+  /// lifetime.
   void _bindProgress() {
     final seam = _ref.read(postSessionSeamProvider);
     _progressSub = seam.integrationProgress().listen(
@@ -718,6 +854,11 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
       integrationProgress: 0,
       clearError: true,
     );
+    return _withLiveProgress(_integrate);
+  }
+
+  Future<PostSessionIntegrationOutcome?> _integrate() async {
+    final accepted = state.acceptedLights;
     try {
       final service = _ref.read(postSessionIntegrationServiceProvider);
       final outDir = await _outputDir();
@@ -978,21 +1119,23 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
   ) async {
     final accepted = state.acceptedLights;
     if (accepted.isEmpty) return null;
-    try {
-      final service = _ref.read(postSessionIntegrationServiceProvider);
-      final result = await service.previewIntegrate(
-        subs: accepted,
-        settings: settings,
-      );
-      if (result == null) return null;
-      return PostSessionIntegrationOutcome(
-        masterId: -1,
-        filter: accepted.first.filter,
-        result: result,
-      );
-    } catch (_) {
-      return null;
-    }
+    return _withLiveProgress(() async {
+      try {
+        final service = _ref.read(postSessionIntegrationServiceProvider);
+        final result = await service.previewIntegrate(
+          subs: accepted,
+          settings: settings,
+        );
+        if (result == null) return null;
+        return PostSessionIntegrationOutcome(
+          masterId: -1,
+          filter: accepted.first.filter,
+          result: result,
+        );
+      } catch (_) {
+        return null;
+      }
+    });
   }
 
   /// Catalog colour-calibrate the **current reviewed master** as a
@@ -1029,6 +1172,15 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
       return null;
     }
     state = state.copyWith(calibrating: true, clearError: true);
+    return _withLiveProgress(
+        () => _runColorCalibration(master, inputFits, wcs));
+  }
+
+  Future<String?> _runColorCalibration(
+    IntegratedMaster master,
+    String inputFits,
+    WcsOverlay wcs,
+  ) async {
     try {
       final service = _ref.read(colorCalibrationServiceProvider);
       final output =
@@ -1194,31 +1346,34 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
       return null;
     }
     state = busy(true).copyWith(clearError: true);
-    try {
-      final seam = _ref.read(postSessionSeamProvider);
-      final output =
-          SessionReviewController._suffixBeforeExtension(inputFits, suffix);
-      final written = await invoke(seam, master, output);
-      // Render a sibling preview PNG so the result is viewable; fail-soft so a
-      // render failure (no native lib in a test, missing FITS) never sinks the
-      // already-written finishing FITS or its persisted path.
-      final previewPng =
-          SessionReviewController._swapExtension(written, '.png');
+    return _withLiveProgress(() async {
       try {
-        await _ref.read(finishingPreviewRendererProvider)(written, previewPng);
-      } catch (_) {
-        // Leave the FITS path persisted; the overlay simply shows no preview.
+        final seam = _ref.read(postSessionSeamProvider);
+        final output =
+            SessionReviewController._suffixBeforeExtension(inputFits, suffix);
+        final written = await invoke(seam, master, output);
+        // Render a sibling preview PNG so the result is viewable; fail-soft so
+        // a render failure (no native lib in a test, missing FITS) never sinks
+        // the already-written finishing FITS or its persisted path.
+        final previewPng =
+            SessionReviewController._swapExtension(written, '.png');
+        try {
+          await _ref.read(finishingPreviewRendererProvider)(
+              written, previewPng);
+        } catch (_) {
+          // Leave the FITS path persisted; the overlay shows no preview.
+        }
+        await persist(master.id, written);
+        if (alsoMark != null) await alsoMark(master.id);
+        await _publishMasters();
+        return written;
+      } catch (e) {
+        if (mounted) state = state.copyWith(error: '$label failed: $e');
+        return null;
+      } finally {
+        if (mounted) state = busy(false);
       }
-      await persist(master.id, written);
-      if (alsoMark != null) await alsoMark(master.id);
-      await _publishMasters();
-      return written;
-    } catch (e) {
-      if (mounted) state = state.copyWith(error: '$label failed: $e');
-      return null;
-    } finally {
-      if (mounted) state = busy(false);
-    }
+    });
   }
 
   /// Combine the supplied single-channel narrowband [channels] into an RGB
@@ -1235,6 +1390,20 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
     List<List<double>> weights, {
     List<NarrowbandChannelRef>? channels,
   }) async {
+    // Apply is the mixer's ONLY action, and a combine can take tens of seconds.
+    // Without this guard a second press re-enters and starts a concurrent
+    // native combine writing to a different stamped path, so two runs race to
+    // set `narrowbandComposite` and the user gets orphaned FITS for the presses
+    // that lost. The button also renders its busy state now, so a rejected
+    // press is visible rather than looking like a dead control.
+    if (state.combiningNarrowband) return null;
+
+    // Cleared BEFORE the guard below, not inside the try: the screen toasts a
+    // given error string once and remembers it, so re-raising the SAME message
+    // without a null in between is silent. Pressing Apply five times against an
+    // unchanged precondition has to say something five times.
+    state = state.copyWith(clearError: true);
+
     final refs = channels ?? state.narrowbandChannels;
     // Only the channels that resolve to an on-disk master FITS feed the combine;
     // keep their master ids in lock-step so the persisted row records exactly the
@@ -1245,65 +1414,70 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
     ];
     final inputs = [for (final c in fed) c.fitsPath!];
     if (inputs.length < 2) {
+      final withPath = refs.where((c) => c.fitsPath != null).length;
       state = state.copyWith(
-        error: 'Need at least two finalized narrowband masters to combine.',
+        error: 'Need at least two finalized narrowband masters to combine — '
+            '${refs.length} channel${refs.length == 1 ? '' : 's'} in scope, '
+            '$withPath with a finished FITS on disk.',
       );
       return null;
     }
     state = state.copyWith(combiningNarrowband: true, clearError: true);
-    try {
-      final seam = _ref.read(postSessionSeamProvider);
-      final outDir = await _outputDir();
-      final stamp = DateTime.now().millisecondsSinceEpoch;
-      final output = p.join(outDir,
-          '${_safeName(state.title)}_${_safeName(palette)}_$stamp.fits');
-      final isCustom = palette.toLowerCase() == 'custom';
-      final outputPath = await seam.combineChannels(<String, dynamic>{
-        'inputs': inputs,
-        'palette': palette,
-        if (isCustom) 'weights': weights,
-        'output': output,
-      });
+    return _withLiveProgress(() async {
+      try {
+        final seam = _ref.read(postSessionSeamProvider);
+        final outDir = await _outputDir();
+        final stamp = DateTime.now().millisecondsSinceEpoch;
+        final output = p.join(outDir,
+            '${_safeName(state.title)}_${_safeName(palette)}_$stamp.fits');
+        final isCustom = palette.toLowerCase() == 'custom';
+        final outputPath = await seam.combineChannels(<String, dynamic>{
+          'inputs': inputs,
+          'palette': palette,
+          if (isCustom) 'weights': weights,
+          'output': output,
+        });
 
-      // Persist the composite as a `narrowband_composites` row so the SHO/HOO
-      // output survives the session and can be surfaced rather than orphaned on
-      // disk. Composite dimensions track the component masters (the combine is a
-      // per-pixel mix of identically-sized channels), so read them off the first
-      // fed master when available.
-      final firstMaster = _masterById(fed.first.masterId);
-      final id = await _compositesDao.insertComposite(
-        targetId: state.targetId,
-        palette: palette,
-        componentMasterIds: [for (final c in fed) c.masterId],
-        outputPath: outputPath,
-        width: firstMaster?.width ?? 0,
-        height: firstMaster?.height ?? 0,
-      );
-      final composite = NarrowbandComposite(
-        id: id,
-        targetId: state.targetId,
-        palette: palette,
-        componentMasterIds: [for (final c in fed) c.masterId],
-        outputPath: outputPath,
-        width: firstMaster?.width ?? 0,
-        height: firstMaster?.height ?? 0,
-        createdAt: DateTime.now().toUtc(),
-      );
-      if (mounted) {
-        state = state.copyWith(
-          narrowbandComposite: composite,
-          narrowbandComposites: [composite, ...state.narrowbandComposites],
+        // Persist the composite as a `narrowband_composites` row so the SHO/HOO
+        // output survives the session and can be surfaced rather than orphaned
+        // on disk. Composite dimensions track the component masters (the
+        // combine is a per-pixel mix of identically-sized channels), so read
+        // them off the first fed master when available.
+        final firstMaster = _masterById(fed.first.masterId);
+        final id = await _compositesDao.insertComposite(
+          targetId: state.targetId,
+          palette: palette,
+          componentMasterIds: [for (final c in fed) c.masterId],
+          outputPath: outputPath,
+          width: firstMaster?.width ?? 0,
+          height: firstMaster?.height ?? 0,
         );
+        final composite = NarrowbandComposite(
+          id: id,
+          targetId: state.targetId,
+          palette: palette,
+          componentMasterIds: [for (final c in fed) c.masterId],
+          outputPath: outputPath,
+          width: firstMaster?.width ?? 0,
+          height: firstMaster?.height ?? 0,
+          createdAt: DateTime.now().toUtc(),
+        );
+        if (mounted) {
+          state = state.copyWith(
+            narrowbandComposite: composite,
+            narrowbandComposites: [composite, ...state.narrowbandComposites],
+          );
+        }
+        return outputPath;
+      } catch (e) {
+        if (mounted) {
+          state = state.copyWith(error: 'Narrowband combine failed: $e');
+        }
+        return null;
+      } finally {
+        if (mounted) state = state.copyWith(combiningNarrowband: false);
       }
-      return outputPath;
-    } catch (e) {
-      if (mounted) {
-        state = state.copyWith(error: 'Narrowband combine failed: $e');
-      }
-      return null;
-    } finally {
-      if (mounted) state = state.copyWith(combiningNarrowband: false);
-    }
+    });
   }
 
   /// Load the persisted narrowband composites in scope (target-scoped when a
@@ -1346,51 +1520,87 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
     state = state.copyWith(viewMode: next);
   }
 
+  /// Whether the "keep best N" cull is offerable against the *current* state,
+  /// and the numbers a label may quote. [cullToRecommended] runs off this same
+  /// evaluation, so what the rail renders and what the press handler does can
+  /// never diverge — the rail must not advertise a cull this refuses.
+  ///
+  /// The optimizer's `keptIndices` are positions into the *population the curve
+  /// was computed over* — `improvementCurvePopulation`, the ordered sub paths
+  /// recorded when the master was built. They are NOT raw positions into the
+  /// live `acceptedLights`, which may have changed (subs accepted/rejected
+  /// since, or a different ordering) and whose `SubsetRecommendation` documents
+  /// the indices as weight-ranked, not capture-ranked. So the offer is only
+  /// `offerable` while the population still matches the live accepted set
+  /// exactly; a stale/mismatched curve must never reject arbitrary subs.
+  CullRecommendationOffer get cullRecommendationOffer {
+    final curve = state.improvementCurve;
+    if (curve == null) return CullRecommendationOffer.none;
+    final rec = curve.recommendation;
+    if (rec.keepN <= 0) return CullRecommendationOffer.none;
+
+    final population = state.improvementCurvePopulation;
+    final accepted = state.acceptedLights;
+    final stale = CullRecommendationOffer(
+      status: CullOfferStatus.stale,
+      keepN: rec.keepN,
+      gainPct: rec.predictedSnrGainPct,
+      populationSize: population.length,
+    );
+    if (accepted.isEmpty) return stale;
+
+    // The curve must carry a population, and that population must be the same
+    // set of subs (by path) that is currently accepted — otherwise the index
+    // space no longer maps to these subs.
+    if (population.length != accepted.length) return stale;
+    final acceptedPaths = <String>{for (final s in accepted) s.filePath};
+    // Duplicate paths: the path→sub mapping is ambiguous, so the keep-set
+    // cannot be resolved safely.
+    if (acceptedPaths.length != accepted.length) return stale;
+    for (final path in population) {
+      if (!acceptedPaths.contains(path)) return stale; // population diverged
+    }
+
+    // keepN covering the whole population rejects nothing; a non-positive
+    // predicted gain means the keep-set is not worth the subs it would throw
+    // away, so neither may be dressed up as a "+X% SNR" action.
+    if (rec.keepN >= population.length || rec.predictedSnrGainPct <= 0) {
+      return CullRecommendationOffer(
+        status: CullOfferStatus.alreadyOptimal,
+        keepN: rec.keepN,
+        gainPct: rec.predictedSnrGainPct,
+        populationSize: population.length,
+      );
+    }
+    return CullRecommendationOffer(
+      status: CullOfferStatus.offerable,
+      keepN: rec.keepN,
+      gainPct: rec.predictedSnrGainPct,
+      populationSize: population.length,
+    );
+  }
+
   /// Cull the accepted light subs down to the improvement curve's recommended
   /// keep-set: reject every accepted sub *not* in the optimizer's kept indices,
   /// leaving exactly `keepN` accepted. The "drop to recommended {keepN}" action
-  /// the `SubCullRail` wires to the curve. No-op (returns 0) when no curve /
-  /// recommendation is loaded. Returns the number of subs newly rejected.
+  /// the `SubCullRail` wires to the curve. No-op (returns 0) unless
+  /// [cullRecommendationOffer] is offerable. Returns the number of subs newly
+  /// rejected.
   Future<CullToRecommendedResult> cullToRecommended() async {
-    final curve = state.improvementCurve;
-    if (curve == null) return CullToRecommendedResult.staleCurve;
-    final rec = curve.recommendation;
-    if (rec.keepN <= 0) return CullToRecommendedResult.staleCurve;
+    final offer = cullRecommendationOffer;
+    switch (offer.status) {
+      case CullOfferStatus.none:
+      case CullOfferStatus.stale:
+        return CullToRecommendedResult.staleCurve;
+      case CullOfferStatus.alreadyOptimal:
+        return CullToRecommendedResult.alreadyOptimal;
+      case CullOfferStatus.offerable:
+        break;
+    }
 
-    // The optimizer's `keptIndices` are positions into the *population the curve
-    // was computed over* — `improvementCurvePopulation`, the ordered sub paths
-    // recorded when the master was built. They are NOT raw positions into the
-    // live `acceptedLights`, which may have changed (subs accepted/rejected
-    // since, or a different ordering) and whose `SubsetRecommendation` documents
-    // the indices as weight-ranked, not capture-ranked. So resolve `keptIndices`
-    // → population paths → live subs, and bail out unless the population still
-    // matches the live accepted set exactly. A stale/mismatched curve must never
-    // reject arbitrary subs.
+    final rec = state.improvementCurve!.recommendation;
     final population = state.improvementCurvePopulation;
     final accepted = state.acceptedLights;
-    if (accepted.isEmpty) return CullToRecommendedResult.staleCurve;
-
-    // Guard: the curve must carry a population, and that population must be the
-    // same set of subs (by path) that is currently accepted — otherwise the
-    // index space no longer maps to these subs.
-    if (population.length != accepted.length) {
-      return CullToRecommendedResult.staleCurve;
-    }
-    final acceptedByPath = <String, DbCapturedImage>{
-      for (final s in accepted) s.filePath: s,
-    };
-    if (acceptedByPath.length != accepted.length) {
-      return CullToRecommendedResult.staleCurve; // duplicate paths
-    }
-    for (final path in population) {
-      if (!acceptedByPath.containsKey(path)) {
-        return CullToRecommendedResult.staleCurve; // population diverged
-      }
-    }
-
-    if (rec.keepN >= population.length) {
-      return CullToRecommendedResult.alreadyOptimal;
-    }
 
     // Map the kept indices through the population's paths to the live subs to
     // keep; everything accepted but not in that keep-set is culled.

@@ -94,7 +94,7 @@ class _ToolbarOverflowMenu extends StatelessWidget {
 }
 
 /// Displays both pure integration time and overhead-aware total estimate
-class _SequenceTimeEstimate extends StatelessWidget {
+class _SequenceTimeEstimate extends ConsumerWidget {
   final NightshadeColors colors;
   final Sequence sequence;
 
@@ -125,8 +125,21 @@ class _SequenceTimeEstimate extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final estimate = sequence.estimateWithOverhead();
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Total from the SAME estimator the tree-row chips, the timeline and the
+    // Pre-Flight simulation use. `Sequence.estimateWithOverhead` is a third,
+    // coarser model (flat per-node constants, no clock-dependent nodes), and
+    // billing this chip against it is what made the Builder header and the
+    // Pre-Flight panel print different totals for one sequence.
+    final estimator = SequenceTimeEstimator(
+      overhead: ref.watch(sequencerOverheadConfigProvider),
+    );
+    final integrationSecs = sequence.estimateIntegrationSecs().estimatedSecs;
+    final totalSecs = estimator
+        .estimateTotalDuration(sequence, DateTime.now())
+        .inSeconds
+        .toDouble();
+    final overheadSecs = totalSecs - integrationSecs;
 
     final valueStyle = TextStyle(
       fontSize: NightshadeTypography.fontSize12,
@@ -141,16 +154,16 @@ class _SequenceTimeEstimate extends StatelessWidget {
     );
 
     final framesText = '${sequence.totalExposures} frames';
-    final timeText = _formatDuration(estimate.estimatedSecs);
-    final overheadText = '~${_formatDuration(estimate.totalEstimatedSecs)}';
+    final timeText = _formatDuration(integrationSecs);
+    final overheadText = '~${_formatDuration(totalSecs)}';
 
     return Tooltip(
-      message: estimate.overheadSecs > 0
-          ? 'Integration: ${_formatDuration(estimate.estimatedSecs)}\n'
-              'Overhead: ${_formatDuration(estimate.overheadSecs)} '
+      message: overheadSecs > 0
+          ? 'Integration: ${_formatDuration(integrationSecs)}\n'
+              'Overhead: ${_formatDuration(overheadSecs)} '
               '(slews, AF, dithers, downloads, etc.)\n'
-              'Estimated total: ${_formatDuration(estimate.totalEstimatedSecs)}'
-          : 'Integration time: ${_formatDuration(estimate.estimatedSecs)}',
+              'Estimated total: ${_formatDuration(totalSecs)}'
+          : 'Integration time: ${_formatDuration(integrationSecs)}',
       child: LayoutBuilder(
         builder: (context, constraints) {
           // Icons and their gaps cannot shrink, so a `Flexible` text alone
@@ -177,7 +190,7 @@ class _SequenceTimeEstimate extends StatelessWidget {
 
           final showFrames = available >= padding + framesSegment;
           final showTime = available >= padding + framesSegment + timeSegment;
-          final showOverhead = estimate.overheadSecs > 0 &&
+          final showOverhead = overheadSecs > 0 &&
               available >=
                   padding + framesSegment + timeSegment + overheadSegment;
 

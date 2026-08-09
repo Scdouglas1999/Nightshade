@@ -10,6 +10,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../widgets/sequence/variable_picker.dart';
+
 class LiveStackingProperties extends ConsumerStatefulWidget {
   final NightshadeColors colors;
   final LiveStackingNode node;
@@ -284,12 +286,27 @@ class _LiveStackingPropertiesState
         _commitOnBlur(
           TextField(
             controller: _watermarkCtl,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Watermark template',
               helperText:
                   'Variable interpolation: \${target}, \${integration.hms}, '
                   '\${frames}, \${stack.method}. Leave empty for no watermark.',
-              border: OutlineInputBorder(),
+              border: const OutlineInputBorder(),
+              // The helper text names four variables the operator otherwise has
+              // to type from memory; this is the insert control the picker was
+              // written for, and the only field in the app that interpolates a
+              // user-authored template.
+              //
+              // The watermark speaks its OWN flat token vocabulary, not the
+              // sequencer's expression language, and the renderer passes an
+              // unknown token through literally — so offering the sequencer
+              // catalog here would let the operator pick `${filter}` from a
+              // menu and burn it verbatim into the broadcast JPEG.
+              suffixIcon: VariablePickerButton(
+                controller: _watermarkCtl,
+                variables: watermarkVariableCatalog,
+                onChanged: _commitWatermark,
+              ),
             ),
             maxLines: 2,
             onSubmitted: (_) => _commitWatermark(),

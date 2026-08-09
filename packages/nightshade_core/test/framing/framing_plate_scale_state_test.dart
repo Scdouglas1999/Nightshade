@@ -10,6 +10,7 @@ import 'package:nightshade_core/src/models/framing_plate_scale.dart';
 import 'package:nightshade_core/src/providers/framing_image_cache_provider.dart';
 import 'package:nightshade_core/src/providers/framing_provider.dart';
 import 'package:nightshade_core/src/services/framing_image_cache_service.dart';
+import '../harness/in_memory_database.dart';
 
 /// Encodes a deterministic JPEG with a known (non-square) pixel geometry so the
 /// resulting [FramingPlateScale] can be asserted against the decoded image
@@ -100,6 +101,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           framingImageCacheServiceProvider.overrideWithValue(cacheService),
         ],
       );
@@ -153,6 +155,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           framingImageCacheServiceProvider.overrideWithValue(cacheService),
           // Force the network path to fail fast. This used to rely on the test
           // host having no network, which is not something a test may assume:

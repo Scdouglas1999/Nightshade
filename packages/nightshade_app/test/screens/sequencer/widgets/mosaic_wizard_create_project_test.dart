@@ -119,6 +119,19 @@ Future<void> _pumpWizard(
           (ref) => TestBackendNotifier(ref, activeBackend),
         ),
         smartNightExposureContextProvider.overrideWith((ref) async => null),
+        // The wizard derives one panel's field from the rig and refuses to
+        // plan without it, so these tests have to describe a rig.
+        opticalConfigProvider.overrideWithValue(
+          const OpticalConfig(
+            telescopeName: 'Test scope',
+            focalLength: 500,
+            aperture: 100,
+            cameraName: 'Test cam',
+            sensorWidth: 4144,
+            sensorHeight: 2822,
+            pixelSize: 4.63,
+          ),
+        ),
         mosaicProjectServiceProvider.overrideWithValue(service),
       ],
       child: MaterialApp.router(
@@ -172,7 +185,9 @@ void main() {
     expect(calls, hasLength(1), reason: 'exactly one create call');
     final args = calls.single;
     // The default wizard design: 3×3 grid, 10% overlap, 0° rotation, opened at
-    // RA 12.5h / Dec 30.0°, default panel 60×40 arcmin.
+    // RA 12.5h / Dec 30.0°. The panel size is DERIVED from the overridden rig
+    // (500 mm focal length, 4144×2822 px at 4.63 µm => 2.198° × 1.500°); it
+    // used to be a hardcoded 60×40 arcmin that matched no camera at all.
     expect(args['name'], 'Mosaic 12.50h 30.0°');
     expect(args['rows'], 3);
     expect(args['cols'], 3);
@@ -180,8 +195,8 @@ void main() {
     expect(args['centerDec'], 30.0);
     expect(args['overlapPct'], 10.0);
     expect(args['positionAngleDeg'], 0.0);
-    expect(args['panelWidthArcmin'], 60.0);
-    expect(args['panelHeightArcmin'], 40.0);
+    expect(args['panelWidthArcmin'] as double, closeTo(131.9, 0.2));
+    expect(args['panelHeightArcmin'] as double, closeTo(90.0, 0.2));
     // Capture-wiring (blocker b): the create-project path threads a
     // panelTargetId callback end-to-end (wizard design -> controller ->
     // service). For the wizard's ad-hoc centre it is null — the project-service

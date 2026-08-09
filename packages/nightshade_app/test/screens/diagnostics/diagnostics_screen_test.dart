@@ -185,4 +185,35 @@ void main() {
             '"Create dump" button is the load-bearing action on the screen; '
             'losing it would silently block bug-report attachment.');
   });
+
+  testWidgets(
+      'dump_contents_card_states_the_real_log_span: the log line names the '
+      'service\'s retention window instead of promising every log on the '
+      'machine', (tester) async {
+    // The card first said "Recent log files" over an unbounded export (a
+    // real dump carried 38k lines spanning a week), then said "every daily
+    // native log kept on this machine" after the export was bounded to 48h.
+    // Both were false. It must read from the constant that actually bounds
+    // the export.
+    await pumpAppScreen(
+      tester,
+      const DiagnosticDumpScreen(),
+      size: const Size(1280, 800),
+      settle: false,
+    );
+    await _drainAsyncFrames(tester);
+
+    final hours = DiagnosticDumpService.logRetentionWindow.inHours;
+    expect(
+      find.textContaining('native logs from the last $hours hours'),
+      findsOneWidget,
+      reason: 'The contents card must state the span the zip actually has.',
+    );
+    expect(
+      find.textContaining('every daily native log kept on this machine'),
+      findsNothing,
+      reason: 'The export is bounded; claiming otherwise is the old defect '
+          'inverted.',
+    );
+  });
 }

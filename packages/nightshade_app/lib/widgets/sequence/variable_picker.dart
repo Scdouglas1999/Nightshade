@@ -2,9 +2,10 @@
 // next to a text field; tapping opens a menu of variables grouped by
 // category and inserts the chosen one at the current cursor position.
 //
-// Powered by the static `interpolationCatalog` in `nightshade_core` which
+// Defaults to the static `interpolationCatalog` in `nightshade_core` which
 // mirrors the Rust source-of-truth at
-// `native/nightshade_native/sequencer/src/expressions/catalog.rs`.
+// `native/nightshade_native/sequencer/src/expressions/catalog.rs`. A field
+// with a narrower vocabulary passes its own list — see `variables`.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,8 +13,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// A trailing `${ }` icon button that opens a variable picker menu when
-/// tapped. Insert into a TextField's `suffixIcon` slot (or wrap the field
-/// with [VariablePickerField] for the integrated form).
+/// tapped. Insert into a TextField's `suffixIcon` slot.
 ///
 /// The bound [controller] is used both for cursor-aware insertion and for
 /// the preview render shown at the bottom of the popover.
@@ -34,12 +34,23 @@ class VariablePickerButton extends StatelessWidget {
   /// widget can rebuild a preview or run validation here.
   final VoidCallback? onChanged;
 
+  /// The vocabulary this field understands. Defaults to the sequencer's
+  /// expression catalog.
+  ///
+  /// Every offered variable MUST be one the bound field's own interpolator
+  /// resolves. Offering the sequencer catalog on a surface with a narrower
+  /// vocabulary is not a harmless superset: both interpolators pass an unknown
+  /// token through literally, so the user picks `${filter}` from a menu and it
+  /// is rendered verbatim into the output.
+  final List<InterpolationVariable> variables;
+
   const VariablePickerButton({
     super.key,
     required this.controller,
     this.compact = true,
     this.tooltip,
     this.onChanged,
+    this.variables = interpolationCatalog,
   });
 
   @override
@@ -61,7 +72,10 @@ class VariablePickerButton extends StatelessWidget {
   Future<void> _open(BuildContext context) async {
     final picked = await showDialog<InterpolationVariable>(
       context: context,
-      builder: (ctx) => _VariablePickerDialog(currentText: controller.text),
+      builder: (ctx) => _VariablePickerDialog(
+        currentText: controller.text,
+        variables: variables,
+      ),
     );
     if (picked == null) return;
     _insertAtCursor(picked.placeholder);
@@ -84,114 +98,13 @@ class VariablePickerButton extends StatelessWidget {
   }
 }
 
-/// A `TextField` plus a variable-picker button plus an optional live
-/// preview. Drop-in replacement for `TextField` in any property editor
-/// that supports `${...}` templates.
-class VariablePickerField extends StatefulWidget {
-  /// Bound text controller.
-  final TextEditingController controller;
-
-  /// Field label (shown inside the InputDecoration).
-  final String label;
-
-  /// Field hint / placeholder text.
-  final String? hint;
-
-  /// Whether to show a live preview of the rendered template under the
-  /// field. Useful for save-path fields where the user wants to see the
-  /// final filename before saving the sequence.
-  final bool showPreview;
-
-  /// Maximum lines for multi-line fields (notification message).
-  final int? maxLines;
-
-  /// Called whenever the text changes (typed or inserted).
-  final ValueChanged<String>? onChanged;
-
-  /// Helper text below the field.
-  final String? helperText;
-
-  const VariablePickerField({
-    super.key,
-    required this.controller,
-    required this.label,
-    this.hint,
-    this.showPreview = false,
-    this.maxLines = 1,
-    this.onChanged,
-    this.helperText,
-  });
-
-  @override
-  State<VariablePickerField> createState() => _VariablePickerFieldState();
-}
-
-class _VariablePickerFieldState extends State<VariablePickerField> {
-  late final VoidCallback _listener;
-
-  @override
-  void initState() {
-    super.initState();
-    _listener = () {
-      if (!mounted) return;
-      setState(() {}); // Refresh preview.
-      widget.onChanged?.call(widget.controller.text);
-    };
-    widget.controller.addListener(_listener);
-  }
-
-  @override
-  void dispose() {
-    widget.controller.removeListener(_listener);
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        TextField(
-          controller: widget.controller,
-          maxLines: widget.maxLines,
-          decoration: InputDecoration(
-            labelText: widget.label,
-            hintText: widget.hint,
-            helperText: widget.helperText,
-            suffixIcon: VariablePickerButton(
-              controller: widget.controller,
-              onChanged: () => widget.onChanged?.call(widget.controller.text),
-            ),
-          ),
-        ),
-        if (widget.showPreview && widget.controller.text.contains(r'${'))
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Row(
-              children: [
-                Icon(Icons.visibility, size: 14, color: theme.hintColor),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: SelectableText(
-                    previewInterpolation(widget.controller.text),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                      color: theme.hintColor,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-      ],
-    );
-  }
-}
-
 class _VariablePickerDialog extends StatefulWidget {
   final String currentText;
-  const _VariablePickerDialog({required this.currentText});
+  final List<InterpolationVariable> variables;
+  const _VariablePickerDialog({
+    required this.currentText,
+    required this.variables,
+  });
 
   @override
   State<_VariablePickerDialog> createState() => _VariablePickerDialogState();
@@ -204,8 +117,8 @@ class _VariablePickerDialogState extends State<_VariablePickerDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final filtered = _search.isEmpty
-        ? interpolationCatalog
-        : interpolationCatalog
+        ? widget.variables
+        : widget.variables
             .where((v) =>
                 v.name.toLowerCase().contains(_search.toLowerCase()) ||
                 v.description.toLowerCase().contains(_search.toLowerCase()))
@@ -270,7 +183,10 @@ class _VariablePickerDialogState extends State<_VariablePickerDialog> {
                       const SizedBox(width: 6),
                       Expanded(
                         child: SelectableText(
-                          previewInterpolation(widget.currentText),
+                          previewInterpolation(
+                            widget.currentText,
+                            catalog: widget.variables,
+                          ),
                           style: theme.textTheme.bodySmall?.copyWith(
                             fontFeatures: const [
                               FontFeature.tabularFigures(),

@@ -12,7 +12,7 @@
 // no callback indirection — so a green assertion proves the menu→provider
 // wiring end to end, not just that a row rendered.
 
-import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/imaging/imaging_screen.dart';
 import 'package:nightshade_app/screens/imaging/widgets/imaging_preview_toolbar.dart';
@@ -102,5 +102,48 @@ void main() {
         reason: 'Selecting the Catalog overlay row must flip '
             'catalogOverlayEnabledProvider true — proving the new menu drives '
             'the same provider as the retired loose icon.');
+  });
+
+  testWidgets(
+      'overlays_menu_label_is_not_squeezed_by_its_description: the Readouts '
+      'row renders its label on one unbroken line', (tester) async {
+    // The Readouts row is the only one carrying a trailing description
+    // ("Histogram, HFR / stars, image stats"). Laid out beside the label it
+    // claimed its full intrinsic width first and left the label a ~29 px
+    // sliver inside the popup's 296 px cap, so "Readouts" rendered broken
+    // across two lines as "Rea" / "dou".
+    _swallowKnownOverflows();
+    final handle = await pumpAppScreen(
+      tester,
+      const ImagingScreen(),
+      size: const Size(1600, 900),
+      settle: false,
+    );
+    await _drainAsyncFrames(tester);
+    addTearDown(() async => handle.database.close());
+
+    await tester.tap(find.text('Overlays'));
+    await _drainAsyncFrames(tester);
+
+    expect(find.text('Readouts'), findsOneWidget,
+        reason: 'The Overlays popover must expose the Readouts row.');
+    expect(find.text('Histogram, HFR / stars, image stats'), findsOneWidget,
+        reason: 'The description must still be shown, just not competing with '
+            'the label for the same line.');
+
+    // "Crosshair" is a sibling row with the identical label style and no
+    // description, so it is the height of exactly one line. A wrapped
+    // "Readouts" is twice that.
+    final oneLineHeight = tester.getSize(find.text('Crosshair')).height;
+    expect(tester.getSize(find.text('Readouts')).height,
+        closeTo(oneLineHeight, 0.5),
+        reason: 'The control name must occupy exactly one line — two lines is '
+            'the "Rea" / "dou" break.');
+
+    final paragraph =
+        tester.renderObject<RenderParagraph>(find.text('Readouts'));
+    expect(paragraph.didExceedMaxLines, isFalse,
+        reason: 'The control name must not be ellipsised either: a label '
+            'squeezed to "Rea…" is just as unreadable as one broken in half.');
   });
 }

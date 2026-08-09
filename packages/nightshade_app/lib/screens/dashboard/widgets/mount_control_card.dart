@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -8,6 +10,7 @@ import '../../../localization/nightshade_localizations.dart';
 import '../../../services/mount_command_service.dart';
 import '../../../utils/snackbar_helper.dart';
 import 'glass_card.dart';
+import 'mount_jog.dart';
 
 class MountControlCard extends ConsumerWidget {
   final NightshadeColors colors;
@@ -169,16 +172,18 @@ class MountControlCard extends ConsumerWidget {
               if (isExpanded && isConnected) ...[
                 const SizedBox(height: 10),
 
-                // Directional jog controls (N/S/E/W)
-                _MountDirectionalPad(
+                // Hold-to-jog controls (N/S/E/W) plus their speed selector.
+                MountJogControls(
                   colors: colors,
                   isEnabled: isConnected && !mountState.isParked,
-                  onDirection: (direction) async {
-                    final r = await ref
-                        .read(mountCommandServiceProvider)
-                        .pulseGuide(direction);
-                    if (context.mounted) context.showCommandActionResult(r);
-                  },
+                  // A parked mount refuses every move command, so the pad must
+                  // say why instead of accepting presses that go nowhere.
+                  disabledReason: mountState.isParked
+                      ? 'Mount is parked — unpark first.'
+                      : null,
+                  deviceId: mountState.deviceId,
+                  capabilities: mountCapabilities,
+                  capabilitiesLoading: mountCapabilitiesAsync.isLoading,
                 ),
 
                 const SizedBox(height: 10),
@@ -318,21 +323,91 @@ class MountControlCard extends ConsumerWidget {
   }
 }
 
-/// Directional pad for mount jog controls (N/S/E/W).
-class _MountDirectionalPad extends StatelessWidget {
+/// Hold-to-jog pad (N/S/E/W) plus its speed selector.
+///
+/// It used to fire a single 500 ms `pulseGuide` per tap: about four arcseconds,
+/// invisible on the coordinate readout, and a 2 s press-and-hold produced
+/// exactly one pulse. An arrow pad on a mount card has to slew while held and
+/// stop on release, which is what [MountJogMode.slew] does through MoveAxis.
+/// Mounts whose driver has no MoveAxis fall back to REPEATED guide pulses and
+/// the pad says so, so the operator can read what the arrows actually do.
+@visibleForTesting
+class MountJogControls extends ConsumerStatefulWidget {
   final NightshadeColors colors;
   final bool isEnabled;
-  final void Function(String direction) onDirection;
 
-  const _MountDirectionalPad({
+  /// Why the pad cannot move the mount right now (e.g. it is parked), or null
+  /// when the reason is one the pad works out itself from [capabilities].
+  ///
+  /// Shown under the pad, in every arrow's tooltip, and as a snackbar when an
+  /// arrow is pressed anyway — an inert pad that stays silent is the defect.
+  final String? disabledReason;
+  final String? deviceId;
+  final MountCapabilities? capabilities;
+  final bool capabilitiesLoading;
+
+  const MountJogControls({
+    super.key,
     required this.colors,
     required this.isEnabled,
-    required this.onDirection,
+    required this.deviceId,
+    required this.capabilities,
+    required this.capabilitiesLoading,
+    this.disabledReason,
   });
 
   @override
+  ConsumerState<MountJogControls> createState() => _MountJogControlsState();
+}
+
+class _MountJogControlsState extends ConsumerState<MountJogControls> {
+  /// The direction currently held down, or null when the pad is at rest.
+  String? _held;
+
+  /// Guards against a held axis outliving the press (see [kMountJogMaxHold]).
+  Timer? _holdWatchdog;
+
+  /// The backend the in-flight MoveAxis was sent to. Captured at start because
+  /// `ref` is already unusable inside `dispose`, and the axis MUST still be
+  /// stopped when the pad is torn down mid-press.
+  DeviceBackend? _jogBackend;
+
+  MountJogRate? _rate;
+
+  @override
+  void dispose() {
+    _holdWatchdog?.cancel();
+    // Never leave an axis running because the card was rebuilt away. Fire and
+    // forget: dispose cannot await, but the stop must still be issued.
+    final held = _held;
+    _held = null;
+    if (held != null && widget.deviceId != null) {
+      unawaited(_sendStop(widget.deviceId!, held));
+    }
+    super.dispose();
+  }
+
+  MountJogMode get _mode => mountJogModeFor(widget.capabilities);
+
+  List<MountJogRate> get _rates =>
+      mountJogRates(widget.capabilities?.maxSlewRate);
+
+  MountJogRate get _selectedRate {
+    final rates = _rates;
+    final current = _rate;
+    if (current != null && rates.contains(current)) return current;
+    return defaultMountJogRate(rates);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
+    final colors = widget.colors;
+    final mode = _mode;
+    final padEnabled = widget.isEnabled &&
+        widget.deviceId != null &&
+        mode != MountJogMode.unavailable;
+
+    final pad = Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: colors.surfaceAlt.withValues(alpha: 0.5),
@@ -341,88 +416,285 @@ class _MountDirectionalPad extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // West button
-          _DirectionalButton(
-            icon: LucideIcons.chevronLeft,
-            label: 'W',
-            colors: colors,
-            isEnabled: isEnabled,
-            onPressed: () => onDirection('west'),
-          ),
+          _jogButton(LucideIcons.chevronLeft, 'W', 'west', padEnabled),
           const SizedBox(width: 2),
-          // Column with North and South
           Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _DirectionalButton(
-                icon: LucideIcons.chevronUp,
-                label: 'N',
-                colors: colors,
-                isEnabled: isEnabled,
-                onPressed: () => onDirection('north'),
-              ),
+              _jogButton(LucideIcons.chevronUp, 'N', 'north', padEnabled),
               const SizedBox(height: 2),
-              _DirectionalButton(
-                icon: LucideIcons.chevronDown,
-                label: 'S',
-                colors: colors,
-                isEnabled: isEnabled,
-                onPressed: () => onDirection('south'),
-              ),
+              _jogButton(LucideIcons.chevronDown, 'S', 'south', padEnabled),
             ],
           ),
           const SizedBox(width: 2),
-          // East button
-          _DirectionalButton(
-            icon: LucideIcons.chevronRight,
-            label: 'E',
-            colors: colors,
-            isEnabled: isEnabled,
-            onPressed: () => onDirection('east'),
-          ),
+          _jogButton(LucideIcons.chevronRight, 'E', 'east', padEnabled),
         ],
       ),
     );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Dim the WHOLE pad when it is inert. The icon colour alone (textPrimary
+        // -> textMuted) is not readable as "disabled" on the dark theme.
+        if (padEnabled)
+          pad
+        else
+          Opacity(
+            key: mountJogDisabledVeilKey,
+            opacity: 0.45,
+            child: pad,
+          ),
+        const SizedBox(height: 6),
+        _modeRow(mode),
+      ],
+    );
   }
-}
 
-/// Individual directional button for mount jog.
-class _DirectionalButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final NightshadeColors colors;
-  final bool isEnabled;
-  final VoidCallback onPressed;
+  /// The reason the pad is inert, or null when it is live. A caller-supplied
+  /// reason (parked) wins over the capability-derived one: it is the one the
+  /// operator can act on.
+  String? get _inertReason {
+    if (!widget.isEnabled) {
+      return widget.disabledReason ?? 'Mount controls are unavailable.';
+    }
+    if (widget.deviceId == null) return 'No mount is connected.';
+    if (_mode == MountJogMode.unavailable) {
+      return widget.capabilitiesLoading
+          ? 'Reading mount capabilities…'
+          : 'This mount reports neither axis slewing nor guide pulses, so the '
+              'arrows are unavailable.';
+    }
+    return null;
+  }
 
-  const _DirectionalButton({
-    required this.icon,
-    required this.label,
-    required this.colors,
-    required this.isEnabled,
-    required this.onPressed,
-  });
+  /// Answer a press on an inert arrow instead of swallowing it.
+  void _explainInert() {
+    final reason = _inertReason;
+    if (reason == null || !mounted) return;
+    context.showWarningSnackBar(reason);
+  }
 
-  @override
-  Widget build(BuildContext context) {
+  /// The row under the pad: the reason the arrows are inert when they are, a
+  /// speed selector when the pad really slews, and otherwise a plain statement
+  /// of what the arrows do instead.
+  Widget _modeRow(MountJogMode mode) {
+    final colors = widget.colors;
+    final labelStyle = TextStyle(
+      fontSize: NightshadeTypography.fontSize10,
+      color: colors.textMuted,
+    );
+
+    final inert = _inertReason;
+    if (inert != null) {
+      return Text(inert, style: labelStyle);
+    }
+
+    if (mode == MountJogMode.slew) {
+      final rates = _rates;
+      return Row(
+        children: [
+          Text('Jog:', style: labelStyle),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Container(
+              height: 28,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              decoration: BoxDecoration(
+                color: colors.surfaceAlt,
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline4),
+                border: Border.all(color: colors.border.withValues(alpha: 0.5)),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<MountJogRate>(
+                  value: _selectedRate,
+                  isDense: true,
+                  isExpanded: true,
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: colors.textPrimary),
+                  dropdownColor: colors.surface,
+                  icon: Icon(LucideIcons.chevronDown,
+                      size: 12, color: colors.textMuted),
+                  items: rates
+                      .map((rate) => DropdownMenuItem(
+                            value: rate,
+                            child: Text(
+                              '${rate.label}  '
+                              '(${rate.degPerSec.toStringAsFixed(3)}°/s)',
+                            ),
+                          ))
+                      .toList(),
+                  onChanged: (rate) {
+                    if (rate == null) return;
+                    setState(() => _rate = rate);
+                  },
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Text(
+      'Guide pulses ($kMountJogPulseMs ms while held) — this mount reports '
+      'no axis slewing.',
+      style: labelStyle,
+    );
+  }
+
+  Widget _jogButton(
+    IconData icon,
+    String label,
+    String direction,
+    bool isEnabled,
+  ) {
+    final colors = widget.colors;
+    final isActive = _held == direction;
+    final inert = _inertReason;
     return Tooltip(
-      message: label,
-      child: Material(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
-        child: InkWell(
-          onTap: isEnabled ? onPressed : null,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
-          child: SizedBox(
-            width: 32,
-            height: 32,
-            child: Icon(
-              icon,
-              size: 16,
-              color: isEnabled ? colors.textPrimary : colors.textMuted,
+      key: mountJogButtonKey(direction),
+      // The tooltip carries the REASON when the pad is inert. "Hold to slew E"
+      // over an arrow that cannot move is the lie the audit pressed.
+      message: inert ??
+          switch (_mode) {
+            MountJogMode.slew =>
+              'Hold to slew $label at ${_selectedRate.label}',
+            MountJogMode.pulse => 'Hold to guide-pulse $label',
+            MountJogMode.unavailable => 'Jog unavailable on this mount',
+          },
+      child: Semantics(
+        button: true,
+        enabled: isEnabled,
+        label: 'Jog $label',
+        // Assistive tech cannot express hold-and-release, so a semantics tap
+        // performs the same bounded nudge a quick press does. When the pad is
+        // inert the tap still lands — and gets told why.
+        onTap: isEnabled ? () => unawaited(_nudge(direction)) : _explainInert,
+        child: Listener(
+          onPointerDown: isEnabled
+              ? (_) => unawaited(_startJog(direction))
+              : (_) => _explainInert(),
+          onPointerUp: isEnabled ? (_) => unawaited(_stopJog()) : null,
+          onPointerCancel: isEnabled ? (_) => unawaited(_stopJog()) : null,
+          child: Material(
+            color: isActive
+                ? colors.primary.withValues(alpha: 0.3)
+                : colors.surfaceAlt,
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+            child: SizedBox(
+              width: 32,
+              height: 32,
+              child: Icon(
+                icon,
+                size: 16,
+                color: isEnabled ? colors.textPrimary : colors.textMuted,
+              ),
             ),
           ),
         ),
       ),
     );
+  }
+
+  /// Start moving and keep moving until [_stopJog].
+  Future<void> _startJog(String direction) async {
+    final deviceId = widget.deviceId;
+    if (deviceId == null || _held != null) return;
+    setState(() => _held = direction);
+    _holdWatchdog?.cancel();
+    _holdWatchdog = Timer(kMountJogMaxHold, () {
+      unawaited(_stopJog());
+      if (mounted) {
+        context.showWarningSnackBar(
+          'Jog stopped after ${kMountJogMaxHold.inSeconds}s.',
+        );
+      }
+    });
+
+    switch (_mode) {
+      case MountJogMode.slew:
+        final move = mountJogAxis(direction, _selectedRate.degPerSec);
+        // Hold the backend that received the START. `ref` is already unusable
+        // by the time dispose() runs, and in any case the stop belongs to the
+        // same authority the start went to — not to whatever the app has
+        // switched to since.
+        final backend = ref.read(deviceBackendProvider);
+        _jogBackend = backend;
+        try {
+          await backend.mountMoveAxis(deviceId, move.axis, move.rate);
+        } catch (error) {
+          if (mounted) context.showErrorSnackBar('Jog failed: $error');
+          // The driver may still have started the axis before throwing.
+          await _stopJog();
+        }
+      case MountJogMode.pulse:
+        // NOT awaited: the loop runs until the button is released, and awaiting
+        // it here would leave the caller (the semantics nudge) unable to issue
+        // its own release.
+        unawaited(_pulseWhileHeld(direction));
+      case MountJogMode.unavailable:
+        await _stopJog();
+    }
+  }
+
+  /// Stop whatever the pad started. Safe to call when nothing is held.
+  Future<void> _stopJog() async {
+    final direction = _held;
+    _holdWatchdog?.cancel();
+    _holdWatchdog = null;
+    if (direction == null) return;
+    if (mounted) {
+      setState(() => _held = null);
+    } else {
+      _held = null;
+    }
+
+    final deviceId = widget.deviceId;
+    if (deviceId == null) return;
+    await _sendStop(deviceId, direction);
+  }
+
+  /// The stop half of a MoveAxis pair. A pulse jog needs none: each pulse is
+  /// self-limiting, and the loop simply stops issuing more.
+  Future<void> _sendStop(String deviceId, String direction) async {
+    final backend = _jogBackend;
+    if (backend == null) return;
+    _jogBackend = null;
+    final axis = mountJogAxis(direction, 1.0).axis;
+    try {
+      await backend.mountMoveAxis(deviceId, axis, 0.0);
+    } catch (error) {
+      if (mounted) context.showErrorSnackBar('Jog stop failed: $error');
+    }
+  }
+
+  /// Repeat guide pulses for as long as the button is held. This is the whole
+  /// fallback for a mount with no MoveAxis: one pulse per press was invisible.
+  Future<void> _pulseWhileHeld(String direction) async {
+    final service = ref.read(mountCommandServiceProvider);
+    while (mounted && _held == direction) {
+      final result =
+          await service.pulseGuide(direction, durationMs: kMountJogPulseMs);
+      if (!result.isSuccess) {
+        if (mounted) context.showCommandActionResult(result);
+        await _stopJog();
+        return;
+      }
+      // Pace the next pulse behind the one just issued so the loop cannot spin.
+      await Future<void>.delayed(
+        const Duration(milliseconds: kMountJogPulseMs),
+      );
+    }
+  }
+
+  /// A bounded press-and-release, for the semantics tap action.
+  Future<void> _nudge(String direction) async {
+    await _startJog(direction);
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    await _stopJog();
   }
 }

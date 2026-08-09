@@ -47,6 +47,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/planetarium/planetarium_screen.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 void main() {
   group('getDsoDisplayInfo', () {
@@ -109,7 +110,8 @@ void main() {
       // planetarium_screen.dart drives. Pumping a full widget tree
       // would drag in twilightTimesProvider, observerLocationProvider,
       // and the GPU sky renderer for no extra coverage.
-      final container = ProviderContainer();
+      final container =
+          ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
       // Why dispose: ObservationTimeNotifier owns a periodic Timer
       // (lib/src/providers/planetarium_providers.dart §147). Without
       // dispose, the timer keeps firing and the test framework reports
@@ -151,7 +153,8 @@ void main() {
       // TimeControlPanel "2x" button takes effect — the per-tick math
       // in _startTimer reads `state.speedMultiplier`, so as long as the
       // multiplier is correctly stored, the tick logic is exercised.
-      final container = ProviderContainer();
+      final container =
+          ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
       addTearDown(container.dispose);
 
       container.read(observationTimeProvider.notifier).setSpeedMultiplier(2.0);
@@ -181,7 +184,8 @@ void main() {
       // holding the down-arrow key near Dec=+90 could send Dec to +180
       // and flip the camera through the pole — a class of bug that's
       // very visible to users but trivial to introduce.
-      final container = ProviderContainer();
+      final container =
+          ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
       addTearDown(container.dispose);
 
       final notifier = container.read(skyViewStateProvider.notifier);
@@ -272,6 +276,7 @@ void main() {
       // resolve synchronously inside the same microtask.
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           loadedDsosProvider.overrideWith((ref) async => dsos),
           // Stars are unused in these DSO-focused tests; an empty
           // list short-circuits the star loop in `search()`.

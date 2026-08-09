@@ -76,8 +76,15 @@ class _SpotlightHitTestRenderBox extends RenderProxyBox {
 
   @override
   bool hitTest(BoxHitTestResult result, {required Offset position}) {
-    // If no target or not interactive, block all hits (dim area behavior)
-    if (_targetRect == null || !_isInteractive) {
+    // No resolvable target means there is nothing to protect, and absorbing
+    // every hit turned an un-anchored coach mark into a modal: a step reading
+    // "Click the Connections tab" was drawn over a screen that has none, and
+    // the scrim ate the click on the nav entry that would have got the
+    // operator there. Let the app underneath stay usable; the tooltip card is
+    // its own hit target and still takes Next/Back/Skip.
+    if (_targetRect == null) return false;
+
+    if (!_isInteractive) {
       // Still need to add ourselves to absorb the hit
       result.add(BoxHitTestEntry(this, position));
       return true;
@@ -113,61 +120,62 @@ class _SpotlightPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    // Nothing to spotlight. The full-screen dim that used to go here read as a
+    // modal scrim over a screen the step was not even about, and the matching
+    // hit test made that appearance true. An un-anchored step is a floating
+    // coach mark: the card carries it, the app stays visible and usable
+    // underneath.
+    final target = targetRect;
+    if (target == null) return;
+
     final paint = Paint()..color = dimColor;
 
-    if (targetRect == null) {
-      // No target - draw full dim
-      canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), paint);
-    } else {
-      // Draw dim with spotlight cutout based on shape
-      final path = Path()
-        ..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
+    // Draw dim with spotlight cutout based on shape
+    final path = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
 
-      final inflatedRect = targetRect!.inflate(padding);
+    final inflatedRect = target.inflate(padding);
 
-      switch (shape) {
-        case SpotlightShape.circle:
-          // Use the larger dimension for radius to ensure entire target is visible
-          final radius = math.max(inflatedRect.width, inflatedRect.height) / 2;
-          path.addOval(
+    switch (shape) {
+      case SpotlightShape.circle:
+        // Use the larger dimension for radius to ensure entire target is visible
+        final radius = math.max(inflatedRect.width, inflatedRect.height) / 2;
+        path.addOval(
+          Rect.fromCenter(
+            center: inflatedRect.center,
+            width: radius * 2,
+            height: radius * 2,
+          ),
+        );
+        break;
+
+      case SpotlightShape.pill:
+        // Horizontal oval/capsule shape
+        final verticalRadius = inflatedRect.height / 2;
+        final horizontalRadius = inflatedRect.width / 2 + verticalRadius * 0.5;
+        path.addRRect(
+          RRect.fromRectAndRadius(
             Rect.fromCenter(
               center: inflatedRect.center,
-              width: radius * 2,
-              height: radius * 2,
+              width: horizontalRadius * 2,
+              height: inflatedRect.height,
             ),
-          );
-          break;
+            Radius.circular(verticalRadius),
+          ),
+        );
+        break;
 
-        case SpotlightShape.pill:
-          // Horizontal oval/capsule shape
-          final verticalRadius = inflatedRect.height / 2;
-          final horizontalRadius =
-              inflatedRect.width / 2 + verticalRadius * 0.5;
-          path.addRRect(
-            RRect.fromRectAndRadius(
-              Rect.fromCenter(
-                center: inflatedRect.center,
-                width: horizontalRadius * 2,
-                height: inflatedRect.height,
-              ),
-              Radius.circular(verticalRadius),
-            ),
-          );
-          break;
-
-        case SpotlightShape.roundedRect:
-          path.addRRect(
-            RRect.fromRectAndRadius(
-              inflatedRect,
-              const Radius.circular(8),
-            ),
-          );
-          break;
-      }
-
-      path.fillType = PathFillType.evenOdd;
-      canvas.drawPath(path, paint);
+      case SpotlightShape.roundedRect:
+        path.addRRect(
+          RRect.fromRectAndRadius(
+            inflatedRect,
+            const Radius.circular(8),
+          ),
+        );
+        break;
     }
+
+    path.fillType = PathFillType.evenOdd;
+    canvas.drawPath(path, paint);
   }
 
   @override

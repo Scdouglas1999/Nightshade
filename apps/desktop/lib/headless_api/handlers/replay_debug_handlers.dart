@@ -6,7 +6,9 @@
 // `sequencer` auth resource — GET → view, POST → control):
 //
 //   GET  /api/sequencer/replay-debug/decisions?runId=N   chronological rows
-//   GET  /api/sequencer/replay-debug/decisions/count?runId=N   count badge
+//   GET  /api/sequencer/replay-debug/decisions/count[?runId=N]  count badge,
+//                                                        or every row when the
+//                                                        runId is omitted
 //   GET  /api/sequencer/replay-debug/settings            {enabled, retentionDays}
 //   POST /api/sequencer/replay-debug/settings/enabled    persist + executor
 //   POST /api/sequencer/replay-debug/settings/retention  persist retention
@@ -48,12 +50,18 @@ class ReplayDebugHandlers {
     });
   }
 
-  /// GET /api/sequencer/replay-debug/decisions/count?runId=N
+  /// GET /api/sequencer/replay-debug/decisions/count[?runId=N]
   ///
-  /// Authoritative one-shot count. `{ count: N }`.
+  /// Authoritative one-shot count. `{ count: N }`. With no `runId` this counts
+  /// every decision on the host, which is what the "Clear all replay history"
+  /// confirmation needs to state how much it is about to delete.
   Future<Response> handleCountDecisions(Request request) async {
-    final runId = requireQueryInt(request.url.queryParameters, 'runId', min: 1);
+    final params = request.url.queryParameters;
     final service = container.read(replayDebugServiceProvider);
+    if (!params.containsKey('runId')) {
+      return jsonOk({'count': await service.countAll()});
+    }
+    final runId = requireQueryInt(params, 'runId', min: 1);
     final count = await service.countByRun(runId);
     return jsonOk({'count': count});
   }

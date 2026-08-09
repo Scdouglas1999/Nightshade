@@ -96,6 +96,49 @@ void main() {
     expect(captured![2], SessionHandoffDecision.restart);
   });
 
+  // A sub-minute carry-over used to round to "0m", so the tile read
+  // "M31 has 0m from the most recent session (4 accepted frames)" — four
+  // real frames on disk described as no integration at all. The dialog now
+  // shares `formatIntegrationSeconds` with the Continue Session dialog and
+  // the dashboard's run cards.
+  testWidgets('a sub-minute carry-over is not reported as zero',
+      (tester) async {
+    final co = SessionCarryOver(
+      targetId: 3,
+      targetName: 'M13',
+      previousSessionId: 99,
+      previousSessionStartedAt: DateTime(2026, 5, 17, 22),
+      previousAcceptedFrames: 4,
+      previousIntegrationSecs: 12,
+      campaignIntegrationSecs: 12,
+      budgetSecs: 3600,
+      perFilterIntegrationSecs: const {'l': 12},
+    );
+    await tester.pumpWidget(_harness(
+      SessionHandoffDialog(
+        sequenceId: 7,
+        carryOvers: [co],
+        onDecisionsChosen: (_) {},
+      ),
+    ));
+    await tester.pump();
+
+    String textAt(Finder f) => tester.widget<Text>(f).data ?? '';
+    final tile = find.textContaining('from the most');
+    expect(tile, findsOneWidget);
+    expect(textAt(tile), contains('12s'));
+    expect(
+      textAt(tile),
+      isNot(contains('0m')),
+      reason: '4 accepted frames must never be described as 0 integration',
+    );
+
+    // The summary tiles and the per-filter chip read the same run.
+    expect(find.text('12s'), findsWidgets);
+    expect(find.text('0m'), findsNothing);
+    expect(find.text('l: 12s'), findsOneWidget);
+  });
+
   testWidgets('"Restart all" bulk button propagates to every target',
       (tester) async {
     final cos = [_fake(1, 'M31'), _fake(2, 'M42')];

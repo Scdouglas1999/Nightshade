@@ -1,5 +1,6 @@
 import 'dart:io';
-import 'dart:typed_data';
+import 'package:flutter/gestures.dart'
+    show GestureBinding, PointerScrollEvent, PointerSignalEvent;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -10,7 +11,6 @@ import 'package:nightshade_core/nightshade_core.dart'
         ImagingBackend,
         imagingRecordsRepositoryProvider,
         isRemoteModeProvider,
-        loggingServiceProvider,
         DbCapturedImage,
         FramePhotometricCalibrationRow,
         FrameQualityAssessment,
@@ -20,6 +20,8 @@ import 'package:nightshade_core/nightshade_core.dart'
 import '../../../utils/snackbar_helper.dart';
 import '../analytics_screen.dart' show dbSessionImagesProvider;
 import '../../../utils/filter_label.dart';
+import 'frame_detail_dialog.dart';
+import 'frame_thumbnail_loader.dart';
 
 enum _QualityFilter {
   all,
@@ -39,6 +41,12 @@ const double kAnalyticsThumbnailRailHeight = 120;
 /// gate, no auto-delete" pattern from the science gap list.
 class ImageThumbnailStrip extends StatefulWidget {
   final List<DbCapturedImage> images;
+
+  /// Overrides what a tap on a thumbnail does. When null the strip opens its
+  /// own frame inspector — the rail is a gallery of the night's frames, and
+  /// every caller in the app wants "show me this frame", so leaving the
+  /// gesture inert unless a caller happened to supply a handler meant no
+  /// caller ever did and clicking a thumbnail did nothing anywhere.
   final Function(DbCapturedImage)? onImageTap;
 
   /// Optional per-image calibration map (keyed by `image.id`). When supplied,
@@ -60,6 +68,49 @@ class ImageThumbnailStrip extends StatefulWidget {
 
 class _ImageThumbnailStripState extends State<ImageThumbnailStrip> {
   _QualityFilter _qualityFilter = _QualityFilter.all;
+  final ScrollController _railController = ScrollController();
+
+  @override
+  void dispose() {
+    _railController.dispose();
+    super.dispose();
+  }
+
+  /// A plain vertical mouse wheel over a horizontal rail does nothing in
+  /// Flutter by default, so the page scrolled underneath and the trailing
+  /// frames of a 200-frame night were only reachable with shift+wheel — which
+  /// nothing on screen advertised. Translate vertical wheel deltas into
+  /// horizontal scrolling; horizontal deltas are left to the Scrollable, which
+  /// already consumes them (handling both would double-scroll).
+  ///
+  /// The move goes through the pointer-signal resolver rather than straight to
+  /// `jumpTo`, because a bare `Listener` callback does not consume the event:
+  /// the enclosing page Scrollable still saw the same notch and the rail and
+  /// the page scrolled together, sliding the rail out from under the pointer.
+  /// Registering here also loses on purpose when the rail's own Scrollable has
+  /// already claimed the notch (shift+wheel), which otherwise moved the rail
+  /// twice — once by the Scrollable and once by this handler.
+  void _handleRailScroll(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent) return;
+    if (event.scrollDelta.dx != 0 || event.scrollDelta.dy == 0) return;
+    if (!_railController.hasClients) return;
+    final position = _railController.position;
+    if (position.maxScrollExtent <= 0) return;
+    final target = (position.pixels + event.scrollDelta.dy).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    // At either end the rail has nothing left to give, so the notch is left to
+    // the page instead of being swallowed into a dead zone.
+    if (target == position.pixels) return;
+    GestureBinding.instance.pointerSignalResolver.register(
+      event,
+      (_) {
+        if (!_railController.hasClients) return;
+        _railController.jumpTo(target);
+      },
+    );
+  }
 
   bool _matchesFilter(FrameQualityAssessment? assessment) {
     switch (_qualityFilter) {
@@ -71,6 +122,17 @@ class _ImageThumbnailStripState extends State<ImageThumbnailStrip> {
         return assessment?.level == FrameQualityLevel.poor;
     }
   }
+
+  /// Whether the assessor has any measurement to judge this frame on.
+  ///
+  /// Calibration frames (and lights whose analysis never ran) carry none, and
+  /// the assessor's score is a decrement-only walk from a 75 default — with
+  /// nothing to decrement it returns "Good" for a frame nobody measured.
+  static bool _hasQualityMeasurement(DbCapturedImage image) =>
+      image.hfr != null ||
+      image.starCount != null ||
+      image.guidingRmsTotal != null ||
+      image.qualityScore != null;
 
   String _filterLabel(_QualityFilter filter) {
     switch (filter) {
@@ -87,7 +149,16 @@ class _ImageThumbnailStripState extends State<ImageThumbnailStrip> {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     const assessor = FrameQualityAssessmentService();
-    final assessments = assessor.assessBatch(widget.images);
+    // Only frames the assessor can actually judge are handed to it. Its
+    // advisory score starts at 75 and is only ever decremented by a metric, so
+    // a frame with no HFR, no star count, no guiding RMS and no stored quality
+    // score — every dark, flat and bias — came back "Good, 75 score" and was
+    // counted in the Good chip. The session summary claimed 12 good frames
+    // when 8 had been assessed good and 4 had never been measured at all.
+    final gradable =
+        widget.images.where(_hasQualityMeasurement).toList(growable: false);
+    final ungradedCount = widget.images.length - gradable.length;
+    final assessments = assessor.assessBatch(gradable);
     final summary = assessor.summarize(assessments);
     final filteredImages = widget.images
         .where((image) => _matchesFilter(assessments[image.id]))
@@ -133,9 +204,15 @@ class _ImageThumbnailStripState extends State<ImageThumbnailStrip> {
               value: summary.poor,
               color: colors.error,
             ),
+            if (ungradedCount > 0)
+              _SummaryChip(
+                label: 'Unrated',
+                value: ungradedCount,
+                color: colors.textMuted,
+              ),
             _SummaryChip(
               label: 'Total',
-              value: summary.total,
+              value: widget.images.length,
               color: colors.info,
             ),
           ],
@@ -156,7 +233,10 @@ class _ImageThumbnailStripState extends State<ImageThumbnailStrip> {
         ),
         const SizedBox(height: 8),
         SizedBox(
-          // Thumbnail rail — fixed height (not chart-like).
+          // Thumbnail rail — fixed height (not chart-like). The list reserves
+          // the bottom 10px of it for the always-visible scrollbar rather than
+          // growing, so the loading and error placeholders that use this same
+          // constant stay the same height as the loaded rail.
           height: kAnalyticsThumbnailRailHeight,
           child: filteredImages.isEmpty
               ? Container(
@@ -175,22 +255,32 @@ class _ImageThumbnailStripState extends State<ImageThumbnailStrip> {
                     ),
                   ),
                 )
-              : ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  // Fixed-width thumbnails (100w + 8 right padding = 108).
-                  itemExtent: 108,
-                  itemCount: filteredImages.length,
-                  itemBuilder: (context, index) {
-                    final image = filteredImages[index];
-                    return _ImageThumbnail(
-                      image: image,
-                      assessment: assessments[image.id],
-                      calibration: widget.calibrationByImageId?[image.id],
-                      onTap: widget.onImageTap != null
-                          ? () => widget.onImageTap!(image)
-                          : null,
-                    );
-                  },
+              : Listener(
+                  onPointerSignal: _handleRailScroll,
+                  child: Scrollbar(
+                    controller: _railController,
+                    // The rail is the only horizontal scroller on the page, and
+                    // an overlay-only bar left "there are more frames" invisible
+                    // until the user happened to drag it.
+                    thumbVisibility: true,
+                    child: ListView.builder(
+                      controller: _railController,
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.only(bottom: 10),
+                      // Fixed-width thumbnails (100w + 8 right padding = 108).
+                      itemExtent: 108,
+                      itemCount: filteredImages.length,
+                      itemBuilder: (context, index) {
+                        final image = filteredImages[index];
+                        return _ImageThumbnail(
+                          image: image,
+                          assessment: assessments[image.id],
+                          calibration: widget.calibrationByImageId?[image.id],
+                          onImageTap: widget.onImageTap,
+                        );
+                      },
+                    ),
+                  ),
                 ),
         ),
       ],
@@ -258,29 +348,17 @@ class _QualityFilterChip extends StatelessWidget {
   }
 }
 
-class _ThumbnailPayload {
-  final Uint8List? bytes;
-  final bool fileExists;
-  final String? errorMessage;
-
-  const _ThumbnailPayload({
-    this.bytes,
-    required this.fileExists,
-    this.errorMessage,
-  });
-}
-
 class _ImageThumbnail extends ConsumerStatefulWidget {
   final DbCapturedImage image;
   final FrameQualityAssessment? assessment;
   final FramePhotometricCalibrationRow? calibration;
-  final VoidCallback? onTap;
+  final Function(DbCapturedImage)? onImageTap;
 
   const _ImageThumbnail({
     required this.image,
     this.assessment,
     this.calibration,
-    this.onTap,
+    this.onImageTap,
   });
 
   @override
@@ -288,19 +366,19 @@ class _ImageThumbnail extends ConsumerStatefulWidget {
 }
 
 class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
-  late Future<_ThumbnailPayload> _thumbnailFuture;
+  late Future<FrameThumbnailPayload> _thumbnailFuture;
   ProviderSubscription<ImagingBackend>? _backendSubscription;
 
   @override
   void initState() {
     super.initState();
-    _thumbnailFuture = _loadThumbnail();
+    _thumbnailFuture = loadFrameThumbnail(ref, widget.image);
     _backendSubscription = ref.listenManual<ImagingBackend>(
       imagingBackendProvider,
       (previous, next) {
         if (identical(previous, next) || !mounted) return;
         setState(() {
-          _thumbnailFuture = _loadThumbnail();
+          _thumbnailFuture = loadFrameThumbnail(ref, widget.image);
         });
       },
     );
@@ -317,7 +395,7 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.image.id != widget.image.id ||
         oldWidget.image.filePath != widget.image.filePath) {
-      _thumbnailFuture = _loadThumbnail();
+      _thumbnailFuture = loadFrameThumbnail(ref, widget.image);
     }
   }
 
@@ -337,7 +415,7 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
     return Padding(
       padding: const EdgeInsets.only(right: 8.0),
       child: InkWell(
-        onTap: widget.onTap,
+        onTap: _handleTap,
         onLongPress: () => _showFrameMenu(context),
         onSecondaryTap: () => _showFrameMenu(context),
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
@@ -366,7 +444,7 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                   child: Stack(
                     children: [
                       Center(
-                        child: FutureBuilder<_ThumbnailPayload>(
+                        child: FutureBuilder<FrameThumbnailPayload>(
                           future: _thumbnailFuture,
                           builder: (context, snapshot) {
                             if (snapshot.connectionState ==
@@ -382,7 +460,7 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                             }
 
                             final payload = snapshot.data ??
-                                const _ThumbnailPayload(fileExists: false);
+                                const FrameThumbnailPayload(fileExists: false);
 
                             if (payload.bytes != null &&
                                 payload.bytes!.isNotEmpty) {
@@ -406,7 +484,7 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                             }
 
                             if (payload.fileExists &&
-                                !_isFITSLikePath(widget.image.filePath) &&
+                                !isFitsLikePath(widget.image.filePath) &&
                                 !isRemoteMode) {
                               return ClipRRect(
                                 borderRadius: const BorderRadius.only(
@@ -461,33 +539,37 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                       // width/height), so the chip only ever appeared on frames
                       // whose image FAILED to load — exactly inverting the cull
                       // workflow it exists for.
-                      if (widget.assessment != null)
-                        Positioned(
-                          top: 4,
-                          left: 4,
-                          child: Tooltip(
-                            message: _qualityTooltip(),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 4,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: qualityColor.withValues(alpha: 0.92),
-                                borderRadius: BorderRadius.circular(
-                                    NightshadeTokens.radiusInline4),
-                              ),
-                              child: Text(
-                                widget.assessment!.label.toUpperCase(),
-                                style: const TextStyle(
-                                  fontSize: NightshadeTypography.fontSize8,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFFFFFFFF),
-                                ),
+                      //
+                      // An unmeasured frame gets an explicit UNRATED chip
+                      // rather than a missing badge, so "no grade" reads as a
+                      // statement instead of as a rendering gap.
+                      Positioned(
+                        top: 4,
+                        left: 4,
+                        child: Tooltip(
+                          message: _qualityTooltip(),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: qualityColor.withValues(alpha: 0.92),
+                              borderRadius: BorderRadius.circular(
+                                  NightshadeTokens.radiusInline4),
+                            ),
+                            child: Text(
+                              widget.assessment?.label.toUpperCase() ??
+                                  'UNRATED',
+                              style: const TextStyle(
+                                fontSize: NightshadeTypography.fontSize8,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFFFFFFFF),
                               ),
                             ),
                           ),
                         ),
+                      ),
                       if (widget.image.hfr != null)
                         Positioned(
                           top: 4,
@@ -631,63 +713,29 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
     );
   }
 
-  Future<_ThumbnailPayload> _loadThumbnail() async {
-    final backend = ref.read(imagingBackendProvider);
-    String? backendError;
-    try {
-      final bytes = await backend.getImageThumbnail(widget.image.id);
-      if (bytes.isNotEmpty) {
-        return _ThumbnailPayload(bytes: bytes, fileExists: true);
-      }
-      backendError =
-          'Thumbnail not found in backend cache for image ${widget.image.id}.';
-    } catch (error) {
-      backendError =
-          'Backend thumbnail request failed for image ${widget.image.id}: $error';
-      ref.read(loggingServiceProvider).warning(
-          'ImageThumbnailStrip: $backendError',
-          source: 'ImageThumbnailStrip');
+  /// Opens the frame inspector, unless the caller supplied its own handler.
+  Future<void> _handleTap() async {
+    final override = widget.onImageTap;
+    if (override != null) {
+      override(widget.image);
+      return;
     }
-
-    if (ref.read(isRemoteModeProvider)) {
-      return _ThumbnailPayload(
-        fileExists: false,
-        errorMessage: backendError,
-      );
-    }
-
-    try {
-      final exists = await File(widget.image.filePath).exists();
-      if (exists) {
-        return _ThumbnailPayload(fileExists: true, errorMessage: backendError);
-      }
-      return _ThumbnailPayload(
-        fileExists: false,
-        errorMessage: backendError,
-      );
-    } catch (error) {
-      final localError =
-          'Failed to check local image file "${widget.image.filePath}": $error';
-      ref.read(loggingServiceProvider).warning(
-          'ImageThumbnailStrip: $localError',
-          source: 'ImageThumbnailStrip');
-      return _ThumbnailPayload(
-        fileExists: false,
-        errorMessage: '$backendError\n$localError',
-      );
-    }
-  }
-
-  bool _isFITSLikePath(String path) {
-    final lower = path.toLowerCase();
-    return lower.endsWith('.fits') ||
-        lower.endsWith('.fit') ||
-        lower.endsWith('.fts') ||
-        lower.endsWith('.xisf');
+    final changed = await showFrameDetailDialog(
+      context,
+      image: widget.image,
+      assessment: widget.assessment,
+      calibration: widget.calibration,
+    );
+    // Accepting/rejecting from the inspector has to reach the rail, the stat
+    // strip and the four charts, all of which read the same polled provider.
+    if (changed && mounted) ref.invalidate(dbSessionImagesProvider);
   }
 
   String _qualityTooltip() {
-    if (widget.assessment == null) return 'No quality assessment';
+    if (widget.assessment == null) {
+      return 'Not rated — this frame has no HFR, star count, guiding RMS or '
+          'stored quality score to judge';
+    }
     if (widget.assessment!.reasons.isEmpty) return widget.assessment!.label;
     return '${widget.assessment!.label}\n${widget.assessment!.reasons.join('\n')}';
   }
@@ -695,7 +743,8 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
   Color _getQualityColor(NightshadeColors colors) {
     if (!widget.image.isAccepted) return colors.error;
     final value = widget.assessment;
-    if (value == null) return colors.border;
+    // Unrated frames get a neutral chip, not a quality colour.
+    if (value == null) return colors.textMuted;
 
     switch (value.level) {
       case FrameQualityLevel.good:

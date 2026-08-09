@@ -6,6 +6,8 @@
 /// INDI XML, covering device-type inference, multi-device responses, malformed
 /// XML resilience, and unknown-property filtering.
 
+library;
+
 import 'dart:convert';
 import 'dart:io';
 

@@ -13,6 +13,8 @@
 // "The pairing code is not recognised." surfaced in the connect screen's error
 // box), so only the empty case is pinned here — plus the happy path, so
 // "always show an error" would not pass.
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_mobile/main.dart';
@@ -36,11 +38,12 @@ Future<({String code, bool admin})?> _pumpDialog(WidgetTester tester) async {
     ),
   );
 
-  // ignore: unawaited_futures
-  showDialog<({String code, bool admin})>(
-    context: ctx,
-    builder: (_) => const PairingCodeDialog(host: '192.168.1.20', port: 8080),
-  ).then((value) => popped = value);
+  unawaited(
+    showDialog<({String code, bool admin})>(
+      context: ctx,
+      builder: (_) => const PairingCodeDialog(host: '192.168.1.20', port: 8080),
+    ).then((value) => popped = value),
+  );
 
   await tester.pumpAndSettle();
   return popped;
@@ -117,12 +120,13 @@ void main() {
         ),
       );
 
-      // ignore: unawaited_futures
-      showDialog<({String code, bool admin})>(
-        context: ctx,
-        builder: (_) =>
-            const PairingCodeDialog(host: '192.168.1.20', port: 8080),
-      ).then((value) => popped = value);
+      unawaited(
+        showDialog<({String code, bool admin})>(
+          context: ctx,
+          builder: (_) =>
+              const PairingCodeDialog(host: '192.168.1.20', port: 8080),
+        ).then((value) => popped = value),
+      );
       await tester.pumpAndSettle();
 
       await tester.enterText(find.byType(TextField), '  MOON-PLUTO-7005  ');

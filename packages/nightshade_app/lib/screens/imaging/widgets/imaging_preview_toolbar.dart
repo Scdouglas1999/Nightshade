@@ -12,6 +12,7 @@ import 'custom_annotation_drawing.dart'
     show customAnnotationDrawModeActiveProvider, toggleAnnotationDrawPalette;
 import 'live_preview_area.dart' show previewReadoutsVisibleProvider;
 import 'overlay_widgets.dart';
+import 'preview_display_scale.dart' show previewDisplayScaleProvider;
 
 /// Slim, off-canvas toolbar that sits *above* the live preview image rather
 /// than floating over it. Hosts three groups, left-to-right:
@@ -32,9 +33,13 @@ import 'overlay_widgets.dart';
 /// a behaviour change.
 class ImagingPreviewToolbar extends ConsumerWidget {
   final NightshadeColors colors;
-  final double zoomLevel;
   final bool showCrosshair;
   final bool showStarOverlay;
+
+  /// A manual capture abort is already in flight, so the abort control has
+  /// nothing left to do — pressing it again would only re-issue a cancel for an
+  /// exposure the app has already given up on.
+  final bool isStoppingCapture;
   final VoidCallback onZoomIn;
   final VoidCallback onZoomOut;
   final VoidCallback onFitToWindow;
@@ -46,9 +51,9 @@ class ImagingPreviewToolbar extends ConsumerWidget {
   const ImagingPreviewToolbar({
     super.key,
     required this.colors,
-    required this.zoomLevel,
     required this.showCrosshair,
     required this.showStarOverlay,
+    required this.isStoppingCapture,
     required this.onZoomIn,
     required this.onZoomOut,
     required this.onFitToWindow,
@@ -72,7 +77,11 @@ class ImagingPreviewToolbar extends ConsumerWidget {
           ? '${currentImage.width} × ${currentImage.height}'
           : '--- × ---',
       binningLabel: 'Bin ${exposureSettings.binning}',
-      zoomLabel: '${(zoomLevel * 100).round()}%',
+      // Screen px per image px, as measured by the preview itself. The viewer
+      // state's zoom is a fit-relative multiplier, so printing it as a
+      // percentage labelled a 4144 px frame letterboxed into ~990 px "100%" —
+      // and made the 1:1 button look like it did nothing.
+      zoomLabel: '${(ref.watch(previewDisplayScaleProvider) * 100).round()}%',
       showCalibration: true,
       skyLabel: latestTransparency == null
           ? 'Sky --'
@@ -94,8 +103,9 @@ class ImagingPreviewToolbar extends ConsumerWidget {
       onZoom1to1: onZoom1to1,
       onFitToWindow: onFitToWindow,
       onAbortCapture: onAbortCapture,
-      showAbort:
-          exposureProgress.remaining > 0 && !exposureProgress.isDownloading,
+      showAbort: !isStoppingCapture &&
+          exposureProgress.remaining > 0 &&
+          !exposureProgress.isDownloading,
     );
 
     final trailing = <Widget>[
@@ -546,8 +556,13 @@ class _OverlayMenuRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 40,
+    // The description stacks UNDER the label rather than sitting beside it.
+    // Side by side, the description took its full intrinsic width first and
+    // left the label a sliver, so "Readouts" rendered as "Rea" / "dou" broken
+    // across two lines. Stacking gives the label the whole row width, so no
+    // description can ever squeeze a control's name.
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 40),
       child: Row(
         children: [
           // Check box — communicates on/off without button chrome.
@@ -564,22 +579,31 @@ class _OverlayMenuRow extends StatelessWidget {
           ),
           const SizedBox(width: NightshadeTokens.spaceSm),
           Expanded(
-            child: Text(
-              label,
-              style: NightshadeTypography.bodySm.copyWith(
-                color: colors.textPrimary,
-              ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
+                  style: NightshadeTypography.bodySm.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
+                if (subtitle != null)
+                  Text(
+                    subtitle!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: NightshadeTypography.captionSm.copyWith(
+                      color: colors.textMuted,
+                    ),
+                  ),
+              ],
             ),
           ),
-          if (subtitle != null) ...[
-            const SizedBox(width: NightshadeTokens.spaceSm),
-            Text(
-              subtitle!,
-              style: NightshadeTypography.captionSm.copyWith(
-                color: colors.textMuted,
-              ),
-            ),
-          ],
         ],
       ),
     );

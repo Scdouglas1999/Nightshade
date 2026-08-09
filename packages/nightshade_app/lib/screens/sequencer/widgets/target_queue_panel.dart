@@ -166,7 +166,11 @@ _TargetVisibility _computeVisibility({
   final visibility = AstronomyCalculations.calculateObjectVisibility(
     raDeg: raDeg,
     decDeg: decDeg,
-    date: now,
+    // The NIGHT containing [now], not its calendar day: the scan runs local
+    // noon to noon, so after midnight the raw instant selected the FOLLOWING
+    // night and the "Sets" countdown below read ~25h for a target an hour from
+    // the horizon.
+    date: AstronomyCalculations.nightDateOf(now),
     latitudeDeg: latitude,
     longitudeDeg: longitude,
     minAltitude: effectiveHorizonDeg,

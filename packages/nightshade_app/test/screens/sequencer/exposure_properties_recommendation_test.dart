@@ -7,6 +7,7 @@ import 'package:nightshade_app/screens/sequencer/widgets/node_properties_panel.d
 import 'package:nightshade_app/screens/sequencer/widgets/smart_exposure_properties.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 const _exposureContext = SmartNightExposureContext(
   camera: CameraExposureSpec(
@@ -70,6 +71,7 @@ ProviderContainer _seed(
   notifier.state = sequence;
   final container = ProviderContainer(
     overrides: [
+      inMemoryDatabaseOverride(),
       currentSequenceProvider.overrideWith((_) => notifier),
       activeEquipmentProfileProvider.overrideWithValue(
         const EquipmentProfileModel(

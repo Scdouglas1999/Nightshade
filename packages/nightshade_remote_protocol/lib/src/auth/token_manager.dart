@@ -314,6 +314,15 @@ class TokenManager {
     }
   }
 
+  /// Rename a paired device without touching its session token.
+  ///
+  /// Purely cosmetic on purpose: the token, grant and expiry are untouched, so
+  /// naming the phone in your hand never interrupts a device that is mid-run.
+  /// Returns false when no such row exists.
+  Future<bool> renameDevice(String deviceId, String deviceName) async {
+    return await _database.renamePairedDevice(deviceId, deviceName) > 0;
+  }
+
   /// Delete a paired device completely
   Future<void> deleteDevice(String deviceId) async {
     final device = await _database.getPairedDevice(deviceId);

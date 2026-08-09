@@ -22,6 +22,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 // ignore: implementation_imports
 import 'package:nightshade_core/src/models/framing_plate_scale.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 const _target = FramingTarget(
   name: 'Custom Location',
@@ -52,6 +53,7 @@ void main() {
   /// "HiPS Tiles" chip is present).
   Future<void> pumpCanvas(WidgetTester tester, Size size) async {
     final container = ProviderContainer(overrides: [
+      inMemoryDatabaseOverride(),
       hipsFramingEnabledProvider.overrideWith((ref) => true),
     ]);
     addTearDown(container.dispose);

@@ -8,6 +8,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:path/path.dart' as path;
+import '../harness/in_memory_database.dart';
 
 class MockNightshadeBackend extends Mock implements NightshadeBackend {}
 
@@ -42,6 +43,7 @@ void main() {
     () async {
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           annotationSettingsProvider.overrideWith(
             FailingAnnotationSettingsNotifier.new,
           ),
@@ -133,6 +135,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith(
             (ref) => TestBackendNotifier(ref, mockBackend),
           ),
@@ -265,6 +268,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith(
             (ref) => TestBackendNotifier(ref, mockBackend),
           ),
@@ -348,6 +352,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           annotationSettingsProvider.overrideWith(
             () => TestAnnotationSettingsNotifier(),
           ),
@@ -421,6 +426,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith(
             (ref) => TestBackendNotifier(ref, backend),
           ),
@@ -511,6 +517,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith(
             (ref) => TestBackendNotifier(ref, backend),
           ),
@@ -570,6 +577,7 @@ void main() {
 
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         annotationSettingsProvider.overrideWith(
           () => TestAnnotationSettingsNotifier(),
         ),

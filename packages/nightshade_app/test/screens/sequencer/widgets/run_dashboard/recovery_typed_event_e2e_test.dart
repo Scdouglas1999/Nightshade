@@ -22,6 +22,7 @@ import 'package:nightshade_app/screens/sequencer/widgets/run_dashboard/recovery_
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_event;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 class _SpyBackend extends DisconnectedBackend {
   int tryNowCalls = 0;
@@ -118,6 +119,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider
               .overrideWith((ref) => _StubBackendNotifier(ref, backend)),
           // Inject a test stream into the typed bridge provider — the
@@ -183,6 +185,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider
               .overrideWith((ref) => _StubBackendNotifier(ref, backend)),
           nightshadeEventsProvider.overrideWith((ref) => controller.stream),
@@ -262,6 +265,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            inMemoryDatabaseOverride(),
             backendProvider
                 .overrideWith((ref) => _StubBackendNotifier(ref, backend)),
             currentRecoveryProvider.overrideWith((ref) {

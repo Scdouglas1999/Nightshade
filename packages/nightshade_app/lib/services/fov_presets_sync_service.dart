@@ -24,11 +24,14 @@ const String fovPresetsPrefsKey = 'planetarium.fovPresets';
 /// Watch this provider once high in the planetarium screen tree to activate it.
 final fovPresetsSyncProvider = Provider<void>((ref) {
   var hydrated = false;
+  var disposed = false;
   String? lastWritten;
+  ref.onDispose(() => disposed = true);
 
   Future<void> hydrate() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      if (disposed) return;
       final stored = prefs.getString(fovPresetsPrefsKey);
       if (stored != null && stored.isNotEmpty) {
         ref.read(fovPresetsProvider.notifier).hydrate(stored);
@@ -38,19 +41,20 @@ final fovPresetsSyncProvider = Provider<void>((ref) {
       developer.log('Failed to hydrate FOV presets: $e',
           name: 'FovPresetsSync', error: e, stackTrace: st);
     } finally {
-      hydrated = true;
+      if (!disposed) hydrated = true;
     }
   }
 
   Future<void> persist(FovPresetsState state) async {
     // Don't overwrite storage with the empty default before hydration has had
     // a chance to load the user's saved presets.
-    if (!hydrated) return;
+    if (!hydrated || disposed) return;
     final json = state.toJsonString();
     if (json == lastWritten) return;
     lastWritten = json;
     try {
       final prefs = await SharedPreferences.getInstance();
+      if (disposed) return;
       await prefs.setString(fovPresetsPrefsKey, json);
     } catch (e, st) {
       developer.log('Failed to persist FOV presets: $e',

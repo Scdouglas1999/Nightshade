@@ -5,7 +5,10 @@ import '../models/weather/weather_models.dart';
 import '../models/equipment/equipment_models.dart';
 import '../models/settings/app_settings.dart';
 import '../models/sequence/sequence_models.dart'
-    show ConditionsScoreWeights, SequenceExecutionState;
+    show
+        ConditionsScoreWeights,
+        SequenceExecutionState,
+        SequenceExecutionStateCapabilities;
 import '../backend/disconnected_backend.dart';
 import '../backend/nightshade_backend.dart';
 import '../backend/network_backend.dart';
@@ -17,6 +20,7 @@ import '../services/weather/weather_threshold_evaluator.dart';
 import 'database_provider.dart';
 import 'imaging_provider.dart';
 import 'science_provider.dart';
+import 'secondary_rig_provider.dart';
 import 'weather_providers.dart';
 import 'equipment_provider.dart';
 import 'settings_provider.dart';
@@ -140,6 +144,114 @@ enum SafetyDataSource {
 }
 
 /// State for weather safety
+/// How old a hardware source's last successful read may be before it stops
+/// counting as live data.
+const Duration _sourceFreshnessBudget = Duration(minutes: 5);
+
+/// A source counts as configured once the operator has selected a device for
+/// it. A never-selected source stays [SafetySourceReading.absent] so a rig
+/// without that sensor is not permanently unsafe.
+bool _isSourceConfigured(
+  DeviceConnectionState connectionState,
+  String? deviceId,
+) =>
+    (deviceId != null && deviceId.isNotEmpty) ||
+    connectionState != DeviceConnectionState.disconnected;
+
+bool _isStaleReading(DateTime? timestamp) =>
+    timestamp == null ||
+    DateTime.now().difference(timestamp) > _sourceFreshnessBudget;
+
+/// Evaluate hardware weather device for safety.
+///
+/// Architecture-unification 2026-06-05 (Subsystem 2 step 3): the threshold
+/// comparison logic lives in the pure [WeatherThresholdEvaluator] so it has one
+/// definition and is unit-testable in isolation. This just adapts the
+/// provider's [WeatherState] / [WeatherSettings] into the evaluator's inputs.
+bool _evaluateHardwareWeather(
+  WeatherState weatherState,
+  WeatherSettings settings,
+) {
+  const evaluator = WeatherThresholdEvaluator();
+  final result = evaluator.evaluate(
+    WeatherReading(
+      humidityPercent: weatherState.humidity,
+      windSpeedKph: weatherState.windSpeedKph,
+      rainRate: weatherState.rainRate,
+      cloudCoverPercent: weatherState.cloudCover,
+    ),
+    WeatherThresholds(
+      maxHumidityPercent: settings.maxHumidityPercent,
+      maxWindSpeedKph: settings.maxWindSpeedKph,
+      maxCloudCoverPercent: settings.maxCloudCoverPercent,
+    ),
+  );
+  return result.isSafe;
+}
+
+/// Read the hardware weather device as a three-state source verdict.
+///
+/// Top-level (not a method) so any surface that has to REPORT which sources
+/// are usable applies the identical rule the safety evaluation acts on, without
+/// standing up the evaluator.
+SafetySourceReading readHardwareWeatherSource(
+  WeatherState weatherState,
+  WeatherSettings settings,
+) {
+  if (!_isSourceConfigured(
+    weatherState.connectionState,
+    weatherState.deviceId,
+  )) {
+    return SafetySourceReading.absent;
+  }
+  if (weatherState.connectionState != DeviceConnectionState.connected ||
+      _isStaleReading(weatherState.lastUpdated)) {
+    return SafetySourceReading.unknown;
+  }
+  return _evaluateHardwareWeather(weatherState, settings)
+      ? SafetySourceReading.safe
+      : SafetySourceReading.unsafe;
+}
+
+/// Read the safety monitor as a three-state source verdict. See
+/// [readHardwareWeatherSource].
+SafetySourceReading readSafetyMonitorSource(SafetyMonitorState monitorState) {
+  if (!_isSourceConfigured(
+    monitorState.connectionState,
+    monitorState.deviceId,
+  )) {
+    return SafetySourceReading.absent;
+  }
+  if (monitorState.connectionState != DeviceConnectionState.connected ||
+      _isStaleReading(monitorState.lastChecked)) {
+    return SafetySourceReading.unknown;
+  }
+  return monitorState.isSafe
+      ? SafetySourceReading.safe
+      : SafetySourceReading.unsafe;
+}
+
+/// The three-state read of each hardware safety source.
+///
+/// Lets a settings surface state which sources are attached and usable without
+/// building the whole evaluation (and its timers / API polling), while applying
+/// exactly the rule [WeatherSafetyNotifier] acts on.
+final weatherSafetySourceReadingsProvider =
+    Provider<({SafetySourceReading weather, SafetySourceReading monitor})>((
+      ref,
+    ) {
+      final settings =
+          ref.watch(weatherSettingsDataProvider).valueOrNull ??
+          const WeatherSettings();
+      return (
+        weather: readHardwareWeatherSource(
+          ref.watch(weatherStateProvider),
+          settings,
+        ),
+        monitor: readSafetyMonitorSource(ref.watch(safetyMonitorStateProvider)),
+      );
+    });
+
 class WeatherSafetyState {
   final WeatherSafetyStatus status;
   final WeatherSafetyActions actions;
@@ -289,6 +401,11 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
   /// cleared when conditions return to safe. A failed attempt stays re-armed
   /// for the next periodic evaluation.
   bool _safeRigEnforced = false;
+
+  /// One-shot guard for the "nothing to safe" disclosure so the periodic
+  /// evaluator cannot repeat it every 5 minutes for a whole unsafe episode.
+  /// Cleared with [_safeRigEnforced] when conditions return to safe.
+  bool _nothingToSafeAnnounced = false;
   bool _enforceInFlight = false;
   bool _weatherPausedSequence = false;
   bool _weatherParkedMount = false;
@@ -301,7 +418,6 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
   /// counting as data. Device telemetry is polled every 5 seconds, so this is
   /// generous; it exists to catch a source that has frozen while still
   /// reporting itself connected.
-  static const _sourceFreshnessBudget = Duration(minutes: 5);
 
   /// Push cadence for cloud-motion data into the Rust
   /// executor. 60 seconds matches the brief's "every 60s say".
@@ -588,11 +704,11 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     // optimistic "safe" just because its device is no longer connected.
     final weatherDeviceState = _ref.read(weatherStateProvider);
     final safetyMonitorState = _ref.read(safetyMonitorStateProvider);
-    final hardwareWeatherReading = _readHardwareWeatherSource(
+    final hardwareWeatherReading = readHardwareWeatherSource(
       weatherDeviceState,
       weatherSettings,
     );
-    final safetyMonitorReading = _readSafetyMonitorSource(safetyMonitorState);
+    final safetyMonitorReading = readSafetyMonitorSource(safetyMonitorState);
 
     final unknownIsUnsafe =
         noDataFailModeResolution(failMode) == NoDataResolution.unsafe;
@@ -829,6 +945,7 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     } else if (finalStatus == WeatherSafetyStatus.safe) {
       // Episode over (or never started) — re-arm enforcement for the next one.
       _safeRigEnforced = false;
+      _nothingToSafeAnnounced = false;
     }
     // Snoozed: leave the latch as-is. A snooze means the operator explicitly
     // suppressed enforcement; if it expires back to unsafe the latch state
@@ -881,6 +998,17 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
           !actions.shouldCloseDome) {
         return true;
       }
+      if (!await _hasAnythingToSafe()) {
+        // Nothing is running and nothing SafeRig could command is connected,
+        // so running the safing workflow would issue no protective command
+        // while announcing a rig-safing event. That is what turned "enable
+        // weather safety" on an idle, disconnected app into a red alert. Say
+        // what is actually true instead, and stay re-armed (return false) so
+        // the next evaluation still safes the rig the moment a mount, dome or
+        // run appears while conditions remain unsafe.
+        _announceNothingToSafe(actions);
+        return false;
+      }
       final safeRig = _ref.read(safeRigServiceProvider);
       final result = await safeRig.safeTheRig(
         reason: actions.reason ?? 'Weather turned unsafe',
@@ -921,6 +1049,51 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     } finally {
       _enforceInFlight = false;
     }
+  }
+
+  /// Whether SafeRig currently has anything it could actually command: a
+  /// pausable sequence, an armed secondary capture loop, or a connected mount,
+  /// dome or cover. This is exactly the union of the conditions under which
+  /// [SafeRigService.safeTheRig] issues a command on the weather path, so a
+  /// `false` here means the workflow would protect nothing.
+  ///
+  /// Errs towards enforcing: if the secondary-rig status cannot be read we
+  /// assume a rig may be running and let the safing workflow proceed.
+  Future<bool> _hasAnythingToSafe() async {
+    bool connected(DeviceConnectionState connectionState, String? deviceId) =>
+        connectionState == DeviceConnectionState.connected &&
+        deviceId != null &&
+        deviceId.isNotEmpty;
+
+    if (_ref.read(sequenceExecutionStateProvider).canPause) return true;
+    final mount = _ref.read(mountStateProvider);
+    if (connected(mount.connectionState, mount.deviceId)) return true;
+    final dome = _ref.read(domeStateProvider);
+    if (connected(dome.connectionState, dome.deviceId)) return true;
+    final cover = _ref.read(coverCalibratorStateProvider);
+    if (connected(cover.connectionState, cover.deviceId)) return true;
+    try {
+      return await _ref.read(secondaryRigControllerProvider).isArmed();
+    } catch (_) {
+      return true;
+    }
+  }
+
+  /// State the truth for an unsafe verdict that commands nothing, once per
+  /// episode: a warning about the configuration, not a rig-safing alert.
+  void _announceNothingToSafe(WeatherSafetyActions actions) {
+    if (_nothingToSafeAnnounced || !mounted) return;
+    _nothingToSafeAnnounced = true;
+    final reason = actions.reason ?? 'Weather turned unsafe';
+    _ref
+        .read(uiNotificationProvider.notifier)
+        .showWarning(
+          '$reason. No run is active and no mount, dome or cover is '
+          'connected, so nothing was commanded. Weather safety will act as '
+          'soon as equipment is connected or a run starts.',
+          title: 'Weather Safety',
+          duration: const Duration(seconds: 12),
+        );
   }
 
   void _scheduleAutoResume() {
@@ -1365,87 +1538,6 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
       _resumeInFlight = false;
     }
   }
-
-  /// Evaluate hardware weather device for safety.
-  ///
-  /// Architecture-unification 2026-06-05 (Subsystem 2 step 3): the threshold
-  /// comparison logic now lives in the pure [WeatherThresholdEvaluator] so it
-  /// has one definition and is unit-testable in isolation. This method just
-  /// adapts the provider's [WeatherState] / [WeatherSettings] into the
-  /// evaluator's plain inputs.
-  bool _evaluateHardwareWeather(
-    WeatherState weatherState,
-    WeatherSettings settings,
-  ) {
-    const evaluator = WeatherThresholdEvaluator();
-    final result = evaluator.evaluate(
-      WeatherReading(
-        humidityPercent: weatherState.humidity,
-        windSpeedKph: weatherState.windSpeedKph,
-        rainRate: weatherState.rainRate,
-        cloudCoverPercent: weatherState.cloudCover,
-      ),
-      WeatherThresholds(
-        maxHumidityPercent: settings.maxHumidityPercent,
-        maxWindSpeedKph: settings.maxWindSpeedKph,
-        maxCloudCoverPercent: settings.maxCloudCoverPercent,
-      ),
-    );
-    return result.isSafe;
-  }
-
-  /// Read the hardware weather device as a three-state source verdict.
-  SafetySourceReading _readHardwareWeatherSource(
-    WeatherState weatherState,
-    WeatherSettings settings,
-  ) {
-    if (!_isSourceConfigured(
-      weatherState.connectionState,
-      weatherState.deviceId,
-    )) {
-      return SafetySourceReading.absent;
-    }
-    if (weatherState.connectionState != DeviceConnectionState.connected ||
-        _isStaleReading(weatherState.lastUpdated)) {
-      return SafetySourceReading.unknown;
-    }
-    return _evaluateHardwareWeather(weatherState, settings)
-        ? SafetySourceReading.safe
-        : SafetySourceReading.unsafe;
-  }
-
-  /// Read the safety monitor as a three-state source verdict.
-  SafetySourceReading _readSafetyMonitorSource(
-    SafetyMonitorState monitorState,
-  ) {
-    if (!_isSourceConfigured(
-      monitorState.connectionState,
-      monitorState.deviceId,
-    )) {
-      return SafetySourceReading.absent;
-    }
-    if (monitorState.connectionState != DeviceConnectionState.connected ||
-        _isStaleReading(monitorState.lastChecked)) {
-      return SafetySourceReading.unknown;
-    }
-    return monitorState.isSafe
-        ? SafetySourceReading.safe
-        : SafetySourceReading.unsafe;
-  }
-
-  /// A source counts as configured once the operator has selected a device for
-  /// it. A never-selected source stays [SafetySourceReading.absent] so a rig
-  /// without that sensor is not permanently unsafe.
-  static bool _isSourceConfigured(
-    DeviceConnectionState connectionState,
-    String? deviceId,
-  ) =>
-      (deviceId != null && deviceId.isNotEmpty) ||
-      connectionState != DeviceConnectionState.disconnected;
-
-  static bool _isStaleReading(DateTime? timestamp) =>
-      timestamp == null ||
-      DateTime.now().difference(timestamp) > _sourceFreshnessBudget;
 
   static bool _isLiveReading(SafetySourceReading reading) =>
       reading == SafetySourceReading.safe ||

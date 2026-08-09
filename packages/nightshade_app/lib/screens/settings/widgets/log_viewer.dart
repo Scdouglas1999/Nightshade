@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:file_selector/file_selector.dart' show XTypeGroup;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +12,52 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../../services/file_download_service.dart';
 import '../../../utils/exported_file_reveal.dart';
+
+/// What a log export covers.
+enum LogExportScope {
+  /// Only the entries the viewer is currently showing, after its filters.
+  visible,
+
+  /// Every retained on-disk log file plus the in-memory Dart entries.
+  fullHistory,
+}
+
+/// Resolves where a log export is written. Injected so a widget test can drive
+/// the real Export button without a native save dialog.
+typedef LogExportTargetPicker = Future<ExportTarget?> Function(
+  String suggestedName,
+);
+
+/// Export used to write straight to the ROOT of the user's Documents folder
+/// with no picker and no size warning — 18 MB of concatenated rotated logs
+/// appeared next to their personal files, and not in the `exports/` directory
+/// every other in-app export uses. This asks, and defaults to `exports/`.
+final logExportTargetPickerProvider = Provider<LogExportTargetPicker>((ref) {
+  return (suggestedName) async => chooseExportTarget(
+        suggestedName: suggestedName,
+        initialDirectory: await defaultLogExportDirectory(),
+        acceptedTypeGroups: const [
+          XTypeGroup(label: 'Text files', extensions: ['txt']),
+        ],
+      );
+});
+
+/// The directory the app's other exports go to, created on demand.
+///
+/// Returns null when it cannot be resolved or created, which leaves the save
+/// dialog at its own default rather than failing the export.
+Future<String?> defaultLogExportDirectory() async {
+  try {
+    final documents = await getApplicationDocumentsDirectory();
+    final directory = Directory('${documents.path}/Nightshade/exports');
+    if (!await directory.exists()) {
+      await directory.create(recursive: true);
+    }
+    return directory.path;
+  } catch (_) {
+    return null;
+  }
+}
 
 /// Log viewer settings page with live-tailing, filtering, and export.
 class LogViewer extends ConsumerStatefulWidget {
@@ -238,6 +285,122 @@ class _LogViewerState extends ConsumerState<LogViewer>
     }
   }
 
+  /// Total size of the retained on-disk log files, for the scope prompt.
+  ///
+  /// Failure to stat one is not worth failing an export over; it just does not
+  /// count towards the estimate.
+  Future<int> _retainedLogBytes(LoggingService service) async {
+    var total = 0;
+    try {
+      for (final path in await service.getLogFiles()) {
+        try {
+          total += await File(path).length();
+        } catch (_) {
+          continue;
+        }
+      }
+    } catch (_) {
+      return total;
+    }
+    return total;
+  }
+
+  /// Ask what the export should contain, naming the cost of each choice.
+  Future<LogExportScope?> _askExportScope({
+    required int visibleEntries,
+    required int historyBytes,
+  }) {
+    return showDialog<LogExportScope>(
+      context: context,
+      builder: (ctx) {
+        final colors = NightshadeColors.of(ctx);
+        Widget option({
+          required String title,
+          required String subtitle,
+          required LogExportScope scope,
+        }) {
+          return ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            title: Text(
+              title,
+              style: TextStyle(
+                fontSize: NightshadeTypography.fontSize13,
+                fontWeight: FontWeight.w600,
+                color: colors.textPrimary,
+              ),
+            ),
+            subtitle: Text(
+              subtitle,
+              style: TextStyle(
+                fontSize: NightshadeTypography.fontSize11,
+                color: colors.textMuted,
+              ),
+            ),
+            onTap: () => Navigator.pop(ctx, scope),
+          );
+        }
+
+        return AlertDialog(
+          backgroundColor: colors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+            side: BorderSide(color: colors.border),
+          ),
+          title: Text(
+            'Export logs',
+            style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+          ),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                option(
+                  title: 'Entries on screen',
+                  subtitle: '$visibleEntries entries, exactly as filtered',
+                  scope: LogExportScope.visible,
+                ),
+                option(
+                  title: 'Full history',
+                  subtitle: 'Every retained log file — about '
+                      '${_formatFileSize(historyBytes)}',
+                  scope: LogExportScope.fullHistory,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            NightshadeButton(
+              label: 'Cancel',
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
+              onPressed: () => Navigator.pop(ctx),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  String _renderVisibleEntries(NightshadeBackend backend, List<LogEntry> logs) {
+    final output = StringBuffer();
+    output.writeln(backend is NetworkBackend
+        ? '=== Nightshade Log Export (remote) ==='
+        : '=== Nightshade Log Export (entries on screen) ===');
+    output.writeln('Exported: ${DateTime.now().toIso8601String()}');
+    if (backend is NetworkBackend) {
+      output.writeln('Host: ${backend.serverHost}:${backend.serverPort}');
+    }
+    output.writeln('Entries: ${logs.length}');
+    output.writeln('');
+    for (final entry in logs) {
+      output.writeln(entry.toString());
+    }
+    return output.toString();
+  }
+
   Future<void> _exportLogs() async {
     if (_isActionBusy) return;
     // Log tail — on a remote session the local ring buffer is
@@ -247,44 +410,60 @@ class _LogViewerState extends ConsumerState<LogViewer>
     final logs = List<LogEntry>.unmodifiable(_filteredLogs);
     final loggingService =
         backend is NetworkBackend ? null : ref.read(loggingServiceProvider);
+
+    // A remote session has no local history to offer, so there is nothing to
+    // choose between; locally the two scopes differ by three orders of
+    // magnitude and the operator has to be told which one they are getting.
+    var scope = LogExportScope.visible;
+    if (loggingService != null) {
+      final historyBytes = await _retainedLogBytes(loggingService);
+      if (!mounted || !identical(ref.read(backendProvider), backend)) return;
+      final chosen = await _askExportScope(
+        visibleEntries: logs.length,
+        historyBytes: historyBytes,
+      );
+      if (chosen == null ||
+          !mounted ||
+          !identical(ref.read(backendProvider), backend)) {
+        return;
+      }
+      scope = chosen;
+    }
+
+    final timestamp =
+        DateTime.now().toIso8601String().replaceAll(':', '-').split('.').first;
+    final target = await ref.read(logExportTargetPickerProvider)(
+      'nightshade_logs_$timestamp.txt',
+    );
+    if (target == null ||
+        !mounted ||
+        !identical(ref.read(backendProvider), backend)) {
+      return;
+    }
+
     final token = Object();
     _actionToken = token;
     setState(() => _isExporting = true);
     try {
-      final docsDir = await getApplicationDocumentsDirectory();
-      if (!_isCurrentAction(token, backend)) return;
-      final timestamp = DateTime.now()
-          .toIso8601String()
-          .replaceAll(':', '-')
-          .split('.')
-          .first;
-      final outputPath =
-          '${docsDir.path}${Platform.pathSeparator}nightshade_logs_$timestamp.txt';
-
-      if (backend is NetworkBackend) {
-        final output = StringBuffer();
-        output.writeln('=== Nightshade Log Export (remote) ===');
-        output.writeln('Exported: ${DateTime.now().toIso8601String()}');
-        output.writeln('Host: ${backend.serverHost}:${backend.serverPort}');
-        output.writeln('Entries: ${logs.length}');
-        output.writeln('');
-        for (final entry in logs) {
-          output.writeln(entry.toString());
-        }
-        await File(outputPath).writeAsString(output.toString());
+      if (scope == LogExportScope.fullHistory) {
+        await loggingService!.exportLogs(target.path);
       } else {
-        await loggingService!.exportLogs(outputPath);
+        await File(target.path)
+            .writeAsString(_renderVisibleEntries(backend, logs));
       }
 
       if (!mounted || !_isCurrentAction(token, backend)) return;
-      // On a phone/tablet, getApplicationDocumentsDirectory() is the app's
-      // PRIVATE sandbox — a path snackbar names a file the user can't reach in
-      // Files/Photos. Share on mobile so it's retrievable; path on desktop.
+      final writtenBytes = await File(target.path).length();
+      if (!mounted || !_isCurrentAction(token, backend)) return;
+      // On a phone/tablet the chosen path is the app's PRIVATE sandbox — a
+      // path snackbar names a file the user can't reach in Files/Photos.
+      // Share on mobile so it's retrievable; path (and size) on desktop.
       await revealExportedFile(
         context,
-        outputPath,
+        target.path,
         subject: 'Nightshade logs',
-        desktopMessage: 'Logs exported to: $outputPath',
+        desktopMessage: 'Logs exported to: ${target.path} '
+            '(${_formatFileSize(writtenBytes)})',
       );
     } catch (e) {
       if (mounted && _isCurrentAction(token, backend)) {

@@ -19,6 +19,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/framing/add_target_to_sequence_flow.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 FramingTarget _target() => const FramingTarget(
       name: 'M42',
@@ -134,6 +135,7 @@ void main() {
         })> host(WidgetTester tester) async {
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           savedSequencesProvider
               .overrideWith((ref) async => const <Sequence>[]),
         ],

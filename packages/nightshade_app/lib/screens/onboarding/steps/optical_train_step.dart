@@ -3,6 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+// Outside the core barrel by design (name collision with
+// `cameraPresetsProvider`); imported by source path, as the preset picker does.
+// ignore: implementation_imports
+import 'package:nightshade_core/src/providers/hardware_presets_provider.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../widgets/help/field_help_label.dart';
@@ -328,11 +332,17 @@ class _OnboardingOpticalTrainStepState
             label: 'Camera pixel size',
             help:
                 "Pixel size in microns — from your camera's datasheet; sets your image scale.",
-            hint: 'Look this up in your camera spec sheet',
+            hint: "Not in the camera library — check your camera's datasheet",
             suffix: 'µm',
             errorText: _pixelSizeError,
             onChanged: () => _commit(_OpticalField.pixelSize),
           ),
+          // Say where a prefilled number came from. It is the camera library's
+          // figure for the sensor the driver named, not a measurement of the
+          // user's camera, and it drives image scale, plate-solve field of
+          // view and the FITS header — so it has to be attributable and
+          // overridable, not silently correct-looking.
+          ...?_pixelSizeProvenance(theme, colors, draft),
           const SizedBox(height: NightshadeTokens.spaceXl),
           // Live preview of derived values. Renders with placeholder "--"
           // when inputs are missing rather than fabricating a value.
@@ -435,6 +445,44 @@ class _OnboardingOpticalTrainStepState
         ],
       ),
     );
+  }
+
+  /// One attribution line under the pixel-size field when the value on screen
+  /// is the camera library's figure for the camera picked at the camera step.
+  ///
+  /// Returns null when nothing was prefilled, or when the user has since typed
+  /// a different number — the note must never outlive the value it describes.
+  List<Widget>? _pixelSizeProvenance(
+    ThemeData theme,
+    NightshadeColors colors,
+    OnboardingDraft draft,
+  ) {
+    final pixelSize = draft.pixelSizeMicrons;
+    if (pixelSize == null) return null;
+    final preset = ref
+        .read(hardwarePresetsServiceProvider)
+        .matchCameraByName(draft.cameraName);
+    if (preset == null) return null;
+    if ((preset.pixelSizeMicrons - pixelSize).abs() > 0.001) return null;
+    return [
+      const SizedBox(height: NightshadeTokens.spaceXs),
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(NightshadeIcons.info, size: 14, color: colors.textSecondary),
+          const SizedBox(width: NightshadeTokens.spaceSm),
+          Expanded(
+            child: Text(
+              'Filled in from ${preset.displayName} in the camera library '
+              '(${preset.sensorName}). Edit it if your camera differs.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.textSecondary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ];
   }
 }
 

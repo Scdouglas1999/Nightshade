@@ -6,6 +6,7 @@ import 'package:nightshade_app/screens/imaging/widgets/capture_panel.dart';
 import 'package:nightshade_app/screens/imaging/widgets/panel_widgets.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 /// A frame shaped like the ones the ad-hoc Snapshot/Loop path produces: real,
 /// on disk, persisted as a standalone row, and with no database session.
@@ -86,7 +87,8 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    final container = ProviderContainer();
+    final container =
+        ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
     addTearDown(container.dispose);
 
     // Exactly what the manual Loop path does: frames land in the in-memory
@@ -131,7 +133,8 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    final container = ProviderContainer();
+    final container =
+        ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
     addTearDown(container.dispose);
     expect(container.read(recentSessionFramesProvider), isEmpty);
 
@@ -160,6 +163,7 @@ void main() {
 
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         // A sequencer run is the only thing that sets dbSessionId; seed the
         // state directly rather than standing up SessionService + a database.
         sessionStateProvider.overrideWith(

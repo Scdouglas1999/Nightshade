@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -15,7 +16,7 @@ import 'collaborative_sky_providers.dart';
 /// contributor on the finished mosaic), and the live combined progress as panels
 /// land. A participant can JOIN the mosaic here — linking it to a local project
 /// — then claim + capture panels from that project's screen.
-class CollabMosaicDetailScreen extends ConsumerWidget {
+class CollabMosaicDetailScreen extends ConsumerStatefulWidget {
   final String mosaicId;
   final String mosaicName;
 
@@ -26,8 +27,74 @@ class CollabMosaicDetailScreen extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CollabMosaicDetailScreen> createState() =>
+      _CollabMosaicDetailScreenState();
+}
+
+class _CollabMosaicDetailScreenState
+    extends ConsumerState<CollabMosaicDetailScreen> {
+  /// The shell route this page was opened over.
+  ///
+  /// This page is pushed imperatively onto the ROOT navigator, above the
+  /// AppShell's ShellRoute child, so a nav-rail tap (`context.go`) swaps the
+  /// page *underneath* it and the operator is left staring at a mosaic while
+  /// the rail insists they are on the Dashboard — with no back control and no
+  /// keyboard escape. Dismiss ourselves when the shell navigates away so the
+  /// pushed route can never outlive the screen it was opened from.
+  String? _openedAtLocation;
+  GoRouter? _router;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // maybeOf, not of: this page can legitimately be pushed by something that
+    // is not under a GoRouter (tests, an embedded preview), and asserting there
+    // would turn a nav nicety into a crash.
+    final router = GoRouter.maybeOf(context);
+    if (router == null || identical(router, _router)) return;
+    _router?.routeInformationProvider.removeListener(_onShellNavigated);
+    _router = router;
+    _openedAtLocation = _currentLocation(router);
+    router.routeInformationProvider.addListener(_onShellNavigated);
+  }
+
+  @override
+  void dispose() {
+    _router?.routeInformationProvider.removeListener(_onShellNavigated);
+    super.dispose();
+  }
+
+  static String _currentLocation(GoRouter router) =>
+      router.routeInformationProvider.value.uri.toString();
+
+  void _onShellNavigated() {
+    final router = _router;
+    if (router == null || !mounted) return;
+    if (_currentLocation(router) == _openedAtLocation) return;
+    // Popping from inside a router notification would mutate the navigator
+    // mid-notification; do it once the frame settles.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final navigator = Navigator.of(context);
+      if (navigator.canPop()) navigator.pop();
+    });
+  }
+
+  void _back() {
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+      return;
+    }
+    // A deep link that left nothing beneath us still needs a way out.
+    _router?.go('/planner?tab=discover&view=collaborative');
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
+    final mosaicId = widget.mosaicId;
+    final mosaicName = widget.mosaicName;
     final detailAsync = ref.watch(collaborativeMosaicDetailProvider(mosaicId));
 
     return Scaffold(
@@ -36,6 +103,36 @@ class CollabMosaicDetailScreen extends ConsumerWidget {
         bottom: false,
         child: Column(
           children: [
+            // ScreenHeader has no leading slot, so the back affordance is its
+            // own row above it (same shape as the mosaic project screen).
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: const EdgeInsets.only(
+                  left: NightshadeTokens.spaceSm,
+                  top: NightshadeTokens.spaceXs,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(
+                        NightshadeIcons.chevronLeft,
+                        size: NightshadeTokens.iconMd,
+                      ),
+                      color: colors.textSecondary,
+                      tooltip: 'Back',
+                      onPressed: _back,
+                    ),
+                    Text(
+                      'Collaborate',
+                      style: NightshadeTypography.bodySm
+                          .copyWith(color: colors.textMuted),
+                    ),
+                  ],
+                ),
+              ),
+            ),
             ScreenHeader(
               title: mosaicName.isEmpty ? 'Mosaic' : mosaicName,
               subtitle: 'Collaborative mosaic — panels split across the club',
@@ -218,6 +315,50 @@ class _JoinMosaicButtonState extends ConsumerState<_JoinMosaicButton> {
     final isRemote = backend is NetworkBackend;
     final canJoin =
         backend is! NetworkBackend && backend is! DisconnectedBackend;
+    // A mosaic this rig already published or joined has a local project behind
+    // it. Telling its OWNER to "Join this mosaic" — and describing their own
+    // project as something to be mirrored in — reads as a different mosaic than
+    // the one they are looking at.
+    final local = ref
+        .watch(localMosaicProjectForHubProvider(widget.mosaic.mosaicId))
+        .valueOrNull;
+    final isOwner = local?.collabRole == 'owner';
+    final alreadyLinked = local?.id != null;
+
+    final String title;
+    final String body;
+    final String label;
+    final IconData icon;
+    if (isOwner) {
+      title = 'Your mosaic';
+      body = 'You published this mosaic. Open its local project to claim '
+          'panels, watch the club fill the rest, and assemble the result.';
+      label = 'Open the local project';
+      icon = LucideIcons.grid;
+    } else if (alreadyLinked) {
+      title = 'Image with this club';
+      body = "You've joined this mosaic. Open its local project to claim open "
+          'panels and capture them on your rig.';
+      label = 'Open the local project';
+      icon = LucideIcons.grid;
+    } else {
+      title = 'Image with this club';
+      body = isRemote
+          ? 'Join this mosaic on the imaging host, where its local project, '
+              'captured panels, and masters are stored.'
+          : canJoin
+              ? 'Join this mosaic to mirror its panel grid into a local '
+                  'project, then claim open panels and capture them on your rig.'
+              : 'Connect to the imaging host that will own this mosaic '
+                  'project before joining.';
+      label = isRemote
+          ? 'Join from imaging host'
+          : canJoin
+              ? 'Join mosaic'
+              : 'Connect to join';
+      icon = LucideIcons.userPlus;
+    }
+
     return NightshadeCard(
       variant: CardVariant.subtle,
       padding: NightshadeTokens.cardPadding,
@@ -225,22 +366,14 @@ class _JoinMosaicButtonState extends ConsumerState<_JoinMosaicButton> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Image with this club',
+            title,
             style: NightshadeTypography.labelStrong.copyWith(
               color: colors.textPrimary,
             ),
           ),
           const SizedBox(height: NightshadeTokens.spaceXs),
           Text(
-            isRemote
-                ? 'Join this mosaic on the imaging host, where its local '
-                    'project, captured panels, and masters are stored.'
-                : canJoin
-                    ? 'Join this mosaic to mirror its panel grid into a local '
-                        'project, then claim open panels and capture them on your '
-                        'rig.'
-                    : 'Connect to the imaging host that will own this mosaic '
-                        'project before joining.',
+            body,
             style: NightshadeTypography.captionSm.copyWith(
               color: colors.textSecondary,
               height: 1.4,
@@ -250,12 +383,8 @@ class _JoinMosaicButtonState extends ConsumerState<_JoinMosaicButton> {
           Align(
             alignment: Alignment.centerLeft,
             child: NightshadeButton(
-              label: isRemote
-                  ? 'Join from imaging host'
-                  : canJoin
-                      ? 'Join mosaic'
-                      : 'Connect to join',
-              icon: LucideIcons.userPlus,
+              label: label,
+              icon: icon,
               isLoading: _joining,
               onPressed: _joining || !canJoin ? null : _join,
             ),
@@ -273,19 +402,33 @@ class _JoinMosaicButtonState extends ConsumerState<_JoinMosaicButton> {
     setState(() => _joining = true);
     final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
+    // Whether this is a real join or just a route into an existing local
+    // project — `joinMosaicAsParticipant` returns the existing id untouched, so
+    // only a genuinely new link should announce one.
+    final wasLinked = ref
+            .read(localMosaicProjectForHubProvider(widget.mosaic.mosaicId))
+            .valueOrNull
+            ?.id !=
+        null;
     try {
       final projectId = await ref
           .read(collaborativeMosaicServiceProvider)
           .joinMosaicAsParticipant(widget.mosaic);
       if (!mounted || !identical(ref.read(backendProvider), authority)) return;
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            'Joined ${widget.mosaic.name.isEmpty ? 'mosaic' : widget.mosaic.name}'
-            ' — claim open panels to contribute.',
+      // Joining takes a participant slot on the hub, so every cached listing of
+      // this mosaic is now stale.
+      invalidateCollaborativeMosaicStateFor(ref);
+      if (!wasLinked) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              'Joined '
+              '${widget.mosaic.name.isEmpty ? 'mosaic' : widget.mosaic.name}'
+              ' — claim open panels to contribute.',
+            ),
           ),
-        ),
-      );
+        );
+      }
       await navigator.push(
         MaterialPageRoute<void>(
           builder: (_) => MosaicProjectScreen(projectId: projectId),

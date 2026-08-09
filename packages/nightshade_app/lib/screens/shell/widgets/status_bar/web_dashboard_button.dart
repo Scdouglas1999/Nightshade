@@ -2,8 +2,9 @@ part of '../status_bar.dart';
 
 class _WebDashboardButton extends ConsumerStatefulWidget {
   final NightshadeColors colors;
+  final NightshadeLocalizations l10n;
 
-  const _WebDashboardButton({required this.colors});
+  const _WebDashboardButton({required this.colors, required this.l10n});
 
   @override
   ConsumerState<_WebDashboardButton> createState() =>
@@ -23,9 +24,12 @@ class _WebDashboardButtonState extends ConsumerState<_WebDashboardButton> {
       child: Tooltip(
         message: webState.isRunning
             ? webState.dashboardAvailable
-                ? 'Open local dashboard (${webState.localUrl})'
-                : 'Remote access API is running, but the dashboard files are unavailable'
-            : 'Remote access is not running',
+                ? widget.l10n.text(
+                    'statusDashboardOpen',
+                    params: {'url': webState.localUrl},
+                  )
+                : widget.l10n.text('statusDashboardFilesMissing')
+            : widget.l10n.text('statusDashboardOff'),
         child: InkWell(
           onTap: webState.isRunning && webState.dashboardAvailable
               ? () {
@@ -57,7 +61,7 @@ class _WebDashboardButtonState extends ConsumerState<_WebDashboardButton> {
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  'Dashboard',
+                  widget.l10n.text('dashboardTitle'),
                   style: TextStyle(
                     fontSize: NightshadeTypography.fontSize11,
                     color: webState.isRunning && webState.dashboardAvailable

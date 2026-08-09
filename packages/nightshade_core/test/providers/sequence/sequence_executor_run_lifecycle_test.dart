@@ -75,6 +75,7 @@ class _RecordingSessionNotifier extends SessionStateNotifier {
     double? targetDec,
     int? targetId,
     int? profileId,
+    int? sequenceId,
   }) async {
     startCount++;
     state = SessionState(
@@ -1658,6 +1659,222 @@ void main() {
           );
         }
       }
+    });
+  });
+
+  group('L. the run row publishes pause', () {
+    // The GUI knew the run was paused; `sequence_runs.status` did not. During
+    // a 52 s pause the row still read 'running', so the headless API, the web
+    // dashboard and the phone — all of which read the DB, not the GUI —
+    // believed the rig was still exposing while frame progress sat frozen.
+    Future<SequenceExecutor> startRunning(ProviderContainer container) async {
+      _stubBackendForStart(backend);
+      when(() => backend.sequencerStart()).thenAnswer((_) async {});
+      when(() => backend.sequencerPause()).thenAnswer((_) async {
+        eventController.add(_sequencerEvent('Paused'));
+      });
+      when(() => backend.sequencerResume()).thenAnswer((_) async {
+        eventController.add(_sequencerEvent('Resumed'));
+      });
+      container
+          .read(currentSequenceProvider.notifier)
+          .loadSequence(_buildSequence());
+      final executor = container.read(sequenceExecutorProvider);
+      await executor.start();
+      return executor;
+    }
+
+    Future<String?> statusOf(ProviderContainer container) async {
+      final runId = container.read(currentRunIdProvider)!;
+      final row = await container
+          .read(sequenceRunsDaoProvider)
+          .getRunById(runId);
+      return row?.status;
+    }
+
+    test('pausing writes paused, resuming writes running back', () async {
+      final container = buildContainer();
+      final executor = await startRunning(container);
+      expect(await statusOf(container), 'running');
+
+      await executor.pause();
+      expect(
+        await statusOf(container),
+        'paused',
+        reason: 'a remote client reading this row must not see "running"',
+      );
+
+      await executor.resume();
+      expect(await statusOf(container), 'running');
+
+      _stubConfirmingStop(backend, eventController);
+      await executor.stop();
+    });
+
+    test('a row left paused by a dead process is closed out on open', () async {
+      final container = buildContainer();
+      final dao = container.read(sequenceRunsDaoProvider);
+      final runId = await dao.startRun(
+        sequenceId: null,
+        sequenceName: 'interrupted night',
+      );
+      await dao.setLiveStatus(runId, 'paused');
+
+      // The startup sweep runs in `beforeOpen`; re-running its statement here
+      // is what a fresh process does with the same rows.
+      await db.customStatement(
+        "UPDATE sequence_runs SET status = 'interrupted' "
+        "WHERE status IN ('running', 'paused')",
+      );
+
+      expect(
+        (await dao.getRunById(runId))!.status,
+        'interrupted',
+        reason: 'paused is a LIVE status; it must not survive a crash forever',
+      );
+    });
+  });
+
+  group('M. frames are attributed to the target that produced them', () {
+    // Every frame of a night whose only Target node was called "New Target"
+    // was persisted with `captured_images.target_id` NULL, because
+    // `TargetHeaderNode.catalogTargetId` is only populated for sequences
+    // GENERATED from a library target. The Session Report filed the whole run
+    // under "Untargeted" and per-target integration goals could never
+    // complete, while the frames' own FITS OBJECT card named the target.
+    Sequence targetSequence({String targetName = 'New Target'}) {
+      final exposure = ExposureNode(
+        id: 'expo-1',
+        name: 'Take Exposures',
+        durationSecs: 3,
+        count: 4,
+        parentId: 'target-1',
+      );
+      final target = TargetHeaderNode(
+        id: 'target-1',
+        name: 'Target',
+        targetName: targetName,
+        raHours: 5.59,
+        decDegrees: -5.39,
+        childIds: const ['expo-1'],
+      );
+      return Sequence.create(
+        name: 'New Sequence',
+        rootNodeId: 'target-1',
+        nodes: {'target-1': target, 'expo-1': exposure},
+      );
+    }
+
+    Future<SequenceExecutor> startRunning(
+      ProviderContainer container,
+      Sequence sequence,
+    ) async {
+      _stubBackendForStart(backend);
+      when(() => backend.sequencerStart()).thenAnswer((_) async {});
+      container.read(currentSequenceProvider.notifier).loadSequence(sequence);
+      final executor = container.read(sequenceExecutorProvider);
+      await executor.start();
+      return executor;
+    }
+
+    Future<DbCapturedImage> awaitFrameRow(
+      ProviderContainer container,
+      String nodeId,
+    ) async {
+      final dao = container.read(imagesDaoProvider);
+      for (var i = 0; i < 40; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        final rows = await dao.getImagesByProducingNode(
+          producingNodeId: nodeId,
+        );
+        if (rows.isNotEmpty) return (await dao.getImageById(rows.single.id))!;
+      }
+      fail('captured_images row for $nodeId was never written');
+    }
+
+    /// The recording session notifier reports a synthetic `dbSessionId` that
+    /// has no row behind it, and `captured_images.session_id` is a real FK —
+    /// so give it one before the frame lands.
+    Future<void> materializeSessionRow(ProviderContainer container) async {
+      final id = container.read(sessionStateProvider).dbSessionId!;
+      await db.customStatement(
+        'INSERT OR IGNORE INTO imaging_sessions (id, start_time) VALUES (?, ?)',
+        [id, DateTime.now().millisecondsSinceEpoch ~/ 1000],
+      );
+    }
+
+    void emitAcceptedFrame(String nodeId) {
+      eventController.add(
+        _sequencerEvent(
+          'FrameAccepted',
+          data: {
+            'node_id': nodeId,
+            'frame': 1,
+            'total': 4,
+            'save_path': '/captures/New Target_R_0001.fits',
+          },
+        ),
+      );
+    }
+
+    test('a builder-authored target gets a catalog row and the frame '
+        'points at it', () async {
+      final container = buildContainer();
+      final executor = await startRunning(container, targetSequence());
+
+      final targets = await container.read(targetsDaoProvider).getAllTargets();
+      expect(
+        targets.map((t) => t.name),
+        contains('New Target'),
+        reason: 'the target the run is imaging must exist to be counted',
+      );
+
+      await materializeSessionRow(container);
+      emitAcceptedFrame('expo-1');
+      final row = await awaitFrameRow(container, 'expo-1');
+      expect(
+        row.targetId,
+        targets.firstWhere((t) => t.name == 'New Target').id,
+        reason: 'a NULL here is what the Session Report renders as Untargeted',
+      );
+
+      _stubConfirmingStop(backend, eventController);
+      await executor.stop();
+    });
+
+    test('re-running the same sequence reuses the one catalog row', () async {
+      final container = buildContainer();
+      final executor = await startRunning(container, targetSequence());
+      _stubConfirmingStop(backend, eventController);
+      await executor.stop();
+
+      final executor2 = await startRunning(container, targetSequence());
+      await executor2.stop();
+
+      final named = (await container.read(targetsDaoProvider).getAllTargets())
+          .where((t) => t.name == 'New Target');
+      expect(
+        named,
+        hasLength(1),
+        reason: 'a night per row would fragment integration totals',
+      );
+    });
+
+    test('an unnamed target invents nothing', () async {
+      final container = buildContainer();
+      final executor = await startRunning(
+        container,
+        targetSequence(targetName: '   '),
+      );
+
+      expect(
+        await container.read(targetsDaoProvider).getAllTargets(),
+        isEmpty,
+        reason: 'a target with no name cannot be identified later',
+      );
+
+      _stubConfirmingStop(backend, eventController);
+      await executor.stop();
     });
   });
 }

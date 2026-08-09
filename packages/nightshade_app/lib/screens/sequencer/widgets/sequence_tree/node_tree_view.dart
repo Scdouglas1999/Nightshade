@@ -118,7 +118,19 @@ class _NodeTreeView extends ConsumerWidget {
     // The header row. When the container is collapsed its children DragTarget
     // is not rendered, so wrap the header itself in a DragTarget (desktop
     // only — mobile has no drag) so drops still land inside it.
-    Widget headerRow = SequenceTreeContextMenu(
+    //
+    // `baseRow` is `final` on purpose. The collapsed-container wrapper below
+    // builds its child from a CLOSURE, and a closure captures the VARIABLE,
+    // not the value it held when the closure was written. Reassigning
+    // `headerRow` to the DragTarget and then reading `headerRow` inside that
+    // DragTarget's builder made the row its own descendant: every build
+    // nested another DragTarget → AnimatedContainer → DragTarget … until the
+    // element tree blew the stack (~30k frames). In a release build a
+    // subtree that throws is replaced by ErrorWidget, which paints a bare
+    // grey rectangle — the "solid grey block over the rest of the tree" this
+    // fixes. Only collapsed containers took that branch, which is why it
+    // appeared on Collapse-all and vanished on Expand-all.
+    final Widget baseRow = SequenceTreeContextMenu(
       nodeId: nodeId,
       colors: colors,
       child: _NodeValidationWrapper(
@@ -216,6 +228,7 @@ class _NodeTreeView extends ConsumerWidget {
     // A collapsed container hides its children DragTarget, so wrap the
     // header in a DragTarget that appends into the container. Desktop only —
     // the mobile branch has no drag affordance.
+    Widget headerRow = baseRow;
     if (isCollapsed && isContainer && !isMobile) {
       headerRow = DragTarget<Object>(
         onWillAcceptWithDetails: (data) =>
@@ -239,7 +252,7 @@ class _NodeTreeView extends ConsumerWidget {
                     color: colors.primary.withValues(alpha: 0.04),
                   )
                 : const BoxDecoration(),
-            child: headerRow,
+            child: baseRow,
           );
         },
       );

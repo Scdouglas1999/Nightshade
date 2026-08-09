@@ -74,6 +74,10 @@ class _ControllableImagingService extends ImagingService {
   final loopStopped = Completer<void>();
   int cancelCount = 0;
 
+  /// What the screen asked for on the last loop run — Loop is a live-view
+  /// mode and must not persist frames unless the operator opted in.
+  bool? lastSaveFrames;
+
   CapturedImageData get frame => CapturedImageData(
         width: 4,
         height: 4,
@@ -110,9 +114,11 @@ class _ControllableImagingService extends ImagingService {
     String? targetName,
     int? maxFrames,
     int maxConsecutiveErrors = 10,
+    bool saveFrames = false,
     void Function(CapturedImageData)? onImageCaptured,
     void Function(String)? onError,
   }) async {
+    lastSaveFrames = saveFrames;
     if (!loopStarted.isCompleted) loopStarted.complete();
     await loopStopped.future;
   }
@@ -155,7 +161,18 @@ void main() {
     );
     await _drainAsyncFrames(tester);
 
-    final exposure = find.widgetWithText(TextField, '120.0');
+    final exposureRow = find.byWidgetPredicate(
+      (widget) => widget is InputRowEditable && widget.label == 'Exposure',
+    );
+    final exposure = find.descendant(
+      of: exposureRow,
+      matching: find.byType(TextField),
+    );
+    expect(
+      tester.widget<TextField>(exposure).controller!.text,
+      '2.0',
+      reason: 'manual snapshot controls use the safe cold-start default',
+    );
     expect(tester.takeException(), isNull);
     expect(exposure.hitTestable(), findsOneWidget);
 

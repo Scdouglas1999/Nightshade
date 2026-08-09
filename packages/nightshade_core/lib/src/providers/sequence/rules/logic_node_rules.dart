@@ -385,3 +385,79 @@ class LoopUnreachableTerminationRule implements SequenceValidator {
     return issues;
   }
 }
+
+// =============================================================================
+// NO-OP LOGIC NODES
+// =============================================================================
+
+/// Flags logic nodes that were dropped in but never configured, and so do
+/// exactly nothing.
+///
+/// Both cases are the palette's opening state:
+///
+///   * `Loop` starts as Fixed Count with Repeat Count 1 — it wraps its
+///     children and changes nothing. Nobody adds a Loop to run something once.
+///   * `Conditional` starts as "Always Execute" — it branches on nothing, so
+///     it is a plain container wearing a decision's clothes.
+///
+/// Neither is an error: both are valid states the executor handles, and a
+/// deliberate count of 1 is legal. But both silently do the harmless thing
+/// instead of the thing the operator added the node for, and the sequence
+/// tree gave no sign of it. INFO severity, so the header badge and the node
+/// border say "look at this" without blocking a start.
+///
+/// Note that this rule does NOT invent a better default (a count of 2? 10?):
+/// what the operator meant is unknowable here, so the honest move is to show
+/// the no-op rather than to guess past it.
+class NoOpLogicNodeRule implements SequenceValidator {
+  @override
+  String get name => 'NoOpLogicNode';
+
+  @override
+  List<ValidationIssue> validate(Sequence sequence) {
+    final issues = <ValidationIssue>[];
+    for (final node in sequence.nodes.values) {
+      if (!node.isEnabled) continue;
+
+      if (node is LoopNode &&
+          node.conditionType == LoopConditionType.count &&
+          (node.repeatCount ?? 1) <= 1) {
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.info,
+            category: ValidationCategory.structure,
+            title: 'Loop Repeats Once',
+            description:
+                'Loop "${node.name}" is set to ${node.repeatCount ?? 1} '
+                'iteration, so it runs its children exactly once — the same '
+                'as not having the loop at all.',
+            affectedNodeId: node.id,
+            resolutionHint:
+                'Set Repeat Count to the number of passes you want, or pick a '
+                'different loop condition.',
+          ),
+        );
+      }
+
+      if (node is ConditionalNode &&
+          node.conditionType == ConditionalType.always) {
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.info,
+            category: ValidationCategory.structure,
+            title: 'Conditional Has No Condition',
+            description:
+                'Conditional "${node.name}" is set to Always Execute, so it '
+                'never actually decides anything.',
+            affectedNodeId: node.id,
+            resolutionHint:
+                'Choose a condition (altitude, time, guiding RMS, HFR, '
+                'weather, moon separation or safety monitor), or replace the '
+                'node with a plain container.',
+          ),
+        );
+      }
+    }
+    return issues;
+  }
+}

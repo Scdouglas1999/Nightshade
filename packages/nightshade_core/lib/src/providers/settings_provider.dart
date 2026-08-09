@@ -10,6 +10,8 @@ import '../models/backend/event_types.dart'
     show EventCategory, NightshadeEvent, settingsChangedEventType;
 import 'database_provider.dart';
 import 'backend_provider.dart';
+import '../models/plate_solver.dart';
+import '../services/plate_solve_service.dart';
 import '../models/settings/app_settings.dart' as models;
 import '../models/settings/app_settings.dart'
     show SafetyFailMode, kDefaultAccentColorHex;
@@ -418,19 +420,61 @@ class BortleScale {
 /// Utility for parsing and interpolating horizon profiles.
 ///
 /// A horizon profile is stored as a JSON map with 8 compass direction keys
-/// (N, NE, E, SE, S, SW, W, NW) mapped to altitude values in degrees.
+/// (N, NE, E, SE, S, SW, W, NW) mapped to altitude values in degrees — the
+/// coarse mask the settings screen edits.
+///
+/// It ALSO carries the original samples when it came from an imported survey.
+/// Importing a 1°-resolution `.hor` from Stellarium used to keep only the
+/// per-sector maximum, so a single 29° tree at azimuth 190 marked everything
+/// from 157.5° to 202.5° as blocked and the planner refused targets that were
+/// plainly clear — the cost is imaging time on exactly the southern targets a
+/// horizon survey is made for. Every consumer already asks this class for a
+/// per-azimuth altitude ([altitudeAtAzimuth]: the planner's visibility filter,
+/// and the planetarium, which builds a 360-entry table from it), so retaining
+/// the samples and interpolating them gives all of them the real skyline with
+/// no call-site change. The 8 fields remain the editor and the summary, and
+/// editing any of them writes a samples-less profile — an explicit override by
+/// sector, which is what the operator just asked for.
 class HorizonProfile {
   final Map<String, double> _altitudes;
 
-  HorizonProfile(this._altitudes);
+  /// The imported skyline, sorted by ascending azimuth, or empty when this
+  /// profile is only the 8-sector mask. Never fewer than 2 entries when set:
+  /// one sample cannot be interpolated and is already a flat horizon.
+  final List<({double azimuth, double altitude})> _samples;
+
+  HorizonProfile(
+    this._altitudes, {
+    List<({double azimuth, double altitude})> samples = const [],
+  }) : _samples = _normalizeSamples(samples);
+
+  /// How many samples back this profile — 0 when it is the 8-sector mask
+  /// alone. The import message reports this.
+  int get sampleCount => _samples.length;
+
+  /// Normalize to [0,360) azimuths with clamped altitudes, sorted ascending,
+  /// dropping anything unusable. A profile that ends up with fewer than two
+  /// usable samples carries none: [altitudeAtAzimuth] would have nothing to
+  /// interpolate between and must fall back to the sector mask.
+  static List<({double azimuth, double altitude})> _normalizeSamples(
+    List<({double azimuth, double altitude})> samples,
+  ) {
+    final normalized = <({double azimuth, double altitude})>[];
+    for (final s in samples) {
+      if (!s.azimuth.isFinite || !s.altitude.isFinite) continue;
+      var az = s.azimuth % 360.0;
+      if (az < 0) az += 360.0;
+      normalized.add((azimuth: az, altitude: s.altitude.clamp(0.0, 89.0)));
+    }
+    if (normalized.length < 2) return const [];
+    normalized.sort((a, b) => a.azimuth.compareTo(b.azimuth));
+    return List.unmodifiable(normalized);
+  }
 
   /// Parse a horizon profile from JSON string.
   factory HorizonProfile.fromJson(String json) {
     try {
-      final decoded = Map<String, dynamic>.from(
-        // Using dart:convert would require an import; parse manually for simple JSON
-        _parseSimpleJson(json),
-      );
+      final decoded = _decodeProfileJson(json);
       final altitudes = <String, double>{};
       for (final dir in horizonDirections) {
         final val = decoded[dir];
@@ -440,7 +484,20 @@ class HorizonProfile {
           altitudes[dir] = 0.0;
         }
       }
-      return HorizonProfile(altitudes);
+      final rawSamples = decoded['samples'];
+      final samples = <({double azimuth, double altitude})>[];
+      if (rawSamples is List) {
+        for (final entry in rawSamples) {
+          if (entry is List && entry.length >= 2) {
+            final az = entry[0];
+            final alt = entry[1];
+            if (az is num && alt is num) {
+              samples.add((azimuth: az.toDouble(), altitude: alt.toDouble()));
+            }
+          }
+        }
+      }
+      return HorizonProfile(altitudes, samples: samples);
     } catch (_) {
       // Return flat horizon on parse failure - this is a data error,
       // not something we should silently swallow. Log it.
@@ -460,11 +517,18 @@ class HorizonProfile {
   double altitudeAt(String direction) => _altitudes[direction] ?? 0.0;
 
   /// Get interpolated horizon altitude at any azimuth (0-360 degrees).
-  /// Uses cubic-like smooth interpolation between compass points.
+  ///
+  /// When an imported survey is on record this interpolates the real samples
+  /// (linear, wrapping at 360°), which is the resolution the file had. Only a
+  /// hand-edited 8-sector mask falls through to the smoothstep between compass
+  /// points. Every visibility decision in the app funnels through here, so
+  /// this is the one place that has to know the difference.
   double altitudeAtAzimuth(double azimuthDeg) {
     // Normalize azimuth to 0-360
     var az = azimuthDeg % 360.0;
     if (az < 0) az += 360.0;
+
+    if (_samples.length >= 2) return _interpolateSamples(az);
 
     // Find which two compass points we're between
     const segmentSize = 360.0 / 8.0; // 45 degrees per segment
@@ -482,23 +546,103 @@ class HorizonProfile {
     return alt1 + (alt2 - alt1) * t;
   }
 
+  /// Linear interpolation between the two samples bracketing [az], wrapping
+  /// across 360°. Linear, not smoothstep: a smoothstep between dense samples
+  /// would round off the very ridge lines the survey was taken to record.
+  ///
+  /// Binary search, not a scan: the planetarium rebuilds a 360-entry terrain
+  /// table from this on every sky-view build, and a 1°-resolution survey would
+  /// otherwise make that ~65k comparisons per frame.
+  double _interpolateSamples(double az) {
+    final samples = _samples;
+    // First index whose azimuth is >= az.
+    var lo = 0;
+    var hi = samples.length;
+    while (lo < hi) {
+      final mid = (lo + hi) >> 1;
+      if (samples[mid].azimuth < az) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+
+    final ({double azimuth, double altitude}) lower;
+    final ({double azimuth, double altitude}) upper;
+    final double lowerAz;
+    final double upperAz;
+    if (lo == 0) {
+      // Before the first sample: bracket backwards across the wrap.
+      lower = samples.last;
+      lowerAz = lower.azimuth - 360.0;
+      upper = samples.first;
+      upperAz = upper.azimuth;
+    } else if (lo == samples.length) {
+      // Past the last sample: bracket forwards across the wrap.
+      lower = samples.last;
+      lowerAz = lower.azimuth;
+      upper = samples.first;
+      upperAz = upper.azimuth + 360.0;
+    } else {
+      lower = samples[lo - 1];
+      lowerAz = lower.azimuth;
+      upper = samples[lo];
+      upperAz = upper.azimuth;
+    }
+
+    final span = upperAz - lowerAz;
+    if (span <= 0) return lower.altitude;
+    final t = ((az - lowerAz) / span).clamp(0.0, 1.0);
+    return lower.altitude + (upper.altitude - lower.altitude) * t;
+  }
+
   /// Check if a given altitude at a given azimuth is above the custom horizon
   bool isAboveHorizon(double altitudeDeg, double azimuthDeg) {
     return altitudeDeg >= altitudeAtAzimuth(azimuthDeg);
   }
 
-  /// Encode back to JSON string
+  /// Encode back to JSON string.
+  ///
+  /// The eight compass keys come first and are unchanged, so a build that
+  /// predates the `samples` array still reads a valid — merely coarser —
+  /// mask out of the same stored string.
   String toJson() {
     final parts = <String>[];
     for (final dir in horizonDirections) {
       final val = _altitudes[dir] ?? 0.0;
       parts.add('"$dir":${val.toStringAsFixed(1)}');
     }
+    if (_samples.isNotEmpty) {
+      final encoded = _samples
+          .map(
+            (s) =>
+                '[${s.azimuth.toStringAsFixed(2)},'
+                '${s.altitude.toStringAsFixed(2)}]',
+          )
+          .join(',');
+      parts.add('"samples":[$encoded]');
+    }
     return '{${parts.join(',')}}';
   }
 
-  /// Simple JSON parser for flat string->number maps.
-  /// Avoids importing dart:convert in this provider file.
+  /// Decode the stored blob. Uses a real JSON parser because the profile now
+  /// carries a nested `samples` array; [_parseSimpleJson] only ever handled
+  /// flat `string -> number` maps and silently dropped anything else, which
+  /// would have thrown the imported skyline away on every reload.
+  static Map<String, dynamic> _decodeProfileJson(String json) {
+    try {
+      final decoded = jsonDecode(json);
+      if (decoded is Map<String, dynamic>) return decoded;
+    } catch (_) {
+      // Fall through to the tolerant parser below: a hand-edited or
+      // truncated blob should still yield whatever compass values it has
+      // rather than resetting the operator's mask to flat.
+    }
+    return _parseSimpleJson(json);
+  }
+
+  /// Simple JSON parser for flat string->number maps. Kept as the fallback
+  /// for a blob [_decodeProfileJson] cannot parse as JSON.
   static Map<String, dynamic> _parseSimpleJson(String json) {
     final result = <String, dynamic>{};
     // Strip braces and split by comma
@@ -529,13 +673,15 @@ class HorizonProfile {
   /// Whether this profile is all zeros (flat horizon)
   bool get isFlat => _altitudes.values.every((v) => v == 0.0);
 
-  /// Build a profile from arbitrary (azimuth, altitude) samples by binning
-  /// them onto the eight compass directions.
+  /// Build a profile from arbitrary (azimuth, altitude) samples.
   ///
-  /// Each compass sector spans 45° centred on its azimuth (e.g. N covers
-  /// 337.5°–22.5°). Within a sector the HIGHEST sampled altitude wins, so an
-  /// imported skyline never under-reports an obstruction. Sectors with no
-  /// samples default to 0° (open sky).
+  /// The eight compass fields are the sector SUMMARY — each spans 45° centred
+  /// on its azimuth (e.g. N covers 337.5°–22.5°) and takes the highest sampled
+  /// altitude in it, so the number the settings screen shows never
+  /// under-reports an obstruction. Sectors with no samples read 0° (open sky).
+  ///
+  /// The samples themselves are kept, and they are what [altitudeAtAzimuth]
+  /// answers from — the summary is for the editor, not for the planner.
   factory HorizonProfile.fromSamples(
     List<({double azimuth, double altitude})> samples,
   ) {
@@ -551,7 +697,7 @@ class HorizonProfile {
       final alt = s.altitude.clamp(0.0, 89.0);
       if (alt > altitudes[dir]!) altitudes[dir] = alt;
     }
-    return HorizonProfile(altitudes);
+    return HorizonProfile(altitudes, samples: samples);
   }
 
   /// Parse a horizon dump (CSV or whitespace-separated "azimuth altitude"

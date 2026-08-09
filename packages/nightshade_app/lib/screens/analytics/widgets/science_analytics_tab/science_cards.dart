@@ -217,7 +217,11 @@ class _LightCurveChartCard extends StatelessWidget {
       if (yHigh < minY) minY = yHigh;
       if (yHigh > maxY) maxY = yHigh;
     }
-    final yRange = math.max(0.5, maxY - minY);
+    // Shared nice axis so the boundary label coincides with a tick instead of
+    // printing a second value beside it.
+    final axis = NiceAxis.forRange(minY, maxY);
+    final maxX = spots.last.x == 0 ? 1.0 : spots.last.x;
+    final xInterval = maxX / 4;
 
     return NightshadeCard(
       child: Padding(
@@ -246,15 +250,17 @@ class _LightCurveChartCard extends StatelessWidget {
               child: LineChart(
                 LineChartData(
                   minX: 0,
-                  maxX: spots.last.x == 0 ? 1 : spots.last.x,
-                  minY: minY - (yRange * 0.15),
-                  maxY: maxY + (yRange * 0.15),
+                  maxX: maxX,
+                  minY: axis.min,
+                  maxY: axis.max,
                   borderData: FlBorderData(
                     show: true,
                     border: Border.all(color: colors.border),
                   ),
                   gridData: FlGridData(
                     drawVerticalLine: true,
+                    horizontalInterval: axis.interval,
+                    verticalInterval: xInterval,
                     getDrawingHorizontalLine: (_) =>
                         FlLine(color: colors.border.withValues(alpha: 0.35)),
                     getDrawingVerticalLine: (_) =>
@@ -271,13 +277,10 @@ class _LightCurveChartCard extends StatelessWidget {
                       sideTitles: SideTitles(
                         showTitles: true,
                         reservedSize: 24,
-                        interval:
-                            math.max(1, (spots.last.x / 4).floorToDouble()),
+                        interval: xInterval,
                         getTitlesWidget: (value, meta) {
-                          final mins =
-                              Duration(seconds: value.round()).inMinutes;
                           return Text(
-                            '${mins}m',
+                            elapsedAxisLabel(value),
                             style: TextStyle(
                               fontSize: NightshadeTypography.fontSize10,
                               color: colors.textSecondary,
@@ -295,9 +298,14 @@ class _LightCurveChartCard extends StatelessWidget {
                       ),
                       sideTitles: SideTitles(
                         showTitles: true,
-                        reservedSize: 40,
+                        reservedSize: 44,
+                        interval: axis.interval,
+                        // Plotted negated so brighter is higher; label with the
+                        // real magnitude. NiceAxis.label also folds -0.00 back
+                        // to 0.00 — a negative zero is a rounding artefact, not
+                        // a measurement.
                         getTitlesWidget: (value, meta) => Text(
-                          (-value).toStringAsFixed(1),
+                          axis.label(-value),
                           style: TextStyle(
                             fontSize: NightshadeTypography.fontSize10,
                             color: colors.textSecondary,

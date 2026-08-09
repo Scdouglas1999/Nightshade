@@ -20,6 +20,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../utils/confirm_dialog.dart';
 import 'settings_widgets.dart';
 
 class ReplayDebugSettings extends ConsumerStatefulWidget {
@@ -103,11 +104,14 @@ class _ReplayDebugSettingsState extends ConsumerState<ReplayDebugSettings> {
         isRemote ? ref.watch(backendProvider) : ref.watch(databaseProvider);
 
     return SettingsPage(
-      title: 'Replay Debug',
-      description: '${isRemote ? 'Imaging-host ' : ''}decision-log retention '
-          '+ cleanup for the retrospective '
-          'Replay screen. Decisions older than the retention window '
-          'are pruned automatically on app startup (once per day).',
+      title: 'Replay & Debug',
+      description: isRemote
+          ? 'How long the imaging host keeps the record of every decision a '
+              'run made, so you can replay a night afterwards. Older entries '
+              'are removed automatically, once a day.'
+          : 'How long Nightshade keeps the record of every decision a run '
+              'made, so you can replay a night afterwards. Older entries are '
+              'removed automatically, once a day.',
       isMobile: isMobile,
       hideHeader: isMobile,
       children: [
@@ -118,11 +122,11 @@ class _ReplayDebugSettingsState extends ConsumerState<ReplayDebugSettings> {
             _row(
               icon: LucideIcons.history,
               title: 'Replay decision logging',
-              subtitle: 'When enabled, every adaptive-swap pick, trigger '
-                  'firing, frame accept/reject, and recovery entry is '
-                  'persisted to the sequence_decisions table so the '
-                  'Replay screen can rebuild the timeline after the '
-                  'fact.',
+              subtitle: 'When enabled, every adaptive-exposure swap, trigger '
+                  'firing, frame accept or reject, and recovery step is '
+                  'recorded so the Replay screen can rebuild the night '
+                  'afterwards. Turning this off leaves past runs with no '
+                  'timeline.',
               trailing: SettingsSwitch(
                 value: enabled,
                 onChanged: (value) async {
@@ -193,9 +197,9 @@ class _ReplayDebugSettingsState extends ConsumerState<ReplayDebugSettings> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Wipes every persisted decision row across all runs. '
-                    'This does not delete captured images, sessions, or '
-                    'session notes — only the replay log.',
+                    'Removes every recorded decision, from every past run. '
+                    'Your captured images, sessions and session notes are '
+                    'untouched — only the replay record is cleared.',
                     style: TextStyle(
                       fontSize: NightshadeTypography.fontSize12,
                       color: colors.textSecondary,
@@ -232,26 +236,28 @@ class _ReplayDebugSettingsState extends ConsumerState<ReplayDebugSettings> {
     final generation = ++_clearGeneration;
     setState(() => _isClearing = true);
 
-    final ok = await showDialog<bool>(
+    // Ask how much is there BEFORE asking whether to destroy it. Agreeing to
+    // an unknown quantity is not consent; null means the authority could not
+    // tell us, and the wording below says so instead of implying a number.
+    final total = await c.countAllHistory();
+    if (!_isCurrentClear(generation, authority) || !mounted) return;
+
+    final ok = await ConfirmDialog.show(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Clear all replay history?'),
-        content: const Text(
-          'This deletes every row in the sequence_decisions table. '
-          'The Replay screen will show "No decisions recorded" for '
-          'every past run until new decisions accumulate.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Clear'),
-          ),
-        ],
-      ),
+      title: 'Clear all replay history?',
+      message: total == null
+          ? 'This deletes every decision Nightshade has recorded, for every '
+              'past run. The Replay screen will show "No decisions recorded" '
+              'until a new run starts. This cannot be undone.'
+          : total == 1
+              ? 'This deletes the 1 recorded decision, for every past run. '
+                  'The Replay screen will show "No decisions recorded" until '
+                  'a new run starts. This cannot be undone.'
+              : 'This deletes all $total recorded decisions, for every past '
+                  'run. The Replay screen will show "No decisions recorded" '
+                  'until a new run starts. This cannot be undone.',
+      confirmLabel: 'Clear history',
+      isDestructive: true,
     );
     if (!_isCurrentClear(generation, authority)) return;
     if (ok != true) {
@@ -263,7 +269,11 @@ class _ReplayDebugSettingsState extends ConsumerState<ReplayDebugSettings> {
       if (mounted && _isCurrentClear(generation, authority)) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Cleared $removed replay decision row(s).'),
+            content: Text(
+              removed == 1
+                  ? 'Cleared 1 recorded decision.'
+                  : 'Cleared $removed recorded decisions.',
+            ),
           ),
         );
       }

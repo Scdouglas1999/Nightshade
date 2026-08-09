@@ -19,25 +19,43 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
           // Configuration section
           Expanded(
             child: SingleChildScrollView(
+              controller: _configScrollController,
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Every setting below is refused while a run is in flight
+                  // (each control passes a null callback), but nothing said so:
+                  // the column kept its full contrast, so clicking "South" or
+                  // "4x4" mid-run just appeared to do nothing.
+                  if (isRunning) ...[
+                    _buildSettingsLockedNote(colors),
+                    const SizedBox(height: 12),
+                  ],
                   // Essential settings - always visible
                   _buildSectionHeader(
                       colors, 'Essential', NightshadeIcons.settings),
                   const SizedBox(height: 12),
-                  _buildEssentialSettings(colors, config, isRunning),
+                  _dimWhileRunning(
+                    isRunning,
+                    _buildEssentialSettings(colors, config, isRunning),
+                  ),
 
                   const SizedBox(height: 16),
 
                   // Common settings - collapsible
-                  _buildCommonSettings(colors, config, isRunning),
+                  _dimWhileRunning(
+                    isRunning,
+                    _buildCommonSettings(colors, config, isRunning),
+                  ),
 
                   const SizedBox(height: 8),
 
                   // Advanced settings - collapsible
-                  _buildAdvancedSettings(colors, config, isRunning),
+                  _dimWhileRunning(
+                    isRunning,
+                    _buildAdvancedSettings(colors, config, isRunning),
+                  ),
 
                   if (state.phase == PolarAlignPhase.adjusting) ...[
                     const SizedBox(height: 24),
@@ -57,6 +75,44 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
                     _buildHistoryPanel(colors),
                   ],
                 ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Dim the settings groups while a run holds them. The controls are already
+  /// disabled; this is what makes that legible at a glance instead of only on
+  /// the click that gets refused. Kept above the disabled threshold so the
+  /// operator can still READ the hemisphere/binning the run is using.
+  Widget _dimWhileRunning(bool isRunning, Widget child) {
+    if (!isRunning) return child;
+    return Opacity(opacity: NightshadeTokens.opacityMuted, child: child);
+  }
+
+  /// Why the settings below cannot be changed right now, and what to do about
+  /// it. Carries the same lock semantics the mode selector and Back button in
+  /// the header already have during a run.
+  Widget _buildSettingsLockedNote(NightshadeColors colors) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: NightshadeDecorations.tintedBadge(
+        colors.info,
+        borderRadius: NightshadeTokens.borderRadiusInline8,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(NightshadeIcons.lock, size: 14, color: colors.info),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Settings are locked while aligning — press Stop to change them.',
+              style: TextStyle(
+                fontSize: NightshadeTypography.fontSize11,
+                color: colors.info,
               ),
             ),
           ),

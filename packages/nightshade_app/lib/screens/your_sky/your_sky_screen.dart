@@ -88,6 +88,21 @@ class YourSkyView extends ConsumerWidget {
     );
   }
 
+  /// Counts regions, and only claims any of them are "imaged" when tiles have
+  /// actually landed.
+  ///
+  /// Naming a patch of sky is not imaging it: a freshly created region read
+  /// "1 region imaged" directly above its own card showing 0 tiles / 0s, with
+  /// the atlas coverage strip on the same screen reading 0 frames.
+  static String _regionsSubtitle(List<SkyAtlasRegionRow> regions) {
+    final total = regions.length;
+    final noun = total == 1 ? 'region' : 'regions';
+    final imaged = regions.where((r) => r.tileCount > 0).length;
+    if (imaged == 0) return '$total $noun · none imaged yet';
+    if (imaged == total) return '$total $noun imaged';
+    return '$total $noun · $imaged imaged';
+  }
+
   Widget _buildBody(
     BuildContext context,
     WidgetRef ref,
@@ -130,7 +145,7 @@ class YourSkyView extends ConsumerWidget {
                 title: 'Regions',
                 subtitle: regions.isEmpty
                     ? 'Tiles are accumulating — name a region to track its depth.'
-                    : '${regions.length} region${regions.length == 1 ? '' : 's'} imaged',
+                    : _regionsSubtitle(regions),
                 trailing: canNameRegions
                     ? NightshadeButton(
                         label: 'Name a region',

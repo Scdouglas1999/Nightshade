@@ -81,11 +81,6 @@ pub(crate) fn not_connected_camera() -> String {
 }
 
 #[inline]
-pub(crate) fn not_connected_mount() -> String {
-    not_connected("mount")
-}
-
-#[inline]
 pub(crate) fn not_connected_focuser() -> String {
     not_connected("focuser")
 }
@@ -187,20 +182,29 @@ pub(crate) async fn read_mount_status() -> Result<MountStatus, String> {
     if !get_sim_mount().read().await.status.connected {
         return Err(not_connected("mount"));
     }
-    // Let an in-flight slew travel toward its target before the caller samples
-    // the mount. Every simulated mount read funnels through here, so this is
-    // the one place the motion needs driving.
-    //
-    // A stalled mount keeps answering status reads truthfully — it simply never
-    // gets closer to the target. Suppressing the advance here (rather than
-    // failing the slew command) is what makes the app's slew timeout the only
-    // thing that can detect it, exactly as on real hardware.
-    if !super::sim_faults::is_stalled("mount.slew") {
-        crate::api::devices::simulation::advance_sim_slew().await;
-    }
+    advance_mount_motion().await;
     let mut status = get_sim_mount().read().await.status.clone();
     apply_derived_mount_telemetry(&mut status, observer_site(), chrono::Utc::now());
     Ok(status)
+}
+
+/// Bring an in-flight simulated slew up to the present.
+///
+/// `simulation::advance_sim_slew` is interpolation, not a motor: nothing runs it
+/// on a timer, so the mount is only ever as far along as the last caller that
+/// asked. Both gates in this module run it, which is what makes "where is the
+/// mount right now" the same answer whether the caller is reading status or
+/// issuing a command.
+///
+/// A stalled mount keeps answering truthfully — it simply never gets closer to
+/// the target. Suppressing the advance here (rather than failing the slew
+/// command) is what makes the app's slew timeout the only thing that can detect
+/// it, exactly as on real hardware.
+async fn advance_mount_motion() {
+    if super::sim_faults::is_stalled("mount.slew") {
+        return;
+    }
+    crate::api::devices::simulation::advance_sim_slew().await;
 }
 
 /// Configured observer location as `(latitude, longitude)`, if the app has one.
@@ -257,10 +261,51 @@ pub(crate) fn apply_derived_mount_telemetry(
 }
 
 /// Write-side gate for mount ops.
+///
+/// Advancing the motion here is what makes abort/stop/park/re-target truthful.
+/// A command arrives at a real mount while the axes are still turning, so it
+/// acts on wherever the tube has actually reached; the simulated one only moved
+/// when someone read its status, so a command issued without polling first acted
+/// on the pointing as of the last poll. Aborting a slew nobody had watched left
+/// the mount reporting its exact START coordinates — the one position a real
+/// abort can never leave you in — so "stopped part-way, pointing at neither end"
+/// was unreachable, and code that assumes a failed slew means "still where it
+/// was" passed here and lost the pointing on hardware.
 pub(crate) async fn require_mount_connected() -> Result<(), String> {
     faults("mount.command").await?;
     if !get_sim_mount().read().await.status.connected {
         return Err(not_connected("mount"));
+    }
+    advance_mount_motion().await;
+    Ok(())
+}
+
+/// Refuse a mount command that a real driver will not accept while the axes are
+/// still moving.
+///
+/// ASCOM raises `InvalidOperationException` for a slew/sync issued mid-slew and
+/// INDI rejects the coordinate set; the codebase already knows this — see
+/// `meridian_flip_executor`'s "Some mounts will refuse a park while slewing",
+/// which is why that path aborts before it parks. The simulator instead
+/// accepted every one of them and silently discarded the in-flight slew, so
+/// that abort-first handling, and every retry path behind it, had nothing to
+/// react to and no no-hardware run could reach it.
+///
+/// Must be called AFTER [`require_mount_connected`], which is what advances the
+/// motion (under the fault gate) so "is it still moving" is answered as of now
+/// rather than as of the last status poll.
+pub(crate) async fn refuse_while_mount_slewing(operation: &str) -> Result<(), String> {
+    // Both signals, because they can disagree: `sim_slew_in_flight` covers a
+    // goto (including its settle tail) even when a fault has frozen the
+    // interpolation, while `status.slewing` also covers a manual axis move,
+    // which has no interpolation cell at all.
+    let moving = crate::api::devices::simulation::sim_slew_in_flight().await
+        || get_sim_mount().read().await.status.slewing;
+    if moving {
+        return Err(format!(
+            "Simulated mount is slewing and refused {}. Abort the slew or wait for it to finish.",
+            operation
+        ));
     }
     Ok(())
 }
@@ -431,11 +476,13 @@ mod fault_injection_tests {
             FaultSpec::new(Trigger::Always, Effect::Stall),
         );
         // Latch the stall (the effect arms on first consultation).
-        let _ = sim_faults::check("camera.cooler").await;
+        sim_faults::check("camera.cooler")
+            .await
+            .expect("stall latching should not fail the status read");
 
         let first = read_camera_status().await.expect("reads keep succeeding");
         for _ in 0..5 {
-            let _ = read_camera_status().await.expect("reads keep succeeding");
+            read_camera_status().await.expect("reads keep succeeding");
         }
         let last = read_camera_status().await.expect("reads keep succeeding");
 
@@ -468,6 +515,312 @@ mod fault_injection_tests {
         assert!(
             err.contains("not connected"),
             "a lost handle must read as a disconnection: {err}"
+        );
+        sim_faults::clear_all();
+    }
+}
+
+/// Proof that the simulated mount is somewhere real when a COMMAND lands on it,
+/// not just when someone reads its status.
+///
+/// These drive the mount through the device manager rather than calling the
+/// gate directly, because the whole defect lives in the wiring: the gate,
+/// `mount.rs`'s simulator arms and `simulation::advance_sim_slew` were each
+/// individually correct and still produced a mount that could only ever be found
+/// at one of the two endpoints of a slew.
+#[cfg(test)]
+mod mount_motion_tests {
+    use crate::api::devices::simulation::{get_sim_mount, sim_singleton_test_lock, SimulatedMount};
+    use crate::api::{get_device_manager, get_state};
+    use crate::device::{DeviceInfo, DeviceType, DriverType, PierSide};
+    use crate::device_manager::ops::sim_faults::{self, Effect, FaultSpec, Trigger};
+    use crate::storage::ObserverLocation;
+    use std::time::Duration;
+
+    const TEST_LONGITUDE: f64 = -75.0;
+
+    async fn attach_sim_mount(device_id: &str) {
+        let info = DeviceInfo {
+            id: device_id.to_string(),
+            name: "Simulated Mount".to_string(),
+            device_type: DeviceType::Mount,
+            driver_type: DriverType::Simulator,
+            description: "Simulated mount".to_string(),
+            driver_version: "1.0".to_string(),
+            serial_number: None,
+            unique_id: None,
+            display_name: "Simulated Mount".to_string(),
+        };
+        get_device_manager().register_device(info, false).await;
+        get_state()
+            .set_observer_location(Some(ObserverLocation {
+                latitude: 40.0,
+                longitude: TEST_LONGITUDE,
+                elevation: 100.0,
+            }))
+            .expect("test site should be settable");
+        sim_faults::clear_all();
+        // The interpolation cell lives outside `SimulatedMount`, so resetting
+        // the struct alone would leave the previous test's slew in flight and
+        // this one's first command would be refused as "still moving".
+        crate::api::devices::simulation::cancel_sim_slew().await;
+        let mut mount = get_sim_mount().write().await;
+        *mount = SimulatedMount::default();
+        mount.status.connected = true;
+    }
+
+    /// The pier side to leave the mount on so that a slew to `ra` also has to
+    /// cross it, which doubles the commanded slew's duration. Nothing about the
+    /// contract under test needs the flip; it just buys a wide enough in-flight
+    /// window that a scheduling hiccup cannot end the slew before the assertion.
+    async fn park_on_the_far_side_of(ra: f64) {
+        use nightshade_sequencer::meridian;
+        let now = chrono::Utc::now();
+        let lst = meridian::local_sidereal_time(meridian::julian_day(&now), TEST_LONGITUDE);
+        let opposite = match meridian::expected_pier_side(meridian::hour_angle(ra, lst)) {
+            meridian::PierSide::West => PierSide::East,
+            _ => PierSide::West,
+        };
+        get_sim_mount().write().await.status.side_of_pier = Some(opposite);
+    }
+
+    /// The state a real abort leaves you in: pointing at neither the target nor
+    /// the coordinates the slew started from.
+    ///
+    /// The simulator could not produce it. Motion only advanced on a status
+    /// read, so an abort issued without polling first froze the mount on its
+    /// exact start coordinates — and anything that reads "not slewing, still at
+    /// the origin" as "the slew never began, the pointing is still good" was
+    /// only ever tested against a state a mount cannot be in.
+    #[tokio::test]
+    async fn an_unpolled_abort_stops_the_mount_between_start_and_target() {
+        let _serialized = sim_singleton_test_lock().lock().await;
+        let device_id = "sim_gate_mount_unpolled_abort";
+        attach_sim_mount(device_id).await;
+        park_on_the_far_side_of(12.0).await;
+        let mgr = get_device_manager();
+
+        // 0h -> 12h is the longest slew on the sky, and it also crosses the
+        // pier, so the mount is still well short of the target after the sleep.
+        mgr.mount_slew(device_id, 12.0, 0.0).await.unwrap();
+        // Deliberately no status read in here: a caller that polls would hide
+        // the defect by advancing the motion as a side effect.
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        mgr.mount_abort(device_id).await.unwrap();
+
+        let stopped = mgr.mount_get_status(device_id).await.unwrap();
+        assert!(!stopped.slewing, "abort must stop the motion");
+        assert!(
+            stopped.right_ascension > 0.05,
+            "the mount reported RA {:.4}h — it was aborted on its start \
+             coordinates, which is the one place a real abort cannot leave it",
+            stopped.right_ascension
+        );
+        assert!(
+            stopped.right_ascension < 11.95,
+            "the mount reported RA {:.4}h — an aborted slew still arrived",
+            stopped.right_ascension
+        );
+    }
+
+    /// Re-targeting after an abort must not teleport the mount backwards.
+    ///
+    /// `begin_sim_slew` interpolates from wherever the mount is when the command
+    /// lands, so feeding it a stale sample made the tube jump back to the
+    /// coordinates of the slew it had already partly completed and abandoned.
+    /// A mount that reports a pointing it demonstrably left is the exact shape
+    /// of bug that makes plate-solve-and-centre loops chase their own tail.
+    ///
+    /// The abort is not incidental: a real driver refuses a slew issued while
+    /// the axes are still turning (see
+    /// `a_slew_sync_or_park_is_refused_while_the_mount_is_moving`), so
+    /// "change of mind" is always abort-then-slew.
+    #[tokio::test]
+    async fn re_targeting_after_an_abort_resumes_from_where_the_mount_actually_is() {
+        let _serialized = sim_singleton_test_lock().lock().await;
+        let device_id = "sim_gate_mount_retarget";
+        attach_sim_mount(device_id).await;
+        park_on_the_far_side_of(12.0).await;
+        let mgr = get_device_manager();
+
+        mgr.mount_slew(device_id, 12.0, 0.0).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        // Change of mind, with no intervening poll. The new target is chosen so
+        // the short way round runs the same direction as the first slew: a
+        // mount that resumed from the stale start would report ~0h, one that
+        // resumed from where it is reports where it had got to.
+        mgr.mount_abort(device_id).await.unwrap();
+        mgr.mount_slew(device_id, 6.0, 0.0).await.unwrap();
+
+        let redirected = mgr.mount_get_status(device_id).await.unwrap();
+        assert!(redirected.slewing, "the re-target must still be in flight");
+        assert!(
+            redirected.right_ascension > 1.0,
+            "the mount jumped back to RA {:.4}h, the start of the slew it had \
+             already abandoned",
+            redirected.right_ascension
+        );
+    }
+
+    /// A real driver refuses a pointing command issued mid-motion.
+    ///
+    /// ASCOM raises `InvalidOperationException` and INDI rejects the property
+    /// set; the simulator used to accept slew, sync and park while the axes
+    /// were turning and silently discard the in-flight slew, so the app's own
+    /// abort-then-retry handling (`meridian_flip_executor`,
+    /// `try_park_with_retry`) had nothing to react to on a no-hardware run.
+    #[tokio::test]
+    async fn a_slew_sync_or_park_is_refused_while_the_mount_is_moving() {
+        let _serialized = sim_singleton_test_lock().lock().await;
+        let device_id = "sim_gate_mount_busy";
+        attach_sim_mount(device_id).await;
+        park_on_the_far_side_of(12.0).await;
+        let mgr = get_device_manager();
+
+        mgr.mount_slew(device_id, 12.0, 0.0).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(300)).await;
+
+        for (label, result) in [
+            ("slew", mgr.mount_slew(device_id, 6.0, 0.0).await),
+            ("sync", mgr.mount_sync(device_id, 6.0, 0.0).await),
+            ("park", mgr.mount_park(device_id).await),
+        ] {
+            let error = result.expect_err(&format!(
+                "{} was accepted while the mount was still slewing",
+                label
+            ));
+            assert!(
+                error.to_string().contains("is slewing"),
+                "{} refusal must say the mount is moving, got: {}",
+                label,
+                error
+            );
+        }
+
+        // Still travelling: a refused command must not have cancelled it.
+        assert!(
+            mgr.mount_get_status(device_id).await.unwrap().slewing,
+            "a refused command silently stopped the slew it refused"
+        );
+
+        // And the same commands are accepted once the motion is stopped.
+        mgr.mount_abort(device_id).await.unwrap();
+        mgr.mount_park(device_id).await.unwrap();
+    }
+
+    /// The axes arrive before the driver reports idle.
+    ///
+    /// `slewing` used to fall to false in the same status read that first
+    /// reported the target coordinates, so "arrived" and "stopped moving" were
+    /// one event. Every wait-for-motion path in the app was satisfied on its
+    /// first poll and no settle ordering bug could reproduce without hardware.
+    #[tokio::test]
+    async fn the_mount_holds_slewing_through_a_settle_after_it_arrives() {
+        let _serialized = sim_singleton_test_lock().lock().await;
+        let device_id = "sim_gate_mount_settle";
+        attach_sim_mount(device_id).await;
+        let mgr = get_device_manager();
+
+        // Shortest possible move so the interpolation is over almost at once
+        // and what remains is the settle tail on its own.
+        mgr.mount_slew(device_id, 0.0, 0.0).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(350)).await;
+
+        let settling = mgr.mount_get_status(device_id).await.unwrap();
+        assert!(
+            settling.right_ascension.abs() < 1e-9 && settling.declination.abs() < 1e-9,
+            "the axes should already be on target during the settle, got RA {:.6}h Dec {:.6}",
+            settling.right_ascension,
+            settling.declination
+        );
+        assert!(
+            settling.slewing,
+            "the mount reported idle the instant its axes arrived — a real \
+             driver holds Slewing through the mechanical settle"
+        );
+
+        tokio::time::sleep(Duration::from_millis(600)).await;
+        assert!(
+            !mgr.mount_get_status(device_id).await.unwrap().slewing,
+            "the settle never ended"
+        );
+    }
+
+    /// Every mutating simulated mount op runs the shared write gate.
+    ///
+    /// `mount_unpark`, `mount_set_tracking`, `mount_set_tracking_rate` and
+    /// `mount_move_axis` each did their own inline `connected` read instead, so
+    /// they bypassed the gate's fault injector and its motion advance: a
+    /// no-hardware run could not make any of them fail, and they acted on the
+    /// pointing as of the last status poll rather than as of now.
+    #[tokio::test]
+    async fn every_mutating_mount_op_goes_through_the_command_gate() {
+        let _serialized = sim_singleton_test_lock().lock().await;
+        let device_id = "sim_gate_mount_command_gate";
+        attach_sim_mount(device_id).await;
+        let mgr = get_device_manager();
+
+        sim_faults::arm(
+            "mount.command",
+            FaultSpec::new(
+                Trigger::Always,
+                Effect::Error("mount driver rejected the command".to_string()),
+            ),
+        );
+
+        for (label, result) in [
+            ("unpark", mgr.mount_unpark(device_id).await),
+            (
+                "set_tracking",
+                mgr.mount_set_tracking(device_id, true).await,
+            ),
+            (
+                "set_tracking_rate",
+                mgr.mount_set_tracking_rate(device_id, 1).await,
+            ),
+            ("move_axis", mgr.mount_move_axis(device_id, 0, 0.5).await),
+        ] {
+            assert!(
+                result.is_err(),
+                "{} succeeded against a driver that rejects every command — it \
+                 is not going through require_mount_connected",
+                label
+            );
+        }
+
+        sim_faults::clear_all();
+    }
+
+    /// A stalled mount has to be stalled for commands too.
+    ///
+    /// A stall's entire signature is "it never gets closer to the target". If
+    /// the command path advanced the motion anyway, aborting a stalled slew
+    /// would report the mount part-way down a track it never travelled, and the
+    /// slew timeout — the only thing that can detect a stall — would be
+    /// contradicted by the position it reads back.
+    #[tokio::test]
+    async fn a_stalled_mount_does_not_creep_forward_when_a_command_arrives() {
+        let _serialized = sim_singleton_test_lock().lock().await;
+        let device_id = "sim_gate_mount_stalled_abort";
+        attach_sim_mount(device_id).await;
+        let mgr = get_device_manager();
+
+        sim_faults::arm("mount.slew", FaultSpec::new(Trigger::Always, Effect::Stall));
+        // The effect latches on first consultation.
+        sim_faults::check("mount.slew")
+            .await
+            .expect("stall latching should not fail the slew command");
+
+        mgr.mount_slew(device_id, 12.0, 0.0).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        mgr.mount_abort(device_id).await.unwrap();
+
+        let stopped = mgr.mount_get_status(device_id).await.unwrap();
+        assert!(
+            stopped.right_ascension.abs() < 1e-9,
+            "a stalled mount reported RA {:.4}h: the abort path moved axes that \
+             were jammed",
+            stopped.right_ascension
         );
         sim_faults::clear_all();
     }

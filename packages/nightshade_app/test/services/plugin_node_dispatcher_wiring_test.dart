@@ -22,6 +22,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/services/plugin_node_dispatcher_wiring.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_plugins/nightshade_plugins.dart';
+import '../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -31,6 +32,7 @@ void main() {
         'request resolves through registry → executor → plugin execute → result',
         () async {
       final container = ProviderContainer(overrides: [
+        inMemoryDatabaseOverride(),
         pluginNodeDispatcherOverride(),
       ]);
       addTearDown(container.dispose);
@@ -71,6 +73,7 @@ void main() {
 
     test('unknown plugin returns a structured failure (not a throw)', () async {
       final container = ProviderContainer(overrides: [
+        inMemoryDatabaseOverride(),
         pluginNodeDispatcherOverride(),
       ]);
       addTearDown(container.dispose);
@@ -94,6 +97,7 @@ void main() {
 
     test('plugin returning false maps to dispatcher success=false', () async {
       final container = ProviderContainer(overrides: [
+        inMemoryDatabaseOverride(),
         pluginNodeDispatcherOverride(),
       ]);
       addTearDown(container.dispose);
@@ -120,6 +124,7 @@ void main() {
 
     test('malformed config fails without executing the plugin', () async {
       final container = ProviderContainer(overrides: [
+        inMemoryDatabaseOverride(),
         pluginNodeDispatcherOverride(),
       ]);
       addTearDown(container.dispose);
@@ -147,6 +152,7 @@ void main() {
 
     test('non-object JSON config fails without executing the plugin', () async {
       final container = ProviderContainer(overrides: [
+        inMemoryDatabaseOverride(),
         pluginNodeDispatcherOverride(),
       ]);
       addTearDown(container.dispose);

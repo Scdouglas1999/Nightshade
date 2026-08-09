@@ -7,6 +7,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/screens/your_sky/region_detail_screen.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 class _MockFfiBackend extends Mock implements FfiBackend {}
 
@@ -40,6 +41,7 @@ SkyAtlasRegionRow _region() => SkyAtlasRegionRow(
   late _SwitchingBackendNotifier backendNotifier;
   final container = ProviderContainer(
     overrides: [
+      inMemoryDatabaseOverride(),
       backendProvider.overrideWith((ref) {
         return backendNotifier = _SwitchingBackendNotifier(ref, backend);
       }),

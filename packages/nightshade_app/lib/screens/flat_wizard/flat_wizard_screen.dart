@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -6,6 +7,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../widgets/contextual_tour_prompt.dart';
 import '../../widgets/tutorial_keys/flat_wizard_keys.dart';
+import 'flat_failure_diagnosis.dart';
 import 'widgets/flat_wizard_split_view.dart';
 import 'widgets/flat_preview_panel.dart';
 import 'widgets/save_path_dialog.dart';

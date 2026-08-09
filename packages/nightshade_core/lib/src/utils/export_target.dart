@@ -22,7 +22,7 @@ class ExportTarget {
   /// user to reach it.
   ///
   /// True on Android/iOS, where [path] is inside the app's private sandbox and
-  /// a "saved to <path>" message names a file the user can never open. The
+  /// a "saved to `path`" message names a file the user can never open. The
   /// caller must pass the written file to `revealExportedFile` (or
   /// `Share.shareXFiles`) once the write completes. False on desktop, where the
   /// user chose the location themselves and it is already reachable.

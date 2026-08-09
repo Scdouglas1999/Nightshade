@@ -155,6 +155,47 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
     return result.read(countExp) ?? 0;
   }
 
+  /// The most recent session that actually contains light frames.
+  ///
+  /// Analysis surfaces need a session with science content, not simply the
+  /// newest row in `imaging_sessions` — a calibration run (darks/flats only) or
+  /// a session that aborted before its first light would leave those surfaces
+  /// truthfully but uselessly reporting "no light frames yet" while nights of
+  /// data sit one row further down.
+  Future<int?> getLatestSessionIdWithLightFrames() async {
+    final capturedAtMax = capturedImages.capturedAt.max();
+    final query = selectOnly(capturedImages)
+      ..addColumns([capturedImages.sessionId, capturedAtMax])
+      ..where(
+        capturedImages.sessionId.isNotNull() &
+            capturedImages.frameType.lower().equals('light'),
+      )
+      ..groupBy([capturedImages.sessionId])
+      ..orderBy([OrderingTerm.desc(capturedAtMax)])
+      ..limit(1);
+    final row = await query.getSingleOrNull();
+    return row?.read(capturedImages.sessionId);
+  }
+
+  /// Every session that holds at least one plate-solved frame.
+  ///
+  /// Used to choose which night the Science tab opens on: a plate solve is the
+  /// precondition for astrometry, photometric calibration and the solve-rate
+  /// card, so a session with none has nothing for that tab to show.
+  Future<Set<int>> getSessionIdsWithSolvedFrames() async {
+    final query = selectOnly(capturedImages, distinct: true)
+      ..addColumns([capturedImages.sessionId])
+      ..where(
+        capturedImages.sessionId.isNotNull() &
+            capturedImages.isPlateSolved.equals(true),
+      );
+    final rows = await query.get();
+    return rows
+        .map((row) => row.read(capturedImages.sessionId))
+        .whereType<int>()
+        .toSet();
+  }
+
   /// Watch all images
   Stream<List<CapturedImage>> watchAllImages() {
     return (select(
@@ -527,6 +568,27 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
     return row.data['fwhm'] as double?;
   }
 
+  /// Measured median FWHM for every frame of [sessionId] that has one, keyed
+  /// by image id. Frames the producing path never measured are absent.
+  ///
+  /// `fwhm` is a v50 raw-DDL column, so it is NOT a field on the generated
+  /// `CapturedImage` data class — anything holding a `List<DbCapturedImage>`
+  /// (the exporters, the report builder) cannot see it and has to look it up
+  /// here. Batched because the alternative, [getFwhm] per frame, is one query
+  /// per sub across a whole night.
+  Future<Map<int, double>> getFwhmForSession(int sessionId) async {
+    final rows = await customSelect(
+      'SELECT id, fwhm FROM captured_images '
+      'WHERE session_id = ? AND fwhm IS NOT NULL',
+      variables: [Variable<int>(sessionId)],
+      readsFrom: {capturedImages},
+    ).get();
+    return {
+      for (final row in rows)
+        row.read<int>('id'): (row.data['fwhm'] as num).toDouble(),
+    };
+  }
+
   /// Lightweight thumbnail-friendly view of a captured image row: only the
   /// columns the sequence-tree thumbnail strip needs. Pulled out into its
   /// own type so the watch query can stay narrow and so consumers don't
@@ -655,6 +717,24 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
     int? binX,
     int? binY,
     double? qualityScore,
+    // Live equipment state at capture time, taken from the frame event's
+    // capture payload — which is the same `FrameContext` the FITS writer
+    // stamped the header from. Every one of these columns already existed and
+    // no sequencer frame had ever written one, so a row and its own file
+    // disagreed about the exposure that produced them both.
+    double? sensorTemp,
+    double? coolerPower,
+
+    /// Mount right ascension in HOURS (the `captured_images.mount_ra`
+    /// convention), not degrees.
+    double? mountRa,
+    double? mountDec,
+    double? mountAltitude,
+    double? mountAzimuth,
+    String? pierSide,
+    int? focuserPosition,
+    double? focuserTemp,
+    double? rotatorAngle,
     LoggingService? logger,
     ThumbnailSidecarService? sidecarService,
   }) async {
@@ -703,9 +783,11 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
       'hfr, star_count, quality_score, captured_at, is_accepted, '
       'rejection_reason, producing_node_id, producing_run_id, '
       'runtime_grade, eccentricity, thumbnail_path, is_plate_solved, '
-      'created_at) '
+      'created_at, sensor_temp, cooler_power, mount_ra, mount_dec, '
+      'mount_altitude, mount_azimuth, pier_side, focuser_position, '
+      'focuser_temp, rotator_angle) '
       'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '
-      '?, ?, ?, 0, ?)',
+      '?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       variables: [
         Variable<String>(filePath),
         Variable<String>(fileName),
@@ -732,6 +814,16 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
         realOrNull(eccentricity),
         strOrNull(thumbnailPath),
         Variable<int>(ms),
+        realOrNull(sensorTemp),
+        realOrNull(coolerPower),
+        realOrNull(mountRa),
+        realOrNull(mountDec),
+        realOrNull(mountAltitude),
+        realOrNull(mountAzimuth),
+        strOrNull(pierSide),
+        intOrNull(focuserPosition),
+        realOrNull(focuserTemp),
+        realOrNull(rotatorAngle),
       ],
       updates: {capturedImages},
     );

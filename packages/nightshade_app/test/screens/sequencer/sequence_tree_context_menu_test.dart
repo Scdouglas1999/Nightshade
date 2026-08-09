@@ -6,9 +6,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nightshade_app/screens/sequencer/widgets/node_palette_empty_state.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree_context_menu.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 ({Sequence sequence, String containerId, String childId})
     _containerWithOneChild() {
@@ -57,6 +59,7 @@ ProviderContainer _seed(Sequence seq) {
   // ignore: invalid_use_of_protected_member
   notifier.state = seq;
   final container = ProviderContainer(overrides: [
+    inMemoryDatabaseOverride(),
     currentSequenceProvider.overrideWith((_) => notifier),
   ]);
   addTearDown(container.dispose);
@@ -349,6 +352,224 @@ void main() {
     expect(
         container.read(currentSequenceProvider)!.nodes.containsKey(t.childId),
         isTrue);
+  });
+
+  // Order is semantically load-bearing in a sequence (unpark must precede
+  // slew), and drag-and-drop inside a long scrolling tree is the wrong tool
+  // for moving one row. Right-click is the reflex; it used to offer no way
+  // to reorder at all.
+  testWidgets('Move Up shifts the node one slot earlier among its siblings',
+      (tester) async {
+    final t = _containerWithTwoChildren();
+    final container = _seed(t.sequence);
+
+    await _pump(
+      tester,
+      container,
+      SequenceTreeContextMenu(
+        nodeId: t.secondChildId,
+        colors: _colors(),
+        child: const SizedBox(
+            width: 200, height: 40, child: Center(child: Text('row'))),
+      ),
+    );
+
+    await _openMenu(tester, find.text('row'));
+    expect(find.text('Move Up'), findsOneWidget);
+    await tester.tap(find.text('Move Up'));
+    await tester.pumpAndSettle();
+
+    final parent =
+        container.read(currentSequenceProvider)!.nodes[t.containerId]!;
+    expect(parent.childIds, [t.secondChildId, t.firstChildId]);
+  });
+
+  testWidgets('Move Down shifts the node one slot later among its siblings',
+      (tester) async {
+    final t = _containerWithTwoChildren();
+    final container = _seed(t.sequence);
+
+    await _pump(
+      tester,
+      container,
+      SequenceTreeContextMenu(
+        nodeId: t.firstChildId,
+        colors: _colors(),
+        child: const SizedBox(
+            width: 200, height: 40, child: Center(child: Text('row'))),
+      ),
+    );
+
+    await _openMenu(tester, find.text('row'));
+    await tester.tap(find.text('Move Down'));
+    await tester.pumpAndSettle();
+
+    final parent =
+        container.read(currentSequenceProvider)!.nodes[t.containerId]!;
+    expect(parent.childIds, [t.secondChildId, t.firstChildId]);
+  });
+
+  testWidgets('Move Up is disabled on the first sibling and changes nothing',
+      (tester) async {
+    final t = _containerWithTwoChildren();
+    final container = _seed(t.sequence);
+
+    await _pump(
+      tester,
+      container,
+      SequenceTreeContextMenu(
+        nodeId: t.firstChildId,
+        colors: _colors(),
+        child: const SizedBox(
+            width: 200, height: 40, child: Center(child: Text('row'))),
+      ),
+    );
+
+    await _openMenu(tester, find.text('row'));
+    // Flutter swallows taps on disabled PopupMenuItems — order must hold.
+    await tester.tap(find.text('Move Up'));
+    await tester.pumpAndSettle();
+
+    final parent =
+        container.read(currentSequenceProvider)!.nodes[t.containerId]!;
+    expect(parent.childIds, [t.firstChildId, t.secondChildId]);
+  });
+
+  // The Insert Above / Insert Below picker is a THIRD node-palette search
+  // box. The two main palettes were moved onto the shared relevance ranker;
+  // this one still filtered on `name || description` in catalogue order, so
+  // typing an exact node name here still offered a description match first.
+  testWidgets(
+      'Insert picker ranks an exact name match above a description '
+      'match', (tester) async {
+    final t = _containerWithTwoChildren();
+    final container = ProviderContainer(overrides: [
+      inMemoryDatabaseOverride(),
+      currentSequenceProvider.overrideWith((_) {
+        final n = CurrentSequenceNotifier();
+        // ignore: invalid_use_of_protected_member
+        n.state = t.sequence;
+        return n;
+      }),
+      nodePaletteProvider.overrideWithValue([
+        NodePaletteCategory(
+          name: 'Imaging',
+          icon: 'camera',
+          items: [
+            NodePaletteItem(
+              name: 'Smart Exposure',
+              icon: 'camera',
+              description: 'Handles rotation + dither for you',
+              createNode: () => ExposureNode(),
+            ),
+          ],
+        ),
+        NodePaletteCategory(
+          name: 'Guiding',
+          icon: 'crosshair',
+          items: [
+            NodePaletteItem(
+              name: 'Dither',
+              icon: 'move',
+              description: 'Offset the mount between frames',
+              createNode: () => DitherNode(),
+            ),
+          ],
+        ),
+      ]),
+    ]);
+    addTearDown(container.dispose);
+
+    await _pump(
+      tester,
+      container,
+      SequenceTreeContextMenu(
+        nodeId: t.firstChildId,
+        colors: _colors(),
+        child: const SizedBox(
+            width: 200, height: 40, child: Center(child: Text('row'))),
+      ),
+    );
+
+    await _openMenu(tester, find.text('row'));
+    await tester.tap(find.text('Insert Below'));
+    await tester.pumpAndSettle();
+
+    // Lower-case so the query echoed in the search field cannot be confused
+    // with the "Dither" row label we are locating.
+    await tester.enterText(find.byType(TextField).last, 'dither');
+    await tester.pumpAndSettle();
+
+    // Both still match, but the node the user literally typed must be the
+    // first row — that is the one they tap.
+    expect(find.text('Dither'), findsOneWidget);
+    expect(find.text('Smart Exposure'), findsOneWidget);
+    final ditherY = tester.getTopLeft(find.text('Dither')).dy;
+    final smartY = tester.getTopLeft(find.text('Smart Exposure')).dy;
+    expect(ditherY, lessThan(smartY));
+  });
+
+  // The empty-search fix landed on the three palette surfaces that render
+  // `NodePalette` / `_NodePaletteContent`, but the Insert Above / Insert
+  // Below picker is a FOURTH surface reading the same ranker. It kept
+  // rendering a ListView with zero children, so a search that matched
+  // nothing left the sheet body blank below the search box — the exact
+  // symptom the fix was for.
+  testWidgets('Insert picker explains a search that matches nothing',
+      (tester) async {
+    final t = _containerWithTwoChildren();
+    final container = ProviderContainer(overrides: [
+      inMemoryDatabaseOverride(),
+      currentSequenceProvider.overrideWith((_) {
+        final n = CurrentSequenceNotifier();
+        // ignore: invalid_use_of_protected_member
+        n.state = t.sequence;
+        return n;
+      }),
+      nodePaletteProvider.overrideWithValue([
+        NodePaletteCategory(
+          name: 'Imaging',
+          icon: 'camera',
+          items: [
+            NodePaletteItem(
+              name: 'Smart Exposure',
+              icon: 'camera',
+              description: 'Handles rotation + dither for you',
+              createNode: () => ExposureNode(),
+            ),
+          ],
+        ),
+      ]),
+    ]);
+    addTearDown(container.dispose);
+
+    await _pump(
+      tester,
+      container,
+      SequenceTreeContextMenu(
+        nodeId: t.firstChildId,
+        colors: _colors(),
+        child: const SizedBox(
+            width: 200, height: 40, child: Center(child: Text('row'))),
+      ),
+    );
+
+    await _openMenu(tester, find.text('row'));
+    await tester.tap(find.text('Insert Below'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).last, 'zzzqqq');
+    await tester.pumpAndSettle();
+
+    expect(find.byType(NodePaletteEmptyState), findsOneWidget);
+    expect(find.text('No nodes match "zzzqqq"'), findsOneWidget);
+
+    // The clear button has to actually restore the catalogue, or the
+    // operator is stranded in a sheet with no visible way back.
+    await tester.tap(find.text('Clear search'));
+    await tester.pumpAndSettle();
+    expect(find.byType(NodePaletteEmptyState), findsNothing);
+    expect(find.text('Smart Exposure'), findsOneWidget);
   });
 
   testWidgets('Delete on a container with descendants asks for confirmation',

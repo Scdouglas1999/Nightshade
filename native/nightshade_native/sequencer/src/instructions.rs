@@ -39,6 +39,53 @@ pub const DEFAULT_MAX_SUN_ALTITUDE_DEGREES: f64 = -12.0;
 /// failures.
 pub const DAYLIGHT_GATE_RECOVERY_CODE: &str = "DAYLIGHT_GATE_SUN_UP";
 
+/// Recovery code stamped when a node refuses to point at a target whose sky
+/// position was never chosen, so the recovery layer can offer "set the target's
+/// coordinates" instead of treating it as a mount fault.
+pub const UNSET_TARGET_RECOVERY_CODE: &str = "TARGET_COORDINATES_UNSET";
+
+/// Structural gate on pointing inherited from a `TargetHeader` that still
+/// carries the palette placeholder. Returns `Some(reason)` to BLOCK.
+///
+/// `TargetHeaderConfig` has no nullable coordinate meaning "nothing picked
+/// yet", so a target added from the palette starts at exactly RA 0h / Dec +0°.
+/// Both values are in range and the pair is a real point in Pisces, so nothing
+/// downstream can tell it apart from a deliberate pointing: the mount slews
+/// there, and on an unattended remote rig it sits there for the rest of the
+/// night.
+///
+/// Dart's `TargetCoordinatesUnsetRule` blocks this on the GUI start path, but
+/// pre-flight validation is not the only way into a run — the headless
+/// `POST /api/sequencer/start`, `sequencer_load_json` and every checkpoint
+/// resume reach the executor without it, and a checkpoint written before that
+/// rule existed resumes straight into the same slew. Gating the two nodes that
+/// actually command the mount holds for all of those entry points at once.
+///
+/// The test is deliberately exact — `0.0` and nothing else — matching the Dart
+/// rule so the two surfaces cannot disagree about which sequences are
+/// runnable. An operator who genuinely wants that spot claims it with the
+/// ten-thousandth-of-a-unit nudge the coordinate editor already exposes;
+/// anything fuzzier would refuse legitimate pointings near the vernal equinox.
+pub(crate) fn unset_target_pointing_reason(
+    target_name: Option<&str>,
+    ra_hours: f64,
+    dec_degrees: f64,
+    what: &str,
+) -> Option<String> {
+    if ra_hours != 0.0 || dec_degrees != 0.0 {
+        return None;
+    }
+    let label = target_name
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .unwrap_or("this target");
+    Some(format!(
+        "Refusing {what}: target \"{label}\" is still at the RA 0h / Dec +0° placeholder, so \
+         its sky position was never chosen. Set the target's coordinates before running this \
+         sequence."
+    ))
+}
+
 /// Whether a sequencer frame is an on-sky light that requires darkness.
 ///
 /// Calibration frame types are intentionally explicit exemptions: they can be
@@ -141,6 +188,222 @@ fn validate_exposure_filter_request(
     ))
 }
 
+/// Ask the wheel which filter it is ACTUALLY sitting on.
+///
+/// The sequence context only ever learns a filter name when something inside
+/// the running sequence sets one — a Change Filter node, a Smart Exposure
+/// plan, or the burst's own `filter`. A run that simply captures with the
+/// wheel left where the operator parked it therefore carried NO filter
+/// identity at all: the save-path template rendered the synthetic `nofilter`
+/// label and `FrameContext.filter_name` stayed `None`, so the saved FITS had
+/// no FILTER card even though the wheel would answer the question at any
+/// moment. Every calibration workflow (PixInsight / Siril / APP) keys off
+/// FILTER, so those lights could not be matched to flats without hand-editing
+/// the headers.
+///
+/// Returns `None` — never a guessed label — when there is no wheel, when the
+/// wheel is still moving (drivers report a negative position while in
+/// transit), when the names cannot be read, or when the occupied slot has no
+/// configured name. An unknown filter must stay unknown; inventing "L" would
+/// mis-label narrowband frames as luminance.
+pub(crate) async fn observed_wheel_filter(ctx: &InstructionContext) -> Option<(String, i32)> {
+    let fw_id = ctx.filterwheel_id.as_deref()?;
+    let position = match ctx.device_ops.filterwheel_get_position(fw_id).await {
+        Ok(position) if position >= 0 => position,
+        Ok(position) => {
+            tracing::debug!(
+                "[CAPTURE] filter wheel reports in-transit position {}; frame filter left unknown",
+                position
+            );
+            return None;
+        }
+        Err(e) => {
+            tracing::debug!(
+                "[CAPTURE] filterwheel_get_position failed; frame filter left unknown: {}",
+                e
+            );
+            return None;
+        }
+    };
+    let name = wheel_filter_name_at(ctx, position).await?;
+    Some((name, position))
+}
+
+/// Name of the filter installed in wheel slot `position`, or `None` when the
+/// wheel cannot be asked or the slot is unnamed. Companion to
+/// [`observed_wheel_filter`] for the case where the slot is already known
+/// (a burst that addresses the wheel by index).
+pub(crate) async fn wheel_filter_name_at(
+    ctx: &InstructionContext,
+    position: i32,
+) -> Option<String> {
+    let fw_id = ctx.filterwheel_id.as_deref()?;
+    if position < 0 {
+        return None;
+    }
+    let names = match ctx.device_ops.filterwheel_get_names(fw_id).await {
+        Ok(names) => names,
+        Err(e) => {
+            tracing::debug!(
+                "[CAPTURE] filterwheel_get_names failed; frame filter left unknown: {}",
+                e
+            );
+            return None;
+        }
+    };
+    let name = names.get(position as usize)?.trim().to_string();
+    if name.is_empty() {
+        tracing::debug!(
+            "[CAPTURE] filter wheel slot {} has no configured name; frame filter left unknown",
+            position
+        );
+        return None;
+    }
+    Some(name)
+}
+
+/// Wheel slot occupied by the filter called `name`, or `None` when there is no
+/// wheel, it cannot be asked, or nothing in it goes by that name.
+///
+/// Inverse of [`wheel_filter_name_at`]. A burst that addresses the wheel BY
+/// NAME never learns the slot it landed on, so without this the frame carried a
+/// correct `filter_name` next to whatever `filter_index` an earlier burst had
+/// left behind — one frame described by two filters, which is the same
+/// disagreement the name resolution was added to end.
+pub(crate) async fn wheel_filter_index_of(ctx: &InstructionContext, name: &str) -> Option<i32> {
+    let fw_id = ctx.filterwheel_id.as_deref()?;
+    let wanted = name.trim();
+    if wanted.is_empty() {
+        return None;
+    }
+    let names = match ctx.device_ops.filterwheel_get_names(fw_id).await {
+        Ok(names) => names,
+        Err(e) => {
+            tracing::debug!(
+                "[CAPTURE] filterwheel_get_names failed; frame filter position left unknown: {}",
+                e
+            );
+            return None;
+        }
+    };
+    let position = names
+        .iter()
+        .position(|slot| slot.trim().eq_ignore_ascii_case(wanted))?;
+    i32::try_from(position).ok()
+}
+
+/// Outcome of [`resolve_burst_filter`].
+pub(crate) enum BurstFilter {
+    /// This burst addresses the wheel itself, so BOTH fields describe every
+    /// frame in it — including when one of them is `None`. Overwriting the pair
+    /// as a unit is what stops a slot number left behind by an earlier burst
+    /// from being filed next to this burst's filter name.
+    Resolved {
+        name: Option<String>,
+        index: Option<i32>,
+    },
+    /// Nothing in this burst addresses the wheel. Whatever a preceding Change
+    /// Filter / Smart Exposure established still describes these frames.
+    Inherit,
+}
+
+/// Decide the filter identity that this burst's frames should be recorded
+/// under.
+///
+/// Precedence, strongest evidence first:
+///  1. the burst's own `filter` — `execute_exposure` is about to drive the
+///     wheel there, so it is what these frames are taken through. This case
+///     was silently dropped before: `${filter}` in the save-path template
+///     reads `current_filter`, never `config.filter`, so even a node with
+///     "Ha" configured wrote `..._nofilter_....fits`;
+///  2. the burst's `filter_index` resolved against the wheel's name table,
+///     for nodes that address the wheel by position only;
+///  3. whatever a preceding Change Filter / Smart Exposure already
+///     established — already correct, leave it alone;
+///  4. the wheel's own report of where it is parked, for the common case of a
+///     sequence that never changes filter at all.
+///
+/// Cases 1 and 2 each know only half of the identity, so the other half is
+/// looked up on the wheel: a name-addressed burst asks which slot it landed in,
+/// a position-addressed burst asks what lives in that slot. A `None` that
+/// survives the lookup is honest ignorance and is recorded as such — see
+/// [`observed_wheel_filter`].
+///
+/// Lives here rather than in the TakeExposure node because the node is not the
+/// only capture path: the Flat Wizard and every bridge one-shot call
+/// [`execute_exposure`] directly, and they need the same answer.
+pub(crate) async fn resolve_burst_filter(
+    config: &ExposureConfig,
+    ctx: &InstructionContext,
+) -> BurstFilter {
+    let configured_name = config
+        .filter
+        .as_deref()
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map(str::to_string);
+
+    match (configured_name, config.filter_index) {
+        (Some(name), Some(index)) => BurstFilter::Resolved {
+            name: Some(name),
+            index: Some(index),
+        },
+        (Some(name), None) => {
+            let index = wheel_filter_index_of(ctx, &name).await;
+            BurstFilter::Resolved {
+                name: Some(name),
+                index,
+            }
+        }
+        // Position-addressed burst: the wheel's own name table is the only
+        // thing that knows what sits in that slot.
+        (None, Some(index)) => BurstFilter::Resolved {
+            name: wheel_filter_name_at(ctx, index).await,
+            index: Some(index),
+        },
+        (None, None) => {
+            // Already established by a preceding Change Filter / Smart Exposure.
+            if ctx.current_filter.is_some() {
+                return BurstFilter::Inherit;
+            }
+            match observed_wheel_filter(ctx).await {
+                Some((name, index)) => BurstFilter::Resolved {
+                    name: Some(name),
+                    index: Some(index),
+                },
+                None => BurstFilter::Inherit,
+            }
+        }
+    }
+}
+
+/// The filter identity to stamp on the frames of this burst, as one
+/// (name, slot) pair.
+///
+/// [`resolve_burst_filter`] flattened against the running context, for the two
+/// consumers that record a frame rather than update the context: the
+/// renderer-less filename fallback and `build_frame_context_for_save` (FITS
+/// FILTER card + the `captured_images` row). Both used to read `config.filter`
+/// and `config.filter_index` INDEPENDENTLY, so a Flat Wizard run whose config
+/// named "Ha" but carried no index was filed under "Ha" next to whatever slot
+/// number a previous light burst had left in the context — one frame described
+/// by two different filters. Resolving the pair as a unit here is what makes
+/// the filename, the FITS header and the database row agree by construction.
+pub(crate) async fn resolve_frame_filter(
+    config: &ExposureConfig,
+    ctx: &InstructionContext,
+) -> (Option<String>, Option<i32>) {
+    match resolve_burst_filter(config, ctx).await {
+        BurstFilter::Resolved { name, index } => (name, index),
+        // A slot number with no name behind it cannot describe a frame: it is
+        // an artefact of an earlier burst, not evidence about this one.
+        BurstFilter::Inherit if ctx.current_filter.is_some() => {
+            (ctx.current_filter.clone(), ctx.current_filter_index)
+        }
+        BurstFilter::Inherit => (None, None),
+    }
+}
+
 /// Result of an instruction execution
 #[derive(Debug)]
 pub struct InstructionResult {
@@ -220,7 +483,20 @@ impl InstructionResult {
         // so without this the message reached the log and nowhere else, and the
         // run's terminal event, toast and persisted `errorMessages` all fell
         // back to the hardcoded "Sequence failed".
-        if matches!(self.status, NodeStatus::Failure) {
+        //
+        // Exactly ONCE per failed node, though. The node runtime re-executes an
+        // instruction whose failure was promoted to device-disconnect recovery
+        // (see `execute_instruction_with_disconnect_retry`), and every one of
+        // those executions used to publish its own copy: one Open Dome node
+        // that failed with "No dome connected" filled the session report with
+        // six identical error lines and raised six identical Critical toasts,
+        // so the report's error count could never match the number of failed
+        // nodes. The first attempt is the one that reports — publishing there
+        // rather than on the last means no path (recovery driver absent,
+        // recovery cancelled, retries exhausted) can swallow the reason.
+        if matches!(self.status, NodeStatus::Failure)
+            && !crate::node::runtime::is_disconnect_retry_attempt()
+        {
             if let (Some(message), Some(event_tx)) =
                 (self.message.as_deref(), ctx.event_tx.as_ref())
             {
@@ -537,18 +813,45 @@ impl InstructionContext {
             .ok_or_else(|| InstructionResult::failure("No rotator connected"))
     }
 
-    /// Get dome ID or error
-    pub fn dome_id(&self) -> Result<&str, InstructionResult> {
-        self.dome_id
-            .as_deref()
-            .ok_or_else(|| InstructionResult::failure("No dome connected"))
+    /// Get dome ID or error.
+    ///
+    /// Unlike the other role accessors this one falls back to
+    /// [`DeviceOps::active_dome_id`] when the context carries no assignment:
+    /// nothing in the Dart→FFI runtime-config path ever calls
+    /// `SequenceExecutor::set_dome`, so `self.dome_id` is `None` on every real
+    /// run and the seven dome/cover node types were unconditionally dead. The
+    /// device layer knows what is connected; ask it before declaring failure.
+    pub async fn dome_id(&self) -> Result<String, InstructionResult> {
+        if let Some(id) = self.dome_id.as_deref() {
+            return Ok(id.to_string());
+        }
+        match self.device_ops.active_dome_id().await {
+            Some(id) => {
+                tracing::debug!("No dome in the sequence context; using connected dome '{id}'");
+                Ok(id)
+            }
+            None => Err(InstructionResult::failure("No dome connected")),
+        }
     }
 
-    /// Get cover calibrator ID or error
-    pub fn cover_calibrator_id(&self) -> Result<&str, InstructionResult> {
-        self.cover_calibrator_id
-            .as_deref()
-            .ok_or_else(|| InstructionResult::failure("No cover calibrator (flat panel) connected"))
+    /// Get cover calibrator ID or error. Falls back to
+    /// [`DeviceOps::active_cover_calibrator_id`] for the same reason as
+    /// [`Self::dome_id`].
+    pub async fn cover_calibrator_id(&self) -> Result<String, InstructionResult> {
+        if let Some(id) = self.cover_calibrator_id.as_deref() {
+            return Ok(id.to_string());
+        }
+        match self.device_ops.active_cover_calibrator_id().await {
+            Some(id) => {
+                tracing::debug!(
+                    "No cover calibrator in the sequence context; using connected panel '{id}'"
+                );
+                Ok(id)
+            }
+            None => Err(InstructionResult::failure(
+                "No cover calibrator (flat panel) connected",
+            )),
+        }
     }
 
     /// Replay Debug — emit a structured decision into the
@@ -666,6 +969,18 @@ pub async fn execute_slew(
             _ => return InstructionResult::failure("No custom coordinates specified"),
         }
     };
+
+    // Refuse to drive the mount to a target whose coordinates were never set.
+    // Only the inherited-pointing case can carry the placeholder; a custom-
+    // coordinate slew is an explicit instruction from the operator.
+    if config.use_target_coords {
+        if let Some(reason) =
+            unset_target_pointing_reason(ctx.target_name.as_deref(), ra, dec, "slew to target")
+        {
+            tracing::warn!("{reason}");
+            return InstructionResult::failure_with_recovery(reason, UNSET_TARGET_RECOVERY_CODE);
+        }
+    }
 
     // W1 native daylight gate (structural). A slew that points the rig at the
     // active sky/science target (`use_target_coords`) is the on-sky pointing
@@ -1247,6 +1562,30 @@ pub async fn execute_center(
             }
         }
     };
+
+    // Same placeholder gate as `execute_slew`: Center slews too, and it is the
+    // node an automated sequence usually uses instead of a bare Slew, so
+    // leaving it ungated would leave the defect reachable by the more common
+    // authoring pattern. Custom / mount-current coordinates are the operator's
+    // own numbers and are never gated.
+
+    // Same placeholder gate as `execute_slew`: Center slews too, and it is the
+    // node an automated sequence usually uses instead of a bare Slew, so
+    // leaving it ungated would leave the defect reachable by the more common
+    // authoring pattern. Custom / mount-current coordinates are the operator's
+    // own numbers and are never gated.
+    if config.use_target_coords {
+        if let Some(reason) = unset_target_pointing_reason(
+            ctx.target_name.as_deref(),
+            target_ra_hours,
+            target_dec,
+            "center on target",
+        ) {
+            tracing::warn!("{reason}");
+            return InstructionResult::failure_with_recovery(reason, UNSET_TARGET_RECOVERY_CODE);
+        }
+    }
+
     let target_ra_deg = target_ra_hours * 15.0;
 
     tracing::info!(
@@ -1819,13 +2158,18 @@ pub async fn execute_exposure_with_renderer(
         Err(e) => return e,
     };
 
-    // W1 native daylight gate (structural). Only an actual LIGHT frame under
-    // a sky target requires darkness. Calibration frames remain exempt even
-    // below a TargetHeader and with an unparked mount.
-    if frame_type_requires_darkness(&config.frame_type)
-        && ctx.target_ra.is_some()
-        && ctx.target_dec.is_some()
-    {
+    // W1 native daylight gate (structural). Only an actual LIGHT frame
+    // requires darkness; calibration frames remain exempt even below a
+    // TargetHeader and with an unparked mount.
+    //
+    // The gate keys off the FRAME TYPE, never off the presence of a
+    // TargetHeader. It used to also require `ctx.target_ra`/`target_dec`,
+    // which meant a bare "Take Exposures" outside any target group wrote
+    // LIGHT frames in full daylight while the identical node nested under a
+    // target was refused — a safety gate the operator disabled by forgetting
+    // an unrelated node. Whether the rig is pointed at the sky is answered by
+    // the mount park state below, which is the real discriminator.
+    if frame_type_requires_darkness(&config.frame_type) {
         let on_sky = match &ctx.mount_id {
             // No mount configured: there is no rig to point at the sky, so this
             // cannot be an on-sky light capture — abstain.
@@ -1958,6 +2302,17 @@ pub async fn execute_exposure_with_renderer(
         }
     }
 
+    // Settle the filter identity ONCE for the whole burst, after the wheel has
+    // been commanded above so `observed_wheel_filter` reports the slot these
+    // frames are actually taken through. Every recording surface below reads
+    // this pair, so the filename, the FITS FILTER card and the
+    // `captured_images` row cannot disagree about the same frame. Resolving
+    // here rather than in the TakeExposure node covers the capture paths that
+    // do not go through a node at all — the Flat Wizard's final flat burst most
+    // of all, where a missing FILTER card makes the flats unmatchable to the
+    // lights they were shot for.
+    let (frame_filter_name, frame_filter_index) = resolve_frame_filter(config, ctx).await;
+
     let (bin_x, bin_y) = match config.binning {
         Binning::One => (1, 1),
         Binning::Two => (2, 2),
@@ -2047,6 +2402,13 @@ pub async fn execute_exposure_with_renderer(
             config.count,
             config.duration_secs
         );
+
+        // The instant the shutter opens. FITS DATE-OBS means START of
+        // observation, and this used to be stamped with `Utc::now()` at
+        // header-build time -- i.e. after readout -- so every sequenced frame
+        // was late by its own exposure time. Capturing it here, immediately
+        // before the exposure call, is the only place that is actually true.
+        let exposure_started_at = chrono::Utc::now();
 
         // tokio::select! is the only way to honour cancellation during a
         // blocking exposure without driver support; the abort branch tells
@@ -2273,7 +2635,7 @@ pub async fn execute_exposure_with_renderer(
                         "untargeted".to_string()
                     }
                 };
-                let filter_label = match config.filter.as_deref() {
+                let filter_label = match frame_filter_name.as_deref() {
                     Some(name) if !name.is_empty() => name.to_string(),
                     _ => {
                         tracing::warn!(
@@ -2419,6 +2781,8 @@ pub async fn execute_exposure_with_renderer(
                 &image_data,
                 frame,
                 defect_map_outcome.clone(),
+                exposure_started_at,
+                (frame_filter_name.clone(), frame_filter_index),
             )
             .await;
 
@@ -2493,6 +2857,9 @@ pub async fn execute_exposure_with_renderer(
                 frame,
                 config.count,
                 &full_path,
+                // Same struct the `save_fits` call above stamped the header
+                // from — not a re-read, not a reconstruction.
+                &frame_ctx,
                 &frames_accepted_handle,
                 &frames_rejected_handle,
                 &consecutive_rejects_handle,
@@ -2999,12 +3366,18 @@ async fn emit_grade_progress(
     frame: u32,
     total: u32,
     full_path: &std::path::Path,
+    // The SAME `FrameContext` the FITS header for this frame was built from.
+    // Passing it here (rather than re-reading the devices, or letting Dart
+    // reconstruct the values from the sequence tree) is the whole point: one
+    // struct stamps both the file and the database row, so they cannot drift.
+    frame_ctx: &crate::scheduling::FrameContext,
     frames_accepted: &Arc<std::sync::atomic::AtomicU32>,
     frames_rejected: &Arc<std::sync::atomic::AtomicU32>,
     consecutive_rejects: &Arc<std::sync::atomic::AtomicU32>,
     max_consecutive: u32,
 ) {
     use std::sync::atomic::Ordering;
+    let capture = crate::scheduling::FrameCaptureMetadata::from(frame_ctx);
     // forensics — snapshot the environment once up-front so the
     // values reported in the event match the values fed to the
     // classifier. (Two separate reads could race against the
@@ -3058,6 +3431,7 @@ async fn emit_grade_progress(
                 // strip's path resolver can hand it straight to the
                 // image-loader without further translation).
                 save_path: Some(full_path.display().to_string()),
+                capture: capture.clone(),
             };
             let detail_text = structured.detail_text();
             if let Some(event_tx) = &ctx.event_tx {
@@ -3177,6 +3551,7 @@ async fn emit_grade_progress(
                 wind_at_capture: env_snapshot.wind_kph,
                 guide_rms_at_capture: env_snapshot.guide_rms_arcsec,
                 sensor_temp_at_capture: env_snapshot.sensor_temp_c,
+                capture: capture.clone(),
             };
             // Append the rejected sample to the history AFTER
             // classification so the next reject sees this one in its
@@ -3328,6 +3703,11 @@ async fn build_frame_context_for_save(
     image_data: &ImageData,
     frame_index: u32,
     defect_map_outcome: DefectMapOutcome,
+    exposure_started_at: chrono::DateTime<chrono::Utc>,
+    // The burst's (name, slot) pair from `resolve_frame_filter`, passed in
+    // rather than re-derived so the FITS card can never name a different filter
+    // than the file it is written into.
+    frame_filter: (Option<String>, Option<i32>),
 ) -> crate::scheduling::FrameContext {
     let (bin_x, bin_y) = match config.binning {
         Binning::One => (1u32, 1u32),
@@ -3343,6 +3723,52 @@ async fn build_frame_context_for_save(
         config.duration_secs,
         frame_index,
     );
+    frame_ctx.exposure_started_at = Some(exposure_started_at);
+
+    // DECISION: the camera's own report of how long it exposed wins over the
+    // commanded duration, but only within the bound below.
+    //
+    // Why the driver and not the plan. `EXPTIME` means the exposure that
+    // happened, not the one that was asked for, and the FITS writer has always
+    // read it straight off `ImageData` — so preferring the plan here would
+    // CHANGE what lands in every FITS file, which is the larger unannounced
+    // change. On a camera with a mechanical shutter the two genuinely differ,
+    // and the measured value is the one a later calibration match wants.
+    //
+    // Why it is bounded. The same field is now also the NOT NULL
+    // `captured_images.exposure_duration` that every integration total sums, so
+    // one lying driver could corrupt a season of totals with nothing
+    // downstream able to tell. The shutter cannot have been open materially
+    // longer than the sequencer waited for it, so an over-report is not a
+    // measurement — it is a fault, and the commanded value is kept instead.
+    // (The grace is shutter/readout latency plus drivers that quantise their
+    // exposure clock coarsely on long subs.)
+    //
+    // The bound is deliberately one-sided. A report SHORTER than commanded is
+    // physically possible — an aborted or truncated exposure really did end
+    // early — and it can only under-count integration, which is the safe
+    // direction and shows up as an obviously short sub rather than as a night
+    // that claims hours it never collected.
+    let commanded_secs = frame_ctx.duration_secs;
+    let reported_secs = image_data.exposure_secs;
+    let longest_believable = commanded_secs * 1.05 + 1.0;
+    if reported_secs > 0.0 && reported_secs <= longest_believable {
+        frame_ctx.duration_secs = reported_secs;
+    } else if reported_secs > longest_believable {
+        tracing::warn!(
+            "[CAPTURE] Camera reported a {:.3}s exposure for a commanded {:.3}s frame — \
+             impossible, so the commanded value is recorded instead. This driver's \
+             exposure report cannot be trusted; integration totals would be inflated \
+             by roughly {:.1}x if it were.",
+            reported_secs,
+            commanded_secs,
+            if commanded_secs > 0.0 {
+                reported_secs / commanded_secs
+            } else {
+                f64::INFINITY
+            },
+        );
+    }
 
     // Honour the node's configured frame type (FITS IMAGETYP). Before this,
     // every sequencer capture was stamped "Light" — sequenced darks/flats/
@@ -3361,15 +3787,30 @@ async fn build_frame_context_for_save(
     frame_ctx.target_ra_hours = ctx.target_ra;
     frame_ctx.target_dec_degrees = ctx.target_dec;
 
-    // Filter.
-    frame_ctx.filter_name = config.filter.clone().or_else(|| ctx.current_filter.clone());
-    frame_ctx.filter_index = config.filter_index.or(ctx.current_filter_index);
+    // Filter. Name and slot arrive already paired: reading `config` and the
+    // context independently let a burst that named "Ha" but carried no slot be
+    // stamped with whatever slot the previous burst had left behind.
+    (frame_ctx.filter_name, frame_ctx.filter_index) = frame_filter;
 
     // Camera settings (already on ImageData from the capture).
     frame_ctx.gain = image_data.gain.or(config.gain);
     frame_ctx.offset = image_data.offset.or(config.offset);
     frame_ctx.sensor_temp_c = image_data.temperature;
     frame_ctx.set_temp_c = ctx.set_temp_c;
+
+    // Cooler duty cycle. Only meaningful on a cooled camera; an uncooled one
+    // (or a driver that will not answer) leaves the column NULL rather than
+    // recording 0 %, which would read as "cooler idle" — the opposite of "no
+    // cooler".
+    if let Some(camera_id) = &ctx.camera_id {
+        match ctx.device_ops.camera_get_cooler_power(camera_id).await {
+            Ok(power) => frame_ctx.cooler_power_percent = Some(power),
+            Err(e) => tracing::debug!(
+                "[CAPTURE] camera_get_cooler_power failed; cooler power omitted: {}",
+                e
+            ),
+        }
+    }
 
     // Bayer pattern — prefer the camera-reported sensor type over a stale
     // ExecutionContext value. A camera reporting "Monochrome" overrides any
@@ -3391,6 +3832,28 @@ async fn build_frame_context_for_save(
     // Equipment identification.
     frame_ctx.camera_make = ctx.camera_make.clone();
     frame_ctx.camera_model = ctx.camera_model.clone();
+    // Sensor pixel pitch (FITS XPIXSZ/YPIXSZ). Asked of the driver here rather
+    // than taken from the observer profile, which has no pixel-size field: this
+    // is the only place in a sequenced capture where the number is reachable,
+    // and without it the sub lands on disk with FOCALLEN but no pitch, so no
+    // stacker can derive the plate scale from the file alone. A driver that
+    // will not answer leaves the keywords off rather than inventing a pitch.
+    if let Some(camera_id) = &ctx.camera_id {
+        match ctx.device_ops.camera_get_pixel_size_um(camera_id).await {
+            Ok(Some((x_um, y_um))) => {
+                frame_ctx.camera_pixel_size_x_um = Some(x_um);
+                frame_ctx.camera_pixel_size_y_um = Some(y_um);
+            }
+            Ok(None) => tracing::debug!(
+                "[CAPTURE] camera {} reports no pixel size; XPIXSZ/YPIXSZ omitted",
+                camera_id
+            ),
+            Err(e) => tracing::debug!(
+                "[CAPTURE] camera_get_pixel_size_um failed; XPIXSZ/YPIXSZ omitted: {}",
+                e
+            ),
+        }
+    }
     frame_ctx.telescope_name = ctx.telescope_name.clone();
     frame_ctx.telescope_focal_length_mm = ctx.telescope_focal_length_mm;
     frame_ctx.telescope_aperture_mm = ctx.telescope_aperture_mm;
@@ -3422,6 +3885,61 @@ async fn build_frame_context_for_save(
             Ok(angle) => frame_ctx.rotator_angle_deg = Some(angle),
             Err(e) => tracing::debug!(
                 "[CAPTURE] rotator_get_angle failed; ROTATPOS omitted: {}",
+                e
+            ),
+        }
+    }
+
+    // Live mount pointing + pier side.
+    //
+    // Where the telescope actually WAS, which is what the FITS `RA`/`DEC`
+    // cards and the `captured_images.mount_*` columns both mean — as opposed
+    // to `target_ra_hours`/`target_dec_degrees`, which are where the sequence
+    // meant to be (an unedited "New Target" sits at 0h/0°). The bridge's FITS
+    // writer used to sample this itself at save time; reading it HERE, into
+    // the FrameContext that both surfaces are stamped from, is what stops the
+    // header and the row from being able to disagree.
+    if let Some(mount_id) = &ctx.mount_id {
+        match ctx.device_ops.mount_get_coordinates(mount_id).await {
+            Ok((ra_hours, dec_degrees)) => {
+                frame_ctx.mount_ra_hours = Some(ra_hours);
+                frame_ctx.mount_dec_degrees = Some(dec_degrees);
+                // Alt/az are derived, not read back: `mount_get_status` would
+                // report them but costs a full capability sweep per saved
+                // frame on ASCOM, and the geometry is exact once the site is
+                // known. Both stay None when the observer location is unset
+                // rather than being computed from a guessed site.
+                //
+                // Derived at the EXPOSURE MIDPOINT, not now. This runs after
+                // readout, so `Utc::now()` dated the geometry by the whole
+                // exposure plus download — see `FrameContext::exposure_midpoint`
+                // for what that costs a photometry run. RA/Dec do not need the
+                // same treatment: a tracking mount holds them, and it is only
+                // the horizon frame that turns with the clock.
+                if let (Some(lat), Some(lon)) = (ctx.latitude, ctx.longitude) {
+                    let when = frame_ctx
+                        .exposure_midpoint()
+                        .unwrap_or_else(chrono::Utc::now);
+                    let (alt, az) =
+                        crate::meridian::calculate_alt_az(ra_hours, dec_degrees, lat, lon, when);
+                    frame_ctx.mount_altitude_deg = Some(alt);
+                    frame_ctx.mount_azimuth_deg = Some(az);
+                }
+            }
+            Err(e) => tracing::debug!(
+                "[CAPTURE] mount_get_coordinates failed; pointing omitted: {}",
+                e
+            ),
+        }
+        match ctx.device_ops.mount_side_of_pier(mount_id).await {
+            // `Unknown` is dropped rather than recorded: it is indistinguishable
+            // downstream from "no reading was taken", and the column is
+            // nullable precisely so absence can say that.
+            Ok(crate::meridian::PierSide::East) => frame_ctx.pier_side = Some("East".to_string()),
+            Ok(crate::meridian::PierSide::West) => frame_ctx.pier_side = Some("West".to_string()),
+            Ok(crate::meridian::PierSide::Unknown) => {}
+            Err(e) => tracing::debug!(
+                "[CAPTURE] mount_side_of_pier failed; PIERSIDE omitted: {}",
                 e
             ),
         }
@@ -6048,7 +6566,14 @@ Sequence cannot wait for an unreachable twilight state.",
         return InstructionResult::success_with_message(format!("{:?} twilight reached", twilight));
     }
 
-    InstructionResult::success()
+    // Neither a target time nor a twilight condition was set. Returning Success
+    // here made an unconfigured Wait node complete immediately without waiting
+    // microseconds — and the canonical use of this node is "wait until
+    // astronomical dark before imaging", so skipping it starts the run in
+    // daylight. Fail instead: a wait that cannot wait has not been satisfied.
+    InstructionResult::failure(
+        "Wait node has no wait condition: set a target time or a twilight condition",
+    )
 }
 
 /// Calculate twilight time for a given location using proper solar position algorithms
@@ -6272,6 +6797,15 @@ pub async fn execute_notification(
 // SCRIPT INSTRUCTION
 // =============================================================================
 
+/// Effective timeout applied to a Run Script node that carries no explicit
+/// `timeout_secs`.
+///
+/// This is the single source of truth for "how long may an unconfigured script
+/// run". The Dart node editor renders the same 300 s as the field's value, so
+/// the number the operator reads is the number the executor enforces; the
+/// duration estimator and the node's Timing card must use this value too.
+pub const DEFAULT_SCRIPT_TIMEOUT_SECS: u32 = 300;
+
 /// Execute script. expanded the env-var contract: every variable
 /// declared in `expressions::catalog` is exposed as `NIGHTSHADE_<NAME>`
 /// where `NAME` is the dotted variable converted to UPPER_SNAKE
@@ -6318,7 +6852,15 @@ pub async fn execute_script(
         }
     }
 
-    // Set timeout
+    // Set timeout. An absent timeout is NOT an unsafe state: the bounded
+    // [`DEFAULT_SCRIPT_TIMEOUT_SECS`] fallback is itself fail-closed (the child
+    // is still killed and reaped), and it is the value the node editor shows as
+    // the effective timeout. Rejecting `None` outright — as the 2026-02
+    // fail-closed sweep did — made every freshly added Run Script node refuse to
+    // run with "timeout_secs is required" while the panel displayed 300, so the
+    // node was unusable until the operator retyped the number it already showed.
+    // An explicit zero stays an error: that is a real contradiction (run the
+    // script, but kill it immediately), not a missing value.
     let timeout = match config.timeout_secs {
         // Why: u32 -> u64 widening is lossless.
         Some(v) if v > 0 => u64::from(v),
@@ -6327,11 +6869,7 @@ pub async fn execute_script(
                 "Script timeout_secs must be greater than zero".to_string(),
             )
         }
-        None => {
-            return InstructionResult::failure(
-                "Script timeout_secs is required in fail-closed mode".to_string(),
-            )
-        }
+        None => u64::from(DEFAULT_SCRIPT_TIMEOUT_SECS),
     };
 
     // Reap the child when the spawned future is dropped (timeout / cancel).
@@ -6559,7 +7097,11 @@ pub async fn execute_meridian_flip_with_autofocus(
         mount_id,
         camera_id: ctx.camera_id.clone(),
         focuser_id: ctx.focuser_id.clone(),
-        cover_calibrator_id: ctx.cover_calibrator_id.clone(),
+        // Resolve through the accessor, not the raw field: the context's cover
+        // role is never populated on a real run, which silently disabled the
+        // pre-flip "is the dust cap closed?" check that exists to stop a flip
+        // ending in a failed plate solve and a parked mount.
+        cover_calibrator_id: ctx.cover_calibrator_id().await.ok(),
         cancellation_token: Some(ctx.cancellation_token.clone()),
         trigger_state: ctx.trigger_state.clone(),
         // Carry the tuned autofocus config PLUS the live filter context
@@ -6755,8 +7297,8 @@ pub async fn execute_open_dome(
     ctx: &InstructionContext,
     progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
 ) -> InstructionResult {
-    let dome_id = match ctx.dome_id() {
-        Ok(id) => id.to_string(),
+    let dome_id = match ctx.dome_id().await {
+        Ok(id) => id,
         Err(e) => return e,
     };
 
@@ -6815,8 +7357,8 @@ pub async fn execute_close_dome(
     ctx: &InstructionContext,
     progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
 ) -> InstructionResult {
-    let dome_id = match ctx.dome_id() {
-        Ok(id) => id.to_string(),
+    let dome_id = match ctx.dome_id().await {
+        Ok(id) => id,
         Err(e) => return e,
     };
 
@@ -6870,8 +7412,8 @@ pub async fn execute_park_dome(
     ctx: &InstructionContext,
     progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
 ) -> InstructionResult {
-    let dome_id = match ctx.dome_id() {
-        Ok(id) => id.to_string(),
+    let dome_id = match ctx.dome_id().await {
+        Ok(id) => id,
         Err(e) => return e,
     };
 
@@ -6953,8 +7495,8 @@ pub async fn execute_open_cover(
     ctx: &InstructionContext,
     progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
 ) -> InstructionResult {
-    let device_id = match ctx.cover_calibrator_id() {
-        Ok(id) => id.to_string(),
+    let device_id = match ctx.cover_calibrator_id().await {
+        Ok(id) => id,
         Err(e) => return e,
     };
 
@@ -7000,8 +7542,8 @@ pub async fn execute_close_cover(
     ctx: &InstructionContext,
     progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
 ) -> InstructionResult {
-    let device_id = match ctx.cover_calibrator_id() {
-        Ok(id) => id.to_string(),
+    let device_id = match ctx.cover_calibrator_id().await {
+        Ok(id) => id,
         Err(e) => return e,
     };
 
@@ -7051,8 +7593,8 @@ pub async fn execute_calibrator_on(
     ctx: &InstructionContext,
     progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
 ) -> InstructionResult {
-    let device_id = match ctx.cover_calibrator_id() {
-        Ok(id) => id.to_string(),
+    let device_id = match ctx.cover_calibrator_id().await {
+        Ok(id) => id,
         Err(e) => return e,
     };
 
@@ -7126,8 +7668,8 @@ pub async fn execute_calibrator_off(
     ctx: &InstructionContext,
     progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
 ) -> InstructionResult {
-    let device_id = match ctx.cover_calibrator_id() {
-        Ok(id) => id.to_string(),
+    let device_id = match ctx.cover_calibrator_id().await {
+        Ok(id) => id,
         Err(e) => return e,
     };
 
@@ -7785,9 +8327,27 @@ mod tests {
         dome_park_calls: AtomicU32,
         /// When `Some`, `dome_close` fails with this message.
         dome_close_error: Option<String>,
+        /// Device ids `dome_open` / `cover_calibrator_open_cover` were called
+        /// with, so the role-resolution tests can prove the instruction
+        /// commanded the device the ops layer resolved.
+        dome_open_ids: Mutex<Vec<String>>,
+        cover_open_ids: Mutex<Vec<String>>,
+        /// Answers for the `active_*_id` role-resolution hooks — the ops
+        /// layer's "here is the connected device" reply.
+        active_dome_id: Option<String>,
+        active_cover_calibrator_id: Option<String>,
+        /// How many times the dome role was resolved. The dome instruction
+        /// asks exactly once per execution, so this counts EXECUTIONS of the
+        /// node — which is what a retry-collapse test has to pin down before
+        /// its "one error entry" assertion means anything.
+        active_dome_id_calls: AtomicU32,
         // --- centering ---
         mount_slewing_states: Mutex<Vec<bool>>,
         mount_slew_state_calls: AtomicU32,
+        /// How many times the mount was actually commanded to move. A gate that
+        /// only changes the returned message while still driving the mount is
+        /// indistinguishable from a real gate without this.
+        mount_slew_calls: AtomicU32,
         // --- camera ---
         camera_exposure_calls: AtomicU32,
         camera_abort_calls: AtomicU32,
@@ -7809,6 +8369,33 @@ mod tests {
         /// `false` (matching NullDeviceOps); the parked-rig gate test sets it
         /// `true` to prove a parked exposure is never daylight-gated.
         mount_parked: bool,
+        // --- per-frame capture truth -----------------------------------
+        /// Every `FrameContext` this ops layer was handed by `save_fits`, in
+        /// order. This is the FITS writer's own input — recording it is the
+        /// only way to assert the frame EVENT was stamped from the same struct
+        /// rather than from a second reconstruction of the same exposure.
+        saved_frame_contexts: Mutex<Vec<crate::scheduling::FrameContext>>,
+        /// The full path each frame was written to, in the same order. The
+        /// filename is rendered from a DIFFERENT source than the header, so
+        /// recording both is what lets a test prove the two agree.
+        saved_frame_paths: Mutex<Vec<String>>,
+        /// Distinctive live telemetry so a `FrameContext::default()` cannot
+        /// masquerade as a real read. `None` keeps NullDeviceOps' answer.
+        scripted_mount_coordinates: Option<(f64, f64)>,
+        scripted_pier_side: Option<crate::meridian::PierSide>,
+        scripted_cooler_power: Option<f64>,
+        scripted_focuser_position: Option<i32>,
+        scripted_focuser_temperature: Option<f64>,
+        /// What the camera claims it exposed for, independent of what was
+        /// commanded — a driver that misreports is the whole point of the
+        /// exposure-duration reconciliation.
+        scripted_reported_exposure_secs: Option<f64>,
+        scripted_gain: Option<i32>,
+        scripted_offset: Option<i32>,
+        scripted_sensor_temp_c: Option<f64>,
+        /// Unbinned pixel pitch the camera reports, in microns. `None` stands
+        /// in for a driver that will not answer.
+        scripted_pixel_size_um: Option<(f64, f64)>,
     }
 
     impl ScriptedDomeRotatorOps {
@@ -7823,8 +8410,14 @@ mod tests {
                 dome_close_calls: AtomicU32::new(0),
                 dome_park_calls: AtomicU32::new(0),
                 dome_close_error: None,
+                dome_open_ids: Mutex::new(Vec::new()),
+                cover_open_ids: Mutex::new(Vec::new()),
+                active_dome_id: None,
+                active_cover_calibrator_id: None,
+                active_dome_id_calls: AtomicU32::new(0),
                 mount_slewing_states: Mutex::new(vec![false]),
                 mount_slew_state_calls: AtomicU32::new(0),
+                mount_slew_calls: AtomicU32::new(0),
                 camera_exposure_calls: AtomicU32::new(0),
                 camera_abort_calls: AtomicU32::new(0),
                 hang_camera_exposure: false,
@@ -7839,7 +8432,59 @@ mod tests {
                 guider_stop_calls: AtomicU32::new(0),
                 guider_start_calls: AtomicU32::new(0),
                 guider_calibration: None,
+                saved_frame_contexts: Mutex::new(Vec::new()),
+                saved_frame_paths: Mutex::new(Vec::new()),
+                scripted_mount_coordinates: None,
+                scripted_pier_side: None,
+                scripted_cooler_power: None,
+                scripted_focuser_position: None,
+                scripted_focuser_temperature: None,
+                scripted_reported_exposure_secs: None,
+                scripted_gain: None,
+                scripted_offset: None,
+                scripted_sensor_temp_c: None,
+                scripted_pixel_size_um: None,
             }
+        }
+
+        /// Stand in for a fully-instrumented rig: every per-frame telemetry
+        /// read answers with a distinctive value, so a frame event stamped
+        /// from anything other than this rig's own readings is visible.
+        fn with_capture_telemetry(mut self) -> Self {
+            self.scripted_mount_coordinates = Some((5.5, -5.25));
+            self.scripted_pier_side = Some(crate::meridian::PierSide::West);
+            self.scripted_cooler_power = Some(63.5);
+            self.scripted_focuser_position = Some(31_705);
+            self.scripted_focuser_temperature = Some(4.25);
+            self.scripted_gain = Some(139);
+            self.scripted_offset = Some(21);
+            self.scripted_sensor_temp_c = Some(-9.5);
+            self.scripted_pixel_size_um = Some((3.76, 3.76));
+            self
+        }
+
+        /// Park the mount at these coordinates so a completed slew passes
+        /// `validate_slew_position` instead of tripping over NullDeviceOps'
+        /// fixed answer.
+        fn with_scripted_mount_coordinates(mut self, ra_hours: f64, dec_degrees: f64) -> Self {
+            self.scripted_mount_coordinates = Some((ra_hours, dec_degrees));
+            self
+        }
+
+        /// Make the camera report an exposure length of its own choosing.
+        fn with_reported_exposure_secs(mut self, secs: f64) -> Self {
+            self.scripted_reported_exposure_secs = Some(secs);
+            self
+        }
+
+        /// The `FrameContext`s handed to `save_fits`, in call order.
+        fn saved_frame_contexts(&self) -> Vec<crate::scheduling::FrameContext> {
+            self.saved_frame_contexts.lock().unwrap().clone()
+        }
+
+        /// The paths `save_fits` was asked to write, in call order.
+        fn saved_frame_paths(&self) -> Vec<String> {
+            self.saved_frame_paths.lock().unwrap().clone()
         }
 
         fn with_mount_parked(mut self, parked: bool) -> Self {
@@ -7860,6 +8505,18 @@ mod tests {
 
         fn with_dome_close_error(mut self, msg: &str) -> Self {
             self.dome_close_error = Some(msg.to_string());
+            self
+        }
+
+        /// Stand in for a rig with this dome connected but no dome role in the
+        /// sequence context.
+        fn with_active_dome_id(mut self, id: &str) -> Self {
+            self.active_dome_id = Some(id.to_string());
+            self
+        }
+
+        fn with_active_cover_calibrator_id(mut self, id: &str) -> Self {
+            self.active_cover_calibrator_id = Some(id.to_string());
             self
         }
 
@@ -7935,13 +8592,17 @@ mod tests {
 
         // === delegating methods ===
         async fn mount_slew_to_coordinates(&self, id: &str, ra: f64, dec: f64) -> DeviceResult<()> {
+            self.mount_slew_calls.fetch_add(1, Ordering::SeqCst);
             self.inner.mount_slew_to_coordinates(id, ra, dec).await
         }
         async fn mount_abort_slew(&self, id: &str) -> DeviceResult<()> {
             self.inner.mount_abort_slew(id).await
         }
         async fn mount_get_coordinates(&self, id: &str) -> DeviceResult<(f64, f64)> {
-            self.inner.mount_get_coordinates(id).await
+            match self.scripted_mount_coordinates {
+                Some(coords) => Ok(coords),
+                None => self.inner.mount_get_coordinates(id).await,
+            }
         }
         async fn mount_sync(&self, id: &str, ra: f64, dec: f64) -> DeviceResult<()> {
             self.inner.mount_sync(id, ra, dec).await
@@ -7964,6 +8625,9 @@ mod tests {
             self.inner.mount_can_flip(id).await
         }
         async fn mount_side_of_pier(&self, id: &str) -> DeviceResult<crate::meridian::PierSide> {
+            if let Some(side) = self.scripted_pier_side {
+                return Ok(side);
+            }
             self.inner.mount_side_of_pier(id).await
         }
         async fn mount_is_tracking(&self, id: &str) -> DeviceResult<bool> {
@@ -7990,7 +8654,35 @@ mod tests {
             if self.hang_camera_exposure {
                 return std::future::pending::<DeviceResult<ImageData>>().await;
             }
-            self.inner.camera_start_exposure(id, d, g, o, bx, by).await
+            // A scripted report decouples what the driver CLAIMS from what was
+            // commanded — that split is the whole point — so the double also
+            // drops NullDeviceOps' simulated integration sleep. Waiting the
+            // commanded minutes in real time would only slow the suite; nothing
+            // under test reads the wall clock.
+            let simulated_integration = match self.scripted_reported_exposure_secs {
+                Some(_) => 0.0,
+                None => d,
+            };
+            let mut image = self
+                .inner
+                .camera_start_exposure(id, simulated_integration, g, o, bx, by)
+                .await?;
+            // The camera's own report of the frame, which is a DIFFERENT source
+            // from what was commanded. Overriding it here is what lets a test
+            // tell the two apart.
+            if let Some(secs) = self.scripted_reported_exposure_secs {
+                image.exposure_secs = secs;
+            }
+            if self.scripted_gain.is_some() {
+                image.gain = self.scripted_gain;
+            }
+            if self.scripted_offset.is_some() {
+                image.offset = self.scripted_offset;
+            }
+            if self.scripted_sensor_temp_c.is_some() {
+                image.temperature = self.scripted_sensor_temp_c;
+            }
+            Ok(image)
         }
         async fn camera_abort_exposure(&self, id: &str) -> DeviceResult<()> {
             self.camera_abort_calls.fetch_add(1, Ordering::SeqCst);
@@ -8003,19 +8695,34 @@ mod tests {
             self.inner.camera_get_temperature(id).await
         }
         async fn camera_get_cooler_power(&self, id: &str) -> DeviceResult<f64> {
-            self.inner.camera_get_cooler_power(id).await
+            match self.scripted_cooler_power {
+                Some(power) => Ok(power),
+                None => self.inner.camera_get_cooler_power(id).await,
+            }
+        }
+        async fn camera_get_pixel_size_um(&self, id: &str) -> DeviceResult<Option<(f64, f64)>> {
+            match self.scripted_pixel_size_um {
+                Some(pitch) => Ok(Some(pitch)),
+                None => self.inner.camera_get_pixel_size_um(id).await,
+            }
         }
         async fn focuser_move_to(&self, _id: &str, p: i32) -> DeviceResult<()> {
             self.focuser_moves.lock().unwrap().push(p);
             Ok(())
         }
         async fn focuser_get_position(&self, id: &str) -> DeviceResult<i32> {
-            self.inner.focuser_get_position(id).await
+            match self.scripted_focuser_position {
+                Some(pos) => Ok(pos),
+                None => self.inner.focuser_get_position(id).await,
+            }
         }
         async fn focuser_is_moving(&self, _id: &str) -> DeviceResult<bool> {
             Ok(false)
         }
         async fn focuser_get_temperature(&self, id: &str) -> DeviceResult<Option<f64>> {
+            if self.scripted_focuser_temperature.is_some() {
+                return Ok(self.scripted_focuser_temperature);
+            }
             self.inner.focuser_get_temperature(id).await
         }
         async fn focuser_halt(&self, _id: &str) -> DeviceResult<()> {
@@ -8091,6 +8798,8 @@ mod tests {
             f: &str,
             ctx: &crate::scheduling::FrameContext,
         ) -> DeviceResult<()> {
+            self.saved_frame_contexts.lock().unwrap().push(ctx.clone());
+            self.saved_frame_paths.lock().unwrap().push(f.to_string());
             self.inner.save_fits(d, f, ctx).await
         }
         async fn send_notification(
@@ -8115,7 +8824,15 @@ mod tests {
             self.inner.polar_align_update(r).await
         }
         async fn dome_open(&self, id: &str) -> DeviceResult<()> {
+            self.dome_open_ids.lock().unwrap().push(id.to_string());
             self.inner.dome_open(id).await
+        }
+        async fn active_dome_id(&self) -> Option<String> {
+            self.active_dome_id_calls.fetch_add(1, Ordering::SeqCst);
+            self.active_dome_id.clone()
+        }
+        async fn active_cover_calibrator_id(&self) -> Option<String> {
+            self.active_cover_calibrator_id.clone()
         }
         async fn safety_is_safe(&self, id: Option<&str>) -> DeviceResult<bool> {
             self.inner.safety_is_safe(id).await
@@ -8130,6 +8847,7 @@ mod tests {
             self.inner.measure_frame_eccentricity(d).await
         }
         async fn cover_calibrator_open_cover(&self, id: &str) -> DeviceResult<()> {
+            self.cover_open_ids.lock().unwrap().push(id.to_string());
             self.inner.cover_calibrator_open_cover(id).await
         }
         async fn cover_calibrator_close_cover(&self, id: &str) -> DeviceResult<()> {
@@ -8926,6 +9644,140 @@ mod tests {
         );
     }
 
+    // --- unset-target pointing gate ---
+    //
+    // A TargetHeader dragged in from the palette carries RA 0h / Dec +0° until
+    // the operator picks a target. Dart's TargetCoordinatesUnsetRule blocks
+    // that on the GUI start path only; the headless REST start, a raw
+    // sequencer_load_json and every checkpoint resume reach the executor
+    // without it. These tests pin the gate at the two nodes that command the
+    // mount, which is what makes it hold for all of those entry points.
+
+    /// The recovery code `failure_with_recovery` stashed in `data`, if any.
+    fn recovery_code_of(result: &InstructionResult) -> Option<String> {
+        result
+            .data
+            .as_ref()?
+            .get("recovery_code")?
+            .as_str()
+            .map(str::to_string)
+    }
+
+    /// Context whose pointing comes from a TargetHeader with `target`
+    /// coordinates, wired to `ops` so the tests can prove whether the mount was
+    /// commanded. The Sun threshold is set above the live Sun so the daylight
+    /// gate cannot be what produced a rejection.
+    async fn pointing_ctx(
+        ops: Arc<ScriptedDomeRotatorOps>,
+        target_name: &str,
+        target: (f64, f64),
+    ) -> InstructionContext {
+        let max_sun_alt = live_sun_alt() + 5.0;
+        let mut ec = crate::node::context::ExecutionContext::new("test-node".to_string());
+        ec.device_ops = ops;
+        ec.mount_id = Some("mount-1".to_string());
+        ec.camera_id = Some("cam-1".to_string());
+        ec.latitude = Some(TEST_LAT);
+        ec.longitude = Some(TEST_LON);
+        ec.target_name = Some(target_name.to_string());
+        ec.target_ra = Some(target.0);
+        ec.target_dec = Some(target.1);
+        ec.max_sun_altitude_degrees = max_sun_alt;
+        let mut ts = crate::triggers::TriggerState::new();
+        ts.set_max_sun_altitude_degrees(max_sun_alt);
+        ec.trigger_state = Some(std::sync::Arc::new(tokio::sync::RwLock::new(ts)));
+        ec.to_instruction_context("test-node").await
+    }
+
+    #[tokio::test]
+    async fn slew_to_unset_target_never_commands_the_mount() {
+        let ops = Arc::new(ScriptedDomeRotatorOps::new());
+        let ctx = pointing_ctx(ops.clone(), "New Target", (0.0, 0.0)).await;
+        let cfg = SlewConfig {
+            use_target_coords: true,
+            ..SlewConfig::default()
+        };
+
+        let result = execute_slew(&cfg, &ctx, None).await;
+
+        assert_eq!(
+            result.status,
+            NodeStatus::Failure,
+            "an unset target must not slew"
+        );
+        assert_eq!(
+            recovery_code_of(&result).as_deref(),
+            Some(UNSET_TARGET_RECOVERY_CODE),
+            "rejection must be attributable to the unset target, got {:?}",
+            result.message
+        );
+        assert_eq!(
+            ops.mount_slew_calls.load(Ordering::SeqCst),
+            0,
+            "the mount must never be commanded to the RA 0h / Dec +0° placeholder"
+        );
+    }
+
+    #[tokio::test]
+    async fn center_on_unset_target_never_commands_the_mount() {
+        let ops = Arc::new(ScriptedDomeRotatorOps::new());
+        let ctx = pointing_ctx(ops.clone(), "New Target", (0.0, 0.0)).await;
+        let cfg = CenterConfig {
+            use_target_coords: true,
+            ..CenterConfig::default()
+        };
+
+        let result = execute_center(&cfg, &ctx, None).await;
+
+        assert_eq!(
+            result.status,
+            NodeStatus::Failure,
+            "an unset target must not center"
+        );
+        assert_eq!(
+            recovery_code_of(&result).as_deref(),
+            Some(UNSET_TARGET_RECOVERY_CODE),
+            "rejection must be attributable to the unset target, got {:?}",
+            result.message
+        );
+        assert_eq!(
+            ops.mount_slew_calls.load(Ordering::SeqCst),
+            0,
+            "the mount must never be commanded to the RA 0h / Dec +0° placeholder"
+        );
+        assert_eq!(
+            ops.camera_exposure_calls.load(Ordering::SeqCst),
+            0,
+            "the gate must fire before a plate-solve exposure is spent"
+        );
+    }
+
+    #[tokio::test]
+    async fn slew_to_a_real_target_still_commands_the_mount() {
+        // Guards the inversion: the gate must reject the placeholder and
+        // nothing else, including a target one nudge away from it.
+        let ops =
+            Arc::new(ScriptedDomeRotatorOps::new().with_scripted_mount_coordinates(0.0001, 0.0001));
+        let ctx = pointing_ctx(ops.clone(), "Deliberate Origin", (0.0001, 0.0001)).await;
+        let cfg = SlewConfig {
+            use_target_coords: true,
+            ..SlewConfig::default()
+        };
+
+        let result = execute_slew(&cfg, &ctx, None).await;
+
+        assert_ne!(
+            recovery_code_of(&result).as_deref(),
+            Some(UNSET_TARGET_RECOVERY_CODE),
+            "a deliberately-set pointing must not read as the unset placeholder"
+        );
+        assert_eq!(
+            ops.mount_slew_calls.load(Ordering::SeqCst),
+            1,
+            "a target with real coordinates must still slew"
+        );
+    }
+
     // --- execute_exposure gate ---
 
     async fn expose_ctx(
@@ -8992,16 +9844,881 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn exposure_without_target_not_gated_in_daylight() {
+    async fn calibration_exposure_without_target_not_gated_in_daylight() {
         let sun_alt = live_sun_alt();
-        // No target coordinates (a flat/dark/bias burst) → not on-sky → allow,
-        // even with a daytime-blocking threshold.
+        // No target coordinates AND a calibration frame type → daytime
+        // flats/darks/bias stay legal even with a daytime-blocking threshold.
         let ops: Arc<dyn DeviceOps> = Arc::new(NullDeviceOps);
         let ctx = expose_ctx(ops, None, sun_alt - 30.0).await;
+        for frame_type in ["Bias", "Dark", "Flat", "DarkFlat"] {
+            let config = ExposureConfig {
+                count: 0,
+                frame_type: frame_type.to_string(),
+                ..ExposureConfig::default()
+            };
+            let result = execute_exposure(&config, &ctx, |_, _| {}).await;
+            assert!(
+                !is_daylight_block(&result),
+                "a no-target {frame_type} exposure must never be daylight-gated; got {:?}",
+                result.message
+            );
+        }
+    }
+
+    /// The frame event that makes Dart write the `captured_images` row must
+    /// carry the same `FrameContext` the FITS writer stamped the header from.
+    ///
+    /// Fails WITHOUT the fix: the event used to carry only node id, grading
+    /// metrics and a save path, so the row landed with NULL gain, offset,
+    /// sensor temperature, cooler power, pointing, pier side, focuser position
+    /// and rotator angle while the file on disk had every one of them.
+    #[tokio::test]
+    async fn frame_event_carries_the_fits_writers_own_capture_context() {
+        let sun_alt = live_sun_alt();
+        let ctx = expose_ctx(Arc::new(NullDeviceOps), None, sun_alt - 30.0).await;
+        let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(16);
+        let ctx = InstructionContext {
+            event_tx: Some(event_tx),
+            ..ctx
+        };
+
+        let mut frame_ctx = crate::scheduling::FrameContext::new_light("sess-evt", 2, 2, 120.0, 7);
+        frame_ctx.frame_type = "Dark".to_string();
+        frame_ctx.target_id = Some("tgt-evt".to_string());
+        frame_ctx.gain = Some(139);
+        frame_ctx.offset = Some(21);
+        frame_ctx.sensor_temp_c = Some(-9.5);
+        frame_ctx.cooler_power_percent = Some(63.5);
+        frame_ctx.mount_ra_hours = Some(5.5);
+        frame_ctx.mount_dec_degrees = Some(-5.25);
+        frame_ctx.mount_altitude_deg = Some(48.5);
+        frame_ctx.mount_azimuth_deg = Some(171.25);
+        frame_ctx.pier_side = Some("West".to_string());
+        frame_ctx.focuser_position = Some(31_705);
+        frame_ctx.focuser_temperature_c = Some(4.25);
+        frame_ctx.rotator_angle_deg = Some(212.5);
+
+        emit_grade_progress(
+            &ctx,
+            crate::quality::FrameGrade::Pass,
+            &crate::quality::FrameMetrics::default(),
+            false,
+            7,
+            10,
+            std::path::Path::new("/captures/evt_0007.fits"),
+            &frame_ctx,
+            &Arc::new(AtomicU32::new(0)),
+            &Arc::new(AtomicU32::new(0)),
+            &Arc::new(AtomicU32::new(0)),
+            u32::MAX,
+        )
+        .await;
+
+        let mut emitted = None;
+        while let Ok(event) = event_rx.try_recv() {
+            if let crate::executor::ExecutorEvent::NodeProgress {
+                structured_detail: Some(detail),
+                ..
+            } = event
+            {
+                if let crate::node::ProgressDetail::FrameAccepted { capture, .. } = *detail {
+                    emitted = Some(capture);
+                }
+            }
+        }
+
+        let emitted = emitted.expect("a saved frame must emit FrameAccepted");
+        assert_eq!(
+            emitted,
+            crate::scheduling::FrameCaptureMetadata::from(&frame_ctx),
+            "the row's payload and the header's source must be the same struct"
+        );
+    }
+
+    /// A scratch capture folder that removes itself even when a test panics.
+    struct ScratchDir(std::path::PathBuf);
+
+    impl Drop for ScratchDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn scratch_dir(tag: &str) -> ScratchDir {
+        let dir = std::env::temp_dir().join(format!("ns-{}-{}", tag, uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).expect("scratch dir");
+        ScratchDir(dir)
+    }
+
+    /// An `InstructionContext` wired the way a real burst is: a resolvable save
+    /// folder plus every device id, so `build_frame_context_for_save` actually
+    /// performs its telemetry reads instead of skipping them.
+    async fn saving_expose_ctx(
+        ops: Arc<dyn DeviceOps>,
+        save_path: std::path::PathBuf,
+        event_tx: tokio::sync::broadcast::Sender<crate::executor::ExecutorEvent>,
+    ) -> InstructionContext {
+        let mut ec = crate::node::context::ExecutionContext::new("expose-node".to_string());
+        ec.device_ops = ops;
+        ec.camera_id = Some("cam-1".to_string());
+        ec.mount_id = Some("mount-1".to_string());
+        ec.focuser_id = Some("foc-1".to_string());
+        ec.rotator_id = Some("rot-1".to_string());
+        ec.save_path = Some(save_path);
+        ec.latitude = Some(TEST_LAT);
+        ec.longitude = Some(TEST_LON);
+        ec.event_tx = Some(event_tx);
+        ec.to_instruction_context("expose-node").await
+    }
+
+    /// The same rig as [`saving_expose_ctx`] but returned as the
+    /// `ExecutionContext` the node runtime actually hands an instruction, plus
+    /// a connected filter wheel. Tests that need to prove the NODE (not just
+    /// `execute_exposure`) does something must start here — the save-path
+    /// renderer is built inside `ExposeInstruction::execute` and never exists
+    /// on the `execute_exposure` path a hand-built `InstructionContext` takes.
+    async fn expose_node_execution_ctx(
+        ops: Arc<dyn DeviceOps>,
+        save_path: std::path::PathBuf,
+    ) -> crate::node::context::ExecutionContext {
+        let mut ec = crate::node::context::ExecutionContext::new("expose-node".to_string());
+        ec.device_ops = ops;
+        ec.camera_id = Some("cam-1".to_string());
+        ec.focuser_id = Some("foc-1".to_string());
+        ec.rotator_id = Some("rot-1".to_string());
+        ec.filterwheel_id = Some("fw-1".to_string());
+        ec.save_path = Some(save_path);
+        ec.latitude = Some(TEST_LAT);
+        ec.longitude = Some(TEST_LON);
+        ec
+    }
+
+    /// Run a Take Exposures node exactly the way `RuntimeNode` does.
+    async fn run_expose_node(
+        config: ExposureConfig,
+        ec: &mut crate::node::context::ExecutionContext,
+    ) -> NodeStatus {
+        let node_type = NodeType::TakeExposure(config);
+        crate::node::instructions::expose::ExposeInstruction
+            .execute("expose-node", &node_type, ec)
+            .await
+    }
+
+    /// A Take Exposures node with no filter of its own — the shape that
+    /// produced `untargeted_nofilter_0001.fits` with no FILTER card on a rig
+    /// whose wheel was sitting on a known, named slot.
+    fn one_dark_no_filter() -> ExposureConfig {
+        ExposureConfig {
+            duration_secs: 0.01,
+            count: 1,
+            frame_type: "Dark".to_string(),
+            filter: None,
+            filter_index: None,
+            ..ExposureConfig::default()
+        }
+    }
+
+    /// The wheel is parked on slot 1 ("R" in the double's name table) and the
+    /// node names no filter. The frame is taken THROUGH R, so R is what the
+    /// FITS FILTER card, the FILTPOS card and the filename must all say.
+    ///
+    /// Before the fix the sequence context had no filter identity at all
+    /// unless a Change Filter node had run, so `FrameContext.filter_name` was
+    /// None (no FILTER card at all — verified against a live capture) and the
+    /// save-path template rendered the synthetic `nofilter` label.
+    #[tokio::test]
+    async fn burst_records_the_filter_the_wheel_is_parked_on() {
+        let scratch = scratch_dir("wheel-filter");
+        let ops = Arc::new(ScriptedDomeRotatorOps::new());
+        let mut ec = expose_node_execution_ctx(ops.clone(), scratch.0.clone()).await;
+
+        let status = run_expose_node(one_dark_no_filter(), &mut ec).await;
+        assert_eq!(status, NodeStatus::Success, "burst should complete");
+
+        let saved = ops.saved_frame_contexts();
+        assert_eq!(saved.len(), 1, "one frame should have reached the writer");
+        assert_eq!(
+            saved[0].filter_name.as_deref(),
+            Some("R"),
+            "the FITS FILTER card must name the filter the wheel is actually on"
+        );
+        assert_eq!(
+            saved[0].filter_index,
+            Some(1),
+            "FILTPOS must record the slot the frame was taken through"
+        );
+
+        let paths = ops.saved_frame_paths();
+        assert!(
+            paths[0].contains("_R_"),
+            "the filename must agree with the header, got {}",
+            paths[0]
+        );
+        assert!(
+            !paths[0].contains("nofilter"),
+            "a known filter must never render as the synthetic nofilter label, got {}",
+            paths[0]
+        );
+    }
+
+    /// The burst's resolved filter identity must be PUBLISHED, not just kept in
+    /// the execution context, because Dart writes `captured_images.filter` and
+    /// `sequence_runs.stats_json`'s filter bucket from the published value.
+    ///
+    /// Only a Change Filter node ever emitted `ProgressDetail::Filter`. So a
+    /// burst that addresses the wheel by SLOT — with a Change Filter to "L"
+    /// (slot 0) earlier in the sequence — wrote `FILTER = 'R'` into the header
+    /// and `_R_` into the filename here while Dart still held "L", and the
+    /// database row for that same frame said "L". One frame, two filters.
+    #[tokio::test]
+    async fn burst_publishes_the_filter_identity_it_resolved() {
+        use std::sync::Mutex as StdMutex;
+
+        let scratch = scratch_dir("publish-filter");
+        let ops = Arc::new(ScriptedDomeRotatorOps::new());
+        let mut ec = expose_node_execution_ctx(ops.clone(), scratch.0.clone()).await;
+        // What a preceding Change Filter to "L" leaves behind.
+        ec.current_filter = Some("L".to_string());
+        ec.current_filter_index = Some(0);
+
+        let updates: Arc<StdMutex<Vec<crate::node::progress::ProgressUpdate>>> =
+            Arc::new(StdMutex::new(Vec::new()));
+        let sink = updates.clone();
+        ec.progress_callback = Some(Arc::new(move |u| sink.lock().unwrap().push(u)));
+
+        // Position-addressed burst: slot 1 is "R" in the wheel's name table.
+        let config = ExposureConfig {
+            filter: None,
+            filter_index: Some(1),
+            ..one_dark_no_filter()
+        };
+        let status = run_expose_node(config, &mut ec).await;
+        assert_eq!(status, NodeStatus::Success, "burst should complete");
+
+        let saved = ops.saved_frame_contexts();
+        assert_eq!(
+            saved[0].filter_name.as_deref(),
+            Some("R"),
+            "the frame was taken through slot 1, which the wheel names R"
+        );
+
+        let published: Vec<(String, Option<i32>)> = updates
+            .lock()
+            .unwrap()
+            .iter()
+            .filter_map(|u| match u.detail.as_ref() {
+                Some(crate::node::progress::ProgressDetail::Filter { name, position }) => {
+                    Some((name.clone(), *position))
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            published,
+            vec![("R".to_string(), Some(1))],
+            "the burst must publish exactly the (name, slot) pair it stamped on \
+             the frame, so the database row cannot disagree with the header"
+        );
+    }
+
+    /// A node that DOES name its own filter. The wheel is moved there by
+    /// `execute_exposure`, but `${filter}` in the save-path template reads
+    /// `current_filter` — never `config.filter` — so the file still landed as
+    /// `..._nofilter_....fits` while the header said "L".
+    #[tokio::test]
+    async fn burst_filename_uses_the_filter_the_node_configured() {
+        let scratch = scratch_dir("node-filter");
+        let ops = Arc::new(ScriptedDomeRotatorOps::new());
+        let mut ec = expose_node_execution_ctx(ops.clone(), scratch.0.clone()).await;
+
+        let config = ExposureConfig {
+            filter: Some("L".to_string()),
+            filter_index: Some(0),
+            ..one_dark_no_filter()
+        };
+        let status = run_expose_node(config, &mut ec).await;
+        assert_eq!(status, NodeStatus::Success, "burst should complete");
+
+        let paths = ops.saved_frame_paths();
+        assert!(
+            paths[0].contains("_L_"),
+            "the filename must carry the node's own filter, got {}",
+            paths[0]
+        );
+        assert_eq!(
+            ec.current_filter.as_deref(),
+            Some("L"),
+            "the run context must carry the filter forward to later nodes"
+        );
+    }
+
+    /// The rig of [`expose_node_execution_ctx`] collapsed to the
+    /// `InstructionContext` that the callers who never build a node hand
+    /// `execute_exposure` — the Flat Wizard and the bridge one-shots.
+    async fn direct_capture_ctx(
+        ops: Arc<dyn DeviceOps>,
+        save_path: std::path::PathBuf,
+    ) -> InstructionContext {
+        let mut ec = crate::node::context::ExecutionContext::new("direct".to_string());
+        ec.device_ops = ops;
+        ec.camera_id = Some("cam-1".to_string());
+        ec.focuser_id = Some("foc-1".to_string());
+        ec.rotator_id = Some("rot-1".to_string());
+        ec.filterwheel_id = Some("fw-1".to_string());
+        ec.save_path = Some(save_path);
+        ec.latitude = Some(TEST_LAT);
+        ec.longitude = Some(TEST_LON);
+        ec.to_instruction_context("direct").await
+    }
+
+    /// The Flat Wizard's final flat burst: `execute_exposure` called directly,
+    /// with no node and no save-path renderer, and a config whose `filter` is
+    /// whatever the wizard was configured with — commonly nothing, because the
+    /// operator shot flats through the filter already on the wheel.
+    ///
+    /// The wheel-report fallback used to live in the TakeExposure node, so this
+    /// path produced `Flat_nofilter_0001.fits` with NO FILTER card. Flats with
+    /// no FILTER card cannot be matched to the lights they were shot for by any
+    /// calibration tool, which is the whole point of taking them.
+    #[tokio::test]
+    async fn flat_wizard_burst_records_the_filter_the_wheel_is_parked_on() {
+        let scratch = scratch_dir("direct-wheel-filter");
+        let ops = Arc::new(ScriptedDomeRotatorOps::new());
+        let ctx = direct_capture_ctx(ops.clone(), scratch.0.clone()).await;
+
+        let config = ExposureConfig {
+            duration_secs: 0.01,
+            count: 1,
+            frame_type: "Flat".to_string(),
+            filter: None,
+            filter_index: None,
+            ..ExposureConfig::default()
+        };
+        let result = execute_exposure(&config, &ctx, |_, _| {}).await;
+        assert_eq!(result.status, NodeStatus::Success, "burst should complete");
+
+        let saved = ops.saved_frame_contexts();
+        assert_eq!(saved.len(), 1, "one frame should have reached the writer");
+        assert_eq!(
+            saved[0].filter_name.as_deref(),
+            Some("R"),
+            "the FITS FILTER card must name the filter the wheel is actually on"
+        );
+        assert_eq!(
+            saved[0].filter_index,
+            Some(1),
+            "FILTPOS must record the slot the frame was taken through"
+        );
+
+        let paths = ops.saved_frame_paths();
+        assert!(
+            !paths[0].contains("nofilter"),
+            "a known filter must never render as the synthetic nofilter label, got {}",
+            paths[0]
+        );
+        assert!(
+            paths[0].contains("_R_"),
+            "the filename must agree with the header, got {}",
+            paths[0]
+        );
+    }
+
+    /// A direct burst that names its filter but carries no slot, run after
+    /// something else established a different filter. Name and slot used to be
+    /// resolved independently (`config.filter.or(ctx.current_filter)` next to
+    /// `config.filter_index.or(ctx.current_filter_index)`), so the frame was
+    /// stamped with this burst's NAME and the previous burst's SLOT — one frame
+    /// described by two different filters, and the disagreement is silent
+    /// because each field is individually plausible.
+    #[tokio::test]
+    async fn direct_burst_never_pairs_its_filter_name_with_a_stale_slot() {
+        let scratch = scratch_dir("direct-stale-slot");
+        let ops = Arc::new(ScriptedDomeRotatorOps::new());
+        let mut ctx = direct_capture_ctx(ops.clone(), scratch.0.clone()).await;
+        // What a preceding Change Filter to "L" (slot 0) leaves behind.
+        ctx.current_filter = Some("L".to_string());
+        ctx.current_filter_index = Some(0);
+
+        let config = ExposureConfig {
+            duration_secs: 0.01,
+            count: 1,
+            frame_type: "Flat".to_string(),
+            filter: Some("R".to_string()),
+            filter_index: None,
+            ..ExposureConfig::default()
+        };
+        let result = execute_exposure(&config, &ctx, |_, _| {}).await;
+        assert_eq!(result.status, NodeStatus::Success, "burst should complete");
+
+        let saved = ops.saved_frame_contexts();
+        assert_eq!(
+            saved[0].filter_name.as_deref(),
+            Some("R"),
+            "the burst's own filter is what the frame was taken through"
+        );
+        assert_eq!(
+            saved[0].filter_index,
+            Some(1),
+            "FILTPOS must be R's slot, not the slot the previous filter occupied"
+        );
+    }
+
+    /// A burst that addresses the wheel BY NAME never learns the slot it
+    /// landed on, so the frame used to carry the correct filter name next to
+    /// whatever slot number the previous burst had left in the run context —
+    /// the same frame described by two different filters.
+    #[tokio::test]
+    async fn name_addressed_burst_does_not_inherit_the_previous_bursts_slot() {
+        let scratch = scratch_dir("stale-filter-slot");
+        let ops = Arc::new(ScriptedDomeRotatorOps::new());
+        let mut ec = expose_node_execution_ctx(ops.clone(), scratch.0.clone()).await;
+
+        // Burst 1 addresses slot 1 ("R" in the double's name table).
+        let by_index = ExposureConfig {
+            filter: None,
+            filter_index: Some(1),
+            ..one_dark_no_filter()
+        };
+        assert_eq!(
+            run_expose_node(by_index, &mut ec).await,
+            NodeStatus::Success,
+            "position-addressed burst should complete"
+        );
+
+        // Burst 2 addresses "L" by name only, exactly what the Dart serializer
+        // emits when the profile has no index for that filter.
+        let by_name = ExposureConfig {
+            filter: Some("L".to_string()),
+            filter_index: None,
+            ..one_dark_no_filter()
+        };
+        assert_eq!(
+            run_expose_node(by_name, &mut ec).await,
+            NodeStatus::Success,
+            "name-addressed burst should complete"
+        );
+
+        let saved = ops.saved_frame_contexts();
+        assert_eq!(saved.len(), 2, "one frame per burst");
+        assert_eq!(saved[1].filter_name.as_deref(), Some("L"));
+        assert_eq!(
+            saved[1].filter_index,
+            Some(0),
+            "the slot must be the one L actually occupies, not slot 1 left over \
+             from the previous burst"
+        );
+    }
+
+    /// The wheel does not answer to the name the burst asked for (profile and
+    /// device naming drifted — "Ha" vs "H-alpha"). The slot is then genuinely
+    /// unknown, and unknown must be recorded as unknown: keeping the previous
+    /// burst's slot would file the frame under a filter it was not taken
+    /// through.
+    #[tokio::test]
+    async fn unmatched_filter_name_clears_the_slot_instead_of_keeping_a_stale_one() {
+        let scratch = scratch_dir("unmatched-filter-slot");
+        let ops = Arc::new(ScriptedDomeRotatorOps::new());
+        let mut ec = expose_node_execution_ctx(ops.clone(), scratch.0.clone()).await;
+
+        let by_index = ExposureConfig {
+            filter: None,
+            filter_index: Some(1),
+            ..one_dark_no_filter()
+        };
+        assert_eq!(
+            run_expose_node(by_index, &mut ec).await,
+            NodeStatus::Success,
+            "position-addressed burst should complete"
+        );
+
+        let unknown_name = ExposureConfig {
+            filter: Some("H-alpha".to_string()),
+            filter_index: None,
+            ..one_dark_no_filter()
+        };
+        assert_eq!(
+            run_expose_node(unknown_name, &mut ec).await,
+            NodeStatus::Success,
+            "name-addressed burst should complete"
+        );
+
+        let saved = ops.saved_frame_contexts();
+        assert_eq!(saved[1].filter_name.as_deref(), Some("H-alpha"));
+        assert_eq!(
+            saved[1].filter_index, None,
+            "an unresolvable slot must be recorded as unknown, not as slot 1 \
+             left over from the previous burst"
+        );
+    }
+
+    /// A rig with no filter wheel at all (OSC / DSLR) must stay honest: no
+    /// invented label, no FILTER card.
+    #[tokio::test]
+    async fn burst_without_a_wheel_leaves_the_filter_unknown() {
+        let scratch = scratch_dir("no-wheel");
+        let ops = Arc::new(ScriptedDomeRotatorOps::new());
+        let mut ec = expose_node_execution_ctx(ops.clone(), scratch.0.clone()).await;
+        ec.filterwheel_id = None;
+
+        let status = run_expose_node(one_dark_no_filter(), &mut ec).await;
+        assert_eq!(status, NodeStatus::Success, "burst should complete");
+
+        let saved = ops.saved_frame_contexts();
+        assert_eq!(
+            saved[0].filter_name, None,
+            "with no wheel there is no filter to record"
+        );
+    }
+
+    /// A calibration burst: the daylight gate never applies, so the test runs
+    /// at any wall-clock hour, and no grader touches the frame.
+    fn one_dark(count: u32) -> ExposureConfig {
+        ExposureConfig {
+            duration_secs: 0.01,
+            count,
+            frame_type: "Dark".to_string(),
+            gain: Some(1),
+            offset: Some(2),
+            binning: Binning::Two,
+            ..ExposureConfig::default()
+        }
+    }
+
+    /// Drain the frame events a burst emitted, newest last.
+    fn drain_frame_captures(
+        rx: &mut tokio::sync::broadcast::Receiver<crate::executor::ExecutorEvent>,
+    ) -> Vec<crate::scheduling::FrameCaptureMetadata> {
+        let mut out = Vec::new();
+        while let Ok(event) = rx.try_recv() {
+            if let crate::executor::ExecutorEvent::NodeProgress {
+                structured_detail: Some(detail),
+                ..
+            } = event
+            {
+                match *detail {
+                    crate::node::ProgressDetail::FrameAccepted { capture, .. }
+                    | crate::node::ProgressDetail::FrameRejected { capture, .. } => {
+                        out.push(capture)
+                    }
+                    _ => {}
+                }
+            }
+        }
+        out
+    }
+
+    /// The fix's CENTRAL claim, asserted at the REAL call site: the frame event
+    /// that makes Dart write the `captured_images` row is stamped from the very
+    /// `FrameContext` instance `save_fits` was handed for that frame.
+    ///
+    /// Every other test on this path calls `emit_grade_progress` directly with a
+    /// hand-made context and then derives both sides of the comparison from that
+    /// same literal — proving only that a function stamps from its own argument,
+    /// never that the argument is the right one. So this test runs
+    /// `execute_exposure` for real against a device layer that RECORDS what the
+    /// FITS writer received, and compares that recording against what the event
+    /// carried. Hand `emit_grade_progress` anything other than `frame_ctx` and
+    /// this fails; nothing else in the suite does.
+    #[tokio::test]
+    async fn frame_event_is_stamped_from_the_context_save_fits_received() {
+        let scratch = scratch_dir("frame-ctx-agreement");
+        let ops = Arc::new(
+            ScriptedDomeRotatorOps::new()
+                .with_capture_telemetry()
+                .with_rotator_angles(vec![212.5]),
+        );
+        let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(64);
+        let ctx = saving_expose_ctx(ops.clone(), scratch.0.clone(), event_tx).await;
+
+        let result = execute_exposure(&one_dark(2), &ctx, |_, _| {}).await;
+        assert_eq!(
+            result.status,
+            NodeStatus::Success,
+            "burst should complete: {:?}",
+            result.message
+        );
+
+        let saved = ops.saved_frame_contexts();
+        assert_eq!(
+            saved.len(),
+            2,
+            "both frames must have reached the FITS writer"
+        );
+
+        let emitted = drain_frame_captures(&mut event_rx);
+        assert_eq!(
+            emitted.len(),
+            saved.len(),
+            "every saved frame must emit exactly one frame event"
+        );
+
+        for (index, (written, sent)) in saved.iter().zip(emitted.iter()).enumerate() {
+            assert_eq!(
+                *sent,
+                crate::scheduling::FrameCaptureMetadata::from(written),
+                "frame {} event carries a different capture than the FITS writer got",
+                index + 1
+            );
+        }
+
+        // Guard the guard: an all-default context would satisfy the equality
+        // above if BOTH hops were severed together, so pin the telemetry the
+        // scripted rig reported. These are the values that reach
+        // `captured_images`.
+        let first = &emitted[0];
+        assert_eq!(first.gain, Some(139));
+        assert_eq!(first.offset, Some(21));
+        assert_eq!(first.sensor_temp_c, Some(-9.5));
+        assert_eq!(first.cooler_power_percent, Some(63.5));
+        assert_eq!(first.mount_ra_hours, Some(5.5));
+        assert_eq!(first.mount_dec_degrees, Some(-5.25));
+        assert!(
+            first.mount_altitude_deg.is_some() && first.mount_azimuth_deg.is_some(),
+            "a sited rig must derive alt/az from its own pointing"
+        );
+        assert_eq!(first.pier_side.as_deref(), Some("West"));
+        assert_eq!(first.focuser_position, Some(31_705));
+        assert_eq!(first.focuser_temperature_c, Some(4.25));
+        assert_eq!(first.rotator_angle_deg, Some(212.5));
+        assert_eq!(first.frame_type, "Dark");
+        assert_eq!((first.bin_x, first.bin_y), (2, 2));
+    }
+
+    /// The alt/az stamped on a frame belongs to the light it integrated.
+    ///
+    /// This block runs after readout, so deriving the horizon frame from
+    /// `Utc::now()` dated it by the whole exposure plus download — and this is
+    /// the ONE derivation that feeds both the FITS `OBJCTALT`/`AIRMASS` cards
+    /// and the `captured_images.mount_altitude` column the AAVSO exporter reads
+    /// its AMASS from, so the error lands in a published photometry submission.
+    ///
+    /// Deliberately clock-independent: the mount is pointed at whatever is
+    /// culminating at the instant the test starts, so the save-time answer is
+    /// the target's maximum altitude and the midpoint — an hour later — is
+    /// measurably lower, whatever time of day the suite runs. Tokio's clock is
+    /// paused so the two-hour exposure costs no wall time while the CHRONO
+    /// timestamps stay real.
+    #[tokio::test(start_paused = true)]
+    async fn frame_altitude_is_derived_at_the_exposure_midpoint() {
+        let now = chrono::Utc::now();
+        let ra_hours =
+            crate::meridian::local_sidereal_time(crate::meridian::julian_day(&now), TEST_LON)
+                .rem_euclid(24.0);
+        let dec_degrees = 20.0;
+
+        let scratch = scratch_dir("frame-ctx-midpoint");
+        let ops = Arc::new(
+            ScriptedDomeRotatorOps::new()
+                .with_capture_telemetry()
+                .with_scripted_mount_coordinates(ra_hours, dec_degrees),
+        );
+        let (event_tx, _event_rx) = tokio::sync::broadcast::channel(64);
+        let mut ctx = saving_expose_ctx(ops.clone(), scratch.0.clone(), event_tx).await;
+
+        // Opt out of the daylight gate, RELATIVE to the live Sun.
+        //
+        // This test is about where the altitude is sampled, not about whether
+        // the Sun is up. Left on the default -12 deg threshold it passed at
+        // night and failed in daylight — it was failing here with
+        // "Sun altitude -2.4 deg is above the maximum -12.0 deg". Seeding the
+        // threshold above the CURRENT Sun altitude keeps the gate wired
+        // (the resolution path is still exercised) while making the outcome
+        // independent of the hour the suite happens to run.
+        let mut ts = crate::triggers::TriggerState::new();
+        ts.set_max_sun_altitude_degrees(live_sun_alt() + 5.0);
+        ctx.trigger_state = Some(std::sync::Arc::new(tokio::sync::RwLock::new(ts)));
+
+        let config = ExposureConfig {
+            duration_secs: 7200.0,
+            count: 1,
+            frame_type: "Light".to_string(),
+            ..ExposureConfig::default()
+        };
+        let result = execute_exposure(&config, &ctx, |_, _| {}).await;
+        assert_eq!(
+            result.status,
+            NodeStatus::Success,
+            "burst should complete: {:?}",
+            result.message
+        );
+
+        let saved = ops.saved_frame_contexts();
+        let frame = saved.first().expect("one frame reached the FITS writer");
+        let started = frame
+            .exposure_started_at
+            .expect("the shutter-open instant is recorded");
+        let recorded = frame
+            .mount_altitude_deg
+            .expect("a sited rig derives an altitude from its own pointing");
+
+        let (at_midpoint, _) = crate::meridian::calculate_alt_az(
+            ra_hours,
+            dec_degrees,
+            TEST_LAT,
+            TEST_LON,
+            started + chrono::Duration::seconds(3600),
+        );
+        let (at_shutter_open, _) =
+            crate::meridian::calculate_alt_az(ra_hours, dec_degrees, TEST_LAT, TEST_LON, started);
+        assert!(
+            (at_shutter_open - at_midpoint).abs() > 0.5,
+            "test rig is not discriminating: shutter-open {at_shutter_open:.4} deg \
+             vs midpoint {at_midpoint:.4} deg"
+        );
+        assert!(
+            (recorded - at_midpoint).abs() < 0.05,
+            "mount_altitude_deg was {recorded:.4} deg; the exposure midpoint is \
+             {at_midpoint:.4} deg and the shutter-open instant is \
+             {at_shutter_open:.4} deg"
+        );
+    }
+
+    /// A sequenced sub must reach the FITS writer carrying the sensor's own
+    /// pixel pitch.
+    ///
+    /// `FitsWriteHeaderRich::from_frame_context` hardcoded `pixel_size_x: None`
+    /// and nothing upstream ever asked the camera, so every frame a real run
+    /// produced landed on disk with FOCALLEN and APTDIA but no XPIXSZ/YPIXSZ —
+    /// ASTAP, PixInsight and AstroBin cannot derive the plate scale from such a
+    /// file. The manual-snapshot path was fixed to write the pitch, which left
+    /// two frames off one rig disagreeing about one sensor.
+    ///
+    /// Asserted at the real call site rather than on a hand-built context:
+    /// `execute_exposure` runs, and what is checked is the `FrameContext` the
+    /// FITS writer was actually HANDED.
+    #[tokio::test]
+    async fn sequenced_frames_carry_the_sensor_pixel_pitch() {
+        let scratch = scratch_dir("frame-ctx-pixel-pitch");
+        let ops = Arc::new(ScriptedDomeRotatorOps::new().with_capture_telemetry());
+        let (event_tx, _event_rx) = tokio::sync::broadcast::channel(16);
+        let ctx = saving_expose_ctx(ops.clone(), scratch.0.clone(), event_tx).await;
+
+        let result = execute_exposure(&one_dark(1), &ctx, |_, _| {}).await;
+        assert_eq!(result.status, NodeStatus::Success, "{:?}", result.message);
+
+        let saved = ops.saved_frame_contexts();
+        assert_eq!(
+            saved.len(),
+            1,
+            "the frame must have reached the FITS writer"
+        );
+        assert_eq!(
+            (
+                saved[0].camera_pixel_size_x_um,
+                saved[0].camera_pixel_size_y_um
+            ),
+            (Some(3.76), Some(3.76)),
+            "the pitch the camera reported has to be on the context the header \
+             is built from, or the sub is written without XPIXSZ/YPIXSZ"
+        );
+    }
+
+    /// ...and a camera that will not report a pitch leaves the keywords off
+    /// rather than stamping a plausible-looking default a solver would trust.
+    #[tokio::test]
+    async fn a_camera_that_reports_no_pitch_leaves_the_keywords_absent() {
+        let scratch = scratch_dir("frame-ctx-no-pixel-pitch");
+        // No `with_capture_telemetry`, so the scripted rig has no pitch to give.
+        let ops = Arc::new(ScriptedDomeRotatorOps::new());
+        let (event_tx, _event_rx) = tokio::sync::broadcast::channel(16);
+        let ctx = saving_expose_ctx(ops.clone(), scratch.0.clone(), event_tx).await;
+
+        let result = execute_exposure(&one_dark(1), &ctx, |_, _| {}).await;
+        assert_eq!(result.status, NodeStatus::Success, "{:?}", result.message);
+
+        let saved = ops.saved_frame_contexts();
+        assert_eq!(saved.len(), 1);
+        assert_eq!(
+            (
+                saved[0].camera_pixel_size_x_um,
+                saved[0].camera_pixel_size_y_um
+            ),
+            (None, None),
+        );
+    }
+
+    /// A camera that reports a slightly different exposure than the one
+    /// commanded is reporting a real measurement (shutter latency, a coarse
+    /// exposure clock), and that measurement is what `EXPTIME` means. It must
+    /// reach both the header and the row.
+    #[tokio::test]
+    async fn plausible_driver_exposure_report_wins_over_the_commanded_value() {
+        let scratch = scratch_dir("exposure-report-honest");
+        let ops = Arc::new(
+            ScriptedDomeRotatorOps::new()
+                // Commanded 60s, shutter actually open 60.4s.
+                .with_reported_exposure_secs(60.4),
+        );
+        let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(16);
+        let ctx = saving_expose_ctx(ops.clone(), scratch.0.clone(), event_tx).await;
+
+        let config = ExposureConfig {
+            duration_secs: 60.0,
+            ..one_dark(1)
+        };
+        let result = execute_exposure(&config, &ctx, |_, _| {}).await;
+        assert_eq!(result.status, NodeStatus::Success, "{:?}", result.message);
+
+        let saved = ops.saved_frame_contexts();
+        assert_eq!(saved[0].duration_secs, 60.4);
+        assert_eq!(drain_frame_captures(&mut event_rx)[0].exposure_secs, 60.4);
+    }
+
+    /// ...but that trust is bounded. `captured_images.exposure_duration` is
+    /// summed into every integration total in the app, so a driver reporting an
+    /// impossible exposure — longer than the sequencer ever waited — must not be
+    /// able to inflate a night's reported integration. Here a 60-second sub is
+    /// reported as an hour; the recorded value has to stay 60.
+    ///
+    /// This is the one direction where the driver is provably wrong rather than
+    /// merely surprising: nothing kept the shutter open past the command.
+    #[tokio::test]
+    async fn nonsense_driver_exposure_report_cannot_inflate_integration_totals() {
+        let scratch = scratch_dir("exposure-report-nonsense");
+        let ops = Arc::new(
+            ScriptedDomeRotatorOps::new()
+                // 60x the commanded exposure: an entire night's integration in
+                // one sub, if this were believed.
+                .with_reported_exposure_secs(3600.0),
+        );
+        let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(16);
+        let ctx = saving_expose_ctx(ops.clone(), scratch.0.clone(), event_tx).await;
+
+        let config = ExposureConfig {
+            duration_secs: 60.0,
+            ..one_dark(1)
+        };
+        let result = execute_exposure(&config, &ctx, |_, _| {}).await;
+        assert_eq!(result.status, NodeStatus::Success, "{:?}", result.message);
+
+        let saved = ops.saved_frame_contexts();
+        assert_eq!(
+            saved[0].duration_secs, 60.0,
+            "an impossible exposure report must not reach the FITS header"
+        );
+        assert_eq!(
+            drain_frame_captures(&mut event_rx)[0].exposure_secs,
+            60.0,
+            "nor the captured_images row every integration total sums"
+        );
+    }
+
+    /// The gate must key off the FRAME TYPE, not off whether a TargetHeader
+    /// happens to exist: a bare "Take Exposures" LIGHT node dropped at the top
+    /// level of a sequence is exactly as much an on-sky capture as the same
+    /// node nested under a target.
+    ///
+    /// Fails WITHOUT the fix — the gate also required `ctx.target_ra`/
+    /// `target_dec`, so a targetless burst wrote LIGHT frames in full daylight.
+    #[tokio::test]
+    async fn untargeted_light_exposure_rejected_when_sun_up() {
+        let sun_alt = live_sun_alt();
+        // Mount NOT parked + no target group + Sun up → still an on-sky light.
+        let ctx = expose_ctx(Arc::new(NullDeviceOps), None, sun_alt - 5.0).await;
         let result = execute_exposure(&one_light(), &ctx, |_, _| {}).await;
         assert!(
-            !is_daylight_block(&result),
-            "a no-target (flat/dark/bias) exposure must never be daylight-gated; got {:?}",
+            is_daylight_block(&result),
+            "a targetless LIGHT exposure must be daylight-blocked when Sun is up; got {:?}",
             result.message
         );
     }
@@ -9032,6 +10749,179 @@ mod tests {
             !is_daylight_block(&result),
             "on-sky LIGHT exposure must clear the daylight gate at night; got {:?}",
             result.message
+        );
+    }
+
+    // =====================================================================
+    // Dome / cover-calibrator role resolution
+    //
+    // Nothing in the Dart→FFI runtime-config path calls
+    // `SequenceExecutor::set_dome` / `set_cover_calibrator`, so
+    // `InstructionContext::dome_id` / `cover_calibrator_id` are `None` on
+    // every real run and all seven dome/cover node types failed with
+    // "No dome connected" while the device sat connected in the Equipment
+    // screen. These pin the fallback to the device layer's view of what is
+    // connected, and pin that the failure still fires when nothing is.
+    // =====================================================================
+
+    #[tokio::test(start_paused = true)]
+    async fn open_dome_uses_connected_dome_when_context_has_no_role() {
+        let ops = Arc::new(
+            ScriptedDomeRotatorOps::new()
+                .with_active_dome_id("sim_dome_1")
+                .with_dome_shutter_states(&["Open"]),
+        );
+        let mut ctx = ctx_with_ops(ops.clone()).await;
+        // Exactly what the executor hands every real run today.
+        ctx.dome_id = None;
+
+        let result = execute_open_dome(&DomeConfig { shutter_only: true }, &ctx, None).await;
+
+        assert_eq!(
+            result.status,
+            NodeStatus::Success,
+            "Open Dome must command the connected dome, got {:?}",
+            result.message
+        );
+        assert_eq!(
+            ops.dome_open_ids.lock().unwrap().as_slice(),
+            ["sim_dome_1".to_string()],
+            "the instruction must open the dome the device layer resolved"
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn open_dome_still_fails_when_no_dome_is_connected() {
+        let ops = Arc::new(ScriptedDomeRotatorOps::new());
+        let mut ctx = ctx_with_ops(ops.clone()).await;
+        ctx.dome_id = None;
+
+        let result = execute_open_dome(&DomeConfig { shutter_only: true }, &ctx, None).await;
+
+        assert_eq!(result.status, NodeStatus::Failure);
+        assert_eq!(result.message.as_deref(), Some("No dome connected"));
+        assert!(
+            ops.dome_open_ids.lock().unwrap().is_empty(),
+            "no dome may be commanded when none is connected"
+        );
+    }
+
+    /// One failed node, one error entry — even when the node-runtime retries it.
+    ///
+    /// "No dome connected" is classified as a device-disconnect message, so
+    /// `execute_instruction_with_disconnect_retry` re-runs the node once per
+    /// recovery cycle. Every one of those executions published its own
+    /// `InstructionFailed`, and the Dart layer turns each into a session-report
+    /// error line and a Critical toast — which is why a single failed Open Dome
+    /// node listed the same sentence six times.
+    ///
+    /// The test drives the real `RuntimeNode::execute` (not the private retry
+    /// helper) so the wiring between the runtime and the publish site is under
+    /// test, and asserts BOTH halves: the node really was executed six times,
+    /// and the operator was told once.
+    #[tokio::test(start_paused = true)]
+    async fn a_retried_node_reports_its_failure_once_not_once_per_attempt() {
+        use crate::node::runtime::{Node, RuntimeNode};
+
+        let ops = Arc::new(ScriptedDomeRotatorOps::new());
+        let mut ec = crate::node::context::ExecutionContext::new("dup-error".to_string());
+        ec.device_ops = ops.clone();
+        let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(64);
+        ec.event_tx = Some(event_tx);
+
+        // Stand in for a recovery driver that engages and completes a cycle:
+        // the wrapper watches `recovery_generation` to decide the device came
+        // back, so bumping it is what makes the retry loop go round instead of
+        // failing closed on "no recovery driver engaged".
+        let generation = ec.recovery_generation.clone();
+        let driver = tokio::spawn(async move {
+            loop {
+                generation.fetch_add(1, std::sync::atomic::Ordering::Release);
+                tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+            }
+        });
+
+        let mut node = RuntimeNode::from_definition(crate::NodeDefinition {
+            id: "dome-node".to_string(),
+            name: "Open Dome".to_string(),
+            node_type: NodeType::OpenDome(DomeConfig { shutter_only: true }),
+            enabled: true,
+            children: Vec::new(),
+        });
+        let status = node.execute(&mut ec).await;
+        driver.abort();
+
+        assert_eq!(status, NodeStatus::Failure, "no dome is connected");
+        assert!(
+            ops.active_dome_id_calls.load(Ordering::SeqCst) > 1,
+            "the retry loop must actually have re-run the node, otherwise this \
+             test proves nothing about collapsing retries"
+        );
+
+        let mut reported = Vec::new();
+        while let Ok(event) = event_rx.try_recv() {
+            if let crate::executor::ExecutorEvent::InstructionFailed { node_name, message } = event
+            {
+                reported.push(format!("{node_name}: {message}"));
+            }
+        }
+        assert_eq!(
+            reported,
+            vec!["Open Dome: No dome connected".to_string()],
+            "one failed node must produce exactly one operator-facing error, got {reported:?}"
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn open_cover_uses_connected_panel_when_context_has_no_role() {
+        let ops = Arc::new(ScriptedDomeRotatorOps::new().with_active_cover_calibrator_id("sim_cc"));
+        let mut ctx = ctx_with_ops(ops.clone()).await;
+        ctx.cover_calibrator_id = None;
+
+        let result = execute_open_cover(
+            &crate::CoverCalibratorConfig { timeout_secs: 5 },
+            &ctx,
+            None,
+        )
+        .await;
+
+        assert_eq!(
+            result.status,
+            NodeStatus::Success,
+            "Open Cover must command the connected panel, got {:?}",
+            result.message
+        );
+        assert_eq!(
+            ops.cover_open_ids.lock().unwrap().as_slice(),
+            ["sim_cc".to_string()],
+            "the instruction must open the panel the device layer resolved"
+        );
+    }
+
+    // =====================================================================
+    // Wait node with no condition
+    // =====================================================================
+
+    /// An unconfigured Wait node used to return Success in microseconds — a
+    /// without waiting. The canonical use is "wait until astronomical dark", so
+    /// skipping it starts the run in daylight; it must fail instead.
+    #[tokio::test]
+    async fn wait_time_without_any_condition_fails() {
+        let ctx = crate::node::context::ExecutionContext::new("test-node".to_string())
+            .to_instruction_context("test-node")
+            .await;
+
+        let result = execute_wait_time(&WaitTimeConfig::default(), &ctx, None).await;
+
+        assert_eq!(
+            result.status,
+            NodeStatus::Failure,
+            "a Wait node with neither a time nor a twilight condition must not report Success"
+        );
+        let msg = result.message.unwrap_or_default();
+        assert!(
+            msg.contains("no wait condition"),
+            "the failure must name the missing configuration, got: {msg}"
         );
     }
 
@@ -9069,6 +10959,49 @@ mod tests {
             },
             Err(_) => false,
         }
+    }
+
+    /// A Run Script node created from the palette carries no `timeout_secs`
+    /// (the Dart `ScriptNode.timeoutSecs` is a nullable field with no default)
+    /// while the editor displays 300. Refusing to run in that state made every
+    /// freshly added Run Script node dead on arrival: "Script timeout_secs is
+    /// required in fail-closed mode", script never spawned.
+    ///
+    /// Fails WITHOUT the fix.
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn script_without_timeout_runs_under_the_default_timeout() {
+        let marker = std::env::temp_dir().join(format!(
+            "nightshade_script_default_timeout_{}.txt",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&marker);
+
+        let cfg = ScriptConfig {
+            script_path: "/bin/sh".to_string(),
+            arguments: vec!["-c".to_string(), format!("echo ran > {}", marker.display())],
+            timeout_secs: None,
+        };
+
+        let ctx = script_ctx().await;
+        let ec = crate::node::context::ExecutionContext::new("test-node".to_string());
+        let result = execute_script(&cfg, &ctx, &ec, &empty_frame()).await;
+
+        let ran =
+            std::fs::read_to_string(&marker).expect("the script must create its completion marker");
+        let _ = std::fs::remove_file(&marker);
+
+        assert_eq!(
+            result.status,
+            NodeStatus::Success,
+            "a script with no explicit timeout must run under the default; got {:?}",
+            result.message
+        );
+        assert_eq!(
+            ran.trim(),
+            "ran",
+            "the script must actually execute, not be refused before spawn"
+        );
     }
 
     #[cfg(target_os = "linux")]

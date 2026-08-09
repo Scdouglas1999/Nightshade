@@ -7,6 +7,97 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../imaging/widgets/osc_stacking_controls.dart';
 
+/// A run failure split into what the operator reads and what a developer needs.
+class StackShareFailure {
+  /// The sentence to show: the payload of the failure, with the exception /
+  /// bridge wrapper stripped off.
+  final String message;
+
+  /// A concrete next step for the causes we can actually name one for, or null
+  /// when we would only be guessing (a wrong next step at 2am is worse than
+  /// none).
+  final String? nextStep;
+
+  /// The unmodified exception text, for the collapsed technical section. Null
+  /// when it is identical to [message] and would add nothing.
+  final String? technical;
+
+  const StackShareFailure({
+    required this.message,
+    this.nextStep,
+    this.technical,
+  });
+}
+
+/// Matches a freezed / flutter_rust_bridge stringified union, e.g.
+/// `NightshadeError.imageError(field0: Reference frame has only 0 stars)`.
+/// The name must be followed immediately by `(`, so a real sentence that merely
+/// ends in a parenthetical ("… 10.34px (max 10.00px)") is left alone.
+final RegExp _bridgeWrapper = RegExp(
+  r'^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*\(\s*(?:field0:\s*)?(.*)\)$',
+  dotAll: true,
+);
+
+/// Matches a Dart exception's `toString()` type prefix, e.g.
+/// `LiveStackBusyException: …` or `Exception: …`.
+final RegExp _exceptionPrefix = RegExp(
+  r'^[A-Za-z_$][\w$]*(?:Exception|Error|Failure)?:\s+',
+);
+
+/// Turn the orchestrator's raw exception string into something an imager can
+/// act on.
+///
+/// The failure path used to render `e.toString()` verbatim, so the operator was
+/// shown the Rust union's Dart wrapper — `NightshadeError.imageError(field0:
+/// …)`, positional-field label and all — instead of the sentence inside it.
+/// This unwraps the payload (nested wrappers included), keeps the raw text for
+/// the technical-details disclosure, and attaches a next step for the causes we
+/// can name one for.
+StackShareFailure describeStackShareFailure(String raw) {
+  var message = raw.trim();
+  // Peel layer by layer: an app exception can carry a bridge union, which can
+  // carry another. Bounded so a pathological string cannot spin here.
+  for (var i = 0; i < 4; i++) {
+    final before = message;
+    final prefix = _exceptionPrefix.firstMatch(message);
+    if (prefix != null && prefix.end < message.length) {
+      message = message.substring(prefix.end).trim();
+    }
+    final match = _bridgeWrapper.firstMatch(message);
+    final inner = match?.group(1)?.trim();
+    if (inner != null && inner.isNotEmpty) message = inner;
+    if (message == before) break;
+  }
+  if (message.isEmpty) message = raw.trim();
+
+  final lower = message.toLowerCase();
+  String? nextStep;
+  if (lower.contains('stars') &&
+      (lower.contains('need at least') || lower.contains('too few'))) {
+    nextStep = 'No usable stars were found in the reference frame. Check focus '
+        'and tracking for this session, and if the calibration masters are '
+        'suspect, re-run with "Apply calibration" off.';
+  } else if (lower.contains('alignment residual too high')) {
+    nextStep = 'The reference frame could not be aligned tightly enough. Cull '
+        'the trailed or badly guided subs in Session Review, or pick a session '
+        'whose subs share one pointing, then run again.';
+  } else if (lower.contains('follower frames was rejected')) {
+    nextStep = 'Only the reference survived, so there is nothing to integrate. '
+        'Address the reason above — usually culling the bad subs in Session '
+        'Review — and run again.';
+  } else if (lower.contains('no lights') || lower.contains('no light frames')) {
+    nextStep = 'Accept at least one light frame for this session (Session '
+        'Review → Workbench) and run again.';
+  }
+
+  final trimmedRaw = raw.trim();
+  return StackShareFailure(
+    message: message,
+    nextStep: nextStep,
+    technical: trimmedRaw == message ? null : trimmedRaw,
+  );
+}
+
 /// Launcher dialog for the **Stack-and-Share Loop** (component C9).
 ///
 /// Summarises the lights selected for [sessionId] (target, per-filter frame
@@ -86,6 +177,9 @@ class _StackAndShareDialogState extends ConsumerState<StackAndShareDialog> {
   /// Guards against double-navigation if the provider emits `complete` more than
   /// once (e.g. a rebuild after the post-frame callback is already scheduled).
   bool _navigated = false;
+
+  /// Whether the raw exception text is expanded under the failure alert.
+  bool _showTechnicalDetail = false;
 
   @override
   void initState() {
@@ -255,11 +349,11 @@ class _StackAndShareDialogState extends ConsumerState<StackAndShareDialog> {
     );
   }
 
-  Widget _buildError(BuildContext context, String message) {
+  Widget _buildError(BuildContext context, String raw) {
     // The orchestrator surfaces the raw exception string. When it is a
     // live-stacking conflict, give the operator the concrete next step.
-    final isBusy = message.contains('LiveStackBusyException') ||
-        message.contains('Stop live stacking');
+    final isBusy = raw.contains('LiveStackBusyException') ||
+        raw.contains('Stop live stacking');
     if (isBusy) {
       return NightshadeAlert(
         severity: NightshadeAlertSeverity.error,
@@ -275,10 +369,57 @@ class _StackAndShareDialogState extends ConsumerState<StackAndShareDialog> {
         ),
       );
     }
-    return NightshadeAlert(
-      severity: NightshadeAlertSeverity.error,
-      title: 'Stack & Share failed',
-      message: message,
+
+    final colors = NightshadeColors.of(context);
+    final failure = describeStackShareFailure(raw);
+    final body = failure.nextStep == null
+        ? failure.message
+        : '${failure.message}\n\n${failure.nextStep}';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        NightshadeAlert(
+          severity: NightshadeAlertSeverity.error,
+          title: 'Stack & Share failed',
+          message: body,
+          action: failure.technical == null
+              ? null
+              : NightshadeButton(
+                  label: _showTechnicalDetail
+                      ? 'Hide technical details'
+                      : 'Technical details',
+                  variant: ButtonVariant.ghost,
+                  size: ButtonSize.small,
+                  icon: _showTechnicalDetail
+                      ? NightshadeIcons.chevronDown
+                      : NightshadeIcons.chevronRight,
+                  onPressed: () => setState(
+                    () => _showTechnicalDetail = !_showTechnicalDetail,
+                  ),
+                ),
+        ),
+        if (failure.technical != null && _showTechnicalDetail) ...[
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          Container(
+            constraints: const BoxConstraints(maxHeight: 160),
+            padding: NightshadeTokens.paddingMd,
+            decoration: BoxDecoration(
+              color: colors.background,
+              borderRadius: NightshadeTokens.borderRadiusMd,
+              border: Border.all(color: colors.border),
+            ),
+            child: SingleChildScrollView(
+              child: SelectableText(
+                failure.technical!,
+                style: NightshadeTypography.monoSm
+                    .copyWith(color: colors.textMuted),
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 

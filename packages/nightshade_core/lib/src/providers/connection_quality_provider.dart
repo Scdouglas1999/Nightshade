@@ -17,11 +17,12 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../backend/disconnected_backend.dart';
 import '../backend/network_backend.dart';
 import 'backend_provider.dart';
 
-/// Whether the app is driving hardware on this device (local FFI) or through a
-/// network session to a remote headless/desktop host.
+/// Whether the app is driving hardware on this device (local FFI), through a
+/// network session to a remote headless/desktop host, or nothing at all.
 enum ConnectionMode {
   /// Local FFI backend — the rig is attached to this device. No network hop,
   /// so latency is not meaningful.
@@ -29,6 +30,15 @@ enum ConnectionMode {
 
   /// Network backend — controlling a remote host over HTTP/WebSocket.
   remote,
+
+  /// No backend is installed: a [DisconnectedBackend] is standing in and every
+  /// device call fails. Distinct from [local] because "not a NetworkBackend"
+  /// used to collapse the two, so a desktop whose failed connect had replaced
+  /// its FfiBackend showed a quiet grey "Local" chip on the dashboard while
+  /// the shell's red banner two rows above said it was not connected to a
+  /// server. The chip is the operator's at-a-glance answer to "is this
+  /// machine driving my mount"; it must not answer yes when nothing is.
+  none,
 }
 
 /// Coarse latency grade for color-coding the chip. Thresholds mirror the
@@ -88,10 +98,19 @@ class ConnectionQuality {
   });
 
   /// The local-mode snapshot — used as the seed and whenever the active backend
-  /// is not a [NetworkBackend].
+  /// actually drives hardware on this device (the FFI backend).
   static const ConnectionQuality local = ConnectionQuality(
     mode: ConnectionMode.local,
     liveness: ConnectionLiveness.local,
+  );
+
+  /// No backend at all — a [DisconnectedBackend] is installed. Reported as its
+  /// own mode rather than folded into [local]: nothing is being driven here,
+  /// and saying "Local" would be the app's most prominent claim about where
+  /// commands are going while the answer is "nowhere".
+  static const ConnectionQuality disconnected = ConnectionQuality(
+    mode: ConnectionMode.none,
+    liveness: ConnectionLiveness.offline,
   );
 
   /// Fail-closed UI fallback when the quality stream itself is unavailable.
@@ -177,6 +196,12 @@ ConnectionLiveness _livenessForState(BackendConnectionState state) {
 /// seeded so the chip never flashes empty on first build.
 final connectionQualityProvider = StreamProvider<ConnectionQuality>((ref) {
   final backend = ref.watch(backendProvider);
+  // Checked before the NetworkBackend test: a DisconnectedBackend is also
+  // "not a NetworkBackend", and reporting it as local is the difference
+  // between "your rig is on this machine" and "there is no rig".
+  if (backend is DisconnectedBackend) {
+    return Stream<ConnectionQuality>.value(ConnectionQuality.disconnected);
+  }
   if (backend is! NetworkBackend) {
     return Stream<ConnectionQuality>.value(ConnectionQuality.local);
   }

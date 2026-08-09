@@ -75,7 +75,10 @@ class PlanetariumCommandBar extends ConsumerWidget {
           // ---- View --------------------------------------------------------
           CommandBarIconButton(
             icon: NightshadeIcons.home,
-            tooltip: 'Reset view (center 0,0, FOV 60)',
+            // Home is the observer's zenith, not RA 0h / Dec 0 — see
+            // [skyViewHomeCenterProvider] and the reset action in
+            // planetarium_screen/actions.dart.
+            tooltip: 'Reset view (zenith, FOV 60)',
             onTap: onResetView,
           ),
           if (!compact) ...[
@@ -91,6 +94,8 @@ class PlanetariumCommandBar extends ConsumerWidget {
                   viewState.viewMode == SkyViewMode.horizontal
                       ? SkyViewMode.equatorial
                       : SkyViewMode.horizontal,
+                  observer: ref.read(observerLocationProvider),
+                  instant: ref.read(observationTimeProvider).time,
                 );
               },
             ),
@@ -190,7 +195,7 @@ class _SearchEntry extends StatelessWidget {
                       Border.all(color: colors.border.withValues(alpha: 0.5)),
                 ),
                 child: Text(
-                  '⌘K',
+                  shortcutLabel('K'),
                   style: TextStyle(
                     fontSize: NightshadeTypography.fontSize10,
                     color: colors.textMuted,
@@ -381,9 +386,13 @@ class _ToolsMenu extends ConsumerWidget {
               break;
             case 'altaz':
               final n = ref.read(skyViewStateProvider.notifier);
-              n.setViewMode(viewState.viewMode == SkyViewMode.horizontal
-                  ? SkyViewMode.equatorial
-                  : SkyViewMode.horizontal);
+              n.setViewMode(
+                viewState.viewMode == SkyViewMode.horizontal
+                    ? SkyViewMode.equatorial
+                    : SkyViewMode.horizontal,
+                observer: ref.read(observerLocationProvider),
+                instant: ref.read(observationTimeProvider).time,
+              );
               break;
           }
         },

@@ -43,7 +43,6 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
         allSettings['auto_connect_equipment'],
         true,
       ),
-      autoSaveSequences: _parseBool(allSettings['auto_save_sequences'], true),
       confirmBeforeClosing: _parseBool(
         allSettings['confirm_before_closing'],
         true,
@@ -167,7 +166,6 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       webServerPort: _parseInt(allSettings['web_server_port'], 8080),
 
       // Equipment Settings - Camera
-      coolingBehavior: allSettings['cooling_behavior'] ?? 'On Connect',
       defaultGain: _parseInt(allSettings['default_gain'], 100),
       defaultOffset: _parseInt(allSettings['default_offset'], 50),
 
@@ -512,7 +510,6 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       // General
       'start_minimized': s.startMinimized.toString(),
       'auto_connect_equipment': s.autoConnectEquipment.toString(),
-      'auto_save_sequences': s.autoSaveSequences.toString(),
       'confirm_before_closing': s.confirmBeforeClosing.toString(),
       'auto_discover_on_launch': s.autoDiscoverOnLaunch.toString(),
 
@@ -594,7 +591,6 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       'web_server_port': s.webServerPort.toString(),
 
       // Equipment Settings - Camera
-      'cooling_behavior': s.coolingBehavior,
       'default_gain': s.defaultGain.toString(),
       'default_offset': s.defaultOffset.toString(),
 

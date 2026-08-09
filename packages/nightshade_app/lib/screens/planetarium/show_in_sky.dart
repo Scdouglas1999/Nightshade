@@ -49,7 +49,11 @@ String planetariumTargetLocation({
 /// would navigate the user to a planetarium that simply did not move.
 void focusSkyOn(WidgetRef ref, CelestialCoordinate coordinate) {
   final skyView = ref.read(skyViewStateProvider.notifier);
-  skyView.setViewMode(SkyViewMode.equatorial);
+  skyView.setViewMode(
+    SkyViewMode.equatorial,
+    observer: ref.read(observerLocationProvider),
+    instant: ref.read(observationTimeProvider).time,
+  );
   skyView.setCenter(coordinate.ra, coordinate.dec);
   ref.read(selectedObjectProvider.notifier).selectCoordinates(coordinate);
 }

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import '../harness/in_memory_database.dart';
 
 class _MockDeviceService extends Mock implements DeviceService {}
 
@@ -21,7 +22,10 @@ void main() {
         () => service.connectCamera('camera-b'),
       ).thenAnswer((_) => cameraBGate.future);
       final container = ProviderContainer(
-        overrides: [deviceServiceProvider.overrideWithValue(service)],
+        overrides: [
+          inMemoryDatabaseOverride(),
+          deviceServiceProvider.overrideWithValue(service),
+        ],
       );
       addTearDown(container.dispose);
       final notifier = container.read(cameraStateProvider.notifier);
@@ -54,7 +58,10 @@ void main() {
         () => service.connectCamera('camera-b'),
       ).thenAnswer((_) => cameraBGate.future);
       final container = ProviderContainer(
-        overrides: [deviceServiceProvider.overrideWithValue(service)],
+        overrides: [
+          inMemoryDatabaseOverride(),
+          deviceServiceProvider.overrideWithValue(service),
+        ],
       );
       addTearDown(container.dispose);
       final notifier = container.read(cameraStateProvider.notifier);

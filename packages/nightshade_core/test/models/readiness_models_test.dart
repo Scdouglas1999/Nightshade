@@ -12,6 +12,12 @@ ReadinessReport _report({
   bool plateSolverReady = true,
   bool darkLibraryHasCoverage = true,
   bool focusKnown = true,
+  List<String> offlineProfileDevices = const <String>[],
+  bool hasActiveProfile = true,
+  // Baseline = a populated profile (camera, mount + two accessories), so the
+  // "all green" default is a genuine pass rather than a vacuous one.
+  int assignedProfileDeviceCount = 4,
+  int otherAssignedProfileDeviceCount = 2,
 }) {
   return buildReadinessReport(
     cameraConnected: cameraConnected,
@@ -22,6 +28,10 @@ ReadinessReport _report({
     plateSolverReady: plateSolverReady,
     darkLibraryHasCoverage: darkLibraryHasCoverage,
     focusKnown: focusKnown,
+    offlineProfileDevices: offlineProfileDevices,
+    hasActiveProfile: hasActiveProfile,
+    assignedProfileDeviceCount: assignedProfileDeviceCount,
+    otherAssignedProfileDeviceCount: otherAssignedProfileDeviceCount,
   );
 }
 
@@ -146,6 +156,19 @@ void main() {
       expect(critical.level, ReadinessLevel.ready);
     });
 
+    test('a disconnected mount is named even when the camera is also down', () {
+      // Regression: the mount is deliberately excluded from the
+      // profile-devices item ("already covered by critical devices"), so if
+      // critical devices reports only the camera the mount vanishes from the
+      // whole readiness report.
+      final report = _report(cameraConnected: false, mountConnected: false);
+      final critical = report.itemFor(ReadinessItemId.criticalDevices)!;
+
+      expect(critical.level, ReadinessLevel.blocked);
+      expect(critical.detail.toLowerCase(), contains('mount'));
+      expect(critical.detail.toLowerCase(), contains('camera'));
+    });
+
     test('no profile takes precedence over a disconnected camera message', () {
       // Both bad: profile-missing branch should win (it is checked first and
       // describes the more fundamental problem).
@@ -217,6 +240,54 @@ void main() {
         expect(report.overall, ReadinessLevel.caution);
       },
     );
+  });
+
+  group('profileDevices — no vacuous green over an empty profile', () {
+    test('an empty profile is caution, not an all-connected pass', () {
+      // A profile with nothing assigned has an empty offline set, which used to
+      // satisfy "every device is connected" and render GREEN on a fresh install
+      // with nothing connected at all.
+      final report = _report(
+        assignedProfileDeviceCount: 0,
+        otherAssignedProfileDeviceCount: 0,
+      );
+      final item = report.itemFor(ReadinessItemId.profileDevices)!;
+      expect(item.level, ReadinessLevel.caution);
+      expect(item.detail, contains('No devices are assigned'));
+      expect(item.detail, isNot(contains('is connected')));
+      expect(item.fixRoute, '/equipment');
+    });
+
+    test('no active profile does not claim assignments are connected', () {
+      final report = _report(
+        hasActiveProfile: false,
+        assignedProfileDeviceCount: 0,
+        otherAssignedProfileDeviceCount: 0,
+      );
+      final item = report.itemFor(ReadinessItemId.profileDevices)!;
+      expect(item.detail, contains('No equipment profile is active'));
+      expect(item.detail, isNot(contains('is connected')));
+    });
+
+    test(
+      'camera+mount-only profile says so instead of claiming accessories',
+      () {
+        final report = _report(
+          assignedProfileDeviceCount: 2,
+          otherAssignedProfileDeviceCount: 0,
+        );
+        final item = report.itemFor(ReadinessItemId.profileDevices)!;
+        expect(item.level, ReadinessLevel.ready);
+        expect(item.detail, contains('no accessories'));
+      },
+    );
+
+    test('a populated profile with everything online still reads ready', () {
+      final report = _report();
+      final item = report.itemFor(ReadinessItemId.profileDevices)!;
+      expect(item.level, ReadinessLevel.ready);
+      expect(item.detail, contains('Every accessory assigned'));
+    });
   });
 
   group('overall reduction is fail-closed', () {

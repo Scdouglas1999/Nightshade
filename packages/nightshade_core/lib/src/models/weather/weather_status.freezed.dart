@@ -20,8 +20,14 @@ mixin _$WeatherStatus {
  WeatherAlert? get activeAlert;/// Cloud motion analysis
  CloudMotion? get motion;/// Radar frames for animation
  List<RadarFrame> get radarFrames;/// Current frame index in animation
- int get currentFrameIndex;/// When this status was last updated
- DateTime get lastUpdate;/// Whether data is currently loading
+ int get currentFrameIndex;/// When the radar data behind this status was last fetched.
+///
+/// NULL until the first successful fetch lands. It is deliberately nullable
+/// rather than defaulting to a sentinel: an epoch-zero placeholder here is
+/// indistinguishable from a real timestamp downstream, and the card
+/// rendered it as "Updated 20667 days ago" on every pre-fetch paint (and
+/// for the whole session when the fetch never succeeds).
+ DateTime? get lastUpdate;/// Whether data is currently loading
  bool get isLoading;/// Error message if update failed
  String? get errorMessage;
 /// Create a copy of WeatherStatus
@@ -56,7 +62,7 @@ abstract mixin class $WeatherStatusCopyWith<$Res>  {
   factory $WeatherStatusCopyWith(WeatherStatus value, $Res Function(WeatherStatus) _then) = _$WeatherStatusCopyWithImpl;
 @useResult
 $Res call({
- AlertLevel currentLevel, WeatherAlert? activeAlert, CloudMotion? motion, List<RadarFrame> radarFrames, int currentFrameIndex, DateTime lastUpdate, bool isLoading, String? errorMessage
+ AlertLevel currentLevel, WeatherAlert? activeAlert, CloudMotion? motion, List<RadarFrame> radarFrames, int currentFrameIndex, DateTime? lastUpdate, bool isLoading, String? errorMessage
 });
 
 
@@ -73,15 +79,15 @@ class _$WeatherStatusCopyWithImpl<$Res>
 
 /// Create a copy of WeatherStatus
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? currentLevel = null,Object? activeAlert = freezed,Object? motion = freezed,Object? radarFrames = null,Object? currentFrameIndex = null,Object? lastUpdate = null,Object? isLoading = null,Object? errorMessage = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? currentLevel = null,Object? activeAlert = freezed,Object? motion = freezed,Object? radarFrames = null,Object? currentFrameIndex = null,Object? lastUpdate = freezed,Object? isLoading = null,Object? errorMessage = freezed,}) {
   return _then(_self.copyWith(
 currentLevel: null == currentLevel ? _self.currentLevel : currentLevel // ignore: cast_nullable_to_non_nullable
 as AlertLevel,activeAlert: freezed == activeAlert ? _self.activeAlert : activeAlert // ignore: cast_nullable_to_non_nullable
 as WeatherAlert?,motion: freezed == motion ? _self.motion : motion // ignore: cast_nullable_to_non_nullable
 as CloudMotion?,radarFrames: null == radarFrames ? _self.radarFrames : radarFrames // ignore: cast_nullable_to_non_nullable
 as List<RadarFrame>,currentFrameIndex: null == currentFrameIndex ? _self.currentFrameIndex : currentFrameIndex // ignore: cast_nullable_to_non_nullable
-as int,lastUpdate: null == lastUpdate ? _self.lastUpdate : lastUpdate // ignore: cast_nullable_to_non_nullable
-as DateTime,isLoading: null == isLoading ? _self.isLoading : isLoading // ignore: cast_nullable_to_non_nullable
+as int,lastUpdate: freezed == lastUpdate ? _self.lastUpdate : lastUpdate // ignore: cast_nullable_to_non_nullable
+as DateTime?,isLoading: null == isLoading ? _self.isLoading : isLoading // ignore: cast_nullable_to_non_nullable
 as bool,errorMessage: freezed == errorMessage ? _self.errorMessage : errorMessage // ignore: cast_nullable_to_non_nullable
 as String?,
   ));
@@ -192,7 +198,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( AlertLevel currentLevel,  WeatherAlert? activeAlert,  CloudMotion? motion,  List<RadarFrame> radarFrames,  int currentFrameIndex,  DateTime lastUpdate,  bool isLoading,  String? errorMessage)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( AlertLevel currentLevel,  WeatherAlert? activeAlert,  CloudMotion? motion,  List<RadarFrame> radarFrames,  int currentFrameIndex,  DateTime? lastUpdate,  bool isLoading,  String? errorMessage)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _WeatherStatus() when $default != null:
 return $default(_that.currentLevel,_that.activeAlert,_that.motion,_that.radarFrames,_that.currentFrameIndex,_that.lastUpdate,_that.isLoading,_that.errorMessage);case _:
@@ -213,7 +219,7 @@ return $default(_that.currentLevel,_that.activeAlert,_that.motion,_that.radarFra
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( AlertLevel currentLevel,  WeatherAlert? activeAlert,  CloudMotion? motion,  List<RadarFrame> radarFrames,  int currentFrameIndex,  DateTime lastUpdate,  bool isLoading,  String? errorMessage)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( AlertLevel currentLevel,  WeatherAlert? activeAlert,  CloudMotion? motion,  List<RadarFrame> radarFrames,  int currentFrameIndex,  DateTime? lastUpdate,  bool isLoading,  String? errorMessage)  $default,) {final _that = this;
 switch (_that) {
 case _WeatherStatus():
 return $default(_that.currentLevel,_that.activeAlert,_that.motion,_that.radarFrames,_that.currentFrameIndex,_that.lastUpdate,_that.isLoading,_that.errorMessage);case _:
@@ -233,7 +239,7 @@ return $default(_that.currentLevel,_that.activeAlert,_that.motion,_that.radarFra
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( AlertLevel currentLevel,  WeatherAlert? activeAlert,  CloudMotion? motion,  List<RadarFrame> radarFrames,  int currentFrameIndex,  DateTime lastUpdate,  bool isLoading,  String? errorMessage)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( AlertLevel currentLevel,  WeatherAlert? activeAlert,  CloudMotion? motion,  List<RadarFrame> radarFrames,  int currentFrameIndex,  DateTime? lastUpdate,  bool isLoading,  String? errorMessage)?  $default,) {final _that = this;
 switch (_that) {
 case _WeatherStatus() when $default != null:
 return $default(_that.currentLevel,_that.activeAlert,_that.motion,_that.radarFrames,_that.currentFrameIndex,_that.lastUpdate,_that.isLoading,_that.errorMessage);case _:
@@ -248,7 +254,7 @@ return $default(_that.currentLevel,_that.activeAlert,_that.motion,_that.radarFra
 @JsonSerializable()
 
 class _WeatherStatus implements WeatherStatus {
-  const _WeatherStatus({this.currentLevel = AlertLevel.clear, this.activeAlert, this.motion, final  List<RadarFrame> radarFrames = const [], this.currentFrameIndex = 0, required this.lastUpdate, this.isLoading = false, this.errorMessage}): _radarFrames = radarFrames;
+  const _WeatherStatus({this.currentLevel = AlertLevel.clear, this.activeAlert, this.motion, final  List<RadarFrame> radarFrames = const [], this.currentFrameIndex = 0, this.lastUpdate, this.isLoading = false, this.errorMessage}): _radarFrames = radarFrames;
   factory _WeatherStatus.fromJson(Map<String, dynamic> json) => _$WeatherStatusFromJson(json);
 
 /// Current alert level
@@ -268,8 +274,14 @@ class _WeatherStatus implements WeatherStatus {
 
 /// Current frame index in animation
 @override@JsonKey() final  int currentFrameIndex;
-/// When this status was last updated
-@override final  DateTime lastUpdate;
+/// When the radar data behind this status was last fetched.
+///
+/// NULL until the first successful fetch lands. It is deliberately nullable
+/// rather than defaulting to a sentinel: an epoch-zero placeholder here is
+/// indistinguishable from a real timestamp downstream, and the card
+/// rendered it as "Updated 20667 days ago" on every pre-fetch paint (and
+/// for the whole session when the fetch never succeeds).
+@override final  DateTime? lastUpdate;
 /// Whether data is currently loading
 @override@JsonKey() final  bool isLoading;
 /// Error message if update failed
@@ -308,7 +320,7 @@ abstract mixin class _$WeatherStatusCopyWith<$Res> implements $WeatherStatusCopy
   factory _$WeatherStatusCopyWith(_WeatherStatus value, $Res Function(_WeatherStatus) _then) = __$WeatherStatusCopyWithImpl;
 @override @useResult
 $Res call({
- AlertLevel currentLevel, WeatherAlert? activeAlert, CloudMotion? motion, List<RadarFrame> radarFrames, int currentFrameIndex, DateTime lastUpdate, bool isLoading, String? errorMessage
+ AlertLevel currentLevel, WeatherAlert? activeAlert, CloudMotion? motion, List<RadarFrame> radarFrames, int currentFrameIndex, DateTime? lastUpdate, bool isLoading, String? errorMessage
 });
 
 
@@ -325,15 +337,15 @@ class __$WeatherStatusCopyWithImpl<$Res>
 
 /// Create a copy of WeatherStatus
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? currentLevel = null,Object? activeAlert = freezed,Object? motion = freezed,Object? radarFrames = null,Object? currentFrameIndex = null,Object? lastUpdate = null,Object? isLoading = null,Object? errorMessage = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? currentLevel = null,Object? activeAlert = freezed,Object? motion = freezed,Object? radarFrames = null,Object? currentFrameIndex = null,Object? lastUpdate = freezed,Object? isLoading = null,Object? errorMessage = freezed,}) {
   return _then(_WeatherStatus(
 currentLevel: null == currentLevel ? _self.currentLevel : currentLevel // ignore: cast_nullable_to_non_nullable
 as AlertLevel,activeAlert: freezed == activeAlert ? _self.activeAlert : activeAlert // ignore: cast_nullable_to_non_nullable
 as WeatherAlert?,motion: freezed == motion ? _self.motion : motion // ignore: cast_nullable_to_non_nullable
 as CloudMotion?,radarFrames: null == radarFrames ? _self._radarFrames : radarFrames // ignore: cast_nullable_to_non_nullable
 as List<RadarFrame>,currentFrameIndex: null == currentFrameIndex ? _self.currentFrameIndex : currentFrameIndex // ignore: cast_nullable_to_non_nullable
-as int,lastUpdate: null == lastUpdate ? _self.lastUpdate : lastUpdate // ignore: cast_nullable_to_non_nullable
-as DateTime,isLoading: null == isLoading ? _self.isLoading : isLoading // ignore: cast_nullable_to_non_nullable
+as int,lastUpdate: freezed == lastUpdate ? _self.lastUpdate : lastUpdate // ignore: cast_nullable_to_non_nullable
+as DateTime?,isLoading: null == isLoading ? _self.isLoading : isLoading // ignore: cast_nullable_to_non_nullable
 as bool,errorMessage: freezed == errorMessage ? _self.errorMessage : errorMessage // ignore: cast_nullable_to_non_nullable
 as String?,
   ));

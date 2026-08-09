@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../utils/user_facing_error.dart';
 import 'settings_widgets.dart';
 
 String? _validatePositiveScienceId(String value) {
@@ -920,7 +921,11 @@ class _ScienceOnlineCatalogRowState
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          SnackBar(content: Text('Could not save catalog setting: $error')),
+          SnackBar(
+            content: Text(
+              'Could not save catalog setting: ${userFacingError(error)}',
+            ),
+          ),
         );
       }
     } finally {
@@ -978,7 +983,11 @@ class _ScienceCameraAutoRowState extends ConsumerState<_ScienceCameraAutoRow> {
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          SnackBar(content: Text('Could not save camera setting: $error')),
+          SnackBar(
+            content: Text(
+              'Could not save camera setting: ${userFacingError(error)}',
+            ),
+          ),
         );
       }
     } finally {
@@ -1109,7 +1118,11 @@ class _ScienceCameraValueRowState
           _validationError = 'Could not save this value';
         });
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          SnackBar(content: Text('Could not save camera value: $error')),
+          SnackBar(
+            content: Text(
+              'Could not save camera value: ${userFacingError(error)}',
+            ),
+          ),
         );
       }
       return;

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import '../harness/in_memory_database.dart';
 
 class _MockBackend extends Mock implements NightshadeBackend {}
 
@@ -97,6 +98,7 @@ void main() {
     late _ControlledDefectMapService service;
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith((ref) {
           return backendNotifier = _SwitchingBackendNotifier(
             ref,
@@ -156,6 +158,7 @@ void main() {
     late _ControlledDefectMapService service;
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith((ref) {
           return _SwitchingBackendNotifier(ref, _MockBackend());
         }),
@@ -186,6 +189,7 @@ void main() {
     late _ControlledDefectMapService service;
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         allSettingsProvider.overrideWith((ref) => Stream.value(const {})),
         backendProvider.overrideWith((ref) {
           return _SwitchingBackendNotifier(ref, _MockBackend());
@@ -218,6 +222,7 @@ void main() {
     late _ControlledDefectMapService service;
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         allSettingsProvider.overrideWith((ref) => Stream.value(const {})),
         backendProvider.overrideWith((ref) {
           return _SwitchingBackendNotifier(ref, _MockBackend());
@@ -248,6 +253,7 @@ void main() {
       late _ControlledDefectMapService service;
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           allSettingsProvider.overrideWith((ref) => Stream.value(const {})),
           backendProvider.overrideWith((ref) {
             return _SwitchingBackendNotifier(ref, _MockBackend());

@@ -27,6 +27,8 @@ import '../../widgets/tutorial_keys/analytics_keys.dart';
 import '../diagnostics/diagnostics_screen.dart';
 import '../science/science_screen.dart';
 import '../sequencer/widgets/session_report_dialog.dart';
+import 'session_elapsed.dart';
+import 'widgets/science_analytics_tab.dart' show latestScienceSessionProvider;
 import 'widgets/session_chart.dart';
 import 'widgets/image_thumbnail_strip.dart';
 import 'widgets/project_tracking_panel.dart';

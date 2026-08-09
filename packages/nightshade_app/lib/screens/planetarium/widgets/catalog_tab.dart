@@ -26,7 +26,7 @@ class CatalogTab extends ConsumerWidget {
             catalog: catalogTag,
             type: dsoTypeName(dso.type),
             magnitude: dso.magnitude?.toStringAsFixed(1) ?? '-',
-            transit: 'mag',
+            caption: 'mag',
             colors: colors,
             onTap: () {
               ref.read(selectedObjectProvider.notifier).selectObject(dso);

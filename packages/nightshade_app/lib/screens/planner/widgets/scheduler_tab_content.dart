@@ -11,17 +11,7 @@ import '../../scheduler/widgets/integration_goals_editor.dart';
 import '../../scheduler/widgets/target_constraints_editor.dart';
 import '../../scheduler/widgets/target_score_row.dart';
 
-/// Body of the RoboTarget-class dynamic scheduler — hoisted out of the
-/// former standalone Scheduler screen when the Scheduler became a tab under
-/// Plan Tonight (§UX consolidation). The `/planner?tab=scheduler` tab mounts
-/// this widget; the legacy `/scheduler` route now redirects here.
-///
-/// Layout (desktop):
-///   left  : current decision panel (Start/Pause/Stop, target name,
-///           reasoning bullet list, countdown to next eval, weights).
-///   right : scrollable target-queue table.
-///   bottom (modal): per-target editor opened by tapping a row, mounts
-///           the integration-goals + constraints editors.
+/// Dynamic scheduler body used by the Planner's Scheduler tab.
 part 'scheduler_tab_content/decision_panel.dart';
 part 'scheduler_tab_content/config_expansion.dart';
 part 'scheduler_tab_content/queue_table.dart';
@@ -38,9 +28,7 @@ class SchedulerTabContent extends ConsumerStatefulWidget {
 
 class _SchedulerTabContentState extends ConsumerState<SchedulerTabContent>
     with WidgetsBindingObserver {
-  // Drives the countdown text to next-evaluation; rebuilds once per second
-  // when running. Suspended when the app is backgrounded so a hidden
-  // scheduler tab doesn't repaint every second (§4.33).
+  // Rebuilds the countdown while visible and polls remote state periodically.
   Timer? _countdownTimer;
   Future<void> _configSaveTail = Future<void>.value();
   bool _configSaveErrorVisible = false;
@@ -61,8 +49,7 @@ class _SchedulerTabContentState extends ConsumerState<SchedulerTabContent>
       backendProvider,
       (previous, next) {
         if (previous == null || identical(previous, next)) return;
-        // A command admitted for the previous host must not keep the
-        // replacement host's controls disabled or surface its eventual error.
+        // Do not carry command state across a backend replacement.
         _schedulerActionGeneration++;
         _configSaveErrorVisible = false;
         if (mounted && _schedulerActionBusy) {
@@ -108,8 +95,8 @@ class _SchedulerTabContentState extends ConsumerState<SchedulerTabContent>
     super.dispose();
   }
 
-  Future<void> _onStart() async {
-    await _runSchedulerAction('start');
+  Future<void> _onStart([bool allowWarnings = false]) async {
+    await _runSchedulerAction('start', allowWarnings: allowWarnings);
   }
 
   Future<void> _onPause() async {
@@ -128,14 +115,34 @@ class _SchedulerTabContentState extends ConsumerState<SchedulerTabContent>
     await _runSchedulerAction('evaluate');
   }
 
-  Future<void> _runSchedulerAction(String action) async {
+  Future<void> _runSchedulerAction(
+    String action, {
+    bool allowWarnings = false,
+  }) async {
     if (_schedulerActionBusy) return;
     final backend = ref.read(backendProvider);
     final generation = ++_schedulerActionGeneration;
     setState(() => _schedulerActionBusy = true);
     try {
+      if (action == 'start') {
+        final readiness = backend is NetworkBackend
+            ? (await ref.read(schedulerRemoteSnapshotProvider.future)).readiness
+            : ref.read(schedulerStartReadinessProvider);
+        if (readiness.blocked ||
+            (readiness.warnings.isNotEmpty && !allowWarnings)) {
+          throw StateError(
+            readiness.blocked
+                ? 'Scheduler readiness is blocked.'
+                : 'Scheduler warnings require confirmation.',
+          );
+        }
+      }
       if (backend is NetworkBackend) {
-        await backend.controlScheduler(action);
+        if (action == 'start' && allowWarnings) {
+          await backend.controlScheduler(action, confirmWarnings: true);
+        } else {
+          await backend.controlScheduler(action);
+        }
       } else {
         // Pause and Stop must remain available for an already-running engine
         // even if an unrelated settings refresh is failing. Operations that
@@ -230,6 +237,15 @@ class _SchedulerTabContentState extends ConsumerState<SchedulerTabContent>
         } else {
           await localStore!.save(config);
           confirmed = config;
+          // The durable row is what siteMinimumAltitudeDegProvider serves to
+          // the sequence builder and the altitude charts, so a slider edit has
+          // to reach it now — otherwise moving "Min altitude" here would only
+          // take effect on the next launch and the rest of the app would keep
+          // gating on the old number. Safe for the engine: it takes this
+          // provider through ref.listen and skips the update while
+          // schedulerConfigUserDirtyProvider is set (which this edit set), so
+          // nothing is torn down and the live config is not overwritten.
+          ref.invalidate(schedulerPersistedConfigProvider);
         }
         if (!mounted || !identical(ref.read(backendProvider), backend)) return;
         setState(() {
@@ -281,6 +297,7 @@ class _SchedulerTabContentState extends ConsumerState<SchedulerTabContent>
     late final SchedulerStatus status;
     late final SchedulerDecision? decision;
     late final SchedulerConfig authoritativeConfig;
+    late final SchedulerStartReadiness? remoteReadiness;
 
     if (backend is NetworkBackend) {
       final remoteAsync = ref.watch(schedulerRemoteSnapshotProvider);
@@ -309,6 +326,7 @@ class _SchedulerTabContentState extends ConsumerState<SchedulerTabContent>
       status = remote.status;
       decision = remote.decision;
       authoritativeConfig = remote.config;
+      remoteReadiness = remote.readiness;
     } else {
       final readyAsync = ref.watch(schedulerEngineReadyProvider);
       final readyEngine = readyAsync.valueOrNull;
@@ -343,6 +361,7 @@ class _SchedulerTabContentState extends ConsumerState<SchedulerTabContent>
           ? previewDecision.valueOrNull ?? liveDecision
           : liveDecision ?? previewDecision.valueOrNull;
       authoritativeConfig = readyEngine.config;
+      remoteReadiness = null;
       // Mount local data-change listeners only on the process that owns the
       // scheduler. A remote client must never spin up a second autopilot.
       ref.watch(schedulerAutoReevalProvider);
@@ -363,19 +382,28 @@ class _SchedulerTabContentState extends ConsumerState<SchedulerTabContent>
         final isMobile =
             constraints.maxWidth < NightshadeTokens.breakpointTablet;
         if (isMobile) {
-          return _buildMobile(context, status, decision, config);
+          return _buildMobile(
+            context,
+            status,
+            decision,
+            config,
+            readinessOverride: remoteReadiness,
+          );
         }
-        return _buildDesktop(context, status, decision, config);
+        return _buildDesktop(
+          context,
+          status,
+          decision,
+          config,
+          readinessOverride: remoteReadiness,
+        );
       },
     );
   }
 
-  Widget _buildDesktop(
-    BuildContext context,
-    SchedulerStatus status,
-    SchedulerDecision? decision,
-    SchedulerConfig config,
-  ) {
+  Widget _buildDesktop(BuildContext context, SchedulerStatus status,
+      SchedulerDecision? decision, SchedulerConfig config,
+      {required SchedulerStartReadiness? readinessOverride}) {
     return Stack(
       children: [
         Padding(
@@ -398,6 +426,7 @@ class _SchedulerTabContentState extends ConsumerState<SchedulerTabContent>
                         status: status,
                         decision: decision,
                         config: config,
+                        readinessOverride: readinessOverride,
                         controlsBusy: _schedulerActionBusy,
                         onStart: _onStart,
                         onPause: _onPause,
@@ -433,12 +462,9 @@ class _SchedulerTabContentState extends ConsumerState<SchedulerTabContent>
     );
   }
 
-  Widget _buildMobile(
-    BuildContext context,
-    SchedulerStatus status,
-    SchedulerDecision? decision,
-    SchedulerConfig config,
-  ) {
+  Widget _buildMobile(BuildContext context, SchedulerStatus status,
+      SchedulerDecision? decision, SchedulerConfig config,
+      {required SchedulerStartReadiness? readinessOverride}) {
     return Stack(
       children: [
         SingleChildScrollView(
@@ -450,6 +476,7 @@ class _SchedulerTabContentState extends ConsumerState<SchedulerTabContent>
                 status: status,
                 decision: decision,
                 config: config,
+                readinessOverride: readinessOverride,
                 controlsBusy: _schedulerActionBusy,
                 onStart: _onStart,
                 onPause: _onPause,

@@ -4,7 +4,21 @@ part of '../analytics_screen.dart';
 
 /// Metrics with no persisted backing source render this instead of a fake
 /// number — the imaging pipeline does not currently track them.
-const String _kNotTracked = 'Not tracked';
+
+/// A run's stats blob, or null when it is missing or malformed.
+///
+/// A single unparseable row must not take the whole tab down; it contributes
+/// nothing to the totals instead.
+ParsedRunStats? _parseRunStats(String json) {
+  try {
+    return ParsedRunStats.fromJson(json);
+  } on FormatException {
+    return null;
+  } on TypeError {
+    return null;
+  }
+}
+
 const String _kLoading = 'Loading…';
 const String _kUnavailable = 'Unavailable';
 
@@ -18,6 +32,21 @@ class _EquipmentStatsTab extends ConsumerWidget {
     // autofocusCount is aggregated per-session, not per-frame. Keep its
     // loading/error state distinct from a genuine count of zero.
     final sessionsAsync = ref.watch(allSessionsProvider);
+    // Meridian flips are counted by the sequence executor and persisted in
+    // each run's stats blob — the same number the Morning Report and the run
+    // history already print. The Mount card said "Not tracked" beside it.
+    final runsAsync = ref.watch(sequenceRunsProvider);
+    final meridianFlips = runsAsync.when(
+      loading: () => _kLoading,
+      error: (_, __) => _kUnavailable,
+      data: (runs) => '${runs.fold<int>(
+        0,
+        (sum, run) {
+          final stats = _parseRunStats(run.statsJson);
+          return stats == null ? sum : sum + stats.meridianFlips;
+        },
+      )}',
+    );
 
     return imagesAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -89,7 +118,7 @@ class _EquipmentStatsTab extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (sessionsAsync.hasError) ...[
+              if (sessionsAsync.hasError || runsAsync.hasError) ...[
                 NightshadeCard(
                   child: Padding(
                     padding: const EdgeInsets.all(12),
@@ -106,7 +135,14 @@ class _EquipmentStatsTab extends ConsumerWidget {
                           ),
                         ),
                         TextButton(
-                          onPressed: () => ref.invalidate(allSessionsProvider),
+                          onPressed: () {
+                            if (sessionsAsync.hasError) {
+                              ref.invalidate(allSessionsProvider);
+                            }
+                            if (runsAsync.hasError) {
+                              ref.invalidate(sequenceRunsProvider);
+                            }
+                          },
                           child: const Text('Retry'),
                         ),
                       ],
@@ -131,12 +167,10 @@ class _EquipmentStatsTab extends ConsumerWidget {
                     ),
                   ],
                 ),
-                const _EquipmentStatCard(
+                _EquipmentStatCard(
                   title: 'Mount',
                   stats: [
-                    _Stat(label: 'Total Slews', value: _kNotTracked),
-                    _Stat(label: 'Total Tracking Time', value: _kNotTracked),
-                    _Stat(label: 'Meridian Flips', value: _kNotTracked),
+                    _Stat(label: 'Meridian Flips', value: meridianFlips),
                   ],
                 ),
                 _EquipmentStatCard(
@@ -147,19 +181,16 @@ class _EquipmentStatsTab extends ConsumerWidget {
                       label: 'Avg HFR Achieved',
                       value: _formatAvg(hfrs, (v) => v.toStringAsFixed(2)),
                     ),
-                    const _Stat(label: 'Total Movements', value: _kNotTracked),
                   ],
                 ),
                 _EquipmentStatCard(
                   title: 'Guider',
                   stats: [
-                    const _Stat(label: 'Total Guide Time', value: _kNotTracked),
                     _Stat(
                       label: 'Avg RMS',
                       value:
                           _formatAvg(rmss, (v) => '${v.toStringAsFixed(2)}"'),
                     ),
-                    const _Stat(label: 'Star Lost Events', value: _kNotTracked),
                   ],
                 ),
               ]),

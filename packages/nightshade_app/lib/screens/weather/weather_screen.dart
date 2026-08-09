@@ -42,8 +42,14 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
 
-  // Animation state
-  int _currentFrameIndex = 0;
+  // Animation state.
+  //
+  // Null means "nobody has scrubbed": the timeline then follows the live edge
+  // of the loop (see [latestObservedRadarFrameIndex]) and keeps following it
+  // across the 5-minute refresh. A fixed 0 opened the screen on the OLDEST
+  // frame — up to two hours of history behind the NOW marker the scrubber
+  // draws — so the map you glanced at showed cloud that had already moved on.
+  int? _selectedFrameIndex;
   bool _isPlaying = false;
   double _playbackSpeed = 1.0;
   double _radarOpacity = 0.7;
@@ -278,7 +284,8 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
     // Clamp frame index to valid range
     final validFrameIndex = radarFrames.isEmpty
         ? 0
-        : _currentFrameIndex.clamp(0, radarFrames.length - 1);
+        : (_selectedFrameIndex ?? latestObservedRadarFrameIndex(radarFrames))
+            .clamp(0, radarFrames.length - 1);
 
     final currentFrame =
         radarFrames.isEmpty ? null : radarFrames[validFrameIndex];
@@ -341,7 +348,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
                     frames: radarFrames,
                     currentIndex: validFrameIndex,
                     onFrameChanged: (index) {
-                      setState(() => _currentFrameIndex = index);
+                      setState(() => _selectedFrameIndex = index);
                     },
                     isPlaying: _isPlaying,
                     onPlayPauseToggle: () {
@@ -455,7 +462,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
         frames: radarFrames,
         currentIndex: validFrameIndex,
         onFrameChanged: (index) {
-          setState(() => _currentFrameIndex = index);
+          setState(() => _selectedFrameIndex = index);
         },
         isPlaying: _isPlaying,
         onPlayPauseToggle: () {

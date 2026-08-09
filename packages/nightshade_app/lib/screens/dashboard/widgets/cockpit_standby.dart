@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../localization/nightshade_localizations.dart';
 import '../../sequencer/widgets/smart_night_dialog.dart';
 import 'smart_night_prompt_card.dart' show smartNightAutoPromptShowingProvider;
 import 'standby/last_night_recap_card.dart';
@@ -144,20 +146,21 @@ class _BriefingState extends State<_Briefing>
   }
 }
 
-class _Header extends StatelessWidget {
+class _Header extends ConsumerWidget {
   final NightshadeColors colors;
   final bool wide;
 
   const _Header({required this.colors, required this.wide});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
     final title = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          'TONIGHT\'S BRIEFING',
+          l10n.text('dbBriefingOverline'),
           style:
               NightshadeTypography.overline.copyWith(color: colors.textMuted),
         ),
@@ -167,17 +170,15 @@ class _Header extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.baseline,
           textBaseline: TextBaseline.alphabetic,
           children: [
-            // Kept verbatim for the cockpit-polish test, which asserts this
-            // exact string still renders in the standby hero.
             Text(
-              'No run active',
+              l10n.text('dbNoRunActive'),
               style:
                   NightshadeTypography.h3.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(width: NightshadeTokens.spaceMd),
             Flexible(
               child: Text(
-                _today(),
+                _today(context, ref.watch(clockProvider)),
                 style: NightshadeTypography.bodySm.copyWith(
                   color: colors.textSecondary,
                 ),
@@ -215,14 +216,16 @@ class _Header extends StatelessWidget {
     );
   }
 
-  static String _today() {
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', //
-    ];
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    final now = DateTime.now();
-    return '${days[now.weekday - 1]} ${months[now.month - 1]} ${now.day}';
+  /// Today's date in the reader's language. The hard-coded English
+  /// abbreviation tables this replaced also read `DateTime.now()`, so the
+  /// briefing dated itself on the host rather than on the site the operator
+  /// chose in Settings → Location → Timezone.
+  static String _today(BuildContext context, Clock clock) {
+    // MaterialLocalizations, not intl's DateFormat: the Global*Localizations
+    // delegates the app already installs guarantee this locale's date symbols
+    // are loaded, while a bare DateFormat('…', 'es') throws unless
+    // initializeDateFormatting has been called.
+    return MaterialLocalizations.of(context).formatMediumDate(clock.now());
   }
 }
 
@@ -243,6 +246,7 @@ class _Ctas extends ConsumerWidget {
     // screen: that prompt is already a louder "Plan Tonight" affordance, so
     // showing both at once is a redundant double-CTA. The primary "Image
     // tonight" stays; the prompt remains the plan-it path until dismissed.
+    final l10n = context.l10n;
     final autoPromptShowing = ref.watch(smartNightAutoPromptShowingProvider);
     return Wrap(
       spacing: NightshadeTokens.spaceSm,
@@ -250,17 +254,16 @@ class _Ctas extends ConsumerWidget {
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         NightshadeButton(
-          label: 'Image tonight',
+          label: l10n.text('dbImageTonight'),
           icon: LucideIcons.moonStar,
           variant: ButtonVariant.primary,
           onPressed: () => context.go('/tonight'),
         ),
         if (!autoPromptShowing)
           Tooltip(
-            message: 'Build a plan you can see and edit — pick the target and '
-                'exposures yourself with the Smart Night wizard',
+            message: l10n.text('dbPlanTonightTooltip'),
             child: NightshadeButton(
-              label: 'Plan Tonight',
+              label: l10n.text('dbPlanTonight'),
               icon: LucideIcons.sparkles,
               variant: ButtonVariant.ghost,
               onPressed: () => showSmartNightDialog(context),

@@ -126,40 +126,76 @@ final mosaicPlanProvider =
 // Best Targets Provider
 // ============================================================================
 
-/// Find best imaging targets for tonight
-/// Uses cached date to avoid flickering from second-by-second updates
-final bestTargetsProvider = FutureProvider<List<(DeepSkyObject, ObjectVisibility)>>((
-  ref,
-) async {
+/// A target the "Best Targets Tonight" panel is willing to recommend, together
+/// with the evidence for the recommendation.
+class TonightTarget {
+  final DeepSkyObject object;
+
+  /// Rise / transit / set against the [kTonightMinAltitudeDeg] floor.
+  final ObjectVisibility visibility;
+
+  /// Hours above that floor INSIDE tonight's darkness window.
+  final double hoursInDarkness;
+
+  /// Highest altitude reached while it is dark, degrees, and when.
+  final double peakAltitudeDeg;
+  final DateTime? peakTime;
+
+  /// The ranking key, 0-100 — see [TonightRanking.score]. It blends the app's
+  /// night score with a catalog-fit term, so it is NOT the planner's score.
+  final double score;
+
+  const TonightTarget({
+    required this.object,
+    required this.visibility,
+    required this.hoursInDarkness,
+    required this.peakAltitudeDeg,
+    required this.peakTime,
+    required this.score,
+  });
+}
+
+/// Tonight's best imaging targets, ranked by [rankTonightTargets] — usable
+/// hours inside the darkness window scored with the app's own night scorer.
+///
+/// Anchored on the night DATE rather than the current instant so the list does
+/// not flicker as the clock ticks.
+final bestTargetsProvider = FutureProvider<List<TonightTarget>>((ref) async {
   final dsos = await ref.watch(loadedDsosProvider.future);
   final location = ref.watch(observerLocationProvider);
-  final currentDate = ref.watch(_currentDateProvider);
+  // The night in progress, so this list and the sidebar's Info tab (which reads
+  // selectedObjectVisibilityProvider) describe the SAME night.
+  final nightDate = ref.watch(_currentNightDateProvider);
 
-  // Calculate twilight times for the current date (not watching the time provider directly)
-  final twilight = AstronomyCalculations.calculateTwilightTimes(
-    date: currentDate,
-    latitudeDeg: location.latitude,
-    longitudeDeg: location.longitude,
-  );
-
-  // Use astronomical twilight as imaging time, or 9 PM if not available
-  final imagingTime =
-      twilight.astronomicalDusk ??
-      DateTime(currentDate.year, currentDate.month, currentDate.day, 21, 0);
-
-  // Computing visibility (iterative rise/transit/set) for the full ~12k-DSO
-  // catalog is heavy; run it in an isolate so the first read (e.g. the first
-  // time the side panel opens) doesn't block/freeze the UI thread. Only the
-  // coordinate arrays are sent across (cheap) — not the DSO objects.
+  // Ranking the full ~12k-DSO catalog against the whole darkness window is
+  // heavy; run it in an isolate so the first read (e.g. the first time the side
+  // panel opens) doesn't block/freeze the UI thread. Only the coordinate arrays
+  // are sent across (cheap) — not the DSO objects. Twilight and the moon are
+  // derived inside the isolate from the site + night date, so this provider
+  // does NOT depend on any per-minute provider that would re-run it.
   final args = _BestTargetsArgs(
     raDeg: [for (final d in dsos) d.coordinates.raDegrees],
     decDeg: [for (final d in dsos) d.coordinates.dec],
+    magnitudes: [for (final d in dsos) d.magnitude],
+    sizesArcMin: [for (final d in dsos) d.sizeArcMin],
+    objectTypes: [for (final d in dsos) d.type.index],
+    fov: ref.watch(equipmentFOVProvider).fov,
     latitudeDeg: location.latitude,
     longitudeDeg: location.longitude,
-    imagingTime: imagingTime,
+    nightDate: nightDate,
   );
-  final ranked = await compute(_computeBestTargetIndices, args);
-  return [for (final (i, v) in ranked) (dsos[i], v)];
+  final ranked = await compute(_rankTonightTargetsOffThread, args);
+  return [
+    for (final r in ranked)
+      TonightTarget(
+        object: dsos[r.index],
+        visibility: r.visibility,
+        hoursInDarkness: r.hoursInDarkness,
+        peakAltitudeDeg: r.peakAltitudeDeg,
+        peakTime: r.peakTime,
+        score: r.score,
+      ),
+  ];
 });
 
 /// Inputs for the off-thread best-targets computation. Only primitives + plain
@@ -167,38 +203,48 @@ final bestTargetsProvider = FutureProvider<List<(DeepSkyObject, ObjectVisibility
 class _BestTargetsArgs {
   final List<double> raDeg;
   final List<double> decDeg;
+  final List<double?> magnitudes;
+  final List<double?> sizesArcMin;
+  final List<int?> objectTypes;
+  final (double width, double height)? fov;
   final double latitudeDeg;
   final double longitudeDeg;
-  final DateTime imagingTime;
+
+  /// The DATE of the night being planned, not an instant within it.
+  ///
+  /// [AstronomyCalculations.calculateObjectVisibility] scans local noon of this
+  /// date to the following noon. Passing astronomical dusk here instead put the
+  /// whole list a night late at every site where dusk falls after local
+  /// midnight (mid-summer, or the west edge of a timezone), so every transit
+  /// time was one sidereal day (~4 min) off and the sidebar's own Info tab
+  /// disagreed with its Best Targets card for the same object.
+  final DateTime nightDate;
 
   const _BestTargetsArgs({
     required this.raDeg,
     required this.decDeg,
+    required this.magnitudes,
+    required this.sizesArcMin,
+    required this.objectTypes,
+    required this.fov,
     required this.latitudeDeg,
     required this.longitudeDeg,
-    required this.imagingTime,
+    required this.nightDate,
   });
 }
 
-/// Isolate entry point: rank DSOs (by index) by transit altitude, keeping only
-/// those that rise above 30°. Returns the top 20 as (originalIndex, visibility).
-List<(int, ObjectVisibility)> _computeBestTargetIndices(_BestTargetsArgs a) {
-  final ranked = <(int, ObjectVisibility)>[];
-  for (var i = 0; i < a.raDeg.length; i++) {
-    final v = AstronomyCalculations.calculateObjectVisibility(
-      raDeg: a.raDeg[i],
-      decDeg: a.decDeg[i],
-      date: a.imagingTime,
-      latitudeDeg: a.latitudeDeg,
-      longitudeDeg: a.longitudeDeg,
-      minAltitude: 30,
-    );
-    if (!v.neverRises && (v.transitAltitude ?? 0) > 30) {
-      ranked.add((i, v));
-    }
-  }
-  ranked.sort(
-    (x, y) => (y.$2.transitAltitude ?? 0).compareTo(x.$2.transitAltitude ?? 0),
+/// Isolate entry point for [rankTonightTargets].
+List<TonightRanking> _rankTonightTargetsOffThread(_BestTargetsArgs a) {
+  return rankTonightTargets(
+    raDeg: a.raDeg,
+    decDeg: a.decDeg,
+    magnitudes: a.magnitudes,
+    sizesArcMin: a.sizesArcMin,
+    objectTypes: a.objectTypes,
+    fovWidthDeg: a.fov?.$1,
+    fovHeightDeg: a.fov?.$2,
+    latitudeDeg: a.latitudeDeg,
+    longitudeDeg: a.longitudeDeg,
+    nightDate: a.nightDate,
   );
-  return ranked.take(20).toList();
 }

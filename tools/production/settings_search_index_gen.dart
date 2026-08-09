@@ -95,20 +95,120 @@ Map<String, String> _sectionWidgets(String catalogSource) {
   return result;
 }
 
-/// Class name -> source file, for every class under the app's lib/.
-Map<String, File> _classIndex(String repoRoot) {
-  final index = <String, File>{};
-  final classDecl = RegExp(r'^class ([A-Za-z0-9_]+)', multiLine: true);
+/// A Dart library: one non-part file plus every `part` it stitches in.
+///
+/// The library, not the file, is the unit a settings page is written in.
+/// Equipment Profiles renders all of its rows from six `part` files hanging off
+/// `equipment_profiles_screen.dart` (and from an `extension` inside one of
+/// them), which is why its index used to hold nothing but two error strings —
+/// "Could not load profiles" and "Select a profile" — while every heading a
+/// user can actually see on that page was unsearchable.
+class _Library {
+  _Library(this.path, this.source);
+
+  final String path;
+
+  /// Concatenated source of the library's own file and all of its parts.
+  final String source;
+}
+
+class _Libraries {
+  _Libraries(this.byPath, this.declaredIn);
+
+  final Map<String, _Library> byPath;
+
+  /// Class name -> library that declares it.
+  final Map<String, String> declaredIn;
+
+  _Library? forClass(String name) {
+    final path = declaredIn[name];
+    return path == null ? null : byPath[path];
+  }
+}
+
+/// Indexes every library under the app's lib/, [exclude]ing the body of any
+/// class named in it that belongs to a DIFFERENT settings section.
+///
+/// The exclusion is what stops sibling pages bleeding into each other:
+/// `merged_sections.dart` declares BOTH `FilesAndStorageSettings` and
+/// `AutofocusMergedSettings`, so scanning that file whole gave Files & Storage
+/// the entire Autofocus page — "Backlash IN", "Steps out from center for
+/// V-curve", "Stop autoguider while focusing" — and the search box ranked a
+/// page with no backlash control above the page that owns it.
+_Libraries _libraryIndex(String repoRoot, {required Set<String> exclude}) {
+  final byPath = <String, _Library>{};
+  final declaredIn = <String, String>{};
+  final partOf = RegExp(r"^part of '([^']+)'", multiLine: true);
+  final partDecl = RegExp(r"^part '([^']+)'", multiLine: true);
+  final classDecl = RegExp(
+    r'^(?:class|mixin|extension|enum) ([A-Za-z0-9_]+)',
+    multiLine: true,
+  );
+
+  final sources = <String, String>{};
   for (final entity in Directory(
     '$repoRoot/$_libRoot',
   ).listSync(recursive: true)) {
     if (entity is! File || !entity.path.endsWith('.dart')) continue;
-    final source = entity.readAsStringSync();
-    for (final m in classDecl.allMatches(source)) {
-      index.putIfAbsent(m.group(1)!, () => entity);
+    sources[entity.path] = entity.readAsStringSync();
+  }
+
+  String resolvePart(String from, String relative) {
+    final dir = File(from).parent.path;
+    final joined = '$dir/$relative';
+    // Collapse `..` segments so the key matches the listSync path.
+    final parts = <String>[];
+    for (final segment in joined.split('/')) {
+      if (segment == '..') {
+        if (parts.isNotEmpty) parts.removeLast();
+      } else if (segment != '.') {
+        parts.add(segment);
+      }
+    }
+    return parts.join('/');
+  }
+
+  for (final entry in sources.entries) {
+    if (partOf.hasMatch(entry.value)) continue; // handled with its parent
+    final buffer = StringBuffer(entry.value);
+    for (final m in partDecl.allMatches(entry.value)) {
+      final partPath = resolvePart(entry.key, m.group(1)!);
+      final partSource = sources[partPath];
+      if (partSource != null) buffer.writeln(partSource);
+    }
+    final library = _Library(
+      entry.key,
+      _blankBodies(buffer.toString(), exclude),
+    );
+    byPath[entry.key] = library;
+    for (final m in classDecl.allMatches(library.source)) {
+      declaredIn.putIfAbsent(m.group(1)!, () => entry.key);
     }
   }
-  return index;
+  return _Libraries(byPath, declaredIn);
+}
+
+/// Blanks out the body of every class in [names] while preserving offsets, so
+/// a page that shares a file with another section's page cannot inherit it.
+String _blankBodies(String source, Set<String> names) {
+  final decl = RegExp(
+    r'^(?:class|mixin|extension|enum) ([A-Za-z0-9_]+)',
+    multiLine: true,
+  );
+  final matches = decl.allMatches(source).toList();
+  final buffer = StringBuffer();
+  var cursor = 0;
+  for (var i = 0; i < matches.length; i++) {
+    if (!names.contains(matches[i].group(1))) continue;
+    final start = matches[i].start;
+    final end = i + 1 < matches.length ? matches[i + 1].start : source.length;
+    buffer.write(source.substring(cursor, start));
+    // Keep the newlines so line-anchored patterns behave the same.
+    buffer.write('\n' * '\n'.allMatches(source.substring(start, end)).length);
+    cursor = end;
+  }
+  buffer.write(source.substring(cursor));
+  return buffer.toString();
 }
 
 /// The English translation table, so `l10n.text('k')` titles resolve to the
@@ -134,6 +234,16 @@ Map<String, String> _englishStrings(String translationsSource) {
 /// make "delete" match half the app; an input's label is the setting's name.
 final _inputWidget = RegExp(r'(Field|Input|Number|Slider|Dropdown|Picker)$');
 
+/// Constructors whose `title:` is NOT a settings row: a confirmation dialog,
+/// an alert, a snackbar or an error/empty state. Indexing those made the search
+/// look like it worked while matching text the user can never see on the page —
+/// typing "Delete Deep-Star Tiles" (a destructive dialog's title) returned
+/// Catalogs, while "GLADE" (a heading rendered on that same page) returned
+/// nothing.
+final _nonRowTitle = RegExp(
+  r'(Dialog|Alert|Snack|Toast|Banner|EmptyState|ErrorState|Tooltip)',
+);
+
 /// Every human-readable setting name in [source], with `l10n` keys resolved.
 List<String> _titles(String source, Map<String, String> english) {
   final found = <String>[];
@@ -153,8 +263,44 @@ List<String> _titles(String source, Map<String, String> english) {
     }
   }
 
-  addLiteral(RegExp(r"title:\s*'((?:[^'\\]|\\.)*)'"));
-  addKey(RegExp(r"title:\s*(?:context\.)?l10n\.text\(\s*'([A-Za-z0-9_]+)'"));
+  void addRowTitle(
+    RegExp pattern, {
+    bool resolveKey = false,
+    bool headingsOnly = false,
+  }) {
+    for (final m in pattern.allMatches(source)) {
+      final owner = _enclosingConstructor(source, m.start);
+      if (owner != null && _nonRowTitle.hasMatch(owner)) continue;
+      // A heading is styled text, and modal headings are styled identically to
+      // page headings — but a settings row is never phrased as a question,
+      // while a confirmation ("Clear logs?", "Reset Tutorial Progress?")
+      // always is. Cheap, and it does not depend on guessing an ancestor
+      // chain through unparsed source.
+      if (headingsOnly && m.group(1)!.trimRight().endsWith('?')) continue;
+      if (resolveKey) {
+        final resolved = english[m.group(1)!];
+        if (resolved != null) found.add(resolved);
+      } else {
+        found.add(m.group(1)!);
+      }
+    }
+  }
+
+  addRowTitle(RegExp(r"title:\s*'((?:[^'\\]|\\.)*)'"));
+  addRowTitle(
+    RegExp(r"title:\s*(?:context\.)?l10n\.text\(\s*'([A-Za-z0-9_]+)'"),
+    resolveKey: true,
+  );
+  // Headings a page renders as styled text rather than as a row title. The
+  // Catalogs page heads each card with `Text('GLADE+ Galaxy Catalog', style:
+  // NightshadeTypography.h4)`, which no `title:` rule can see — so the visible
+  // name of an installable catalogue was unsearchable.
+  addRowTitle(
+    RegExp(
+      r"Text\(\s*'((?:[^'\\]|\\.)*)'\s*,\s*style:\s*NightshadeTypography\.h[1-6]",
+    ),
+    headingsOnly: true,
+  );
   // Some pages label their controls directly instead of wrapping each one in a
   // SettingRow — the whole Adaptive Exposure page is built that way, and it had
   // no searchable content at all until these were included.
@@ -169,34 +315,40 @@ List<String> _titles(String source, Map<String, String> english) {
   return found;
 }
 
-/// Setting names rendered by [file] AND by any settings page it embeds.
+/// Setting names rendered by [widget] AND by any settings page it embeds.
 ///
 /// Two catalog entries are pure composers: Files & Storage and Autofocus render
 /// nothing themselves, they stack other settings pages inside a shared shell. Not
 /// following the composition left both of them with an empty index, so none of
 /// their settings could be found by name.
+///
+/// Composition is followed from the CLASS body, so a sibling class that happens
+/// to live in the same file contributes nothing unless this page actually
+/// builds it.
 List<String> _collect(
-  File file,
-  Map<String, File> classes,
+  _Library? library,
+  _Libraries libraries,
   Map<String, String> english, {
   int depth = 0,
   Set<String>? visited,
 }) {
   visited ??= <String>{};
-  if (!visited.add(file.path) || depth > 3) return const [];
-  final source = file.readAsStringSync();
-  final found = _titles(source, english);
+  if (library == null || !visited.add(library.path) || depth > 3) {
+    return const [];
+  }
+  final found = _titles(library.source, english);
   // Follow constructor calls that resolve to another page under settings/,
   // excluding the shared row/section components — those are generic chrome and
   // their internal strings are not this page's content.
-  for (final m in RegExp(r'\b([A-Z][A-Za-z0-9_]{3,})\(').allMatches(source)) {
-    final target = classes[m.group(1)!];
+  for (final m in RegExp(
+    r'\b([A-Z][A-Za-z0-9_]{3,})\(',
+  ).allMatches(library.source)) {
+    final target = libraries.forClass(m.group(1)!);
     if (target == null) continue;
-    final path = target.path;
-    if (!path.contains('/screens/settings/')) continue;
-    if (path.contains('/widgets/settings_widgets/')) continue;
+    if (!target.path.contains('/screens/settings/')) continue;
+    if (target.path.contains('/widgets/settings_widgets/')) continue;
     found.addAll(
-      _collect(target, classes, english, depth: depth + 1, visited: visited),
+      _collect(target, libraries, english, depth: depth + 1, visited: visited),
     );
   }
   return found;
@@ -216,7 +368,10 @@ bool _enclosedByInput(String source, int offset) {
 /// where the naive answer is `ValueKey` and the real one is
 /// `_LabeledNumberField`. Getting this wrong silently dropped an entire settings
 /// page out of the index.
-String? _enclosingConstructor(String source, int offset) {
+String? _enclosingConstructor(String source, int offset) =>
+    _enclosingCall(source, offset).name;
+
+({String? name, int? open}) _enclosingCall(String source, int offset) {
   final from = offset < 2000 ? 0 : offset - 2000;
   // Blank out string literals so parentheses inside labels ("Exposure (s)") do
   // not unbalance the count.
@@ -230,15 +385,19 @@ String? _enclosingConstructor(String source, int offset) {
       depth++;
     } else if (c == '(') {
       if (depth == 0) {
+        // Dotted, so named constructors and static helpers are visible to the
+        // callers that classify them: `ConfirmDialog.show` and
+        // `EmptyState.compact` are dialogs, `show`/`compact` alone are not
+        // recognisable as anything.
         final head = RegExp(
-          r'([A-Za-z_][A-Za-z0-9_]*)$',
+          r'([A-Za-z_][A-Za-z0-9_.]*)$',
         ).firstMatch(window.substring(0, i));
-        return head?.group(1);
+        return (name: head?.group(1), open: from + i);
       }
       depth--;
     }
   }
-  return null;
+  return (name: null, open: null);
 }
 
 /// Keeps only titles that are useful, stable search terms.
@@ -268,18 +427,25 @@ String _generate(String repoRoot) {
   final english = _englishStrings(
     File('$repoRoot/$_translationsPath').readAsStringSync(),
   );
-  final classes = _classIndex(repoRoot);
   final widgets = _sectionWidgets(catalog);
+  final roots = widgets.values.toSet();
 
   final missing = <String>[];
   final entries = <String, List<String>>{};
   for (final key in widgets.keys.toList()..sort()) {
-    final file = classes[widgets[key]!];
-    if (file == null) {
-      missing.add('$key -> ${widgets[key]}');
+    final widget = widgets[key]!;
+    // Index this page against a source in which every OTHER section's root
+    // widget has been blanked out, so co-located pages stay separate.
+    final libraries = _libraryIndex(
+      repoRoot,
+      exclude: roots.difference({widget}),
+    );
+    final library = libraries.forClass(widget);
+    if (library == null) {
+      missing.add('$key -> $widget');
       continue;
     }
-    final titles = _clean(_collect(file, classes, english));
+    final titles = _clean(_collect(library, libraries, english));
     if (titles.isNotEmpty) entries[key] = titles;
   }
   if (missing.isNotEmpty) {

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/widgets/auto_discovery_launcher.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import '../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 class _MockFfiBackend extends Mock implements FfiBackend {}
 
@@ -65,6 +66,7 @@ void main() {
   }) {
     return ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith((ref) {
           final notifier = _SwappableBackendNotifier(ref, backend);
           captureBackend?.call(notifier);

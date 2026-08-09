@@ -5,6 +5,8 @@ import 'package:nightshade_app/screens/sequencer/widgets/quick_start_wizard_dial
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
+import '../../harness/provider_teardown.dart';
 
 class _AppSettingsNotifier extends AppSettingsNotifier {
   @override
@@ -72,6 +74,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           appSettingsProvider.overrideWith(_AppSettingsNotifier.new),
           equipmentProfilesProvider.overrideWith(
             () => _ProfilesNotifier(null),
@@ -134,6 +137,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           appSettingsProvider.overrideWith(_AppSettingsNotifier.new),
           equipmentProfilesProvider.overrideWith(
             () => _ProfilesNotifier(
@@ -169,6 +173,95 @@ void main() {
     expect(_textFieldWithText(expectedL), findsNWidgets(3));
     expect(_textFieldWithText('120'), findsNothing);
     expect(_textFieldWithText('300'), findsNothing);
+
+    await settleProviderTeardown(tester);
+  });
+
+  testWidgets(
+      'frames per filter drives the review estimate and generated loop exactly',
+      (tester) async {
+    final editor = CurrentSequenceNotifier();
+    final settingsDao = _MockSettingsDao();
+    when(() => settingsDao.getSetting(any())).thenAnswer((_) async => null);
+    when(() => settingsDao.setSetting(any(), any())).thenAnswer((_) async {});
+    when(() => settingsDao.setSettings(any())).thenAnswer((_) async {});
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          inMemoryDatabaseOverride(),
+          settingsDaoProvider.overrideWithValue(settingsDao),
+          appSettingsProvider.overrideWith(_AppSettingsNotifier.new),
+          equipmentProfilesProvider.overrideWith(
+            () => _ProfilesNotifier(
+              const EquipmentProfileModel(
+                id: 1,
+                name: 'Test Rig',
+                isActive: true,
+                filterNames: ['L', 'Ha'],
+              ),
+            ),
+          ),
+          smartNightExposureContextProvider.overrideWith((ref) async => null),
+          currentSequenceProvider.overrideWith((ref) => editor),
+        ],
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(body: QuickStartWizardDialog()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Target Name'),
+      'X',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Right Ascension'),
+      '5.5',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Declination'),
+      '-5.4',
+    );
+    await tester.pump();
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Next'));
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(find.text('Step 2 of 5: Filters & Exposures'), findsOneWidget);
+
+    final framesField = find.byWidgetPredicate(
+      (widget) =>
+          widget is TextField &&
+          widget.decoration?.labelText == 'Frames per filter',
+    );
+    await tester.enterText(framesField, '3');
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(_textFieldWithText('3'), findsOneWidget);
+
+    for (var step = 0; step < 3; step++) {
+      await tester.tap(find.widgetWithText(NightshadeButton, 'Next'));
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+
+    expect(find.text('Frames per filter'), findsOneWidget);
+    expect(find.text('~38m'), findsOneWidget);
+    expect(find.textContaining('L'), findsWidgets);
+    expect(find.textContaining('Ha'), findsWidgets);
+
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Create Sequence'));
+    await tester.pump(const Duration(milliseconds: 500));
+
+    final sequence = editor.state;
+    expect(sequence, isNotNull);
+    final exposures = sequence!.nodes.values.whereType<ExposureNode>().toList();
+    final loops = sequence.nodes.values.whereType<LoopNode>().toList();
+    expect(exposures, hasLength(2));
+    expect(exposures.map((node) => node.count), everyElement(1));
+    expect(loops, hasLength(1));
+    expect(loops.single.repeatCount, 3);
   });
 
   testWidgets('rejects impossible coordinates and accepts strict HMS/DMS',
@@ -176,6 +269,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           appSettingsProvider.overrideWith(_AppSettingsNotifier.new),
           equipmentProfilesProvider.overrideWith(
             () => _ProfilesNotifier(null),
@@ -219,6 +313,8 @@ void main() {
     await tester.tap(find.widgetWithText(NightshadeButton, 'Next'));
     await tester.pumpAndSettle();
     expect(find.text('Step 2 of 5: Filters & Exposures'), findsOneWidget);
+
+    await settleProviderTeardown(tester);
   });
 
   testWidgets(
@@ -241,6 +337,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            inMemoryDatabaseOverride(),
             appSettingsProvider.overrideWith(_AppSettingsNotifier.new),
             equipmentProfilesProvider.overrideWith(
               () => _ProfilesNotifier(profile),
@@ -282,6 +379,8 @@ void main() {
       // The "Using your saved defaults" hint is shown because the
       // profile's cooling temp diverged from the wizard's fallback.
       expect(find.textContaining('Using your saved defaults'), findsOneWidget);
+
+      await settleProviderTeardown(tester);
     },
   );
 
@@ -291,6 +390,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           appSettingsProvider.overrideWith(_AppSettingsNotifier.new),
           equipmentProfilesProvider.overrideWith(
             () => _FailingProfilesNotifier(() => attempts++),
@@ -329,6 +429,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            inMemoryDatabaseOverride(),
             settingsDaoProvider.overrideWithValue(settingsDao),
             appSettingsProvider.overrideWith(_AppSettingsNotifier.new),
             equipmentProfilesProvider.overrideWith(
@@ -403,6 +504,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           appSettingsProvider.overrideWith(_AppSettingsNotifier.new),
           equipmentProfilesProvider.overrideWith(
             () => _ProfilesNotifier(null),
@@ -477,6 +579,8 @@ void main() {
     expect(find.text('Quick-Start Sequence Wizard'), findsNothing);
     expect(editor.state?.name, 'M31 Sequence');
     expect(editor.isDirty, isFalse);
+
+    await settleProviderTeardown(tester);
   });
 }
 

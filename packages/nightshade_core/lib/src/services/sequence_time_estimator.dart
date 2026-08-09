@@ -100,6 +100,17 @@ class TargetWindow {
   /// True if the target never rises above the minimum altitude
   final bool neverRises;
 
+  /// Sky geometry this window was solved from, in degrees. Populated by
+  /// [SequenceTimeEstimator.calculateTargetWindows]; null on windows built
+  /// directly (fixtures, callers that only have rise/set instants).
+  final double? raDeg;
+  final double? decDeg;
+  final double? latitudeDeg;
+  final double? longitudeDeg;
+
+  /// Altitude that defines "up" for this window, in degrees.
+  final double? minAltitudeDeg;
+
   TargetWindow({
     required this.targetId,
     required this.targetName,
@@ -109,12 +120,47 @@ class TargetWindow {
     this.transitAltitude,
     this.isCircumpolar = false,
     this.neverRises = false,
+    this.raDeg,
+    this.decDeg,
+    this.latitudeDeg,
+    this.longitudeDeg,
+    this.minAltitudeDeg,
   });
 
-  /// Check if a given time falls within the visibility window
+  /// Apparent altitude of the target at [time], in degrees, or null when this
+  /// window carries no geometry.
+  double? altitudeAt(DateTime time) {
+    final ra = raDeg;
+    final dec = decDeg;
+    final lat = latitudeDeg;
+    final lon = longitudeDeg;
+    if (ra == null || dec == null || lat == null || lon == null) return null;
+
+    final (trueAlt, _) = AstronomyCalculations.equatorialToHorizontal(
+      raDeg: ra,
+      decDeg: dec,
+      latitudeDeg: lat,
+      lstHours: AstronomyCalculations.localSiderealTime(time, lon),
+    );
+    return AstronomyCalculations.trueToApparentAltitude(trueAlt);
+  }
+
+  /// Check if a given time falls within the visibility window.
+  ///
+  /// When geometry is available this asks the sky directly: is the target
+  /// above the altitude floor AT `time`. The rise/set pair cannot answer that
+  /// on its own, because the solver scans one noon-to-noon window and so
+  /// reports the NEXT rise for a target that is already up at the anchor — a
+  /// target at the zenith at 12:47 came back as "rises at 03:41" (tomorrow)
+  /// and every membership test against that interval said "not up yet".
   bool isVisibleAt(DateTime time) {
     if (neverRises) return false;
     if (isCircumpolar) return true;
+
+    final altitude = altitudeAt(time);
+    if (altitude != null) {
+      return altitude >= (minAltitudeDeg ?? 0);
+    }
 
     if (riseTime == null || setTime == null) return false;
 
@@ -143,9 +189,9 @@ class TargetWindow {
 /// visibility window.
 class SequenceTimeEstimator {
   /// Per-operation overhead model. Single source of truth shared with the
-  /// tree-row rollup ([nodeRollupDurationProvider]) and
-  /// [Sequence.estimateWithOverhead] so the node chip, the timeline, and the
-  /// run-dashboard total all agree. Construct via [SequenceTimeEstimator.new]
+  /// tree-row rollup ([nodeRollupDurationProvider]) and the pre-flight
+  /// simulation so the node chip, the timeline, the Pre-Flight duration and
+  /// the run-dashboard total all agree. Construct via [SequenceTimeEstimator.new]
   /// with a config derived from the user's `SequencerDefaults` (see the app
   /// call sites); the no-arg `const` form keeps the estimator's historical
   /// defaults so existing tests and zero-config callers behave unchanged.
@@ -412,6 +458,21 @@ class SequenceTimeEstimator {
     return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
   }
 
+  /// Format [time] for display next to [reference], adding the calendar date
+  /// whenever the two fall on different days. A bare "03:41" printed beside a
+  /// node scheduled at "12:47" reads as a time that already passed even when
+  /// it is tomorrow morning's rise.
+  String _formatTimeRelativeTo(DateTime time, DateTime reference) {
+    final sameDay =
+        time.year == reference.year &&
+        time.month == reference.month &&
+        time.day == reference.day;
+    if (sameDay) return _formatTime(time);
+    final month = time.month.toString().padLeft(2, '0');
+    final day = time.day.toString().padLeft(2, '0');
+    return '${_formatTime(time)} on $month-$day';
+  }
+
   /// Calculate when the specified twilight type will occur.
   ///
   /// Returns the next occurrence of the specified twilight (dusk or dawn),
@@ -458,6 +519,21 @@ class SequenceTimeEstimator {
 
     return targetTime;
   }
+
+  /// Intrinsic duration of ONE instance of [node], excluding its children.
+  ///
+  /// Public so the sequencer tree's per-row rollup bills each node with the
+  /// same model the timeline and the pre-flight simulation use. The rollup used
+  /// to carry its own table of per-node costs, which disagreed with this one on
+  /// every node it did not list (Delay, Wait, Park, Script and Rotator were all
+  /// billed at zero) and on Cool Camera (a flat "cooling" constant instead of
+  /// the node's own configured duration) — so the Builder's estimate chip and
+  /// the Pre-Flight simulation printed different totals for the same sequence.
+  ///
+  /// [at] anchors the nodes whose duration depends on the clock (Wait Until);
+  /// it defaults to now.
+  Duration nodeDuration(SequenceNode node, {DateTime? at}) =>
+      _estimateNodeDuration(node, at ?? DateTime.now(), null);
 
   /// Estimate the duration of a single node based on its type.
   Duration _estimateNodeDuration(
@@ -678,7 +754,9 @@ class SequenceTimeEstimator {
   /// set times based on the observer's location.
   ///
   /// [sequence] - The sequence containing target headers
-  /// [date] - The date to calculate visibility for
+  /// [date] - An instant within the observing night (in practice the run's
+  ///   start time, via [analyzeSequence]). Resolved to the night that CONTAINS
+  ///   it because the visibility scan runs local noon to noon.
   /// [latitude] - Observer latitude in degrees
   /// [longitude] - Observer longitude in degrees
   /// [minAltitude] - Minimum altitude in degrees for visibility (default: 0)
@@ -692,6 +770,7 @@ class SequenceTimeEstimator {
     double minAltitude = _defaultMinAltitude,
   }) {
     final windows = <String, TargetWindow>{};
+    final nightDate = AstronomyCalculations.nightDateOf(date);
 
     // Find all TargetHeaderNode instances in the sequence
     for (final node in sequence.nodes.values) {
@@ -700,7 +779,7 @@ class SequenceTimeEstimator {
         final visibility = AstronomyCalculations.calculateObjectVisibility(
           raDeg: node.raHours * 15.0, // Convert RA hours to degrees
           decDeg: node.decDegrees,
-          date: date,
+          date: nightDate,
           latitudeDeg: latitude,
           longitudeDeg: longitude,
           minAltitude: effectiveMinAltitude,
@@ -715,6 +794,11 @@ class SequenceTimeEstimator {
           transitAltitude: visibility.transitAltitude,
           isCircumpolar: visibility.isCircumpolar,
           neverRises: visibility.neverRises,
+          raDeg: node.raHours * 15.0,
+          decDeg: node.decDegrees,
+          latitudeDeg: latitude,
+          longitudeDeg: longitude,
+          minAltitudeDeg: effectiveMinAltitude,
         );
       }
     }
@@ -784,27 +868,33 @@ class SequenceTimeEstimator {
 
       // Check start time
       if (!window.isVisibleAt(timing.estimatedStart)) {
-        if (window.riseTime != null &&
-            timing.estimatedStart.isBefore(window.riseTime!)) {
+        final start = timing.estimatedStart;
+        if (window.riseTime != null && start.isBefore(window.riseTime!)) {
           conflicts.add(
-            '$targetName: "${timing.nodeName}" scheduled at ${_formatTime(timing.estimatedStart)} '
-            'before target rises at ${_formatTime(window.riseTime!)}',
+            '$targetName: "${timing.nodeName}" scheduled at ${_formatTime(start)} '
+            'before target rises at ${_formatTimeRelativeTo(window.riseTime!, start)}',
           );
         } else if (window.setTime != null) {
           conflicts.add(
-            '$targetName: "${timing.nodeName}" scheduled at ${_formatTime(timing.estimatedStart)} '
-            'after target sets at ${_formatTime(window.setTime!)}',
+            '$targetName: "${timing.nodeName}" scheduled at ${_formatTime(start)} '
+            'after target sets at ${_formatTimeRelativeTo(window.setTime!, start)}',
           );
         }
       }
 
-      // Check end time
+      // Check end time. The `isVisibleAt` guard keeps this from firing on a
+      // set instant that belongs to a different night than the node: the
+      // window solver reports one rise/set pair per noon-to-noon scan, so the
+      // only trustworthy question is whether the target is actually down when
+      // the node ends.
+      final end = timing.estimatedEnd;
       if (window.setTime != null &&
-          timing.estimatedEnd.isAfter(window.setTime!) &&
-          !window.isCircumpolar) {
+          end.isAfter(window.setTime!) &&
+          !window.isCircumpolar &&
+          !window.isVisibleAt(end)) {
         conflicts.add(
-          '$targetName: "${timing.nodeName}" ends at ${_formatTime(timing.estimatedEnd)} '
-          'after target sets at ${_formatTime(window.setTime!)}',
+          '$targetName: "${timing.nodeName}" ends at ${_formatTime(end)} '
+          'after target sets at ${_formatTimeRelativeTo(window.setTime!, end)}',
         );
       }
     }

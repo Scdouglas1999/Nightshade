@@ -76,6 +76,7 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
     );
     _selectedId = selected.id;
     _magZeroPoint = _resolveMagZeroPoint(selected);
+    _format = _resolveFormat(selected, scienceSettings);
 
     return NightshadeCard(
       child: Padding(
@@ -131,6 +132,12 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
                 return NightshadeChip(
                   label: _formatLabel(fmt),
                   selected: _format == fmt,
+                  // `enabled: false` is what makes an unavailable network LOOK
+                  // unavailable. Passing a null onTap alone rendered it
+                  // identically to a network the operator simply had not picked
+                  // yet, so the notices below explained a blocker for a chip
+                  // that gave no sign of being blocked.
+                  enabled: enabled,
                   onTap: enabled
                       ? () => setState(() {
                             _format = fmt;
@@ -140,15 +147,29 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
                 );
               }).toList(),
             ),
-            if (!_formatEnabled(_format, selected, scienceSettings)) ...[
-              const SizedBox(height: NightshadeTokens.spaceSm),
-              Text(
-                _disabledReason(_format, selected, scienceSettings),
-                style: NightshadeTypography.labelQuiet.copyWith(
-                  color: colors.warning,
-                ),
-              ),
-            ],
+            // Every unavailable network says why, not just the selected one.
+            // A disabled chip has no onTap, so a user could never move the
+            // selection onto it — the AAVSO and MPC explanations existed in
+            // _disabledReason() and were unreachable by any sequence of clicks.
+            ...(() {
+              final notices = _disabledNotices(selected, scienceSettings);
+              if (notices.isEmpty) return <Widget>[];
+              return <Widget>[
+                const SizedBox(height: NightshadeTokens.spaceSm),
+                for (final notice in notices)
+                  Padding(
+                    padding: const EdgeInsets.only(
+                      bottom: NightshadeTokens.spaceXs,
+                    ),
+                    child: Text(
+                      notice,
+                      style: NightshadeTypography.labelQuiet.copyWith(
+                        color: colors.warning,
+                      ),
+                    ),
+                  ),
+              ];
+            })(),
             const SizedBox(height: NightshadeTokens.spaceMd),
             if (_preview != null) ...[
               Container(
@@ -201,6 +222,35 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
         ),
       ),
     );
+  }
+
+  /// The network the panel should be sitting on for [d].
+  ///
+  /// Keeps whatever is selected as long as that network can actually be used,
+  /// and otherwise moves to one that can. The panel used to open hard-coded on
+  /// TNS, so an observer with an AAVSO observer code but no TNS bot credentials
+  /// met a disabled 'Submit to TNS' and a blocker notice while a working
+  /// 'Export report' sat one unmentioned click away. When nothing is usable the
+  /// selection is left alone so the blocker shown belongs to the network the
+  /// panel is naming.
+  ///
+  /// The ORDER is the shipped preference (TNS first for a transient), not a new
+  /// opinion: this only changes which network is shown when the preferred one
+  /// is blocked.
+  TransientReportFormat _resolveFormat(
+    TransientDetectionRow d,
+    ScienceSettings settings,
+  ) {
+    if (_formatEnabled(_format, d, settings)) return _format;
+    const preference = [
+      TransientReportFormat.tns,
+      TransientReportFormat.aavso,
+      TransientReportFormat.mpc,
+    ];
+    for (final fmt in preference) {
+      if (_formatEnabled(fmt, d, settings)) return fmt;
+    }
+    return _format;
   }
 
   Widget _scienceSettingsUnavailable(AsyncValue<ScienceSettings> settings) {
@@ -345,10 +395,12 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
     TransientDetectionRow d,
     ScienceSettings settings,
   ) {
-    // A low-confidence dipole / unreviewed candidate must never one-tap a TNS
-    // "possible SN" false alarm. Gate every format on review + exclude dipoles.
+    // A low-confidence artefact / unreviewed candidate must never one-tap a TNS
+    // "possible SN" false alarm. Gate every format on review + on the class
+    // being one the pipeline reports as a transient (an allow-list, so an
+    // unrecognised token is held back without being called a dipole).
     if (!d.reviewed) return false;
-    if (TransientKind.fromWire(d.kind) == TransientKind.dipole) return false;
+    if (!TransientKind.fromWire(d.kind).isSubmittable) return false;
 
     switch (fmt) {
       case TransientReportFormat.aavso:
@@ -366,6 +418,28 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
     }
   }
 
+  /// One line per unavailable network, ready to render under the chip row.
+  ///
+  /// When the detection itself is the blocker (not confirmed, or a class that
+  /// cannot be reported) all three networks share one reason, so it is stated
+  /// once instead of three times.
+  List<String> _disabledNotices(
+    TransientDetectionRow d,
+    ScienceSettings settings,
+  ) {
+    final disabled = TransientReportFormat.values
+        .where((fmt) => !_formatEnabled(fmt, d, settings))
+        .toList(growable: false);
+    if (disabled.isEmpty) return const [];
+    if (!d.reviewed || !TransientKind.fromWire(d.kind).isSubmittable) {
+      return [_disabledReason(disabled.first, d, settings)];
+    }
+    return [
+      for (final fmt in disabled)
+        '${_formatLabel(fmt)}: ${_disabledReason(fmt, d, settings)}',
+    ];
+  }
+
   String _disabledReason(
     TransientReportFormat fmt,
     TransientDetectionRow d,
@@ -375,10 +449,8 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
       return 'Not yet confirmed — mark this detection as confirmed before '
           'submitting, so an artefact cannot be reported as a discovery.';
     }
-    if (TransientKind.fromWire(d.kind) == TransientKind.dipole) {
-      return 'Dipole artefacts (registration/PSF mismatch) are not real '
-          'transients and cannot be submitted.';
-    }
+    final kindBlocker = TransientKind.fromWire(d.kind).submissionBlockedReason;
+    if (kindBlocker != null) return kindBlocker;
     switch (fmt) {
       case TransientReportFormat.aavso:
         return _reportService.aavsoDisabledReason(

@@ -35,6 +35,7 @@ class _AdaptiveConditionsSettingsState
     'cloud': TextEditingController(),
     'wind': TextEditingController(),
   };
+  String? _weightError;
 
   @override
   void dispose() {
@@ -212,6 +213,17 @@ class _AdaptiveConditionsSettingsState
             _WeightTotalCallout(
               total: weightTotal,
             ),
+            if (_weightError != null) ...[
+              const SizedBox(height: NightshadeTokens.spaceSm),
+              Text(
+                _weightError!,
+                key: const Key('adaptiveSwapWeightError'),
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: NightshadeColors.of(context).error,
+                ),
+              ),
+            ],
           ],
         );
       },
@@ -226,6 +238,24 @@ class _AdaptiveConditionsSettingsState
   ) async {
     final next = Map<String, double>.from(settings.conditionsScoreWeights)
       ..[key] = value;
+    final total = next.values.fold<double>(0, (sum, v) => sum + v);
+    // Zeroing the last non-zero weight is not a de-emphasis, it is an off
+    // switch: AdaptiveSwapService.compose returns null when the weight total
+    // is <= 0, the driver pushes that null to the executor, and every swap
+    // decision from then on is ConditionsUnknown. Refusing the write keeps
+    // the feature configurable instead of silently disabled; the number field
+    // rolls back to its stored value when this throws.
+    if (total <= 0) {
+      const message =
+          'At least one score weight must be above zero. With every weight at '
+          '0 no conditions score can be computed and adaptive swapping stops '
+          'running.';
+      if (mounted) setState(() => _weightError = message);
+      throw ArgumentError.value(value, key, message);
+    }
+    if (mounted && _weightError != null) {
+      setState(() => _weightError = null);
+    }
     await notifier.setConditionsScoreWeights(next);
   }
 }
@@ -239,7 +269,12 @@ class _WeightRow extends StatelessWidget {
   final double authoritativeValue;
   final Object authorityKey;
   final bool isMobile;
-  final ValueChanged<double> onChanged;
+
+  /// Returns a future so a refused write (see `_setWeight`) propagates back
+  /// into [SettingsNumberInput], which rolls the field back to the stored
+  /// value. A `void` signature would swallow the rejection and leave the
+  /// field showing a number that was never saved.
+  final Future<void> Function(double) onChanged;
   final bool isLast;
 
   const _WeightRow({
@@ -292,6 +327,10 @@ class _WeightTotalCallout extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final nearOne = (total - 1.0).abs() < 0.001;
+    // A zero total is not a balance problem, it is a dead feature: compose()
+    // bails at `weightTotal <= 0` and no score is ever produced. Saying
+    // "the composer renormalizes available axes" here would be false.
+    final noAxes = total <= 0;
     final color = nearOne ? colors.info : colors.warning;
 
     return Container(
@@ -312,9 +351,14 @@ class _WeightTotalCallout extends StatelessWidget {
           const SizedBox(width: NightshadeTokens.spaceSm),
           Expanded(
             child: Text(
-              nearOne
-                  ? 'Weights sum to ${total.toStringAsFixed(2)}. The composer will preserve the configured balance.'
-                  : 'Weights sum to ${total.toStringAsFixed(2)}. The composer renormalizes available axes at runtime, but keeping the total near 1.00 makes the score easier to reason about.',
+              noAxes
+                  ? 'Weights sum to 0.00. No conditions score can be computed, '
+                      'so adaptive swapping will not run — every scheduler '
+                      'decision falls back to "conditions unknown". Set at '
+                      'least one weight above zero.'
+                  : nearOne
+                      ? 'Weights sum to ${total.toStringAsFixed(2)}. The composer will preserve the configured balance.'
+                      : 'Weights sum to ${total.toStringAsFixed(2)}. The composer renormalizes available axes at runtime, but keeping the total near 1.00 makes the score easier to reason about.',
               style: TextStyle(
                 fontSize: NightshadeTypography.fontSize12,
                 color: colors.textSecondary,

@@ -28,7 +28,19 @@
 //!
 //! The `warn!` log is the explicit non-silent error signal required by
 //! "errors are a feature".
+//!
+//! # Simulator arm
+//!
+//! Every `DriverType::Simulator` arm delegates to
+//! [`crate::api::devices::simulation`], which owns the lid's travel and the
+//! panel's warm-up. It is deliberately NOT a set of `Ok(constant)` returns:
+//! `wait_for_cover_state` and `wait_for_calibrator_state` in the sequencer poll
+//! until the device reports the state they want, so a cover that reported
+//! `Open` on the same call that commanded it would let both waits return before
+//! real hardware had begun moving — and the timeout, the halt path and the
+//! `Error` state would never be reached at all.
 
+use crate::api::devices::simulation as sim;
 use crate::device::*;
 use crate::device_manager::DeviceManager;
 use crate::dispatch::DeviceOpError;
@@ -127,11 +139,9 @@ impl DeviceManager {
                     format!("Native cover calibrator {} not found", device_id),
                 ))
             }
-            Some(DriverType::Simulator) => Err(DeviceOpError::unsupported(
-                crate::device_manager::ops::sim_gate::unsupported_simulator_device(
-                    "cover calibrator",
-                ),
-            )),
+            Some(DriverType::Simulator) => {
+                sim::sim_cover_move(true).await.map_err(DeviceOpError::from)
+            }
             _ => Err(DeviceOpError::unsupported(
                 "Cover calibrator not supported for this driver type",
             )),
@@ -182,11 +192,9 @@ impl DeviceManager {
                     format!("Native cover calibrator {} not found", device_id),
                 ))
             }
-            Some(DriverType::Simulator) => Err(DeviceOpError::unsupported(
-                crate::device_manager::ops::sim_gate::unsupported_simulator_device(
-                    "cover calibrator",
-                ),
-            )),
+            Some(DriverType::Simulator) => sim::sim_cover_move(false)
+                .await
+                .map_err(DeviceOpError::from),
             _ => Err(DeviceOpError::unsupported(
                 "Cover calibrator not supported for this driver type",
             )),
@@ -237,11 +245,7 @@ impl DeviceManager {
                     format!("Native cover calibrator {} not found", device_id),
                 ))
             }
-            Some(DriverType::Simulator) => Err(DeviceOpError::unsupported(
-                crate::device_manager::ops::sim_gate::unsupported_simulator_device(
-                    "cover calibrator",
-                ),
-            )),
+            Some(DriverType::Simulator) => sim::sim_cover_halt().await.map_err(DeviceOpError::from),
             _ => Err(DeviceOpError::unsupported(
                 "Cover calibrator not supported for this driver type",
             )),
@@ -308,11 +312,9 @@ impl DeviceManager {
                     format!("Native cover calibrator {} not found", device_id),
                 ))
             }
-            Some(DriverType::Simulator) => Err(DeviceOpError::unsupported(
-                crate::device_manager::ops::sim_gate::unsupported_simulator_device(
-                    "cover calibrator",
-                ),
-            )),
+            Some(DriverType::Simulator) => sim::sim_calibrator_on(brightness)
+                .await
+                .map_err(DeviceOpError::from),
             _ => Err(DeviceOpError::unsupported(
                 "Cover calibrator not supported for this driver type",
             )),
@@ -375,11 +377,9 @@ impl DeviceManager {
                     format!("Native cover calibrator {} not found", device_id),
                 ))
             }
-            Some(DriverType::Simulator) => Err(DeviceOpError::unsupported(
-                crate::device_manager::ops::sim_gate::unsupported_simulator_device(
-                    "cover calibrator",
-                ),
-            )),
+            Some(DriverType::Simulator) => {
+                sim::sim_calibrator_off().await.map_err(DeviceOpError::from)
+            }
             _ => Err(DeviceOpError::unsupported(
                 "Cover calibrator not supported for this driver type",
             )),
@@ -440,11 +440,10 @@ impl DeviceManager {
                     format!("Native cover calibrator {} not found", device_id),
                 ))
             }
-            Some(DriverType::Simulator) => Err(DeviceOpError::unsupported(
-                crate::device_manager::ops::sim_gate::unsupported_simulator_device(
-                    "cover calibrator",
-                ),
-            )),
+            Some(DriverType::Simulator) => sim::sim_cover_status()
+                .await
+                .map(|status| status.cover_state.to_i32())
+                .map_err(DeviceOpError::from),
             _ => Err(DeviceOpError::unsupported(
                 "Cover calibrator not supported for this driver type",
             )),
@@ -508,11 +507,10 @@ impl DeviceManager {
                     format!("Native cover calibrator {} not found", device_id),
                 ))
             }
-            Some(DriverType::Simulator) => Err(DeviceOpError::unsupported(
-                crate::device_manager::ops::sim_gate::unsupported_simulator_device(
-                    "cover calibrator",
-                ),
-            )),
+            Some(DriverType::Simulator) => sim::sim_cover_status()
+                .await
+                .map(|status| status.calibrator_state.to_i32())
+                .map_err(DeviceOpError::from),
             _ => Err(DeviceOpError::unsupported(
                 "Cover calibrator not supported for this driver type",
             )),
@@ -572,11 +570,10 @@ impl DeviceManager {
                     format!("Native cover calibrator {} not found", device_id),
                 ))
             }
-            Some(DriverType::Simulator) => Err(DeviceOpError::unsupported(
-                crate::device_manager::ops::sim_gate::unsupported_simulator_device(
-                    "cover calibrator",
-                ),
-            )),
+            Some(DriverType::Simulator) => sim::sim_cover_status()
+                .await
+                .map(|status| status.brightness)
+                .map_err(DeviceOpError::from),
             _ => Err(DeviceOpError::unsupported(
                 "Cover calibrator not supported for this driver type",
             )),
@@ -639,11 +636,10 @@ impl DeviceManager {
                     format!("Native cover calibrator {} not found", device_id),
                 ))
             }
-            Some(DriverType::Simulator) => Err(DeviceOpError::unsupported(
-                crate::device_manager::ops::sim_gate::unsupported_simulator_device(
-                    "cover calibrator",
-                ),
-            )),
+            Some(DriverType::Simulator) => sim::sim_cover_status()
+                .await
+                .map(|status| status.max_brightness)
+                .map_err(DeviceOpError::from),
             _ => Err(DeviceOpError::unsupported(
                 "Cover calibrator not supported for this driver type",
             )),
@@ -834,11 +830,9 @@ impl DeviceManager {
                     max_brightness,
                 })
             }
-            Some(DriverType::Simulator) => Err(DeviceOpError::unsupported(
-                crate::device_manager::ops::sim_gate::unsupported_simulator_device(
-                    "cover calibrator",
-                ),
-            )),
+            Some(DriverType::Simulator) => {
+                sim::sim_cover_status().await.map_err(DeviceOpError::from)
+            }
             _ => Err(DeviceOpError::unsupported(
                 "Cover calibrator not supported for this driver type",
             )),
@@ -1024,5 +1018,344 @@ mod tests {
         assert_eq!(state, 3);
         drop(manager);
         server.abort();
+    }
+}
+
+/// The simulated flat panel, driven the way the app drives a real one.
+///
+/// These deliberately go the long way round — `api_discover_devices` for the id,
+/// `connect_device` to open it, then `nightshade_sequencer::DeviceOps` for every
+/// operation — because that is the whole path the sequencer's `OpenCover` and
+/// `CalibratorOn` nodes take. Calling `sim_cover_move` directly would keep
+/// passing even if the device were never discoverable, never connectable, or the
+/// `DriverType::Simulator` arm were deleted, which is exactly how the gap being
+/// closed here survived: `scan_simulator_for_type` was willing to advertise a
+/// device that `drivers_for_device_type` never asked it for.
+#[cfg(test)]
+mod simulator_tests {
+    use crate::api::devices::simulation::sim_singleton_test_lock;
+    use crate::api::discovery::api_discover_devices;
+    use crate::api::get_device_manager;
+    use crate::device::{DeviceType, DriverType};
+    use nightshade_sequencer::DeviceOps;
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
+
+    /// ASCOM `CoverState` / `CalibratorState` discriminants, spelled out because
+    /// that is what the sequencer's `wait_for_cover_state` compares against.
+    const COVER_CLOSED: i32 = 1;
+    const COVER_MOVING: i32 = 2;
+    const COVER_OPEN: i32 = 3;
+    const COVER_UNKNOWN: i32 = 4;
+    const COVER_ERROR: i32 = 5;
+    const CALIBRATOR_OFF: i32 = 1;
+    const CALIBRATOR_NOT_READY: i32 = 2;
+    const CALIBRATOR_READY: i32 = 3;
+
+    /// Discover, register and connect the simulated panel, returning its id and
+    /// the sequencer-facing ops handle the instruction nodes use.
+    async fn connect_simulated_panel() -> (String, Arc<dyn DeviceOps>) {
+        crate::api::devices::simulation::reset_sim_cover_calibrator().await;
+        let devices = api_discover_devices(DeviceType::CoverCalibrator)
+            .await
+            .expect("cover calibrator discovery should succeed");
+        let info = devices
+            .into_iter()
+            .find(|d| d.driver_type == DriverType::Simulator)
+            .expect(
+                "discovery returned no simulated cover calibrator: flat-panel flows cannot be \
+                 exercised without hardware",
+            );
+
+        let device_id = info.id.clone();
+        let manager = get_device_manager();
+        manager.register_device(info, false).await;
+        manager
+            .connect_device(&device_id)
+            .await
+            .expect("the simulated cover calibrator should connect");
+
+        (
+            device_id,
+            crate::unified_device_ops::create_unified_device_ops(),
+        )
+    }
+
+    async fn release_simulated_panel(device_id: &str) {
+        let _ = get_device_manager().disconnect_device(device_id).await;
+    }
+
+    /// Poll `cover_state` the way `wait_for_cover_state` does, recording every
+    /// distinct state seen so the test can assert on the path, not just the
+    /// destination.
+    async fn poll_cover_until(
+        ops: &Arc<dyn DeviceOps>,
+        device_id: &str,
+        target: i32,
+        timeout: Duration,
+    ) -> Vec<i32> {
+        let start = Instant::now();
+        let mut seen: Vec<i32> = Vec::new();
+        loop {
+            let state = ops
+                .cover_calibrator_get_cover_state(device_id)
+                .await
+                .expect("cover state should be readable");
+            if seen.last() != Some(&state) {
+                seen.push(state);
+            }
+            if state == target || start.elapsed() > timeout {
+                return seen;
+            }
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+    }
+
+    /// The lid must be observed MOVING before it is open. A cover that reported
+    /// `Open` on the same poll that commanded it would let `wait_for_cover_state`
+    /// return before real hardware had begun to move, so every wait, timeout and
+    /// progress readout in the flat path would ship unexercised.
+    #[tokio::test]
+    async fn simulated_cover_is_seen_moving_before_it_is_open() {
+        let _serialized = sim_singleton_test_lock().lock().await;
+        let (device_id, ops) = connect_simulated_panel().await;
+
+        assert_eq!(
+            ops.cover_calibrator_get_cover_state(&device_id)
+                .await
+                .expect("initial cover state"),
+            COVER_CLOSED,
+            "a flat panel starts the night closed"
+        );
+
+        ops.cover_calibrator_open_cover(&device_id)
+            .await
+            .expect("open cover should be accepted");
+        assert_eq!(
+            ops.cover_calibrator_get_cover_state(&device_id)
+                .await
+                .expect("cover state right after the command"),
+            COVER_MOVING,
+            "the cover finished travelling before the command returned"
+        );
+
+        let path = poll_cover_until(&ops, &device_id, COVER_OPEN, Duration::from_secs(10)).await;
+        assert_eq!(
+            path.last(),
+            Some(&COVER_OPEN),
+            "the cover never reached Open: {path:?}"
+        );
+        assert!(
+            path.contains(&COVER_MOVING),
+            "the cover jumped straight to Open without ever reporting Moving: {path:?}"
+        );
+
+        release_simulated_panel(&device_id).await;
+    }
+
+    /// Halting mid-travel must leave the cover reporting `Unknown`. It is
+    /// genuinely neither open nor closed, and `wait_for_cover_state` then times
+    /// out rather than being told a comfortable lie — which is what a real
+    /// controller does after `HaltCover`.
+    #[tokio::test]
+    async fn halting_mid_travel_reports_unknown_not_closed() {
+        let _serialized = sim_singleton_test_lock().lock().await;
+        let (device_id, ops) = connect_simulated_panel().await;
+
+        ops.cover_calibrator_open_cover(&device_id)
+            .await
+            .expect("open cover should be accepted");
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        ops.cover_calibrator_halt_cover(&device_id)
+            .await
+            .expect("halt should be accepted");
+
+        let halted = ops
+            .cover_calibrator_get_cover_state(&device_id)
+            .await
+            .expect("cover state after halt");
+        assert_eq!(
+            halted, COVER_UNKNOWN,
+            "a cover stopped part-way reported {halted} instead of Unknown"
+        );
+
+        // And the position it stopped at is real: closing from half-open takes
+        // less than a full traverse, so the lid cannot have been silently
+        // teleported back to an endstop.
+        ops.cover_calibrator_close_cover(&device_id)
+            .await
+            .expect("close should be accepted");
+        let path = poll_cover_until(&ops, &device_id, COVER_CLOSED, Duration::from_secs(10)).await;
+        assert_eq!(path.last(), Some(&COVER_CLOSED), "path: {path:?}");
+
+        release_simulated_panel(&device_id).await;
+    }
+
+    /// A jammed lid is the failure that costs a flat sequence. The command still
+    /// succeeds — that is what makes it hard — and the controller only reports
+    /// `Error` once its own move timeout expires. Without this the `Error` arm of
+    /// `wait_for_cover_state` is unreachable without hardware.
+    #[tokio::test]
+    async fn a_jammed_cover_is_reported_rather_than_silently_never_arriving() {
+        use crate::device_manager::ops::sim_faults::{self, Effect, FaultSpec, Trigger};
+
+        let _serialized = sim_singleton_test_lock().lock().await;
+        sim_faults::clear_all();
+        let (device_id, ops) = connect_simulated_panel().await;
+
+        sim_faults::arm(
+            "covercalibrator.cover",
+            FaultSpec::new(Trigger::Always, Effect::Stall),
+        );
+        ops.cover_calibrator_open_cover(&device_id)
+            .await
+            .expect("a stalled mechanism still ACCEPTS the command");
+
+        let path = poll_cover_until(&ops, &device_id, COVER_ERROR, Duration::from_secs(15)).await;
+        assert!(
+            !path.contains(&COVER_OPEN),
+            "a stalled cover reported itself Open: {path:?}"
+        );
+        assert_eq!(
+            path.last(),
+            Some(&COVER_ERROR),
+            "the controller never gave up on the jammed lid: {path:?}"
+        );
+
+        sim_faults::clear_all();
+        release_simulated_panel(&device_id).await;
+    }
+
+    /// The panel must pass through `NotReady` before `Ready`. That state exists
+    /// because a flat taken before an EL panel settles is at the wrong level;
+    /// if the simulator jumped straight to `Ready`, the wait in
+    /// `execute_calibrator_on` would be a no-op.
+    #[tokio::test]
+    async fn calibrator_settles_through_not_ready_and_reports_the_brightness_it_reached() {
+        let _serialized = sim_singleton_test_lock().lock().await;
+        let (device_id, ops) = connect_simulated_panel().await;
+
+        assert_eq!(
+            ops.cover_calibrator_get_calibrator_state(&device_id)
+                .await
+                .expect("initial calibrator state"),
+            CALIBRATOR_OFF
+        );
+
+        let max = ops
+            .cover_calibrator_get_max_brightness(&device_id)
+            .await
+            .expect("max brightness");
+        ops.cover_calibrator_calibrator_on(&device_id, max)
+            .await
+            .expect("calibrator on should be accepted");
+        assert_eq!(
+            ops.cover_calibrator_get_calibrator_state(&device_id)
+                .await
+                .expect("calibrator state right after the command"),
+            CALIBRATOR_NOT_READY,
+            "the panel claimed to be stable the instant it was switched on"
+        );
+        assert!(
+            ops.cover_calibrator_get_brightness(&device_id)
+                .await
+                .expect("brightness while settling")
+                < max,
+            "the panel reported full output before it had ramped there"
+        );
+
+        let start = Instant::now();
+        while ops
+            .cover_calibrator_get_calibrator_state(&device_id)
+            .await
+            .expect("calibrator state")
+            != CALIBRATOR_READY
+        {
+            assert!(
+                start.elapsed() < Duration::from_secs(10),
+                "the panel never became Ready"
+            );
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+        assert_eq!(
+            ops.cover_calibrator_get_brightness(&device_id)
+                .await
+                .expect("settled brightness"),
+            max,
+            "a Ready panel must be at the level it was asked for"
+        );
+
+        ops.cover_calibrator_calibrator_off(&device_id)
+            .await
+            .expect("calibrator off should be accepted");
+        let start = Instant::now();
+        while ops
+            .cover_calibrator_get_calibrator_state(&device_id)
+            .await
+            .expect("calibrator state")
+            != CALIBRATOR_OFF
+        {
+            assert!(
+                start.elapsed() < Duration::from_secs(10),
+                "the panel never went Off"
+            );
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+
+        release_simulated_panel(&device_id).await;
+    }
+
+    /// ASCOM requires a brightness outside `0..=MaxBrightness` to be rejected.
+    /// Clamping instead would hide the app sending a 0-100 percentage to a
+    /// 0-255 panel: the flats would simply come out at the wrong level and
+    /// nothing would say so.
+    #[tokio::test]
+    async fn an_out_of_range_brightness_is_refused_rather_than_clamped() {
+        let _serialized = sim_singleton_test_lock().lock().await;
+        let (device_id, ops) = connect_simulated_panel().await;
+
+        let max = ops
+            .cover_calibrator_get_max_brightness(&device_id)
+            .await
+            .expect("max brightness");
+        let err = ops
+            .cover_calibrator_calibrator_on(&device_id, max + 1)
+            .await
+            .expect_err("a brightness above the panel's ceiling must be refused");
+        assert!(
+            err.to_string().contains("outside"),
+            "the refusal must say what was wrong with the value: {err}"
+        );
+        assert_eq!(
+            ops.cover_calibrator_get_calibrator_state(&device_id)
+                .await
+                .expect("calibrator state"),
+            CALIBRATOR_OFF,
+            "a refused command still turned the panel on"
+        );
+
+        ops.cover_calibrator_calibrator_on(&device_id, -1)
+            .await
+            .expect_err("a negative brightness must be refused");
+
+        release_simulated_panel(&device_id).await;
+    }
+
+    /// A disconnected simulator must fail loudly rather than answering with
+    /// synthetic state — the same gate every other simulator device has.
+    #[tokio::test]
+    async fn a_disconnected_panel_refuses_to_answer() {
+        let _serialized = sim_singleton_test_lock().lock().await;
+        let (device_id, ops) = connect_simulated_panel().await;
+        release_simulated_panel(&device_id).await;
+
+        let err = ops
+            .cover_calibrator_get_cover_state(&device_id)
+            .await
+            .expect_err("a disconnected panel must not report a cover state");
+        assert!(
+            err.to_string().contains("not connected"),
+            "the error must name the disconnection: {err}"
+        );
     }
 }

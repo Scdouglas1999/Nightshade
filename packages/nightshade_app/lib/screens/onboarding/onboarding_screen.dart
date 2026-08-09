@@ -571,7 +571,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _StepSidebar(currentStep: draft.currentStep),
+                    _StepSidebar(currentStep: draft.currentStep, draft: draft),
                     const SizedBox(width: 16),
                     Expanded(
                       child: NightshadeCard(
@@ -979,9 +979,12 @@ class _PhoneFooter extends StatelessWidget {
   }
 }
 
-class _StepSidebar extends StatelessWidget {
-  const _StepSidebar({required this.currentStep});
+class _StepSidebar extends ConsumerWidget {
+  const _StepSidebar({required this.currentStep, required this.draft});
   final OnboardingStep currentStep;
+
+  /// The live draft, so a passed step is ticked only when it captured a value.
+  final OnboardingDraft draft;
 
   /// Human-readable label for [step], shared with the phone header.
   static String labelFor(OnboardingStep step) => _stepLabels[step] ?? '';
@@ -1019,10 +1022,17 @@ class _StepSidebar extends StatelessWidget {
   };
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
     final theme = Theme.of(context);
     final currentIdx = currentStep.order;
+
+    // The observing site is a global observer setting, so it is the only step
+    // whose value lives outside the draft. Null island (0,0) is the "not set"
+    // sentinel, exactly as the Review screen reads it.
+    final settings = ref.watch(appSettingsProvider).valueOrNull;
+    final siteConfigured = settings != null &&
+        (settings.latitude != 0.0 || settings.longitude != 0.0);
 
     return SizedBox(
       width: 220,
@@ -1034,39 +1044,56 @@ class _StepSidebar extends StatelessWidget {
           children: OnboardingStep.values.map((step) {
             final idx = step.order;
             final isActive = step == currentStep;
-            final isCompleted = idx < currentIdx;
+            final isPassed = idx < currentIdx;
+            // A tick claims the step configured something. Steps the user
+            // walked past without supplying a value (a skipped focuser, a
+            // guider whose test failed) get a dash instead — the same answer
+            // the Review screen gives.
+            final isCompleted = isPassed &&
+                draft.producedValueFor(step, siteConfigured: siteConfigured);
+            final isSkipped = isPassed && !isCompleted;
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 4),
               child: Row(
                 children: [
-                  Container(
-                    width: 26,
-                    height: 26,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isActive || isCompleted
-                          ? colors.primary
-                          : colors.surfaceAlt,
-                      border: Border.all(
-                        color: isActive
+                  Tooltip(
+                    message: isCompleted
+                        ? 'Configured'
+                        : isSkipped
+                            ? 'Skipped — nothing was set'
+                            : isActive
+                                ? 'Current step'
+                                : 'Not reached yet',
+                    child: Container(
+                      width: 26,
+                      height: 26,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isActive || isCompleted
                             ? colors.primary
-                            : isCompleted
-                                ? colors.primary
-                                : colors.border,
+                            : colors.surfaceAlt,
+                        border: Border.all(
+                          color: isActive || isCompleted
+                              ? colors.primary
+                              : colors.border,
+                        ),
                       ),
-                    ),
-                    child: Center(
-                      child: isCompleted
-                          ? Icon(NightshadeIcons.check,
-                              size: 12,
-                              color: Theme.of(context).colorScheme.onPrimary)
-                          : Icon(
-                              _stepIcons[step] ?? NightshadeIcons.circle,
-                              size: 12,
-                              color: isActive
-                                  ? Theme.of(context).colorScheme.onPrimary
-                                  : colors.textMuted,
-                            ),
+                      child: Center(
+                        child: isCompleted
+                            ? Icon(NightshadeIcons.check,
+                                size: 12,
+                                color: Theme.of(context).colorScheme.onPrimary)
+                            : Icon(
+                                isSkipped
+                                    ? NightshadeIcons.remove
+                                    : (_stepIcons[step] ??
+                                        NightshadeIcons.circle),
+                                size: 12,
+                                color: isActive
+                                    ? Theme.of(context).colorScheme.onPrimary
+                                    : colors.textMuted,
+                              ),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -1083,7 +1110,10 @@ class _StepSidebar extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  if (step.isOptional)
+                  // Only ahead of the cursor: once a step is behind you the
+                  // leading indicator already says configured vs skipped, and
+                  // a second dash on the same row just reads as noise.
+                  if (step.isOptional && !isPassed)
                     Tooltip(
                       message: 'Optional step',
                       child: Icon(

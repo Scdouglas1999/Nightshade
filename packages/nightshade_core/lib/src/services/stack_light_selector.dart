@@ -257,6 +257,7 @@ class StackLightSelector {
       filter: frame.filter,
       qualityScore: frame.qualityScore,
       isReference: isReference,
+      exposureSecs: frame.exposureDuration,
     );
   }
 

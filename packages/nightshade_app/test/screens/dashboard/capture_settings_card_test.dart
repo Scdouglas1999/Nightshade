@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,12 +20,24 @@ class _ConnectedCameraNotifier extends CameraStateNotifier {
   }
 }
 
+/// Holds both capture entry points open so a test can inspect the card while
+/// an exposure is in flight.
+///
+/// Capture and Loop are deliberately DIFFERENT calls on the service — Loop
+/// goes through [ImagingService.startLoopCapture] so its frames land on a
+/// scratch path instead of the light-frame folder — so both are stubbed and
+/// counted separately here. See `capture_card_loop_retention_test.dart`.
 class _ControlledImagingService extends ImagingService {
   _ControlledImagingService(super.ref);
 
   final captureResult = Completer<CapturedImageData?>();
   int captureCalls = 0;
   bool cancelled = false;
+
+  /// One completer per live-view frame, held open until the test releases it.
+  final _loopFrames = <Completer<void>>[];
+
+  int get loopFrameCalls => _loopFrames.length;
 
   @override
   Future<CapturedImageData?> captureImage({
@@ -36,6 +49,37 @@ class _ControlledImagingService extends ImagingService {
   }) {
     captureCalls++;
     return captureResult.future;
+  }
+
+  @override
+  Future<void> startLoopCapture({
+    required ExposureSettings settings,
+    String? targetName,
+    int? maxFrames,
+    int maxConsecutiveErrors = 10,
+    bool saveFrames = false,
+    void Function(CapturedImageData)? onImageCaptured,
+    void Function(String)? onError,
+  }) async {
+    final frame = Completer<void>();
+    _loopFrames.add(frame);
+    await frame.future;
+    onImageCaptured?.call(
+      CapturedImageData(
+        width: 4,
+        height: 4,
+        displayData: Uint8List(4 * 4 * 4),
+        histogram: List<int>.filled(256, 0),
+        stats: const ImageStats(mean: 100, stdDev: 5),
+        capturedAt: DateTime.utc(2026, 8, 2, 22),
+        settings: settings,
+        filePath: '/tmp/nightshade_captures/liveview_camera-1.fits',
+      ),
+    );
+  }
+
+  void completeLoopFrame() {
+    _loopFrames.lastWhere((frame) => !frame.isCompleted).complete();
   }
 
   @override
@@ -124,7 +168,9 @@ void main() {
     await tester.tap(find.text('Loop'));
     await tester.pump();
 
-    expect(imagingService.captureCalls, 1);
+    expect(imagingService.loopFrameCalls, 1);
+    expect(imagingService.captureCalls, 0,
+        reason: 'Loop is a live view; the keeper path belongs to Capture.');
     final stopButton = tester.widget<NightshadeButton>(
       find.widgetWithText(NightshadeButton, 'Stop Loop'),
     );
@@ -137,9 +183,41 @@ void main() {
         reason: 'Stopping a loop lets the current frame finish; Abort is the '
             'separate immediate-cancel control.');
 
-    imagingService.captureResult.complete(null);
+    imagingService.completeLoopFrame();
     await tester.pump();
-    expect(imagingService.captureCalls, 1);
+    expect(imagingService.loopFrameCalls, 1);
+  });
+
+  testWidgets('Abort sends nothing when no exposure is in flight',
+      (tester) async {
+    late _ControlledImagingService imagingService;
+    await pumpAppScreen(
+      tester,
+      const CaptureSettingsCard(colors: NightshadeColors.dark),
+      extraOverrides: [
+        cameraStateProvider.overrideWith(_ConnectedCameraNotifier.new),
+        imagingServiceProvider.overrideWith((ref) {
+          return imagingService = _ControlledImagingService(ref);
+        }),
+      ],
+    );
+
+    await tester.tap(find.text('Loop'));
+    await tester.pump();
+    imagingService.completeLoopFrame();
+    await tester.pump();
+    // The loop is now idling between frames: Abort is still offered, but
+    // there is no exposure to abort.
+    expect(find.text('Stop Loop'), findsOneWidget);
+
+    await tester.tap(find.text('Abort'));
+    await tester.pump(const Duration(milliseconds: 600));
+
+    expect(imagingService.cancelled, isFalse,
+        reason: 'a cancel dispatched at idle aborts nothing and latches the '
+            'service cancel flag, which blocks the NEXT loop from starting');
+    expect(find.text('Loop'), findsOneWidget);
+    expect(imagingService.loopFrameCalls, 1);
   });
 
   testWidgets('host switch stops loop and discards the old capture completion',
@@ -167,23 +245,23 @@ void main() {
 
     await tester.tap(find.text('Loop'));
     await tester.pump();
-    expect(serviceA.captureCalls, 1);
+    expect(serviceA.loopFrameCalls, 1);
     expect(find.text('Stop Loop'), findsOneWidget);
 
     handle.container.read(_imagingHostProvider.notifier).state = 1;
     await tester.pump();
     expect(find.text('Loop'), findsOneWidget);
 
-    serviceA.captureResult.complete(null);
+    serviceA.completeLoopFrame();
     await tester.pump();
-    expect(serviceB.captureCalls, 0);
+    expect(serviceB.loopFrameCalls, 0);
     expect(find.text('Loop'), findsOneWidget);
 
     await tester.tap(find.text('Loop'));
     await tester.pump();
-    expect(serviceB.captureCalls, 1);
-    serviceB.captureResult.complete(null);
-    await tester.pump();
+    expect(serviceB.loopFrameCalls, 1);
+    serviceB.completeLoopFrame();
+    await tester.pump(const Duration(milliseconds: 600));
   });
 
   testWidgets('completed filter move survives card navigation', (tester) async {

@@ -14,11 +14,18 @@ class SearchHeader extends ConsumerStatefulWidget {
   final TextEditingController controller;
   final ValueChanged<String> onSearch;
 
+  /// Focus node for the search field, supplied by the host when something
+  /// outside this widget has to put the caret in the field — the command bar's
+  /// "Search ⌘K" button and its keyboard shortcut. Owned by the caller when
+  /// non-null; otherwise this widget creates and disposes its own.
+  final FocusNode? focusNode;
+
   const SearchHeader({
     super.key,
     required this.colors,
     required this.controller,
     required this.onSearch,
+    this.focusNode,
   });
 
   @override
@@ -28,28 +35,38 @@ class SearchHeader extends ConsumerStatefulWidget {
 class _SearchHeaderState extends ConsumerState<SearchHeader> {
   final LayerLink _layerLink = LayerLink();
   OverlayEntry? _overlayEntry;
-  final FocusNode _focusNode = FocusNode();
+
+  /// Fallback node used only when the host does not supply one.
+  FocusNode? _ownedFocusNode;
+  FocusNode get _focusNode =>
+      widget.focusNode ?? (_ownedFocusNode ??= FocusNode());
+
   Timer? _debounceTimer;
   CelestialCoordinate? _parsedCoordinate;
   bool _showFilters = false;
 
+  void _onFocusChanged() {
+    if (_focusNode.hasFocus) {
+      _showOverlay();
+    } else {
+      _hideOverlay();
+    }
+  }
+
   @override
   void initState() {
     super.initState();
-    _focusNode.addListener(() {
-      if (_focusNode.hasFocus) {
-        _showOverlay();
-      } else {
-        _hideOverlay();
-      }
-    });
+    _focusNode.addListener(_onFocusChanged);
     widget.controller.addListener(_onTextChanged);
   }
 
   @override
   void dispose() {
     _hideOverlay();
-    _focusNode.dispose();
+    // Only the fallback node is ours to dispose; a host-supplied node outlives
+    // this widget (the plan panel is unmounted whenever it is closed).
+    _focusNode.removeListener(_onFocusChanged);
+    _ownedFocusNode?.dispose();
     _debounceTimer?.cancel();
     widget.controller.removeListener(_onTextChanged);
     super.dispose();
@@ -399,7 +416,11 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
         onTap: () {
           ref.read(selectedObjectProvider.notifier).selectObject(dso);
           ref.read(flyToRequestProvider.notifier).flyTo(dso.coordinates);
-          widget.onSearch(dso.name);
+          // Deliberately does NOT re-run the query on the picked object's
+          // name: that replaced the typed query's results (typing "6720" then
+          // picking M57 left the sidebar listing matches for "M57" while the
+          // field still read "6720"), so backing out of a wrong pick landed in
+          // a list the user never asked for.
           _hideOverlay();
           _focusNode.unfocus();
         },
@@ -450,13 +471,17 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
     );
   }
 
-  /// True if [star] is a solar-system body wrapped by the search resolver
-  /// (planets and minor bodies use PLANET_/MINORBODY_ id prefixes).
-  static bool _isSolarSystemBody(Star star) =>
-      star.id.startsWith('PLANET_') || star.id.startsWith('MINORBODY_');
+  /// True if [star] is a solar-system body wrapped by the search resolver.
+  ///
+  /// Asks the type rather than sniffing the `PLANET_`/`MINORBODY_` id prefix:
+  /// the prefix is an internal join key and duplicating knowledge of it here is
+  /// what let a planet be treated as a star everywhere that did not remember to
+  /// check.
+  static bool _isSolarSystemBody(Star star) => star is SolarSystemBody;
 
   Widget _buildSolarSystemResultTile(WidgetRef ref, Star body) {
-    final isPlanet = body.id.startsWith('PLANET_');
+    final isPlanet =
+        body is SolarSystemBody && body.kind == SolarSystemBodyKind.planet;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
@@ -464,7 +489,8 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
         onTap: () {
           ref.read(selectedObjectProvider.notifier).selectObject(body);
           ref.read(flyToRequestProvider.notifier).flyTo(body.coordinates);
-          widget.onSearch(body.name);
+          // See _buildDsoResultTile: picking a result must not rewrite the
+          // query the user typed.
           _hideOverlay();
           _focusNode.unfocus();
         },
@@ -516,7 +542,8 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
         onTap: () {
           ref.read(selectedObjectProvider.notifier).selectObject(star);
           ref.read(flyToRequestProvider.notifier).flyTo(star.coordinates);
-          widget.onSearch(star.name);
+          // See _buildDsoResultTile: picking a result must not rewrite the
+          // query the user typed.
           _hideOverlay();
           _focusNode.unfocus();
         },
@@ -640,7 +667,7 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
                               NightshadeTokens.radiusInline4),
                         ),
                         child: Text(
-                          '\u2318K',
+                          shortcutLabel('K'),
                           style: TextStyle(
                               fontSize: NightshadeTypography.fontSize10,
                               color: widget.colors.textMuted),

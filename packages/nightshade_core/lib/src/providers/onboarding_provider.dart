@@ -3,10 +3,10 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../models/backend/device_types.dart';
 import '../models/hardware_presets/hardware_preset_models.dart';
 import '../models/onboarding/onboarding_state.dart';
 import '../backend/network_backend.dart';
+import '../backend/nightshade_backend.dart';
 import '../providers/backend_provider.dart';
 import '../providers/database_provider.dart';
 import '../providers/hardware_presets_provider.dart';
@@ -319,6 +319,7 @@ class OnboardingNotifier extends StateNotifier<OnboardingDraft> {
     int? binX,
     int? binY,
     double? coolingTempC,
+    bool? coolOnConnect,
     bool clearCoolingTempC = false,
     bool clearGain = false,
     bool clearOffset = false,
@@ -331,6 +332,7 @@ class OnboardingNotifier extends StateNotifier<OnboardingDraft> {
       defaultBinX: binX ?? state.defaultBinX,
       defaultBinY: binY ?? state.defaultBinY,
       defaultCoolingTempC: coolingTempC ?? state.defaultCoolingTempC,
+      coolOnConnect: coolOnConnect,
       clearCoolingTempC: clearCoolingTempC,
       clearGain: clearGain,
       clearOffset: clearOffset,
@@ -420,13 +422,14 @@ class OnboardingNotifier extends StateNotifier<OnboardingDraft> {
       defaultBinX: draft.defaultBinX ?? 1,
       defaultBinY: draft.defaultBinY ?? 1,
       defaultCoolingTemp: draft.defaultCoolingTempC,
-      // Cool-on-connect is OFF by default — it is opt-in. We still store the
-      // recommended cooling set-point (so enabling it later is a single toggle),
-      // but we never auto-run the TEC on connect just because a set-point
-      // exists: a setup done in the middle of a summer day must not pin the
-      // cooler at full power for hours. The user turns cool-on-connect on
-      // explicitly in the equipment profile when they're ready to image.
-      coolOnConnect: false,
+      // Cool-on-connect stays OPT-IN — a set-point alone never arms the TEC,
+      // because a setup done in the middle of a summer day must not pin the
+      // cooler at full power for hours. What changed is that the wizard now
+      // ASKS ("Start cooling when the camera connects", off by default) instead
+      // of hardcoding a no: the operator who ticked it in the wizard used to
+      // get an uncooled sensor all night and had to find the same checkbox
+      // again in Equipment > Edit Profile > Camera Defaults.
+      coolOnConnect: draft.coolOnConnect,
       filterNames: draft.filterNames,
     );
 
@@ -468,31 +471,76 @@ class OnboardingNotifier extends StateNotifier<OnboardingDraft> {
       requireAuthority('activating the equipment profile');
     }
 
-    // Persist the capture directory selection at the app-settings level so
-    // the imaging service picks it up from day one.
-    if (draft.captureDirectory != null &&
-        draft.captureDirectory!.trim().isNotEmpty) {
-      final captureDir = draft.captureDirectory!.trim();
-      if (backend is NetworkBackend) {
-        final settings = await backend.getSettings();
-        requireAuthority('loading the capture-directory settings');
-        await backend.updateSettings(
-          settings.copyWith(imageOutputPath: captureDir),
-        );
-      } else {
-        await _ref
-            .read(settingsDaoProvider)
-            .setImageOutputDirectory(captureDir);
-      }
-      requireAuthority('saving the capture directory');
-      _ref.invalidate(appSettingsProvider);
-    }
+    await _persistAppSettings(draft, backend, requireAuthority);
 
     // Note: marking the tutorial complete, wiping the draft blob, and flipping
     // the bootstrap gate are deferred to [finishNextSteps] — the profile now
     // exists, but onboarding is not "done" until the user leaves the terminal
     // next-steps screen.
     return id;
+  }
+
+  /// Push the app-level answers the wizard collected into app settings.
+  ///
+  /// Two of them:
+  ///   * the capture directory, so the imaging service writes frames where the
+  ///     user said from day one;
+  ///   * the discovery backends ticked at the driver step. That answer used to
+  ///     steer only the wizard's own discovery passes and was then wiped with
+  ///     the draft, while Settings → Equipment → Connection asked the same
+  ///     question again through "Query INDI/Alpaca on startup" — which default
+  ///     to off. A user who found their camera over INDI during onboarding got
+  ///     an app that never looked at INDI again at launch. The wizard is where
+  ///     the user actually answered, so its answer is the stored one.
+  ///
+  /// Both flags are written, not just the true ones: unticking INDI in the
+  /// wizard has to be able to turn an inherited `true` back off, or "the wizard
+  /// drives these toggles" would only be half true.
+  ///
+  /// One read-modify-write for the remote host: a second round trip could race
+  /// the first and lose whichever field it did not carry.
+  Future<void> _persistAppSettings(
+    OnboardingDraft draft,
+    NightshadeBackend backend,
+    void Function(String action) requireAuthority,
+  ) async {
+    final captureDir = draft.captureDirectory?.trim();
+    final hasCaptureDir = captureDir != null && captureDir.isNotEmpty;
+    // An empty driver set means the step never resolved (a draft restored from
+    // before it existed); silently disabling both backends would be an answer
+    // the user never gave.
+    final hasDrivers = draft.selectedDrivers.isNotEmpty;
+    if (!hasCaptureDir && !hasDrivers) return;
+
+    final indi = draft.selectedDrivers.contains(DriverType.indi);
+    final alpaca = draft.selectedDrivers.contains(DriverType.alpaca);
+
+    if (backend is NetworkBackend) {
+      final settings = await backend.getSettings();
+      requireAuthority('loading the app settings');
+      await backend.updateSettings(
+        settings.copyWith(
+          imageOutputPath: hasCaptureDir
+              ? captureDir
+              : settings.imageOutputPath,
+          indiAutoConnect: hasDrivers ? indi : settings.indiAutoConnect,
+          alpacaAutoDiscover: hasDrivers ? alpaca : settings.alpacaAutoDiscover,
+        ),
+      );
+    } else {
+      final dao = _ref.read(settingsDaoProvider);
+      if (hasCaptureDir) {
+        await dao.setImageOutputDirectory(captureDir);
+      }
+      if (hasDrivers) {
+        await dao.setSettings({
+          'indi_auto_connect': indi.toString(),
+          'alpaca_auto_discover': alpaca.toString(),
+        });
+      }
+    }
+    requireAuthority('saving the onboarding settings');
+    _ref.invalidate(appSettingsProvider);
   }
 
   /// Retire the wizard once the user leaves the terminal `nextSteps` step.

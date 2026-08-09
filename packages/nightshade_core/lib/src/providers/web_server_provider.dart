@@ -20,7 +20,22 @@ class WebServerState {
   final int configuredPort;
   final int actualPort;
   final String localIp;
+
+  /// Co-imaging participants in the live collaboration session.
+  ///
+  /// NOT the number of remote clients attached to this server — a phone that
+  /// holds an authenticated `/events` socket open all night never joins a
+  /// collaboration session and is not counted here. See [connectedClients].
   final int activeViewers;
+
+  /// Remote clients currently holding an open event socket on this server.
+  ///
+  /// This is the number the Remote Access page and the status-bar share chip
+  /// mean by "connected": phones, tablets and dashboard browsers. It used to
+  /// be answered with [activeViewers], which reported 0 with a live paired
+  /// client on the wire.
+  final int connectedClients;
+
   final bool bindLocalOnly;
   final bool requiresAuthentication;
   final bool dashboardAvailable;
@@ -54,6 +69,7 @@ class WebServerState {
     this.actualPort = 8080,
     this.localIp = '',
     this.activeViewers = 0,
+    this.connectedClients = 0,
     this.bindLocalOnly = true,
     this.requiresAuthentication = false,
     this.dashboardAvailable = false,
@@ -108,6 +124,7 @@ class WebServerState {
     int? actualPort,
     String? localIp,
     int? activeViewers,
+    int? connectedClients,
     bool? bindLocalOnly,
     bool? requiresAuthentication,
     bool? dashboardAvailable,
@@ -122,6 +139,7 @@ class WebServerState {
       actualPort: actualPort ?? this.actualPort,
       localIp: localIp ?? this.localIp,
       activeViewers: activeViewers ?? this.activeViewers,
+      connectedClients: connectedClients ?? this.connectedClients,
       bindLocalOnly: bindLocalOnly ?? this.bindLocalOnly,
       requiresAuthentication:
           requiresAuthentication ?? this.requiresAuthentication,
@@ -186,12 +204,19 @@ class WebServerStateNotifier extends StateNotifier<WebServerState> {
           requiresAuthentication ?? state.requiresAuthentication,
       dashboardAvailable: dashboardAvailable ?? state.dashboardAvailable,
       activeViewers: 0,
+      // A stopped server holds no sockets; leaving the last count would keep
+      // the share chip claiming connected clients after shutdown.
+      connectedClients: 0,
       lastError: lastError ?? '',
     );
   }
 
   void setActiveViewers(int count) {
     state = state.copyWith(activeViewers: count);
+  }
+
+  void setConnectedClients(int count) {
+    state = state.copyWith(connectedClients: count);
   }
 
   void setConfiguredPort(int port) {

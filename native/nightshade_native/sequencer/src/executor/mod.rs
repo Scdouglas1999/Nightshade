@@ -2709,6 +2709,53 @@ impl SequenceExecutor {
             // index, so the trigger-action-context cannot reference any.
             .unwrap_or_default();
 
+        // Which node ids are targets, and what target they name. Read once at
+        // start from the same `SequenceDefinition` the tree was built from, so
+        // the identity that reaches subscribers is the node id — never a
+        // display name.
+        //
+        // `ExecutorEvent::TargetStarted` existed and the bridge already mapped
+        // it to `SequencerEvent::TargetChanged`, but NOTHING in this crate ever
+        // constructed it: the variant had zero producers, so Dart's
+        // `currentTarget` stayed null for every run ever executed. Everything
+        // keyed off it then silently fell through to its fallback — most
+        // visibly `sequence_runs.stats_json.targetBreakdown`, which bucketed a
+        // whole night under the SEQUENCE's name ("New Sequence") while the
+        // frames on disk and the FITS `OBJECT` card said the target's ("New
+        // Target"). The run record disagreed with the files it had written.
+        let target_node_metadata: HashMap<NodeId, (String, f64, f64)> = self
+            .sequence
+            .as_ref()
+            .map(|sequence| {
+                sequence
+                    .nodes
+                    .iter()
+                    .filter_map(|node| match &node.node_type {
+                        NodeType::TargetHeader(config) | NodeType::TargetGroup(config) => {
+                            // An unnamed target is deliberately NOT indexed. The
+                            // save-path resolver labels those frames
+                            // "untargeted"; inventing a name here (the node's
+                            // display label, say) would put a third spelling on
+                            // the wire, which is the defect this fixes.
+                            if config.target_name.trim().is_empty() {
+                                None
+                            } else {
+                                Some((
+                                    node.id.clone(),
+                                    (
+                                        config.target_name.clone(),
+                                        config.ra_hours,
+                                        config.dec_degrees,
+                                    ),
+                                ))
+                            }
+                        }
+                        _ => None,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
         let trigger_manager = self.trigger_manager.clone();
         let triggers_enabled = self.triggers_enabled;
         let safety_fail_mode = self.safety_fail_mode;
@@ -2835,6 +2882,7 @@ impl SequenceExecutor {
         let skip_to_node_clone = skip_to_node.clone();
         let resume_notify_clone = resume_notify.clone();
         let exposure_node_metadata = Arc::new(exposure_node_metadata);
+        let target_node_metadata = Arc::new(target_node_metadata);
         let trigger_action_context = trigger_action_context.clone();
 
         // Clones used by the panic-supervision shell *outside* the executed
@@ -3141,6 +3189,7 @@ impl SequenceExecutor {
                     std::collections::HashMap::<NodeId, u32>::new(),
                 ));
                 let exposure_node_metadata = exposure_node_metadata.clone();
+                let target_node_metadata = target_node_metadata.clone();
                 context.progress_callback = Some(Arc::new(move |update: ProgressUpdate| {
                     let mut prog = progress_clone.write();
                     prog.current_node_id = Some(update.node_id.clone());
@@ -3196,6 +3245,20 @@ impl SequenceExecutor {
                                 id: update.node_id.clone(),
                                 name: node_name,
                             });
+                            // Entering a target's subtree IS the target change.
+                            // Emitted from the same one-shot entry branch as
+                            // NodeStarted so a Loop that re-enters the target
+                            // re-announces it, and so the announcement can
+                            // never precede the node actually running.
+                            if let Some((target_name, ra, dec)) =
+                                target_node_metadata.get(&update.node_id)
+                            {
+                                let _ = event_tx_clone.send(ExecutorEvent::TargetStarted {
+                                    name: target_name.clone(),
+                                    ra: *ra,
+                                    dec: *dec,
+                                });
+                            }
                         }
                     } else if matches!(
                         update.status,
@@ -3224,6 +3287,19 @@ impl SequenceExecutor {
                         // happens after the frame block.
                         let mut started = started_nodes.write();
                         started.remove(&update.node_id);
+                        // Only Success closes a target. A target node that
+                        // failed, was cancelled or was skipped did not
+                        // "complete" it, and `SequencerEvent::TargetCompleted`
+                        // is rendered to the operator as "Completed target: X".
+                        if update.status == NodeStatus::Success {
+                            if let Some((target_name, _, _)) =
+                                target_node_metadata.get(&update.node_id)
+                            {
+                                let _ = event_tx_clone.send(ExecutorEvent::TargetCompleted {
+                                    name: target_name.clone(),
+                                });
+                            }
+                        }
                         tracing::debug!(
                             "[PROGRESS_CB] Cleared node {} from started set (status={:?})",
                             update.node_id,
@@ -5794,6 +5870,11 @@ impl SequenceExecutor {
                                                 custom_recovery_context_for_triggers.clone();
                                             let progress_node_id =
                                                 format!("trigger:{trigger_id}:autofocus");
+                                            // Same synthetic id the progress
+                                            // closure below publishes under, so
+                                            // the terminal event names the node
+                                            // the sweep reported against.
+                                            let completed_node_id = progress_node_id.clone();
                                             let total_steps = af_config
                                                 .steps_out
                                                 .saturating_mul(2)
@@ -5821,6 +5902,27 @@ impl SequenceExecutor {
                                                 Some(&progress_fn),
                                             )
                                             .await;
+
+                                            // Publish the sweep's verdict.
+                                            //
+                                            // A trigger-fired refocus streamed
+                                            // Autofocus progress under the
+                                            // synthetic node id above and then
+                                            // simply stopped: subscribers saw a
+                                            // sweep begin and never learned
+                                            // whether it worked, so a night of
+                                            // periodic refocusing left the run
+                                            // record showing none at all. The
+                                            // status is the sweep's own, so a
+                                            // cancelled sweep reports cancelled
+                                            // rather than being flattened to a
+                                            // failure.
+                                            let _ = event_tx_clone2.send(
+                                                ExecutorEvent::NodeCompleted {
+                                                    id: completed_node_id,
+                                                    status: af_result.status,
+                                                },
+                                            );
 
                                             if af_result.status == NodeStatus::Success {
                                                 if let Some(best_hfr) = af_result.hfr_values.first()
@@ -7359,6 +7461,128 @@ mod tests {
         });
         sequence.root_node_id = Some("target".to_string());
         sequence
+    }
+
+    /// P2 regression. `ExecutorEvent::TargetStarted` had a bridge mapping and
+    /// a Dart handler but no producer anywhere in this crate, so Dart's
+    /// `SequenceProgress.currentTarget` was null for every run. The visible
+    /// damage was in the run record: `sequence_runs.stats_json.targetBreakdown`
+    /// fell through to its documented fallback and keyed a whole night under
+    /// the SEQUENCE name while the frames on disk carried the target's name.
+    ///
+    /// Pre-fix this test finds no TargetStarted event at all.
+    #[tokio::test]
+    async fn entering_a_target_announces_the_target_by_name() {
+        let mut sequence = SequenceDefinition::new("New Sequence".to_string());
+        sequence.nodes.push(crate::NodeDefinition {
+            id: "target".to_string(),
+            // Deliberately different from `target_name`: the wire must carry
+            // the TARGET, not the node's display label.
+            name: "Target".to_string(),
+            node_type: crate::NodeType::TargetHeader(crate::TargetHeaderConfig {
+                target_name: "M31".to_string(),
+                ra_hours: 0.712,
+                dec_degrees: 41.269,
+                ..crate::TargetHeaderConfig::default()
+            }),
+            enabled: true,
+            children: vec!["wait".to_string()],
+        });
+        sequence.nodes.push(crate::NodeDefinition {
+            id: "wait".to_string(),
+            name: "Wait".to_string(),
+            node_type: crate::NodeType::Delay(crate::DelayConfig { seconds: 0.01 }),
+            enabled: true,
+            children: vec![],
+        });
+        sequence.root_node_id = Some("target".to_string());
+
+        let mut executor = SequenceExecutor::new();
+        executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+        executor.load_sequence(sequence).expect("sequence loads");
+        let mut events = executor.subscribe();
+
+        executor.start().await.expect("run starts");
+
+        for _ in 0..200 {
+            if matches!(
+                executor.get_state().await,
+                ExecutorState::Completed | ExecutorState::Failed | ExecutorState::Cancelled
+            ) {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+        }
+        executor.stop().await.ok();
+
+        let mut started = Vec::new();
+        let mut completed = Vec::new();
+        while let Ok(event) = events.try_recv() {
+            match event {
+                ExecutorEvent::TargetStarted { name, ra, dec } => started.push((name, ra, dec)),
+                ExecutorEvent::TargetCompleted { name } => completed.push(name),
+                _ => {}
+            }
+        }
+
+        assert_eq!(
+            started,
+            vec![("M31".to_string(), 0.712, 41.269)],
+            "entering the target must announce it exactly once, with its \
+             configured coordinates"
+        );
+        assert_eq!(
+            completed,
+            vec!["M31".to_string()],
+            "a target whose subtree succeeded must be announced as completed"
+        );
+    }
+
+    /// A target with no name is left OFF the wire rather than announced under
+    /// an invented one — the save-path resolver already labels those frames
+    /// "untargeted", and a third spelling on the wire is the defect, not a fix.
+    #[tokio::test]
+    async fn an_unnamed_target_is_not_announced() {
+        let mut sequence = SequenceDefinition::new("New Sequence".to_string());
+        sequence.nodes.push(crate::NodeDefinition {
+            id: "target".to_string(),
+            name: "New Target".to_string(),
+            node_type: crate::NodeType::TargetHeader(crate::TargetHeaderConfig::default()),
+            enabled: true,
+            children: vec!["wait".to_string()],
+        });
+        sequence.nodes.push(crate::NodeDefinition {
+            id: "wait".to_string(),
+            name: "Wait".to_string(),
+            node_type: crate::NodeType::Delay(crate::DelayConfig { seconds: 0.01 }),
+            enabled: true,
+            children: vec![],
+        });
+        sequence.root_node_id = Some("target".to_string());
+
+        let mut executor = SequenceExecutor::new();
+        executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+        executor.load_sequence(sequence).expect("sequence loads");
+        let mut events = executor.subscribe();
+
+        executor.start().await.expect("run starts");
+        for _ in 0..200 {
+            if matches!(
+                executor.get_state().await,
+                ExecutorState::Completed | ExecutorState::Failed | ExecutorState::Cancelled
+            ) {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+        }
+        executor.stop().await.ok();
+
+        while let Ok(event) = events.try_recv() {
+            assert!(
+                !matches!(event, ExecutorEvent::TargetStarted { .. }),
+                "an unnamed target must not be announced"
+            );
+        }
     }
 
     #[test]

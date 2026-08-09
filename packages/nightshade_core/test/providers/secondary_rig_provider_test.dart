@@ -6,6 +6,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 import '../fakes/fakes.dart';
+import '../harness/in_memory_database.dart';
 
 class _TestBackendNotifier extends BackendNotifier {
   _TestBackendNotifier(super.ref, NightshadeBackend backend) {
@@ -34,7 +35,9 @@ Map<String, dynamic> _idleStatus() => {
 
 void main() {
   test('nullable secondary settings can be explicitly cleared', () {
-    final container = ProviderContainer();
+    final container = ProviderContainer(
+      overrides: [inMemoryDatabaseOverride()],
+    );
     addTearDown(container.dispose);
     final notifier = container.read(secondaryRigConfigProvider.notifier);
 
@@ -73,6 +76,7 @@ void main() {
     );
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith(
           (ref) => _TestBackendNotifier(ref, backend),
         ),
@@ -104,6 +108,7 @@ void main() {
     late _TestBackendNotifier backendNotifier;
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith((ref) {
           backendNotifier = _TestBackendNotifier(ref, hostA);
           return backendNotifier;
@@ -133,6 +138,7 @@ void main() {
       late _TestBackendNotifier backendNotifier;
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith((ref) {
             backendNotifier = _TestBackendNotifier(ref, hostA);
             return backendNotifier;
@@ -168,6 +174,7 @@ void main() {
     late _TestBackendNotifier backendNotifier;
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith((ref) {
           backendNotifier = _TestBackendNotifier(ref, hostA);
           return backendNotifier;

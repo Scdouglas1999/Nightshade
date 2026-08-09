@@ -42,6 +42,7 @@ class NightshadeCard extends StatefulWidget {
 
 class _NightshadeCardState extends State<NightshadeCard> {
   bool _isHovered = false;
+  bool _isFocused = false;
 
   @override
   Widget build(BuildContext context) {
@@ -76,7 +77,7 @@ class _NightshadeCardState extends State<NightshadeCard> {
       content = Padding(padding: widget.padding!, child: content);
     }
 
-    return MouseRegion(
+    final card = MouseRegion(
       onEnter: shouldAnimate ? (_) => setState(() => _isHovered = true) : null,
       onExit: shouldAnimate ? (_) => setState(() => _isHovered = false) : null,
       cursor: widget.onTap != null
@@ -94,6 +95,38 @@ class _NightshadeCardState extends State<NightshadeCard> {
           ),
           clipBehavior: Clip.antiAlias,
           child: content,
+        ),
+      ),
+    );
+
+    // Most cards are layout containers. Only a card that was given an onTap is a
+    // control, and only that one should take a tab stop or announce itself as a
+    // button -- otherwise keyboard traversal would stop on every panel in the
+    // app before reaching anything operable.
+    if (widget.onTap == null) return card;
+
+    return Semantics(
+      button: true,
+      child: FocusableActionDetector(
+        mouseCursor: SystemMouseCursors.click,
+        onShowFocusHighlight: (focused) => setState(() => _isFocused = focused),
+        actions: <Type, Action<Intent>>{
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) {
+              widget.onTap!();
+              return null;
+            },
+          ),
+        },
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(widget.borderRadius + 2),
+            border: Border.all(
+              color: _isFocused ? colors.primary : Colors.transparent,
+              width: 2,
+            ),
+          ),
+          child: card,
         ),
       ),
     );

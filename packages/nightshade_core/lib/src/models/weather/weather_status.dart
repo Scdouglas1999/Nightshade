@@ -25,8 +25,14 @@ abstract class WeatherStatus with _$WeatherStatus {
     /// Current frame index in animation
     @Default(0) int currentFrameIndex,
 
-    /// When this status was last updated
-    required DateTime lastUpdate,
+    /// When the radar data behind this status was last fetched.
+    ///
+    /// NULL until the first successful fetch lands. It is deliberately nullable
+    /// rather than defaulting to a sentinel: an epoch-zero placeholder here is
+    /// indistinguishable from a real timestamp downstream, and the card
+    /// rendered it as "Updated 20667 days ago" on every pre-fetch paint (and
+    /// for the whole session when the fetch never succeeds).
+    DateTime? lastUpdate,
 
     /// Whether data is currently loading
     @Default(false) bool isLoading,

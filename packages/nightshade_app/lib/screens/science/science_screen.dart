@@ -38,19 +38,17 @@ ScienceTab? scienceTabFromQuery(String? value) {
 }
 
 /// Scaffold-free science workspace body: the photometry / first-light /
-/// observing-alerts tab host. Folded into Analytics → Science (`showHeader:
-/// false`), and also wrapped by [ScienceScreen] for the redirected standalone
-/// `/science` route. When embedded, the screen-level header is suppressed and the
-/// per-tab actions (export, alert refresh/settings) ride a slim toolbar beside
-/// the sub-tab bar, since Analytics owns the outer chrome.
+/// observing-alerts tab host. Science ships folded into Analytics → Science,
+/// which mounts this with `showHeader: false` — the `/science` path is a pure
+/// deep-link redirect onto that tab and builds no page of its own.
 class ScienceWorkspaceView extends ConsumerStatefulWidget {
   /// Selects the initial sub-tab (workspace / first light / observing alerts).
   final String? initialViewQuery;
 
-  /// When true (standalone `/science` route), the screen title folds inline to
-  /// the left of the sub-tab bar. When false (embedded in Analytics), the title
-  /// is omitted (Analytics owns the outer chrome); either way the per-tab
-  /// actions sit inline at the right end of the sub-tab row.
+  /// When true, the science title folds inline to the left of the sub-tab bar,
+  /// for a host that does not name the surface itself. Analytics — the only
+  /// host today — passes false because its own chrome already names it; either
+  /// way the per-tab actions sit inline at the right end of the sub-tab row.
   final bool showHeader;
 
   const ScienceWorkspaceView({
@@ -236,23 +234,6 @@ class _ScienceWorkspaceViewState extends ConsumerState<ScienceWorkspaceView> {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// Thin Scaffold wrapper kept for the redirected standalone `/science` route.
-/// The reusable body lives in [ScienceWorkspaceView], also hosted by
-/// Analytics → Science.
-class ScienceScreen extends StatelessWidget {
-  final String? initialTabQuery;
-
-  const ScienceScreen({super.key, this.initialTabQuery});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: NightshadeColors.of(context).background,
-      body: ScienceWorkspaceView(initialViewQuery: initialTabQuery),
     );
   }
 }

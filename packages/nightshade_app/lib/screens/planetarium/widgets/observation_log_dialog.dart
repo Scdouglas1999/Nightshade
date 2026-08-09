@@ -42,6 +42,10 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
 
   String _getObjectType() {
     final obj = widget.object;
+    // Solar-system bodies are carried as a Star subtype, so this check has to
+    // come first — an observing log that records Jupiter as a 'star' is a
+    // permanent, user-facing falsehood.
+    if (obj is SolarSystemBody) return obj.kind.storageKey;
     if (obj is Star) return 'star';
     if (obj is DeepSkyObject) {
       if (obj.type.isGalaxy) return 'galaxy';
@@ -59,6 +63,12 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
       final ngcIc = obj.ngcIcDesignation;
       if (ngcIc != null) return ngcIc;
     }
+    // Solar-system bodies have no catalogue designation, and their id is the
+    // internal `PLANET_Jupiter` join key. The observing log is data the user
+    // keeps for years — leave the column empty rather than store a token that
+    // looks like a designation and is not one. The name column already carries
+    // "Jupiter".
+    if (obj is SolarSystemBody) return null;
     return obj.id;
   }
 

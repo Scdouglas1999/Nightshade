@@ -85,7 +85,11 @@ class MobileSelectedObjectHud extends StatelessWidget {
       catalogTag = info.$2;
     } else {
       displayName = obj.name;
-      catalogTag = obj is Star ? 'STAR' : obj.id;
+      catalogTag = switch (obj) {
+        SolarSystemBody() => obj.designation.toUpperCase(),
+        Star() => 'STAR',
+        _ => obj.id,
+      };
     }
 
     return GestureDetector(

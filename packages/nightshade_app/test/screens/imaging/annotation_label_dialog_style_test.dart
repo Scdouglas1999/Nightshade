@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/imaging/widgets/custom_annotation_drawing.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 const _materialGreenAccent = Color(0xFF00E676);
 const _strayNavy = Color(0xFF1A1A2E);
@@ -20,7 +21,8 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    final container = ProviderContainer();
+    final container =
+        ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
     addTearDown(container.dispose);
     // Pick the circle tool, exactly as the floating annotation toolbar does.
     container.read(customAnnotationToolProvider.notifier).state =
@@ -69,8 +71,9 @@ void main() {
         final widget = e.widget;
         if (widget is Text) {
           final color = widget.style?.color;
-          if (color == _materialGreenAccent)
+          if (color == _materialGreenAccent) {
             offenders.add('Text ${widget.data}');
+          }
         }
         if (widget is Container) {
           final decoration = widget.decoration;

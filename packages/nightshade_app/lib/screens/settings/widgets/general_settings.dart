@@ -75,19 +75,29 @@ class GeneralSettings extends ConsumerWidget {
               SettingRow(
                 icon: LucideIcons.languages,
                 title: l10n.text('generalLanguage'),
+                // What this control actually changes: the app chrome — menus,
+                // the navigation rail, the persistent status bar and the whole
+                // Settings tree. The product screens (Dashboard body, Imaging,
+                // the Sequencer) hold literals with no catalogue keys behind
+                // them and stay English. Both locales state that scope; the
+                // Spanish string used to promise "la interfaz principal", which
+                // is exactly what it does not do.
                 subtitle: l10n.text('generalLanguageDesc'),
                 trailing: SettingsDropdown(
-                  value: settings.language == 'es'
-                      ? l10n.text('languageSpanish')
-                      : l10n.text('languageEnglish'),
-                  items: [
+                  // Values are the stored language codes, so the mapping no
+                  // longer depends on comparing translated display strings.
+                  value: settings.language == 'es' ? 'es' : 'en',
+                  items: const ['en', 'es'],
+                  itemLabels: [
                     l10n.text('languageEnglish'),
-                    l10n.text('languageSpanish'),
+                    // Marked partial in the picker itself: an unqualified
+                    // "Español" reads as a finished translation.
+                    '${l10n.text('languageSpanish')} (beta)',
                   ],
                   onChanged: (value) {
-                    return ref.read(appSettingsProvider.notifier).setLanguage(
-                          value == l10n.text('languageSpanish') ? 'es' : 'en',
-                        );
+                    return ref
+                        .read(appSettingsProvider.notifier)
+                        .setLanguage(value == 'es' ? 'es' : 'en');
                   },
                   width: 150,
                 ),

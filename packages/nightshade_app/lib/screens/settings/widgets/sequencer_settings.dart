@@ -5,6 +5,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../../widgets/help/field_help_copy.dart';
+import 'safety_fail_mode_labels.dart';
 import 'settings_widgets.dart';
 
 class SequencerSettings extends ConsumerStatefulWidget {
@@ -199,33 +200,6 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
         ),
       ],
     );
-  }
-
-  String _getFailModeDescription(SafetyFailMode mode) {
-    return switch (mode) {
-      SafetyFailMode.failClosed =>
-        'Treat unavailable safety data as unsafe and park/pause equipment',
-      SafetyFailMode.failOpen =>
-        'Treat unavailable safety data as safe and continue operations',
-      SafetyFailMode.warnOnly =>
-        'Continue operations and show a warning when safety data is unavailable',
-    };
-  }
-
-  String _failModeToString(SafetyFailMode mode) {
-    return switch (mode) {
-      SafetyFailMode.failClosed => 'Fail Closed (Park)',
-      SafetyFailMode.failOpen => 'Fail Open (Continue)',
-      SafetyFailMode.warnOnly => 'Warn Only',
-    };
-  }
-
-  SafetyFailMode _stringToFailMode(String value) {
-    return switch (value) {
-      'Fail Open (Continue)' => SafetyFailMode.failOpen,
-      'Warn Only' => SafetyFailMode.warnOnly,
-      _ => SafetyFailMode.failClosed,
-    };
   }
 
   Widget _buildMeridianFlipSection(
@@ -566,21 +540,18 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
                 SettingRow(
                   icon: LucideIcons.alertTriangle,
                   title: 'Safety fail mode',
-                  subtitle: _getFailModeDescription(settings.safetyFailMode),
+                  subtitle: settings.safetyFailMode.description,
                   trailing: settingsTrailingDropdown(
                     context: context,
-                    value: _failModeToString(settings.safetyFailMode),
-                    items: const [
-                      'Fail Closed (Park)',
-                      'Fail Open (Continue)',
-                      'Warn Only',
-                    ],
+                    value: settings.safetyFailMode.label,
+                    items: SafetyFailModeLabels.labels,
                     designWidth: 180,
                     isMobile: widget.isMobile,
                     onChanged: (value) {
                       return ref
                           .read(appSettingsProvider.notifier)
-                          .setSafetyFailMode(_stringToFailMode(value));
+                          .setSafetyFailMode(
+                              SafetyFailModeLabels.fromLabel(value));
                     },
                   ),
                   isLast: true,

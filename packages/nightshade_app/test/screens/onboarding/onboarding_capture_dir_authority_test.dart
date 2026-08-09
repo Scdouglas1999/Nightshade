@@ -7,6 +7,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/screens/onboarding/steps/capture_dir_step.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 class _MockNetworkBackend extends Mock implements NetworkBackend {}
 
@@ -30,6 +31,7 @@ class _TestOnboardingNotifier extends OnboardingNotifier {
   late _SwitchingBackendNotifier backendNotifier;
   final container = ProviderContainer(
     overrides: [
+      inMemoryDatabaseOverride(),
       backendProvider.overrideWith((ref) {
         return backendNotifier =
             _SwitchingBackendNotifier(ref, _MockNetworkBackend());

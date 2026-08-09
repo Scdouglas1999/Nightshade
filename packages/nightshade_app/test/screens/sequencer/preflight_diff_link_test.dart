@@ -20,6 +20,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/preflight_validation_dialog.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 class _FakeValidator implements SequenceValidatorService {
   _FakeValidator(this._result);
@@ -141,6 +142,7 @@ void main() {
     );
 
     final container = ProviderContainer(overrides: [
+      inMemoryDatabaseOverride(),
       currentSequenceProvider.overrideWith(
         (ref) => _SeedingNotifier(ref, _sequence(databaseId: 42)),
       ),
@@ -190,6 +192,7 @@ void main() {
       'renders header without the diff banner when sequence is '
       'unsaved (no databaseId)', (tester) async {
     final container = ProviderContainer(overrides: [
+      inMemoryDatabaseOverride(),
       currentSequenceProvider.overrideWith(
         (ref) => _SeedingNotifier(ref, _sequence(databaseId: null)),
       ),

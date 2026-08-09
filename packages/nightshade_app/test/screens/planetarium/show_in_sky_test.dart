@@ -13,6 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/router/app_router.dart';
 import 'package:nightshade_app/screens/planetarium/show_in_sky.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 /// Unmount before disposing: `ObservationTimeNotifier` (read via
 /// `selectCoordinates`) owns a periodic Timer, and `testWidgets` asserts no
@@ -102,7 +103,8 @@ void main() {
   group('focusSkyOn', () {
     testWidgets('centres the sky view and selects the coordinate',
         (tester) async {
-      final container = ProviderContainer();
+      final container =
+          ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
       late WidgetRef capturedRef;
       await tester.pumpWidget(
         UncontrolledProviderScope(
@@ -118,8 +120,14 @@ void main() {
         ),
       );
 
-      // The sky view starts at its default pose, and nothing is selected.
-      expect(container.read(skyViewStateProvider).centerRA, 0);
+      // The sky view starts at its default pose (the zenith — it no longer
+      // opens on RA 0h / Dec 0, which pointed below the horizon), and nothing
+      // is selected.
+      final (homeRa, _) = container.read(skyViewHomeCenterProvider);
+      expect(
+        container.read(skyViewStateProvider).centerRA,
+        closeTo(homeRa, 0.02),
+      );
       expect(container.read(selectedObjectProvider).coordinates, isNull);
 
       focusSkyOn(
@@ -145,13 +153,16 @@ void main() {
     testWidgets(
         'forces the equatorial frame so an RA/Dec target actually moves',
         (tester) async {
-      final container = ProviderContainer();
+      final container =
+          ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
       // A user who left the sky view in the horizontal frame would otherwise
       // arrive at a planetarium that simply did not move: centerRA/centerDec
       // are inert there.
-      container
-          .read(skyViewStateProvider.notifier)
-          .setViewMode(SkyViewMode.horizontal);
+      container.read(skyViewStateProvider.notifier).setViewMode(
+            SkyViewMode.horizontal,
+            observer: container.read(observerLocationProvider),
+            instant: DateTime.utc(2026, 7, 29, 15, 52),
+          );
 
       late WidgetRef capturedRef;
       await tester.pumpWidget(

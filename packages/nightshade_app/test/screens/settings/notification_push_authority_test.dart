@@ -59,6 +59,12 @@ void main() {
           pushNotificationConfigProvider.overrideWith(
             _FailingPushConfig.new,
           ),
+          // The Discord section below the push block is keyring-backed; give it
+          // a store so it resolves and can serve as the "the rest of the page
+          // still rendered" probe.
+          secretsStoreProvider.overrideWithValue(
+            SecretsStore(InMemorySecureKeyValueStore()),
+          ),
         ],
         child: MaterialApp(
           theme: NightshadeTheme.dark,
@@ -67,16 +73,24 @@ void main() {
       ),
     );
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+    // Several pumps: the transport sections below the push block resolve
+    // through the async keyring/DAO providers.
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 25));
+    }
 
     expect(find.text('Could not load push configuration'), findsOneWidget);
-    expect(
-      find.textContaining('Bad state: push config unavailable'),
-      findsOneWidget,
-    );
+    // The reason is shown; the StateError's 'Bad state: ' rendering prefix is
+    // not product copy and must not reach the card.
+    expect(find.textContaining('push config unavailable'), findsOneWidget);
+    expect(find.textContaining('Bad state'), findsNothing);
     expect(find.text('Enable push to mobile'), findsNothing);
     expect(find.text('Enable notifications'), findsOneWidget);
-    expect(find.text('Webhook URL'), findsOneWidget);
+    // The transport sections below the push block still render. (Probing the
+    // section heading rather than a field label: Discord is keyring-backed, so
+    // in this bare container it renders its own load-error card — which is
+    // still proof that the push outage did not take the rest of the page out.)
+    expect(find.text('Discord'), findsOneWidget);
     expect(_pushLoadAttempts, 1);
 
     await tester.tap(find.widgetWithText(NightshadeButton, 'Retry').first);

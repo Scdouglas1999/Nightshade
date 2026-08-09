@@ -71,37 +71,48 @@ class WidgetPickerDialog extends ConsumerWidget {
         };
 
         final children = <Widget>[];
-        for (var i = 0; i < dashboardWidgetRegistry.length; i++) {
-          final definition = dashboardWidgetRegistry[i];
-          final tile = tilesById[definition.id];
-          final enabled = tile?.enabled ?? false;
+        // Grouped, not flat: the registry carries two generations of tiles that
+        // overlap in subject matter, and a flat list showed the operator two
+        // rows named "Guiding" with nothing to tell them apart.
+        for (final group in DashboardWidgetGroup.values) {
+          final members = dashboardWidgetRegistry
+              .where((definition) => definition.group == group);
+          if (members.isEmpty) continue;
 
-          if (i > 0) {
+          children.add(_SectionHeader(
+            colors: colors,
+            isPhone: isPhone,
+            group: group,
+          ));
+
+          for (final definition in members) {
+            final tile = tilesById[definition.id];
+            final enabled = tile?.enabled ?? false;
+
             children.add(Divider(color: colors.border, height: 1));
+            children.add(
+              CheckboxListTile(
+                value: enabled,
+                onChanged: (value) {
+                  if (value == null) return;
+                  ref
+                      .read(dashboardLayoutProvider.notifier)
+                      .setTileEnabled(definition.id, value);
+                },
+                controlAffinity: ListTileControlAffinity.leading,
+                title: Text(
+                  definition.title,
+                  style: TextStyle(color: colors.textPrimary),
+                ),
+                subtitle: Text(
+                  definition.subtitle,
+                  style: TextStyle(
+                      color: colors.textSecondary,
+                      fontSize: NightshadeTypography.fontSize12),
+                ),
+              ),
+            );
           }
-
-          children.add(
-            CheckboxListTile(
-              value: enabled,
-              onChanged: (value) {
-                if (value == null) return;
-                ref
-                    .read(dashboardLayoutProvider.notifier)
-                    .setTileEnabled(definition.id, value);
-              },
-              controlAffinity: ListTileControlAffinity.leading,
-              title: Text(
-                definition.title,
-                style: TextStyle(color: colors.textPrimary),
-              ),
-              subtitle: Text(
-                definition.subtitle,
-                style: TextStyle(
-                    color: colors.textSecondary,
-                    fontSize: NightshadeTypography.fontSize12),
-              ),
-            ),
-          );
         }
 
         return ListView(
@@ -130,6 +141,49 @@ class WidgetPickerDialog extends ConsumerWidget {
         header,
         Flexible(child: body),
       ],
+    );
+  }
+}
+
+/// Names the family the rows beneath it belong to, so a tile that overlaps an
+/// older card is placed rather than guessed at.
+class _SectionHeader extends StatelessWidget {
+  final NightshadeColors colors;
+  final bool isPhone;
+  final DashboardWidgetGroup group;
+
+  const _SectionHeader({
+    required this.colors,
+    required this.isPhone,
+    required this.group,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(isPhone ? 16 : 24, 16, isPhone ? 16 : 24, 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            group.label.toUpperCase(),
+            style: TextStyle(
+              color: colors.textSecondary,
+              fontWeight: FontWeight.w700,
+              fontSize: NightshadeTypography.fontSize11,
+              letterSpacing: 0.8,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            group.description,
+            style: TextStyle(
+              color: colors.textMuted,
+              fontSize: NightshadeTypography.fontSize12,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -27,12 +27,19 @@
 //!   event banner via the path, because no amount of
 //!   averaging will fix a systematic failure (focus walked off, cloud bank
 //!   moved through, dome failed to slave).
-//! * **Honest absence**: when star detection fails entirely (no stars
-//!   found, calculate_image_hfr returns None) the frame is graded `Pass`,
-//!   not `Reject`. A failed detector is not the same as a known-bad
-//!   frame — the user might be imaging a dim nebula in narrowband where
-//!   our detector legitimately struggles. The audit's silent-fallback
-//!   rule applies in both directions: never reject without evidence.
+//! * **Honest absence**: when a metric was never computed (`None` —
+//!   detection didn't run, calculate_image_hfr returned None) the frame is
+//!   graded `Pass`, not `Reject`. A metric we never took is not the same as
+//!   a known-bad frame — the user might be imaging a dim nebula in
+//!   narrowband where our detector legitimately struggles. The audit's
+//!   silent-fallback rule applies in both directions: never reject without
+//!   evidence.
+//! * **…but a measured zero is evidence.** `star_count: Some(0)` is not
+//!   absence: the detector ran on a light frame and found nothing. Every
+//!   other metric is then `None` by construction, so every configured gate
+//!   would be skipped and the frame would pass on the strength of having
+//!   been unmeasurable — which is exactly how a clouded-out or badly
+//!   trailed frame used to slip through. See `grade_frame`.
 
 use serde::{Deserialize, Serialize};
 
@@ -56,8 +63,12 @@ pub struct ImageQualityCheck {
     /// frames of the current target.
     pub hfr_baseline_percent: Option<f64>,
     /// Reject if the eccentricity (axis-ratio derived measure of star
-    /// roundness) exceeds this value. Typical thresholds: 0.6 catches
-    /// trailed frames; 0.8 catches catastrophic tracking failure.
+    /// roundness) exceeds this value. 0.6 is a 1.25:1 smear (tight guiding
+    /// gone soft); 0.8 is a 1.7:1 smear (a gust or a dropped correction).
+    /// The star detector measures up to
+    /// `nightshade_imaging::DETECTION_MAX_ECCENTRICITY` (0.95, a ~3:1 smear)
+    /// before treating a source as a satellite trail rather than a star, so
+    /// any threshold below that is genuinely reachable.
     pub eccentricity_threshold: Option<f64>,
     /// Reject if star count drops below this floor. Trips when clouds
     /// roll in or the dome slit drifts off-target.
@@ -141,9 +152,10 @@ pub struct FrameMetrics {
 
 /// Grade a frame against the configured thresholds.
 ///
-/// Returns `Pass` when no check is active, when metrics are entirely
-/// absent (honest-ignorance rule), or when every active check passes.
-/// Returns `Reject` with a descriptive reason on the first failing check.
+/// Returns `Pass` when no check is active, when metrics were never measured
+/// (honest-ignorance rule), or when every active check passes. Returns
+/// `Reject` with a descriptive reason on the first failing check, and for a
+/// light frame whose star count was *measured* as zero.
 ///
 /// `hfr_baseline` is the rolling median of accepted-frame HFRs maintained
 /// by `ExecutionContext::hfr_baseline`. Pass `None` when the baseline
@@ -156,6 +168,29 @@ pub fn grade_frame(
 ) -> FrameGrade {
     if !check.is_active() {
         return FrameGrade::Pass;
+    }
+
+    // Zero measured stars. This runs first because when the detector found
+    // nothing, every other metric is `None` and every gate below would be
+    // skipped — the frame would then pass *because* it was unmeasurable,
+    // which is the failure mode this gate exists to prevent. A clouded-out
+    // frame, a frame trailed past the detector's streak ceiling, a closed
+    // dust cap and a slew that landed off-target all land here.
+    //
+    // `Some(0)` and `None` are emphatically different: `None` means the
+    // detector never ran (the caller skips it for darks/flats/bias) and
+    // stays honest ignorance, while `Some(0)` is a measurement.
+    // `run_exposure_loop` only grades light frames, so a calibration burst
+    // can never reach this branch.
+    if metrics.star_count == Some(0) {
+        return FrameGrade::Reject {
+            reason: "no stars detected — frame quality is unmeasurable (clouds, \
+                     trailing, off-target slew, or an obstructed aperture)"
+                .to_string(),
+            hfr: metrics.hfr,
+            eccentricity: metrics.eccentricity,
+            star_count: Some(0),
+        };
     }
 
     // Absolute HFR. Only fires when HFR is actually measured — a None
@@ -419,10 +454,10 @@ mod tests {
 
     #[test]
     fn unmeasured_eccentricity_does_not_reject() {
-        // Honest-absence path: when no stars (or too few reliable stars) were
-        // available, the detector reports None. The gate must NOT reject on
-        // no evidence — None is "unknown", not "bad". (The HFR / star-count
-        // gates cover the genuinely-empty-frame case.)
+        // Honest-absence path: when too few reliable stars were available to
+        // form a stable median, the detector reports None. The gate must NOT
+        // reject on no evidence — None is "unknown", not "bad". (The
+        // measured-zero-stars gate covers the genuinely-empty-frame case.)
         let check = ImageQualityCheck {
             eccentricity_threshold: Some(0.5),
             ..Default::default()
@@ -437,6 +472,53 @@ mod tests {
             FrameGrade::Pass,
             "an unmeasured eccentricity must not produce a no-evidence reject"
         );
+    }
+
+    #[test]
+    fn measured_zero_stars_is_rejected_even_with_only_an_eccentricity_gate() {
+        // The shape this closes: the operator configured the eccentricity
+        // gate and nothing else, the frame came back with no stars, so HFR
+        // and eccentricity were both None and every gate was skipped. The
+        // frame that most needed culling was the one that passed.
+        let check = ImageQualityCheck {
+            eccentricity_threshold: Some(0.8),
+            ..Default::default()
+        };
+        let metrics = FrameMetrics {
+            hfr: None,
+            eccentricity: None,
+            star_count: Some(0),
+        };
+        match grade_frame(&check, &metrics, None) {
+            FrameGrade::Reject {
+                reason, star_count, ..
+            } => {
+                assert!(reason.contains("no stars detected"), "reason: {reason}");
+                assert_eq!(star_count, Some(0));
+            }
+            other => panic!(
+                "expected Reject for a starless light frame, got {:?}",
+                other
+            ),
+        }
+    }
+
+    #[test]
+    fn unmeasured_star_count_is_still_honest_absence() {
+        // The counterpart invariant: `None` must keep passing. This is the
+        // path calibration frames and detector failures take, and turning it
+        // into a reject would dump whole dark/flat bursts into Reject/.
+        let check = ImageQualityCheck {
+            eccentricity_threshold: Some(0.8),
+            star_count_min: Some(20),
+            ..Default::default()
+        };
+        let metrics = FrameMetrics {
+            hfr: None,
+            eccentricity: None,
+            star_count: None,
+        };
+        assert_eq!(grade_frame(&check, &metrics, None), FrameGrade::Pass);
     }
 
     #[test]
@@ -530,6 +612,100 @@ mod tests {
         assert!(
             samples.is_empty(),
             "post-lock samples should not be accumulated"
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // Pixels-to-verdict wiring.
+    //
+    // Everything above hand-builds `FrameMetrics`, which cannot catch the
+    // real defect: the metrics the capture loop actually assembles came
+    // from a detector that discarded every trailed star before it could be
+    // measured, so `grade_frame` was handed `None` and passed the frame.
+    // These tests drive the same chain `run_exposure_loop` drives —
+    // `detect_stars(StarDetectionConfig::default())` (verbatim what
+    // `UnifiedDeviceOps::measure_frame_eccentricity` and
+    // `detect_stars_in_image` use) → `frame_eccentricity` → `FrameMetrics`
+    // → `grade_frame` — starting from pixels.
+    // -----------------------------------------------------------------
+
+    /// A field of identically-smeared elliptical Gaussians on a flat
+    /// background: what wind shake or a dropped guide correction does to
+    /// every star in the frame at once.
+    fn render_star_field(sigma_major: f64, sigma_minor: f64) -> nightshade_imaging::ImageData {
+        const WIDTH: u32 = 280;
+        const HEIGHT: u32 = 160;
+        const BACKGROUND: f64 = 1000.0;
+        const PEAK: f64 = 30000.0;
+        let centers: Vec<(f64, f64)> = (0..8)
+            .map(|i| (40.0 + (i % 4) as f64 * 60.0, 40.0 + (i / 4) as f64 * 60.0))
+            .collect();
+        let two_sx_sq = 2.0 * sigma_major * sigma_major;
+        let two_sy_sq = 2.0 * sigma_minor * sigma_minor;
+        let mut data = vec![BACKGROUND as u16; (WIDTH * HEIGHT) as usize];
+        for y in 0..HEIGHT {
+            for x in 0..WIDTH {
+                let mut v = BACKGROUND;
+                for &(cx, cy) in &centers {
+                    let dx = x as f64 - cx;
+                    let dy = y as f64 - cy;
+                    v += PEAK * (-(dx * dx) / two_sx_sq - (dy * dy) / two_sy_sq).exp();
+                }
+                data[(y * WIDTH + x) as usize] = v.clamp(0.0, 65535.0) as u16;
+            }
+        }
+        nightshade_imaging::ImageData::from_u16(WIDTH, HEIGHT, 1, &data)
+    }
+
+    /// Reproduce the capture loop's metric assembly for a light frame.
+    fn measure_light_frame(image: &nightshade_imaging::ImageData) -> FrameMetrics {
+        let stars = nightshade_imaging::detect_stars(
+            image,
+            &nightshade_imaging::StarDetectionConfig::default(),
+        );
+        FrameMetrics {
+            hfr: nightshade_imaging::calculate_median_hfr(image),
+            eccentricity: nightshade_imaging::frame_eccentricity(&stars),
+            star_count: Some(stars.len() as u32),
+        }
+    }
+
+    #[test]
+    fn trailed_frame_measured_from_pixels_is_rejected() {
+        // 2.5:1 smear (analytic e = 0.917) — the "catastrophic tracking
+        // failure" the settings screen promises the 0.8 threshold catches.
+        let image = render_star_field(6.0, 2.4);
+        let metrics = measure_light_frame(&image);
+        let check = ImageQualityCheck {
+            eccentricity_threshold: Some(0.8),
+            ..Default::default()
+        };
+        match grade_frame(&check, &metrics, None) {
+            FrameGrade::Reject { reason, .. } => {
+                assert!(reason.contains("eccentricity"), "reason: {reason}");
+            }
+            other => panic!(
+                "a trailed frame must be rejected; got {:?} from metrics {:?}",
+                other, metrics
+            ),
+        }
+    }
+
+    #[test]
+    fn round_frame_measured_from_pixels_is_accepted() {
+        // The control: the same chain on a well-guided frame must not
+        // reject, or the gate above would just be a frame shredder.
+        let image = render_star_field(2.6, 2.5);
+        let metrics = measure_light_frame(&image);
+        let check = ImageQualityCheck {
+            eccentricity_threshold: Some(0.8),
+            ..Default::default()
+        };
+        assert_eq!(
+            grade_frame(&check, &metrics, None),
+            FrameGrade::Pass,
+            "round frame metrics {:?} must pass",
+            metrics
         );
     }
 

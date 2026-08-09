@@ -236,15 +236,18 @@ class _WeatherStatusCardState extends ConsumerState<WeatherStatusCard> {
             const SizedBox(height: 16),
           ],
 
-          // Last updated
-          if (widget.lastUpdate != null)
-            Text(
-              'Updated ${_formatLastUpdate(widget.lastUpdate!)}',
-              style: TextStyle(
-                fontSize: 11,
-                color: colors.textMuted,
-              ),
+          // Last updated. Null means no fetch has landed yet — say so instead
+          // of leaving the slot blank; an age is only printable once there is
+          // a real fetch time to age from.
+          Text(
+            widget.lastUpdate == null
+                ? 'Waiting for weather data'
+                : 'Updated ${_formatLastUpdate(widget.lastUpdate!)}',
+            style: TextStyle(
+              fontSize: 11,
+              color: colors.textMuted,
             ),
+          ),
         ],
       ),
     );

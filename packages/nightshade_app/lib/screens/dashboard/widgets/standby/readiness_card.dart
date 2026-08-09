@@ -5,6 +5,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../../localization/nightshade_localizations.dart';
 import '../glass_card.dart';
 
 /// Readiness & storage glance: connection state for the four core devices
@@ -52,7 +53,7 @@ class ReadinessCard extends ConsumerWidget {
           DashboardCardHeader(
             colors: colors,
             icon: LucideIcons.plug,
-            title: 'Readiness',
+            title: context.l10n.text('dbReadiness'),
             accent: nothingConnected ? colors.textMuted : colors.success,
           ),
           const SizedBox(height: DashboardCardStyle.headerGap),
@@ -63,26 +64,26 @@ class ReadinessCard extends ConsumerWidget {
               _ReadinessChip(
                 colors: colors,
                 icon: LucideIcons.camera,
-                label: 'Camera',
+                label: context.l10n.text('dbCamera'),
                 connected: cameraConnected,
                 detail: coolerLabel,
               ),
               _ReadinessChip(
                 colors: colors,
                 icon: LucideIcons.move3d,
-                label: 'Mount',
+                label: context.l10n.text('dbMount'),
                 connected: mountConnected,
               ),
               _ReadinessChip(
                 colors: colors,
                 icon: LucideIcons.crosshair,
-                label: 'Guider',
+                label: context.l10n.text('dbGuider'),
                 connected: guiderConnected,
               ),
               _ReadinessChip(
                 colors: colors,
                 icon: LucideIcons.focus,
-                label: 'Focuser',
+                label: context.l10n.text('dbFocuser'),
                 connected: focuserConnected,
               ),
             ],
@@ -96,7 +97,7 @@ class ReadinessCard extends ConsumerWidget {
             Align(
               alignment: Alignment.centerLeft,
               child: NightshadeButton(
-                label: 'Connect equipment',
+                label: context.l10n.text('dbConnectEquipment'),
                 icon: LucideIcons.plug,
                 variant: ButtonVariant.outline,
                 size: ButtonSize.small,
@@ -127,7 +128,7 @@ class _StorageLine extends ConsumerWidget {
           Icon(LucideIcons.hardDrive, size: 14, color: colors.textMuted),
           const SizedBox(width: NightshadeTokens.spaceSm),
           Text(
-            'Checking disk…',
+            context.l10n.text('dbCheckingDisk'),
             style: NightshadeTypography.bodySm.copyWith(
               color: colors.textMuted,
             ),
@@ -140,7 +141,7 @@ class _StorageLine extends ConsumerWidget {
           const SizedBox(width: NightshadeTokens.spaceSm),
           Expanded(
             child: Text(
-              'Disk query failed',
+              context.l10n.text('dbDiskQueryFailed'),
               style: NightshadeTypography.bodySm.copyWith(color: colors.error),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -157,7 +158,7 @@ class _StorageLine extends ConsumerWidget {
               const SizedBox(width: NightshadeTokens.spaceSm),
               Expanded(
                 child: Text(
-                  'Set a capture directory to track free space.',
+                  context.l10n.text('dbSetCaptureDir'),
                   style: NightshadeTypography.bodySm.copyWith(
                     color: colors.textSecondary,
                   ),
@@ -173,7 +174,7 @@ class _StorageLine extends ConsumerWidget {
                 size: 14, color: _freeColor(info.freeBytes)),
             const SizedBox(width: NightshadeTokens.spaceSm),
             Text(
-              'Free storage',
+              context.l10n.text('dbFreeStorage'),
               style: NightshadeTypography.bodySm.copyWith(
                 color: colors.textSecondary,
               ),

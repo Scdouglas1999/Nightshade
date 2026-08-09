@@ -19,6 +19,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/models/command_action_result.dart';
 import 'package:nightshade_app/services/sequence_action_service.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import '../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 /// A [SequenceExecutor] stand-in that only records the playback calls the
 /// service makes and lets each be parked on a [Completer] so a test can hold a
@@ -85,6 +86,7 @@ class _RecordingExecutor extends SequenceExecutor {
 }) {
   late _RecordingExecutor executor;
   final container = ProviderContainer(overrides: [
+    inMemoryDatabaseOverride(),
     sequenceExecutorProvider.overrideWith((ref) {
       executor = _RecordingExecutor(ref);
       return executor;

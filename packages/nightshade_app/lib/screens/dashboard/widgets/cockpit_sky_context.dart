@@ -3,9 +3,11 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:nightshade_core/nightshade_core.dart' show Clock, clockProvider;
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../services/observing_site.dart';
 import '../../sequencer/widgets/run_dashboard/run_dashboard_format.dart';
 import '../../sequencer/widgets/run_dashboard/run_dashboard_providers.dart';
 
@@ -31,8 +33,17 @@ class CockpitSkyContext extends ConsumerWidget {
     final colors = NightshadeColors.of(context);
     final target = ref.watch(runDashboardActiveTargetProvider);
 
-    final twilight = ref.watch(twilightTimesProvider);
+    // `null` when no observing site is on record: the darkness window and the
+    // astro-dark countdown are facts about a place, and this panel sits on the
+    // same Dashboard as the Tonight card, so it must not answer where that one
+    // stays silent. Moon phase/illumination are global and stay.
+    final twilight = ref.watch(siteTwilightTimesProvider);
     final moon = ref.watch(moonInfoProvider);
+    // The status bar, the header chip and the night timeline all render
+    // Settings → Location → Timezone; this panel shares a screen with them, so
+    // an astro-dark window left on host time would put two zones side by side
+    // and neither would be labelled.
+    final clock = ref.watch(clockProvider);
 
     if (target == null) {
       return _Shell(
@@ -43,7 +54,7 @@ class CockpitSkyContext extends ConsumerWidget {
             const SizedBox(width: NightshadeTokens.spaceSm),
             Expanded(
               child: Text(
-                _idleSummary(twilight, moon),
+                _idleSummary(twilight, moon, clock),
                 style: TextStyle(
                   fontSize: NightshadeTypography.fontSize12_5,
                   fontWeight: FontWeight.w600,
@@ -156,12 +167,21 @@ class CockpitSkyContext extends ConsumerWidget {
   }
 
   /// Idle summary: astro-dark window + moon illumination.
-  String _idleSummary(TwilightTimes twilight, MoonTimes moon) {
-    final dusk = twilight.astronomicalDusk;
-    final dawn = twilight.astronomicalDawn;
-    final window = (dusk != null && dawn != null)
-        ? 'astro dark ${formatTimeOfDay(dusk)}→${formatTimeOfDay(dawn)}'
-        : 'astro dark unavailable';
+  ///
+  /// A null [twilight] is "no site on record" and asks for one; null dusk/dawn
+  /// on a real site is polar day/night, which is unavailability, not ignorance.
+  String _idleSummary(TwilightTimes? twilight, MoonTimes moon, Clock clock) {
+    final dusk = twilight?.astronomicalDusk;
+    final dawn = twilight?.astronomicalDawn;
+    final String window;
+    if (twilight == null) {
+      window = 'set an observing location';
+    } else if (dusk != null && dawn != null) {
+      window = 'astro dark ${formatTimeOfDay(clock.fromUtc(dusk.toUtc()))}'
+          '→${formatTimeOfDay(clock.fromUtc(dawn.toUtc()))}';
+    } else {
+      window = 'astro dark unavailable';
+    }
     return 'No target — $window · Moon ${moon.illumination.toStringAsFixed(0)}%';
   }
 }
@@ -176,10 +196,10 @@ String _airmass(double altitudeDeg) {
   return airmass.toStringAsFixed(2);
 }
 
-/// Time remaining until astronomical dawn, or `null` when dawn is unknown or
-/// already past (so the readout shows `—`).
-Duration? _darknessRemaining(TwilightTimes twilight, DateTime now) {
-  final dawn = twilight.astronomicalDawn;
+/// Time remaining until astronomical dawn, or `null` when there is no site,
+/// dawn is unknown, or dawn is already past (so the readout shows `—`).
+Duration? _darknessRemaining(TwilightTimes? twilight, DateTime now) {
+  final dawn = twilight?.astronomicalDawn;
   if (dawn == null) return null;
   if (!dawn.isAfter(now)) return null;
   return dawn.difference(now);

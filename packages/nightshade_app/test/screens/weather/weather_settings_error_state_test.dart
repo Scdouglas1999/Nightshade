@@ -5,6 +5,7 @@ import 'package:nightshade_app/screens/weather/weather_screen.dart';
 import 'package:nightshade_app/widgets/weather/dashboard_weather_widget.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 class _FailingSettingsNotifier extends AppSettingsNotifier {
   @override
@@ -12,10 +13,8 @@ class _FailingSettingsNotifier extends AppSettingsNotifier {
       Future<AppSettingsState>.error(StateError('settings offline'));
 }
 
-WeatherStatus _status() => WeatherStatus(
-      currentLevel: AlertLevel.clear,
-      lastUpdate: DateTime.fromMillisecondsSinceEpoch(0),
-    );
+// lastUpdate stays null: no radar fetch has landed in this scenario.
+WeatherStatus _status() => const WeatherStatus(currentLevel: AlertLevel.clear);
 
 WeatherAlert _clearAlert() => WeatherAlert(
       level: AlertLevel.clear,
@@ -41,6 +40,7 @@ void main() {
   ) async {
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         appSettingsProvider.overrideWith(_FailingSettingsNotifier.new),
         weatherStatusProvider.overrideWithValue(_status()),
       ],
@@ -69,6 +69,7 @@ void main() {
   ) async {
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         appSettingsProvider.overrideWith(_FailingSettingsNotifier.new),
         weatherStatusProvider.overrideWithValue(_status()),
         analyzeCloudMotionProvider.overrideWith((ref) async => null),

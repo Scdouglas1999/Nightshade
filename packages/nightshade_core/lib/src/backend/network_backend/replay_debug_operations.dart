@@ -83,6 +83,24 @@ mixin _NetworkBackendReplayDebugOperations on _NetworkBackendTransport {
     return count;
   }
 
+  /// Authoritative count of every decision the host holds, across all runs.
+  ///
+  /// Same endpoint as [replayCountDecisions] with the run filter omitted. A
+  /// host too old to understand that answers 400, which surfaces here as a
+  /// thrown error — the caller states that it does not know the size rather
+  /// than showing a made-up one.
+  Future<int> replayCountAllDecisions() async {
+    final response = await _get('sequencer/replay-debug/decisions/count');
+    final count = response['count'];
+    if (count is! int || count < 0) {
+      throw FormatException(
+        'GET /api/sequencer/replay-debug/decisions/count returned a '
+        'non-integer `count` (${count.runtimeType})',
+      );
+    }
+    return count;
+  }
+
   /// Read the host's authoritative replay settings (enabled + retention).
   Future<ReplayDebugSettings> replayGetSettings() async {
     final response = await _get('sequencer/replay-debug/settings');

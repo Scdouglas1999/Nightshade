@@ -14,6 +14,8 @@
 
 import 'dart:async';
 
+import 'package:fake_async/fake_async.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -24,6 +26,7 @@ import 'package:nightshade_core/src/providers/backend_provider.dart';
 import 'package:nightshade_core/src/providers/operation_progress_provider.dart';
 
 import '../mocks/mock_backend.dart';
+import '../harness/in_memory_database.dart';
 
 NightshadeEvent _progressEvent({
   required int point,
@@ -67,6 +70,7 @@ void main() {
   ProviderContainer buildContainer() {
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith(
           (ref) => _FixedBackendNotifier(ref, backend),
         ),
@@ -187,6 +191,87 @@ void main() {
       isNull,
     );
     expect(container.read(autofocusOverlayProvider).isRunning, isTrue);
+  });
+
+  // Audit 2026-08-03: the completed-result pill never expired. The overlay is
+  // shell-mounted so it survives navigation during a run (by design), which
+  // meant a finished result followed the operator onto Guiding / Plan Tonight
+  // / Framing and covered their controls until the app was restarted.
+  ProviderContainer fakeAsyncContainer() => ProviderContainer(
+    overrides: [
+      inMemoryDatabaseOverride(),
+      backendProvider.overrideWith(
+        (ref) => _FixedBackendNotifier(ref, backend),
+      ),
+    ],
+  );
+
+  const finishedRun = AutofocusResult(
+    bestPosition: 25075,
+    bestHfr: 2.1,
+    focusData: [],
+    method: 'Hyperbolic',
+    timestamp: 0,
+    curveFitQuality: 0.92,
+    backlashApplied: true,
+  );
+
+  test('a completed result dismisses itself', () {
+    fakeAsync((async) {
+      final container = fakeAsyncContainer();
+      final notifier = container.read(autofocusOverlayProvider.notifier);
+      notifier.onAutofocusStarted();
+      notifier.onAutofocusCompleted(finishedRun);
+      expect(container.read(autofocusOverlayProvider).isVisible, isTrue);
+
+      async.elapse(
+        AutofocusOverlayNotifier.resultAutoDismissDelay -
+            const Duration(seconds: 1),
+      );
+      expect(
+        container.read(autofocusOverlayProvider).isVisible,
+        isTrue,
+        reason: 'the result must stay readable for its full window',
+      );
+
+      async.elapse(const Duration(seconds: 2));
+      expect(container.read(autofocusOverlayProvider).isVisible, isFalse);
+      container.dispose();
+    });
+  });
+
+  test('a failed run stays up: it carries an error to read', () {
+    fakeAsync((async) {
+      final container = fakeAsyncContainer();
+      final notifier = container.read(autofocusOverlayProvider.notifier);
+      notifier.onAutofocusStarted();
+      notifier.onAutofocusFailed('curve fit R2 0.100 below threshold 0.700');
+
+      async.elapse(AutofocusOverlayNotifier.resultAutoDismissDelay * 3);
+      expect(container.read(autofocusOverlayProvider).isVisible, isTrue);
+      expect(container.read(autofocusOverlayProvider).hasError, isTrue);
+      container.dispose();
+    });
+  });
+
+  test('a new run cancels the previous result countdown', () {
+    fakeAsync((async) {
+      final container = fakeAsyncContainer();
+      final notifier = container.read(autofocusOverlayProvider.notifier);
+      notifier.onAutofocusStarted();
+      notifier.onAutofocusCompleted(finishedRun);
+      async.elapse(const Duration(seconds: 5));
+      notifier.onAutofocusStarted();
+      async.elapse(const Duration(seconds: 30));
+
+      expect(
+        container.read(autofocusOverlayProvider).isVisible,
+        isTrue,
+        reason: 'a stale countdown must not close a live run',
+      );
+      expect(container.read(autofocusOverlayProvider).isRunning, isTrue);
+      container.dispose();
+    });
   });
 }
 

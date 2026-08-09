@@ -107,8 +107,14 @@ void main() {
     await _showImportButton(tester);
 
     await tester.tap(find.text('Import .hor / CSV'));
+    // The import button spins while the flow is in flight (including while
+    // the confirmation dialog is up), so pumpAndSettle never returns here.
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    // The reduction to eight sectors is confirmed before anything is written.
+    await tester.tap(find.text('Import'));
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
 
     final settings = handle.container.read(appSettingsProvider).value!;
     final profile = LegacyHorizonProfile.fromJson(
@@ -118,7 +124,7 @@ void main() {
     expect(profile.altitudeAt('E'), 7);
     expect(find.text('Import .hor / CSV'), findsOneWidget);
     expect(
-      find.text('Horizon profile imported from selected-horizon.csv'),
+      find.textContaining('Horizon imported from selected-horizon.csv'),
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);

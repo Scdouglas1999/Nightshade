@@ -756,6 +756,7 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
     _socketAuthIdentities.clear();
     _socketLastSeenAt.clear();
     _sockets.clear();
+    _publishConnectedClientCount();
     _collaborationManager.dispose();
     // Why close the pairing DB: PairingService owns a Drift connection.
     // Leaving it open across server restarts leaks file handles in tests.

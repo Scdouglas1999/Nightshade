@@ -7,11 +7,13 @@ import 'package:nightshade_core/nightshade_core.dart' hide ConnectionState;
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../session_review_controller.dart';
+import '../../../services/image_download_service.dart';
 import '../../../utils/filter_label.dart';
+import '../../../utils/snackbar_helper.dart';
 
-/// Workbench evolution of [SubGalleryPanel]: the same grade-badged sub grid with
-/// **blink** + **bulk-reject below threshold**, plus two power-user culling
-/// affordances the narrative gallery lacks:
+/// The session-review sub grid: grade-badged thumbnails of the night's lights
+/// with **blink**, **bulk-reject below threshold**, per-sub accept/reject, a
+/// per-sub "download to this device", plus two power-user culling affordances:
 ///
 ///  * **Multi-select / lasso cull** — tap to toggle a selection, or drag a
 ///    rubber-band rectangle over the grid to select every sub it touches, then
@@ -21,9 +23,11 @@ import '../../../utils/filter_label.dart';
 ///    recommend keeping (down to `keepN`), in one click, with the predicted
 ///    SNR gain surfaced on the action chip.
 ///
-/// One controller, two renderings: the narrative screen uses [SubGalleryPanel];
-/// the workbench uses this rail over the *same* `state.lights` + the same
-/// accept/reject + bulk-cull controller actions.
+/// This is the ONLY sub grid the app ships. It is mounted by the workbench
+/// rendering of [SessionReviewController]; the narrative rendering is the
+/// read-first story of the night (hero master, verdict, curves, findings) and
+/// deliberately hosts no per-sub culling — the screen's one-tap
+/// Narrative ↔ Workbench toggle is how an operator gets here.
 class SubCullRail extends ConsumerStatefulWidget {
   /// The light subs to review (accepted + rejected), capture-time ascending.
   final List<DbCapturedImage> subs;
@@ -81,15 +85,15 @@ class SubCullRail extends ConsumerStatefulWidget {
 }
 
 class _SubCullRailState extends ConsumerState<SubCullRail> {
-  // --- blink (kept from SubGalleryPanel) ---
+  // --- blink ---
   bool _blink = false;
   int _blinkIndex = 0;
   Timer? _blinkTimer;
 
-  // --- threshold bulk-cull (kept from SubGalleryPanel) ---
+  // --- threshold bulk-cull ---
   double _hfrCull = 3.5;
 
-  // --- multi-select / lasso (new) ---
+  // --- multi-select / lasso ---
   bool _selectMode = false;
   final Set<int> _selected = <int>{};
 
@@ -99,20 +103,27 @@ class _SubCullRailState extends ConsumerState<SubCullRail> {
   // Cell rects captured during layout so the lasso can hit-test them.
   final Map<int, Rect> _cellRects = <int, Rect>{};
 
-  // The latest improvement curve, kept in sync by listening to the controller
-  // directly so the rail tracks the live state without re-deriving the provider
-  // scope (the workbench passes the controller, not the scope).
-  IntegrationCurve? _curve;
+  // Whether the curve-driven cull is offerable right now, kept in sync by
+  // listening to the controller directly so the rail tracks the live state
+  // without re-deriving the provider scope (the workbench passes the
+  // controller, not the scope). This tracks the *offer*, not the curve, because
+  // accepting/rejecting a sub can stale the curve without replacing it — the
+  // toolbar has to re-render on that too or it would keep advertising a cull
+  // the controller has already started refusing.
+  CullRecommendationOffer _offer = CullRecommendationOffer.none;
   RemoveListener? _removeControllerListener;
-  void _onControllerChanged(SessionReviewState s) {
+  void _onControllerChanged(SessionReviewState _) {
     if (!mounted) return;
-    final next = s.improvementCurve;
-    if (next != _curve) setState(() => _curve = next);
+    final next = widget.controller.cullRecommendationOffer;
+    if (next != _offer) setState(() => _offer = next);
   }
 
   @override
   void initState() {
     super.initState();
+    // Seed before subscribing: addListener fires immediately, and a setState
+    // out of initState is pointless churn.
+    _offer = widget.controller.cullRecommendationOffer;
     _removeControllerListener =
         widget.controller.addListener(_onControllerChanged);
   }
@@ -123,6 +134,7 @@ class _SubCullRailState extends ConsumerState<SubCullRail> {
 
     if (!identical(oldWidget.controller, widget.controller)) {
       _removeControllerListener?.call();
+      _offer = widget.controller.cullRecommendationOffer;
       _removeControllerListener =
           widget.controller.addListener(_onControllerChanged);
     }
@@ -206,15 +218,15 @@ class _SubCullRailState extends ConsumerState<SubCullRail> {
     });
   }
 
-  Future<void> _cullToRecommended(IntegrationCurve curve) async {
+  Future<void> _cullToRecommended(CullRecommendationOffer offer) async {
     final result = await widget.controller.cullToRecommended();
     if (!mounted) return;
-    final keepN = curve.recommendation.keepN;
+    final keepN = offer.keepN;
     final String message;
     switch (result.outcome) {
       case CullOutcome.culled:
         message = 'Culled to best $keepN subs (${result.rejected} rejected, '
-            '+${curve.recommendation.predictedSnrGainPct.toStringAsFixed(0)}% SNR)';
+            '+${offer.gainPct.toStringAsFixed(0)}% SNR)';
         break;
       case CullOutcome.alreadyOptimal:
         message = 'Already at the recommended $keepN subs';
@@ -242,8 +254,6 @@ class _SubCullRailState extends ConsumerState<SubCullRail> {
       );
     }
 
-    final curve = _curve;
-
     const assessor = FrameQualityAssessmentService();
     final assessments = assessor.assessBatch(widget.subs);
 
@@ -262,7 +272,8 @@ class _SubCullRailState extends ConsumerState<SubCullRail> {
             selectMode: _selectMode,
             selectedCount: _selected.length,
             hfrThreshold: _hfrCull,
-            curve: curve,
+            offer: _offer,
+            acceptedCount: widget.subs.where((sub) => sub.isAccepted).length,
             onToggleBlink: _toggleBlink,
             onToggleSelect: _toggleSelectMode,
             onHfrChanged: (v) => setState(() => _hfrCull = v),
@@ -271,9 +282,11 @@ class _SubCullRailState extends ConsumerState<SubCullRail> {
             onClearSelection: _selected.isEmpty
                 ? null
                 : () => setState(() => _selected.clear()),
-            onCullToRecommended: curve != null && curve.recommendation.keepN > 0
-                ? () => _cullToRecommended(curve)
-                : null,
+            // Only an offerable cull gets a pressable action. Stale /
+            // already-optimal render an explanatory status chip instead — the
+            // controller would refuse the press in both cases.
+            onCullToRecommended:
+                _offer.isOfferable ? () => _cullToRecommended(_offer) : null,
           ),
         ),
         if (_blink)
@@ -401,7 +414,14 @@ class _CullToolbar extends StatelessWidget {
   final bool selectMode;
   final int selectedCount;
   final double hfrThreshold;
-  final IntegrationCurve? curve;
+
+  /// Render-time verdict on the curve-driven cull. The toolbar renders the
+  /// quantified action only when this is offerable.
+  final CullRecommendationOffer offer;
+
+  /// Live accepted-sub count, quoted in the stale explanation so the user can
+  /// see *why* the analysis no longer applies.
+  final int acceptedCount;
   final VoidCallback onToggleBlink;
   final VoidCallback onToggleSelect;
   final ValueChanged<double> onHfrChanged;
@@ -415,7 +435,8 @@ class _CullToolbar extends StatelessWidget {
     required this.selectMode,
     required this.selectedCount,
     required this.hfrThreshold,
-    required this.curve,
+    required this.offer,
+    required this.acceptedCount,
     required this.onToggleBlink,
     required this.onToggleSelect,
     required this.onHfrChanged,
@@ -428,8 +449,8 @@ class _CullToolbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    final keepN = curve?.recommendation.keepN ?? 0;
-    final gainPct = curve?.recommendation.predictedSnrGainPct ?? 0;
+    final keepN = offer.keepN;
+    final gainPct = offer.gainPct;
 
     return Wrap(
       spacing: NightshadeTokens.spaceMd,
@@ -477,6 +498,38 @@ class _CullToolbar extends StatelessWidget {
               variant: ButtonVariant.primary,
               size: ButtonSize.small,
               onPressed: onCullToRecommended,
+            ),
+          )
+        else if (offer.status == CullOfferStatus.stale)
+          Tooltip(
+            message: 'The optimizer ran over ${offer.populationSize} '
+                '${offer.populationSize == 1 ? 'sub' : 'subs'}; '
+                '$acceptedCount ${acceptedCount == 1 ? 'is' : 'are'} accepted '
+                'now, so its keep-set no longer maps to them. Re-integrate to '
+                'recompute the curve over the current selection.',
+            child: const NightshadeChip(
+              label: 'Cull analysis out of date',
+              icon: NightshadeIcons.warning,
+            ),
+          )
+        else if (offer.status == CullOfferStatus.alreadyOptimal)
+          Tooltip(
+            // Two different states share this status and they must not share a
+            // sentence. "Keeps everything" is only true when keepN covers the
+            // population; when the optimizer picked a SMALLER keep-set that
+            // simply predicts no gain, saying it "would keep all N" misreports
+            // what the optimizer actually recommended.
+            message: keepN >= offer.populationSize
+                ? 'The optimizer would keep all $acceptedCount accepted '
+                    '${acceptedCount == 1 ? 'sub' : 'subs'} — there is '
+                    'nothing to cull.'
+                : 'The optimizer would keep $keepN of $acceptedCount, but '
+                    'predicts no SNR gain from dropping the rest '
+                    '(${gainPct.toStringAsFixed(0)}%), so the full stack is '
+                    'the better one.',
+            child: const NightshadeChip(
+              label: 'Keep-set already optimal',
+              icon: NightshadeIcons.success,
             ),
           ),
         if (!selectMode)
@@ -692,11 +745,87 @@ class _SubTile extends ConsumerWidget {
                     style: NightshadeTypography.caption
                         .copyWith(color: colors.textMuted),
                   ),
+                // Pull the full-resolution frame off the host to this device.
+                // The host has always streamed `GET /api/images/<id>/download`
+                // and `downloadImageToDevice` has always wrapped it, but the
+                // only button that called it lived in a panel no screen built,
+                // so a phone paired to the Pi could reach nothing but the 512px
+                // thumbnail. This is that path's one production call site.
+                _SubDownloadButton(sub: sub, colors: colors),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Per-tile "save the full-resolution frame to this device" affordance.
+/// Streams via [downloadImageToDevice] (mobile → share sheet, desktop → save
+/// picker) with an inline spinner while the transfer runs.
+class _SubDownloadButton extends ConsumerStatefulWidget {
+  final DbCapturedImage sub;
+  final NightshadeColors colors;
+
+  const _SubDownloadButton({required this.sub, required this.colors});
+
+  @override
+  ConsumerState<_SubDownloadButton> createState() => _SubDownloadButtonState();
+}
+
+class _SubDownloadButtonState extends ConsumerState<_SubDownloadButton> {
+  bool _busy = false;
+
+  Future<void> _download() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final outcome = await downloadImageToDevice(
+        backend: ref.read(imagingBackendProvider),
+        imageId: widget.sub.id,
+        fileName: widget.sub.fileName,
+      );
+      if (!mounted) return;
+      switch (outcome.status) {
+        case ImageDownloadStatus.saved:
+          context.showSuccessSnackBar('Saved to ${outcome.savedPath}');
+        case ImageDownloadStatus.shared:
+          context.showSuccessSnackBar('Frame ready to share');
+        case ImageDownloadStatus.cancelled:
+          break;
+        case ImageDownloadStatus.failed:
+          context.showErrorSnackBar(outcome.error ?? 'Download failed');
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 32,
+      height: 32,
+      child: _busy
+          ? Padding(
+              padding: const EdgeInsets.all(8),
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: widget.colors.textMuted,
+              ),
+            )
+          : IconButton(
+              padding: EdgeInsets.zero,
+              iconSize: 18,
+              visualDensity: VisualDensity.compact,
+              tooltip: 'Download to this device',
+              icon: Icon(
+                NightshadeIcons.download,
+                color: widget.colors.textSecondary,
+              ),
+              onPressed: _download,
+            ),
     );
   }
 }
@@ -845,7 +974,7 @@ class _Badge extends StatelessWidget {
   }
 }
 
-/// Full-bleed single-sub view used by blink mode (kept from [SubGalleryPanel]).
+/// Full-bleed single-sub view used by blink mode.
 class _BlinkView extends ConsumerWidget {
   final DbCapturedImage sub;
   const _BlinkView({required this.sub});

@@ -254,13 +254,14 @@ pub fn armed_keys() -> Vec<(String, FaultSpec)> {
 /// device at all, which is how a stall stays invisible to the command that
 /// caused it and only shows up as "it never got there".
 pub fn is_stalled(key: &str) -> bool {
-    registry()
-        .lock()
-        .expect("sim fault registry poisoned")
-        .stalled
-        .get(key)
-        .copied()
-        .unwrap_or(false)
+    matches!(
+        registry()
+            .lock()
+            .expect("sim fault registry poisoned")
+            .stalled
+            .get(key),
+        Some(true)
+    )
 }
 
 /// Release a stall latch without touching the armed spec, so a test can prove
@@ -575,10 +576,44 @@ mod tests {
     /// The registry is process-global, so every test arms under its own key
     /// prefix and clears afterwards. Without this a leaked fault surfaces as an
     /// unrelated test failing elsewhere.
-    struct Guard(&'static str);
+    ///
+    /// Clearing its own keys is NOT enough on its own. The simulator tests in
+    /// `sim_gate` and `cover` call [`clear_all`], which wipes the whole registry,
+    /// and they used to run concurrently with these — so a fault armed here could
+    /// be disarmed there between the `arm` and the `check`. That surfaced as
+    /// `every_nth_fires_on_the_nth_call` seeing six clean calls instead of a
+    /// fault on the 3rd and 6th, about one run in six, and as
+    /// `armed_keys_reports_what_is_armed` finding its own keys missing. The
+    /// global PRNG behind `Trigger::Probability` is shared the same way.
+    ///
+    /// So the guard also holds the lock those tests already take. Acquiring it is
+    /// what actually serialises the registry; the per-key clear just keeps a
+    /// leaked fault from outliving the test that armed it.
+    struct Guard {
+        keys: &'static [&'static str],
+        _serialized: tokio::sync::MutexGuard<'static, ()>,
+    }
+
+    impl Guard {
+        async fn new(keys: &'static [&'static str]) -> Self {
+            let serialized = crate::api::devices::simulation::sim_singleton_test_lock()
+                .lock()
+                .await;
+            for key in keys {
+                clear(key);
+            }
+            Self {
+                keys,
+                _serialized: serialized,
+            }
+        }
+    }
+
     impl Drop for Guard {
         fn drop(&mut self) {
-            clear(self.0);
+            for key in self.keys {
+                clear(key);
+            }
         }
     }
 
@@ -589,7 +624,7 @@ mod tests {
 
     #[tokio::test]
     async fn times_one_fires_exactly_once() {
-        let _g = Guard("test.times1");
+        let _g = Guard::new(&["test.times1"]).await;
         arm("test.times1", FaultSpec::transient("boom"));
         assert_eq!(check("test.times1").await, Err("boom".to_string()));
         assert!(
@@ -600,7 +635,7 @@ mod tests {
 
     #[tokio::test]
     async fn always_keeps_firing() {
-        let _g = Guard("test.always");
+        let _g = Guard::new(&["test.always"]).await;
         arm("test.always", FaultSpec::not_implemented());
         for _ in 0..5 {
             let err = check("test.always").await.expect_err("must keep failing");
@@ -610,7 +645,7 @@ mod tests {
 
     #[tokio::test]
     async fn after_calls_succeeds_then_dies() {
-        let _g = Guard("test.after");
+        let _g = Guard::new(&["test.after"]).await;
         arm(
             "test.after",
             FaultSpec::new(Trigger::AfterCalls(2), Effect::Error("usb gone".into())),
@@ -625,7 +660,7 @@ mod tests {
     /// would silently turn an intermittent fault into an immediate one.
     #[tokio::test]
     async fn every_nth_fires_on_the_nth_call() {
-        let _g = Guard("test.every");
+        let _g = Guard::new(&["test.every"]).await;
         arm(
             "test.every",
             FaultSpec::new(Trigger::EveryNth(3), Effect::Error("flake".into())),
@@ -642,7 +677,7 @@ mod tests {
 
     #[tokio::test]
     async fn not_connected_names_the_key_it_came_from() {
-        let _g = Guard("test.notconnected");
+        let _g = Guard::new(&["test.notconnected"]).await;
         arm(
             "test.notconnected",
             FaultSpec::new(Trigger::Always, Effect::NotConnected),
@@ -658,7 +693,7 @@ mod tests {
     /// to look like a successful command whose device never arrives.
     #[tokio::test]
     async fn stall_reports_success_and_latches() {
-        let _g = Guard("test.stall");
+        let _g = Guard::new(&["test.stall"]).await;
         arm("test.stall", FaultSpec::new(Trigger::Always, Effect::Stall));
         assert!(!is_stalled("test.stall"));
         assert!(
@@ -672,7 +707,7 @@ mod tests {
 
     #[tokio::test]
     async fn delay_then_error_waits_before_failing() {
-        let _g = Guard("test.dte");
+        let _g = Guard::new(&["test.dte"]).await;
         arm(
             "test.dte",
             FaultSpec::new(
@@ -695,7 +730,7 @@ mod tests {
     /// not to where it was told. Only re-reading the position can catch it.
     #[tokio::test]
     async fn backlash_reports_success_and_latches_its_step_count() {
-        let _g = Guard("test.backlash");
+        let _g = Guard::new(&["test.backlash"]).await;
         assert_eq!(backlash_steps("test.backlash"), None);
         arm(
             "test.backlash",
@@ -709,7 +744,7 @@ mod tests {
 
     #[tokio::test]
     async fn re_arming_clears_a_latched_stall() {
-        let _g = Guard("test.rearm");
+        let _g = Guard::new(&["test.rearm"]).await;
         arm("test.rearm", FaultSpec::new(Trigger::Always, Effect::Stall));
         assert!(check("test.rearm").await.is_ok());
         assert!(is_stalled("test.rearm"));
@@ -722,7 +757,7 @@ mod tests {
 
     #[tokio::test]
     async fn probability_is_reproducible_from_its_seed() {
-        let _g = Guard("test.prob");
+        let _g = Guard::new(&["test.prob"]).await;
         let run = || async {
             seed_prng(12345);
             arm(
@@ -747,10 +782,10 @@ mod tests {
         );
     }
 
-    #[test]
-    fn armed_keys_reports_what_is_armed() {
-        let _a = Guard("test.list.a");
-        let _b = Guard("test.list.b");
+    #[tokio::test]
+    async fn armed_keys_reports_what_is_armed() {
+        // One guard for both keys: two would deadlock on the same lock.
+        let _g = Guard::new(&["test.list.a", "test.list.b"]).await;
         arm("test.list.a", FaultSpec::transient("a"));
         arm("test.list.b", FaultSpec::not_implemented());
         let keys: Vec<String> = armed_keys().into_iter().map(|(k, _)| k).collect();

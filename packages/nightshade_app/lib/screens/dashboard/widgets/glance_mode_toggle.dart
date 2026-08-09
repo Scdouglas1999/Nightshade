@@ -59,6 +59,11 @@ class _GlanceModeToggleState extends ConsumerState<GlanceModeToggle> {
       message: enabled ? 'Glance mode: on' : 'Glance mode: off',
       child: Semantics(
         button: true,
+        // `toggled` alone publishes CHECKABLE but never ENABLED, so the working
+        // toggle advertised itself as permanently dimmed ("Glance mode
+        // [off,DISABLED]") and a screen reader would skip it. The enabled state
+        // is the real one: only the in-flight save disables the tap.
+        enabled: !_saving,
         toggled: enabled,
         label: 'Glance mode',
         child: Material(

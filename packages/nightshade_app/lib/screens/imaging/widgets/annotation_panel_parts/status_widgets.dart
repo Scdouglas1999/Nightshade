@@ -60,6 +60,161 @@ class AnnotationCatalogBanner extends StatelessWidget {
   }
 }
 
+/// Copy for the "no annotated objects" empty state, named for the blocker that
+/// is actually in the way.
+///
+/// The old copy branched on ONE variable — `annotation == null` — and always
+/// read "No image annotated / Capture an image to see detected objects". With
+/// no plate solver installed that instruction is false the moment the first
+/// frame lands: after a dozen good captures the panel was still telling the
+/// operator to go capture something, while the status card directly above it
+/// already said "No plate solver installed". Branch on the real blocker so the
+/// empty state and the status card cannot contradict each other.
+///
+/// Returns the headline plus an optional second line; a null [hint] means the
+/// headline says everything there is to say.
+({String title, String? hint}) _annotationEmptyStateCopy({
+  required bool hasImage,
+  required bool annotationsEnabled,
+  required AnnotationState state,
+}) {
+  if (!annotationsEnabled) {
+    return (
+      title: 'Annotations are off',
+      hint: 'Turn annotations on to identify objects in your frames.',
+    );
+  }
+  if (!hasImage) {
+    return (
+      title: 'No image annotated',
+      hint: 'Capture an image to see detected objects',
+    );
+  }
+  if (AnnotationStatusIndicator._isSolverMissing(state)) {
+    return (
+      title: 'Cannot annotate: no plate solver',
+      hint: 'Install ASTAP or set its path in Settings to label objects.',
+    );
+  }
+  switch (state.status) {
+    case AnnotationStatus.catalogsNotInstalled:
+      return (
+        title: 'Cannot annotate: no catalog',
+        hint: 'Download the annotation catalog in Settings to label objects.',
+      );
+    case AnnotationStatus.plateSolveFailed:
+      return (
+        title: 'Plate solve failed',
+        hint: state.errorDetails ??
+            state.message ??
+            'This frame could not be solved, so no objects could be matched.',
+      );
+    case AnnotationStatus.error:
+      return (
+        title: 'Annotation failed',
+        hint: state.errorDetails ?? state.message,
+      );
+    case AnnotationStatus.checkingCatalogs:
+    case AnnotationStatus.plateSolving:
+    case AnnotationStatus.searchingCatalogs:
+      return (
+        title: 'Annotating…',
+        hint: 'Identifying objects in the current frame.',
+      );
+    case AnnotationStatus.idle:
+    case AnnotationStatus.complete:
+      return (
+        title: 'This frame is not annotated',
+        hint: 'Run Re-annotate to identify objects in it.',
+      );
+  }
+}
+
+/// The "nothing to list" state shared by both annotation object lists.
+///
+/// One widget for both panels so the copy cannot drift between them, and so
+/// the blocker naming lives next to the status card that reports the same
+/// blocker.
+class AnnotationEmptyState extends ConsumerWidget {
+  final NightshadeColors colors;
+
+  /// The annotation result for the current frame, or null when this frame has
+  /// no annotation at all.
+  final ImageAnnotation? annotation;
+
+  /// Whether the operator has typed a search term (changes the "filtered
+  /// everything away" wording only).
+  final bool hasSearchQuery;
+
+  const AnnotationEmptyState({
+    super.key,
+    required this.colors,
+    required this.annotation,
+    required this.hasSearchQuery,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final String title;
+    final String? hint;
+    final IconData icon;
+    if (annotation != null) {
+      // The frame IS annotated — the list is empty because of the filters, not
+      // because anything is blocked.
+      icon = NightshadeIcons.searchEmpty;
+      title =
+          hasSearchQuery ? 'No matching objects' : 'No objects match filters';
+      hint = null;
+    } else {
+      icon = LucideIcons.sparkle;
+      final copy = _annotationEmptyStateCopy(
+        hasImage: ref.watch(currentImageProvider) != null,
+        annotationsEnabled:
+            ref.watch(annotationSettingsProvider).valueOrNull?.enabled ?? true,
+        state: ref.watch(annotationStateProvider),
+      );
+      title = copy.title;
+      hint = copy.hint;
+    }
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 32,
+              color: colors.textMuted.withValues(alpha: 0.5),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: colors.textMuted,
+                fontSize: NightshadeTypography.fontSize13,
+              ),
+            ),
+            if (hint != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                hint,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: colors.textMuted.withValues(alpha: 0.7),
+                  fontSize: NightshadeTypography.fontSize11,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Status indicator for the live annotation pipeline
 class AnnotationStatusIndicator extends ConsumerWidget {
   final NightshadeColors colors;
@@ -126,36 +281,47 @@ class AnnotationStatusIndicator extends ConsumerWidget {
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _getStatusIcon(presentationStatus),
             const SizedBox(width: 8),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  solverMissing
-                      ? 'No plate solver installed'
-                      : (annotationState.message ??
-                          _getStatusText(annotationState.status)),
-                  style: TextStyle(
-                    color: _getTextColor(presentationStatus),
-                    fontSize: NightshadeTypography.fontSize11,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                if (secondaryMessage != null)
+            // Flexible, so the text column is laid out against the panel's
+            // width instead of its own unconstrained intrinsic width. Without
+            // it the Row happily overflowed the annotation panel and the
+            // secondary line was hard-clipped mid-word at the panel edge —
+            // "…in Settings to label ob" — because maxLines/ellipsis can never
+            // fire on text that was never asked to wrap.
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
                   Text(
-                    secondaryMessage,
+                    solverMissing
+                        ? 'No plate solver installed'
+                        : (annotationState.message ??
+                            _getStatusText(annotationState.status)),
                     style: TextStyle(
-                      color: _getTextColor(presentationStatus)
-                          .withValues(alpha: 0.7),
-                      fontSize: NightshadeTypography.fontSize10,
+                      color: _getTextColor(presentationStatus),
+                      fontSize: NightshadeTypography.fontSize11,
+                      fontWeight: FontWeight.w500,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-              ],
+                  if (secondaryMessage != null)
+                    Text(
+                      secondaryMessage,
+                      style: TextStyle(
+                        color: _getTextColor(presentationStatus)
+                            .withValues(alpha: 0.7),
+                        fontSize: NightshadeTypography.fontSize10,
+                      ),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
+              ),
             ),
           ],
         ),

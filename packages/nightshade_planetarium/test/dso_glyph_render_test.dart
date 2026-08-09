@@ -189,6 +189,10 @@ void main() {
           fovFilteredDsosProvider.overrideWithValue(AsyncValue.data(dsos)),
         ],
       );
+      // Aim at the test object explicitly. The view no longer opens on RA 0h /
+      // Dec 0 — that default pointed the map below the horizon and now homes on
+      // the zenith — so the pose has to be stated rather than assumed.
+      container.read(skyViewStateProvider.notifier).setCenter(0, 0);
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,

@@ -7,11 +7,14 @@ import 'package:nightshade_core/src/providers/framing_image_cache_provider.dart'
 import 'package:nightshade_core/src/providers/framing_provider.dart'
     show SurveySource;
 import 'package:nightshade_core/src/services/framing_image_cache_service.dart';
+import '../harness/in_memory_database.dart';
 
 void main() {
   group('framingImageCacheServiceProvider', () {
     test('exposes a FramingImageCacheService instance', () {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: [inMemoryDatabaseOverride()],
+      );
       addTearDown(container.dispose);
 
       final service = container.read(framingImageCacheServiceProvider);
@@ -19,7 +22,9 @@ void main() {
     });
 
     test('returns the same instance across reads (single DI handle)', () {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: [inMemoryDatabaseOverride()],
+      );
       addTearDown(container.dispose);
 
       final first = container.read(framingImageCacheServiceProvider);
@@ -46,6 +51,7 @@ void main() {
     ProviderContainer containerWithTempCache() {
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           framingImageCacheServiceProvider.overrideWithValue(
             FramingImageCacheService(supportDirProvider: () async => tempDir),
           ),

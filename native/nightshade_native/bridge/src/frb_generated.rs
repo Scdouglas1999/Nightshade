@@ -12553,6 +12553,48 @@ impl SseDecode for crate::device::FocuserStatus {
     }
 }
 
+impl SseDecode for crate::event::FrameCaptureMetadata {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_gain = <Option<i32>>::sse_decode(deserializer);
+        let mut var_offset = <Option<i32>>::sse_decode(deserializer);
+        let mut var_sensorTempC = <Option<f64>>::sse_decode(deserializer);
+        let mut var_coolerPowerPercent = <Option<f64>>::sse_decode(deserializer);
+        let mut var_mountRaHours = <Option<f64>>::sse_decode(deserializer);
+        let mut var_mountDecDegrees = <Option<f64>>::sse_decode(deserializer);
+        let mut var_mountAltitudeDeg = <Option<f64>>::sse_decode(deserializer);
+        let mut var_mountAzimuthDeg = <Option<f64>>::sse_decode(deserializer);
+        let mut var_pierSide = <Option<String>>::sse_decode(deserializer);
+        let mut var_focuserPosition = <Option<i32>>::sse_decode(deserializer);
+        let mut var_focuserTemperatureC = <Option<f64>>::sse_decode(deserializer);
+        let mut var_rotatorAngleDeg = <Option<f64>>::sse_decode(deserializer);
+        let mut var_exposureSecs = <f64>::sse_decode(deserializer);
+        let mut var_binX = <u32>::sse_decode(deserializer);
+        let mut var_binY = <u32>::sse_decode(deserializer);
+        let mut var_frameType = <String>::sse_decode(deserializer);
+        let mut var_targetId = <Option<String>>::sse_decode(deserializer);
+        return crate::event::FrameCaptureMetadata {
+            gain: var_gain,
+            offset: var_offset,
+            sensor_temp_c: var_sensorTempC,
+            cooler_power_percent: var_coolerPowerPercent,
+            mount_ra_hours: var_mountRaHours,
+            mount_dec_degrees: var_mountDecDegrees,
+            mount_altitude_deg: var_mountAltitudeDeg,
+            mount_azimuth_deg: var_mountAzimuthDeg,
+            pier_side: var_pierSide,
+            focuser_position: var_focuserPosition,
+            focuser_temperature_c: var_focuserTemperatureC,
+            rotator_angle_deg: var_rotatorAngleDeg,
+            exposure_secs: var_exposureSecs,
+            bin_x: var_binX,
+            bin_y: var_binY,
+            frame_type: var_frameType,
+            target_id: var_targetId,
+        };
+    }
+}
+
 impl SseDecode for crate::device::FrameType {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -14857,6 +14899,8 @@ impl SseDecode for crate::event::SequencerEvent {
                 let mut var_acceptedTotal = <u32>::sse_decode(deserializer);
                 let mut var_rejectedTotal = <u32>::sse_decode(deserializer);
                 let mut var_savePath = <Option<String>>::sse_decode(deserializer);
+                let mut var_capture =
+                    <crate::event::FrameCaptureMetadata>::sse_decode(deserializer);
                 return crate::event::SequencerEvent::FrameAccepted {
                     node_id: var_nodeId,
                     frame: var_frame,
@@ -14867,6 +14911,7 @@ impl SseDecode for crate::event::SequencerEvent {
                     accepted_total: var_acceptedTotal,
                     rejected_total: var_rejectedTotal,
                     save_path: var_savePath,
+                    capture: var_capture,
                 };
             }
             19 => {
@@ -14888,6 +14933,8 @@ impl SseDecode for crate::event::SequencerEvent {
                 let mut var_windAtCapture = <Option<f64>>::sse_decode(deserializer);
                 let mut var_guideRmsAtCapture = <Option<f64>>::sse_decode(deserializer);
                 let mut var_sensorTempAtCapture = <Option<f64>>::sse_decode(deserializer);
+                let mut var_capture =
+                    <crate::event::FrameCaptureMetadata>::sse_decode(deserializer);
                 return crate::event::SequencerEvent::FrameRejected {
                     node_id: var_nodeId,
                     frame: var_frame,
@@ -14907,6 +14954,7 @@ impl SseDecode for crate::event::SequencerEvent {
                     wind_at_capture: var_windAtCapture,
                     guide_rms_at_capture: var_guideRmsAtCapture,
                     sensor_temp_at_capture: var_sensorTempAtCapture,
+                    capture: var_capture,
                 };
             }
             20 => {
@@ -17283,6 +17331,42 @@ impl flutter_rust_bridge::IntoIntoDart<crate::device::FocuserStatus>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::event::FrameCaptureMetadata {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.gain.into_into_dart().into_dart(),
+            self.offset.into_into_dart().into_dart(),
+            self.sensor_temp_c.into_into_dart().into_dart(),
+            self.cooler_power_percent.into_into_dart().into_dart(),
+            self.mount_ra_hours.into_into_dart().into_dart(),
+            self.mount_dec_degrees.into_into_dart().into_dart(),
+            self.mount_altitude_deg.into_into_dart().into_dart(),
+            self.mount_azimuth_deg.into_into_dart().into_dart(),
+            self.pier_side.into_into_dart().into_dart(),
+            self.focuser_position.into_into_dart().into_dart(),
+            self.focuser_temperature_c.into_into_dart().into_dart(),
+            self.rotator_angle_deg.into_into_dart().into_dart(),
+            self.exposure_secs.into_into_dart().into_dart(),
+            self.bin_x.into_into_dart().into_dart(),
+            self.bin_y.into_into_dart().into_dart(),
+            self.frame_type.into_into_dart().into_dart(),
+            self.target_id.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::event::FrameCaptureMetadata
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::event::FrameCaptureMetadata>
+    for crate::event::FrameCaptureMetadata
+{
+    fn into_into_dart(self) -> crate::event::FrameCaptureMetadata {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::device::FrameType {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
@@ -18864,6 +18948,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 accepted_total,
                 rejected_total,
                 save_path,
+                capture,
             } => [
                 18.into_dart(),
                 node_id.into_into_dart().into_dart(),
@@ -18875,6 +18960,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 accepted_total.into_into_dart().into_dart(),
                 rejected_total.into_into_dart().into_dart(),
                 save_path.into_into_dart().into_dart(),
+                capture.into_into_dart().into_dart(),
             ]
             .into_dart(),
             crate::event::SequencerEvent::FrameRejected {
@@ -18896,6 +18982,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 wind_at_capture,
                 guide_rms_at_capture,
                 sensor_temp_at_capture,
+                capture,
             } => [
                 19.into_dart(),
                 node_id.into_into_dart().into_dart(),
@@ -18916,6 +19003,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 wind_at_capture.into_into_dart().into_dart(),
                 guide_rms_at_capture.into_into_dart().into_dart(),
                 sensor_temp_at_capture.into_into_dart().into_dart(),
+                capture.into_into_dart().into_dart(),
             ]
             .into_dart(),
             crate::event::SequencerEvent::SchedulerDecision {
@@ -20981,6 +21069,29 @@ impl SseEncode for crate::device::FocuserStatus {
     }
 }
 
+impl SseEncode for crate::event::FrameCaptureMetadata {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Option<i32>>::sse_encode(self.gain, serializer);
+        <Option<i32>>::sse_encode(self.offset, serializer);
+        <Option<f64>>::sse_encode(self.sensor_temp_c, serializer);
+        <Option<f64>>::sse_encode(self.cooler_power_percent, serializer);
+        <Option<f64>>::sse_encode(self.mount_ra_hours, serializer);
+        <Option<f64>>::sse_encode(self.mount_dec_degrees, serializer);
+        <Option<f64>>::sse_encode(self.mount_altitude_deg, serializer);
+        <Option<f64>>::sse_encode(self.mount_azimuth_deg, serializer);
+        <Option<String>>::sse_encode(self.pier_side, serializer);
+        <Option<i32>>::sse_encode(self.focuser_position, serializer);
+        <Option<f64>>::sse_encode(self.focuser_temperature_c, serializer);
+        <Option<f64>>::sse_encode(self.rotator_angle_deg, serializer);
+        <f64>::sse_encode(self.exposure_secs, serializer);
+        <u32>::sse_encode(self.bin_x, serializer);
+        <u32>::sse_encode(self.bin_y, serializer);
+        <String>::sse_encode(self.frame_type, serializer);
+        <Option<String>>::sse_encode(self.target_id, serializer);
+    }
+}
+
 impl SseEncode for crate::device::FrameType {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -22768,6 +22879,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 accepted_total,
                 rejected_total,
                 save_path,
+                capture,
             } => {
                 <i32>::sse_encode(18, serializer);
                 <String>::sse_encode(node_id, serializer);
@@ -22779,6 +22891,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 <u32>::sse_encode(accepted_total, serializer);
                 <u32>::sse_encode(rejected_total, serializer);
                 <Option<String>>::sse_encode(save_path, serializer);
+                <crate::event::FrameCaptureMetadata>::sse_encode(capture, serializer);
             }
             crate::event::SequencerEvent::FrameRejected {
                 node_id,
@@ -22799,6 +22912,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 wind_at_capture,
                 guide_rms_at_capture,
                 sensor_temp_at_capture,
+                capture,
             } => {
                 <i32>::sse_encode(19, serializer);
                 <String>::sse_encode(node_id, serializer);
@@ -22819,6 +22933,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 <Option<f64>>::sse_encode(wind_at_capture, serializer);
                 <Option<f64>>::sse_encode(guide_rms_at_capture, serializer);
                 <Option<f64>>::sse_encode(sensor_temp_at_capture, serializer);
+                <crate::event::FrameCaptureMetadata>::sse_encode(capture, serializer);
             }
             crate::event::SequencerEvent::SchedulerDecision {
                 node_id,
@@ -23882,6 +23997,13 @@ mod io {
             CstDecode::<crate::device_capabilities::FocuserCapabilities>::cst_decode(*wrap).into()
         }
     }
+    impl CstDecode<crate::event::FrameCaptureMetadata> for *mut wire_cst_frame_capture_metadata {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::event::FrameCaptureMetadata {
+            let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
+            CstDecode::<crate::event::FrameCaptureMetadata>::cst_decode(*wrap).into()
+        }
+    }
     impl CstDecode<crate::event::GuidingEvent> for *mut wire_cst_guiding_event {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> crate::event::GuidingEvent {
@@ -24904,6 +25026,30 @@ mod io {
                 step_size: self.step_size.cst_decode(),
                 is_absolute: self.is_absolute.cst_decode(),
                 has_temperature: self.has_temperature.cst_decode(),
+            }
+        }
+    }
+    impl CstDecode<crate::event::FrameCaptureMetadata> for wire_cst_frame_capture_metadata {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::event::FrameCaptureMetadata {
+            crate::event::FrameCaptureMetadata {
+                gain: self.gain.cst_decode(),
+                offset: self.offset.cst_decode(),
+                sensor_temp_c: self.sensor_temp_c.cst_decode(),
+                cooler_power_percent: self.cooler_power_percent.cst_decode(),
+                mount_ra_hours: self.mount_ra_hours.cst_decode(),
+                mount_dec_degrees: self.mount_dec_degrees.cst_decode(),
+                mount_altitude_deg: self.mount_altitude_deg.cst_decode(),
+                mount_azimuth_deg: self.mount_azimuth_deg.cst_decode(),
+                pier_side: self.pier_side.cst_decode(),
+                focuser_position: self.focuser_position.cst_decode(),
+                focuser_temperature_c: self.focuser_temperature_c.cst_decode(),
+                rotator_angle_deg: self.rotator_angle_deg.cst_decode(),
+                exposure_secs: self.exposure_secs.cst_decode(),
+                bin_x: self.bin_x.cst_decode(),
+                bin_y: self.bin_y.cst_decode(),
+                frame_type: self.frame_type.cst_decode(),
+                target_id: self.target_id.cst_decode(),
             }
         }
     }
@@ -26354,6 +26500,7 @@ mod io {
                         accepted_total: ans.accepted_total.cst_decode(),
                         rejected_total: ans.rejected_total.cst_decode(),
                         save_path: ans.save_path.cst_decode(),
+                        capture: ans.capture.cst_decode(),
                     }
                 }
                 19 => {
@@ -26377,6 +26524,7 @@ mod io {
                         wind_at_capture: ans.wind_at_capture.cst_decode(),
                         guide_rms_at_capture: ans.guide_rms_at_capture.cst_decode(),
                         sensor_temp_at_capture: ans.sensor_temp_at_capture.cst_decode(),
+                        capture: ans.capture.cst_decode(),
                     }
                 }
                 20 => {
@@ -27637,6 +27785,34 @@ mod io {
         }
     }
     impl Default for wire_cst_focuser_status {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_frame_capture_metadata {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                gain: core::ptr::null_mut(),
+                offset: core::ptr::null_mut(),
+                sensor_temp_c: core::ptr::null_mut(),
+                cooler_power_percent: core::ptr::null_mut(),
+                mount_ra_hours: core::ptr::null_mut(),
+                mount_dec_degrees: core::ptr::null_mut(),
+                mount_altitude_deg: core::ptr::null_mut(),
+                mount_azimuth_deg: core::ptr::null_mut(),
+                pier_side: core::ptr::null_mut(),
+                focuser_position: core::ptr::null_mut(),
+                focuser_temperature_c: core::ptr::null_mut(),
+                rotator_angle_deg: core::ptr::null_mut(),
+                exposure_secs: Default::default(),
+                bin_x: Default::default(),
+                bin_y: Default::default(),
+                frame_type: core::ptr::null_mut(),
+                target_id: core::ptr::null_mut(),
+            }
+        }
+    }
+    impl Default for wire_cst_frame_capture_metadata {
         fn default() -> Self {
             Self::new_with_null_ptr()
         }
@@ -32971,6 +33147,14 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_frame_capture_metadata(
+    ) -> *mut wire_cst_frame_capture_metadata {
+        flutter_rust_bridge::for_generated::new_leak_box_ptr(
+            wire_cst_frame_capture_metadata::new_with_null_ptr(),
+        )
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_guiding_event(
     ) -> *mut wire_cst_guiding_event {
         flutter_rust_bridge::for_generated::new_leak_box_ptr(
@@ -34448,6 +34632,27 @@ mod io {
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
+    pub struct wire_cst_frame_capture_metadata {
+        gain: *mut i32,
+        offset: *mut i32,
+        sensor_temp_c: *mut f64,
+        cooler_power_percent: *mut f64,
+        mount_ra_hours: *mut f64,
+        mount_dec_degrees: *mut f64,
+        mount_altitude_deg: *mut f64,
+        mount_azimuth_deg: *mut f64,
+        pier_side: *mut wire_cst_list_prim_u_8_strict,
+        focuser_position: *mut i32,
+        focuser_temperature_c: *mut f64,
+        rotator_angle_deg: *mut f64,
+        exposure_secs: f64,
+        bin_x: u32,
+        bin_y: u32,
+        frame_type: *mut wire_cst_list_prim_u_8_strict,
+        target_id: *mut wire_cst_list_prim_u_8_strict,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
     pub struct wire_cst_guiding_event {
         tag: i32,
         kind: GuidingEventKind,
@@ -35678,6 +35883,7 @@ mod io {
         accepted_total: u32,
         rejected_total: u32,
         save_path: *mut wire_cst_list_prim_u_8_strict,
+        capture: *mut wire_cst_frame_capture_metadata,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
@@ -35700,6 +35906,7 @@ mod io {
         wind_at_capture: *mut f64,
         guide_rms_at_capture: *mut f64,
         sensor_temp_at_capture: *mut f64,
+        capture: *mut wire_cst_frame_capture_metadata,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]

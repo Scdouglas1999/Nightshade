@@ -5,7 +5,12 @@ import 'package:equatable/equatable.dart';
 
 import 'clock_provider.dart';
 import 'database_provider.dart';
+import 'equipment/camera_state_provider.dart';
+import 'equipment/filter_wheel_state_provider.dart';
+import 'equipment/focuser_state_provider.dart';
+import 'imaging_provider.dart' show exposureSettingsProvider;
 import '../services/imaging_records_repository.dart';
+import '../services/quick_start_service.dart' show quickStartServiceProvider;
 import '../services/session_service.dart';
 import '../services/logging_service.dart';
 import '../database/daos/sequence_checkpoints_dao.dart';
@@ -172,13 +177,16 @@ class SessionStateNotifier extends StateNotifier<SessionState> {
 
   SessionStateNotifier(this._ref) : super(const SessionState());
 
-  /// Start a new imaging session
+  /// Start a new imaging session.
+  ///
+  /// [profileId] and [sequenceId] are persisted on the imaging_sessions row.
   Future<void> startSession({
     String? targetName,
     double? targetRa,
     double? targetDec,
     int? targetId,
     int? profileId,
+    int? sequenceId,
   }) async {
     // Use SessionService to create and manage the session
     final sessionService = _ref.read(sessionServiceProvider);
@@ -186,10 +194,13 @@ class SessionStateNotifier extends StateNotifier<SessionState> {
       name: targetName,
       targetId: targetId,
       profileId: profileId,
+      sequenceId: sequenceId,
     );
     if (dbId <= 0) {
       throw StateError('SessionService returned invalid session id: $dbId');
     }
+
+    await _recordEquipmentSnapshot(dbId);
 
     _autofocusCount = 0;
 
@@ -201,6 +212,57 @@ class SessionStateNotifier extends StateNotifier<SessionState> {
       targetDec: targetDec,
       dbSessionId: dbId,
     );
+  }
+
+  /// Stamp the equipment this session is starting with onto its
+  /// `imaging_sessions` row.
+  ///
+  /// `equipment_snapshot` had a schema column, a reader
+  /// ([QuickStartService._buildQuickStartContext]) and a restore path
+  /// (`QuickStartChecker`), and NOTHING in the app ever wrote it — so every
+  /// session row carried NULL and the Continue Session dialog's "Load Previous
+  /// Setup" re-applied no cooler setpoint, no gain/offset and no filter or
+  /// focuser position, whatever the previous night had been run with.
+  ///
+  /// Taken at start rather than at end: a night that ends in a crash is
+  /// precisely the night the handoff dialog exists for, and an end-of-session
+  /// snapshot would be read off equipment that may already be disconnected.
+  ///
+  /// Snapshot persistence is non-fatal: a session that really did start must
+  /// not fail because its restore metadata could not be stored.
+  Future<void> _recordEquipmentSnapshot(int sessionId) async {
+    try {
+      final exposure = _ref.read(exposureSettingsProvider);
+      final live = _ref
+          .read(quickStartServiceProvider)
+          .captureEquipmentSnapshot(
+            cameraState: _ref.read(cameraStateProvider),
+            filterWheelState: _ref.read(filterWheelStateProvider),
+            focuserState: _ref.read(focuserStateProvider),
+            exposureTime: exposure.exposureTime,
+          );
+      // What the camera reports wins; the configured capture settings fill in
+      // for a driver that does not read gain/offset/binning back (many do not),
+      // because those are still the values this session is exposing with.
+      final snapshot = live.copyWith(
+        cameraGain: live.cameraGain ?? exposure.gain,
+        cameraOffset: live.cameraOffset ?? exposure.offset,
+        cameraBinX: live.cameraBinX ?? exposure.binningX,
+        cameraBinY: live.cameraBinY ?? exposure.binningY,
+      );
+      await _ref
+          .read(imagingRecordsRepositoryProvider)
+          .updateEquipmentSnapshot(sessionId, snapshot.toJsonString());
+    } catch (e) {
+      _ref
+          .read(loggingServiceProvider)
+          .warning(
+            'Could not record the equipment snapshot for session $sessionId: '
+            '$e — Continue Session will not be able to restore its camera '
+            'settings',
+            source: 'SessionState',
+          );
+    }
   }
 
   /// End the current session

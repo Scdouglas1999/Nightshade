@@ -8,6 +8,7 @@ import 'package:nightshade_app/screens/imaging/widgets/calibration_section.dart'
 import 'package:nightshade_app/screens/imaging/widgets/panel_widgets.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 class _MockNetworkBackend extends Mock implements NetworkBackend {}
 
@@ -78,6 +79,7 @@ void main() {
     late _RecordingDefectMapService service;
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith((ref) {
           return backendNotifier =
               _SwitchingBackendNotifier(ref, _MockNetworkBackend());

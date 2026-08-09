@@ -133,16 +133,25 @@ class _CollimationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final score = diagnostics.collimationScore;
-    final severity = score >= 25
-        ? 'Off-center'
-        : score >= 15
-            ? 'Slight offset'
-            : 'Centered';
-    final severityColor = score >= 25
-        ? colors.error
-        : score >= 15
-            ? colors.warning
-            : colors.success;
+    // With no astrometric residuals on both sides of the edge/centre split the
+    // ratio is 0 — arithmetically the best score there is — so this card badged
+    // "Centered" and stated "Center and edge behavior look balanced" for a
+    // session with zero residual vectors. See [OpticalTrainDiagnostics].
+    final measured = diagnostics.collimationMeasured;
+    final severity = !measured
+        ? 'Not measured'
+        : score >= 25
+            ? 'Off-center'
+            : score >= 15
+                ? 'Slight offset'
+                : 'Centered';
+    final severityColor = !measured
+        ? colors.textMuted
+        : score >= 25
+            ? colors.error
+            : score >= 15
+                ? colors.warning
+                : colors.success;
 
     return _DiagCard(
       colors: colors,
@@ -153,12 +162,18 @@ class _CollimationCard extends StatelessWidget {
             children: [
               Icon(LucideIcons.target, size: 16, color: colors.primary),
               const SizedBox(width: 8),
-              Text(
-                'Collimation',
-                style:
-                    NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+              // Expanded, not Spacer: this card sits in a 320 px column and
+              // the widest badge ("Not measured") pushed the fixed-width title
+              // past the edge.
+              Expanded(
+                child: Text(
+                  'Collimation',
+                  overflow: TextOverflow.ellipsis,
+                  style: NightshadeTypography.h5
+                      .copyWith(color: colors.textPrimary),
+                ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
@@ -192,7 +207,9 @@ class _CollimationCard extends StatelessWidget {
           const SizedBox(height: 12),
           Center(
             child: Text(
-              'Lower is better. Edge/center residual ratio: ${score.toStringAsFixed(1)}',
+              measured
+                  ? 'Lower is better. Edge/center residual ratio: ${score.toStringAsFixed(1)}'
+                  : 'Lower is better. Edge/center residual ratio: —',
               style: TextStyle(
                   fontSize: NightshadeTypography.fontSize12,
                   color: colors.textSecondary),
@@ -201,11 +218,15 @@ class _CollimationCard extends StatelessWidget {
           const SizedBox(height: 4),
           Center(
             child: Text(
-              score >= 25
-                  ? 'A strong offset usually points to spacing or alignment that needs attention.'
-                  : score >= 15
-                      ? 'A mild offset is present. Recheck spacing before making larger adjustments.'
-                      : 'Center and edge behavior look balanced for this session.',
+              !measured
+                  ? 'No astrometric residuals on both sides of the field, so '
+                      'collimation was not measured. Needs plate-solved frames '
+                      'with residual vectors.'
+                  : score >= 25
+                      ? 'A strong offset usually points to spacing or alignment that needs attention.'
+                      : score >= 15
+                          ? 'A mild offset is present. Recheck spacing before making larger adjustments.'
+                          : 'Center and edge behavior look balanced for this session.',
               style: TextStyle(
                   fontSize: NightshadeTypography.fontSize11,
                   color: colors.textMuted),

@@ -61,10 +61,11 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
                       label: 'Focal Length',
                       helpTitle: 'Focal length (mm)',
                       helpBody:
-                          "The telescope's focal length in millimetres — on "
-                          'the OTA label or its spec sheet. Sets your image '
-                          'scale and field of view together with the camera '
-                          'pixel size.',
+                          "The telescope's NATIVE focal length in millimetres "
+                          '— on the OTA label or its spec sheet. Enter any '
+                          'reducer or barlow separately below; the profile '
+                          'stores the two multiplied together as the focal '
+                          'length everything else images at.',
                     ),
                     const SizedBox(height: 4),
                     NightshadeTextField(
@@ -115,12 +116,43 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
           ),
           const SizedBox(height: 16),
 
-          // Computed values
+          // Reducer / barlow. Without this field the profile's effective focal
+          // length was unrepresentable here, so opening a reducer'd rig (the
+          // wizard is the only other surface that can set one) and pressing
+          // Save quietly multiplied its focal length back up by 1/reducer.
+          _fieldLabelWithHelp(
+            colors,
+            label: 'Reducer / Barlow',
+            helpTitle: 'Reducer or barlow factor',
+            helpBody:
+                'The multiplier printed on the reducer or barlow \u2014 0.8 '
+                'for a 0.8x reducer, 2 for a 2x barlow. Leave blank (or 1) '
+                'when the camera is at prime focus. Focal length x this factor '
+                'is what the rig actually images at.',
+          ),
+          const SizedBox(height: 4),
+          NightshadeTextField(
+            controller: _reducerController,
+            hint: '1 (none)',
+            suffix: '\u00D7',
+            errorText: _fieldErrors[ProfileEditorField.reducer],
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            onChanged: (_) {
+              clearFieldError(ProfileEditorField.reducer);
+              setState(() {});
+            },
+          ),
+          const SizedBox(height: 16),
+
+          // Computed values. A Wrap, not a Row: the effective focal length is a
+          // third entry on a 600px-wide dialog that a Row would overflow.
           NightshadeCard(
             variant: CardVariant.subtle,
             borderRadius: NightshadeTokens.radiusInline8,
             padding: const EdgeInsets.all(16),
-            child: Row(
+            child: Wrap(
+              spacing: 32,
+              runSpacing: 12,
               children: [
                 _ComputedValue(
                   label: 'f/Ratio',
@@ -129,7 +161,6 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
                       : '---',
                   colors: colors,
                 ),
-                const SizedBox(width: 32),
                 _ComputedValue(
                   label: 'Scale',
                   value: _computedScale != null
@@ -140,6 +171,17 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
                       : null,
                   colors: colors,
                 ),
+                // Shown only when a reducer/barlow is in the train, where the
+                // stored focal length differs from the typed one.
+                if (_effectiveFocalLengthMm != null &&
+                    _effectiveFocalLengthMm !=
+                        double.tryParse(_focalLengthController.text.trim()))
+                  _ComputedValue(
+                    label: 'Effective FL',
+                    value: '${_formatOptic(_effectiveFocalLengthMm!)} mm',
+                    subtitle: 'stored in the profile',
+                    colors: colors,
+                  ),
               ],
             ),
           ),

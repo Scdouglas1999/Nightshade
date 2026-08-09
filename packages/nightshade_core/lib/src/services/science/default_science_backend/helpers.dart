@@ -660,9 +660,45 @@ extension _DefaultScienceBackendHelpers on DefaultScienceBackend {
     return sortedValues[lo] * (1 - t) + sortedValues[hi] * t;
   }
 
-  String _resolveSolverId() {
-    final settings = _ref.read(appSettingsProvider).valueOrNull;
-    return settings?.plateSolver ?? 'ASTAP';
+  /// Name the engine a science solve actually dispatches to.
+  ///
+  /// The engine is picked by the plate-solver preference — the store the
+  /// Plate Solving page writes and the Rust dispatcher reads. This used to
+  /// read the `plate_solver` app-setting instead, a second store no UI writes
+  /// and whose seed is `'ASTAP'`, so every science record on a rig running
+  /// Auto with only astrometry.net installed was stamped "ASTAP".
+  ///
+  /// Auto tries ASTAP and falls back to astrometry.net per frame, and the
+  /// solve result carries no engine id, so when both are installed the only
+  /// truthful answer names both rather than picking the likelier one.
+  Future<({String label, bool available})> _resolveSolver() async {
+    final service = _ref.read(plateSolveServiceProvider);
+    try {
+      final pref = await service.getConfig();
+      switch (pref.choice) {
+        case PlateSolverChoice.astap:
+          return (label: 'ASTAP', available: true);
+        case PlateSolverChoice.astrometry:
+          return (label: 'Astrometry.net', available: true);
+        case PlateSolverChoice.auto:
+          final detection = await service.detect();
+          final astap = detection.astapReady;
+          final astrometry = detection.astrometryPath != null;
+          if (astap && astrometry) {
+            return (label: 'ASTAP or Astrometry.net', available: true);
+          }
+          if (astap) return (label: 'ASTAP', available: true);
+          if (astrometry) return (label: 'Astrometry.net', available: true);
+          return (label: 'unknown', available: false);
+      }
+    } catch (error) {
+      _logger.warning(
+        'Could not read the plate-solver preference; recording the solver as '
+        'unknown rather than guessing: $error',
+        source: 'ScienceBackend',
+      );
+      return (label: 'unknown', available: false);
+    }
   }
 
   /// Require valid FITS exposure metadata for physically meaningful

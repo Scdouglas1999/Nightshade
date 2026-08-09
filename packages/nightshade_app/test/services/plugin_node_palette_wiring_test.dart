@@ -20,6 +20,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/services/plugin_node_palette_wiring.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_plugins/nightshade_plugins.dart';
+import '../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -27,6 +28,7 @@ void main() {
   group('pluginNodePaletteBlueprintsOverride', () {
     test('blueprints list is empty before any plugin registers', () async {
       final container = ProviderContainer(overrides: [
+        inMemoryDatabaseOverride(),
         pluginNodePaletteBlueprintsOverride(),
       ]);
       addTearDown(container.dispose);
@@ -44,6 +46,7 @@ void main() {
         'registering a SequencePlugin surfaces a blueprint whose factory '
         'creates a PluginInstructionNode', () async {
       final container = ProviderContainer(overrides: [
+        inMemoryDatabaseOverride(),
         pluginNodePaletteBlueprintsOverride(),
       ]);
       addTearDown(container.dispose);
@@ -96,6 +99,7 @@ void main() {
     test('palette updates reactively when a plugin registers post-startup',
         () async {
       final container = ProviderContainer(overrides: [
+        inMemoryDatabaseOverride(),
         pluginNodePaletteBlueprintsOverride(),
       ]);
       addTearDown(container.dispose);

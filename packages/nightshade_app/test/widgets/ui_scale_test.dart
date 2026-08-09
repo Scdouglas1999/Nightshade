@@ -13,11 +13,11 @@ void main() {
   testWidgets('uiScale applies text scaling correctly', (tester) async {
     const windowSize = Size(1000, 800);
 
-    tester.binding.window.devicePixelRatioTestValue = 1.0;
-    tester.binding.window.physicalSizeTestValue = windowSize;
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = windowSize;
     addTearDown(() {
-      tester.binding.window.clearPhysicalSizeTestValue();
-      tester.binding.window.clearDevicePixelRatioTestValue();
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
     });
 
     final router = GoRouter(

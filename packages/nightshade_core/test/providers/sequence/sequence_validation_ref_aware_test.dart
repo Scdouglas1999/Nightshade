@@ -88,6 +88,8 @@ ProviderContainer _container({
   DeviceConnectionState focuser = DeviceConnectionState.disconnected,
   DeviceConnectionState filterWheel = DeviceConnectionState.disconnected,
   DeviceConnectionState guider = DeviceConnectionState.disconnected,
+  String? guiderId,
+  String? guiderName,
   DeviceConnectionState rotator = DeviceConnectionState.disconnected,
   List<String> filterNames = const [],
   String imageOutputPath = '/tmp/out',
@@ -117,7 +119,14 @@ ProviderContainer _container({
         ),
       ),
       guiderStateProvider.overrideWith(
-        (ref) => _StubGuiderNotifier(ref, GuiderState(connectionState: guider)),
+        (ref) => _StubGuiderNotifier(
+          ref,
+          GuiderState(
+            connectionState: guider,
+            deviceId: guiderId,
+            deviceName: guiderName,
+          ),
+        ),
       ),
       rotatorStateProvider.overrideWith(
         (ref) =>
@@ -174,7 +183,12 @@ void main() {
       expect(issues.where((i) => i.title.contains('Camera')), isEmpty);
     });
 
-    test('emits per-node + summary guider issues when missing', () {
+    // Pre-flight used to list ONE missing guider as two consecutive
+    // warnings — a generic "No Guider Connected" summary plus the per-node
+    // "Guider Not Connected", identical hint and all — which double-counted
+    // it in the "N warnings" badge.
+    test('reports a missing guider once per affected node, with no '
+        'duplicate summary', () {
       final container = _container(
         camera: DeviceConnectionState.connected,
         mount: DeviceConnectionState.connected,
@@ -188,9 +202,130 @@ void main() {
       final guiderIssues = issues
           .where((i) => i.title.contains('Guider'))
           .toList();
-      // One summary + one per-node = 2 issues.
+
+      expect(guiderIssues, hasLength(1));
+      expect(guiderIssues.single.title, 'Guider Not Connected');
+      expect(guiderIssues.single.affectedNodeId, isNotNull);
+      expect(
+        issues.where((i) => i.title == 'No Guider Connected'),
+        isEmpty,
+        reason: 'the generic summary duplicates the per-node warning',
+      );
+    });
+
+    test('one warning per guiding node, not one plus a summary', () {
+      final container = _container(
+        camera: DeviceConnectionState.connected,
+        mount: DeviceConnectionState.connected,
+      );
+      final rule = EquipmentConnectionRule();
+      final s = _sequenceWith([
+        ExposureNode(),
+        StartGuidingNode(),
+        DitherNode(),
+      ]);
+      final issues = _withRef(
+        container,
+        (ref) => rule.validate(s, ValidationContext(ref)),
+      );
+      final guiderIssues = issues
+          .where((i) => i.title.contains('Guider'))
+          .toList();
+
       expect(guiderIssues, hasLength(2));
-      expect(guiderIssues.any((i) => i.affectedNodeId != null), isTrue);
+      expect(
+        guiderIssues.every((i) => i.affectedNodeId != null),
+        isTrue,
+        reason: 'every guider warning must point at the node that needs one',
+      );
+    });
+
+    // Pre-flight used to tell EVERY operator to "Connect to PHD2 in the
+    // Guiding panel", in a build that ships a native guider and whose
+    // Guiding panel only grows a Connect button when the selected guider IS
+    // PHD2. With the built-in guider selected the advice pointed at a panel
+    // with nothing to press.
+    test('missing-guider advice names the panel that can connect the '
+        'selected backend', () {
+      final rule = EquipmentConnectionRule();
+      final s = _sequenceWith([ExposureNode(), StartGuidingNode()]);
+
+      ValidationIssue guiderIssue(ProviderContainer c) => _withRef(
+        c,
+        (ref) => rule.validate(s, ValidationContext(ref)),
+      ).firstWhere((i) => i.title.contains('Guider'));
+
+      final builtin = guiderIssue(
+        _container(
+          camera: DeviceConnectionState.connected,
+          mount: DeviceConnectionState.connected,
+          guiderId: 'native:builtin_guider:multi_star',
+          guiderName: 'Built-in Multi-Star Guider',
+        ),
+      );
+      expect(builtin.resolutionHint, isNot(contains('PHD2')));
+      expect(builtin.resolutionHint, contains('Equipment'));
+      expect(builtin.resolutionHint, contains('Built-in Multi-Star Guider'));
+      expect(builtin.description, isNot(contains('PHD2')));
+
+      final phd2 = guiderIssue(
+        _container(
+          camera: DeviceConnectionState.connected,
+          mount: DeviceConnectionState.connected,
+          guiderId: 'phd2',
+          guiderName: 'PHD2',
+        ),
+      );
+      expect(phd2.resolutionHint, contains('PHD2'));
+      expect(phd2.resolutionHint, contains('Guiding panel'));
+
+      // Nothing selected yet: both routes are real, so name both rather
+      // than asserting PHD2 is the only guider this build has.
+      final none = guiderIssue(
+        _container(
+          camera: DeviceConnectionState.connected,
+          mount: DeviceConnectionState.connected,
+        ),
+      );
+      expect(none.resolutionHint, contains('Equipment'));
+      expect(none.resolutionHint, contains('PHD2'));
+    });
+
+    test(
+      'a disabled guiding node still leaves the summary as the fallback',
+      () {
+        final container = _container(
+          camera: DeviceConnectionState.connected,
+          mount: DeviceConnectionState.connected,
+        );
+        final rule = EquipmentConnectionRule();
+        // Disabled nodes contribute no required device, so nothing asks for a
+        // guider at all and the rule is silent — the summary is reserved for
+        // an unattributable requirement, never emitted alongside a per-node
+        // warning.
+        final guiding = StartGuidingNode().copyWith(isEnabled: false);
+        final s = _sequenceWith([ExposureNode(), guiding]);
+        final issues = _withRef(
+          container,
+          (ref) => rule.validate(s, ValidationContext(ref)),
+        );
+        expect(issues.where((i) => i.title.contains('Guider')), isEmpty);
+      },
+    );
+
+    // Every test above constructs the rule directly, so all of them stay
+    // green if the rule is dropped from the registry the app actually runs
+    // — i.e. the whole guider pre-flight can be unwired without a single
+    // failure. Pin the registration itself.
+    test('is registered in the ref-aware validator set the app runs', () {
+      expect(
+        defaultRefAwareSequenceValidators.whereType<EquipmentConnectionRule>(),
+        isNotEmpty,
+        reason:
+            'cutting EquipmentConnectionRule from '
+            'defaultRefAwareSequenceValidators silently disables every '
+            'missing-equipment pre-flight warning',
+      );
     });
   });
 

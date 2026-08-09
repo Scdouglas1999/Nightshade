@@ -131,7 +131,14 @@ class _PreFlightValidationDialogState
 
     try {
       final twilight = ref.read(preSessionTwilightTimesProvider);
-      final simulation = const PreSessionSimulator().simulate(
+      // Same overhead model the Builder's estimate chip and the timeline use.
+      // Left on the estimator's own defaults, this panel printed a different
+      // duration for the sequence the Builder had just estimated one row away.
+      final simulation = PreSessionSimulator(
+        estimator: SequenceTimeEstimator(
+          overhead: ref.read(sequencerOverheadConfigProvider),
+        ),
+      ).simulate(
         sequence,
         start: DateTime.now(),
         latitude: settings.latitude,

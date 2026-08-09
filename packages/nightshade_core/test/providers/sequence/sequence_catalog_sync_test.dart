@@ -7,6 +7,8 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/providers/sequence/sequence_catalog_sync.dart'
     as catalog_sync;
 
+import '../../harness/in_memory_database.dart';
+
 class _MockNetworkBackend extends Mock implements NetworkBackend {}
 
 class _FixedBackendNotifier extends BackendNotifier {
@@ -22,7 +24,9 @@ void main() {
 
   group('SequenceCatalogUpdateBus', () {
     test('notifies subscribers with update payload', () async {
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: [inMemoryDatabaseOverride()],
+      );
       addTearDown(container.dispose);
 
       final bus = container.read(sequenceCatalogUpdateBusProvider);
@@ -65,6 +69,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith(
             (ref) => _FixedBackendNotifier(ref, backend),
           ),
@@ -104,6 +109,7 @@ void main() {
 
         final container = ProviderContainer(
           overrides: [
+            inMemoryDatabaseOverride(),
             backendProvider.overrideWith(
               (ref) => _FixedBackendNotifier(ref, backend),
             ),

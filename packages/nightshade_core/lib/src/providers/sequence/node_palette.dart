@@ -318,6 +318,19 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
           description: 'Perform meridian flip',
           createNode: () => MeridianFlipNode(),
         ),
+        // The node has a full executor, editor and serialiser, and
+        // SmartNightService already emits it into generated plans — it was
+        // simply absent from the palette, so a hand-built startup sequence
+        // could not include it. `isNorth` follows the observer latitude for
+        // the same reason SmartNightService derives it: a southern-hemisphere
+        // run must rotate about the SOUTH celestial pole.
+        NodePaletteItem(
+          name: 'Polar Alignment',
+          icon: 'compass',
+          description: 'Measure polar error by rotating in RA',
+          createNode: () =>
+              PolarAlignmentNode(isNorth: (appSettings?.latitude ?? 0.0) >= 0),
+        ),
       ],
     ),
     NodePaletteCategory(

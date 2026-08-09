@@ -12,6 +12,7 @@ import 'package:nightshade_core/src/providers/equipment/weather_state_provider.d
 import 'package:nightshade_core/src/services/safe_rig_service.dart';
 
 import '../mocks/mock_backend.dart';
+import '../harness/in_memory_database.dart';
 
 /// AppSettings fake that resolves immediately so `appSettingsProvider.future`
 /// completes without touching the database.
@@ -90,6 +91,7 @@ void main() {
     }) {
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith(
             (ref) => _FixedBackendNotifier(ref, backend),
           ),
@@ -287,6 +289,7 @@ void main() {
       () async {
         final container = ProviderContainer(
           overrides: [
+            inMemoryDatabaseOverride(),
             backendProvider.overrideWith(
               (ref) => _FixedBackendNotifier(ref, backend),
             ),

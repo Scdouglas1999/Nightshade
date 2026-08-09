@@ -141,6 +141,34 @@ class ReadinessItem {
          'fixRoute and fixLabel must both be null or both be set',
        );
 
+  factory ReadinessItem.fromStorageJson(Map<String, dynamic> json) {
+    final id = ReadinessItemId.values.firstWhere(
+      (value) => value.name == json['id'],
+      orElse: () => ReadinessItemId.criticalDevices,
+    );
+    final level = ReadinessLevel.values.firstWhere(
+      (value) => value.name == json['level'],
+      orElse: () => ReadinessLevel.blocked,
+    );
+    return ReadinessItem(
+      id: id,
+      title: json['title'] as String? ?? id.name,
+      detail: json['detail'] as String? ?? 'Readiness is unavailable',
+      level: level,
+      fixRoute: json['fixRoute'] as String?,
+      fixLabel: json['fixLabel'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toStorageJson() => {
+    'id': id.name,
+    'title': title,
+    'detail': detail,
+    'level': level.name,
+    'fixRoute': fixRoute,
+    'fixLabel': fixLabel,
+  };
+
   /// True when this item is fully satisfied.
   bool get isReady => level == ReadinessLevel.ready;
 
@@ -182,6 +210,23 @@ class ReadinessReport {
   final List<ReadinessItem> items;
 
   const ReadinessReport({required this.items});
+
+  factory ReadinessReport.fromStorageJson(dynamic value) {
+    if (value is! Map || value['items'] is! List) {
+      return const ReadinessReport(items: []);
+    }
+    return ReadinessReport(
+      items: [
+        for (final raw in value['items'] as List)
+          if (raw is Map)
+            ReadinessItem.fromStorageJson(raw.cast<String, dynamic>()),
+      ],
+    );
+  }
+
+  Map<String, dynamic> toStorageJson() => {
+    'items': [for (final item in items) item.toStorageJson()],
+  };
 
   /// Worst level across all [items]. Fail-closed: an empty report is
   /// [ReadinessLevel.blocked], never [ReadinessLevel.ready].
@@ -272,6 +317,13 @@ const String _routePlateSolving = '/settings/plate-solving';
 /// - [offlineProfileDevices]: display names of device slots the active profile
 ///   assigns that are NOT connected right now (camera and mount excluded — they
 ///   have their own item). Empty means every assigned device is up.
+/// - [hasActiveProfile]: a profile is selected as active. Distinct from
+///   [hasProfile] (which only asks whether any profile exists at all).
+/// - [assignedProfileDeviceCount]: how many slots the active profile assigns,
+///   camera and mount INCLUDED. Zero means the profile is empty, which is what
+///   separates "nothing is assigned" from "everything assigned is connected".
+/// - [otherAssignedProfileDeviceCount]: the same count with camera and mount
+///   removed — i.e. how many devices the profile-devices item actually covers.
 ReadinessReport buildReadinessReport({
   required bool cameraConnected,
   required bool mountConnected,
@@ -282,6 +334,12 @@ ReadinessReport buildReadinessReport({
   required bool darkLibraryHasCoverage,
   required bool focusKnown,
   List<String> offlineProfileDevices = const <String>[],
+  // Required, not defaulted: a caller that forgets to supply the profile's
+  // assignment counts would otherwise silently get the vacuous
+  // "every device is connected" pass this parameter exists to prevent.
+  required bool hasActiveProfile,
+  required int assignedProfileDeviceCount,
+  required int otherAssignedProfileDeviceCount,
 }) {
   return ReadinessReport(
     items: [
@@ -290,7 +348,12 @@ ReadinessReport buildReadinessReport({
         cameraConnected: cameraConnected,
         mountConnected: mountConnected,
       ),
-      _buildProfileDevices(offlineProfileDevices: offlineProfileDevices),
+      _buildProfileDevices(
+        offlineProfileDevices: offlineProfileDevices,
+        hasActiveProfile: hasActiveProfile,
+        assignedProfileDeviceCount: assignedProfileDeviceCount,
+        otherAssignedProfileDeviceCount: otherAssignedProfileDeviceCount,
+      ),
       _buildLocation(locationSet: locationSet),
       _buildOutputPath(outputPathSet: outputPathSet),
       _buildPlateSolver(plateSolverReady: plateSolverReady),
@@ -326,6 +389,24 @@ ReadinessItem _buildCriticalDevices({
     );
   }
   if (!cameraConnected) {
+    // Both faults are named. Reporting only the highest-priority one hid the
+    // mount completely whenever the camera was also down (the mount is
+    // excluded from the profile-devices item as "already covered here"), so a
+    // user reading the readiness list with everything disconnected concluded
+    // the mount was fine.
+    if (!mountConnected) {
+      return const ReadinessItem(
+        id: ReadinessItemId.criticalDevices,
+        title: 'Critical devices',
+        detail:
+            'Camera and mount are not connected. A connected camera is '
+            'required before you can capture, and the mount is required '
+            'to slew or track.',
+        level: ReadinessLevel.blocked,
+        fixRoute: _routeEquipment,
+        fixLabel: 'Connect devices',
+      );
+    }
     return const ReadinessItem(
       id: ReadinessItemId.criticalDevices,
       title: 'Critical devices',
@@ -368,12 +449,54 @@ ReadinessItem _buildCriticalDevices({
 /// ~6 px status dot.
 ReadinessItem _buildProfileDevices({
   required List<String> offlineProfileDevices,
+  required bool hasActiveProfile,
+  required int assignedProfileDeviceCount,
+  required int otherAssignedProfileDeviceCount,
 }) {
-  if (offlineProfileDevices.isEmpty) {
+  // Empty-set guard. "Every device assigned in the active profile is
+  // connected" is vacuously true over an empty profile, and it rendered as a
+  // GREEN row on a fresh install with nothing assigned and nothing connected —
+  // the most misleading thing a readiness panel can say. Each of the three
+  // empty-set shapes gets its own honest sentence instead.
+  if (!hasActiveProfile) {
     return const ReadinessItem(
       id: ReadinessItemId.profileDevices,
       title: 'Profile devices',
-      detail: 'Every device assigned in the active profile is connected.',
+      detail:
+          'No equipment profile is active, so there are no device '
+          'assignments to check.',
+      level: ReadinessLevel.ready,
+    );
+  }
+  if (assignedProfileDeviceCount == 0) {
+    return const ReadinessItem(
+      id: ReadinessItemId.profileDevices,
+      title: 'Profile devices',
+      detail:
+          'No devices are assigned to this profile, so nothing connects '
+          'automatically. Assign your camera, mount and accessories.',
+      level: ReadinessLevel.caution,
+      fixRoute: _routeEquipment,
+      fixLabel: 'Assign devices',
+    );
+  }
+  if (offlineProfileDevices.isEmpty) {
+    if (otherAssignedProfileDeviceCount == 0) {
+      return const ReadinessItem(
+        id: ReadinessItemId.profileDevices,
+        title: 'Profile devices',
+        detail:
+            'This profile assigns no accessories beyond the camera and '
+            'mount — nothing else to connect.',
+        level: ReadinessLevel.ready,
+      );
+    }
+    return const ReadinessItem(
+      id: ReadinessItemId.profileDevices,
+      title: 'Profile devices',
+      detail:
+          'Every accessory assigned in the active profile is connected '
+          '(camera and mount are covered above).',
       level: ReadinessLevel.ready,
     );
   }

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nightshade_app/router/app_router.dart';
 import 'package:nightshade_app/widgets/database_recovery_launcher.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import '../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 /// The quarantined file is gone, so nothing about it can be verified.
 Future<QuarantinedDatabaseCheck> _missingBackup(String _) async =>
@@ -47,7 +48,10 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [appRouterProvider.overrideWithValue(router)],
+        overrides: [
+          inMemoryDatabaseOverride(),
+          appRouterProvider.overrideWithValue(router)
+        ],
         child: DatabaseRecoveryLauncher(
           quarantineInspector: _missingBackup,
           markerConsumer: () async {
@@ -87,7 +91,10 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [appRouterProvider.overrideWithValue(router)],
+        overrides: [
+          inMemoryDatabaseOverride(),
+          appRouterProvider.overrideWithValue(router)
+        ],
         child: DatabaseRecoveryLauncher(
           quarantineInspector: _missingBackup,
           markerConsumer: () async => marker,
@@ -123,7 +130,10 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [appRouterProvider.overrideWithValue(router)],
+        overrides: [
+          inMemoryDatabaseOverride(),
+          appRouterProvider.overrideWithValue(router)
+        ],
         child: DatabaseRecoveryLauncher(
           quarantineInspector: _healthyBackup,
           markerConsumer: () async => DatabaseRecoveryMarker(
@@ -177,7 +187,10 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [appRouterProvider.overrideWithValue(router)],
+        overrides: [
+          inMemoryDatabaseOverride(),
+          appRouterProvider.overrideWithValue(router)
+        ],
         child: DatabaseRecoveryLauncher(
           quarantineInspector: _healthyBackup,
           markerConsumer: () async => DatabaseRecoveryMarker(
@@ -217,7 +230,10 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [appRouterProvider.overrideWithValue(router)],
+        overrides: [
+          inMemoryDatabaseOverride(),
+          appRouterProvider.overrideWithValue(router)
+        ],
         child: DatabaseRecoveryLauncher(
           quarantineInspector: _corruptBackup,
           markerConsumer: () async => DatabaseRecoveryMarker(
@@ -249,7 +265,10 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [appRouterProvider.overrideWithValue(router)],
+        overrides: [
+          inMemoryDatabaseOverride(),
+          appRouterProvider.overrideWithValue(router)
+        ],
         child: DatabaseRecoveryLauncher(
           quarantineInspector: _healthyBackup,
           markerConsumer: () async => DatabaseRecoveryMarker(

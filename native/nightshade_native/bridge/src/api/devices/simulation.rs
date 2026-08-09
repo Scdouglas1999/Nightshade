@@ -12,6 +12,11 @@
 // - **i32 step distance → f64 move time** (lines 551, 593): exact widening.
 // - **i32 ↔ i32 filter wheel pos** (lines 786, 804): no-op widenings
 //   around `Option::map` plumbing.
+// - **f64 panel brightness → i32** (`SimulatedCoverCalibrator::brightness`):
+//   the simulated panel ramps on a continuous scale but the ASCOM
+//   `Brightness` property is an integer, so the reported value is rounded
+//   before the cast. The ramp is clamped to `0..=max_brightness`, so the
+//   rounded value is always inside `i32`.
 use crate::device::*;
 use crate::device_manager::DeviceManager;
 use crate::error::*;
@@ -96,6 +101,14 @@ pub(crate) fn get_sim_camera() -> &'static Arc<RwLock<SimulatedCamera>> {
 ///
 /// Kept out of [`SimulatedCamera`] on purpose: that struct is mirrored to Dart
 /// by flutter_rust_bridge, and Dart has no use for this.
+///
+/// `frb(ignore)` enforces that. Living under `api::` is enough for the codegen
+/// to try to bridge it anyway, and it cannot: `frame_type` is
+/// `nightshade_native::camera::FrameType`, which the generator resolves by bare
+/// name to the unrelated `crate::device::FrameType`, emitting a
+/// `frb_generated.rs` that does not compile. The committed generated file
+/// predates this struct and so hid the problem until the next regeneration.
+#[flutter_rust_bridge::frb(ignore)]
 #[derive(Debug, Clone)]
 pub(crate) struct SimExposureRequest {
     pub secs: f64,
@@ -611,6 +624,27 @@ const SIM_SLEW_DEG_PER_SEC: f64 = 180.0;
 /// performs finish instantly.
 const SIM_MIN_SLEW_SECS: f64 = 0.2;
 
+/// How long the simulated mount keeps reporting `slewing` AFTER its axes have
+/// reached the commanded coordinates.
+///
+/// Real drivers hold `Slewing` true through a mechanical settle: the axes
+/// arrive, the tube rings down, and only then does the driver report idle.
+/// Without a tail here `slewing` fell to false in the very same status read
+/// that first reported the target coordinates, so "arrived" and "stopped
+/// moving" were one event and no caller could ever observe them out of order.
+/// Every wait-for-motion path in the app — the sequencer's
+/// `wait_for_mount_idle_with_progress`, centering's
+/// `wait_for_centering_correction_slew` (and the
+/// `CenteringSlewTimeoutException` behind it), the polar-alignment poll and
+/// the post-flip guiding settle — was therefore satisfied on its first poll.
+/// This project has already shipped a post-flip guiding-settle bug that a
+/// settle-free simulator cannot reproduce.
+///
+/// Sized in the same family as [`SIM_CALIBRATOR_SETTLE_SECS`]: long enough
+/// that a poller has to go round at least once more, short enough that it
+/// still fits inside a sequence node's budget.
+const SIM_SLEW_SETTLE_SECS: f64 = 0.6;
+
 /// Extra arc a slew covers when it also crosses the mount to the other side of
 /// the pier: the tube swings through roughly half a turn of the RA axis on top
 /// of whatever the coordinate change asks for.
@@ -742,20 +776,29 @@ pub(crate) async fn advance_sim_slew() {
     let Some(slew) = *sim_slew().read().await else {
         return;
     };
+    let elapsed_secs = slew.start.elapsed().as_secs_f64();
     let fraction = if slew.duration_secs > 0.0 {
-        (slew.start.elapsed().as_secs_f64() / slew.duration_secs).clamp(0.0, 1.0)
+        (elapsed_secs / slew.duration_secs).clamp(0.0, 1.0)
     } else {
         1.0
     };
 
     let mut mount = get_sim_mount().write().await;
     if fraction >= 1.0 {
+        // The axes are on target and the pier side is committed from here on,
+        // but the driver does not report idle until the settle tail expires —
+        // see SIM_SLEW_SETTLE_SECS for why "arrived" and "stopped" must be two
+        // observable events rather than one.
         mount.status.right_ascension = slew.to.0;
         mount.status.declination = slew.to.1;
         mount.status.side_of_pier = Some(slew.to_pier);
-        mount.status.slewing = false;
-        drop(mount);
-        *sim_slew().write().await = None;
+        if elapsed_secs >= slew.duration_secs + SIM_SLEW_SETTLE_SECS {
+            mount.status.slewing = false;
+            drop(mount);
+            *sim_slew().write().await = None;
+        } else {
+            mount.status.slewing = true;
+        }
     } else {
         mount.status.right_ascension = interpolate_ra(slew.from.0, slew.to.0, fraction);
         mount.status.declination = slew.from.1 + (slew.to.1 - slew.from.1) * fraction;
@@ -769,6 +812,17 @@ pub(crate) async fn advance_sim_slew() {
 /// mount on to the target it was told to stop travelling to.
 pub(crate) async fn cancel_sim_slew() {
     *sim_slew().write().await = None;
+}
+
+/// Whether a commanded slew — including its [`SIM_SLEW_SETTLE_SECS`] tail — is
+/// still in flight as of the last [`advance_sim_slew`].
+///
+/// Reads only: callers reach this through `sim_gate::require_mount_connected`,
+/// which has already advanced the motion under the fault gate. Advancing again
+/// here would let a caller step a mount that `sim_faults` has deliberately
+/// stalled.
+pub(crate) async fn sim_slew_in_flight() -> bool {
+    sim_slew().read().await.is_some()
 }
 
 /// The equatorial coordinates a parked simulated mount reports.
@@ -1497,6 +1551,750 @@ impl Default for SimulatedSafetyMonitor {
 
 pub(crate) fn get_sim_safety_monitor() -> &'static Arc<RwLock<SimulatedSafetyMonitor>> {
     SIM_SAFETY_MONITOR.get_or_init(|| Arc::new(RwLock::new(SimulatedSafetyMonitor::default())))
+}
+
+// =============================================================================
+// Switch and cover calibrator simulators
+// =============================================================================
+
+/// Why a simulated device refused an operation.
+///
+/// A category rather than a formatted string for the same reason
+/// [`crate::dispatch::DeviceOpError`] is an enum: the ops layer has to pick
+/// `not_connected` vs `invalid_parameter` vs `driver`, and doing that by
+/// matching on message text is how the wrong error class ships.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[flutter_rust_bridge::frb(ignore)]
+pub(crate) enum SimDeviceError {
+    /// The singleton's `connected` flag is false — nothing was ever opened.
+    NotConnected(String),
+    /// The caller asked for something the device cannot represent: a switch
+    /// index that does not exist, a value outside a channel's range, a write to
+    /// a read-only channel. Real ASCOM drivers raise `InvalidValueException` /
+    /// `MethodNotImplementedException` here rather than quietly clamping.
+    InvalidParameter(String),
+    /// An injected driver fault; see [`crate::device_manager::ops::sim_faults`].
+    Driver(String),
+}
+
+impl std::fmt::Display for SimDeviceError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SimDeviceError::NotConnected(m)
+            | SimDeviceError::InvalidParameter(m)
+            | SimDeviceError::Driver(m) => f.write_str(m),
+        }
+    }
+}
+
+/// Preserve the category across the ops boundary.
+///
+/// Flattening everything to `DeviceOpError::driver` would mark a rejected
+/// brightness or a bad switch index as a hardware failure, which
+/// `DeviceOpError::is_retryable` then tells the app to retry — forever, since
+/// the caller's argument is not going to get better on its own. The device id
+/// is left `None` to match the other simulator arms (`ops/filter_wheel.rs`),
+/// whose messages already name the simulated device type rather than an id.
+impl From<SimDeviceError> for crate::dispatch::DeviceOpError {
+    fn from(err: SimDeviceError) -> Self {
+        use crate::dispatch::DeviceOpError;
+        match err {
+            SimDeviceError::NotConnected(m) => DeviceOpError::not_connected(None, m),
+            SimDeviceError::InvalidParameter(m) => DeviceOpError::invalid_parameter(m),
+            SimDeviceError::Driver(m) => DeviceOpError::driver(m),
+        }
+    }
+}
+
+/// Consult the fault registry, mapping a fired fault onto [`SimDeviceError`].
+async fn sim_fault(key: &str) -> Result<(), SimDeviceError> {
+    crate::device_manager::ops::sim_faults::check(key)
+        .await
+        .map_err(SimDeviceError::Driver)
+}
+
+/// A mechanism travelling from one value to another over a known time.
+///
+/// Shared by the cover's lid and the panel's brightness because both have the
+/// same property that matters here: the value a caller reads mid-flight is
+/// somewhere in between, not the commanded endpoint. Modelled as a start
+/// instant plus a duration (like `SimSlew`) rather than a per-tick integrator
+/// so there is no "first read establishes the baseline" hazard — the motion is
+/// fully determined by the command that started it.
+#[derive(Debug, Clone, Copy)]
+#[flutter_rust_bridge::frb(ignore)]
+struct SimRamp {
+    start: Instant,
+    duration_secs: f64,
+    from: f64,
+    to: f64,
+}
+
+impl SimRamp {
+    fn fraction(&self) -> f64 {
+        if self.duration_secs <= 0.0 {
+            return 1.0;
+        }
+        (self.start.elapsed().as_secs_f64() / self.duration_secs).clamp(0.0, 1.0)
+    }
+
+    fn value(&self) -> f64 {
+        self.from + (self.to - self.from) * self.fraction()
+    }
+
+    fn is_complete(&self) -> bool {
+        self.fraction() >= 1.0
+    }
+}
+
+/// End-to-end travel time of the simulated dust cover, in seconds.
+///
+/// An Alnitak Flip-Flat takes two to four seconds to swing its lid. The
+/// simulator is quicker so the motion still completes inside the sequencer's
+/// 60 s cover budget and inside a test, but it must not be INSTANT: the only
+/// reason `CoverState::Moving` exists is that a caller has to wait through it,
+/// and a cover that reads `Open` on the same poll that commanded it means
+/// `wait_for_cover_state` returns before real hardware would have started
+/// moving. That is the same class of bug as a slew that completes in zero time.
+const SIM_COVER_TRAVEL_SECS: f64 = 1.5;
+
+/// How far past its expected travel time the simulated controller waits before
+/// declaring the lid jammed.
+///
+/// Real cover controllers run their own move timeout and report
+/// `CoverState::Error` when a lid does not arrive — which is why
+/// `wait_for_cover_state` has an `Error` branch at all. Without this the branch
+/// is unreachable without hardware: a stalled cover would read `Moving` until
+/// the sequence node's own timeout and the driver-detected-jam path would ship
+/// unexercised.
+const SIM_COVER_JAM_TIMEOUT_MULTIPLE: f64 = 3.0;
+
+/// Tolerance, in units of full travel, for calling the lid fully open/closed.
+const SIM_COVER_ENDSTOP_EPS: f64 = 1e-6;
+
+/// Time the simulated panel takes to settle after a full-scale brightness
+/// change, in seconds.
+///
+/// Electroluminescent panels ramp; `CalibratorState::NotReady` exists precisely
+/// because a flat taken before the panel settles is at the wrong level. A
+/// simulator that jumped straight to `Ready` would leave both the wait in
+/// `execute_calibrator_on` and the flat wizard's readiness handling unexercised.
+const SIM_CALIBRATOR_SETTLE_SECS: f64 = 0.8;
+
+/// Brightness ceiling the simulated panel advertises.
+///
+/// 255 is the ASCOM default that `ops/cover.rs` already falls back to when a
+/// driver will not answer, and it is what an Alnitak reports. Deliberately not
+/// 100: `CalibratorOnConfig` documents brightness as "0-max, typically 0-255"
+/// while the instruction's own progress text renders the same number as a
+/// percentage, and a panel whose scale is not 0-100 is the only way that
+/// discrepancy can surface without hardware.
+const SIM_CALIBRATOR_MAX_BRIGHTNESS: i32 = 255;
+
+/// Backing state for the flat-panel-plus-dust-cover simulator.
+#[flutter_rust_bridge::frb(ignore)]
+pub(crate) struct SimulatedCoverCalibrator {
+    pub connected: bool,
+    /// Lid travel, 0.0 fully closed through 1.0 fully open.
+    ///
+    /// A position rather than a state so a halt mid-travel is representable at
+    /// all: the lid is then genuinely neither open nor closed, which is exactly
+    /// what `CoverState::Unknown` means and what a real controller reports after
+    /// `HaltCover`. Storing only the state would have forced halt to be either a
+    /// no-op or a lie about where the lid is.
+    cover_position: f64,
+    cover_travel: Option<SimRamp>,
+    /// Latched jam: the controller gave up on a lid that stopped moving.
+    cover_jammed: bool,
+    /// Whether the panel has been commanded on. Kept separate from the
+    /// brightness so `CalibratorOn(0)` — a legal ASCOM call — still reads
+    /// `Ready` rather than being indistinguishable from `CalibratorOff`.
+    calibrator_on: bool,
+    brightness: f64,
+    brightness_ramp: Option<SimRamp>,
+}
+
+impl Default for SimulatedCoverCalibrator {
+    fn default() -> Self {
+        // Starts closed and dark: that is where a flat panel sits at the start
+        // of a night, and it means a sequence that forgets to open the cover
+        // gets black frames rather than a simulator that was helpfully already
+        // open.
+        Self {
+            connected: false,
+            cover_position: 0.0,
+            cover_travel: None,
+            cover_jammed: false,
+            calibrator_on: false,
+            brightness: 0.0,
+            brightness_ramp: None,
+        }
+    }
+}
+
+impl SimulatedCoverCalibrator {
+    fn require_connected(&self) -> Result<(), SimDeviceError> {
+        if self.connected {
+            return Ok(());
+        }
+        Err(SimDeviceError::NotConnected(
+            "Simulator cover calibrator is not connected. Call connect_device first.".to_string(),
+        ))
+    }
+
+    fn cover_state(&self) -> CoverState {
+        if self.cover_jammed {
+            return CoverState::Error;
+        }
+        if self.cover_travel.is_some() {
+            return CoverState::Moving;
+        }
+        if self.cover_position >= 1.0 - SIM_COVER_ENDSTOP_EPS {
+            CoverState::Open
+        } else if self.cover_position <= SIM_COVER_ENDSTOP_EPS {
+            CoverState::Closed
+        } else {
+            // Stopped part-way. The controller knows the lid is not on either
+            // endstop and cannot say which side it will end up on.
+            CoverState::Unknown
+        }
+    }
+
+    fn calibrator_state(&self) -> CalibratorState {
+        if self.brightness_ramp.is_some() {
+            // Also covers the way down: ASCOM keeps a calibrator `NotReady`
+            // until it is safely off, not just while it is warming up.
+            CalibratorState::NotReady
+        } else if self.calibrator_on {
+            CalibratorState::Ready
+        } else {
+            CalibratorState::Off
+        }
+    }
+
+    fn reported_brightness(&self) -> i32 {
+        self.brightness.round() as i32
+    }
+
+    /// Start the panel moving toward `target`, taking time proportional to how
+    /// far it has to travel — a nudge from 200 to 210 settles far quicker than
+    /// a jump from dark to full, as on a real panel.
+    fn begin_brightness_ramp(&mut self, target: f64) {
+        let span = f64::from(SIM_CALIBRATOR_MAX_BRIGHTNESS);
+        let duration = SIM_CALIBRATOR_SETTLE_SECS * ((target - self.brightness).abs() / span);
+        if duration <= 0.0 {
+            self.brightness = target;
+            self.brightness_ramp = None;
+            return;
+        }
+        self.brightness_ramp = Some(SimRamp {
+            start: Instant::now(),
+            duration_secs: duration,
+            from: self.brightness,
+            to: target,
+        });
+    }
+}
+
+pub(crate) static SIM_COVER_CALIBRATOR: OnceLock<Arc<RwLock<SimulatedCoverCalibrator>>> =
+    OnceLock::new();
+
+pub(crate) fn get_sim_cover_calibrator() -> &'static Arc<RwLock<SimulatedCoverCalibrator>> {
+    SIM_COVER_CALIBRATOR.get_or_init(|| Arc::new(RwLock::new(SimulatedCoverCalibrator::default())))
+}
+
+/// Return the panel to its start-of-night state.
+///
+/// The singleton is process-global, so a test that opened the lid would
+/// otherwise hand the next one a cover that is already open — and "commanding
+/// open when already open" is a legitimately different path from "opening a
+/// closed cover", so the next test would silently stop testing what it names.
+#[cfg(test)]
+pub(crate) async fn reset_sim_cover_calibrator() {
+    *get_sim_cover_calibrator().write().await = SimulatedCoverCalibrator::default();
+}
+
+/// Advance the lid and the panel to now.
+///
+/// Called from every simulated cover-calibrator op, which is what makes the
+/// motion observable to a caller polling `cover_state` — the same arrangement
+/// that drives `advance_sim_slew` from every mount status read.
+pub(crate) async fn advance_sim_cover_calibrator() {
+    // A stalled lid does not move. The command that stalled it still returned
+    // `Ok`, so the only evidence is that the state never becomes `Open` — which
+    // is precisely the failure mode a real jammed Flip-Flat presents.
+    let stalled = crate::device_manager::ops::sim_faults::is_stalled("covercalibrator.cover");
+    let mut cc = get_sim_cover_calibrator().write().await;
+
+    if let Some(travel) = cc.cover_travel {
+        if stalled {
+            if travel.start.elapsed().as_secs_f64()
+                > travel.duration_secs * SIM_COVER_JAM_TIMEOUT_MULTIPLE
+            {
+                cc.cover_travel = None;
+                cc.cover_jammed = true;
+            }
+        } else if travel.is_complete() {
+            cc.cover_position = travel.to;
+            cc.cover_travel = None;
+        } else {
+            cc.cover_position = travel.value();
+        }
+    }
+
+    if let Some(ramp) = cc.brightness_ramp {
+        if ramp.is_complete() {
+            cc.brightness = ramp.to;
+            cc.brightness_ramp = None;
+        } else {
+            cc.brightness = ramp.value();
+        }
+    }
+}
+
+/// Read the simulated panel's combined status.
+pub(crate) async fn sim_cover_status() -> Result<CoverCalibratorStatus, SimDeviceError> {
+    sim_fault("covercalibrator.status").await?;
+    advance_sim_cover_calibrator().await;
+    let cc = get_sim_cover_calibrator().read().await;
+    cc.require_connected()?;
+    Ok(CoverCalibratorStatus {
+        connected: true,
+        cover_state: cc.cover_state(),
+        calibrator_state: cc.calibrator_state(),
+        brightness: cc.reported_brightness(),
+        max_brightness: SIM_CALIBRATOR_MAX_BRIGHTNESS,
+    })
+}
+
+/// Command the lid open (`open == true`) or closed.
+///
+/// Reversing mid-travel is honest about where the lid actually is: a half-open
+/// cover takes half the travel time to close again, because the ramp starts
+/// from the advanced position rather than from the endstop it last left.
+pub(crate) async fn sim_cover_move(open: bool) -> Result<(), SimDeviceError> {
+    sim_fault("covercalibrator.command").await?;
+    // Arms the stall latch the advancer consults; see `sim_faults` for why a
+    // stall returns `Ok` rather than an error.
+    sim_fault("covercalibrator.cover").await?;
+    advance_sim_cover_calibrator().await;
+
+    let mut cc = get_sim_cover_calibrator().write().await;
+    cc.require_connected()?;
+    // Commanding the mechanism again re-arms the controller, exactly as
+    // power-cycling a jammed lid or re-issuing the move does on real hardware.
+    cc.cover_jammed = false;
+
+    let target = if open { 1.0 } else { 0.0 };
+    let distance = (target - cc.cover_position).abs();
+    if distance <= SIM_COVER_ENDSTOP_EPS {
+        // Already there. A real controller answers immediately rather than
+        // driving the motor into the endstop for a second and a half.
+        cc.cover_travel = None;
+        return Ok(());
+    }
+    cc.cover_travel = Some(SimRamp {
+        start: Instant::now(),
+        duration_secs: SIM_COVER_TRAVEL_SECS * distance,
+        from: cc.cover_position,
+        to: target,
+    });
+    Ok(())
+}
+
+/// Stop the lid where it is.
+pub(crate) async fn sim_cover_halt() -> Result<(), SimDeviceError> {
+    sim_fault("covercalibrator.command").await?;
+    advance_sim_cover_calibrator().await;
+    let mut cc = get_sim_cover_calibrator().write().await;
+    cc.require_connected()?;
+    cc.cover_travel = None;
+    Ok(())
+}
+
+/// Turn the panel on at `brightness`.
+pub(crate) async fn sim_calibrator_on(brightness: i32) -> Result<(), SimDeviceError> {
+    sim_fault("covercalibrator.command").await?;
+    advance_sim_cover_calibrator().await;
+    let mut cc = get_sim_cover_calibrator().write().await;
+    cc.require_connected()?;
+
+    // ASCOM requires a brightness outside 0..=MaxBrightness to raise
+    // InvalidValueException. Clamping instead would hide the app sending a
+    // 0-100 percentage to a 0-255 panel (or the reverse) — it would simply
+    // produce the wrong flat level and nothing would say so.
+    if !(0..=SIM_CALIBRATOR_MAX_BRIGHTNESS).contains(&brightness) {
+        return Err(SimDeviceError::InvalidParameter(format!(
+            "Calibrator brightness {} is outside the panel's 0-{} range",
+            brightness, SIM_CALIBRATOR_MAX_BRIGHTNESS
+        )));
+    }
+
+    cc.calibrator_on = true;
+    cc.begin_brightness_ramp(f64::from(brightness));
+    Ok(())
+}
+
+/// Turn the panel off.
+pub(crate) async fn sim_calibrator_off() -> Result<(), SimDeviceError> {
+    sim_fault("covercalibrator.command").await?;
+    advance_sim_cover_calibrator().await;
+    let mut cc = get_sim_cover_calibrator().write().await;
+    cc.require_connected()?;
+    cc.calibrator_on = false;
+    cc.begin_brightness_ramp(0.0);
+    Ok(())
+}
+
+/// How long a commanded switch change takes to appear in the device's own
+/// telemetry, in seconds.
+///
+/// A Pegasus powerbox acknowledges a command immediately but reports state from
+/// its own status poll, so a read issued straight after a write returns the
+/// PREVIOUS value. That race is where a whole class of UI bugs lives — toggle a
+/// port, re-read, see the old state, snap the control back — and a simulator
+/// that applies writes instantly can never produce it.
+const SIM_SWITCH_SETTLE_SECS: f64 = 0.25;
+
+/// Draw of the controller itself with every output off, in amps.
+const SIM_SWITCH_QUIESCENT_AMPS: f64 = 0.4;
+/// Draw added by the switched 12 V bank (mount plus camera), in amps.
+const SIM_SWITCH_QUAD_AMPS: f64 = 1.8;
+/// Draw added by the DSLR output, in amps.
+const SIM_SWITCH_DSLR_AMPS: f64 = 0.9;
+/// Draw added per percent of dew-heater duty cycle, in amps. A dew strap at
+/// full duty pulls about 3 A, which is what sizes this.
+const SIM_SWITCH_DEW_AMPS_PER_PERCENT: f64 = 0.03;
+/// Open-circuit supply voltage, in volts.
+const SIM_SWITCH_SUPPLY_VOLTS: f64 = 13.8;
+/// Supply sag per amp drawn, in volts. Real cabling has resistance, and the
+/// voltage readout dropping under load is what makes an undersized supply
+/// diagnosable from the app.
+const SIM_SWITCH_SAG_VOLTS_PER_AMP: f64 = 0.05;
+
+/// Indices of the simulated powerbox's channels. Named because the derived
+/// sensor channels below read the controllable ones by position.
+const SIM_SWITCH_QUAD: usize = 0;
+const SIM_SWITCH_DSLR: usize = 1;
+const SIM_SWITCH_DEW_A: usize = 3;
+const SIM_SWITCH_DEW_B: usize = 4;
+const SIM_SWITCH_VOLTAGE: usize = 5;
+const SIM_SWITCH_CURRENT: usize = 6;
+
+/// One channel of the simulated powerbox.
+#[flutter_rust_bridge::frb(ignore)]
+struct SimSwitchChannel {
+    name: &'static str,
+    description: &'static str,
+    min: f64,
+    max: f64,
+    /// Resolution the controller can actually produce. A commanded value is
+    /// quantised to this, because a real DAC/PWM register cannot hold 30.7 %.
+    step: f64,
+    writable: bool,
+    value: f64,
+    /// A commanded value that has not yet appeared in the device's telemetry.
+    pending: Option<(f64, Instant)>,
+}
+
+impl SimSwitchChannel {
+    /// Apply any commanded change that has had time to land, then report the
+    /// value a read sees now.
+    fn settle(&mut self) -> f64 {
+        if let Some((value, at)) = self.pending {
+            if at.elapsed().as_secs_f64() >= SIM_SWITCH_SETTLE_SECS {
+                self.value = value;
+                self.pending = None;
+            }
+        }
+        self.value
+    }
+
+    fn quantise(&self, value: f64) -> f64 {
+        if self.step <= 0.0 {
+            return value;
+        }
+        self.min + ((value - self.min) / self.step).round() * self.step
+    }
+}
+
+/// ASCOM `ISwitchV2` boolean projection: a multi-state switch reads `true` when
+/// its value sits in the upper half of its range.
+///
+/// This coupling is not cosmetic. A dew heater set to 30 % reads back as
+/// `false`, so an app that remembers "I turned it on" instead of re-reading the
+/// device will disagree with the hardware — and against a simulator that kept
+/// an independent boolean, it never would.
+fn sim_switch_value_as_bool(value: f64, min: f64, max: f64) -> bool {
+    value - min >= (max - min) / 2.0
+}
+
+/// Backing state for the switch simulator.
+///
+/// Shaped after a Pegasus Astro Ultimate Powerbox — switched outputs, PWM dew
+/// channels, and read-only voltage/current sensors — because that is what a
+/// switch device on this app actually is. The read-only channels are the point:
+/// with every channel writable, `CanWrite == false` and the UI's read-only
+/// rendering could never be exercised without hardware.
+#[flutter_rust_bridge::frb(ignore)]
+pub(crate) struct SimulatedSwitch {
+    pub connected: bool,
+    channels: Vec<SimSwitchChannel>,
+}
+
+impl Default for SimulatedSwitch {
+    fn default() -> Self {
+        Self {
+            connected: false,
+            channels: vec![
+                SimSwitchChannel {
+                    name: "Quad 12V Output",
+                    description: "Switched 12 V bank (mount, camera, focuser)",
+                    min: 0.0,
+                    max: 1.0,
+                    step: 1.0,
+                    writable: true,
+                    value: 1.0,
+                    pending: None,
+                },
+                SimSwitchChannel {
+                    name: "DSLR Output",
+                    description: "Switched auxiliary 12 V output",
+                    min: 0.0,
+                    max: 1.0,
+                    step: 1.0,
+                    writable: true,
+                    value: 0.0,
+                    pending: None,
+                },
+                SimSwitchChannel {
+                    name: "Adjustable Output",
+                    description: "Variable output, volts",
+                    min: 3.0,
+                    max: 12.0,
+                    step: 1.0,
+                    writable: true,
+                    value: 12.0,
+                    pending: None,
+                },
+                SimSwitchChannel {
+                    name: "Dew Heater A",
+                    description: "Dew heater duty cycle, percent",
+                    min: 0.0,
+                    max: 100.0,
+                    step: 1.0,
+                    writable: true,
+                    value: 0.0,
+                    pending: None,
+                },
+                SimSwitchChannel {
+                    name: "Dew Heater B",
+                    description: "Dew heater duty cycle, percent",
+                    min: 0.0,
+                    max: 100.0,
+                    step: 1.0,
+                    writable: true,
+                    value: 0.0,
+                    pending: None,
+                },
+                SimSwitchChannel {
+                    name: "Input Voltage",
+                    description: "Supply voltage, volts (read-only sensor)",
+                    min: 0.0,
+                    max: 15.0,
+                    step: 0.1,
+                    writable: false,
+                    value: SIM_SWITCH_SUPPLY_VOLTS,
+                    pending: None,
+                },
+                SimSwitchChannel {
+                    name: "Total Current",
+                    description: "Total draw, amps (read-only sensor)",
+                    min: 0.0,
+                    max: 20.0,
+                    step: 0.1,
+                    writable: false,
+                    value: SIM_SWITCH_QUIESCENT_AMPS,
+                    pending: None,
+                },
+            ],
+        }
+    }
+}
+
+impl SimulatedSwitch {
+    fn require_connected(&self) -> Result<(), SimDeviceError> {
+        if self.connected {
+            return Ok(());
+        }
+        Err(SimDeviceError::NotConnected(
+            "Simulator switch is not connected. Call connect_device first.".to_string(),
+        ))
+    }
+
+    /// Resolve a caller-supplied switch id.
+    ///
+    /// Out of range is an error, not a clamp: ASCOM raises
+    /// `InvalidValueException` for an id outside `0..MaxSwitch`, and an app that
+    /// iterates one too far has an off-by-one that a clamping simulator would
+    /// swallow.
+    fn index_of(&self, switch_id: i32) -> Result<usize, SimDeviceError> {
+        usize::try_from(switch_id)
+            .ok()
+            .filter(|i| *i < self.channels.len())
+            .ok_or_else(|| {
+                SimDeviceError::InvalidParameter(format!(
+                    "Switch index {} is out of range for the simulated switch (0-{})",
+                    switch_id,
+                    self.channels.len() - 1
+                ))
+            })
+    }
+
+    /// Settle every channel and recompute the derived sensors.
+    ///
+    /// Voltage and current are DERIVED from what is switched on rather than
+    /// stored, for the same reason the mount's altitude is derived from its
+    /// RA/Dec: a stored constant is a reading that never responds to anything
+    /// the app does, so a power dashboard wired to nothing still looks alive.
+    fn advance(&mut self) {
+        for channel in &mut self.channels {
+            channel.settle();
+        }
+
+        let bool_at = |i: usize| {
+            let c = &self.channels[i];
+            sim_switch_value_as_bool(c.value, c.min, c.max)
+        };
+        let mut amps = SIM_SWITCH_QUIESCENT_AMPS;
+        if bool_at(SIM_SWITCH_QUAD) {
+            amps += SIM_SWITCH_QUAD_AMPS;
+        }
+        if bool_at(SIM_SWITCH_DSLR) {
+            amps += SIM_SWITCH_DSLR_AMPS;
+        }
+        amps += (self.channels[SIM_SWITCH_DEW_A].value + self.channels[SIM_SWITCH_DEW_B].value)
+            * SIM_SWITCH_DEW_AMPS_PER_PERCENT;
+
+        self.channels[SIM_SWITCH_CURRENT].value = amps;
+        self.channels[SIM_SWITCH_VOLTAGE].value =
+            SIM_SWITCH_SUPPLY_VOLTS - amps * SIM_SWITCH_SAG_VOLTS_PER_AMP;
+    }
+}
+
+pub(crate) static SIM_SWITCH: OnceLock<Arc<RwLock<SimulatedSwitch>>> = OnceLock::new();
+
+pub(crate) fn get_sim_switch() -> &'static Arc<RwLock<SimulatedSwitch>> {
+    SIM_SWITCH.get_or_init(|| Arc::new(RwLock::new(SimulatedSwitch::default())))
+}
+
+/// Return the powerbox to its power-on state; see
+/// [`reset_sim_cover_calibrator`] for why a process-global singleton needs one.
+#[cfg(test)]
+pub(crate) async fn reset_sim_switch() {
+    *get_sim_switch().write().await = SimulatedSwitch::default();
+}
+
+/// One switch channel as a caller sees it.
+#[derive(Debug, Clone)]
+#[flutter_rust_bridge::frb(ignore)]
+pub(crate) struct SimSwitchReading {
+    pub name: String,
+    pub description: String,
+    pub value: f64,
+    pub state: bool,
+    pub min: f64,
+    pub max: f64,
+    pub writable: bool,
+}
+
+/// Number of channels the simulated switch device exposes.
+pub(crate) async fn sim_switch_count() -> Result<i32, SimDeviceError> {
+    sim_fault("switch.status").await?;
+    let sw = get_sim_switch().read().await;
+    sw.require_connected()?;
+    // Why: channel count is a fixed, single-digit literal in `Default`.
+    Ok(i32::try_from(sw.channels.len()).unwrap_or(i32::MAX))
+}
+
+/// Read one channel.
+pub(crate) async fn sim_switch_read(switch_id: i32) -> Result<SimSwitchReading, SimDeviceError> {
+    sim_fault("switch.status").await?;
+    let mut sw = get_sim_switch().write().await;
+    sw.require_connected()?;
+    let index = sw.index_of(switch_id)?;
+    sw.advance();
+    let channel = &sw.channels[index];
+    Ok(SimSwitchReading {
+        name: channel.name.to_string(),
+        description: channel.description.to_string(),
+        value: channel.value,
+        state: sim_switch_value_as_bool(channel.value, channel.min, channel.max),
+        min: channel.min,
+        max: channel.max,
+        writable: channel.writable,
+    })
+}
+
+/// What a caller asked a channel to become.
+enum SimSwitchCommand {
+    /// A numeric value, validated against the channel's own range.
+    Value(f64),
+    /// On or off. ASCOM defines these in terms of the numeric value — `true`
+    /// drives the channel to its maximum and `false` to its minimum — so both
+    /// commands land in the same place rather than a boolean living beside the
+    /// value and drifting out of agreement with it.
+    State(bool),
+}
+
+async fn sim_switch_apply(switch_id: i32, command: SimSwitchCommand) -> Result<(), SimDeviceError> {
+    let mut sw = get_sim_switch().write().await;
+    sw.require_connected()?;
+    let index = sw.index_of(switch_id)?;
+    sw.advance();
+
+    let channel = &mut sw.channels[index];
+    if !channel.writable {
+        return Err(SimDeviceError::InvalidParameter(format!(
+            "Switch '{}' is a read-only sensor and cannot be set",
+            channel.name
+        )));
+    }
+
+    let value = match command {
+        SimSwitchCommand::Value(value) => value,
+        SimSwitchCommand::State(true) => channel.max,
+        SimSwitchCommand::State(false) => channel.min,
+    };
+    if !value.is_finite() || value < channel.min || value > channel.max {
+        return Err(SimDeviceError::InvalidParameter(format!(
+            "Value {} is outside switch '{}' range {}-{}",
+            value, channel.name, channel.min, channel.max
+        )));
+    }
+
+    // The write is accepted now and observable later; see SIM_SWITCH_SETTLE_SECS.
+    let landed = channel.quantise(value);
+    channel.pending = Some((landed, Instant::now()));
+    Ok(())
+}
+
+/// Command a channel's numeric value.
+pub(crate) async fn sim_switch_write_value(
+    switch_id: i32,
+    value: f64,
+) -> Result<(), SimDeviceError> {
+    sim_fault("switch.command").await?;
+    sim_switch_apply(switch_id, SimSwitchCommand::Value(value)).await
+}
+
+/// Command a channel on or off.
+pub(crate) async fn sim_switch_write_state(
+    switch_id: i32,
+    state: bool,
+) -> Result<(), SimDeviceError> {
+    sim_fault("switch.command").await?;
+    sim_switch_apply(switch_id, SimSwitchCommand::State(state)).await
 }
 
 #[cfg(test)]

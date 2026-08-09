@@ -184,105 +184,134 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
       child: MouseRegion(
         onEnter: (_) => setState(() => _isHovered = true),
         onExit: (_) => setState(() => _isHovered = false),
-        child: GestureDetector(
-          onDoubleTap: () => widget.onSnippetTap?.call(widget.snippet),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            margin: const EdgeInsets.only(top: 4),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          margin: const EdgeInsets.only(top: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: _isHovered
+                ? widget.colors.surfaceAlt
+                : widget.colors.background,
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+            border: Border.all(
               color: _isHovered
-                  ? widget.colors.surfaceAlt
-                  : widget.colors.background,
-              borderRadius:
-                  BorderRadius.circular(NightshadeTokens.radiusInline8),
-              border: Border.all(
-                color: _isHovered
-                    ? widget.categoryColor.withValues(alpha: 0.5)
-                    : widget.colors.border,
-              ),
+                  ? widget.categoryColor.withValues(alpha: 0.5)
+                  : widget.colors.border,
             ),
-            child: Row(
-              children: [
-                Container(
-                  width: 28,
-                  height: 28,
-                  decoration: NightshadeDecorations.tintedBadge(
-                    widget.categoryColor,
-                    borderRadius:
-                        BorderRadius.circular(NightshadeTokens.radiusMd),
-                  ),
-                  child: Icon(
-                    widget.getIcon(widget.snippet.iconName),
-                    size: 14,
-                    color: widget.categoryColor,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+          child: Row(
+            children: [
+              // Double-click covers the CARD BODY only. Keeping it as an
+              // ancestor of the '+' made every click on '+' wait out the
+              // double-tap timeout before anything happened, because a
+              // pending DoubleTapGestureRecognizer holds the gesture arena.
+              Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onDoubleTap: () => widget.onSnippetTap?.call(widget.snippet),
+                  child: Row(
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              widget.snippet.name,
-                              style: NightshadeTypography.labelQuiet.copyWith(
-                                  color: _isHovered
-                                      ? widget.colors.textPrimary
-                                      : widget.colors.textSecondary),
-                            ),
-                          ),
-                          if (widget.snippet.isBuiltIn)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 4,
-                                vertical: 1,
-                              ),
-                              decoration: NightshadeDecorations.tintedBadge(
-                                widget.colors.info,
-                                borderRadius: BorderRadius.circular(
-                                    NightshadeTokens.radiusXs),
-                              ),
-                              child: Text(
-                                'Built-in',
-                                style: TextStyle(
-                                  fontSize: NightshadeTypography.fontSize8,
-                                  fontWeight: FontWeight.w500,
-                                  color: widget.colors.info,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                      Text(
-                        widget.snippet.description,
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize9,
-                          color: widget.colors.textMuted,
+                      Container(
+                        width: 28,
+                        height: 28,
+                        decoration: NightshadeDecorations.tintedBadge(
+                          widget.categoryColor,
+                          borderRadius:
+                              BorderRadius.circular(NightshadeTokens.radiusMd),
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        child: Icon(
+                          widget.getIcon(widget.snippet.iconName),
+                          size: 14,
+                          color: widget.categoryColor,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    widget.snippet.name,
+                                    style: NightshadeTypography.labelQuiet
+                                        .copyWith(
+                                            color: _isHovered
+                                                ? widget.colors.textPrimary
+                                                : widget.colors.textSecondary),
+                                  ),
+                                ),
+                                if (widget.snippet.isBuiltIn)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                      vertical: 1,
+                                    ),
+                                    decoration:
+                                        NightshadeDecorations.tintedBadge(
+                                      widget.colors.info,
+                                      borderRadius: BorderRadius.circular(
+                                          NightshadeTokens.radiusXs),
+                                    ),
+                                    child: Text(
+                                      'Built-in',
+                                      style: TextStyle(
+                                        fontSize:
+                                            NightshadeTypography.fontSize8,
+                                        fontWeight: FontWeight.w500,
+                                        color: widget.colors.info,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            Text(
+                              widget.snippet.description,
+                              style: TextStyle(
+                                fontSize: NightshadeTypography.fontSize9,
+                                color: widget.colors.textMuted,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
                 ),
-                if (_isHovered)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _buildOverflowMenu(iconSize: 14),
-                      const SizedBox(width: 4),
-                      Icon(
+              ),
+              if (_isHovered) ...[
+                _buildOverflowMenu(iconSize: 14),
+                const SizedBox(width: 4),
+              ],
+              // The '+' used to be a bare Icon painted only on hover, so the
+              // panel's own "tap to insert" promise had no handler behind it
+              // and only a drag (or the hidden double-click) inserted
+              // anything. It is now an always-visible button.
+              Semantics(
+                button: true,
+                label: 'Insert ${widget.snippet.name}',
+                child: Tooltip(
+                  message: 'Insert into sequence',
+                  excludeFromSemantics: true,
+                  child: GestureDetector(
+                    onTap: () => widget.onSnippetTap?.call(widget.snippet),
+                    child: Padding(
+                      padding: const EdgeInsets.all(2),
+                      child: Icon(
                         LucideIcons.plus,
                         size: 12,
-                        color: widget.categoryColor,
+                        color: _isHovered
+                            ? widget.categoryColor
+                            : widget.categoryColor.withValues(alpha: 0.6),
                       ),
-                    ],
+                    ),
                   ),
-              ],
-            ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

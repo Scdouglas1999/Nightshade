@@ -6,6 +6,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import 'node_palette_empty_state.dart';
+import 'node_palette_search.dart';
 import 'palette_icon_map.dart';
 
 class NodePalette extends ConsumerStatefulWidget {
@@ -40,6 +42,11 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
 
   IconData _getIcon(String iconName) => nodePaletteIconFor(iconName);
 
+  void _clearSearch() {
+    _searchController.clear();
+    setState(() => _searchQuery = '');
+  }
+
   Color _getCategoryColor(String categoryName) =>
       nodePaletteCategoryColor(categoryName, widget.colors);
 
@@ -47,27 +54,10 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
   Widget build(BuildContext context) {
     final categories = ref.watch(nodePaletteProvider);
 
-    // Filter based on search. Lower-case the query once up front rather
-    // than per-item, and reuse it across name + description checks.
-    final filteredCategories = categories
-        .map((category) {
-          if (_searchQuery.isEmpty) return category;
-
-          final q = _searchQuery.toLowerCase();
-          final filteredItems = category.items
-              .where((item) =>
-                  item.name.toLowerCase().contains(q) ||
-                  item.description.toLowerCase().contains(q))
-              .toList();
-
-          return NodePaletteCategory(
-            name: category.name,
-            icon: category.icon,
-            items: filteredItems,
-          );
-        })
-        .where((c) => c.items.isNotEmpty)
-        .toList();
+    // Filter AND rank: a name hit must outrank a description hit, or the
+    // first row (the one people click) is the wrong node. See
+    // node_palette_search.dart.
+    final filteredCategories = rankNodePaletteMatches(categories, _searchQuery);
 
     // Mobile bottom sheet layout
     if (widget.isMobileSheet) {
@@ -192,22 +182,28 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
                 PointerDeviceKind.trackpad,
               },
             ),
-            child: ListView.builder(
-              controller: widget.scrollController,
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: filteredCategories.length,
-              itemBuilder: (context, index) {
-                final category = filteredCategories[index];
-                return _CategorySection(
-                  category: category,
-                  colors: widget.colors,
-                  categoryColor: _getCategoryColor(category.name),
-                  getIcon: _getIcon,
-                  isMobile: true,
-                  onNodeAdded: widget.onNodeAdded,
-                );
-              },
-            ),
+            child: filteredCategories.isEmpty
+                ? NodePaletteEmptyState(
+                    colors: widget.colors,
+                    query: _searchQuery,
+                    onClear: _clearSearch,
+                  )
+                : ListView.builder(
+                    controller: widget.scrollController,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: filteredCategories.length,
+                    itemBuilder: (context, index) {
+                      final category = filteredCategories[index];
+                      return _CategorySection(
+                        category: category,
+                        colors: widget.colors,
+                        categoryColor: _getCategoryColor(category.name),
+                        getIcon: _getIcon,
+                        isMobile: true,
+                        onNodeAdded: widget.onNodeAdded,
+                      );
+                    },
+                  ),
           ),
         ),
       ],
@@ -351,21 +347,27 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
                     PointerDeviceKind.trackpad,
                   },
                 ),
-                child: ListView.builder(
-                  padding: EdgeInsets.symmetric(
-                    vertical: Responsive.spacing(context, 8),
-                  ),
-                  itemCount: filteredCategories.length,
-                  itemBuilder: (context, index) {
-                    final category = filteredCategories[index];
-                    return _CategorySection(
-                      category: category,
-                      colors: widget.colors,
-                      categoryColor: _getCategoryColor(category.name),
-                      getIcon: _getIcon,
-                    );
-                  },
-                ),
+                child: filteredCategories.isEmpty
+                    ? NodePaletteEmptyState(
+                        colors: widget.colors,
+                        query: _searchQuery,
+                        onClear: _clearSearch,
+                      )
+                    : ListView.builder(
+                        padding: EdgeInsets.symmetric(
+                          vertical: Responsive.spacing(context, 8),
+                        ),
+                        itemCount: filteredCategories.length,
+                        itemBuilder: (context, index) {
+                          final category = filteredCategories[index];
+                          return _CategorySection(
+                            category: category,
+                            colors: widget.colors,
+                            categoryColor: _getCategoryColor(category.name),
+                            getIcon: _getIcon,
+                          );
+                        },
+                      ),
               ),
             ),
 

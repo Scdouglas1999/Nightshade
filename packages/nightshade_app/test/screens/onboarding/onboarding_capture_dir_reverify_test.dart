@@ -16,6 +16,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/screens/onboarding/steps/capture_dir_step.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 class _MockNetworkBackend extends Mock implements NetworkBackend {}
 
@@ -66,6 +67,7 @@ void main() {
     final probed = <String>[];
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith(
           (ref) => _PinnedBackendNotifier(ref, FfiBackend()),
         ),
@@ -95,6 +97,7 @@ void main() {
       'not a green tick', (tester) async {
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith(
           (ref) => _PinnedBackendNotifier(ref, FfiBackend()),
         ),
@@ -120,6 +123,7 @@ void main() {
     final gate = Completer<String?>();
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith(
           (ref) => _PinnedBackendNotifier(ref, FfiBackend()),
         ),
@@ -157,6 +161,7 @@ void main() {
     );
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith(
           (ref) => _PinnedBackendNotifier(ref, backend),
         ),
@@ -193,6 +198,7 @@ void main() {
     late _SwitchingBackendNotifier notifier;
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith(
           (ref) => notifier = _SwitchingBackendNotifier(ref, backend),
         ),

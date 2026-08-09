@@ -83,22 +83,27 @@ mixin _FfiDiscoveryCameraOperations on _FfiBackendBase {
         .toList();
   }
 
+  /// Probe a specific INDI/Alpaca endpoint, propagating failure.
+  ///
+  /// This used to catch everything and return an empty list. The bridge is
+  /// honest — it maps a refused connection to `NightshadeError::connection_failed`
+  /// — but the swallow turned "nothing answered at that address" into "answered,
+  /// and reported no devices". The INDI server dialog's Test Connection then
+  /// showed a green tick reading "Connected. Found 0 devices." for a host with
+  /// nothing listening, and its own failure branch was unreachable code.
+  ///
+  /// The one caller that genuinely must not abort on an unreachable address is
+  /// the startup sweep in `unified_discovery_provider`, and it already wraps
+  /// this in its own try/catch that reports the failure per backend. So the
+  /// swallow was not protecting anything; it was only hiding the truth from
+  /// every other caller.
   Future<List<bridge.DeviceInfo>> _discoverAddressDevices({
     required String label,
     required String host,
     required int port,
     required Future<List<bridge.DeviceInfo>> Function() discover,
   }) async {
-    try {
-      return await discover();
-    } catch (e, stackTrace) {
-      _logger.warning(
-        '$label address discovery failed for $host:$port; returning no devices',
-        e,
-        stackTrace,
-      );
-      return const <bridge.DeviceInfo>[];
-    }
+    return discover();
   }
 
   @override

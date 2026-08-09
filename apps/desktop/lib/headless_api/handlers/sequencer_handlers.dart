@@ -9,6 +9,7 @@ import 'package:shelf/shelf.dart';
 import '../../headless/host_checkpoint_directory.dart';
 import '../command_correlator.dart';
 import '../response_helpers.dart';
+import '../sequence_wire_validation.dart';
 import '../validation.dart';
 
 /// Handlers for sequencer control endpoints
@@ -123,20 +124,9 @@ class SequencerHandlers {
     final commandId = commandCorrelator?.beginCommand(
       operation: 'sequencer.start',
     );
-    // Two start paths converge here:
-    //
-    //  * In-editor sequence present (a graphical desktop host driving its own
-    //    `currentSequenceProvider`): run the full Dart [SequenceExecutor.start]
-    //    so pre-flight validation, the session row, the sequence_runs row, the
-    //    checkpoint timer and lifecycle hooks all fire (Audit C3).
-    //
-    //  * No in-editor sequence (the headless Pi appliance — nothing ever wires
-    //    an editor into `currentSequenceProvider` there): the sequence was
-    //    loaded straight into the native executor via POST /api/sequencer/load.
-    //    Start THAT one directly. Without this branch the canonical remote flow
-    //    (load → start) always failed with "No sequence loaded", which meant a
-    //    tablet/desktop client could not run an imaging sequence on the rig at
-    //    all — the appliance's core purpose.
+    // Editor sequences use the Dart executor and lifecycle hooks. Headless
+    // sequences are validated by handleSequencerLoad before entering the native
+    // executor, so this branch may start the already-loaded tree directly.
     final hasInEditorSequence = container.read(currentSequenceProvider) != null;
     try {
       if (hasInEditorSequence) {
@@ -448,14 +438,43 @@ class SequencerHandlers {
     });
   }
 
+  /// Load a native-wire sequence into the executor.
+  ///
+  /// This is the headless path into the native executor, so wire validation
+  /// must reject unset target coordinates before the tree is loaded.
   Future<Response> handleSequencerLoad(Request request) async {
     _logInfo('[API] POST /api/sequencer/load');
     final payload = await readJsonObject(request);
     final json = requireString(payload, 'json');
 
+    final rejection = _rejectInvalidWireSequence(json);
+    if (rejection != null) return rejection;
+
     final backend = container.read(sequencerBackendProvider);
     await backend.sequencerLoadJson(json);
     return jsonOk({'status': 'loaded'});
+  }
+
+  /// Run the wire pre-flight and turn any blocking finding into the same 400
+  /// body `SequenceValidationException` produces, so both start paths answer a
+  /// remote dashboard identically. Returns null when the sequence may proceed;
+  /// warnings are logged, never blocking.
+  Response? _rejectInvalidWireSequence(String json) {
+    final issues = validateSequenceWireJson(json);
+    if (issues.isEmpty) return null;
+    final errors = issues.where((i) => i.isError).toList(growable: false);
+    for (final issue in issues.where((i) => !i.isError)) {
+      _logger.warning(
+        'sequencer load: ${issue.title} — ${issue.description}',
+        source: 'SequencerHandlers',
+      );
+    }
+    if (errors.isEmpty) return null;
+    _logInfo(
+      '[API] sequencer load rejected: ${errors.length} validation '
+      'errors (${errors.map((e) => e.code).join(', ')})',
+    );
+    return jsonBadRequest(sequenceWireValidationBody(issues));
   }
 
   /// Load a persisted sequence through the canonical Dart editor and start it.
@@ -934,12 +953,99 @@ class SequencerHandlers {
 
   Future<Response> handleSequencerResumeFromCheckpoint(Request request) async {
     _logInfo('[API] POST /api/sequencer/checkpoint/resume');
+    // A resume commands the mount exactly like a start does, but neither the
+    // executor's resume path nor the native restore runs any pre-flight: the
+    // checkpoint is replayed verbatim. A checkpoint written before target
+    // coordinates were validated (or by an older build) therefore resumed
+    // straight back into the wrong slew. Check the tree this resume will
+    // actually execute first.
+    final rejection = await _rejectUnpointableCheckpoint();
+    if (rejection != null) return rejection;
     // Route through the SequenceExecutor provider — it re-seeds the runtime
     // config from current settings and issues the sequencerStart() that
     // actually begins execution. The raw backend resumeFromCheckpoint()
     // only prepares the native tree and leaves the executor idle.
     await container.read(sequenceExecutorProvider).resumeFromCheckpoint();
     return jsonOk({'status': 'resumed'});
+  }
+
+  /// Reject a checkpoint resume whose sequence still carries an unset target
+  /// pointing, using the same [TargetCoordinatesUnsetRule] the desktop start
+  /// path enforces.
+  ///
+  /// Scope is deliberately narrow — only the pointing rule, not the full
+  /// validator stack. A resume happens mid-night with hardware in whatever
+  /// state the interruption left it, so running the equipment / disk-space /
+  /// dark-library rules here would refuse resumes that are perfectly fine to
+  /// finish. The one thing that must never be replayed is a slew to a target
+  /// that does not know where it is.
+  ///
+  /// Anything that stops us from reading the tree (no checkpoint info, no
+  /// stored snapshot, a snapshot that no longer parses) returns null and lets
+  /// the resume proceed: imaging with an unverifiable tree still beats
+  /// refusing to finish the night over bookkeeping.
+  Future<Response?> _rejectUnpointableCheckpoint() async {
+    Sequence? sequence;
+    try {
+      // The executor resumes the already-open editor tree when there is one and
+      // only falls back to the interrupted run's stored snapshot otherwise.
+      // Mirror that order so this checks the same tree that will run.
+      sequence = container.read(currentSequenceProvider);
+      if (sequence == null) {
+        final info = await container
+            .read(sequencerBackendProvider)
+            .getCheckpointInfo();
+        if (info == null) return null;
+        final snapshot = await container
+            .read(sequenceRunsDaoProvider)
+            .latestSnapshotForSequenceName(info.sequenceName);
+        if (snapshot == null || snapshot.trim().isEmpty) return null;
+        final decoded = jsonDecode(snapshot);
+        if (decoded is! Map<String, dynamic>) return null;
+        sequence = container
+            .read(sequenceFileServiceProvider)
+            .parseFromMap(decoded);
+      }
+    } catch (e) {
+      _logger.warning(
+        'Could not pre-check the checkpoint before resuming: $e',
+        source: 'SequencerHandlers',
+      );
+      return null;
+    }
+
+    final issues = TargetCoordinatesUnsetRule()
+        .validate(sequence)
+        .where((i) => i.severity == ValidationSeverity.error)
+        .toList(growable: false);
+    if (issues.isEmpty) return null;
+    _logInfo(
+      '[API] checkpoint resume rejected: ${issues.length} target(s) still on '
+      'the RA 0h / Dec +0 placeholder',
+    );
+    return jsonBadRequest({
+      'error': 'sequence_validation_failed',
+      'code': 'sequence_validation_failed',
+      'message':
+          'Cannot resume: ${issues.length} validation '
+          '${issues.length == 1 ? 'error' : 'errors'}: '
+          '${issues.map((i) => i.title).join('; ')}',
+      'errorCount': issues.length,
+      'warningCount': 0,
+      'issues': issues
+          .map(
+            (i) => {
+              'severity': i.severity.name,
+              'category': i.category.name,
+              'title': i.title,
+              'description': i.description,
+              if (i.resolutionHint != null) 'resolutionHint': i.resolutionHint,
+              if (i.affectedNodeId != null) 'affectedNodeId': i.affectedNodeId,
+              if (i.code != null) 'code': i.code,
+            },
+          )
+          .toList(growable: false),
+    });
   }
 
   Future<Response> handlePerformMeridianFlip(Request request) async {

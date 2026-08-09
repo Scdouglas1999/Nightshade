@@ -894,42 +894,10 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
         // Objects list
         Expanded(
           child: filteredObjects.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        annotation == null
-                            ? LucideIcons.sparkle
-                            : NightshadeIcons.searchEmpty,
-                        size: 32,
-                        color: widget.colors.textMuted.withValues(alpha: 0.5),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        annotation == null
-                            ? 'No image annotated'
-                            : _searchQuery.isNotEmpty
-                                ? 'No matching objects'
-                                : 'No objects match filters',
-                        style: TextStyle(
-                          color: widget.colors.textMuted,
-                          fontSize: NightshadeTypography.fontSize13,
-                        ),
-                      ),
-                      if (annotation == null) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          'Capture an image to see detected objects',
-                          style: TextStyle(
-                            color:
-                                widget.colors.textMuted.withValues(alpha: 0.7),
-                            fontSize: NightshadeTypography.fontSize11,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
+              ? AnnotationEmptyState(
+                  colors: widget.colors,
+                  annotation: annotation,
+                  hasSearchQuery: _searchQuery.isNotEmpty,
                 )
               : ListView.builder(
                   padding: const EdgeInsets.symmetric(vertical: 4),

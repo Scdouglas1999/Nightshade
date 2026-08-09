@@ -194,6 +194,17 @@ impl SequenceExecutor {
         self.event_tx.subscribe()
     }
 
+    /// How many live receivers are attached to the executor event broadcast.
+    ///
+    /// The bridge is supposed to hold exactly ONE, forever. A second one means
+    /// every sequencer event reaches the UI twice — duplicate failure toasts,
+    /// duplicate Session Report lines, duplicate frame events — so this is the
+    /// number that has to be asserted, not the number of times the subscribe
+    /// entry point was called.
+    pub fn event_subscriber_count(&self) -> usize {
+        self.event_tx.receiver_count()
+    }
+
     /// Reset the executor back to its `Idle` state.
     ///
     /// Drops the command channel (so subsequent lifecycle calls hit the

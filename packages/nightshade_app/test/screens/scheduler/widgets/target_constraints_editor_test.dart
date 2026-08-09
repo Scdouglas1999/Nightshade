@@ -1,7 +1,7 @@
 // Widget tests for the wizard-mode "Add constraint" flow on the per-target
 // constraints editor. Verifies:
-//   * Step 1 renders four constraint-type cards (timeWindow, moon,
-//     customHorizon, scheduledWindow).
+//   * Step 1 renders five constraint-type cards (timeWindow, moon
+//     illumination, moon separation, customHorizon, scheduledWindow).
 //   * Picking "Time window" advances Step 2 with the 22:00–02:00 default.
 //   * Saving on Step 3 persists the constraint via TargetConstraintService.
 
@@ -63,7 +63,7 @@ void main() {
     );
   }
 
-  testWidgets('wizard Step 1 renders the four constraint-type cards',
+  testWidgets('wizard Step 1 renders the five constraint-type cards',
       (tester) async {
     tester.view.devicePixelRatio = 1.0;
     tester.view.physicalSize = const Size(900, 1100);
@@ -94,7 +94,10 @@ void main() {
     expect(find.byKey(const ValueKey('wizard-kind-scheduledWindow')),
         findsOneWidget);
     expect(find.text('Time window'), findsOneWidget);
-    expect(find.text('Moon avoidance'), findsOneWidget);
+    expect(find.text('Moon illumination'), findsOneWidget);
+    // Separation is the one that actually protects the frames; it must be
+    // offered alongside the illumination cap, not instead of it.
+    expect(find.text('Moon separation'), findsOneWidget);
     expect(find.text('Custom horizon'), findsOneWidget);
     expect(find.text('Scheduled window'), findsOneWidget);
   });
@@ -170,7 +173,8 @@ void main() {
         .tap(find.byKey(const ValueKey('add-constraint-wizard-button')));
     await tester.pumpAndSettle();
 
-    // Pick "Moon avoidance" (simpler than horizon — no profile prerequisite).
+    // Pick "Moon illumination" (simpler than horizon — no profile
+    // prerequisite).
     await tester.tap(find.byKey(const ValueKey('wizard-kind-moon')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('wizard-next')));
@@ -181,8 +185,13 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('wizard-next')));
     await tester.pumpAndSettle();
 
-    // Step 3 — review + save.
+    // Step 3 — review + save. The review headline must name the SAME
+    // constraint the Step 1 card did: with a moon-separation sibling in the
+    // list, the old umbrella 'Moon avoidance' no longer says which of the two
+    // is about to be written.
     expect(find.text('Review and save'), findsOneWidget);
+    expect(find.text('Moon illumination'), findsOneWidget);
+    expect(find.text('Moon avoidance'), findsNothing);
     await tester.tap(find.byKey(const ValueKey('wizard-save')));
     await tester.pumpAndSettle();
 
@@ -192,6 +201,70 @@ void main() {
     expect(rows.length, 1);
     expect(rows.first.kind, TargetConstraintKind.moonIlluminationMax);
     expect(rows.first.moonIlluminationMax, closeTo(0.30, 1e-6));
+  });
+
+  testWidgets(
+      'the wizard can build a moon SEPARATION constraint, not only an '
+      'illumination cap', (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(900, 1100);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final container = ProviderContainer(overrides: [
+      databaseProvider.overrideWithValue(database),
+    ]);
+    addTearDown(container.dispose);
+    await _insertTargetWithId(database, 78, 'NGC 7000');
+
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp(
+        theme: NightshadeTheme.dark,
+        home: const Scaffold(
+          body: SingleChildScrollView(
+            child: TargetConstraintsEditor(
+              targetId: 78,
+              targetName: 'NGC 7000',
+            ),
+          ),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester
+        .tap(find.byKey(const ValueKey('add-constraint-wizard-button')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('wizard-kind-moon-separation')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('wizard-next')));
+    await tester.pumpAndSettle();
+
+    // Step 2 — keep the 30 degree default.
+    expect(find.textContaining('30°'), findsAtLeastNWidgets(1));
+    await tester.tap(find.byKey(const ValueKey('wizard-next')));
+    await tester.pumpAndSettle();
+
+    // Step 3 — the review says what will actually happen, under the same
+    // name the Step 1 card used.
+    expect(find.text('Moon separation'), findsOneWidget);
+    expect(find.text('Moon avoidance'), findsNothing);
+    expect(
+      find.textContaining('whenever the moon is within 30° of it'),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const ValueKey('wizard-save')));
+    await tester.pumpAndSettle();
+
+    final svc = container.read(targetConstraintServiceProvider);
+    final rows = await svc.listForTarget(78);
+    expect(rows.length, 1);
+    expect(rows.first.kind, TargetConstraintKind.moonSeparationMin);
+    expect(rows.first.moonSeparationMinDeg, closeTo(30.0, 1e-6));
   });
 
   testWidgets('wizard cannot save a host-A constraint after a host switch',

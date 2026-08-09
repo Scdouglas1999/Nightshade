@@ -14,7 +14,7 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
   /// nature, NOT merely un-wired:
   ///   * Desktop-shell / window UI prefs that are host-machine-local and
   ///     meaningless to drive from a phone: `start_minimized`,
-  ///     `sidebar_collapsed`, `auto_save_sequences`, `confirm_before_closing`.
+  ///     `sidebar_collapsed`, `confirm_before_closing`.
   ///     A remote write to any of these intentionally FAILS LOUD via
   ///     [_assertKeysRemotable] (they're absent here) rather than appearing to
   ///     succeed then dropping on the host — same fail-loud contract as every
@@ -146,7 +146,6 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
     // unattended-night knobs now carried by models.AppSettings. Previously
     // these threw via the fail-loud guard on a remote save; now they round-trip.
     // Equipment defaults (camera).
-    'cooling_behavior',
     'default_gain',
     'default_offset',
     // Remote access / web server.
@@ -259,12 +258,6 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
           ? _parseBool(
               settings['auto_connect_equipment'],
               current.autoConnectEquipment,
-            )
-          : null,
-      autoSaveSequences: settings.containsKey('auto_save_sequences')
-          ? _parseBool(
-              settings['auto_save_sequences'],
-              current.autoSaveSequences,
             )
           : null,
       confirmBeforeClosing: settings.containsKey('confirm_before_closing')
@@ -442,7 +435,6 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
       webServerPort: settings.containsKey('web_server_port')
           ? _parseInt(settings['web_server_port'], current.webServerPort)
           : null,
-      coolingBehavior: settings['cooling_behavior'],
       defaultGain: settings.containsKey('default_gain')
           ? _parseInt(settings['default_gain'], current.defaultGain)
           : null,

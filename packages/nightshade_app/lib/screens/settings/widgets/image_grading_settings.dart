@@ -21,6 +21,61 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../session_review/auto_integration_service.dart';
 import 'settings_widgets.dart';
 
+// Bounds of what the capture pipeline can actually measure, mirrored from
+// `nightshade_imaging`. A threshold outside them is not a strict setting, it is
+// a gate that can never fire (or one that rejects every frame), and on screen a
+// dead gate looks exactly like a live one. The inputs clamp to these bounds;
+// `_hfrInertNote` / `_eccentricityInertNote` call out values persisted before
+// the bounds existed, which load unclamped.
+
+/// `StarDetectionConfig.min_hfr` — the detector discards any source under
+/// 1.0 px as a hot pixel, so the mean `calculate_image_hfr` returns is never
+/// below it and a threshold under it rejects every frame that has stars.
+const double _hfrFloorPx = 1.0;
+
+/// `StarDetectionConfig.hfr_radius` — the half-flux radius is measured inside
+/// a 20 px window, so no frame reports an HFR past it.
+const double _hfrCeilingPx = 20.0;
+
+/// `nightshade_imaging::DETECTION_MAX_ECCENTRICITY` — `detect_stars` drops
+/// anything more elongated as a streak, so the median `frame_eccentricity`
+/// returns is never above it. Grading rejects on `ecc > threshold`, so a
+/// threshold *at* the ceiling is as dead as one above it.
+const double _eccentricityCeiling = 0.95;
+
+/// Highest threshold the gate can still fire on, at the field's 2 decimals.
+const double _eccentricityMaxInput = 0.94;
+
+/// Warning appended to a threshold's subtitle when the stored value sits
+/// outside the measurable range. Returns null while the value is usable.
+String? _hfrInertNote(double? value) {
+  if (value == null) return null;
+  if (value < _hfrFloorPx) {
+    return 'Heads up: at ${value.toStringAsFixed(2)} px this rejects every '
+        'frame — the detector never reports an HFR below '
+        '${_hfrFloorPx.toStringAsFixed(2)} px.';
+  }
+  if (value >= _hfrCeilingPx) {
+    return 'Heads up: at ${value.toStringAsFixed(2)} px this check never '
+        'fires — HFR is measured inside a '
+        '${_hfrCeilingPx.toStringAsFixed(0)} px window, so no frame reports '
+        'more.';
+  }
+  return null;
+}
+
+/// Eccentricity counterpart to [_hfrInertNote].
+String? _eccentricityInertNote(double? value) {
+  if (value == null || value < _eccentricityCeiling) return null;
+  return 'Heads up: at ${value.toStringAsFixed(2)} this check never fires — '
+      'the detector stops measuring past '
+      '${_eccentricityCeiling.toStringAsFixed(2)} and reads anything more '
+      'elongated as a streak, not a star.';
+}
+
+String _withNote(String base, String? note) =>
+    note == null ? base : '$base $note';
+
 class ImageGradingSettings extends ConsumerStatefulWidget {
   final bool isMobile;
 
@@ -141,14 +196,19 @@ class _ImageGradingSettingsState extends ConsumerState<ImageGradingSettings> {
                 SettingRow(
                   icon: LucideIcons.crosshair,
                   title: 'HFR absolute (pixels)',
-                  subtitle:
-                      'Reject if measured HFR exceeds this absolute value. Leave blank to disable.',
+                  subtitle: _withNote(
+                    'Reject if measured HFR exceeds this absolute value. Leave blank to disable.',
+                    _hfrInertNote(settings.imageGradingHfrThresholdPx),
+                  ),
                   trailing: _OptionalNumberInput(
                     fieldKey: const ValueKey('image-grading-hfr-threshold'),
                     controller: _hfrController,
                     suffix: 'px',
-                    min: 0.1,
-                    max: 50.0,
+                    // Clamped to what the detector can report: below the floor
+                    // every frame is a reject, past the ceiling the gate is
+                    // dead. See _hfrFloorPx / _hfrCeilingPx.
+                    min: _hfrFloorPx,
+                    max: _hfrCeilingPx,
                     decimals: 2,
                     enabled: enabled,
                     onCommit: (value) async {
@@ -186,15 +246,19 @@ class _ImageGradingSettingsState extends ConsumerState<ImageGradingSettings> {
                 SettingRow(
                   icon: LucideIcons.move,
                   title: 'Eccentricity max',
-                  subtitle:
-                      'Reject if star eccentricity exceeds this value. 0.6 catches trailed frames; 0.8 catches catastrophic tracking failure. Leave blank to disable.',
+                  subtitle: _withNote(
+                    'Reject if median star eccentricity across the frame exceeds this value. 0.6 is a 1.25:1 smear (guiding gone soft); 0.8 is a 1.7:1 smear (a gust or a dropped correction). The field stops at 0.94 because the detector reads anything past 0.95 as a satellite trail rather than a star, so nothing rounder ever gets measured. Leave blank to disable.',
+                    _eccentricityInertNote(
+                      settings.imageGradingEccentricityThreshold,
+                    ),
+                  ),
                   trailing: _OptionalNumberInput(
                     fieldKey:
                         const ValueKey('image-grading-eccentricity-threshold'),
                     controller: _eccentricityController,
                     suffix: '',
                     min: 0.0,
-                    max: 1.0,
+                    max: _eccentricityMaxInput,
                     decimals: 2,
                     enabled: enabled,
                     onCommit: (value) async {

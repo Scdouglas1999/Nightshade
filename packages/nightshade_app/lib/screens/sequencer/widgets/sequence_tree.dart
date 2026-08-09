@@ -7,8 +7,10 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../utils/count_label.dart';
 import '../../../utils/sequence_mutator_helper.dart';
 import '../../../widgets/tutorial_keys/sequencer_keys.dart';
+import '../sequence_counts.dart';
 import 'delete_node_confirmation.dart';
 import 'exposure_node_thumbnail_strip.dart';
 import 'node_duration_chip.dart';
@@ -16,6 +18,7 @@ import 'node_progress_panels.dart';
 import 'node_summary.dart';
 import 'node_summary_line.dart';
 import 'palette_icon_map.dart';
+import 'sequence_issues_dialog.dart';
 import 'sequence_minimap.dart';
 import 'sequence_tree_context_menu.dart';
 import 'sequence_tree_shortcuts.dart';
@@ -106,8 +109,23 @@ void _handleNodeSelect(WidgetRef ref, String nodeId) {
           key == LogicalKeyboardKey.shiftRight);
 
   if (isCtrlPressed) {
-    // Ctrl+Click: toggle in multi-select
-    ref.read(multiSelectedNodeIdsProvider.notifier).toggle(nodeId);
+    // Ctrl+Click: toggle in multi-select.
+    //
+    // The FIRST Ctrl+click also folds the existing primary selection into the
+    // set. A tree row paints as selected when it is either the primary
+    // selection or in the multi-select set (node_tree_view.dart:133
+    // `isSelected || isMultiSelected`), so without this the user saw three
+    // identically-outlined rows while the batch bar said "2 selected" and
+    // every batch operation — including Delete — silently skipped the row
+    // they clicked first.
+    final multi = ref.read(multiSelectedNodeIdsProvider.notifier);
+    final primaryId = ref.read(selectedNodeIdProvider);
+    if (ref.read(multiSelectedNodeIdsProvider).isEmpty &&
+        primaryId != null &&
+        primaryId != nodeId) {
+      multi.toggle(primaryId);
+    }
+    multi.toggle(nodeId);
   } else if (isShiftPressed) {
     // Shift+Click: range select
     ref.read(multiSelectedNodeIdsProvider.notifier).rangeSelect(nodeId);

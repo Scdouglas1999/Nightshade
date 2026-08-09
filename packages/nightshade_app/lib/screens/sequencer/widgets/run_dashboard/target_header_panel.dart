@@ -354,6 +354,17 @@ class _TargetProgress extends ConsumerWidget {
         ? NightshadeProgressState.paused
         : NightshadeProgressState.normal;
 
+    if (stats.completionUnknown) {
+      // The target's exposures repeat, and node statuses only describe the
+      // current pass — so quote the plan, which is true, and leave completion
+      // to the run-level counters rather than inventing a per-target percent.
+      return Text(
+        '${stats.totalFrames} frames planned • ${totalMins}m',
+        style: NightshadeTypography.labelStrongSm
+            .copyWith(color: colors.textSecondary),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,

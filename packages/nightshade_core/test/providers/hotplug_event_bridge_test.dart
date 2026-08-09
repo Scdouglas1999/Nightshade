@@ -29,6 +29,7 @@ import 'package:nightshade_core/src/backend/nightshade_backend.dart';
 import 'package:nightshade_core/src/providers/backend_provider.dart';
 import 'package:nightshade_core/src/providers/hotplug_event_bridge_provider.dart';
 import 'package:nightshade_core/src/services/device_service.dart';
+import '../harness/in_memory_database.dart';
 
 class _MockFfiBackend extends Mock implements FfiBackend {}
 
@@ -73,6 +74,7 @@ void main() {
     var mountScans = 0;
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith(
           (ref) => _FixedBackendNotifier(ref, backend),
         ),
@@ -119,6 +121,7 @@ void main() {
     var cameraScans = 0;
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith(
           (ref) => _FixedBackendNotifier(ref, backend),
         ),
@@ -163,6 +166,7 @@ void main() {
     var scans = 0;
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith(
           (ref) => _FixedBackendNotifier(ref, backend),
         ),
@@ -203,6 +207,7 @@ void main() {
       var scans = 0;
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith(
             (ref) => _FixedBackendNotifier(ref, backend),
           ),

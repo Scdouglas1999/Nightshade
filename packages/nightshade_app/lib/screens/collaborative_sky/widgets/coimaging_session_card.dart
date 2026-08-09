@@ -44,6 +44,21 @@ class CoImagingSessionCard extends StatelessWidget {
   /// Retries the authoritative membership lookup after an error.
   final VoidCallback? onRetryMembership;
 
+  /// Whether this rig's completed subs would actually co-add into the combined
+  /// stack — i.e. whether unattended contribution consent is on record. Null
+  /// while that lookup is in flight.
+  ///
+  /// Membership is NOT contribution: a rig can be joined (pointed at a framing
+  /// slot) while every sub stays on the device because the operator declined
+  /// the sharing consent. Telling that user they are pooling light is the most
+  /// consequential thing this card can get wrong, so the caption is gated on
+  /// this flag, not on [joined] alone.
+  final bool? contributing;
+
+  /// Opens the sharing-consent flow from the joined-but-not-contributing state,
+  /// so the card offers a way out of it instead of only reporting it.
+  final VoidCallback? onEnableSharing;
+
   /// Whether a join is in-flight (drives the button spinner).
   final bool joining;
 
@@ -72,6 +87,8 @@ class CoImagingSessionCard extends StatelessWidget {
     this.livePreview,
     this.attribution,
     this.joined = false,
+    this.contributing,
+    this.onEnableSharing,
     this.membershipErrorMessage,
     this.onRetryMembership,
     this.joining = false,
@@ -261,6 +278,8 @@ class CoImagingSessionCard extends StatelessWidget {
             const SizedBox(height: NightshadeTokens.spaceMd),
             _ActionRow(
               joined: joined,
+              contributing: contributing,
+              onEnableSharing: onEnableSharing,
               membershipErrorMessage: membershipErrorMessage,
               onRetryMembership: onRetryMembership,
               joining: joining,
@@ -278,9 +297,12 @@ class CoImagingSessionCard extends StatelessWidget {
 }
 
 /// The trailing action row: a Join button, or — once this rig is in — a quiet
-/// "you're imaging this" confirmation chip alongside a Leave control.
+/// membership chip alongside a Leave control. The chip distinguishes a rig
+/// whose subs actually co-add from one that merely holds a framing slot.
 class _ActionRow extends StatelessWidget {
   final bool? joined;
+  final bool? contributing;
+  final VoidCallback? onEnableSharing;
   final String? membershipErrorMessage;
   final VoidCallback? onRetryMembership;
   final bool joining;
@@ -292,6 +314,8 @@ class _ActionRow extends StatelessWidget {
 
   const _ActionRow({
     required this.joined,
+    required this.contributing,
+    required this.onEnableSharing,
     required this.membershipErrorMessage,
     required this.onRetryMembership,
     required this.joining,
@@ -370,22 +394,41 @@ class _ActionRow extends StatelessWidget {
       );
     }
     if (joined == true) {
+      // Three states, not two: contributing (green), joined-but-not-sharing
+      // (neutral, with a way to turn it on), and still resolving consent.
+      final isContributing = contributing == true;
+      final sharingOff = contributing == false;
+      final captionColor = isContributing ? colors.success : colors.textMuted;
       return Row(
         children: [
           Icon(
-            LucideIcons.checkCircle2,
+            isContributing ? LucideIcons.checkCircle2 : LucideIcons.circleSlash,
             size: NightshadeTokens.iconSm,
-            color: colors.success,
+            color: captionColor,
           ),
           const SizedBox(width: NightshadeTokens.spaceSm),
           Expanded(
             child: Text(
-              'You are pooling light here',
+              isContributing
+                  ? 'You are pooling light here'
+                  : sharingOff
+                      ? 'Joined — not contributing (sharing off)'
+                      : 'Joined — checking sharing…',
               style: NightshadeTypography.captionSm.copyWith(
-                color: colors.success,
+                color: captionColor,
               ),
             ),
           ),
+          if (sharingOff && onEnableSharing != null) ...[
+            const SizedBox(width: NightshadeTokens.spaceSm),
+            NightshadeButton(
+              label: 'Turn on sharing',
+              icon: LucideIcons.upload,
+              variant: ButtonVariant.outline,
+              size: ButtonSize.small,
+              onPressed: onEnableSharing,
+            ),
+          ],
           if (onLeave != null) ...[
             const SizedBox(width: NightshadeTokens.spaceSm),
             NightshadeButton(

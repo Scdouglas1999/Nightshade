@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../sequencer/widgets/mosaic_wizard_dialog.dart';
+import 'mosaic_format.dart';
 import 'mosaic_project_controller.dart';
 import 'mosaic_project_screen.dart';
 
@@ -20,16 +22,17 @@ class MosaicProjectsListScreen extends ConsumerWidget {
     if (ref.watch(backendProvider) is NetworkBackend) {
       return Scaffold(
         backgroundColor: colors.background,
-        body: const SafeArea(
+        body: SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              ScreenHeader(
+              _BackBar(colors: colors),
+              const ScreenHeader(
                 icon: NightshadeIcons.grid,
                 title: 'Mosaic projects',
                 subtitle: 'Multi-panel mosaics: capture, integrate, stitch',
               ),
-              Expanded(
+              const Expanded(
                 child: EmptyState(
                   icon: NightshadeIcons.device,
                   title: 'Open Mosaic Projects on the imaging host',
@@ -52,10 +55,20 @@ class MosaicProjectsListScreen extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const ScreenHeader(
+            _BackBar(colors: colors),
+            ScreenHeader(
               icon: NightshadeIcons.grid,
               title: 'Mosaic projects',
               subtitle: 'Multi-panel mosaics: capture, integrate, stitch',
+              trailing: NightshadeButton(
+                label: 'New mosaic',
+                icon: NightshadeIcons.add,
+                size: ButtonSize.small,
+                onPressed: () => showDialog<void>(
+                  context: context,
+                  builder: (_) => const MosaicWizardDialog(),
+                ),
+              ),
             ),
             Expanded(
               child: RefreshIndicator(
@@ -106,6 +119,61 @@ class MosaicProjectsListScreen extends ConsumerWidget {
   }
 }
 
+/// The "leave this screen" bar.
+///
+/// The list is always reached by a push (Analytics → Projects → Mosaic
+/// projects), and it hosts no navigation chrome of its own, so without this an
+/// operator who opened it had no control that led anywhere except into a
+/// project. Mirrors the bar the project screen and the collaborative mosaic
+/// detail screen already carry.
+class _BackBar extends StatelessWidget {
+  final NightshadeColors colors;
+
+  const _BackBar({required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeTokens.spaceSm,
+        vertical: NightshadeTokens.spaceXs,
+      ),
+      alignment: Alignment.centerLeft,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(
+              NightshadeIcons.chevronLeft,
+              size: NightshadeTokens.iconMd,
+            ),
+            color: colors.textSecondary,
+            tooltip: 'Back',
+            onPressed: () => _leave(context),
+          ),
+          Text(
+            'Back',
+            style:
+                NightshadeTypography.bodySm.copyWith(color: colors.textMuted),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Pop when this screen sits on a stack (the normal case). A deep link that
+  /// left nothing beneath it falls back to Analytics, where the entry point
+  /// lives, so the control is never inert.
+  void _leave(BuildContext context) {
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+      return;
+    }
+    context.go('/analytics');
+  }
+}
+
 /// Wraps a centered empty/error [child] in an always-scrollable viewport so the
 /// enclosing [RefreshIndicator] can still be pulled when there is no list to
 /// scroll.
@@ -149,8 +217,8 @@ class _ProjectRow extends StatelessWidget {
                 ),
                 const SizedBox(height: NightshadeTokens.spaceXs),
                 Text(
-                  '${project.cols}x${project.rows} grid  ·  '
-                  '${project.totalPanels} panels',
+                  '${formatMosaicGrid(cols: project.cols, rows: project.rows)}'
+                  '  ·  ${project.totalPanels} panels',
                   style: NightshadeTypography.captionSm
                       .copyWith(color: colors.textMuted),
                 ),

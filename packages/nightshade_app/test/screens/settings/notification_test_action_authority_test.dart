@@ -8,7 +8,6 @@ import 'package:nightshade_app/screens/settings/widgets/settings_widgets.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-import '../../harness/mock_backend.dart';
 import '../../harness/pump_app_screen.dart';
 
 class _LoadedAppSettings extends AppSettingsNotifier {
@@ -19,6 +18,25 @@ class _LoadedAppSettings extends AppSettingsNotifier {
 }
 
 class _MockNotificationService extends Mock implements NotificationService {}
+
+/// The legacy `app_settings`-backed Discord row is a remote-controller-only
+/// surface now (locally the keyring-backed section owns Discord), so this
+/// authority test drives it through a [NetworkBackend] stand-in.
+class _MockNetworkBackend extends Mock implements NetworkBackend {}
+
+_MockNetworkBackend _networkBackend() {
+  final backend = _MockNetworkBackend();
+  final events = StreamController<NightshadeEvent>.broadcast();
+  final polar = StreamController<Map<String, dynamic>>.broadcast();
+  when(() => backend.eventStream).thenAnswer((_) => events.stream);
+  when(() => backend.polarAlignmentEvents).thenAnswer((_) => polar.stream);
+  when(() => backend.dispatchPluginNodesLocally).thenReturn(false);
+  when(() => backend.dispose()).thenAnswer((_) {
+    events.close();
+    polar.close();
+  });
+  return backend;
+}
 
 class _SwappableBackendNotifier extends BackendNotifier {
   _SwappableBackendNotifier(super.ref, NightshadeBackend backend) : super() {
@@ -45,8 +63,8 @@ void main() {
   testWidgets(
     'notification tests are single-flight and discard an old-rig result',
     (tester) async {
-      final hostA = mockBackend();
-      final hostB = mockBackend();
+      final hostA = _networkBackend();
+      final hostB = _networkBackend();
       addTearDown(hostA.dispose);
       addTearDown(hostB.dispose);
       final result = Completer<bool>();

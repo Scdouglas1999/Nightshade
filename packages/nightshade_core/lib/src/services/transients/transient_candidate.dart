@@ -14,7 +14,15 @@ enum TransientKind {
   dipole,
 
   /// A clean point source with no flux in the template — a genuine newcomer.
-  newSource;
+  newSource,
+
+  /// The token on the row is not one this build recognises. NOT a measurement:
+  /// the differencing code never reports this class, so nothing may be claimed
+  /// about the residual's morphology. It exists because the previous
+  /// forward-compatibility fallback ([dipole]) made the UI state a specific,
+  /// factual shape classification the pipeline had not made — and then refused
+  /// submission on the strength of it.
+  unknown;
 
   /// Wire token sent across the FFI / stored in the DB.
   String get wire => name;
@@ -31,6 +39,8 @@ enum TransientKind {
         return 'Dipole artefact';
       case TransientKind.newSource:
         return 'New source';
+      case TransientKind.unknown:
+        return 'Unclassified';
     }
   }
 
@@ -39,14 +49,39 @@ enum TransientKind {
   /// minor planet.
   bool get isPlausibleMover => this == TransientKind.movingStreak;
 
-  /// Parse a wire token; unknown values fall back to [dipole] (the
-  /// least-exciting, artefact-leaning class) so a forward-compatible reader
-  /// never crashes and never over-promotes an unrecognised residual.
+  /// True when a detection of this class may be reported to a discovery
+  /// network. An allow-list, not a dipole-denylist: an unrecognised token is
+  /// not evidence of anything, so it is held back for the same conservative
+  /// reason a dipole is — but it is never described as a dipole.
+  bool get isSubmittable =>
+      this == TransientKind.newSource ||
+      this == TransientKind.pointBrightening ||
+      this == TransientKind.movingStreak;
+
+  /// Why a detection of this class cannot be submitted, or null when it can.
+  String? get submissionBlockedReason {
+    switch (this) {
+      case TransientKind.dipole:
+        return 'Dipole artefacts (registration/PSF mismatch) are not real '
+            'transients and cannot be submitted.';
+      case TransientKind.unknown:
+        return 'This detection has an unrecognised classification and cannot '
+            'be submitted.';
+      case TransientKind.newSource:
+      case TransientKind.pointBrightening:
+      case TransientKind.movingStreak:
+        return null;
+    }
+  }
+
+  /// Parse a wire token; an unrecognised value resolves to [unknown] so a
+  /// forward-compatible reader never crashes, never over-promotes an
+  /// unrecognised residual, and never invents a morphology for it either.
   static TransientKind fromWire(String? token) {
     for (final value in TransientKind.values) {
       if (value.name == token) return value;
     }
-    return TransientKind.dipole;
+    return TransientKind.unknown;
   }
 }
 

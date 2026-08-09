@@ -26,6 +26,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/sequence_tree.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 const _profile = EquipmentProfileModel(
   name: 'Test rig',
@@ -39,6 +40,7 @@ const _profile = EquipmentProfileModel(
 ProviderContainer _container() {
   final container = ProviderContainer(
     overrides: [
+      inMemoryDatabaseOverride(),
       activeEquipmentProfileProvider.overrideWithValue(_profile),
     ],
   );

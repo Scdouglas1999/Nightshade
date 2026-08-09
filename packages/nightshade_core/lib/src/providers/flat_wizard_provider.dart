@@ -1319,8 +1319,9 @@ class FlatWizardNotifier extends StateNotifier<FlatWizardState> {
 
   /// Move the filter wheel to [position] and wait for it to actually settle.
   ///
-  /// Returns `null` on success (or when there is no wheel / it is already
-  /// there). Returns an actionable error string when the move itself FAILS (the
+  /// Returns `null` on success (or when there is no wheel, or the DEVICE — not
+  /// the cached provider — confirms it is already at [position]). Returns an
+  /// actionable error string when the move itself FAILS (the
   /// driver threw) — the caller must then STOP the run rather than capture a
   /// flat through an unknown filter.
   ///
@@ -1343,11 +1344,40 @@ class FlatWizardNotifier extends StateNotifier<FlatWizardState> {
         fwState.deviceId == null) {
       return null; // no wheel to drive
     }
-    if (!fwState.isMoving && fwState.currentPosition == position) {
-      return null; // already settled at the target
+    final deviceBackend = ref.read(deviceBackendProvider);
+    final fwNotifier = ref.read(filterWheelStateProvider.notifier);
+
+    // Confirm where the wheel REALLY is before deciding the move can be
+    // skipped. `filterWheelSetPosition` publishes no position event, so a wheel
+    // driven by anything that does not poll afterwards — the headless
+    // /filterwheel/position endpoint the web dashboard uses, or a settle that
+    // timed out — leaves this provider stale. Trusting the cached position here
+    // would skip the move and shoot the flat through whichever filter is
+    // actually in the path. An unreadable status is not treated as "already
+    // there": fall through and command the move.
+    var settledHere = false;
+    try {
+      final status = await deviceBackend.getFilterWheelStatus(
+        fwState.deviceId!,
+      );
+      // A negative position is the drivers' "in transit" encoding, same as
+      // DeviceService treats it.
+      final isMoving = status.moving || status.position < 0;
+      fwNotifier.updatePosition(status.position);
+      fwNotifier.setMoving(isMoving);
+      settledHere = !isMoving && status.position == position;
+    } catch (e) {
+      developer.log(
+        'FlatWizard: could not confirm the wheel position before moving to '
+        '$position ($e) — commanding the move rather than assuming',
+        name: 'FlatWizardNotifier',
+        level: 900,
+      );
+    }
+    if (settledHere) {
+      return null; // confirmed already at the target
     }
 
-    final deviceBackend = ref.read(deviceBackendProvider);
     try {
       await deviceBackend.filterWheelSetPosition(fwState.deviceId!, position);
     } catch (e) {
@@ -1368,16 +1398,40 @@ class FlatWizardNotifier extends StateNotifier<FlatWizardState> {
     }
 
     // Wait for the wheel to report it has stopped moving AND reached the target.
+    //
+    // The wheel is re-read from the BACKEND each pass. This loop used to poll
+    // `ref.read(filterWheelStateProvider)` while nothing in it fetched status,
+    // so the provider could never change: the move always "failed" after the
+    // full timeout even though the driver had completed it, and a flat run with
+    // any filter change could not proceed. Its working counterpart,
+    // `DeviceService._verifyFilterWheelPosition`, polls the backend and pushes
+    // the result into the provider — this now does the same, which also stops
+    // the provider going stale and letting the NEXT run take the
+    // already-in-position shortcut against a wheel that never moved.
     var waited = Duration.zero;
     while (waited < maxWait) {
       if (cancelToken.isCancelled) return null; // caller handles the cancel
-      final s = ref.read(filterWheelStateProvider);
-      if (s.connectionState != DeviceConnectionState.connected ||
-          s.deviceId != fwState.deviceId) {
+
+      final live = ref.read(filterWheelStateProvider);
+      if (live.connectionState != DeviceConnectionState.connected ||
+          live.deviceId != fwState.deviceId) {
         return 'filter wheel disconnected before reaching position $position';
       }
-      final reachedTarget = s.currentPosition == position;
-      if (!s.isMoving && reachedTarget) return null; // truly settled
+
+      try {
+        final status = await deviceBackend.getFilterWheelStatus(
+          fwState.deviceId!,
+        );
+        // A negative position is the drivers' "in transit" encoding, same as
+        // DeviceService treats it.
+        final isMoving = status.moving || status.position < 0;
+        fwNotifier.updatePosition(status.position);
+        fwNotifier.setMoving(isMoving);
+        if (!isMoving && status.position == position) return null; // settled
+      } catch (e) {
+        return 'filter wheel status read failed while settling ($e)';
+      }
+
       await Future<void>.delayed(pollInterval);
       waited += pollInterval;
     }

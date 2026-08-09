@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/screens/settings/widgets/replay_debug_settings.dart'
@@ -30,6 +29,7 @@ void main() {
   testWidgets('host switch during confirmation cancels the clear',
       (tester) async {
     final controller = _MockReplayController();
+    when(() => controller.countAllHistory()).thenAnswer((_) async => 3);
     late _SwappableBackendNotifier backendNotifier;
     await pumpAppScreen(
       tester,
@@ -48,11 +48,12 @@ void main() {
 
     await tester.tap(_clearButton());
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
     expect(find.text('Clear all replay history?'), findsOneWidget);
 
     backendNotifier.switchTo(DisconnectedBackend());
     await tester.pump();
-    await tester.tap(find.widgetWithText(TextButton, 'Clear'));
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Clear history'));
     await tester.pump();
 
     verifyNever(() => controller.clearAllHistory());
@@ -66,6 +67,7 @@ void main() {
       (tester) async {
     final controller = _MockReplayController();
     final clear = Completer<int>();
+    when(() => controller.countAllHistory()).thenAnswer((_) async => 4);
     when(() => controller.clearAllHistory()).thenAnswer((_) => clear.future);
     late _SwappableBackendNotifier backendNotifier;
     await pumpAppScreen(
@@ -85,7 +87,8 @@ void main() {
 
     await tester.tap(_clearButton());
     await tester.pump();
-    await tester.tap(find.widgetWithText(TextButton, 'Clear'));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Clear history'));
     await tester.pump();
     verify(() => controller.clearAllHistory()).called(1);
 
@@ -95,7 +98,7 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('Cleared 4 replay decision row(s).'), findsNothing);
+    expect(find.text('Cleared 4 recorded decisions.'), findsNothing);
     final button = tester.widget<NightshadeButton>(_clearButton());
     expect(button.onPressed, isNotNull);
     expect(button.isLoading, isFalse);

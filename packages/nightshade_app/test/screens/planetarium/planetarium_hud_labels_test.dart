@@ -68,8 +68,17 @@ Future<void> _withBar(
   }
 }
 
-Future<void> _pumpPopup(WidgetTester tester, Size size) async {
-  await pumpAppScreen(
+/// Pumps the popup and runs [body], then unmounts and disposes explicitly.
+///
+/// Same hazard as [_withBar]: the popup's "Current Position" block reads the
+/// planetarium clock, so mounting it starts `observationTimeProvider`'s 1 s
+/// `Timer.periodic`, which outlives the widget tree.
+Future<void> _withPopup(
+  WidgetTester tester,
+  Size size,
+  Future<void> Function() body,
+) async {
+  final handle = await pumpAppScreen(
     tester,
     Stack(
       children: [
@@ -91,8 +100,18 @@ Future<void> _pumpPopup(WidgetTester tester, Size size) async {
     ),
     size: size,
     settle: false,
+    registerTearDown: false,
   );
-  await tester.pumpAndSettle();
+  try {
+    await tester.pumpAndSettle();
+    await body();
+  } finally {
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    handle.container.dispose();
+    await handle.database.close();
+    await tester.pump(const Duration(milliseconds: 1));
+  }
 }
 
 void main() {
@@ -157,63 +176,63 @@ void main() {
 
   group('object info popup actions', () {
     testWidgets('no action label is truncated at 1920x1200', (tester) async {
-      await _pumpPopup(tester, const Size(1920, 1200));
-
-      for (final label in const [
-        'Framing',
-        'Sequence',
-        'Log Observation',
-        'Add to List',
-        'Target Queue',
-      ]) {
-        expect(find.text(label), findsOneWidget, reason: '$label is missing');
-        expect(
-          _isTruncated(tester, label),
-          isFalse,
-          reason: '"$label" is ellipsized — this is exactly the "Frami.../'
-              'Sequ..." defect',
-        );
-      }
+      await _withPopup(tester, const Size(1920, 1200), () async {
+        for (final label in const [
+          'Framing',
+          'Sequence',
+          'Log Observation',
+          'Add to List',
+          'Target Queue',
+        ]) {
+          expect(find.text(label), findsOneWidget, reason: '$label is missing');
+          expect(
+            _isTruncated(tester, label),
+            isFalse,
+            reason: '"$label" is ellipsized — this is exactly the "Frami.../'
+                'Sequ..." defect',
+          );
+        }
+      });
     });
 
     testWidgets('nor at a laptop size', (tester) async {
-      await _pumpPopup(tester, const Size(1366, 768));
-
-      for (final label in const [
-        'Framing',
-        'Sequence',
-        'Log Observation',
-        'Add to List',
-        'Target Queue',
-      ]) {
-        expect(
-          _isTruncated(tester, label),
-          isFalse,
-          reason: '"$label" is ellipsized at 1366x768',
-        );
-      }
+      await _withPopup(tester, const Size(1366, 768), () async {
+        for (final label in const [
+          'Framing',
+          'Sequence',
+          'Log Observation',
+          'Add to List',
+          'Target Queue',
+        ]) {
+          expect(
+            _isTruncated(tester, label),
+            isFalse,
+            reason: '"$label" is ellipsized at 1366x768',
+          );
+        }
+      });
     });
 
     testWidgets('at most two actions share a row', (tester) async {
-      await _pumpPopup(tester, const Size(1920, 1200));
-
-      final rows = <double, int>{};
-      for (final label in const [
-        'Framing',
-        'Sequence',
-        'Log Observation',
-        'Add to List',
-        'Target Queue',
-      ]) {
-        // Round to absorb sub-pixel differences between siblings.
-        final y = tester.getTopLeft(find.text(label)).dy.roundToDouble();
-        rows[y] = (rows[y] ?? 0) + 1;
-      }
-      expect(
-        rows.values,
-        everyElement(lessThanOrEqualTo(2)),
-        reason: 'three-up is what squeezed the labels to ~87px each',
-      );
+      await _withPopup(tester, const Size(1920, 1200), () async {
+        final rows = <double, int>{};
+        for (final label in const [
+          'Framing',
+          'Sequence',
+          'Log Observation',
+          'Add to List',
+          'Target Queue',
+        ]) {
+          // Round to absorb sub-pixel differences between siblings.
+          final y = tester.getTopLeft(find.text(label)).dy.roundToDouble();
+          rows[y] = (rows[y] ?? 0) + 1;
+        }
+        expect(
+          rows.values,
+          everyElement(lessThanOrEqualTo(2)),
+          reason: 'three-up is what squeezed the labels to ~87px each',
+        );
+      });
     });
   });
 }

@@ -1,12 +1,9 @@
-// Verifies that the scheduler queue / decision panel / editors still
-// work when mounted inside the new Plan Tonight → Target Queue tab
-// (W8-SCHED-MERGE). The widget under test is the extracted
-// [SchedulerTabContent] — the same widget the standalone
-// /scheduler shell now embeds.
+// Covers scheduler controls and queue behavior in the Planner tab.
 
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mocktail/mocktail.dart';
@@ -17,8 +14,17 @@ import 'package:nightshade_core/src/database/database.dart' as ndb;
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../scheduler/scheduler_test_doubles.dart';
+import '../../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
-class _MockNetworkBackend extends Mock implements NetworkBackend {}
+class _MockNetworkBackend extends Mock implements NetworkBackend {
+  _MockNetworkBackend() {
+    // Keep remote identity deterministic for the queue's project scope.
+    when(() => scheme).thenReturn('https');
+    when(() => serverHost).thenReturn('host.local');
+    when(() => serverPort).thenReturn(8080);
+    when(() => pinnedFingerprint).thenReturn(null);
+  }
+}
 
 class _FixedBackendNotifier extends BackendNotifier {
   _FixedBackendNotifier(super.ref, NightshadeBackend backend) : super() {
@@ -37,6 +43,11 @@ class _SwappableBackendNotifier extends BackendNotifier {
 Map<String, dynamic> _remoteSchedulerState({
   SchedulerState state = SchedulerState.idle,
   bool hasCandidates = true,
+  SchedulerStartReadiness? readiness = const SchedulerStartReadiness(
+    issues: [],
+    available: true,
+    solverRequired: true,
+  ),
 }) {
   return {
     'status': {'state': state.name},
@@ -60,6 +71,7 @@ Map<String, dynamic> _remoteSchedulerState({
       'isSwitch': false,
     },
     'config': SchedulerConfig.defaults.toStorageJson(),
+    if (readiness != null) 'readiness': readiness.toStorageJson(),
   };
 }
 
@@ -72,6 +84,14 @@ List<Override> _commonOverrides({
     if (overrideReadiness)
       schedulerEngineReadyProvider.overrideWith(
         (ref) => ref.read(schedulerEngineProvider),
+      ),
+    if (overrideReadiness)
+      schedulerStartReadinessProvider.overrideWithValue(
+        const SchedulerStartReadiness(
+          issues: [],
+          available: true,
+          solverRequired: true,
+        ),
       ),
     schedulerAutoReevalProvider.overrideWith((ref) {}),
     schedulerPreviewDecisionProvider.overrideWith(
@@ -105,6 +125,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           ..._commonOverrides(overrideReadiness: false),
           schedulerEngineReadyProvider.overrideWith((ref) async {
             attempts++;
@@ -153,6 +174,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           ..._commonOverrides(),
           backendProvider.overrideWith(
             (ref) => _FixedBackendNotifier(ref, backend),
@@ -180,6 +202,178 @@ void main() {
     verify(() => backend.controlScheduler('start')).called(1);
   });
 
+  testWidgets('remote readiness blocker disables Run and never calls host',
+      (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1280, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final backend = _MockNetworkBackend();
+    when(backend.getSchedulerState).thenAnswer(
+      (_) async => _remoteSchedulerState(
+        readiness: const SchedulerStartReadiness(
+          issues: [
+            SchedulerReadinessIssue(
+              id: SchedulerReadinessIssueId.camera,
+              severity: SchedulerReadinessSeverity.blocker,
+              title: 'Camera',
+              detail: 'Camera is not connected.',
+            ),
+          ],
+          available: true,
+          solverRequired: true,
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          inMemoryDatabaseOverride(),
+          ..._commonOverrides(),
+          backendProvider.overrideWith(
+            (ref) => _FixedBackendNotifier(ref, backend),
+          ),
+          schedulerEngineProvider.overrideWith(
+            (ref) => throw StateError('remote client created an engine'),
+          ),
+          allIntegrationGoalsProvider.overrideWith(
+            (ref) async => <IntegrationGoal>[],
+          ),
+        ],
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(body: SchedulerTabContent()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final button = tester.widget<NightshadeButton>(
+      find.widgetWithText(NightshadeButton, 'Run unattended all night'),
+    );
+    expect(button.onPressed, isNull);
+    expect(find.textContaining('Camera'), findsOneWidget);
+    verifyNever(() => backend.controlScheduler('start'));
+  });
+
+  testWidgets('remote warnings require cancel or explicit confirmation',
+      (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1280, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final backend = _MockNetworkBackend();
+    const warning = SchedulerReadinessIssue(
+      id: SchedulerReadinessIssueId.weather,
+      severity: SchedulerReadinessSeverity.warning,
+      title: 'Weather monitoring',
+      detail: 'Weather monitoring is disabled.',
+    );
+    when(backend.getSchedulerState).thenAnswer(
+      (_) async => _remoteSchedulerState(
+        readiness: const SchedulerStartReadiness(
+          issues: [warning],
+          available: true,
+          solverRequired: true,
+        ),
+      ),
+    );
+    when(() => backend.controlScheduler('start', confirmWarnings: true))
+        .thenAnswer(
+      (_) async => _remoteSchedulerState(state: SchedulerState.running),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          inMemoryDatabaseOverride(),
+          ..._commonOverrides(),
+          backendProvider.overrideWith(
+            (ref) => _FixedBackendNotifier(ref, backend),
+          ),
+          schedulerEngineProvider.overrideWith(
+            (ref) => throw StateError('remote client created an engine'),
+          ),
+          allIntegrationGoalsProvider.overrideWith(
+            (ref) async => <IntegrationGoal>[],
+          ),
+        ],
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(body: SchedulerTabContent()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final runButton =
+        find.widgetWithText(NightshadeButton, 'Run unattended all night');
+
+    await tester.tap(runButton);
+    await tester.pumpAndSettle();
+    expect(find.text('Review unattended start'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    verifyNever(
+      () => backend.controlScheduler('start', confirmWarnings: true),
+    );
+
+    await tester.tap(runButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Start anyway'));
+    await tester.pumpAndSettle();
+    verify(
+      () => backend.controlScheduler('start', confirmWarnings: true),
+    ).called(1);
+  });
+
+  testWidgets('remote snapshot without readiness fails closed', (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1280, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final backend = _MockNetworkBackend();
+    when(backend.getSchedulerState).thenAnswer(
+      (_) async => _remoteSchedulerState(readiness: null),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          inMemoryDatabaseOverride(),
+          ..._commonOverrides(),
+          backendProvider.overrideWith(
+            (ref) => _FixedBackendNotifier(ref, backend),
+          ),
+          schedulerEngineProvider.overrideWith(
+            (ref) => throw StateError('remote client created an engine'),
+          ),
+          allIntegrationGoalsProvider.overrideWith(
+            (ref) async => <IntegrationGoal>[],
+          ),
+        ],
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(body: SchedulerTabContent()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final button = tester.widget<NightshadeButton>(
+      find.widgetWithText(NightshadeButton, 'Run unattended all night'),
+    );
+    expect(button.onPressed, isNull);
+    expect(find.textContaining('Host readiness unavailable'), findsOneWidget);
+    verifyNever(() => backend.controlScheduler('start'));
+  });
+
   testWidgets('empty scheduler explains why unattended start is disabled',
       (tester) async {
     tester.view.devicePixelRatio = 1.0;
@@ -196,6 +390,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           ..._commonOverrides(),
           backendProvider.overrideWith(
             (ref) => _FixedBackendNotifier(ref, backend),
@@ -256,6 +451,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           ..._commonOverrides(),
           backendProvider.overrideWith((ref) {
             notifier = _SwappableBackendNotifier(ref, oldBackend);
@@ -324,6 +520,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           ..._commonOverrides(
             goalService: goalSvc,
             constraintService: constraintSvc,
@@ -388,6 +585,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           ..._commonOverrides(
             goalService: goalSvc,
             constraintService: constraintSvc,
@@ -454,6 +652,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           ..._commonOverrides(
             goalService: goalSvc,
             constraintService: constraintSvc,
@@ -511,6 +710,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           ..._commonOverrides(),
           schedulerEngineProvider.overrideWithValue(engine),
           schedulerStatusProvider.overrideWith((ref) {
@@ -536,6 +736,76 @@ void main() {
     expect(find.text('Unattended Autopilot'), findsOneWidget);
     expect(find.text('Target queue'), findsOneWidget);
     expect(find.text('NGC 7000'), findsAtLeastNWidgets(1));
+
+    final title = tester.renderObject<RenderParagraph>(
+      find.text('Unattended Autopilot'),
+    );
+    expect(
+      title.didExceedMaxLines,
+      isFalse,
+      reason: 'the autopilot panel title is clipped at this panel width',
+    );
+  });
+
+  testWidgets(
+      'the autopilot panel title fits at the narrowest panel width, with the '
+      'status badge dropping to its own line to make room', (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1050, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final engine = buildTestSchedulerEngine();
+    final decision = decisionWith(
+      chosenId: 1,
+      chosenName: 'NGC 7000',
+      scored: [scoreFor(id: 1, name: 'NGC 7000', total: 2.4)],
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          inMemoryDatabaseOverride(),
+          ..._commonOverrides(),
+          schedulerEngineProvider.overrideWithValue(engine),
+          schedulerStatusProvider.overrideWith((ref) {
+            return FakeSchedulerStatusNotifier(const SchedulerStatus(
+              state: SchedulerState.running,
+            ));
+          }),
+          currentSchedulerDecisionProvider.overrideWith((ref) {
+            return FakeCurrentSchedulerDecisionNotifier(decision);
+          }),
+          allIntegrationGoalsProvider.overrideWith(
+            (ref) async => <IntegrationGoal>[],
+          ),
+        ],
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(body: SchedulerTabContent()),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+
+    final titleFinder = find.text('Unattended Autopilot');
+    final title = tester.renderObject<RenderParagraph>(titleFinder);
+    expect(
+      title.didExceedMaxLines,
+      isFalse,
+      reason: 'the autopilot panel title is clipped at the 280 px panel floor',
+    );
+
+    final badgeTop = tester.getTopLeft(find.text('Running')).dy;
+    final titleBottom = tester.getBottomLeft(titleFinder).dy;
+    expect(
+      badgeTop,
+      greaterThanOrEqualTo(titleBottom - 1.0),
+      reason: 'the status badge should wrap below the title at this width',
+    );
+
+    expect(title.overflow, TextOverflow.ellipsis);
   });
 
   testWidgets(
@@ -578,6 +848,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           ..._commonOverrides(),
           schedulerEngineProvider.overrideWithValue(engine),
           schedulerStatusProvider.overrideWith((ref) {

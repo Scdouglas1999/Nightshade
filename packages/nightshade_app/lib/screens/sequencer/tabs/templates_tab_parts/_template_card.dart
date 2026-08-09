@@ -257,38 +257,52 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
                   // Footer
                   Row(
                     children: [
-                      // Stats
-                      Row(
-                        children: [
-                          Icon(LucideIcons.layoutList,
-                              size: 12, color: widget.colors.textMuted),
-                          const SizedBox(width: 4),
-                          Text(
-                            countLabel(widget.template.nodes.length, 'node'),
-                            style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize11,
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Icon(
+                              LucideIcons.layoutList,
+                              size: 12,
                               color: widget.colors.textMuted,
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(width: 16),
-                      Row(
-                        children: [
-                          Icon(LucideIcons.calendar,
-                              size: 12, color: widget.colors.textMuted),
-                          const SizedBox(width: 4),
-                          Text(
-                            DateFormat.yMd().format(widget.template.createdAt),
-                            style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize11,
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                countLabel(
+                                  widget.template.nodes.length,
+                                  'node',
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: NightshadeTypography.fontSize11,
+                                  color: widget.colors.textMuted,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Icon(
+                              LucideIcons.calendar,
+                              size: 12,
                               color: widget.colors.textMuted,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                DateFormat.yMd()
+                                    .format(widget.template.createdAt),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: NightshadeTypography.fontSize11,
+                                  color: widget.colors.textMuted,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-
-                      const Spacer(),
+                      const SizedBox(width: 8),
 
                       // Use button
                       AnimatedOpacity(

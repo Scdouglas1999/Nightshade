@@ -18,6 +18,7 @@ import 'package:nightshade_core/src/providers/backend_provider.dart';
 import 'package:nightshade_core/src/providers/equipment/device_capability_provider.dart';
 
 import '../mocks/mock_backend.dart';
+import '../harness/in_memory_database.dart';
 
 class _TestBackendNotifier extends BackendNotifier {
   _TestBackendNotifier(super.ref, NightshadeBackend backend) {
@@ -42,6 +43,7 @@ void main() {
       ).thenAnswer((_) => const Stream.empty());
       container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith(
             (ref) => _TestBackendNotifier(ref, backend),
           ),
@@ -235,6 +237,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           domeCapabilityFetcherProvider.overrideWithValue((id) async {
             expect(id, deviceId);
             return expected;
@@ -258,6 +261,7 @@ void main() {
         var fetcherCalls = 0;
         final container = ProviderContainer(
           overrides: [
+            inMemoryDatabaseOverride(),
             domeCapabilityFetcherProvider.overrideWithValue((id) async {
               fetcherCalls++;
               return const DomeCapabilities(canSetShutter: true);
@@ -283,6 +287,7 @@ void main() {
       () async {
         final container = ProviderContainer(
           overrides: [
+            inMemoryDatabaseOverride(),
             domeCapabilityFetcherProvider.overrideWithValue(
               (id) async => throw StateError('dome bridge crashed'),
             ),
@@ -311,6 +316,7 @@ void main() {
         );
         final container = ProviderContainer(
           overrides: [
+            inMemoryDatabaseOverride(),
             coverCalibratorCapabilityFetcherProvider.overrideWithValue((
               id,
             ) async {
@@ -338,6 +344,7 @@ void main() {
       var fetches = 0;
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           coverCalibratorCapabilityFetcherProvider.overrideWithValue((_) async {
             fetches++;
             return const CoverCalibratorCapabilitySnapshot(

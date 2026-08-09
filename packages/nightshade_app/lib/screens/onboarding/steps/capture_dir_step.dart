@@ -70,16 +70,13 @@ final onboardingCaptureDirectoryWriterProvider =
   return ref.read(onboardingDraftProvider.notifier).setCaptureDirectory;
 });
 
+/// The editable capture-folder box. Exposed so tests can drive it without
+/// matching on hint copy.
+const Key onboardingCaptureDirFieldKey = Key('onboarding.captureDir.field');
+
 /// What the step currently knows about the chosen folder.
 ///
-/// The green "Folder is writable." line used to be derived from
-/// `draft.captureDirectory != null` — i.e. from the mere existence of a
-/// remembered path. The draft survives app restarts and host switches, so the
-/// step asserted writability for folders it had never touched: a resumed draft
-/// whose external drive was unplugged, or a host path shown after dropping back
-/// to the local backend, both rendered a green tick. Writability is a claim
-/// about the filesystem *now*, so it is tracked as the outcome of an actual
-/// check and never inferred from a stored string.
+/// Writability records an actual filesystem check, never just a stored path.
 enum _FolderCheck {
   /// A check is in flight.
   checking,
@@ -134,9 +131,19 @@ class _OnboardingCaptureDirStepState
   bool _validating = false;
   int _operationGeneration = 0;
 
+  /// Editable folder input with a platform-picker alternative.
+  late final TextEditingController _pathController;
+  late final FocusNode _pathFocus;
+
+  /// Last value handed to the controller from the draft, so an external change
+  /// (Browse) overwrites the box while a half-typed edit is left alone.
+  String _pathSyncedFrom = '';
+
   @override
   void initState() {
     super.initState();
+    _pathController = TextEditingController();
+    _pathFocus = FocusNode()..addListener(_onPathFocusChange);
     // Re-check a remembered path on entry. The draft persists across restarts
     // and the user reaches this step again by walking Back through the wizard;
     // in both cases the folder may have moved, been deleted, or belong to a
@@ -149,16 +156,101 @@ class _OnboardingCaptureDirStepState
     });
   }
 
+  @override
+  void dispose() {
+    _pathFocus.removeListener(_onPathFocusChange);
+    _pathFocus.dispose();
+    _pathController.dispose();
+    super.dispose();
+  }
+
+  /// Tabbing out of the box is how people leave a path field, so commit there
+  /// as well as on Enter — otherwise the typed folder is silently dropped.
+  void _onPathFocusChange() {
+    if (_pathFocus.hasFocus) return;
+    unawaited(_commitTypedPath(_pathController.text));
+  }
+
+  /// Adopt a hand-typed or pasted folder, subject to the same existence and
+  /// writability check the picker's result goes through.
+  ///
+  /// The draft is written only once the check passes — a typo must not become
+  /// the answer that unblocks Next and then a night of frames written nowhere.
+  /// The failed text is left in the box so it can be corrected rather than
+  /// retyped.
+  Future<void> _commitTypedPath(String raw) async {
+    final path = raw.trim();
+    final current = ref.read(onboardingDraftProvider).captureDirectory?.trim();
+    if (path.isEmpty || path == current) return;
+    if (_selecting || _validating) return;
+
+    final isRemote = ref.read(isRemoteModeProvider);
+    final authority = ref.read(backendProvider);
+    final generation = ++_operationGeneration;
+    setState(() {
+      _validating = true;
+      _check = null;
+      _checkedPath = null;
+      _checkDetail = null;
+    });
+    try {
+      // Remote paths belong to the host, which is the only thing that can
+      // answer for them; _verify already routes that question correctly.
+      // It has to run as PART of this commit, not as a new operation: a
+      // _verify that allocated its own generation left this one stale, so the
+      // guard below fired on its own helper and the host-approved path was
+      // never written to the draft. Staying `_validating` for the whole round
+      // trip also keeps the box disabled, which is what stops the focus-loss
+      // listener firing a second identical question at the host.
+      if (isRemote) {
+        await _verify(path, operation: generation);
+        if (!_isCurrent(generation, authority)) return;
+        if (_check == _FolderCheck.writable && _checkedPath == path) {
+          await ref.read(onboardingCaptureDirectoryWriterProvider)(path);
+        }
+        return;
+      }
+      final error =
+          await ref.read(onboardingCaptureDirectoryValidatorProvider)(path);
+      if (!_isCurrent(generation, authority)) return;
+      setState(() {
+        _validating = false;
+        _checkedPath = path;
+        _check = error == null ? _FolderCheck.writable : _FolderCheck.failed;
+        _checkDetail = error;
+      });
+      if (error == null) {
+        await ref.read(onboardingCaptureDirectoryWriterProvider)(path);
+      }
+    } catch (error) {
+      if (!mounted || !_isCurrent(generation, authority)) return;
+      setState(() {
+        _validating = false;
+        _check = _FolderCheck.failed;
+        _checkDetail = 'Could not set the capture folder: $error';
+      });
+    } finally {
+      if (mounted && generation == _operationGeneration && _validating) {
+        setState(() => _validating = false);
+      }
+    }
+  }
+
   /// Re-run the writability check for [path] and record the outcome.
   ///
   /// Local paths go through the same probe the picker uses. A host path is
   /// checked by the host itself; when there is no host to ask the result is
   /// [_FolderCheck.unverified] — the step says it does not know rather than
   /// claiming a folder on a machine it cannot reach is fine.
-  Future<void> _verify(String path) async {
+  ///
+  /// [operation] joins an already-open operation instead of starting a new one.
+  /// A caller that keeps working after the check (the typed-path commit, which
+  /// still has a draft write to do) must share its generation, or it supersedes
+  /// itself and discards its own result.
+  Future<void> _verify(String path, {int? operation}) async {
     final isRemote = ref.read(isRemoteModeProvider);
     final authority = ref.read(backendProvider);
-    final generation = ++_operationGeneration;
+    final generation = operation ?? ++_operationGeneration;
     setState(() {
       _check = _FolderCheck.checking;
       _checkedPath = path;
@@ -297,6 +389,21 @@ class _OnboardingCaptureDirStepState
     final colors = NightshadeColors.of(context);
     final theme = Theme.of(context);
 
+    // Mirror the stored folder into the box whenever it changes underneath us
+    // (Browse, a host switch, a resumed draft) without stamping on an edit the
+    // user is in the middle of typing.
+    final storedPath =
+        draft.captureDirectory == null ? '' : draft.captureDirectory!;
+    if (storedPath != _pathSyncedFrom) {
+      _pathSyncedFrom = storedPath;
+      if (_pathController.text != storedPath) {
+        _pathController.value = TextEditingValue(
+          text: storedPath,
+          selection: TextSelection.collapsed(offset: storedPath.length),
+        );
+      }
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -308,8 +415,17 @@ class _OnboardingCaptureDirStepState
           ),
         ),
         const SizedBox(height: 6),
+        // This used to promise "Sessions will be organized into target/date
+        // subfolders under this directory." Nothing does that: the shipped
+        // default naming pattern is `$TARGET_$FILTER_$DATE_$SEQ`, which is
+        // flat, so every frame lands directly in the chosen folder. The
+        // subfolder machinery is real — a `/` in the pattern creates
+        // directories — it is simply not the default, so describe the pattern
+        // as the thing that controls layout rather than claiming a layout the
+        // app does not produce.
         Text(
-          'Sessions will be organized into target/date subfolders under this directory.',
+          'Every capture is saved here. File names — and any subfolders — come '
+          'from the naming pattern in Settings → Imaging.',
           style: theme.textTheme.bodyMedium?.copyWith(
             color: colors.textSecondary,
           ),
@@ -327,14 +443,26 @@ class _OnboardingCaptureDirStepState
                   Icon(NightshadeIcons.folder, color: colors.primary, size: 18),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(
-                      draft.captureDirectory ?? 'No folder selected yet',
+                    child: TextField(
+                      key: onboardingCaptureDirFieldKey,
+                      controller: _pathController,
+                      focusNode: _pathFocus,
+                      enabled: !_selecting && !_validating,
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: draft.captureDirectory != null
-                            ? colors.textPrimary
-                            : colors.textMuted,
+                        color: colors.textPrimary,
                         fontFamily: 'monospace',
                       ),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        border: InputBorder.none,
+                        hintText: 'Type or paste a folder, or use Browse',
+                        hintStyle: theme.textTheme.bodyMedium?.copyWith(
+                          color: colors.textMuted,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                      onSubmitted: (value) =>
+                          unawaited(_commitTypedPath(value)),
                     ),
                   ),
                   const SizedBox(width: 8),

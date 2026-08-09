@@ -23,6 +23,7 @@ import 'package:nightshade_core/src/providers/backend_provider.dart';
 import 'package:nightshade_core/src/providers/plate_solver_provider.dart';
 import 'package:nightshade_core/src/services/plate_solve_service.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 class _MockNetworkBackend extends Mock implements NetworkBackend {}
 
@@ -266,6 +267,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            inMemoryDatabaseOverride(),
             plateSolverDetectionProvider.overrideWith(
               (ref) async => const PlateSolverDetection(),
             ),
@@ -326,6 +328,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            inMemoryDatabaseOverride(),
             plateSolverDetectionProvider.overrideWith(
               (ref) async => const PlateSolverDetection(
                 astapPath: r'C:\Program Files\astap\astap.exe',
@@ -375,6 +378,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith(
             (ref) => _FixedBackendNotifier(ref, _MockNetworkBackend()),
           ),

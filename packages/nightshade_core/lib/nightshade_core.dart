@@ -163,6 +163,7 @@ export 'src/models/scheduler/integration_goal.dart';
 export 'src/models/scheduler/target_constraint.dart';
 export 'src/models/scheduler/scheduler_decision.dart';
 export 'src/models/scheduler/scheduler_status.dart';
+export 'src/models/scheduler/scheduler_readiness.dart';
 export 'src/models/scheduler/target_progress.dart';
 export 'src/services/scheduler/target_progress_service.dart';
 export 'src/providers/target_progress_provider.dart';
@@ -318,6 +319,10 @@ export 'src/backend/disconnected_backend.dart';
 // isCriticalEvent, nightshadeEventDisplayTitle/Detail) flows through unprefixed.
 export 'src/backend/bridge_events.dart'
     hide NightshadeEvent, EventCategory, EventSeverity;
+// Per-frame capture truth carried on FrameAccepted/FrameRejected. Exported so
+// the surfaces that persist or assert on a sequenced frame read the event's
+// key names from one place rather than re-spelling them.
+export 'src/backend/frame_capture_metadata.dart';
 export 'src/models/backend/fits_header.dart';
 export 'src/models/backend/image_result.dart';
 export 'src/models/backend/platform_capabilities.dart';
@@ -344,6 +349,8 @@ export 'src/utils/device_id.dart'
         friendlyNameFromDeviceId,
         kPhd2CanonicalId;
 export 'src/services/phd2_status_poll.dart';
+export 'src/services/phd2_probe.dart'
+    show Phd2ProbeOutcome, Phd2ProbeResult, normalizePhd2ProbeHost, probePhd2;
 export 'src/services/device_matching_service.dart';
 export 'src/services/imaging_records_repository.dart'
     show
@@ -656,5 +663,7 @@ export 'src/utils/resilient_poll_stream.dart';
 export 'src/utils/dither_settle_presets.dart';
 export 'src/utils/plate_solver_utils.dart';
 export 'src/utils/export_target.dart';
+export 'src/utils/duration_format.dart';
 export 'src/utils/temperature_format.dart';
 export 'src/utils/utc_timestamp.dart';
+export 'src/utils/nightshade_data_directory.dart';

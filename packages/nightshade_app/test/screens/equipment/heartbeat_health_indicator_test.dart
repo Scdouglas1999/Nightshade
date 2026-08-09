@@ -13,6 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/equipment/widgets/heartbeat_health_indicator.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 void main() {
   const colors = NightshadeColors.dark;
@@ -25,6 +26,7 @@ void main() {
   }) async {
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         deviceHeartbeatHealthProvider.overrideWith(
           (ref) => DeviceHeartbeatHealthNotifier(now: now),
         ),
@@ -159,6 +161,7 @@ void main() {
     // Pump healthy state first.
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         deviceHeartbeatHealthProvider.overrideWith(
           (ref) => DeviceHeartbeatHealthNotifier(),
         ),

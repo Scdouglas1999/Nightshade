@@ -555,6 +555,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           'accepted_total': sequencerEvent.acceptedTotal,
           'rejected_total': sequencerEvent.rejectedTotal,
           'save_path': sequencerEvent.savePath,
+          ...frameCaptureToEventData(sequencerEvent.capture),
         },
       );
     } else if (sequencerEvent is bridge.SequencerEvent_FrameRejected) {
@@ -572,6 +573,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           'consecutive_rejects': sequencerEvent.consecutiveRejects,
           'accepted_total': sequencerEvent.acceptedTotal,
           'rejected_total': sequencerEvent.rejectedTotal,
+          ...frameCaptureToEventData(sequencerEvent.capture),
         },
       );
     } else if (sequencerEvent is bridge.SequencerEvent_SchedulerDecision) {

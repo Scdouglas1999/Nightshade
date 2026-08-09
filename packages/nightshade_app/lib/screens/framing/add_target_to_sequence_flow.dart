@@ -1,26 +1,6 @@
-// "Add target to an existing sequence" flow for the Framing screen.
-//
-// The Framing screen historically offered only ONE handoff to the sequencer:
-// auto-build a complete Smart Night instruction tree for the framed target
-// (`addFramedTargetToSequencer` in plan_tonight_sequencer_helper.dart). Users
-// who hand-build their own sequences had no way to drop a framed target into a
-// sequence they were assembling — they were forced to accept (and then prune)
-// a generated tree.
-//
-// This adds the complementary, low-magic path: insert a *bare* TargetHeaderNode
-// — the framed target's name / RA / Dec / rotation, with NO child instructions
-// — into a sequence the user chooses, leaving the instruction tree for them to
-// build in the Sequencer. The choice surface:
-//
-//   * If a sequence is open in the editor, that is the default destination.
-//   * If saved sequences exist, the user can pick one of those instead (it is
-//     opened — as a fresh-ID copy — into the editor, then the header is added).
-//   * "New empty sequence" is always offered as the fall-back, and is the only
-//     option when nothing is open and the library is empty.
-//
-// Errors surface, never silently degrade: a locked sequence
-// (run in progress) or an unsaved-changes clobber is reported to the user
-// rather than swallowed.
+// Adds bare target headers from Framing to the open, saved, or a new sequence.
+// The picker is not barrier-dismissible, errors are surfaced, and inserted
+// headers are read back before success is reported.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -142,10 +122,7 @@ Future<bool> addFramedTargetToExistingSequence({
   double? rotationDegrees,
   List<FramingMosaicPanel> mosaicPanels = const [],
 }) async {
-  // A drawn mosaic of 2+ panels is inserted as one target group PER PANEL. It
-  // used to be discarded entirely in favour of a single centre-frame header, so
-  // the panels the user composed on the canvas never reached the sequence and
-  // nothing said so.
+  // Preserve a drawn mosaic as one target group per panel.
   final panels =
       mosaicPanels.length >= 2 ? mosaicPanels : const <FramingMosaicPanel>[];
   final current = ref.read(currentSequenceProvider);
@@ -195,6 +172,12 @@ Future<bool> addFramedTargetToExistingSequence({
 
   final chosen = await showDialog<_SequenceDestination>(
     context: context,
+    // This is a commit surface with its own Cancel. Barrier dismissal made
+    // "I pressed Add target and nothing happened" indistinguishable from
+    // "I cancelled": both closed the dialog and returned null, and the caller
+    // reports nothing on null. A stray click must not be able to throw away a
+    // confirmed choice in silence.
+    barrierDismissible: false,
     builder: (ctx) => _DestinationPickerDialog(
       targetName: target.name,
       destinations: destinations,
@@ -221,6 +204,27 @@ Future<bool> addFramedTargetToExistingSequence({
     }
   }
 
+  /// Confirm the headers are really in the editor's sequence before telling
+  /// the caller (and therefore the user) that they are.
+  bool insertLanded() {
+    final sequence = ref.read(currentSequenceProvider);
+    if (sequence == null) return false;
+    return headers.every((header) => sequence.nodes.containsKey(header.id));
+  }
+
+  /// Report a failure the user can act on instead of closing in silence.
+  void reportNotAdded() {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Could not add ${target.name.isEmpty ? 'the target' : target.name} '
+          'to the sequence. Open the Sequencer and add it there.',
+        ),
+      ),
+    );
+  }
+
   try {
     if (chosen.isNew) {
       notifier.createSequence(
@@ -235,6 +239,10 @@ Future<bool> addFramedTargetToExistingSequence({
       // then append the header(s).
       notifier.loadCopyForEditing(chosen.savedSequence!);
       addAll();
+    }
+    if (!insertLanded()) {
+      reportNotAdded();
+      return false;
     }
     return true;
   } on UnsavedChangesException catch (e) {
@@ -256,6 +264,10 @@ Future<bool> addFramedTargetToExistingSequence({
             discardUnsaved: true);
       }
       addAll();
+      if (!insertLanded()) {
+        reportNotAdded();
+        return false;
+      }
       return true;
     } on SequenceLockedException catch (lockErr) {
       if (context.mounted) {
@@ -277,6 +289,23 @@ Future<bool> addFramedTargetToExistingSequence({
     if (context.mounted) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(e.message)));
+    }
+    return false;
+  } catch (e) {
+    // Anything else would otherwise leave this Future with an unhandled error:
+    // the button's onPressed does not await a result it can inspect, so the
+    // exception goes to the zone handler and the user is shown nothing at all
+    // while the dialog closes as if the target had been added.
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not add '
+            '${target.name.isEmpty ? 'the target' : target.name} '
+            'to the sequence: $e',
+          ),
+        ),
+      );
     }
     return false;
   }

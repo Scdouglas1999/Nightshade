@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../utils/fwhm_conversion.dart';
 import '../database/daos/science_dao.dart';
 import '../database/daos/sequence_runs_dao.dart';
 import '../database/daos/targets_dao.dart';
@@ -298,7 +299,7 @@ class SessionReportService {
       framesRejected: rejected.length,
       totalIntegrationSecs: totalIntegrationSecs,
       meanHfr: meanHfr,
-      meanFwhm: meanHfr == null ? null : meanHfr * 2.35,
+      meanFwhm: meanHfr == null ? null : meanHfr * kFwhmPerHfr,
       meanStarCount: meanStarCount,
       meanSnr: meanSnr,
       snrIsProxy: snrIsProxy,

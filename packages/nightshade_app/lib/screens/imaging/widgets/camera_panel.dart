@@ -378,15 +378,14 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                       ? (value) {
                           if (value != null) {
                             final parts = value.split('x');
-                            ref.read(exposureSettingsProvider.notifier).state =
-                                exposureSettings.copyWith(
-                              binningX: int.parse(parts[0]),
-                              binningY: int.parse(parts[1]),
-                            );
                             ref
-                                .read(
-                                    exposureSettingsUserDirtyProvider.notifier)
-                                .state = true;
+                                .read(manualExposureSettingsUpdaterProvider)
+                                .update(
+                                  exposureSettings.copyWith(
+                                    binningX: int.parse(parts[0]),
+                                    binningY: int.parse(parts[1]),
+                                  ),
+                                );
                           }
                         }
                       : null,
@@ -417,45 +416,32 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                                 if (value == null) return;
                                 final idx = readoutModes.indexOf(value);
                                 if (idx < 0) return;
-                                final settingsNotifier = ref.read(
-                                  exposureSettingsProvider.notifier,
-                                );
-                                final dirtyNotifier = ref.read(
-                                  exposureSettingsUserDirtyProvider.notifier,
-                                );
-                                final previousSettings = settingsNotifier.state;
-                                final previousDirty = dirtyNotifier.state;
-                                final selectedSettings =
-                                    previousSettings.copyWith(
-                                  readoutModeIndex: idx,
-                                  fastReadout: idx == readoutModes.length - 1,
-                                );
                                 final deviceId = cameraState.deviceId;
                                 if (deviceId == null) return;
                                 final authority = ref.read(backendProvider);
                                 final deviceBackend =
                                     ref.read(deviceBackendProvider);
-                                settingsNotifier.state = selectedSettings;
-                                dirtyNotifier.state = true;
+                                final exposureUpdater = ref.read(
+                                  manualExposureSettingsUpdaterProvider,
+                                );
                                 setState(() => _isChangingReadoutMode = true);
                                 try {
                                   await deviceBackend.cameraSetReadoutMode(
                                     deviceId,
                                     idx,
                                   );
-                                } catch (e) {
-                                  // Restore the setting only if no other code
-                                  // replaced it while the driver call was in
-                                  // flight. This keeps UI/FITS metadata aligned
-                                  // with the mode the camera actually accepted.
-                                  if (_isCurrentAuthority(authority) &&
-                                      identical(
-                                        settingsNotifier.state,
-                                        selectedSettings,
-                                      )) {
-                                    settingsNotifier.state = previousSettings;
-                                    dirtyNotifier.state = previousDirty;
+                                  if (_isCurrentAuthority(authority)) {
+                                    final latestSettings =
+                                        ref.read(exposureSettingsProvider);
+                                    exposureUpdater.update(
+                                      latestSettings.copyWith(
+                                        readoutModeIndex: idx,
+                                        fastReadout:
+                                            idx == readoutModes.length - 1,
+                                      ),
+                                    );
                                   }
+                                } catch (e) {
                                   if (context.mounted &&
                                       _isCurrentAuthority(authority)) {
                                     context.showErrorSnackBar(
@@ -503,11 +489,11 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                               ? parsed.clamp(
                                   capabilities!.gainMin!, capabilities.gainMax!)
                               : parsed;
-                          ref.read(exposureSettingsProvider.notifier).state =
-                              exposureSettings.copyWith(gain: clamped);
                           ref
-                              .read(exposureSettingsUserDirtyProvider.notifier)
-                              .state = true;
+                              .read(manualExposureSettingsUpdaterProvider)
+                              .update(
+                                exposureSettings.copyWith(gain: clamped),
+                              );
                         }
                       },
                     ),
@@ -528,11 +514,11 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                               ? parsed.clamp(capabilities!.offsetMin!,
                                   capabilities.offsetMax!)
                               : parsed;
-                          ref.read(exposureSettingsProvider.notifier).state =
-                              exposureSettings.copyWith(offset: clamped);
                           ref
-                              .read(exposureSettingsUserDirtyProvider.notifier)
-                              .state = true;
+                              .read(manualExposureSettingsUpdaterProvider)
+                              .update(
+                                exposureSettings.copyWith(offset: clamped),
+                              );
                         }
                       },
                     ),

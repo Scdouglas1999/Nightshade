@@ -261,6 +261,41 @@ final sessionLineRatioProductsProvider =
       return ref.watch(scienceDaoProvider).watchLineRatiosForSession(sessionId);
     });
 
+/// Light curve for one object across EVERY session that imaged a target.
+///
+/// The per-session curve cannot support a period search: a night is a few
+/// hours and the periods people look for are usually longer, so a single-night
+/// periodogram can only ever return its own baseline. Local backend only —
+/// remote rigs have no equivalent bundle, and return empty rather than a
+/// silently truncated curve.
+final targetLightCurveProvider =
+    StreamProvider.family<
+      List<LightCurvePoint>,
+      (int targetId, String objectId)
+    >((ref, args) {
+      final backend = ref.watch(backendProvider);
+      if (backend is NetworkBackend) {
+        return Stream.value(const <LightCurvePoint>[]);
+      }
+      return ref
+          .watch(scienceDaoProvider)
+          .watchPhotometryForTarget(targetId: args.$1, objectId: args.$2)
+          .map(
+            (rows) => rows
+                .where((row) => row.differentialMagnitude != null)
+                .map(
+                  (row) => LightCurvePoint(
+                    timestamp: row.timestamp,
+                    flux: row.flux,
+                    differentialMagnitude: row.differentialMagnitude!,
+                    snr: row.snr ?? 0.0,
+                    uncertainty: row.uncertainty ?? 0.0,
+                  ),
+                )
+                .toList(growable: false),
+          );
+    });
+
 final sessionLightCurveProvider =
     Provider.family<List<LightCurvePoint>, (int sessionId, String objectId)>((
       ref,

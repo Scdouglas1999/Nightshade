@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -13,8 +14,9 @@ import 'settings_widgets.dart';
 /// Manage the connected appliance's plate-solve / star catalogs over the
 /// network (`/api/catalog/*`). A freshly-imaged Pi ships with no catalogs, so
 /// without this a remote operator could not populate them without SSH. Distinct
-/// from the local "Catalog" settings, which manage the phone's own planetarium
-/// catalogs. Remote-only — the local desktop manages its catalogs directly.
+/// from the local "Catalogs" settings, which manage this device's own
+/// planetarium catalogs — this page ships on desktop too, so nothing here may
+/// assume the client is a phone.
 class RigCatalogSettings extends ConsumerStatefulWidget {
   final bool isMobile;
 
@@ -280,13 +282,8 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
       hideHeader: widget.isMobile,
       children: [
         if (backend == null)
-          _Info(
-            colors: colors,
-            icon: LucideIcons.info,
-            text:
-                'Connect to a remote appliance to manage its catalogs. This is '
-                'separate from the phone\'s own planetarium catalogs.',
-          )
+          // Give the disconnected state a direct path to connection setup.
+          _NotConnected(colors: colors, isMobile: widget.isMobile)
         else ...[
           Row(
             children: [
@@ -462,6 +459,72 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
             variant: installed ? ButtonVariant.ghost : ButtonVariant.primary,
             size: ButtonSize.small,
             isLoading: _busyAction == 'Download' && _busyCatalog == a.name,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Shown when no appliance is connected: says what this page needs in
+/// platform-neutral terms and offers the one action that can satisfy it.
+class _NotConnected extends StatelessWidget {
+  final NightshadeColors colors;
+  final bool isMobile;
+
+  const _NotConnected({required this.colors, required this.isMobile});
+
+  @override
+  Widget build(BuildContext context) {
+    final router = GoRouter.maybeOf(context);
+    return NightshadeCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(LucideIcons.info, size: 18, color: colors.textMuted),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'This page manages the catalogs on a remote appliance, and '
+                  'no appliance is connected. It is separate from this '
+                  "device's own planetarium catalogs, which live under "
+                  'Catalogs.',
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: NightshadeTypography.fontSize13,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              NightshadeButton(
+                label: 'Connect an appliance',
+                icon: LucideIcons.globe,
+                variant: ButtonVariant.primary,
+                size: ButtonSize.small,
+                onPressed: router == null
+                    ? null
+                    : () => router.go('/settings?section=remote-access'),
+              ),
+              NightshadeButton(
+                label: "This device's catalogs",
+                icon: LucideIcons.library,
+                variant: ButtonVariant.outline,
+                size: ButtonSize.small,
+                onPressed: router == null
+                    ? null
+                    : () => router.go('/settings?section=catalogs'),
+              ),
+            ],
           ),
         ],
       ),

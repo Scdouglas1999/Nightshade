@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:io' show Platform;
+import 'dart:io' show Directory, File, Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemNavigator;
@@ -22,6 +22,7 @@ import '../sequencer/sequencer_screen.dart' show kSequencerRoutePath;
 import '../../widgets/notification_toast_overlay.dart';
 import '../../widgets/autofocus_progress_overlay.dart';
 import '../../widgets/connection_stale_banner.dart';
+import '../../widgets/disconnected_backend_banner.dart';
 import '../../widgets/ios_background_banner.dart';
 import '../../widgets/android_notifications_banner.dart';
 import '../../widgets/weather/weather_alert_banner.dart';
@@ -50,22 +51,278 @@ enum AppCheckpointRecoveryChoice {
   discard,
 }
 
+/// What a failed recovery attempt actually left behind.
+///
+/// The dialog used to assert, unconditionally, that "the checkpoint is still
+/// available. Retry resume or discard it to start fresh" — directly under the
+/// executor's own `Exception: No valid checkpoint to resume from`. One of those
+/// two sentences was always wrong. [checkpointStillResumable] is re-read from
+/// the backend after the failure so the modal states what is true now.
+@visibleForTesting
+class CheckpointAttemptFailure {
+  final Object error;
+  final bool checkpointStillResumable;
+
+  const CheckpointAttemptFailure({
+    required this.error,
+    required this.checkpointStillResumable,
+  });
+}
+
+/// Render [error] as a sentence rather than as a Dart object.
+///
+/// `'$error'` on a plain `Exception` prints `Exception: <message>`, which is
+/// how a raw runtime string ended up in the operator's startup modal.
+@visibleForTesting
+String describeCheckpointFailure(Object error) {
+  final text = error is NightshadeError ? error.userMessage : '$error';
+  final trimmed = text.trim();
+  for (final prefix in const ['Exception: ', 'Bad state: ']) {
+    if (trimmed.startsWith(prefix)) return trimmed.substring(prefix.length);
+  }
+  return trimmed;
+}
+
 const String kCatalogSetupSkippedSettingKey = 'catalog_setup_skipped';
+
+/// File names the native `CheckpointManager` uses inside the checkpoint
+/// directory (`native/nightshade_native/sequencer/src/checkpoint.rs`,
+/// `CHECKPOINT_FILENAME` / `CHECKPOINT_BACKUP`). Only
+/// [adoptLegacyGuiCheckpoint] needs them, and only to move a pre-existing pair
+/// forward; if the native names ever change, the adoption quietly finds
+/// nothing, which is the same outcome as not migrating at all.
+const List<String> _kCheckpointFileNames = <String>[
+  'nightshade_session.checkpoint',
+  'nightshade_session.checkpoint.bak',
+];
+
+/// Directory the desktop GUI keeps its sequence-recovery checkpoint in.
+///
+/// Anchored to the folder that holds the *open database*, not the platform
+/// application-support folder. Every Nightshade GUI on a machine shares one
+/// support folder, so the old anchor let a second instance — pointed at its
+/// own database via `NIGHTSHADE_DATABASE_DIR` — be offered the first
+/// instance's interrupted run: a "Recover Sequence?" modal naming a sequence
+/// that has no row in the database the user actually has open, whose only
+/// dismissal (Discard) then deleted the *other* instance's recovery state.
+/// Anchoring on the database directory makes that structurally impossible: a
+/// checkpoint can only ever be found beside the database whose run wrote it.
+///
+/// The `checkpoints/` subfolder mirrors `resolveHostCheckpointDirectory` in
+/// the headless host, so a GUI and a daemon sharing a database directory still
+/// do not overwrite one another's file.
+@visibleForTesting
+Future<Directory> resolveGuiCheckpointDirectory({
+  Future<File> Function() databaseFileResolver = resolveDefaultDatabaseFile,
+}) async {
+  final databaseFile = await databaseFileResolver();
+  return Directory(
+    '${databaseFile.parent.path}${Platform.pathSeparator}checkpoints',
+  );
+}
+
+/// Carries a checkpoint written by a build that stored it in the application
+/// support directory into [targetDir], so upgrading between a crash and the
+/// next launch does not silently drop a resumable night.
+///
+/// Only performed when `NIGHTSHADE_DATABASE_DIR` is unset. In that default
+/// layout there is exactly one database on the machine, so the legacy file
+/// provably belongs to it — and [SingleInstanceLock] guarantees no other
+/// Nightshade is running against it, so nothing can be moved out from under a
+/// live process. With the override set, the legacy file may belong to any of
+/// several databases; adopting it would re-create the very defect this
+/// relocation removes, so it is left alone (and ignored) instead.
+///
+/// Never throws: a failed adoption must not stop the app from configuring the
+/// checkpoint directory it will write tonight's recovery data to.
+@visibleForTesting
+Future<void> adoptLegacyGuiCheckpoint({
+  required Directory targetDir,
+  Future<Directory> Function() legacyDirectoryResolver =
+      getApplicationSupportDirectory,
+  Map<String, String>? environment,
+}) async {
+  final env = environment ?? Platform.environment;
+  final override = env[nightshadeDatabaseDirEnv]?.trim();
+  if (override != null && override.isNotEmpty) return;
+
+  try {
+    final legacyDir = await legacyDirectoryResolver();
+    if (legacyDir.path == targetDir.path) return;
+
+    for (final name in _kCheckpointFileNames) {
+      final legacyFile =
+          File('${legacyDir.path}${Platform.pathSeparator}$name');
+      if (!await legacyFile.exists()) continue;
+      final destination =
+          File('${targetDir.path}${Platform.pathSeparator}$name');
+      // An existing file at the destination is this database's own, newer
+      // checkpoint; never let the legacy copy overwrite it.
+      if (await destination.exists()) continue;
+      await targetDir.create(recursive: true);
+      await legacyFile.rename(destination.path);
+    }
+  } catch (_) {
+    // Deliberately swallowed — see doc comment.
+  }
+}
 
 @visibleForTesting
 bool catalogSetupWasSkipped(String? persistedValue) =>
     persistedValue?.trim().toLowerCase() == 'true';
 
+/// The startup "Recover Sequence?" modal.
+///
+/// Top-level and [visibleForTesting] because its escape hatch is the thing that
+/// keeps a failing recovery from wedging the whole app: the modal is
+/// deliberately `barrierDismissible: false` (an interrupted run must be decided,
+/// not swiped away), so with only Resume and Discard a backend that throws on
+/// BOTH — a read-only checkpoint directory, a corrupt file — re-presents the
+/// dialog forever with no way out. "Not now" appears only after an attempt has
+/// actually failed, leaves the checkpoint on disk, and lets the operator into
+/// the app to fix the cause.
+@visibleForTesting
+Widget buildCheckpointRecoveryDialog({
+  required BuildContext context,
+  required CheckpointInfo info,
+  required CheckpointAttemptFailure? failure,
+}) {
+  final canRetry = failure == null || failure.checkpointStillResumable;
+  final aftermath = canRetry
+      ? 'The checkpoint is still on disk. Retry, or discard it to start fresh.'
+      : 'This checkpoint can no longer be resumed. Discard it to clear the '
+          'prompt.';
+  final colors = NightshadeColors.of(context);
+  final ageMinutes = info.ageSeconds ~/ 60;
+  final ageStr = ageMinutes < 60
+      ? '${ageMinutes}m ago'
+      : '${ageMinutes ~/ 60}h ${ageMinutes % 60}m ago';
+  final integrationMins = (info.completedIntegrationSecs / 60).round();
+
+  return AlertDialog(
+    backgroundColor: colors.surface,
+    shape: RoundedRectangleBorder(
+      borderRadius: NightshadeTokens.borderRadiusInline8,
+      side: BorderSide(color: colors.border),
+    ),
+    title: Row(
+      children: [
+        Icon(
+          NightshadeIcons.warning,
+          size: 22,
+          color: colors.warning,
+        ),
+        const SizedBox(width: 12),
+        Text(
+          'Recover Sequence?',
+          style: TextStyle(color: colors.textPrimary),
+        ),
+      ],
+    ),
+    content: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'A previous sequence was interrupted and can be resumed.',
+          style: TextStyle(
+            color: colors.textSecondary,
+            fontSize: NightshadeTypography.fontSize13,
+          ),
+        ),
+        const SizedBox(height: 16),
+        NightshadeCard(
+          variant: CardVariant.standard,
+          borderRadius: NightshadeTokens.radiusInline8,
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _checkpointInfoRow(colors, 'Sequence', info.sequenceName),
+              const SizedBox(height: 6),
+              _checkpointInfoRow(colors, 'Saved', ageStr),
+              const SizedBox(height: 6),
+              _checkpointInfoRow(
+                colors,
+                'Completed',
+                '${info.completedExposures} frames '
+                    '(${integrationMins}m integration)',
+              ),
+            ],
+          ),
+        ),
+        if (failure != null) ...[
+          const SizedBox(height: 16),
+          NightshadeAlert(
+            severity: NightshadeAlertSeverity.error,
+            title: 'Recovery did not complete',
+            message: '${describeCheckpointFailure(failure.error)}\n\n'
+                '$aftermath',
+          ),
+        ],
+      ],
+    ),
+    actions: [
+      if (failure != null)
+        NightshadeButton(
+          onPressed: () => Navigator.of(context).pop(),
+          label: 'Not now',
+          variant: ButtonVariant.ghost,
+        ),
+      NightshadeButton(
+        onPressed: () => Navigator.of(context).pop(
+          AppCheckpointRecoveryChoice.discard,
+        ),
+        label: 'Discard',
+        variant: ButtonVariant.destructive,
+      ),
+      // Offering "Retry Resume" for a checkpoint the backend has just told us
+      // is no longer resumable is the same lie as the old message: the button
+      // can only fail again. Discard (and "Not now") remain.
+      if (canRetry)
+        NightshadeButton(
+          onPressed: () => Navigator.of(context).pop(
+            AppCheckpointRecoveryChoice.resume,
+          ),
+          label: failure == null ? 'Resume' : 'Retry Resume',
+        ),
+    ],
+  );
+}
+
+Widget _checkpointInfoRow(NightshadeColors colors, String label, String value) {
+  return Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      SizedBox(
+        width: 80,
+        child: Text(
+          label,
+          style: NightshadeTypography.labelSm.copyWith(color: colors.textMuted),
+        ),
+      ),
+      Expanded(
+        child: Text(
+          value,
+          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+        ),
+      ),
+    ],
+  );
+}
+
 @visibleForTesting
 Future<AppStartupCheckpointOutcome> runAppCheckpointRecovery({
-  required Future<AppCheckpointRecoveryChoice?> Function(Object? lastError)
-      choose,
+  required Future<AppCheckpointRecoveryChoice?> Function(
+    CheckpointAttemptFailure? lastFailure,
+  ) choose,
   required Future<void> Function() resume,
   required Future<void> Function() discard,
+  required Future<bool> Function() checkpointStillResumable,
 }) async {
-  Object? lastError;
+  CheckpointAttemptFailure? lastFailure;
   while (true) {
-    final choice = await choose(lastError);
+    final choice = await choose(lastFailure);
     if (choice == null) return AppStartupCheckpointOutcome.failed;
 
     try {
@@ -78,7 +335,20 @@ Future<AppStartupCheckpointOutcome> runAppCheckpointRecovery({
           return AppStartupCheckpointOutcome.discarded;
       }
     } catch (error) {
-      lastError = error;
+      // Ask the backend what survived the attempt instead of assuming. A
+      // resume that failed because the checkpoint is invalid must not be
+      // followed by "the checkpoint is still available"; a probe that itself
+      // fails is treated as "cannot be resumed", the conservative reading.
+      var stillResumable = false;
+      try {
+        stillResumable = await checkpointStillResumable();
+      } catch (_) {
+        stillResumable = false;
+      }
+      lastFailure = CheckpointAttemptFailure(
+        error: error,
+        checkpointStillResumable: stillResumable,
+      );
     }
   }
 }
@@ -340,12 +610,21 @@ class _AppShellState extends ConsumerState<AppShell> {
       // the backend: a remote host owns its own storage layout, and pushing
       // this machine's support directory at it would point the rig's crash
       // recovery at a path that does not exist there.
+      //
+      // The directory is derived from the OPEN DATABASE, not from the shared
+      // application-support folder — see [resolveGuiCheckpointDirectory] for
+      // why that distinction is the difference between "your interrupted run"
+      // and someone else's.
       final isLocalBackend = backend is! NetworkBackend;
       if (isLocalBackend &&
           (Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
         try {
-          final supportDir = await getApplicationSupportDirectory();
-          await backend.sequencerSetCheckpointDir(supportDir.path);
+          final checkpointDir = await resolveGuiCheckpointDirectory();
+          // Configure first, adopt second: nothing reads the directory until
+          // hasCheckpoint() below, and a slow or failing adoption must not be
+          // able to leave tonight's run with no checkpoint directory at all.
+          await backend.sequencerSetCheckpointDir(checkpointDir.path);
+          await adoptLegacyGuiCheckpoint(targetDir: checkpointDir);
         } catch (e) {
           ref.read(loggingServiceProvider).warning(
               '[AppShell] Failed to initialize checkpoint directory: $e',
@@ -366,106 +645,21 @@ class _AppShellState extends ConsumerState<AppShell> {
 
       return ref.read(startupSurfaceCoordinatorProvider).run(
             () => runAppCheckpointRecovery(
-              choose: (lastError) async {
+              choose: (lastFailure) async {
                 if (!mounted) return null;
-                final colors = NightshadeColors.of(context);
                 return showDialog<AppCheckpointRecoveryChoice>(
                   context: context,
                   barrierDismissible: false,
-                  builder: (dialogContext) {
-                    final ageMinutes = info.ageSeconds ~/ 60;
-                    final ageStr = ageMinutes < 60
-                        ? '${ageMinutes}m ago'
-                        : '${ageMinutes ~/ 60}h ${ageMinutes % 60}m ago';
-                    final integrationMins =
-                        (info.completedIntegrationSecs / 60).round();
-
-                    return AlertDialog(
-                      backgroundColor: colors.surface,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: NightshadeTokens.borderRadiusInline8,
-                        side: BorderSide(color: colors.border),
-                      ),
-                      title: Row(
-                        children: [
-                          Icon(
-                            NightshadeIcons.warning,
-                            size: 22,
-                            color: colors.warning,
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            'Recover Sequence?',
-                            style: TextStyle(color: colors.textPrimary),
-                          ),
-                        ],
-                      ),
-                      content: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'A previous sequence was interrupted and can be resumed.',
-                            style: TextStyle(
-                              color: colors.textSecondary,
-                              fontSize: NightshadeTypography.fontSize13,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          NightshadeCard(
-                            variant: CardVariant.standard,
-                            borderRadius: NightshadeTokens.radiusInline8,
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                _checkpointInfoRow(
-                                  colors,
-                                  'Sequence',
-                                  info.sequenceName,
-                                ),
-                                const SizedBox(height: 6),
-                                _checkpointInfoRow(colors, 'Saved', ageStr),
-                                const SizedBox(height: 6),
-                                _checkpointInfoRow(
-                                  colors,
-                                  'Completed',
-                                  '${info.completedExposures} frames '
-                                      '(${integrationMins}m integration)',
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (lastError != null) ...[
-                            const SizedBox(height: 16),
-                            NightshadeAlert(
-                              severity: NightshadeAlertSeverity.error,
-                              title: 'Recovery did not complete',
-                              message: '$lastError\n\n'
-                                  'The checkpoint is still available. Retry resume '
-                                  'or discard it to start fresh.',
-                            ),
-                          ],
-                        ],
-                      ),
-                      actions: [
-                        NightshadeButton(
-                          onPressed: () => Navigator.of(dialogContext).pop(
-                            AppCheckpointRecoveryChoice.discard,
-                          ),
-                          label: 'Discard',
-                          variant: ButtonVariant.destructive,
-                        ),
-                        NightshadeButton(
-                          onPressed: () => Navigator.of(dialogContext).pop(
-                            AppCheckpointRecoveryChoice.resume,
-                          ),
-                          label: lastError == null ? 'Resume' : 'Retry Resume',
-                        ),
-                      ],
-                    );
-                  },
+                  builder: (dialogContext) => buildCheckpointRecoveryDialog(
+                    context: dialogContext,
+                    info: info,
+                    failure: lastFailure,
+                  ),
                 );
+              },
+              checkpointStillResumable: () async {
+                final current = await backend.getCheckpointInfo();
+                return current?.canResume ?? false;
               },
               // Route through the SequenceExecutor provider — it re-seeds the
               // runtime config and starts the restored native tree. The raw backend
@@ -482,29 +676,6 @@ class _AppShellState extends ConsumerState<AppShell> {
           fields: {'error': e.toString()});
       return AppStartupCheckpointOutcome.failed;
     }
-  }
-
-  Widget _checkpointInfoRow(
-      NightshadeColors colors, String label, String value) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 80,
-          child: Text(
-            label,
-            style:
-                NightshadeTypography.labelSm.copyWith(color: colors.textMuted),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
-          ),
-        ),
-      ],
-    );
   }
 
   String _getCurrentLocation(BuildContext context) {
@@ -557,7 +728,6 @@ class _AppShellState extends ConsumerState<AppShell> {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    final l10n = context.l10n;
     final appSettingsAsync = ref.watch(appSettingsProvider);
     final settings = appSettingsAsync.valueOrNull;
     final currentLocation = _getCurrentLocation(context);
@@ -649,26 +819,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                       ),
                     ),
 
-                  // Disconnected banner — DESKTOP ONLY. On phone the dedicated
-                  // connection strip is gone (it wasted the cover screen's scarce
-                  // height); remote-connection state lives as a small ambient dot
-                  // in the status bar (tap → connection sheet). On desktop the
-                  // indicator stays in the TitleBar and this full-width banner
-                  // still flags a dropped server connection.
-                  if (!useBottomNav &&
-                      ref.watch(sequencerBackendProvider)
-                          is DisconnectedBackend)
-                    Container(
-                      width: double.infinity,
-                      color: colors.error,
-                      padding: const EdgeInsets.symmetric(vertical: 2),
-                      child: Text(
-                        l10n.text('disconnectedBanner'),
-                        textAlign: TextAlign.center,
-                        style: NightshadeTypography.labelQuiet.copyWith(
-                            color: Theme.of(context).colorScheme.onError),
-                      ),
-                    ),
+                  // Desktop keeps the full recovery banner; mobile uses the
+                  // compact status-bar connection indicator.
+                  if (!useBottomNav) const DisconnectedBackendBanner(),
 
                   // iOS background-monitoring advisory (audit §3.2). Renders
                   // above the weather banner so it's the first thing the
@@ -871,11 +1024,22 @@ class _MobileSettingsBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final onPrimary = Theme.of(context).colorScheme.onPrimary;
+    // A narrow DESKTOP window still has no OS decorations (the runners set
+    // TitleBarStyle.hidden), so this bar owns minimize/maximize/close and the
+    // drag-to-move region below the side-nav breakpoint exactly as the full
+    // TitleBar does above it. Without them, resizing under 768px left the
+    // window with no mouse-reachable way to be closed, minimized or moved.
+    final isDesktopWindow = ShellChrome.isDesktopWindow;
 
-    return Container(
+    final bar = Container(
       height: ShellChromeMetrics.titleBarHeight,
       color: colors.surface,
-      padding: const EdgeInsets.symmetric(horizontal: NightshadeTokens.spaceLg),
+      // Caption buttons are flush to the window edge (platform convention and
+      // Fitts' law), so the trailing inset is dropped when they are present.
+      padding: EdgeInsets.only(
+        left: NightshadeTokens.spaceLg,
+        right: isDesktopWindow ? 0 : NightshadeTokens.spaceLg,
+      ),
       child: Row(
         children: [
           Container(
@@ -888,13 +1052,18 @@ class _MobileSettingsBar extends StatelessWidget {
             child: Icon(NightshadeIcons.sparkle, size: 14, color: onPrimary),
           ),
           const SizedBox(width: NightshadeTokens.spaceSm + 2),
-          Text(
-            'NIGHTSHADE',
-            style: TextStyle(
-              color: colors.textPrimary,
-              fontSize: NightshadeTypography.fontSize13,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.5,
+          // The wordmark yields before the caption buttons do: on a very
+          // narrow window the title may ellipsize, but close must not vanish.
+          Flexible(
+            child: Text(
+              'NIGHTSHADE',
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: colors.textPrimary,
+                fontSize: NightshadeTypography.fontSize13,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1.5,
+              ),
             ),
           ),
           const Spacer(),
@@ -911,8 +1080,15 @@ class _MobileSettingsBar extends StatelessWidget {
               ),
             ),
           ),
+          if (isDesktopWindow) ...[
+            const SizedBox(width: NightshadeTokens.spaceSm),
+            WindowControls(colors: colors),
+          ],
         ],
       ),
     );
+
+    if (!isDesktopWindow) return bar;
+    return WindowDragArea(child: bar);
   }
 }

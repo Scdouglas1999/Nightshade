@@ -32,6 +32,31 @@ mixin _NetworkBackendGuidingOperations on _NetworkBackendTransport {
   }
 
   @override
+  Future<Phd2ProbeResult> phd2Probe({
+    String host = 'localhost',
+    int port = 4400,
+  }) async {
+    try {
+      final response = await _get('phd2/probe', {'host': host, 'port': port});
+      return Phd2ProbeResult.fromJson(response);
+    } on ServerError catch (e) {
+      if (e.httpStatus != 404) rethrow;
+      // A master that predates GET /api/phd2/probe can still answer the port
+      // question. Report that as "reachable, version unknown" rather than
+      // inventing an identification the old endpoint never made.
+      final running = await isPhd2Running(host: host, port: port);
+      return Phd2ProbeResult(
+        outcome: running
+            ? Phd2ProbeOutcome.reachableUnverified
+            : Phd2ProbeOutcome.unreachable,
+        error: running
+            ? null
+            : 'The imaging host reported nothing listening on $host:$port.',
+      );
+    }
+  }
+
+  @override
   Future<void> phd2Connect({String host = 'localhost', int port = 4400}) async {
     await _post('phd2/connect', {'host': host, 'port': port});
   }

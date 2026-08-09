@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/imaging/widgets/stacking_panel.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 class _SwappableBackendNotifier extends BackendNotifier {
   _SwappableBackendNotifier(super.ref, NightshadeBackend backend) {
@@ -49,6 +50,7 @@ Future<({ProviderContainer container, _RecordingLiveStackingNotifier stacker})>
   late _RecordingLiveStackingNotifier stacker;
   final container = ProviderContainer(
     overrides: [
+      inMemoryDatabaseOverride(),
       backendProvider.overrideWith(
         (ref) => _SwappableBackendNotifier(ref, DisconnectedBackend()),
       ),

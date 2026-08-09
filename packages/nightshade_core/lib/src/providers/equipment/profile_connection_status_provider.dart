@@ -347,6 +347,28 @@ final sessionOnlyConnectedSlotsProvider = Provider<Set<ProfileDeviceSlot>>((
   };
 });
 
+/// The ACTIVE profile's assigned device slots, in canonical slot order.
+///
+/// Distinct from [offlineProfileDeviceNamesProvider], which reports only the
+/// assigned slots that are DOWN. Readiness needs the assignment set itself in
+/// order to tell "every assigned device is connected" apart from "this profile
+/// assigns nothing at all" — the two are indistinguishable from an empty
+/// offline list, and conflating them produced a green all-connected readiness
+/// row on a profile with zero devices.
+///
+/// Empty when there is no active profile.
+final assignedProfileDeviceSlotsProvider = Provider<List<ProfileDeviceSlot>>((
+  ref,
+) {
+  final profile = ref.watch(activeEquipmentProfileProvider);
+  if (profile == null) return const <ProfileDeviceSlot>[];
+  final status = ref.watch(profileConnectionStatusProvider(profile));
+  return <ProfileDeviceSlot>[
+    for (final connection in status.connections)
+      if (connection.isAssigned) connection.slot,
+  ];
+});
+
 /// Display names of the ACTIVE profile's assigned device slots that are not
 /// currently connected, in canonical slot order.
 ///

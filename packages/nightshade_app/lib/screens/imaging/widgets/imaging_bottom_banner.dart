@@ -68,8 +68,9 @@ class ImagingBottomBanner extends ConsumerWidget {
         ref.watch(filterWheelStateProvider).filterNames.isNotEmpty;
 
     void setDuration(double parsed) {
-      ref.read(exposureSettingsProvider.notifier).state =
-          exposureSettings.copyWith(exposureTime: parsed);
+      ref.read(manualExposureSettingsUpdaterProvider).update(
+            exposureSettings.copyWith(exposureTime: parsed),
+          );
     }
 
     final capture = _CaptureGroup(
@@ -96,7 +97,7 @@ class ImagingBottomBanner extends ConsumerWidget {
       colors: colors,
       settings: exposureSettings,
       onChanged: (next) =>
-          ref.read(exposureSettingsProvider.notifier).state = next,
+          ref.read(manualExposureSettingsUpdaterProvider).update(next),
     );
 
     final filters = hasFilters
@@ -190,8 +191,16 @@ class ImagingBottomBanner extends ConsumerWidget {
   }
 }
 
+/// Whether Loop keeps the frames it captures.
+///
+/// Loop is a live-view mode, so saving defaults off and is session-scoped.
+final loopSavesFramesProvider = StateProvider<bool>((ref) => false);
+
+/// Identifies the banner's "Save loop frames" toggle for tests.
+const loopSaveFramesToggleKey = Key('imaging.loopSaveFramesToggle');
+
 /// Snapshot + Loop, grouped as the primary capture cluster.
-class _CaptureGroup extends StatelessWidget {
+class _CaptureGroup extends ConsumerWidget {
   final NightshadeColors colors;
   final String hostSuffix;
   final bool isConnected;
@@ -217,7 +226,8 @@ class _CaptureGroup extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final saveLoopFrames = ref.watch(loopSavesFramesProvider);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -254,6 +264,30 @@ class _CaptureGroup extends StatelessWidget {
           isOutline: !isLooping,
           isEnabled: isConnected && !isSingleCapture && !isStoppingCapture,
           onTap: onToggleLoop,
+        ),
+        const SizedBox(width: NightshadeTokens.spaceSm),
+        Tooltip(
+          message: saveLoopFrames
+              ? 'Loop frames are saved to the image folder and counted in the '
+                  'session'
+              : 'Loop frames are live view only — not saved, not counted',
+          child: Semantics(
+            button: true,
+            toggled: saveLoopFrames,
+            label: 'Save loop frames',
+            child: SmallButton(
+              key: loopSaveFramesToggleKey,
+              label: 'Save',
+              icon: saveLoopFrames ? NightshadeIcons.save : LucideIcons.eye,
+              colors: colors,
+              isOutline: !saveLoopFrames,
+              // Changing it mid-loop would split one run across two
+              // destinations, so it locks while the loop is live.
+              isEnabled: !isLooping && !isStoppingCapture,
+              onTap: () => ref.read(loopSavesFramesProvider.notifier).state =
+                  !saveLoopFrames,
+            ),
+          ),
         ),
       ],
     );
@@ -531,13 +565,13 @@ class _PopoverNumberRow extends StatelessWidget {
 }
 
 /// The horizontally-scrolling filter strip with a trailing fade.
-class _BannerFilterStrip extends StatelessWidget {
+class _BannerFilterStrip extends ConsumerWidget {
   final NightshadeColors colors;
 
   const _BannerFilterStrip({required this.colors});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return ShaderMask(
       shaderCallback: (rect) => const LinearGradient(
         begin: Alignment.centerLeft,
@@ -553,6 +587,19 @@ class _BannerFilterStrip extends StatelessWidget {
           key: ImagingTutorialKeys.filterSelector,
           style: FilterSelectorStyle.buttons,
           compact: true,
+          // This strip is the Imaging screen's only filter control, and it
+          // shipped without this callback — so the session card and every other
+          // reader of exposureSettings.filter kept showing the previous (often
+          // absent) filter while the wheel sat on something else. The frame's
+          // recorded filter is resolved from the live wheel inside
+          // ImagingService, but the settings mirror still has to follow the
+          // selection or the UI contradicts the header it just wrote.
+          onFilterSelected: (position, name) {
+            final settings = ref.read(exposureSettingsProvider);
+            ref.read(manualExposureSettingsUpdaterProvider).update(
+                  settings.copyWith(filter: name),
+                );
+          },
         ),
       ),
     );

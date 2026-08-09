@@ -566,6 +566,10 @@ class FirstLightService {
         shape = 0.5;
       case TransientKind.dipole:
         shape = 0.2;
+      case TransientKind.unknown:
+        // No shape claim was made, so score it like the artefact-leaning class
+        // without asserting it IS one.
+        shape = 0.2;
     }
     var confidence = 0.5 * bySnr + 0.5 * shape;
     if (degraded) confidence *= 0.85;

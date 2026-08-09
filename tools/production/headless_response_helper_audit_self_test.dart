@@ -118,6 +118,7 @@ Response jsonRateLimited(Object? body) => jsonResponse(body);
 Response jsonInternalServerError(Object? body) => jsonResponse(body);
 Response jsonNotImplemented(Object? body) => jsonResponse(body);
 Response contentResponse(Object? body) => Response.ok(body);
+Response noContentResponse() => Response(204);
 Response attachmentResponse(Object? body) => Response.ok(body);
 ''',
   );
@@ -130,6 +131,7 @@ void main() {
   // jsonRateLimited
   // jsonNotImplemented encodes 501 JSON
   // contentResponse applies content type and length
+  // noContentResponse returns 204 without a body
   // attachmentResponse applies safe disposition and length
   // attachmentDisposition
 }

@@ -15,6 +15,7 @@ import 'package:nightshade_app/screens/sequencer/widgets/run_dashboard/forensics
 import 'package:nightshade_app/screens/sequencer/widgets/run_dashboard/frame_detail_dialog.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 NightshadeDatabase _newDb() =>
     NightshadeDatabase.forTesting(NativeDatabase.memory());
@@ -78,6 +79,7 @@ void main() {
     );
 
     final container = ProviderContainer(overrides: [
+      inMemoryDatabaseOverride(),
       forensicsServiceProvider.overrideWithValue(service),
     ]);
     addTearDown(container.dispose);
@@ -130,6 +132,7 @@ void main() {
     );
 
     final container = ProviderContainer(overrides: [
+      inMemoryDatabaseOverride(),
       forensicsServiceProvider.overrideWithValue(service),
     ]);
     addTearDown(container.dispose);
@@ -180,6 +183,7 @@ void main() {
       await db.close();
     });
     final container = ProviderContainer(overrides: [
+      inMemoryDatabaseOverride(),
       forensicsServiceProvider.overrideWithValue(service),
     ]);
     addTearDown(container.dispose);
@@ -214,7 +218,8 @@ void main() {
       starCount: 120,
       createdAt: DateTime.utc(2026, 5, 18, 21, 5, 13),
     );
-    final container = ProviderContainer();
+    final container =
+        ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
     addTearDown(container.dispose);
     await tester.pumpWidget(_wrap(
       FrameDetailDialog(record: record),

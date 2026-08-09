@@ -34,6 +34,17 @@ class FirstLightController extends StateNotifier<FirstLightState> {
     }
   }
 
+  /// Stop an in-flight flow, aborting the exposure at the camera.
+  ///
+  /// [reset] is NOT a substitute: it clears the UI state while the exposure
+  /// keeps running on the sensor, which is exactly how a dismissed dialog used
+  /// to orphan a capture and leave the camera unusable until restart. The run
+  /// itself unwinds back to idle once the abort lands.
+  void cancel() {
+    if (!_running) return;
+    _orchestrator.cancel();
+  }
+
   /// Reset back to the idle state so the flow can be run again from scratch.
   void reset() {
     _apply(const FirstLightState());

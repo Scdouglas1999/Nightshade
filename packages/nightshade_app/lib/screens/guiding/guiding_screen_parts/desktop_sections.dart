@@ -850,6 +850,19 @@ mixin _GuidingDesktopSections
 
   Widget _buildBrainPanel(NightshadeColors colors) {
     final brainParams = ref.watch(brainParamsProvider);
+    final guiderState = ref.watch(guiderStateProvider);
+
+    // BrainParamsNotifier only ever calls fetch() while PHD2 itself is
+    // connected (brain_and_calibration.dart: connected && deviceId ==
+    // kPhd2CanonicalId), and it resets to `loading` on every disconnect. So
+    // outside that window `loading` does NOT mean "values are on the way" — it
+    // means no request will ever be made. Rendering the shimmer there left six
+    // grey rows pulsing indefinitely with no values, no message and no error,
+    // and the panel's real error branch (with its Retry button) is unreachable
+    // because nothing ever throws. Say what is actually true instead.
+    final canFetchBrainParams =
+        guiderState.connectionState == DeviceConnectionState.connected &&
+            guiderState.deviceId == kPhd2CanonicalId;
 
     return brainParams.when(
       data: (params) => BrainSettingsPanel(
@@ -865,29 +878,35 @@ mixin _GuidingDesktopSections
         onReset: () => ref.read(brainParamsProvider.notifier).fetch(),
       ),
       // Shimmer placeholders match the brain-params field rows so the dialog
-      // doesn't visibly resize when PHD2 returns its parameter dump.
-      loading: () => Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: List.generate(
-            6,
-            (_) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: ShimmerLoading(
-                child: Container(
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: colors.surfaceAlt,
-                    borderRadius: NightshadeTokens.borderRadiusMd,
+      // doesn't visibly resize when PHD2 returns its parameter dump — but only
+      // while a dump can actually arrive.
+      loading: () => canFetchBrainParams
+          // Scrollable: the six 36 px rows plus padding need ~320 px, more
+          // than this flex-3 slot gets on a 900 px-tall window, and the
+          // placeholder overflowed the column by 47 px there.
+          ? SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(
+                  6,
+                  (_) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: ShimmerLoading(
+                      child: Container(
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: colors.surfaceAlt,
+                          borderRadius: NightshadeTokens.borderRadiusMd,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
-        ),
-      ),
+            )
+          : _buildBrainUnavailable(colors),
       error: (e, _) => Center(
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -923,6 +942,40 @@ mixin _GuidingDesktopSections
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  /// Shown in place of the shimmer when no brain-params fetch can run: PHD2
+  /// holds these values, so with PHD2 down there is nothing to load and
+  /// nothing to retry until it is connected.
+  Widget _buildBrainUnavailable(NightshadeColors colors) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(NightshadeIcons.brain, color: colors.textMuted, size: 28),
+            const SizedBox(height: 10),
+            Text(
+              'Brain settings need PHD2',
+              textAlign: TextAlign.center,
+              style: NightshadeTypography.labelStrong
+                  .copyWith(color: colors.textPrimary),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'These are PHD2\'s own guiding parameters. Connect PHD2 to read '
+              'and edit them.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: NightshadeTypography.fontSize12,
+              ),
+            ),
+          ],
         ),
       ),
     );

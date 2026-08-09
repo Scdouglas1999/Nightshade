@@ -217,8 +217,9 @@ impl DeviceManager {
         }
 
         use crate::api::devices::simulation::{
-            get_sim_camera, get_sim_dome, get_sim_filterwheel, get_sim_focuser, get_sim_mount,
-            get_sim_rotator, get_sim_safety_monitor, get_sim_weather,
+            get_sim_camera, get_sim_cover_calibrator, get_sim_dome, get_sim_filterwheel,
+            get_sim_focuser, get_sim_mount, get_sim_rotator, get_sim_safety_monitor,
+            get_sim_switch, get_sim_weather,
         };
 
         let connected = match device_type {
@@ -230,6 +231,8 @@ impl DeviceManager {
             DeviceType::Dome => get_sim_dome().read().await.status.connected,
             DeviceType::Weather => get_sim_weather().read().await.connected,
             DeviceType::SafetyMonitor => get_sim_safety_monitor().read().await.status.connected,
+            DeviceType::Switch => get_sim_switch().read().await.connected,
+            DeviceType::CoverCalibrator => get_sim_cover_calibrator().read().await.connected,
             other => {
                 return Err(format!(
                     "simulator health check: no simulator implementation for device type {:?} (id '{}')",

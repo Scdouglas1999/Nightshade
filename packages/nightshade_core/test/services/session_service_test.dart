@@ -418,6 +418,75 @@ void main() {
         expect(session.endTime, isNotNull);
       },
     );
+
+    // Observed defect: a session abandoned on Wednesday and recovered on
+    // Friday was stamped end_time = the recovery clock, so its History card,
+    // its wall-clock duration and every efficiency figure derived from it
+    // reported a 46-hour night. One crash permanently corrupted the duration.
+    test(
+      'markSessionAborted back-dates end_time to the last captured frame',
+      () async {
+        final startedAt = DateTime.now().subtract(const Duration(days: 3));
+        final lastFrameAt = startedAt.add(const Duration(hours: 4));
+        final sessionId = await sessionsDao.createSession(
+          ImagingSessionsCompanion.insert(
+            name: const Value('Night C - M31'),
+            startTime: startedAt,
+            status: const Value('active'),
+          ),
+        );
+        final imagesDao = ImagesDao(database);
+        for (var i = 0; i < 3; i++) {
+          await imagesDao.createImage(
+            CapturedImagesCompanion.insert(
+              filePath: '/lights/c$i.fits',
+              fileName: 'c$i.fits',
+              sessionId: Value(sessionId),
+              exposureDuration: 300.0,
+              frameType: const Value('light'),
+              capturedAt: lastFrameAt.subtract(Duration(minutes: 10 * (2 - i))),
+            ),
+          );
+        }
+
+        await sessionService.markSessionAborted(sessionId);
+
+        final session = await sessionsDao.getSessionById(sessionId);
+        expect(session!.status, equals('aborted'));
+        expect(
+          session.endTime!.difference(lastFrameAt).inSeconds.abs(),
+          lessThanOrEqualTo(1),
+          reason: 'end_time must be the last frame, not the recovery clock',
+        );
+        // The night was four hours long, not three days.
+        final durationHours =
+            session.endTime!.difference(session.startTime).inMinutes / 60.0;
+        expect(durationHours, closeTo(4.0, 0.02));
+      },
+    );
+
+    test(
+      'markSessionAborted collapses a frameless session to zero duration',
+      () async {
+        final startedAt = DateTime.now().subtract(const Duration(days: 2));
+        final sessionId = await sessionsDao.createSession(
+          ImagingSessionsCompanion.insert(
+            name: const Value('Nothing captured'),
+            startTime: startedAt,
+            status: const Value('active'),
+          ),
+        );
+
+        await sessionService.markSessionAborted(sessionId);
+
+        final session = await sessionsDao.getSessionById(sessionId);
+        expect(
+          session!.endTime!.difference(session.startTime).inSeconds,
+          lessThanOrEqualTo(1),
+          reason: 'a session that produced nothing has no measurable duration',
+        );
+      },
+    );
   });
 
   group('SessionService - Statistics Tracking', () {

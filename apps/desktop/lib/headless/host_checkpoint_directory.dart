@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:path_provider/path_provider.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 
 /// Resolve and create the directory this host uses for sequencer crash-recovery
 /// checkpoints.
@@ -11,10 +11,22 @@ import 'package:path_provider/path_provider.dart';
 /// night. Throws a [FileSystemException] when the resolved directory is not
 /// absolute, cannot be created, or cannot be written to, so an unusable
 /// checkpoint location fails loudly instead of being accepted silently.
-Future<Directory> resolveHostCheckpointDirectory() async {
-  final supportDir = await getApplicationSupportDirectory();
+///
+/// Anchored on [resolveNightshadeDataDirectory], not on the platform
+/// application-support folder: that folder is per-application, so two daemons
+/// given their own data directories still resolved one shared
+/// `nightshade_session.checkpoint` and each would offer the operator the
+/// other's interrupted run.
+Future<Directory> resolveHostCheckpointDirectory({
+  Map<String, String>? environment,
+  Future<Directory> Function()? applicationSupportDirectoryProvider,
+}) async {
+  final dataRoot = await resolveNightshadeDataDirectory(
+    environment: environment,
+    applicationSupportDirectoryProvider: applicationSupportDirectoryProvider,
+  );
   final directory = Directory(
-    '${supportDir.path}${Platform.pathSeparator}checkpoints',
+    '${dataRoot.path}${Platform.pathSeparator}checkpoints',
   );
   if (!directory.isAbsolute) {
     throw FileSystemException(

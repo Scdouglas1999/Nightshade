@@ -70,6 +70,9 @@ mod sequencer_ops;
 /// Synthetic frame generation for the simulator camera (unit-tested against the
 /// real star detector; see the module docs for why that matters).
 mod sim_frame;
+/// Real-sky star source for the simulator camera, read out of the plate
+/// solver's own star database so a simulated frame can actually be solved.
+mod sim_sky;
 mod stacking_api;
 mod state;
 mod storage;

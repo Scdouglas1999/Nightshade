@@ -63,6 +63,34 @@ class _BlsSpectrumCustomPainter extends CustomPainter {
     required this.gridColor,
   });
 
+  /// Peak signal residual; 1.0 for an all-zero spectrum so the axis is still
+  /// drawable.
+  double get _peakSr {
+    var maxSr = 0.0;
+    for (final sr in srSpectrum) {
+      if (sr > maxSr) maxSr = sr;
+    }
+    return maxSr > 0 ? maxSr : 1.0;
+  }
+
+  /// Y scale for the signal-residual axis.
+  ///
+  /// SR is a small unnormalised quantity — on a real light curve the whole
+  /// spectrum sat below 0.05 and five ticks at one decimal all printed "0.0".
+  /// Same treatment as the Lomb-Scargle power axis.
+  NiceAxis get srAxis => NiceAxis.forRange(0, _peakSr, padFraction: 0.1);
+
+  int get srTickCount => math.max(1, (srAxis.max / srAxis.interval).round());
+
+  /// The Y tick labels this painter draws, bottom to top. [paint] renders
+  /// exactly these strings.
+  List<String> get srAxisLabels {
+    final axis = srAxis;
+    return [
+      for (var i = 0; i <= srTickCount; i++) axis.label(axis.interval * i),
+    ];
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     if (trialPeriods.isEmpty) return;
@@ -88,19 +116,15 @@ class _BlsSpectrumCustomPainter extends CustomPainter {
     final logRange = logMaxP - logMinP;
     if (logRange <= 0) return;
 
-    var maxSr = 0.0;
-    for (final sr in srSpectrum) {
-      if (sr > maxSr) maxSr = sr;
-    }
-    if (maxSr <= 0) maxSr = 1.0;
-    final srRange = maxSr * 1.1;
+    final srRange = srAxis.max;
+    final tickCount = srTickCount;
 
     // Grid.
     final gridPaint = Paint()
       ..color = gridColor
       ..strokeWidth = 0.5;
-    for (var i = 1; i < 4; i++) {
-      final y = plotRect.top + plotHeight * (1.0 - i / 4.0);
+    for (var i = 1; i < tickCount; i++) {
+      final y = plotRect.bottom - plotHeight * (i / tickCount);
       canvas.drawLine(
           Offset(plotRect.left, y), Offset(plotRect.right, y), gridPaint);
     }
@@ -110,11 +134,11 @@ class _BlsSpectrumCustomPainter extends CustomPainter {
         TextStyle(color: textColor, fontSize: NightshadeTypography.fontSize9);
 
     // Y-axis.
-    for (var i = 0; i <= 4; i++) {
-      final value = srRange * i / 4.0;
-      final y = plotRect.bottom - (i / 4.0) * plotHeight;
+    final labels = srAxisLabels;
+    for (var i = 0; i < labels.length; i++) {
+      final y = plotRect.bottom - (i / (labels.length - 1)) * plotHeight;
       final tp = TextPainter(
-        text: TextSpan(text: value.toStringAsFixed(1), style: textStyle),
+        text: TextSpan(text: labels[i], style: textStyle),
         textDirection: TextDirection.ltr,
       )..layout();
       tp.paint(canvas, Offset(plotRect.left - tp.width - 4, y - tp.height / 2));
@@ -136,7 +160,10 @@ class _BlsSpectrumCustomPainter extends CustomPainter {
     }
 
     final xLabelPainter = TextPainter(
-      text: TextSpan(text: 'Period', style: textStyle),
+      // The tick labels below carry their own h/d suffix per tick because the
+      // axis is log-spaced and can span both; say so rather than leaving a bare
+      // "Period" over a mixture of units.
+      text: TextSpan(text: 'Period (h / d, log)', style: textStyle),
       textDirection: TextDirection.ltr,
     )..layout();
     xLabelPainter.paint(
@@ -195,8 +222,7 @@ class _BlsSpectrumCustomPainter extends CustomPainter {
 
     final peakLabel = TextPainter(
       text: TextSpan(
-        text:
-            'P=${bestPeriod < 1 ? '${(bestPeriod * 24).toStringAsFixed(2)}h' : '${bestPeriod.toStringAsFixed(3)}d'}',
+        text: blsPeakLabel(bestPeriod),
         style: TextStyle(
             color: peakColor,
             fontSize: NightshadeTypography.fontSize9,

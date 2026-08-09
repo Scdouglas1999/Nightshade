@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/framing/add_target_to_sequence_flow.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 FramingTarget _target() => const FramingTarget(
       name: 'M51',
@@ -43,6 +44,7 @@ void main() {
         (tester) async {
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           // Keep the picker hermetic: no library round-trip.
           savedSequencesProvider
               .overrideWith((ref) async => const <Sequence>[]),
@@ -100,6 +102,7 @@ void main() {
         (tester) async {
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           savedSequencesProvider
               .overrideWith((ref) async => const <Sequence>[]),
         ],
@@ -151,6 +154,7 @@ void main() {
     testWidgets('cancelling the picker adds nothing', (tester) async {
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           savedSequencesProvider
               .overrideWith((ref) async => const <Sequence>[]),
         ],
@@ -198,6 +202,7 @@ void main() {
       var attempts = 0;
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           savedSequencesProvider.overrideWith((ref) async {
             attempts++;
             if (attempts == 1) {

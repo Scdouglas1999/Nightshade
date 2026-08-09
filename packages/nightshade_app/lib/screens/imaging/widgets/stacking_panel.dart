@@ -341,6 +341,15 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
     final stats = stackState.stats;
     final config = stackState.config;
 
+    // `avgMatchedPairs` / `avgAlignmentResidual` are per-ALIGNED-frame metrics:
+    // the stacker (imaging/src/stacking.rs) averages them over
+    // `stacked_frame_count - 1`, because the reference frame is not matched
+    // against itself and has zero residual by construction. So with no stack
+    // running, or with only the reference frame in, both fields still hold
+    // their 0.0 initialiser — and "Avg Alignment Residual 0.00 px" reads as
+    // sub-pixel-perfect registration rather than "nothing measured yet".
+    final hasAlignedFrames = stats.stackedFrameCount > 1;
+
     // Seed the OSC defaults from a connected colour camera: when the camera
     // reports a Bayer mosaic and the user has not yet touched the colour config,
     // default the colour mode ON and preselect the detected pattern. Wired here
@@ -524,13 +533,17 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                 const SizedBox(height: 8),
                 _StatRow(
                   label: 'Avg Matched Pairs',
-                  value: stats.avgMatchedPairs.toStringAsFixed(1),
+                  value: hasAlignedFrames
+                      ? stats.avgMatchedPairs.toStringAsFixed(1)
+                      : '—',
                   colors: widget.colors,
                 ),
                 const SizedBox(height: 8),
                 _StatRow(
                   label: 'Avg Alignment Residual',
-                  value: '${stats.avgAlignmentResidual.toStringAsFixed(2)} px',
+                  value: hasAlignedFrames
+                      ? '${stats.avgAlignmentResidual.toStringAsFixed(2)} px'
+                      : '—',
                   colors: widget.colors,
                 ),
                 const SizedBox(height: 8),

@@ -4,6 +4,19 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../widgets/tutorial_keys/equipment_keys.dart';
+
+/// Footer action that switches the app to the selected profile for this
+/// session. Exposed so tests can assert it is present (and absent on the
+/// profile already in use) without matching on copy.
+const Key profileSidebarActivateButtonKey =
+    Key('profileSidebar.useThisProfile');
+
+/// Per-card overflow button that opens the profile menu. Keyed by profile id
+/// so a test can target a specific row.
+Key profileCardMenuButtonKey(int? profileId) =>
+    Key('profileSidebar.menu.$profileId');
+
 /// Device type enum for ordering dots in profile cards
 enum _DeviceType {
   camera,
@@ -23,6 +36,13 @@ class ProfileSidebar extends ConsumerWidget {
   final ValueChanged<EquipmentProfileModel> onConnectAll;
   final VoidCallback onDisconnectAll;
   final ValueChanged<EquipmentProfileModel> onSetDefault;
+
+  /// Make [profile] the profile the rest of the app is pointed at, WITHOUT
+  /// touching which profile launches at startup. Before this existed the only
+  /// route to a different active rig was right-click → "Set as Default", which
+  /// also rewrote the startup choice — so switching scopes for one night
+  /// silently changed every night after it.
+  final ValueChanged<EquipmentProfileModel> onActivateProfile;
   final ValueChanged<int> onDuplicateProfile;
   final ValueChanged<int> onDeleteProfile;
   final void Function(int oldIndex, int newIndex) onReorderProfiles;
@@ -37,6 +57,7 @@ class ProfileSidebar extends ConsumerWidget {
     required this.onConnectAll,
     required this.onDisconnectAll,
     required this.onSetDefault,
+    required this.onActivateProfile,
     required this.onDuplicateProfile,
     required this.onDeleteProfile,
     required this.onReorderProfiles,
@@ -63,6 +84,11 @@ class ProfileSidebar extends ConsumerWidget {
     final hasConnectedDevices = selectedStatus?.hasConnectedCore ?? false;
     final hasDisconnectedDevices = selectedStatus?.hasDisconnectedCore ?? false;
 
+    // Which profile the app is actually pointed at. Selecting a row in this
+    // list only moves the inspector; the header, connected devices and status
+    // bar follow the ACTIVE profile, so the two have to be told apart.
+    final activeProfileId = ref.watch(activeEquipmentProfileProvider)?.id;
+
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
@@ -85,6 +111,7 @@ class ProfileSidebar extends ConsumerWidget {
                     ref,
                     profiles,
                     colors,
+                    activeProfileId,
                   ),
           ),
 
@@ -96,6 +123,7 @@ class ProfileSidebar extends ConsumerWidget {
               selectedProfile,
               hasConnectedDevices,
               hasDisconnectedDevices,
+              isActive: selectedProfile.id == activeProfileId,
             ),
         ],
       ),
@@ -126,6 +154,9 @@ class ProfileSidebar extends ConsumerWidget {
             width: 28,
             height: 28,
             child: IconButton(
+              // Spotlight target for the Equipment Setup tour's "Create a
+              // Profile" step; without the key the step had nothing to point at.
+              key: EquipmentTutorialKeys.createProfileBtn,
               onPressed: onCreateProfile,
               icon: const Icon(LucideIcons.plus, size: 16),
               padding: EdgeInsets.zero,
@@ -209,6 +240,7 @@ class ProfileSidebar extends ConsumerWidget {
     WidgetRef ref,
     List<EquipmentProfileModel> profiles,
     NightshadeColors colors,
+    int? activeProfileId,
   ) {
     return ReorderableListView.builder(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -249,6 +281,7 @@ class ProfileSidebar extends ConsumerWidget {
           key: ValueKey(profile.id),
           profile: profile,
           isSelected: isSelected,
+          isActive: profile.id == activeProfileId,
           deviceStates: deviceStates,
           connectedCount: connectedCount,
           totalCount: totalCount,
@@ -265,6 +298,7 @@ class ProfileSidebar extends ConsumerWidget {
             offset,
             profile,
             colors,
+            isActive: profile.id == activeProfileId,
           ),
         );
       },
@@ -276,8 +310,9 @@ class ProfileSidebar extends ConsumerWidget {
     NightshadeColors colors,
     EquipmentProfileModel selectedProfile,
     bool hasConnectedDevices,
-    bool hasDisconnectedDevices,
-  ) {
+    bool hasDisconnectedDevices, {
+    required bool isActive,
+  }) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -288,12 +323,30 @@ class ProfileSidebar extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Selecting a row does not switch rigs — this does. Kept separate
+          // from the default-profile star, which decides what loads at
+          // startup and must not move just because you looked at another rig.
+          if (!isActive) ...[
+            NightshadeButton(
+              key: profileSidebarActivateButtonKey,
+              label: 'Use This Profile',
+              icon: LucideIcons.check,
+              variant: ButtonVariant.primary,
+              onPressed: () => onActivateProfile(selectedProfile),
+            ),
+            const SizedBox(height: 8),
+          ],
           // Show Connect All when selected profile has disconnected devices
           if (hasDisconnectedDevices) ...[
             NightshadeButton(
+              // Spotlight target for the Equipment Setup tour's "Connect
+              // Devices" step.
+              key: EquipmentTutorialKeys.quickConnectBar,
               label: 'Connect All',
               icon: LucideIcons.plug,
-              variant: ButtonVariant.primary,
+              // Two primaries side by side is no emphasis at all: on a profile
+              // that is not in use yet, switching to it is the first move.
+              variant: isActive ? ButtonVariant.primary : ButtonVariant.outline,
               onPressed: () => onConnectAll(selectedProfile),
             ),
             const SizedBox(height: 8),
@@ -325,8 +378,9 @@ class ProfileSidebar extends ConsumerWidget {
     WidgetRef ref,
     Offset offset,
     EquipmentProfileModel profile,
-    NightshadeColors colors,
-  ) {
+    NightshadeColors colors, {
+    required bool isActive,
+  }) {
     final overlay =
         Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
     final position = RelativeRect.fromRect(
@@ -341,6 +395,23 @@ class ProfileSidebar extends ConsumerWidget {
       shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
       items: [
+        if (!isActive)
+          PopupMenuItem(
+            value: 'activate',
+            child: Row(
+              children: [
+                Icon(LucideIcons.check, size: 16, color: colors.textSecondary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Use This Profile',
+                    style: TextStyle(color: colors.textPrimary),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
         PopupMenuItem(
           value: 'default',
           child: Row(
@@ -351,9 +422,17 @@ class ProfileSidebar extends ConsumerWidget {
                 color: colors.textSecondary,
               ),
               const SizedBox(width: 8),
-              Text(
-                profile.isDefault ? 'Default Profile' : 'Set as Default',
-                style: TextStyle(color: colors.textPrimary),
+              // Names what the star actually controls. "Set as Default" read
+              // as "use this one", which is why it was the only route anyone
+              // found to switching rigs — and it silently rewrote startup.
+              Expanded(
+                child: Text(
+                  profile.isDefault
+                      ? 'Startup Default'
+                      : 'Make Startup Default',
+                  style: TextStyle(color: colors.textPrimary),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ],
           ),
@@ -395,6 +474,9 @@ class ProfileSidebar extends ConsumerWidget {
       if (!context.mounted) return;
 
       switch (value) {
+        case 'activate':
+          onActivateProfile(profile);
+          break;
         case 'default':
           onSetDefault(profile);
           break;
@@ -428,8 +510,16 @@ class ProfileSidebar extends ConsumerWidget {
           'Delete Profile',
           style: TextStyle(color: colors.textPrimary),
         ),
+        // Say what actually happens. The delete raises a 6-second Undo that
+        // restores the profile in full, so "This cannot be undone" was simply
+        // false — and it named nothing but the profile name, which is not
+        // unique, so with two rigs called "My First Rig" the dialog could not
+        // say which one it was about to destroy. The subtitle (telescope +
+        // camera, or the device count) is exactly what the sidebar rows are
+        // distinguished by.
         content: Text(
-          'Delete "${profile.name}"? This cannot be undone.',
+          'Delete "${profile.name}" (${profile.subtitle})?\n\n'
+          'You can undo this from the message that appears, for a few seconds.',
           style: TextStyle(color: colors.textSecondary),
         ),
         actions: [
@@ -478,6 +568,9 @@ class ProfileSidebar extends ConsumerWidget {
 class _ProfileCard extends StatefulWidget {
   final EquipmentProfileModel profile;
   final bool isSelected;
+
+  /// True for the profile the rest of the app is pointed at.
+  final bool isActive;
   final Map<_DeviceType, DeviceConnectionState?> deviceStates;
   final int connectedCount;
   final int totalCount;
@@ -491,6 +584,7 @@ class _ProfileCard extends StatefulWidget {
     super.key,
     required this.profile,
     required this.isSelected,
+    required this.isActive,
     required this.deviceStates,
     required this.connectedCount,
     required this.totalCount,
@@ -633,11 +727,40 @@ class _ProfileCardState extends State<_ProfileCard>
 
                       // Default star indicator
                       if (widget.profile.isDefault)
-                        Icon(
-                          LucideIcons.star,
-                          size: 14,
-                          color: widget.colors.warning,
+                        Tooltip(
+                          message: 'Starts up with this profile',
+                          child: Icon(
+                            LucideIcons.star,
+                            size: 14,
+                            color: widget.colors.warning,
+                          ),
                         ),
+
+                      // Keep profile actions discoverable without a context menu.
+                      SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: IconButton(
+                          key: profileCardMenuButtonKey(widget.profile.id),
+                          onPressed: () {
+                            final box =
+                                context.findRenderObject() as RenderBox?;
+                            final origin = box == null
+                                ? Offset.zero
+                                : box.localToGlobal(
+                                    Offset(box.size.width, box.size.height),
+                                  );
+                            widget.onShowContextMenu(origin);
+                          },
+                          padding: EdgeInsets.zero,
+                          iconSize: 14,
+                          tooltip: 'Profile actions',
+                          icon: Icon(
+                            LucideIcons.moreVertical,
+                            color: widget.colors.textMuted,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
 
@@ -662,6 +785,24 @@ class _ProfileCardState extends State<_ProfileCard>
                     children: [
                       // Device dots
                       _buildDeviceDots(),
+
+                      // "Selected" (this card is highlighted) and "in use by
+                      // the app" are different things, and the header/devices
+                      // panel follows the latter. Without this the two are
+                      // indistinguishable.
+                      if (widget.isActive)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 6, right: 6),
+                          child: Text(
+                            'IN USE',
+                            style: TextStyle(
+                              fontSize: NightshadeTypography.fontSize10,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.6,
+                              color: widget.colors.primary,
+                            ),
+                          ),
+                        ),
 
                       // Connection count
                       if (widget.totalCount > 0)

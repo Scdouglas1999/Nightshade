@@ -30,14 +30,24 @@ typedef struct _Dart_Handle* Dart_Handle;
 #define DEFAULT_EVENT_BUFFER_SIZE 4096
 
 /**
- * Simulated sensor dimensions for the synthetic download.
+ * Simulated sensor dimensions.
  *
- * Narrower than the singleton's declared sensor (4144x2822) because tests rely
- * on a deterministic image size and the singleton declares no subframe.
+ * This is THE sensor. `SimulatedCamera::default` and
+ * `device_capabilities::get_simulator_capabilities` both declare these numbers,
+ * so the frame a caller receives matches the geometry the camera advertised.
+ * They previously disagreed three ways — a 4144x2822 declaration, a 4144x2822
+ * randomised generator on the manual-capture path, and this 1920x1080
+ * deterministic one on the sequencer path — which meant no measurement taken
+ * through one path could be compared with the other.
  */
 #define SIM_W 1920
 
 #define SIM_H 1080
+
+/**
+ * Full-well ceiling of the simulated sensor, in ADU.
+ */
+#define SIM_MAX_ADU 65535
 
 /**
  * Focuser position at which simulated stars are sharpest.
@@ -49,9 +59,15 @@ typedef struct _Dart_Handle* Dart_Handle;
  *   * putting it at the edge (25200, tried first) gives the sweep a monotonic
  *     slope instead of a V — the parabola fit then degenerates and autofocus
  *     correctly refuses it with "curve fit R² 0.000 is below 0.700".
+ *
  * 25075 brackets the minimum on both sides while still requiring real movement.
  */
 #define SIM_TRUE_FOCUS 25075
+
+/**
+ * Exposure used by the parameterless convenience constructor.
+ */
+#define SIM_DEFAULT_EXPOSURE_SECS 10.0
 
 typedef struct wire_cst_list_prim_u_8_strict {
   uint8_t *ptr;
@@ -654,6 +670,26 @@ typedef struct wire_cst_focuser_capabilities {
   bool *reverse;
 } wire_cst_focuser_capabilities;
 
+typedef struct wire_cst_frame_capture_metadata {
+  int32_t *gain;
+  int32_t *offset;
+  double *sensor_temp_c;
+  double *cooler_power_percent;
+  double *mount_ra_hours;
+  double *mount_dec_degrees;
+  double *mount_altitude_deg;
+  double *mount_azimuth_deg;
+  struct wire_cst_list_prim_u_8_strict *pier_side;
+  int32_t *focuser_position;
+  double *focuser_temperature_c;
+  double *rotator_angle_deg;
+  double exposure_secs;
+  uint32_t bin_x;
+  uint32_t bin_y;
+  struct wire_cst_list_prim_u_8_strict *frame_type;
+  struct wire_cst_list_prim_u_8_strict *target_id;
+} wire_cst_frame_capture_metadata;
+
 typedef struct wire_cst_GuidingEvent_Settled {
   double rms;
 } wire_cst_GuidingEvent_Settled;
@@ -987,6 +1023,7 @@ typedef struct wire_cst_SequencerEvent_FrameAccepted {
   uint32_t accepted_total;
   uint32_t rejected_total;
   struct wire_cst_list_prim_u_8_strict *save_path;
+  struct wire_cst_frame_capture_metadata *capture;
 } wire_cst_SequencerEvent_FrameAccepted;
 
 typedef struct wire_cst_SequencerEvent_FrameRejected {
@@ -1008,6 +1045,7 @@ typedef struct wire_cst_SequencerEvent_FrameRejected {
   double *wind_at_capture;
   double *guide_rms_at_capture;
   double *sensor_temp_at_capture;
+  struct wire_cst_frame_capture_metadata *capture;
 } wire_cst_SequencerEvent_FrameRejected;
 
 typedef struct wire_cst_scheduler_score_entry {
@@ -3761,6 +3799,8 @@ struct wire_cst_fits_write_header_rich *frbgen_nightshade_bridge_cst_new_box_aut
 
 struct wire_cst_focuser_capabilities *frbgen_nightshade_bridge_cst_new_box_autoadd_focuser_capabilities(void);
 
+struct wire_cst_frame_capture_metadata *frbgen_nightshade_bridge_cst_new_box_autoadd_frame_capture_metadata(void);
+
 struct wire_cst_guiding_event *frbgen_nightshade_bridge_cst_new_box_autoadd_guiding_event(void);
 
 int32_t *frbgen_nightshade_bridge_cst_new_box_autoadd_i_32(int32_t value);
@@ -3906,6 +3946,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_fits_write_header);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_fits_write_header_rich);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_focuser_capabilities);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_frame_capture_metadata);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_guiding_event);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_i_32);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_i_64);

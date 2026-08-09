@@ -44,6 +44,7 @@ Future<void> _pumpTicker(
   WidgetTester tester, {
   required List<NarratorEvent> events,
   int? sessionId = _sessionId,
+  List<NarratorEvent> sessionlessEvents = const [],
 }) async {
   tester.view.devicePixelRatio = 1.0;
   tester.view.physicalSize = const Size(1000, 700);
@@ -60,6 +61,8 @@ Future<void> _pumpTicker(
         if (sessionId != null)
           narratorFeedProvider(sessionId)
               .overrideWith((ref) => Stream.value(events)),
+        recentNarratorFeedProvider
+            .overrideWith((ref) => Stream.value(sessionlessEvents)),
       ],
       child: MaterialApp(
         theme: NightshadeTheme.dark,
@@ -84,13 +87,84 @@ void main() {
     expect(tester.getSize(find.byType(NarratorTicker)), Size.zero);
   });
 
-  testWidgets('hidden when there is no session', (tester) async {
+  // Manual captures on the imaging screen never open a DB session — only the
+  // sequencer calls startSession — so the narrator writes their insights into
+  // the sessionless bucket. Reading only the session feed left the strip
+  // permanently blank for a hand-driven night.
+  testWidgets('speaks the sessionless feed when there is no DB session',
+      (tester) async {
     await _pumpTicker(
       tester,
       sessionId: null,
-      events: [_event(id: 1, headline: 'Ignored', age: Duration.zero)],
+      events: const [],
+      sessionlessEvents: [
+        _event(
+          id: 9,
+          headline: 'Cooling reached −10.0 °C',
+          age: const Duration(seconds: 20),
+        ),
+      ],
     );
 
+    expect(find.text('Cooling reached −10.0 °C'), findsOneWidget);
+  });
+
+  testWidgets('sessionless strip stays quiet on a stale bucket',
+      (tester) async {
+    // The sessionless bucket outlives the app, so its newest entry may be from
+    // a previous night; there is no run to scope it to, and resting on it would
+    // put last week's headline over tonight's canvas.
+    await _pumpTicker(
+      tester,
+      sessionId: null,
+      events: const [],
+      sessionlessEvents: [
+        _event(
+          id: 8,
+          headline: 'Last week',
+          age: const Duration(days: 6),
+        ),
+      ],
+    );
+
+    expect(tester.getSize(find.byType(NarratorTicker)), Size.zero);
+  });
+
+  // The window has to be re-checked on a clock, not only when the feed
+  // changes. recentNarratorFeedProvider is a DB watch: on a hand-driven night
+  // it emits once when an insight is written and then stays silent, so an
+  // admission-time-only check left that headline — and its "1m ago" label —
+  // pinned over the canvas for the rest of the night.
+  testWidgets('sessionless headline retires once it ages out of the window',
+      (tester) async {
+    var now = DateTime(2026, 8, 9, 22, 0, 0);
+    NarratorTicker.clock = () => now;
+    addTearDown(() => NarratorTicker.clock = DateTime.now);
+
+    await _pumpTicker(
+      tester,
+      sessionId: null,
+      events: const [],
+      sessionlessEvents: [
+        NarratorEvent(
+          id: 11,
+          timestamp: now.subtract(const Duration(minutes: 1)),
+          eventType: 'quality.test',
+          category: NarratorCategory.quality,
+          severity: NarratorSeverity.info,
+          headline: 'Guiding settled at 0.6"',
+          dedupeKey: 'k11',
+        ),
+      ],
+    );
+
+    expect(find.text('Guiding settled at 0.6"'), findsOneWidget);
+
+    // A quiet stretch: no new narrator rows, so the feed stream never emits.
+    now = now.add(const Duration(minutes: 20));
+    await tester.pump(const Duration(seconds: 7));
+
+    expect(find.text('Guiding settled at 0.6"'), findsNothing);
     expect(tester.getSize(find.byType(NarratorTicker)), Size.zero);
   });
 

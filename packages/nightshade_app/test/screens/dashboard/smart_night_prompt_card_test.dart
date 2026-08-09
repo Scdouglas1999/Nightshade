@@ -205,6 +205,120 @@ void main() {
     expect(find.text('Build Plan'), findsNothing);
   });
 
+  testWidgets('shows the prompt once the equipment-ready grace has elapsed',
+      (tester) async {
+    final database = db.NightshadeDatabase.forTesting(NativeDatabase.memory());
+    // A MOVING clock. The card used to read a cached `Provider<DateTime>`, so
+    // the measured elapsed time was pinned at zero and the grace never expired
+    // no matter how long the operator waited.
+    var now = DateTime(2026, 8, 3, 21);
+    final container = ProviderContainer(
+      overrides: [
+        databaseProvider.overrideWithValue(database),
+        smartNightPromptClockProvider.overrideWithValue(() => now),
+        activeEquipmentProfileProvider.overrideWithValue(
+          const EquipmentProfileModel(
+            id: 7,
+            name: 'Backyard rig',
+            focalLength: 600,
+            aperture: 80,
+            filterNames: ['L'],
+          ),
+        ),
+        appObserverLocationProvider.overrideWithValue(
+          const LocationSettings(latitude: 40, longitude: -75),
+        ),
+      ],
+    );
+    addTearDown(() async {
+      container.dispose();
+      await database.close();
+    });
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(
+            body: SmartNightPromptCard(colors: NightshadeColors.dark),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Hardware ready - build tonight\'s plan?'), findsNothing);
+
+    now = now.add(const Duration(seconds: 61));
+    // Fires the grace timer the card armed, which is the only thing that wakes
+    // it up; without it the operator sits on a dashboard that never changes.
+    await tester.pump(const Duration(seconds: 61));
+    await tester.pumpAndSettle();
+
+    expect(
+        find.text('Hardware ready - build tonight\'s plan?'), findsOneWidget);
+    expect(find.text('Plan Tonight'), findsOneWidget);
+    expect(container.read(smartNightAutoPromptShowingProvider), isTrue);
+  });
+
+  testWidgets('the production clock advances the grace window', (tester) async {
+    final database = db.NightshadeDatabase.forTesting(NativeDatabase.memory());
+    final container = ProviderContainer(
+      overrides: [
+        databaseProvider.overrideWithValue(database),
+        // Deliberately does NOT override smartNightPromptClockProvider: this is
+        // the regression guard for the cached `Provider<DateTime>` that pinned
+        // the measured elapsed time at zero, so the shipped card could never
+        // clear its own grace and the prompt was unreachable in the real app.
+        smartNightPromptGraceProvider
+            .overrideWithValue(const Duration(milliseconds: 200)),
+        activeEquipmentProfileProvider.overrideWithValue(
+          const EquipmentProfileModel(
+            id: 7,
+            name: 'Backyard rig',
+            focalLength: 600,
+            aperture: 80,
+            filterNames: ['L'],
+          ),
+        ),
+        appObserverLocationProvider.overrideWithValue(
+          const LocationSettings(latitude: 40, longitude: -75),
+        ),
+      ],
+    );
+    addTearDown(() async {
+      container.dispose();
+      await database.close();
+    });
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(
+            body: SmartNightPromptCard(colors: NightshadeColors.dark),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Hardware ready - build tonight\'s plan?'), findsNothing);
+
+    // Real wall-clock time has to pass, because the card measures the grace
+    // against DateTime.now() rather than the test's fake async clock.
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 300)),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+
+    expect(
+        find.text('Hardware ready - build tonight\'s plan?'), findsOneWidget);
+  });
+
   testWidgets(
       'hides the prompt when the active equipment profile is incomplete',
       (tester) async {

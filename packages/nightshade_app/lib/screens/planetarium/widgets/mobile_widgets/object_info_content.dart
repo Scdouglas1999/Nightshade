@@ -47,6 +47,10 @@ class MobileObjectInfoContent extends ConsumerWidget {
       displayName = info.$1;
       catalogTag = info.$2;
       typeName = obj.type.displayName;
+    } else if (obj is SolarSystemBody) {
+      displayName = obj.name;
+      catalogTag = obj.designation.toUpperCase();
+      typeName = obj.kind.displayName;
     } else if (obj is Star) {
       displayName = obj.name;
       catalogTag = 'STAR';

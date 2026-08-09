@@ -9,11 +9,11 @@ import 'sequence_progress_card.dart';
 /// Overlay widget that displays mobile sequence progress only while a sequence
 /// is actively running (or paused) on mobile devices.
 ///
-/// §12: the run *controls* (pause/stop/skip) live in [MobilePlaybackBar] inside
-/// the builder body, so this overlay no longer carries a second
-/// `SequenceControls` surface — it is the ambient progress card only.
+/// §12: the run *controls* (pause/stop/skip) live in `MobilePlaybackBar` inside
+/// the builder body, so this overlay carries no second control surface — it is
+/// the ambient progress card only.
 ///
-/// §15: the overlay's visibility now matches `SequenceControls` — both hide on
+/// §15: the overlay's visibility matches `MobilePlaybackBar` — both hide on
 /// the terminal `completed` / `failed` / idle states. The end-of-session report
 /// dialog (opened from `sequencer_screen.dart`) is the post-run surface, so the
 /// floating card disappears together with the controls instead of lingering on

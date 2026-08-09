@@ -4,10 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_app/widgets/first_light/first_light_flow_dialog.dart';
 import 'package:nightshade_app/widgets/first_light/first_light_launcher.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 /// A [FirstLightController] subclass that lets a test pin an arbitrary
 /// [FirstLightState] without running the real imaging pipeline. The base
@@ -23,9 +25,19 @@ class _FakeFirstLightController extends FirstLightController {
   /// test can assert the Start button wires through to `run`.
   double? lastRunExposure;
 
+  /// Counts operator-requested stops, so the running-phase test can assert the
+  /// footer button reaches the real cancel path rather than just closing the
+  /// dialog over a live exposure.
+  int cancelCalls = 0;
+
   @override
   Future<void> run({required double exposureSeconds}) async {
     lastRunExposure = exposureSeconds;
+  }
+
+  @override
+  void cancel() {
+    cancelCalls++;
   }
 
   @override
@@ -100,6 +112,7 @@ Future<void> _pumpDialog(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        inMemoryDatabaseOverride(),
         firstLightControllerProvider.overrideWith(
           (ref) => _FakeFirstLightController(ref, state),
         ),
@@ -142,6 +155,7 @@ void main() {
         tester,
         state: const FirstLightState(),
         overrides: [
+          inMemoryDatabaseOverride(),
           firstLightControllerProvider.overrideWith((ref) {
             controller =
                 _FakeFirstLightController(ref, const FirstLightState());
@@ -164,6 +178,7 @@ void main() {
         tester,
         state: const FirstLightState(),
         overrides: [
+          inMemoryDatabaseOverride(),
           firstLightControllerProvider.overrideWith((ref) {
             controller =
                 _FakeFirstLightController(ref, const FirstLightState());
@@ -179,6 +194,49 @@ void main() {
       expect(controller.lastRunExposure, isNull);
       expect(
         find.textContaining('greater than 0 seconds'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('intro panel refuses an exposure past the first-light cap',
+        (tester) async {
+      late _FakeFirstLightController controller;
+      await _pumpDialog(
+        tester,
+        state: const FirstLightState(),
+        overrides: [
+          inMemoryDatabaseOverride(),
+          firstLightControllerProvider.overrideWith((ref) {
+            controller =
+                _FakeFirstLightController(ref, const FirstLightState());
+            return controller;
+          }),
+        ],
+      );
+
+      // The audit's exact keystroke: 5 -> 999999, an 11.6-day exposure the
+      // flow has no cancel path for.
+      await tester.enterText(find.byType(TextField), '999999');
+      await tester.tap(find.widgetWithText(NightshadeButton, 'Start capture'));
+      await tester.pump();
+
+      expect(controller.lastRunExposure, isNull);
+      expect(find.textContaining('capped at 120 seconds'), findsOneWidget);
+
+      // The boundary itself is still accepted, so the cap is a limit and not
+      // an off-by-one refusal of the documented maximum.
+      await tester.enterText(find.byType(TextField), '120');
+      await tester.tap(find.widgetWithText(NightshadeButton, 'Start capture'));
+      await tester.pump();
+
+      expect(controller.lastRunExposure, 120.0);
+    });
+
+    testWidgets('intro panel names the cap it enforces', (tester) async {
+      await _pumpDialog(tester, state: const FirstLightState());
+
+      expect(
+        find.textContaining('120 seconds is the most this flow will run'),
         findsOneWidget,
       );
     });
@@ -200,6 +258,100 @@ void main() {
       expect(find.text('Labelling objects'), findsOneWidget);
       // The active phase renders an indeterminate progress bar.
       expect(find.byType(NightshadeProgressBar), findsOneWidget);
+    });
+
+    // The exposure this dialog owns used to be orphaned by its own title-bar
+    // ✕: the dialog closed, the sensor kept exposing, Imaging read
+    // "Exposing... 999858.8s remaining" and the camera stayed unusable until
+    // the process was restarted. PopScope covered Escape and the barrier but
+    // NOT the header close button, which pops the route directly.
+    testWidgets('running phase disables the header close button',
+        (tester) async {
+      await _pumpDialog(
+        tester,
+        state: const FirstLightState(
+          phase: FirstLightPhase.exposing,
+          exposureSeconds: 5,
+        ),
+        settle: false,
+      );
+
+      expect(
+        tester
+            .widget<NightshadeDialog>(find.byType(NightshadeDialog))
+            .closeEnabled,
+        isFalse,
+        reason: 'the ✕ pops the route directly, bypassing PopScope',
+      );
+
+      // Drive the ✕ itself: with the gate missing this closed the dialog over
+      // a live exposure, which is the whole defect.
+      final closeButton = find.ancestor(
+        of: find.byIcon(LucideIcons.x),
+        matching: find.byType(IconButton),
+      );
+      expect(tester.widget<IconButton>(closeButton).onPressed, isNull);
+      await tester.tap(closeButton);
+      await tester.pump();
+      expect(
+        find.byType(FirstLightFlowDialog),
+        findsOneWidget,
+        reason: 'the dialog must not close over an exposure it cannot stop',
+      );
+    });
+
+    testWidgets('running phase offers a stop that cancels at the camera',
+        (tester) async {
+      late _FakeFirstLightController controller;
+      await _pumpDialog(
+        tester,
+        state: const FirstLightState(
+          phase: FirstLightPhase.exposing,
+          exposureSeconds: 5,
+        ),
+        settle: false,
+        overrides: [
+          inMemoryDatabaseOverride(),
+          firstLightControllerProvider.overrideWith((ref) {
+            controller = _FakeFirstLightController(
+              ref,
+              const FirstLightState(
+                phase: FirstLightPhase.exposing,
+                exposureSeconds: 5,
+              ),
+            );
+            return controller;
+          }),
+        ],
+      );
+
+      await tester.tap(find.widgetWithText(NightshadeButton, 'Stop capture'));
+      await tester.pump();
+
+      expect(
+        controller.cancelCalls,
+        1,
+        reason: 'the only mid-run exit must abort the exposure, not hide it',
+      );
+    });
+
+    testWidgets('a terminal phase leaves the dialog closable', (tester) async {
+      await _pumpDialog(
+        tester,
+        state: const FirstLightState(
+          phase: FirstLightPhase.success,
+          exposureSeconds: 5,
+        ),
+      );
+
+      expect(
+        tester
+            .widget<NightshadeDialog>(find.byType(NightshadeDialog))
+            .closeEnabled,
+        isTrue,
+      );
+      expect(
+          find.widgetWithText(NightshadeButton, 'Stop capture'), findsNothing);
     });
 
     testWidgets('success without a solve shows the set-up-solver banner',
@@ -272,6 +424,7 @@ void main() {
           solveResult: _solved(),
         ),
         overrides: [
+          inMemoryDatabaseOverride(),
           currentAnnotationProvider.overrideWith((ref) => annotation),
         ],
       );
@@ -331,6 +484,7 @@ void main() {
           errorMessage: 'No camera connected. Connect a camera first.',
         ),
         overrides: [
+          inMemoryDatabaseOverride(),
           firstLightControllerProvider.overrideWith((ref) {
             controller = _FakeFirstLightController(
               ref,
@@ -422,6 +576,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            inMemoryDatabaseOverride(),
             firstLightControllerProvider.overrideWith(
               (ref) => _FakeFirstLightController(ref, const FirstLightState()),
             ),
@@ -466,6 +621,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            inMemoryDatabaseOverride(),
             firstLightControllerProvider.overrideWith(
               (ref) => _FakeFirstLightController(ref, const FirstLightState()),
             ),

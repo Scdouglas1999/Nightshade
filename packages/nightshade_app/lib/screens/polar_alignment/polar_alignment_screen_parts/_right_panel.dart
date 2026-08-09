@@ -21,9 +21,12 @@ extension _RightPanel on _PolarAlignmentScreenState {
         ? Center(
             child: Padding(
               padding: const EdgeInsets.all(16),
+              // Pass the error through nullable: coalescing it to 0 made the
+              // idle reticle compute totalError == 0 and announce "Within
+              // acceptance — hold steady" before any frame had been captured.
               child: AllSkyTargetReticle(
-                azimuthErrorArcsec: state.currentError?.azimuthError ?? 0.0,
-                altitudeErrorArcsec: state.currentError?.altitudeError ?? 0.0,
+                azimuthErrorArcsec: state.currentError?.azimuthError,
+                altitudeErrorArcsec: state.currentError?.altitudeError,
                 acceptanceThresholdArcsec: config.autoCompleteThreshold,
                 waitingForFirstFrame:
                     state.phase == PolarAlignPhase.adjusting &&
@@ -108,7 +111,22 @@ extension _RightPanel on _PolarAlignmentScreenState {
         color: colors.surfaceAlt,
         border: Border(top: BorderSide(color: colors.border)),
       ),
-      child: _buildErrorValues(colors, state.currentError),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildErrorValues(colors, state.currentError),
+          // All-Sky derives the polar error from the DRIFT between a fixed
+          // baseline solve and the current one, so its precision is a function
+          // of how long that baseline has been running — and nothing on screen
+          // said how long that was. The first samples produced a 0.0" reading
+          // and an 11-degree reading minutes apart, both presented with the
+          // same authority.
+          if (isAllSky) ...[
+            const SizedBox(height: 10),
+            _buildDriftBaselineCaption(colors, state),
+          ],
+        ],
+      ),
     );
 
     return Container(
@@ -116,50 +134,71 @@ extension _RightPanel on _PolarAlignmentScreenState {
       color: colors.surface,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          // The flex column below gives all slack to the visualization and lays
-          // the readout out at its natural height. That works until the host
-          // squeezes this panel below what the readout alone needs, at which
-          // point the flex child is starved to zero and the readout overflows
-          // the bottom — 6.2px of striped overflow at 800x600, where a
-          // dismissible tour nudge may reserve up to 40% of the window height
-          // before this panel ever gets measured.
-          //
-          // Under that floor, abandon the flex layout: give the visualization a
-          // fixed readable minimum, let every child take its natural height,
-          // and scroll. The numbers are the part the user cannot do without, so
-          // they must never be the part that gets clipped.
-          // Floor = what the non-flexible children actually need, not a round
-          // number: the readout is 32px of padding + a 1px rule + one text row
-          // (~46px at scale 1.0, and the row is the only part that scales), and
-          // the trend chart is a fixed 100px when present. Anything at or above
-          // this fits the flex layout, so the flex layout is what it keeps —
-          // a landscape phone panel of ~100px must not change shape.
           final textScale = MediaQuery.textScalerOf(context).scale(1);
-          final minFlexHeight =
-              (trendChart != null ? 100.0 : 0.0) + 88.0 * textScale;
-
-          if (constraints.maxHeight.isFinite &&
-              constraints.maxHeight < minFlexHeight) {
-            return SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(height: 160.0 * textScale, child: visualization),
-                  if (trendChart != null) trendChart,
-                  errorValues,
-                ],
+          return SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: IntrinsicHeight(
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(minHeight: 160 * textScale),
+                        child: visualization,
+                      ),
+                    ),
+                    if (trendChart != null) trendChart,
+                    errorValues,
+                  ],
+                ),
               ),
-            );
-          }
-
-          return Column(
-            children: [
-              Expanded(child: visualization),
-              if (trendChart != null) trendChart,
-              errorValues,
-            ],
+            ),
           );
         },
+      ),
+    );
+  }
+
+  /// How long the All-Sky drift baseline has been accumulating.
+  ///
+  /// The native run solves ONE baseline frame (`do_baseline`) and then derives
+  /// every subsequent misalignment from the drift between that frame and the
+  /// current one, so the true interval runs from the BASELINE solve. The wire
+  /// carries no baseline timestamp — `PolarAlignmentError.fromEventData` stamps
+  /// `DateTime.now()` on receipt — so the best the app can see is the gap
+  /// between the first drift solve (`initialError`) and the latest
+  /// (`currentError`). That is short of the truth by exactly one iteration
+  /// (cadence + exposure + solve), which is why this is rendered as a FLOOR
+  /// rather than as a measurement: a reading taken over a few seconds and one
+  /// taken over ten minutes are not the same measurement, and the panel used to
+  /// present them identically, but claiming a precision the app does not have
+  /// would just swap one untrue number for another.
+  Widget _buildDriftBaselineCaption(
+    NightshadeColors colors,
+    PolarAlignmentState state,
+  ) {
+    final first = state.initialError;
+    final current = state.currentError;
+    final elapsed = (first == null || current == null)
+        ? null
+        : current.timestamp.difference(first.timestamp);
+    final String text;
+    if (elapsed == null) {
+      text = 'Drift baseline: not started';
+    } else if (elapsed.inSeconds <= 0) {
+      // Only one drift solve so far. The reading is NOT derived over zero time
+      // — it covers the one iteration since the baseline frame — so say which
+      // sample this is instead of printing a "0s" the run never had.
+      text = 'Drift baseline: first drift solve';
+    } else {
+      text = 'Drift baseline: at least ${formatDriftBaseline(elapsed)}';
+    }
+    return Text(
+      text,
+      textAlign: TextAlign.center,
+      style: TextStyle(
+        fontSize: NightshadeTypography.fontSize11,
+        color: colors.textMuted,
       ),
     );
   }
@@ -170,10 +209,28 @@ extension _RightPanel on _PolarAlignmentScreenState {
       return Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _ErrorValue(colors: colors, label: 'Azimuth', value: '--'),
-          _ErrorValue(colors: colors, label: 'Altitude', value: '--'),
-          _ErrorValue(
-              colors: colors, label: 'Total', value: '--', isPrimary: true),
+          Expanded(
+            child: _ErrorValue(
+              colors: colors,
+              label: 'Azimuth',
+              value: '--',
+            ),
+          ),
+          Expanded(
+            child: _ErrorValue(
+              colors: colors,
+              label: 'Altitude',
+              value: '--',
+            ),
+          ),
+          Expanded(
+            child: _ErrorValue(
+              colors: colors,
+              label: 'Total',
+              value: '--',
+              isPrimary: true,
+            ),
+          ),
         ],
       );
     }
@@ -181,24 +238,30 @@ extension _RightPanel on _PolarAlignmentScreenState {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        _ErrorValue(
-          colors: colors,
-          label: 'Azimuth',
-          value: '${error.azimuthError.toStringAsFixed(1)}"',
-          color: _getErrorColor(colors, error.azimuthError.abs()),
+        Expanded(
+          child: _ErrorValue(
+            colors: colors,
+            label: 'Azimuth',
+            value: formatPolarError(error.azimuthError),
+            color: _getErrorColor(colors, error.azimuthError.abs()),
+          ),
         ),
-        _ErrorValue(
-          colors: colors,
-          label: 'Altitude',
-          value: '${error.altitudeError.toStringAsFixed(1)}"',
-          color: _getErrorColor(colors, error.altitudeError.abs()),
+        Expanded(
+          child: _ErrorValue(
+            colors: colors,
+            label: 'Altitude',
+            value: formatPolarError(error.altitudeError),
+            color: _getErrorColor(colors, error.altitudeError.abs()),
+          ),
         ),
-        _ErrorValue(
-          colors: colors,
-          label: 'Total',
-          value: '${error.totalError.toStringAsFixed(1)}"',
-          color: _getErrorColor(colors, error.totalError),
-          isPrimary: true,
+        Expanded(
+          child: _ErrorValue(
+            colors: colors,
+            label: 'Total',
+            value: formatPolarError(error.totalError),
+            color: _getErrorColor(colors, error.totalError),
+            isPrimary: true,
+          ),
         ),
       ],
     );

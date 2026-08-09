@@ -626,6 +626,49 @@ void main() {
         },
       );
 
+      // Audit 2026-08-03: enabling weather safety with no weather source
+      // resolves fail-closed to unsafe, and the safing pass ran on an idle,
+      // fully disconnected app. Nothing was commanded, yet the operator got a
+      // red CRITICAL asserting both that the rig had been safed AND that
+      // nothing had been possible.
+      test(
+        'a pass that commanded nothing is a warning, not a CRITICAL',
+        () async {
+          final container = makeContainer(
+            executionState: SequenceExecutionState.idle,
+            mountConnected: false,
+          );
+          addTearDown(container.dispose);
+
+          await container
+              .read(safeRigServiceProvider)
+              .safeTheRig(reason: 'Weather turned unsafe', park: true);
+
+          final note = container.read(uiNotificationProvider).last;
+          expect(note.level, UiNotificationLevel.warning);
+          expect(note.message, contains('Nothing to safe'));
+          expect(note.message, isNot(contains('CRITICAL')));
+          expect(note.message, isNot(contains('Rig safed')));
+          expect(note.message, isNot(contains('no action was possible')));
+          // The mount-absent warning is the operative sentence and must survive.
+          expect(note.message, contains('NO MOUNT CONNECTED'));
+        },
+      );
+
+      test('a pass that did command something stays CRITICAL', () async {
+        final container = makeContainer();
+        addTearDown(container.dispose);
+
+        await container
+            .read(safeRigServiceProvider)
+            .safeTheRig(reason: 'Weather turned unsafe', park: true);
+
+        final note = container.read(uiNotificationProvider).last;
+        expect(note.level, UiNotificationLevel.error);
+        expect(note.message, contains('CRITICAL'));
+        expect(note.message, contains('Rig safed: '));
+      });
+
       test('a secondary rig that was running is reported as stopped', () async {
         final container = makeContainer(
           safeRigBuilder: (ref) =>

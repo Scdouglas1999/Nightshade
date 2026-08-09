@@ -20,6 +20,7 @@ import 'package:nightshade_app/screens/planetarium/planetarium_screen.dart';
 import 'package:nightshade_app/screens/planetarium/show_in_sky.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 Future<(ProviderContainer, GoRouter)> _pumpPlanetarium(
   WidgetTester tester, {
@@ -32,7 +33,7 @@ Future<(ProviderContainer, GoRouter)> _pumpPlanetarium(
     tester.view.resetDevicePixelRatio();
   });
 
-  final container = ProviderContainer();
+  final container = ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
   final router = GoRouter(
     initialLocation: initialLocation,
     routes: [
@@ -67,6 +68,12 @@ Future<void> _teardown(
   await tester.pumpWidget(const SizedBox.shrink());
   router.dispose();
   container.dispose();
+  // Disposing the container cancels the drift query streams the screen's
+  // providers were watching, and drift finishes that off in a zero-duration
+  // Timer (StreamQueryStore.markAsClosed). Pump a non-zero duration to let it
+  // run: a bare pump() does not advance the fake clock, so a timer scheduled
+  // for *now* would still be queued when the binding checks.
+  await tester.pump(const Duration(milliseconds: 1));
 }
 
 void main() {
@@ -94,7 +101,12 @@ void main() {
     // event-based hand-off would drop.
     final (container, router) =
         await _pumpPlanetarium(tester, initialLocation: '/planetarium');
-    expect(container.read(skyViewStateProvider).centerRA, 0);
+    // The untouched default pose is the zenith, not RA 0h / Dec 0.
+    final (homeRa, _) = container.read(skyViewHomeCenterProvider);
+    expect(
+      container.read(skyViewStateProvider).centerRA,
+      closeTo(homeRa, 0.02),
+    );
 
     router.go(planetariumTargetLocation(
       raHours: 5.59,
@@ -138,9 +150,12 @@ void main() {
       initialLocation: '/planetarium?ra=13.5&dec=200',
     );
 
+    // The bogus hand-off must leave the view exactly where it opened — the
+    // zenith — rather than move it anywhere.
+    final (homeRa, homeDec) = container.read(skyViewHomeCenterProvider);
     final view = container.read(skyViewStateProvider);
-    expect(view.centerRA, 0);
-    expect(view.centerDec, 0);
+    expect(view.centerRA, closeTo(homeRa, 0.02));
+    expect(view.centerDec, closeTo(homeDec, 1e-9));
     expect(container.read(selectedObjectProvider).coordinates, isNull);
 
     await _teardown(tester, container, router);

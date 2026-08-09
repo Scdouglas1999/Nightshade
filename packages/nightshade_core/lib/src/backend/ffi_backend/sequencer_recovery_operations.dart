@@ -519,46 +519,6 @@ mixin _FfiSequencerRecoveryOperations on _FfiBackendBase {
   }
 
   @override
-  Future<LocationSettings> getLocationFromInternet() async {
-    try {
-      final response = await http.get(Uri.parse('http://ip-api.com/json'));
-      if (response.statusCode == 200) {
-        // Why: ip-api.com returns a free-form JSON body. Validate it is a
-        // map before indexing, and run each numeric field through
-        // [safelyCastOpt] so a malformed payload surfaces a structured
-        // CastFailureException ("errors are a
-        // feature") instead of a bare TypeError or silent 0.0.
-        final decoded = jsonDecode(response.body);
-        final data = safelyCast<Map<String, dynamic>>(
-          decoded,
-          context: 'ip-api.com response body',
-        );
-        final lat = safelyCastOpt<num>(
-          data['lat'],
-          context: 'ip-api.com response["lat"]',
-        );
-        final lon = safelyCastOpt<num>(
-          data['lon'],
-          context: 'ip-api.com response["lon"]',
-        );
-        return LocationSettings(
-          latitude: lat?.toDouble() ?? 0.0,
-          longitude: lon?.toDouble() ?? 0.0,
-          elevation: 0.0,
-        );
-      }
-      throw dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.io,
-        message: 'Failed to fetch location: HTTP ${response.statusCode}',
-        isRecoverable: true,
-      );
-    } catch (e) {
-      if (e is dart_error.NightshadeError) rethrow;
-      throw dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.io,
-        message: 'Error fetching location: $e',
-        isRecoverable: true,
-      );
-    }
-  }
+  // Shared TLS-only lookup for GUI and headless location discovery.
+  Future<LocationSettings> getLocationFromInternet() => IpGeolocation.fetch();
 }

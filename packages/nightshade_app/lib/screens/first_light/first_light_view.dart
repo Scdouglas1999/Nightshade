@@ -402,7 +402,7 @@ class _ErrorState extends StatelessWidget {
     return EmptyState(
       icon: LucideIcons.alertCircle,
       title: 'Could not load candidates',
-      body: describeFirstLightError(error),
+      body: firstLightErrorBody(error),
       action: NightshadeButton(
         label: 'Retry',
         icon: NightshadeIcons.refresh,

@@ -121,10 +121,16 @@ void main() {
   // with no scrollbar and no fade is close to undiscoverable, and its viewport
   // edge sliced the pill label mid-word — live at 800x600 the bar read
   // "Mount Dis", which looks like a rendering fault rather than "there is more
-  // over here". Below the desktop breakpoint the pills now shed their static
-  // label word, which is what buys the room back. The value — the part that
-  // actually changes — is never what gets dropped.
-  testWidgets('a narrow bar drops pill labels but keeps their values',
+  // over here". Below the desktop breakpoint each pill therefore shows one word
+  // instead of two.
+  //
+  // WHICH word was originally the wrong way round: dropping the label left the
+  // Camera, Mount and Guider pills all reading the identical value
+  // "Disconnected" (live at 900x800), distinguished only by a 12 px monochrome
+  // glyph. The state is already carried by the dot and the muted icon, so the
+  // device name — the part that differs per pill — is what keeps the slot until
+  // the device connects and its value starts carrying information.
+  testWidgets('a narrow bar names the devices instead of repeating the state',
       (tester) async {
     await _pumpBar(tester, const Size(800, 600));
 
@@ -134,19 +140,17 @@ void main() {
           of: find.byType(StatusBar),
           matching: find.text(label),
         ),
-        findsNothing,
-        reason: '"$label" is a constant word the icon already conveys; it must '
-            'not be spending width in a bar this narrow',
+        findsOneWidget,
+        reason: 'the $label pill has to stay identifiable',
       );
     }
-    // The states are still readable.
     expect(
       find.descendant(
         of: find.byType(StatusBar),
         matching: find.text('Disconnected'),
       ),
-      findsWidgets,
-      reason: 'the changing value must survive the density change',
+      findsNothing,
+      reason: 'the same word on three pills is width spent saying nothing',
     );
     expect(tester.takeException(), isNull);
 
@@ -190,7 +194,7 @@ void main() {
     await _disposeBar(tester);
   });
 
-  testWidgets('a wide bar keeps the pill labels', (tester) async {
+  testWidgets('a wide bar keeps both the label and the state', (tester) async {
     await _pumpBar(tester, const Size(2600, 900));
 
     for (final label in ['Camera', 'Mount', 'Guider', 'Focus']) {
@@ -203,6 +207,14 @@ void main() {
         reason: 'a wide bar has room for "$label" and must not be degraded',
       );
     }
+    expect(
+      find.descendant(
+        of: find.byType(StatusBar),
+        matching: find.text('Disconnected'),
+      ),
+      findsNWidgets(3),
+      reason: 'with room for both words the state is still spelled out',
+    );
     expect(tester.takeException(), isNull);
 
     await _disposeBar(tester);

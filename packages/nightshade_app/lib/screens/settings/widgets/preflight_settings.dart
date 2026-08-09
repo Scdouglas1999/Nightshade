@@ -219,26 +219,49 @@ class _LivePreviewCard extends StatelessWidget {
     required this.polarAgeDays,
   });
 
+  /// The checks whose severity actually tracks the strictness knob, named in
+  /// the same words the pre-flight dialog uses.
+  ///
+  /// Composed from the live configuration rather than hard-coded, because a
+  /// disabled check must not be listed as one that will stop the run:
+  /// `PolarAlignmentFreshnessRule` returns nothing at all when
+  /// `polarAlignmentMaxAgeDays <= 0`, so naming stale polar alignment at 0
+  /// contradicted the "check is disabled" line printed directly beneath it.
+  List<String> get _gradedChecks => [
+        'missing darks for the planned exposures',
+        // TimeSyncRule grades drift from its *warning* threshold up; the 30 s
+        // error threshold is unconditional (see the always-blocks line below),
+        // so quoting 30 s here understated what Normal/Strict actually flag.
+        'clock drift over ${TimeSyncRule.warningThresholdSecs.toStringAsFixed(0)}s',
+        if (polarAgeDays > 0) 'stale polar alignment',
+        'focuser at travel limit',
+      ];
+
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
+    final checks = _gradedChecks.join(', ');
     final lines = <String>[];
     switch (strictness) {
       case PreflightStrictness.lax:
         lines.addAll([
-          'Sequence start will proceed even with missing darks, large time drift, or stale polar alignment — those become info notes.',
+          'Sequence start will proceed with $checks — those become info notes.',
           'Only critical equipment failures (camera not connected, mount in error state, weather unsafe) block the run.',
+          // TimeSyncRule refuses to degrade this one under Lax: a >30 s skew
+          // falsifies DATE-OBS, so promising it becomes an info note would be
+          // a promise the executor breaks.
+          'Clock drift over ${TimeSyncRule.errorThresholdSecs.toStringAsFixed(0)}s still blocks the run in every mode — it would falsify FITS timestamps.',
         ]);
         break;
       case PreflightStrictness.normal:
         lines.addAll([
-          'Sequence start surfaces a warnings list for: missing darks, time drift > 30s, stale polar alignment.',
+          'Sequence start surfaces a warnings list for: $checks.',
           'You confirm the list to proceed.',
         ]);
         break;
       case PreflightStrictness.strict:
         lines.addAll([
-          'Sequence start is blocked on: missing darks for the planned exposures, time drift > 30s, stale polar alignment, focuser at travel limit.',
+          'Sequence start is blocked on: $checks.',
           'Every flagged issue must be resolved or explicitly acknowledged before the run begins.',
         ]);
         break;

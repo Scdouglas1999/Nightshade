@@ -99,13 +99,6 @@ extension _FilterStep on _QuickStartWizardDialogState {
               ),
               Expanded(
                 flex: 2,
-                child: Text('Count',
-                    style: TextStyle(
-                        color: colors.textMuted,
-                        fontSize: NightshadeTypography.fontSize11)),
-              ),
-              Expanded(
-                flex: 2,
                 child: Text('Binning',
                     style: TextStyle(
                         color: colors.textMuted,
@@ -124,23 +117,23 @@ extension _FilterStep on _QuickStartWizardDialogState {
 
         const SizedBox(height: 20),
 
-        // Loop settings
         Text(
-          'Loop Settings',
+          'Frames per filter',
           style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 8),
         Row(
           children: [
             Expanded(
-              child: DropdownButtonFormField<LoopConditionType>(
-                initialValue: _loopType,
-                dropdownColor: colors.surfaceAlt,
+              child: TextField(
+                controller: _loopCountController,
                 style: TextStyle(
                     color: colors.textPrimary,
                     fontSize: NightshadeTypography.fontSize13),
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 decoration: InputDecoration(
-                  labelText: 'Loop Type',
+                  labelText: 'Frames per filter',
                   border: OutlineInputBorder(
                     borderRadius:
                         BorderRadius.circular(NightshadeTokens.radiusInline8),
@@ -157,66 +150,27 @@ extension _FilterStep on _QuickStartWizardDialogState {
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 ),
-                items: [
-                  LoopConditionType.count,
-                  LoopConditionType.forever,
-                  LoopConditionType.whileDark,
-                ].map((type) {
-                  return DropdownMenuItem(
-                    value: type,
-                    child: Text(
-                      type == LoopConditionType.count
-                          ? 'Fixed Count'
-                          : type == LoopConditionType.forever
-                              ? 'Run Forever'
-                              : 'While Dark',
-                      style: TextStyle(color: colors.textPrimary),
-                    ),
-                  );
-                }).toList(),
                 onChanged: (value) {
-                  if (value != null) _update(() => _loopType = value);
+                  final parsed = int.tryParse(value);
+                  if (parsed != null && parsed > 0) {
+                    _update(() {
+                      _loopCount = parsed;
+                    });
+                  }
                 },
               ),
             ),
-            if (_loopType == LoopConditionType.count) ...[
-              const SizedBox(width: 12),
-              SizedBox(
-                width: 120,
-                child: TextField(
-                  controller: _loopCountController,
-                  style: TextStyle(
-                      color: colors.textPrimary,
-                      fontSize: NightshadeTypography.fontSize13),
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: InputDecoration(
-                    labelText: 'Iterations',
-                    border: OutlineInputBorder(
-                      borderRadius:
-                          BorderRadius.circular(NightshadeTokens.radiusInline8),
-                      borderSide: BorderSide(color: colors.border),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius:
-                          BorderRadius.circular(NightshadeTokens.radiusInline8),
-                      borderSide: BorderSide(color: colors.border),
-                    ),
-                    filled: true,
-                    fillColor: colors.surfaceAlt,
-                    labelStyle: TextStyle(color: colors.textSecondary),
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                  onChanged: (value) {
-                    final parsed = int.tryParse(value);
-                    if (parsed != null && parsed > 0) {
-                      _update(() => _loopCount = parsed);
-                    }
-                  },
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 2,
+              child: Text(
+                'Each selected filter captures exactly this many frames.',
+                style: TextStyle(
+                  color: colors.textSecondary,
+                  fontSize: NightshadeTypography.fontSize12,
                 ),
               ),
-            ],
+            ),
           ],
         ),
       ],
@@ -225,7 +179,7 @@ extension _FilterStep on _QuickStartWizardDialogState {
 
   Widget _buildFilterRow(
       _FilterExposureConfig config, NightshadeColors colors) {
-    final controllers = _filterControllers[config.filterIndex];
+    final controller = _filterControllers[config.filterIndex];
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
@@ -258,7 +212,7 @@ extension _FilterStep on _QuickStartWizardDialogState {
             child: SizedBox(
               height: 32,
               child: TextField(
-                controller: controllers?.exp,
+                controller: controller,
                 enabled: config.enabled,
                 style: TextStyle(
                     color: colors.textPrimary,
@@ -290,47 +244,6 @@ extension _FilterStep on _QuickStartWizardDialogState {
                     _update(() {
                       config.exposureSecs = parsed;
                       config.exposureEdited = true;
-                      _selectedPreset = _ExposurePreset.custom;
-                    });
-                  }
-                },
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            flex: 2,
-            child: SizedBox(
-              height: 32,
-              child: TextField(
-                controller: controllers?.count,
-                enabled: config.enabled,
-                style: TextStyle(
-                    color: colors.textPrimary,
-                    fontSize: NightshadeTypography.fontSize12),
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(NightshadeTokens.radiusMd),
-                    borderSide: BorderSide(color: colors.border),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(NightshadeTokens.radiusMd),
-                    borderSide: BorderSide(color: colors.border),
-                  ),
-                  filled: true,
-                  fillColor: colors.surfaceAlt,
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                ),
-                onChanged: (value) {
-                  final parsed = int.tryParse(value);
-                  if (parsed != null && parsed > 0) {
-                    _update(() {
-                      config.count = parsed;
                       _selectedPreset = _ExposurePreset.custom;
                     });
                   }
@@ -403,7 +316,7 @@ extension _FilterStep on _QuickStartWizardDialogState {
 
   String _formatFilterTotal(_FilterExposureConfig config) {
     if (!config.enabled) return '';
-    final totalMins = (config.totalSecs / 60).round();
+    final totalMins = (config.totalSecs * _loopCount / 60).round();
     return '${totalMins}m';
   }
 }

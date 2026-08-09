@@ -10,6 +10,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:path/path.dart' as p;
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../localization/nightshade_localizations.dart';
 import '../../../utils/device_format_utils.dart';
 import '../../../widgets/equipment_status_indicator.dart';
 import '../../../widgets/operation_status_bar.dart';
@@ -109,22 +110,25 @@ class SavePathChip {
 SavePathChip savePathChipFor(
   AsyncValue<SavePathStatus> status,
   String Function(String path) formatLabel,
+  NightshadeLocalizations l10n,
 ) {
   final value = status.valueOrNull;
   if (value == null) {
     // Not assessed yet (or the provider itself failed): say so.
     return SavePathChip(
-      label: status.hasError ? 'Save path ?' : 'Checking…',
+      label: status.hasError
+          ? l10n.text('statusSavePathUnreadable')
+          : l10n.text('statusSavePathChecking'),
       tooltip: status.hasError
-          ? 'Could not read the configured image output path'
-          : 'Checking the configured image output path…',
+          ? l10n.text('statusSavePathUnreadableTooltip')
+          : l10n.text('statusSavePathCheckingTooltip'),
       tone: SavePathTone.unknown,
     );
   }
   if (value.path.isEmpty) {
-    return const SavePathChip(
-      label: 'No save path',
-      tooltip: 'No image output path configured',
+    return SavePathChip(
+      label: l10n.text('statusNoSavePath'),
+      tooltip: l10n.text('statusNoSavePathTooltip'),
       tone: SavePathTone.alarm,
     );
   }
@@ -133,19 +137,28 @@ SavePathChip savePathChipFor(
     case SavePathExistence.present:
       return SavePathChip(
         label: label,
-        tooltip: 'Images save to ${value.path}',
+        tooltip: l10n.text(
+          'statusSavePathOkTooltip',
+          params: {'path': value.path},
+        ),
         tone: SavePathTone.ok,
       );
     case SavePathExistence.missing:
       return SavePathChip(
         label: label,
-        tooltip: 'Configured output path is missing: ${value.path}',
+        tooltip: l10n.text(
+          'statusSavePathMissingTooltip',
+          params: {'path': value.path},
+        ),
         tone: SavePathTone.alarm,
       );
     case SavePathExistence.unknown:
       return SavePathChip(
         label: label,
-        tooltip: 'Could not verify the output path: ${value.path}',
+        tooltip: l10n.text(
+          'statusSavePathUnknownTooltip',
+          params: {'path': value.path},
+        ),
         tone: SavePathTone.unknown,
       );
   }
@@ -180,48 +193,9 @@ class StatusBar extends ConsumerStatefulWidget {
   ConsumerState<StatusBar> createState() => _StatusBarState();
 }
 
-class _StatusBarState extends ConsumerState<StatusBar>
-    with WidgetsBindingObserver {
-  // Per-second tick driving the clock chip. Suspended when the app is
-  // backgrounded — a hidden status bar doesn't need to rebuild 60 times/min.
-  Timer? _timer;
-  DateTime _now = DateTime.now();
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _startTimer();
-  }
-
-  void _startTimer() {
-    _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() => _now = DateTime.now());
-    });
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      if (_timer == null || !_timer!.isActive) {
-        // Resync immediately so the clock doesn't show a stale time.
-        _now = DateTime.now();
-        _startTimer();
-      }
-    } else if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.hidden) {
-      _timer?.cancel();
-      _timer = null;
-    }
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _timer?.cancel();
-    super.dispose();
-  }
+class _StatusBarState extends ConsumerState<StatusBar> {
+  // Keep the per-second clock tick inside [_TimeDisplay] so the rest of the
+  // status bar remains idle.
 
   /// Get display name for a device, preferring deviceName, falling back to formatted deviceId
   String _getDeviceDisplayName(
@@ -246,6 +220,7 @@ class _StatusBarState extends ConsumerState<StatusBar>
 
   Widget _build(BuildContext context, double availableWidth) {
     final colors = NightshadeColors.of(context);
+    final l10n = context.l10n;
     // Below the desktop breakpoint the full-width pills do not fit: the leading
     // group scrolled, which on a desktop mouse is close to undiscoverable, and
     // the viewport edge sliced a label mid-word ("Mount Dis") so the bar simply
@@ -256,6 +231,7 @@ class _StatusBarState extends ConsumerState<StatusBar>
     final savePathChip = savePathChipFor(
       ref.watch(_savePathStatusProvider),
       _formatPathLabel,
+      l10n,
     );
 
     // Watch equipment state
@@ -274,7 +250,7 @@ class _StatusBarState extends ConsumerState<StatusBar>
         focuserState.connectionState == DeviceConnectionState.connected;
     final leading = <Widget>[
       const SizedBox(width: 12),
-      _SequenceIndicator(colors: colors),
+      _SequenceIndicator(colors: colors, l10n: l10n),
       const SizedBox(width: 12),
       _divider(colors),
       const SizedBox(width: 8),
@@ -284,11 +260,14 @@ class _StatusBarState extends ConsumerState<StatusBar>
       const SizedBox(width: 12),
       _StatusPillButton(
         icon: NightshadeIcons.camera,
-        label: 'Camera',
+        label: l10n.text('statusCamera'),
         value: cameraConnected
             ? _getDeviceDisplayName(
-                cameraState.deviceName, cameraState.deviceId, 'Connected')
-            : 'Disconnected',
+                cameraState.deviceName,
+                cameraState.deviceId,
+                l10n.text('statusConnected'),
+              )
+            : l10n.text('disconnected'),
         isConnected: cameraConnected,
         colors: colors,
         compact: widget.compact,
@@ -297,11 +276,14 @@ class _StatusBarState extends ConsumerState<StatusBar>
       const SizedBox(width: 8),
       _StatusPillButton(
         icon: LucideIcons.move3d,
-        label: 'Mount',
+        label: l10n.text('mount'),
         value: mountConnected
             ? _getDeviceDisplayName(
-                mountState.deviceName, mountState.deviceId, 'Connected')
-            : 'Disconnected',
+                mountState.deviceName,
+                mountState.deviceId,
+                l10n.text('statusConnected'),
+              )
+            : l10n.text('disconnected'),
         isConnected: mountConnected,
         colors: colors,
         compact: widget.compact,
@@ -310,14 +292,16 @@ class _StatusBarState extends ConsumerState<StatusBar>
       const SizedBox(width: 8),
       _StatusPillButton(
         icon: NightshadeIcons.crosshair,
-        label: 'Guider',
+        label: l10n.text('statusGuider'),
         // "Idle" here meant "no guider" — the same word the app uses for a
         // connected, ready guider that simply isn't guiding. At a glance the bar
         // said the guider was present and calm when there was no guider at all.
         // Match the Camera/Mount pills and name the actual state.
         value: guiderConnected
-            ? (guiderState.isGuiding ? 'Guiding' : 'Ready')
-            : 'Disconnected',
+            ? (guiderState.isGuiding
+                ? l10n.text('guiding')
+                : l10n.text('statusReady'))
+            : l10n.text('disconnected'),
         isConnected: guiderConnected,
         colors: colors,
         compact: widget.compact,
@@ -326,9 +310,9 @@ class _StatusBarState extends ConsumerState<StatusBar>
       const SizedBox(width: 8),
       _StatusPillButton(
         icon: NightshadeIcons.focuser,
-        label: 'Focus',
+        label: l10n.text('focus'),
         value: focuserConnected
-            ? (focuserState.position?.toString() ?? 'Ready')
+            ? (focuserState.position?.toString() ?? l10n.text('statusReady'))
             : '---',
         isConnected: focuserConnected,
         colors: colors,
@@ -336,7 +320,7 @@ class _StatusBarState extends ConsumerState<StatusBar>
         dense: dense,
       ),
       const SizedBox(width: 4),
-      _TempCompIndicator(colors: colors),
+      _TempCompIndicator(colors: colors, l10n: l10n),
       const SizedBox(width: 8),
       SequencerStatusLed(showLabel: !widget.compact),
       const OperationStatusBar(),
@@ -379,14 +363,14 @@ class _StatusBarState extends ConsumerState<StatusBar>
       if (!widget.compact) ...[
         _divider(colors),
         const SizedBox(width: 8),
-        _WebDashboardButton(colors: colors),
+        _WebDashboardButton(colors: colors, l10n: l10n),
         const SizedBox(width: 4),
         _ShareSessionButton(colors: colors),
         const SizedBox(width: 8),
         _divider(colors),
         const SizedBox(width: 12),
       ],
-      _TimeDisplay(now: _now, colors: colors),
+      _TimeDisplay(colors: colors),
       const SizedBox(width: 12),
     ];
 
@@ -472,10 +456,17 @@ class _StatusBarState extends ConsumerState<StatusBar>
   }
 
   /// Alpha ramp that dissolves the last 24 px of the pill group.
+  ///
+  /// Only the alpha channel is consumed by [ShaderMask], so these colors are
+  /// mask values rather than interface colors.
   static Shader _fadeRightEdge(Rect bounds) => const LinearGradient(
         begin: Alignment.centerLeft,
         end: Alignment.centerRight,
-        colors: [Colors.white, Colors.white, Colors.transparent],
+        colors: [
+          Color(0xFFFFFFFF),
+          Color(0xFFFFFFFF),
+          Color(0x00FFFFFF),
+        ],
         stops: [0.0, 0.92, 1.0],
       ).createShader(bounds);
 

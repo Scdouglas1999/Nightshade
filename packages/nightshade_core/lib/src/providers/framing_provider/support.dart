@@ -72,16 +72,27 @@ final framingFOVProvider = FutureProvider<FramingEquipmentResult>((ref) async {
   }
 
   // Profile has basic optical data - we can calculate FOV
-  // Check camera state early so we can use the friendly device name
-  final cameraState = ref.watch(cameraStateProvider);
+  // Check camera state early so we can use the friendly device name.
+  //
+  // Narrowed to the two fields this provider actually reads. Watching the whole
+  // snapshot re-ran the async `getCameraStatus` round-trip below on every
+  // telemetry tick — sensor temperature, cooler power, exposure progress — so
+  // the Framing sidebar's equipment card spent most of its life mid-reload
+  // (measured at eight of ten samples over 30 s) for data that only changes
+  // when the camera connects, disconnects or is renamed.
+  final (cameraConnectionState, cameraDeviceName) = ref.watch(
+    cameraStateProvider.select(
+      (state) => (state.connectionState, state.deviceName),
+    ),
+  );
 
   // Use friendly name from profile first, then connected camera's device name,
   // then fall back to device ID extraction
   final cameraName =
       profile.cameraName ??
-      (cameraState.connectionState == DeviceConnectionState.connected &&
-              cameraState.deviceName != null
-          ? cameraState.deviceName!
+      (cameraConnectionState == DeviceConnectionState.connected &&
+              cameraDeviceName != null
+          ? cameraDeviceName
           : (profile.cameraId != null
                 ? _extractDeviceName(profile.cameraId!)
                 : 'Unknown Camera'));
@@ -96,7 +107,7 @@ final framingFOVProvider = FutureProvider<FramingEquipmentResult>((ref) async {
   int? pixelsY;
   String? cameraMessage;
   if (profile.cameraId != null &&
-      cameraState.connectionState == DeviceConnectionState.connected) {
+      cameraConnectionState == DeviceConnectionState.connected) {
     try {
       // Query camera status via backend (works with both local and remote)
       final backend = ref.watch(backendProvider);

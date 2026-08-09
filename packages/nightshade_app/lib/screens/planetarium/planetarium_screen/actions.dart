@@ -51,7 +51,7 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
     final Uri uri;
     try {
       uri = GoRouterState.of(context).uri;
-    } catch (_) {
+    } on GoError {
       // Why: the planetarium is reachable outside the GoRouter tree (tests, the
       // mosaic/target pickers that embed the view directly).
       return;

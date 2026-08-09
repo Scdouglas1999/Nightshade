@@ -7,7 +7,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 Widget _wrap(List<Override> overrides) {
   return ProviderScope(
-    overrides: overrides,
+    overrides: [...overrides],
     child: MaterialApp(
       theme: NightshadeTheme.dark,
       home: const Scaffold(body: CockpitSessionVitals()),

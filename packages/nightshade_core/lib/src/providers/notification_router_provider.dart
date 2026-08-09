@@ -853,6 +853,61 @@ final notificationRouterProvider = Provider<NotificationRouter>((ref) {
   return router;
 });
 
+/// Transport kinds that currently hold enough configuration to actually
+/// deliver.
+///
+/// [NotificationRouter] drops any transport whose `isConfigured` is false when
+/// a notification fires, so a routing rule naming an unconfigured transport
+/// delivers nothing and logs nothing. The routing UI reads this so it cannot
+/// promise the operator a channel that would never reach them.
+final configuredNotificationTransportsProvider =
+    Provider<Set<NotificationTransportKind>>((ref) {
+      final configured = <NotificationTransportKind>{
+        // Holds no credentials: InAppTransport.isConfigured is always true.
+        NotificationTransportKind.inApp,
+      };
+      void addIf(NotificationTransportKind kind, bool ready) {
+        if (ready) configured.add(kind);
+      }
+
+      addIf(
+        NotificationTransportKind.systemPush,
+        // SystemPushTransport.isConfigured mirrors the push master gate.
+        ref.watch(pushNotificationConfigProvider).valueOrNull?.enabled ?? false,
+      );
+      addIf(
+        NotificationTransportKind.email,
+        ref.watch(emailTransportConfigProvider).valueOrNull?.isConfigured ??
+            false,
+      );
+      addIf(
+        NotificationTransportKind.webhookGeneric,
+        ref.watch(webhookTransportConfigProvider).valueOrNull?.isConfigured ??
+            false,
+      );
+      addIf(
+        NotificationTransportKind.pushover,
+        ref.watch(pushoverTransportConfigProvider).valueOrNull?.isConfigured ??
+            false,
+      );
+      addIf(
+        NotificationTransportKind.telegram,
+        ref.watch(telegramTransportConfigProvider).valueOrNull?.isConfigured ??
+            false,
+      );
+      addIf(
+        NotificationTransportKind.discord,
+        ref.watch(discordTransportConfigProvider).valueOrNull?.isConfigured ??
+            false,
+      );
+      addIf(
+        NotificationTransportKind.mqtt,
+        ref.watch(mqttTransportConfigProvider).valueOrNull?.isConfigured ??
+            false,
+      );
+      return configured;
+    });
+
 /// Apply an authoritative transport config to [update], or reset the transport
 /// to its unconfigured [safe] config when the provider errors. Loading states
 /// with no value leave the transport untouched (the router was seeded with the

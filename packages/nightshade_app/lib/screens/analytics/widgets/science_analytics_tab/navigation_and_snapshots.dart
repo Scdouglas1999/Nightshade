@@ -4,15 +4,21 @@ part of '../science_analytics_tab.dart';
 /// controller's empty local database. The local path preserves the existing
 /// Markdown exporter; a remote client downloads the host-generated PDF and
 /// stores a copy in its own exports directory.
+///
+/// [period] is the period search the operator ran on this tab. It is UI state,
+/// never a stored product, so it has to travel with the export request: with it
+/// omitted the report's "Period analysis" section says "Not run for this
+/// session" while the panel two inches above the button is showing the result.
 Future<File> exportScienceShortcutReport({
   required NightshadeBackend backend,
   required int sessionId,
   required ScienceReportExporter localExporter,
+  PeriodAnalysisResult? period,
   Future<Directory> Function()? documentsDirectoryProvider,
   DateTime? generatedAt,
 }) async {
   if (backend is! NetworkBackend) {
-    return localExporter.exportToDisk(sessionId);
+    return localExporter.exportToDisk(sessionId, period: period);
   }
 
   final bytes = await backend.generateObservationReport(sessionId);
@@ -163,6 +169,7 @@ class _ScienceJumpNav extends ConsumerWidget {
         backend: backend,
         sessionId: sessionId,
         localExporter: exporter,
+        period: ref.read(periodAnalysisProvider).result,
       );
       if (!context.mounted) return;
       messenger.clearSnackBars();
@@ -296,6 +303,50 @@ class _SectionHeading extends StatelessWidget {
 // consolidated [ScienceExportHub] (audit §4.14), which builds its rows from
 // the DAO providers and therefore covers every session, not just the visible
 // snapshot.
+
+/// Which object's light curve to plot for a set of stored photometry rows.
+///
+/// The live selection names the object being tracked RIGHT NOW; stored rows are
+/// keyed on whatever was being tracked when they were written. Filtering a past
+/// night by the live selection made every night that did not happen to match it
+/// render as "has no data yet" — with no AAVSO export and no period search —
+/// while its measurements sat in the database.
+///
+/// So: keep the live selection whenever these rows actually contain it (the
+/// session being captured, or the user having picked the same star again), and
+/// otherwise fall back to the object these rows measured most, preferring rows
+/// that carry a differential magnitude because those are the ones the charts
+/// and the exports can use.
+String _reviewedPhotometryObjectId({
+  required List<PhotometryMeasurementRow> rows,
+  required String liveSelection,
+}) {
+  if (rows.isEmpty) {
+    return liveSelection;
+  }
+  final counts = <String, int>{};
+  for (final row in rows) {
+    if (row.role != 'target' || row.differentialMagnitude == null) {
+      continue;
+    }
+    if (row.objectId == liveSelection) {
+      return liveSelection;
+    }
+    counts[row.objectId] = (counts[row.objectId] ?? 0) + 1;
+  }
+  if (counts.isEmpty) {
+    return liveSelection;
+  }
+  // Ties resolve to the object seen first, which for a timestamp-ordered query
+  // is the one this night started on.
+  var best = counts.entries.first;
+  for (final entry in counts.entries) {
+    if (entry.value > best.value) {
+      best = entry;
+    }
+  }
+  return best.key;
+}
 
 List<PsfFieldTileRow> _latestPsfSnapshot(List<PsfFieldTileRow> rows) {
   if (rows.isEmpty) {

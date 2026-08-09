@@ -282,6 +282,62 @@ void main() {
       },
     );
 
+    // A target with ZERO captured frames was described as a "large unfinished
+    // dataset" and an "efficient completion target" in the same rationale
+    // block that said "No data collected yet". dataProgress is exactly 0.0
+    // only when nothing has been captured, so the claim is now gated on there
+    // being something to finish.
+    TargetSuggestion untouched({required double dataProgress}) {
+      return TargetSuggestion(
+        targetId: 7,
+        targetName: 'NGC 6015',
+        raHours: 15.86,
+        decDegrees: 62.3,
+        totalScore: 76,
+        dataProgress: dataProgress,
+        visibility: const TargetVisibilityInfo(
+          currentAltitude: 55,
+          currentAzimuth: 30,
+          airmass: 1.2,
+          moonDistance: 102,
+          peakAltitude: 62,
+          hoursAboveMinAlt: 5,
+        ),
+        objectType: 'Galaxy',
+        magnitude: 11.2,
+      );
+    }
+
+    test('a target with no frames is not called an unfinished dataset', () {
+      final plan = service.buildPlanFromSuggestions([
+        untouched(dataProgress: 0.0),
+      ], generatedAt: DateTime(2026, 8, 1, 22));
+
+      expect(
+        plan.rationale.any((line) => line.contains('unfinished dataset')),
+        isFalse,
+      );
+      expect(
+        plan.rationale.any((line) => line.contains('completion target')),
+        isFalse,
+      );
+      expect(
+        plan.rationale.any((line) => line.contains('Partially captured')),
+        isFalse,
+      );
+    });
+
+    test('a partially captured target still gets the completion rationale', () {
+      final plan = service.buildPlanFromSuggestions([
+        untouched(dataProgress: 0.1),
+      ], generatedAt: DateTime(2026, 8, 1, 22));
+
+      expect(
+        plan.rationale.any((line) => line.contains('Partially captured')),
+        isTrue,
+      );
+    });
+
     test('a rig with no filters recommends no filter name', () {
       final plan = service.buildPlanFromSuggestions(
         [

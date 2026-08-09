@@ -239,7 +239,9 @@ void main() {
           fieldOfView: 1,
         ),
         sun: (90.0, 0.0),
-        moon: (0.0, 0.0, illumination),
+        // The painter's moon tuple carries a PERCENT — the unit
+        // AstronomyCalculations.moonIllumination and every producer emit.
+        moon: (0.0, 0.0, illumination * 100),
         config: const SkyRenderConfig(
           showStars: false,
           showConstellationLines: false,

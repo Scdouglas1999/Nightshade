@@ -65,12 +65,15 @@ void main() {
     final texts = tester
         .widgetList<Text>(find.byType(Text))
         .map((text) => text.data ?? '')
-        .where((data) => data.contains('grid'))
+        // The subtitle leads with the axis-labelled grid dimensions
+        // ("3 wide x 2 high"); see mosaic_format.dart.
+        .where((data) => data.contains(' wide '))
         .toList();
     expect(
       texts,
       isNotEmpty,
-      reason: 'header subtitle (containing "grid") was not rendered',
+      reason: 'header subtitle (containing the grid dimensions) '
+          'was not rendered',
     );
     return texts.single;
   }
@@ -114,8 +117,8 @@ void main() {
     // 5.55h and 5.65h average to 5.60h = 05:36:00. (Field-wise rounding used
     // to render this same value as the impossible '05:35:60.00'.)
     expect(subtitle, contains('05:36:00.00'));
-    // The header renders cols x rows.
-    expect(subtitle, contains('2x1 grid'));
+    // One convention, axis-labelled, shared with the Collaborate card.
+    expect(subtitle, contains('2 wide × 1 high'));
   });
 
   testWidgets(
@@ -127,7 +130,9 @@ void main() {
       mosaicPanels: const [],
     );
 
-    expect(subtitle, isNot(contains('h')));
+    // No centre segment at all. Matched on the sexagesimal colons rather than
+    // a bare 'h', which the axis-labelled grid ("1 wide × 1 high") also carries.
+    expect(subtitle, isNot(contains(':')));
     expect(subtitle, contains('0 of 1 panels'));
   });
 
@@ -152,7 +157,7 @@ void main() {
       ]),
     );
 
-    expect(subtitle, contains('3x3 grid'));
+    expect(subtitle, contains('3 wide × 3 high'));
     expect(subtitle, contains('8 of 9 panels'));
     // The bare "9 panels" claim (rows x cols) must be gone.
     expect(subtitle, isNot(contains('·  9 panels')));

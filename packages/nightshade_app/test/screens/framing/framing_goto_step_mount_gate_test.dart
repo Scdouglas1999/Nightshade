@@ -25,10 +25,20 @@ class _SeededFramingNotifier extends FramingNotifier {
 }
 
 /// Seeds [MountStateNotifier] with a fixed connection state.
+///
+/// [parked] is spelled out because `MountState.isParked` DEFAULTS TO TRUE (an
+/// unknown mount is assumed parked until its first status poll), and step 4
+/// now refuses to claim readiness over a parked mount — see
+/// framing_goto_readiness_test.dart. Leaving it implicit made this fixture
+/// mean "connected AND parked" without saying so.
 class _SeededMountNotifier extends MountStateNotifier {
-  _SeededMountNotifier(super.ref, DeviceConnectionState connectionState) {
+  _SeededMountNotifier(
+    super.ref,
+    DeviceConnectionState connectionState, {
+    bool parked = false,
+  }) {
     // ignore: invalid_use_of_protected_member
-    state = MountState(connectionState: connectionState);
+    state = MountState(connectionState: connectionState, isParked: parked);
   }
 }
 

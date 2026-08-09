@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/run_dashboard/observatory_panel.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 Widget _wrap(Widget child) {
   return MaterialApp(
@@ -35,7 +36,8 @@ void main() {
 
   testWidgets('renders dome shutter / azimuth / slaved when connected',
       (tester) async {
-    final container = ProviderContainer();
+    final container =
+        ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
     addTearDown(container.dispose);
 
     final dome = container.read(domeStateProvider.notifier);
@@ -63,7 +65,8 @@ void main() {
 
   testWidgets('renders cover + flat-light state when connected',
       (tester) async {
-    final container = ProviderContainer();
+    final container =
+        ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
     addTearDown(container.dispose);
 
     final cover = container.read(coverCalibratorStateProvider.notifier);
@@ -90,7 +93,8 @@ void main() {
 
   testWidgets('renders per-channel switch state with on/off counts',
       (tester) async {
-    final container = ProviderContainer();
+    final container =
+        ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
     addTearDown(container.dispose);
 
     final sw = container.read(switchStateProvider.notifier);

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../celestial_object.dart';
 import '../coordinate_system.dart';
 import 'catalog_manager.dart';
+import 'constellation_names.dart';
 
 /// Base class for star/DSO catalogs
 abstract class Catalog<T extends CelestialObject> {
@@ -326,101 +327,13 @@ class OpenNgcDsoCatalog extends Catalog<DeepSkyObject> {
     }
   }
 
-  /// Get full constellation name from abbreviation
+  /// Get full constellation name from abbreviation.
+  ///
+  /// Delegates to the shared table in constellation_names.dart so the catalog
+  /// and every UI that spells a constellation out agree letter for letter.
   static String _getConstellationName(String abbr) {
-    return _constellationNames[abbr.toUpperCase()] ?? abbr;
+    return constellationFullName(abbr);
   }
-
-  static const Map<String, String> _constellationNames = {
-    'AND': 'Andromeda',
-    'ANT': 'Antlia',
-    'APS': 'Apus',
-    'AQR': 'Aquarius',
-    'AQL': 'Aquila',
-    'ARA': 'Ara',
-    'ARI': 'Aries',
-    'AUR': 'Auriga',
-    'BOO': 'Boötes',
-    'CAE': 'Caelum',
-    'CAM': 'Camelopardalis',
-    'CNC': 'Cancer',
-    'CVN': 'Canes Venatici',
-    'CMA': 'Canis Major',
-    'CMI': 'Canis Minor',
-    'CAP': 'Capricornus',
-    'CAR': 'Carina',
-    'CAS': 'Cassiopeia',
-    'CEN': 'Centaurus',
-    'CEP': 'Cepheus',
-    'CET': 'Cetus',
-    'CHA': 'Chamaeleon',
-    'CIR': 'Circinus',
-    'COL': 'Columba',
-    'COM': 'Coma Berenices',
-    'CRA': 'Corona Australis',
-    'CRB': 'Corona Borealis',
-    'CRV': 'Corvus',
-    'CRT': 'Crater',
-    'CRU': 'Crux',
-    'CYG': 'Cygnus',
-    'DEL': 'Delphinus',
-    'DOR': 'Dorado',
-    'DRA': 'Draco',
-    'EQU': 'Equuleus',
-    'ERI': 'Eridanus',
-    'FOR': 'Fornax',
-    'GEM': 'Gemini',
-    'GRU': 'Grus',
-    'HER': 'Hercules',
-    'HOR': 'Horologium',
-    'HYA': 'Hydra',
-    'HYI': 'Hydrus',
-    'IND': 'Indus',
-    'LAC': 'Lacerta',
-    'LEO': 'Leo',
-    'LMI': 'Leo Minor',
-    'LEP': 'Lepus',
-    'LIB': 'Libra',
-    'LUP': 'Lupus',
-    'LYN': 'Lynx',
-    'LYR': 'Lyra',
-    'MEN': 'Mensa',
-    'MIC': 'Microscopium',
-    'MON': 'Monoceros',
-    'MUS': 'Musca',
-    'NOR': 'Norma',
-    'OCT': 'Octans',
-    'OPH': 'Ophiuchus',
-    'ORI': 'Orion',
-    'PAV': 'Pavo',
-    'PEG': 'Pegasus',
-    'PER': 'Perseus',
-    'PHE': 'Phoenix',
-    'PIC': 'Pictor',
-    'PSC': 'Pisces',
-    'PSA': 'Piscis Austrinus',
-    'PUP': 'Puppis',
-    'PYX': 'Pyxis',
-    'RET': 'Reticulum',
-    'SGE': 'Sagitta',
-    'SGR': 'Sagittarius',
-    'SCO': 'Scorpius',
-    'SCL': 'Sculptor',
-    'SCT': 'Scutum',
-    'SER': 'Serpens',
-    'SEX': 'Sextans',
-    'TAU': 'Taurus',
-    'TEL': 'Telescopium',
-    'TRA': 'Triangulum Australe',
-    'TRI': 'Triangulum',
-    'TUC': 'Tucana',
-    'UMA': 'Ursa Major',
-    'UMI': 'Ursa Minor',
-    'VEL': 'Vela',
-    'VIR': 'Virgo',
-    'VOL': 'Volans',
-    'VUL': 'Vulpecula',
-  };
 
   @override
   Future<DeepSkyObject?> findById(String id) async {

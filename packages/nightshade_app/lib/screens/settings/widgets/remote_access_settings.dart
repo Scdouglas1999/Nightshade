@@ -319,7 +319,9 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
               _AccessActionCard(
                 icon: LucideIcons.monitor,
                 title: l10n.text('remoteAccessLocalActionTitle'),
-                description: l10n.text('remoteAccessLocalActionBody'),
+                description: describeLocalDashboardAction(
+                  requiresAuthentication: webState.requiresAuthentication,
+                ),
                 url: webState.localUrl,
                 primaryLabel: l10n.text('remoteAccessOpenLocal'),
                 primaryIcon: LucideIcons.externalLink,
@@ -413,7 +415,9 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      l10n.text('remoteAccessInfoBody'),
+                      describeRemoteAccessPairing(
+                        requiresAuthentication: webState.requiresAuthentication,
+                      ),
                       style: TextStyle(
                         fontSize: NightshadeTypography.fontSize12,
                         color: NightshadeColors.of(context).textSecondary,
@@ -515,12 +519,22 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
                                   ? l10n.text('remoteAccessDashboardServing')
                                   : l10n.text('remoteAccessDashboardIdle'),
                         ),
+                        // Active clients and co-imaging participants are
+                        // different populations and need separate rows.
+                        _StatusRow(
+                          icon: LucideIcons.users,
+                          iconColor: webState.connectedClients > 0
+                              ? NightshadeColors.of(context).primary
+                              : NightshadeColors.of(context).textMuted,
+                          label: l10n.text('remoteAccessActiveViewers'),
+                          value: webState.connectedClients.toString(),
+                        ),
                         _StatusRow(
                           icon: LucideIcons.users,
                           iconColor: webState.activeViewers > 0
                               ? NightshadeColors.of(context).primary
                               : NightshadeColors.of(context).textMuted,
-                          label: l10n.text('remoteAccessActiveViewers'),
+                          label: 'Co-imaging viewers',
                           value: webState.activeViewers.toString(),
                         ),
                         // The error is the only actionable content on this

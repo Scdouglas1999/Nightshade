@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import '../../harness/in_memory_database.dart';
 
 class _Backend extends Mock implements NightshadeBackend {
   @override
@@ -73,6 +74,7 @@ void main() {
       ).thenAnswer((_) async => _result());
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith((ref) => _BackendNotifier(ref, backend)),
           appSettingsProvider.overrideWith(_Settings.new),
         ],
@@ -118,6 +120,7 @@ void main() {
     ).thenAnswer((_) async => _result());
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith((ref) => _BackendNotifier(ref, backend)),
         appSettingsProvider.overrideWith(_BlindSettings.new),
       ],

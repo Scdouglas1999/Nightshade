@@ -21,11 +21,23 @@ class OpticalTrainDiagnostics {
   final String dominantTiltDirection;
   final List<OpticalDiagnosticIssue> issues;
 
+  /// Whether the PSF field map actually supported a tilt estimate.
+  ///
+  /// Callers must check this before treating a zero penalty as a flat field.
+  final bool tiltMeasured;
+
+  /// Whether the astrometric residuals supported an edge-versus-centre
+  /// comparison. Needs samples on both sides of the split — with none, the
+  /// centre denominator is a clamp floor rather than a measurement.
+  final bool collimationMeasured;
+
   const OpticalTrainDiagnostics({
     required this.tiltScore,
     required this.collimationScore,
     required this.dominantTiltDirection,
     required this.issues,
+    this.tiltMeasured = true,
+    this.collimationMeasured = true,
   });
 
   bool get hasIssues => issues.isNotEmpty;
@@ -84,6 +96,11 @@ class OpticalHealthScore {
   final OpticalIssueSeverity tiltSeverity;
   final OpticalIssueSeverity collimationSeverity;
 
+  /// False when either axis had no data behind it, in which case [overallScore]
+  /// and [grade] are placeholders and only [letterGrade] / [qualityLabel] are
+  /// safe to show — they render as "not measured" rather than as an A.
+  final bool isMeasured;
+
   // Penalty thresholds per axis. Kept here (not inlined in widgets) so the
   // diagnostics cards, KPI strips, and any future analytics view all bucket
   // identical raw numbers into identical ratings.
@@ -105,18 +122,22 @@ class OpticalHealthScore {
     required this.grade,
     required this.tiltSeverity,
     required this.collimationSeverity,
+    required this.isMeasured,
   });
 
   factory OpticalHealthScore.fromDiagnostics(OpticalTrainDiagnostics d) {
     return OpticalHealthScore.fromScores(
       tiltScore: d.tiltScore,
       collimationScore: d.collimationScore,
+      // One grade covers both axes, so it is only a measurement when both are.
+      isMeasured: d.tiltMeasured && d.collimationMeasured,
     );
   }
 
   factory OpticalHealthScore.fromScores({
     required double tiltScore,
     required double collimationScore,
+    bool isMeasured = true,
   }) {
     final tiltPenalty = tiltScore.clamp(0.0, 100.0);
     final collPenalty = collimationScore.clamp(0.0, 100.0);
@@ -140,11 +161,15 @@ class OpticalHealthScore {
         warnAt: collimationWarnThreshold,
         criticalAt: collimationCriticalThreshold,
       ),
+      isMeasured: isMeasured,
     );
   }
 
-  String get letterGrade => grade.letter;
-  String get qualityLabel => grade.qualityLabel;
+  /// Grade label for display. An unmeasured train has no grade — reporting the
+  /// A that a 0-penalty blend arithmetically produces told users their optics
+  /// were excellent on the strength of no measurement at all.
+  String get letterGrade => isMeasured ? grade.letter : '—';
+  String get qualityLabel => isMeasured ? grade.qualityLabel : 'Not measured';
 
   static OpticalHealthGrade _gradeForOverall(double score) {
     if (score >= aThreshold) return OpticalHealthGrade.a;
@@ -178,6 +203,8 @@ class OpticalTrainDiagnosticsService {
         tiltScore: 0,
         collimationScore: 0,
         dominantTiltDirection: 'unknown',
+        tiltMeasured: false,
+        collimationMeasured: false,
         issues: [
           OpticalDiagnosticIssue(
             title: 'No diagnostics data',
@@ -189,25 +216,36 @@ class OpticalTrainDiagnosticsService {
       );
     }
 
+    // Compare the OUTERMOST row/column on each side. Splitting the grid at its
+    // midpoint instead put the centre band on one side of every comparison
+    // (`>= mid` caught the middle column and row), which halved the apparent
+    // deviation of the right and bottom edges: a tilt running mostly top-to-
+    // bottom then scored lower on "bottom" than on "left" and the readout sent
+    // the user to the wrong adjustment screw.
+    final minCol = psfTiles
+        .map((tile) => tile.tileCol)
+        .reduce((a, b) => a < b ? a : b);
+    final maxCol = psfTiles
+        .map((tile) => tile.tileCol)
+        .reduce((a, b) => a > b ? a : b);
+    final minRow = psfTiles
+        .map((tile) => tile.tileRow)
+        .reduce((a, b) => a < b ? a : b);
+    final maxRow = psfTiles
+        .map((tile) => tile.tileRow)
+        .reduce((a, b) => a > b ? a : b);
+
     final left = _mean(
-      psfTiles
-          .where((tile) => tile.tileCol < _midCol(psfTiles))
-          .map((tile) => tile.medianHfr),
+      psfTiles.where((tile) => tile.tileCol == minCol).map((t) => t.medianHfr),
     );
     final right = _mean(
-      psfTiles
-          .where((tile) => tile.tileCol >= _midCol(psfTiles))
-          .map((tile) => tile.medianHfr),
+      psfTiles.where((tile) => tile.tileCol == maxCol).map((t) => t.medianHfr),
     );
     final top = _mean(
-      psfTiles
-          .where((tile) => tile.tileRow < _midRow(psfTiles))
-          .map((tile) => tile.medianHfr),
+      psfTiles.where((tile) => tile.tileRow == minRow).map((t) => t.medianHfr),
     );
     final bottom = _mean(
-      psfTiles
-          .where((tile) => tile.tileRow >= _midRow(psfTiles))
-          .map((tile) => tile.medianHfr),
+      psfTiles.where((tile) => tile.tileRow == maxRow).map((t) => t.medianHfr),
     );
     final global = _mean(
       psfTiles.map((tile) => tile.medianHfr),
@@ -218,26 +256,34 @@ class OpticalTrainDiagnosticsService {
     final tiltScore =
         ((horizontalTilt > verticalTilt ? horizontalTilt : verticalTilt) * 100)
             .clamp(0.0, 100.0);
+    // A gradient needs two positions to run between. With every tile in one
+    // column and one row, left==right and top==bottom by construction, so the
+    // resulting 0 says "the grid was 1x1", not "the field is flat".
+    final tiltMeasured = maxCol > minCol || maxRow > minRow;
 
-    final edgeResidual = _mean(
-      residualVectors
-          .where(
-            (row) =>
-                row.x < 0.25 || row.x > 0.75 || row.y < 0.25 || row.y > 0.75,
-          )
-          .map((row) => row.magnitudeArcsec),
-    );
-    final centerResidual = _mean(
-      residualVectors
-          .where(
-            (row) =>
-                row.x >= 0.25 &&
-                row.x <= 0.75 &&
-                row.y >= 0.25 &&
-                row.y <= 0.75,
-          )
-          .map((row) => row.magnitudeArcsec),
-    ).clamp(0.1, 1000.0);
+    final edgeSamples = residualVectors
+        .where(
+          (row) => row.x < 0.25 || row.x > 0.75 || row.y < 0.25 || row.y > 0.75,
+        )
+        .map((row) => row.magnitudeArcsec)
+        .where((value) => value.isFinite)
+        .toList(growable: false);
+    final centerSamples = residualVectors
+        .where(
+          (row) =>
+              row.x >= 0.25 && row.x <= 0.75 && row.y >= 0.25 && row.y <= 0.75,
+        )
+        .map((row) => row.magnitudeArcsec)
+        .where((value) => value.isFinite)
+        .toList(growable: false);
+    // The score is a RATIO of edge to centre; with either side missing the
+    // clamp below supplies the missing half and the answer is arithmetic, not
+    // measurement — an empty residual table produced a confident "centre and
+    // edge behaviour look balanced".
+    final collimationMeasured =
+        edgeSamples.isNotEmpty && centerSamples.isNotEmpty;
+    final edgeResidual = _mean(edgeSamples);
+    final centerResidual = _mean(centerSamples).clamp(0.1, 1000.0);
     final collimationScore =
         ((edgeResidual / centerResidual - 1.0).clamp(0.0, 2.0) * 50.0).clamp(
           0.0,
@@ -249,10 +295,12 @@ class OpticalTrainDiagnosticsService {
       right: right,
       top: top,
       bottom: bottom,
+      horizontalTilt: horizontalTilt,
+      verticalTilt: verticalTilt,
     );
 
     final issues = <OpticalDiagnosticIssue>[
-      if (tiltScore >= 18)
+      if (tiltMeasured && tiltScore >= 18)
         OpticalDiagnosticIssue(
           title: 'Field tilt detected',
           detail:
@@ -261,7 +309,7 @@ class OpticalTrainDiagnosticsService {
               ? OpticalIssueSeverity.critical
               : OpticalIssueSeverity.warning,
         ),
-      if (collimationScore >= 15)
+      if (collimationMeasured && collimationScore >= 15)
         OpticalDiagnosticIssue(
           title: 'Collimation or spacing mismatch',
           detail:
@@ -270,7 +318,26 @@ class OpticalTrainDiagnosticsService {
               ? OpticalIssueSeverity.critical
               : OpticalIssueSeverity.warning,
         ),
-      if (tiltScore < 18 && collimationScore < 15)
+      // Name what was NOT measured instead of letting the "looks stable" line
+      // below silently vouch for it.
+      if (!tiltMeasured)
+        const OpticalDiagnosticIssue(
+          title: 'Tilt not measured',
+          detail:
+              'PSF tiles cover a single row and column, so there is no across-field gradient to compare.',
+          severity: OpticalIssueSeverity.info,
+        ),
+      if (!collimationMeasured)
+        const OpticalDiagnosticIssue(
+          title: 'Collimation not measured',
+          detail:
+              'This session has no astrometric residuals on both sides of the field, so edge-versus-centre behaviour could not be compared.',
+          severity: OpticalIssueSeverity.info,
+        ),
+      if (tiltMeasured &&
+          collimationMeasured &&
+          tiltScore < 18 &&
+          collimationScore < 15)
         const OpticalDiagnosticIssue(
           title: 'Optical train looks stable',
           detail:
@@ -282,43 +349,32 @@ class OpticalTrainDiagnosticsService {
     return OpticalTrainDiagnostics(
       tiltScore: tiltScore,
       collimationScore: collimationScore,
-      dominantTiltDirection: dominantTiltDirection,
+      dominantTiltDirection: tiltMeasured ? dominantTiltDirection : 'unknown',
+      tiltMeasured: tiltMeasured,
+      collimationMeasured: collimationMeasured,
       issues: issues,
     );
   }
 
-  int _midCol(List<PsfFieldTileRow> tiles) =>
-      ((tiles
-                      .map((tile) => tile.tileCol)
-                      .fold<int>(0, (a, b) => a > b ? a : b) +
-                  1) /
-              2)
-          .floor();
-
-  int _midRow(List<PsfFieldTileRow> tiles) =>
-      ((tiles
-                      .map((tile) => tile.tileRow)
-                      .fold<int>(0, (a, b) => a > b ? a : b) +
-                  1) /
-              2)
-          .floor();
-
+  /// The edge the field gradient actually runs towards.
+  ///
+  /// Decided on the same axis comparison that sets [tiltScore], so the reported
+  /// direction can never disagree with the score: pick the steeper axis first,
+  /// then the worse side of that axis. Ranking the four edge means against each
+  /// other instead let a shallow horizontal gradient outrank a steeper vertical
+  /// one whenever the horizontal edge happened to sit higher in absolute HFR.
   String _dominantTiltDirection({
     required double left,
     required double right,
     required double top,
     required double bottom,
+    required double horizontalTilt,
+    required double verticalTilt,
   }) {
-    final candidates = <String, double>{
-      'left edge': left,
-      'right edge': right,
-      'top edge': top,
-      'bottom edge': bottom,
-    };
-    final best = candidates.entries.reduce(
-      (current, next) => current.value >= next.value ? current : next,
-    );
-    return best.key;
+    if (horizontalTilt >= verticalTilt) {
+      return left >= right ? 'left edge' : 'right edge';
+    }
+    return top >= bottom ? 'top edge' : 'bottom edge';
   }
 
   double _mean(Iterable<double> values) {

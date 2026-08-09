@@ -11,6 +11,7 @@ import '../framing/altitude_chart.dart';
 import '../framing/framing_screen.dart';
 import '../planetarium/planetarium_screen.dart';
 import '../planetarium/show_in_sky.dart';
+import '../suggestions/widgets/transient_alerts_panel.dart';
 import '../your_sky/your_sky_screen.dart';
 import '../constellation/constellation_screen.dart';
 import '../collaborative_sky/collaborative_sky_screen.dart';

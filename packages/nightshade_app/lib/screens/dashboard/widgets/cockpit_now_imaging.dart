@@ -30,6 +30,10 @@ class CockpitNowImaging extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
     final target = ref.watch(runDashboardActiveTargetProvider);
+    // Glance mode is a DASHBOARD control, so the always-visible dashboard
+    // readouts have to answer it. Before this only two run-scoped sequencer
+    // panels opted in, and toggling the eye icon changed nothing on screen.
+    final glance = ref.watch(glanceModeProvider);
 
     if (target == null) {
       return _Shell(
@@ -41,10 +45,13 @@ class CockpitNowImaging extends ConsumerWidget {
             Expanded(
               child: Text(
                 'No active target — load a sequence to begin.',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12_5,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textSecondary,
+                style: NightshadeTypography.glanceStyle(
+                  TextStyle(
+                    fontSize: NightshadeTypography.fontSize12_5,
+                    fontWeight: FontWeight.w600,
+                    color: colors.textSecondary,
+                  ),
+                  enabled: glance,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -72,7 +79,7 @@ class CockpitNowImaging extends ConsumerWidget {
             ? 'To set'
             : 'To ${sky.horizonDeg.toStringAsFixed(0)}°';
 
-    final identity = _Identity(colors: colors, target: target);
+    final identity = _Identity(colors: colors, target: target, glance: glance);
 
     final chips = <Widget>[
       _StatChip(
@@ -81,21 +88,24 @@ class CockpitNowImaging extends ConsumerWidget {
         label: 'Altitude',
         value: altText,
         valueColor: altColor,
+        glance: glance,
       ),
       _StatChip(
         colors: colors,
         icon: LucideIcons.timer,
         label: 'To meridian',
         value: formatDuration(sky?.timeToTransit),
+        glance: glance,
       ),
       _StatChip(
         colors: colors,
         icon: LucideIcons.sunset,
         label: setLabel,
         value: formatDuration(sky?.timeToSet),
+        glance: glance,
       ),
-      _FrameChip(colors: colors),
-      _SequenceChip(colors: colors),
+      _FrameChip(colors: colors, glance: glance),
+      _SequenceChip(colors: colors, glance: glance),
     ];
 
     return _Shell(
@@ -131,8 +141,13 @@ Color _altitudeColor(RunDashboardSkyStats sky, NightshadeColors colors) {
 class _Identity extends StatelessWidget {
   final NightshadeColors colors;
   final TargetHeaderNode target;
+  final bool glance;
 
-  const _Identity({required this.colors, required this.target});
+  const _Identity({
+    required this.colors,
+    required this.target,
+    required this.glance,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -161,8 +176,11 @@ class _Identity extends StatelessWidget {
             Text(
               '${formatRA(target.raHours)}  ${formatDec(target.decDegrees)}',
               style: NightshadeTypography.withTabular(
-                NightshadeTypography.captionSm.copyWith(
-                  color: colors.textSecondary,
+                NightshadeTypography.glanceStyle(
+                  NightshadeTypography.captionSm.copyWith(
+                    color: colors.textSecondary,
+                  ),
+                  enabled: glance,
                 ),
               ),
             ),
@@ -180,12 +198,14 @@ class _StatChip extends StatelessWidget {
   final String label;
   final String value;
   final Color? valueColor;
+  final bool glance;
 
   const _StatChip({
     required this.colors,
     required this.icon,
     required this.label,
     required this.value,
+    required this.glance,
     this.valueColor,
   });
 
@@ -202,11 +222,14 @@ class _StatChip extends StatelessWidget {
             const SizedBox(width: 4),
             Text(
               label,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize9_5,
-                color: colors.textMuted,
-                letterSpacing: 0.3,
-                fontWeight: FontWeight.w600,
+              style: NightshadeTypography.glanceStyle(
+                TextStyle(
+                  fontSize: NightshadeTypography.fontSize9_5,
+                  color: colors.textMuted,
+                  letterSpacing: 0.3,
+                  fontWeight: FontWeight.w600,
+                ),
+                enabled: glance,
               ),
             ),
           ],
@@ -231,8 +254,9 @@ class _StatChip extends StatelessWidget {
 /// exposure is in flight.
 class _FrameChip extends ConsumerWidget {
   final NightshadeColors colors;
+  final bool glance;
 
-  const _FrameChip({required this.colors});
+  const _FrameChip({required this.colors, required this.glance});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -252,7 +276,9 @@ class _FrameChip extends ConsumerWidget {
     final valueColor = hasFrame ? colors.primary : colors.warning;
 
     return SizedBox(
-      width: 88,
+      // The caption is what grows in glance mode, so the box has to grow with
+      // it or 'This frame' clips at 14px.
+      width: glance ? 120 : 88,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -264,11 +290,14 @@ class _FrameChip extends ConsumerWidget {
               const SizedBox(width: 4),
               Text(
                 'This frame',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize9_5,
-                  color: colors.textMuted,
-                  letterSpacing: 0.3,
-                  fontWeight: FontWeight.w600,
+                style: NightshadeTypography.glanceStyle(
+                  TextStyle(
+                    fontSize: NightshadeTypography.fontSize9_5,
+                    color: colors.textMuted,
+                    letterSpacing: 0.3,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  enabled: glance,
                 ),
               ),
             ],
@@ -298,8 +327,9 @@ class _FrameChip extends ConsumerWidget {
 /// Sequence progress: X/Y · % · ~ETA. Hidden when execution is not active.
 class _SequenceChip extends ConsumerWidget {
   final NightshadeColors colors;
+  final bool glance;
 
-  const _SequenceChip({required this.colors});
+  const _SequenceChip({required this.colors, required this.glance});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -322,11 +352,14 @@ class _SequenceChip extends ConsumerWidget {
             const SizedBox(width: 4),
             Text(
               'Sequence',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize9_5,
-                color: colors.textMuted,
-                letterSpacing: 0.3,
-                fontWeight: FontWeight.w600,
+              style: NightshadeTypography.glanceStyle(
+                TextStyle(
+                  fontSize: NightshadeTypography.fontSize9_5,
+                  color: colors.textMuted,
+                  letterSpacing: 0.3,
+                  fontWeight: FontWeight.w600,
+                ),
+                enabled: glance,
               ),
             ),
           ],
@@ -351,8 +384,11 @@ class _SequenceChip extends ConsumerWidget {
             Text(
               '${(seq.progressPercent * 100).toStringAsFixed(0)}%',
               style: NightshadeTypography.withTabular(
-                NightshadeTypography.labelStrongSm.copyWith(
-                  color: colors.primary,
+                NightshadeTypography.glanceStyle(
+                  NightshadeTypography.labelStrongSm.copyWith(
+                    color: colors.primary,
+                  ),
+                  enabled: glance,
                 ),
               ),
             ),
@@ -361,9 +397,12 @@ class _SequenceChip extends ConsumerWidget {
               Text(
                 '~${formatSeconds(seq.estimatedRemainingSecs!)}',
                 style: NightshadeTypography.withTabular(
-                  TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: colors.textMuted),
+                  NightshadeTypography.glanceStyle(
+                    TextStyle(
+                        fontSize: NightshadeTypography.fontSize11,
+                        color: colors.textMuted),
+                    enabled: glance,
+                  ),
                 ),
               ),
             ],

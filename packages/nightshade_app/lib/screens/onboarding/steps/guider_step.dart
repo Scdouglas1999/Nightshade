@@ -13,6 +13,13 @@ import 'device_picker_step.dart';
 /// with a "Test connection" button that runs [GuidingBackend.isPhd2Running]
 /// — a real socket probe, not a stub. Native guiders (camera-tracked
 /// stars without PHD2) still show up in the picker.
+///
+/// Selecting PHD2 is deliberately independent of the probe. This wizard is run
+/// indoors, at a desk, before PHD2 has been installed or launched for the
+/// night; when "Use PHD2" only existed as a side effect of a *successful*
+/// test, that user could not record their guider at all — Next silently
+/// dropped the typed host/port and the summary step said "— not set —". Test
+/// stays as verification you can run when PHD2 is up.
 class OnboardingGuiderStep extends ConsumerStatefulWidget {
   const OnboardingGuiderStep({super.key});
 
@@ -64,11 +71,65 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
     });
   }
 
+  /// `host:port` when [guiderId] is a PHD2 selection, else null.
+  ///
+  /// The draft — not a local flag — is the source of truth for "PHD2 is the
+  /// chosen guider", so picking a native guider below silently retires the
+  /// PHD2 selection line instead of leaving two contradictory ticks.
+  static String? _phd2EndpointOf(String? guiderId) {
+    const prefix = 'phd2:';
+    if (guiderId == null || !guiderId.startsWith(prefix)) return null;
+    return guiderId.substring(prefix.length);
+  }
+
   @override
   void dispose() {
     _hostController.dispose();
     _portController.dispose();
     super.dispose();
+  }
+
+  /// Record PHD2 at the typed endpoint as this profile's guider.
+  ///
+  /// Deliberately does not probe: the wizard has to be completable with PHD2
+  /// switched off. Returns false (and leaves the draft alone) only when the
+  /// endpoint is not a usable address at all.
+  Future<bool> _savePhd2Selection(String host, int? port) async {
+    if (host.isEmpty || port == null) {
+      setState(() {
+        _lastResult = false;
+        _lastError = 'Enter a host and a numeric port.';
+        _testedEndpoint = _currentEndpoint;
+      });
+      return false;
+    }
+    await ref.read(onboardingDraftProvider.notifier).setGuider(
+          id: 'phd2:$host:$port',
+          name: 'PHD2 ($host:$port)',
+        );
+    // _connectGuider reads phd2Host/phd2Port from settings (not the device
+    // id), so persist the chosen endpoint or a non-default host connects
+    // back to localhost:4400.
+    final s = ref.read(appSettingsProvider.notifier);
+    await s.setPhd2Host(host);
+    await s.setPhd2Port(port);
+    return true;
+  }
+
+  Future<void> _useThisPhd2() async {
+    final host = _hostController.text.trim();
+    final port = int.tryParse(_portController.text.trim());
+    await _savePhd2Selection(host, port);
+  }
+
+  Future<void> _clearPhd2Selection() async {
+    await ref.read(onboardingDraftProvider.notifier).setGuider(id: '');
+    if (!mounted) return;
+    setState(() {
+      _lastResult = null;
+      _lastError = null;
+      _testedEndpoint = null;
+    });
   }
 
   Future<void> _testConnection() async {
@@ -101,20 +162,9 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
             ? null
             : 'No response on $host:$port. Is PHD2 running with "Enable Server" turned on?';
       });
-      if (running) {
-        // Persist the PHD2 endpoint in the draft using the phd2: prefix
-        // so it can be wired to backend.connectGuider later.
-        await ref.read(onboardingDraftProvider.notifier).setGuider(
-              id: 'phd2:$host:$port',
-              name: 'PHD2 ($host:$port)',
-            );
-        // _connectGuider reads phd2Host/phd2Port from settings (not the device
-        // id), so persist the tested endpoint or a non-default host connects
-        // back to localhost:4400.
-        final s = ref.read(appSettingsProvider.notifier);
-        await s.setPhd2Host(host);
-        await s.setPhd2Port(port);
-      }
+      // A passing probe still selects PHD2 in one tap — the common case where
+      // the user already has it running.
+      if (running) await _savePhd2Selection(host, port);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -131,6 +181,11 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
     final notifier = ref.read(onboardingDraftProvider.notifier);
     final colors = NightshadeColors.of(context);
     final theme = Theme.of(context);
+
+    // `host:port` recorded in the draft as the PHD2 guider (null when the
+    // draft holds no guider, or a native one).
+    final savedEndpoint = _phd2EndpointOf(draft.guiderId);
+    final phd2IsSelected = savedEndpoint == _currentEndpoint;
 
     // Scrollable: this step stacks a PHD2 card, a divider and a whole device
     // picker, which together need more height than a small desktop window or a
@@ -241,6 +296,58 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 10),
+                // The selection action, separate from the probe. Test only
+                // reports reachability; this is what writes the guider into
+                // the profile, so an indoor setup with PHD2 not yet running
+                // can still finish the wizard with its guider recorded.
+                Row(
+                  children: [
+                    NightshadeButton(
+                      icon: NightshadeIcons.check,
+                      label: phd2IsSelected ? 'PHD2 selected' : 'Use PHD2',
+                      variant: ButtonVariant.primary,
+                      size: ButtonSize.small,
+                      onPressed: phd2IsSelected ? null : _useThisPhd2,
+                    ),
+                    if (savedEndpoint != null) ...[
+                      const SizedBox(width: 8),
+                      NightshadeButton(
+                        label: 'Clear',
+                        variant: ButtonVariant.ghost,
+                        size: ButtonSize.small,
+                        onPressed: _clearPhd2Selection,
+                      ),
+                    ],
+                  ],
+                ),
+                if (savedEndpoint != null) ...[
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Icon(LucideIcons.checkCircle2,
+                          size: 16, color: colors.success),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          phd2IsSelected
+                              ? 'Guider set to PHD2 at $savedEndpoint.'
+                              // Fields edited after selecting: name both
+                              // addresses rather than leaving a tick over an
+                              // address that is not the one in the profile.
+                              : 'Saved guider is still PHD2 at $savedEndpoint. '
+                                  'Press Use PHD2 to switch to '
+                                  '$_currentEndpoint.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: phd2IsSelected
+                                ? colors.success
+                                : colors.warning,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 if (_lastResult != null &&
                     _testedEndpoint == _currentEndpoint) ...[
                   const SizedBox(height: 10),
@@ -258,34 +365,12 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
                       Expanded(
                         child: Text(
                           _lastResult == true
-                              ? 'PHD2 reachable at $_testedEndpoint. '
-                                  'Selection saved.'
+                              ? 'PHD2 reachable at $_testedEndpoint.'
                               : (_lastError ?? 'Connection failed.'),
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: _lastResult == true
                                 ? colors.success
                                 : colors.error,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ] else if (_lastResult == true) ...[
-                  // Tested endpoint edited: the saved guider is still the one
-                  // that passed, and this box is not it. Say which is which
-                  // rather than leaving a green tick over a changed address.
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Icon(NightshadeIcons.info,
-                          size: 16, color: colors.warning),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Saved guider is still PHD2 at $_testedEndpoint. '
-                          'Press Test to use this address instead.',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colors.warning,
                           ),
                         ),
                       ),

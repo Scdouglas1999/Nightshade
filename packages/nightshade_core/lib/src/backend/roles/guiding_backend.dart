@@ -2,6 +2,7 @@ import 'dart:async';
 
 import '../../models/backend/backend_types.dart';
 import '../../models/phd2_models.dart';
+import '../../services/phd2_probe.dart';
 
 /// Role interface covering guiding operations.
 ///
@@ -33,6 +34,20 @@ abstract class GuidingBackend {
   /// — which has no way to reach the host's loopback PHD2 socket — does not
   /// support it.
   Future<bool> isPhd2Running({String host = 'localhost', int port = 4400});
+
+  /// Shake hands with the PHD2 event server on the given host/port and report
+  /// what answered: PHD2's version and the equipment profile it has selected.
+  ///
+  /// [isPhd2Running] only proves *a* process holds the port, which is not
+  /// enough for the Settings page to tell the operator "PHD2 answered". This
+  /// reads the `Version` event PHD2 sends to every connecting client and makes
+  /// one read-only `get_profile` call, so the answer names the software it
+  /// actually reached. Host-local for the same reason as [isPhd2Running]; the
+  /// network backend forwards it to the master.
+  Future<Phd2ProbeResult> phd2Probe({
+    String host = 'localhost',
+    int port = 4400,
+  });
 
   /// Connect to PHD2
   Future<void> phd2Connect({String host = 'localhost', int port = 4400});

@@ -4,6 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:path/path.dart' as p;
 
+import '../collaborative_sky/collaborative_sky_providers.dart'
+    show invalidateCollaborativeMosaicState;
+
 /// Immutable snapshot the [MosaicProjectScreen] renders: the durable project, its
 /// panels (ordered by index), the per-panel masters (so the grid can show a
 /// thumbnail when a panel is integrated), and — once the project is complete —
@@ -120,6 +123,21 @@ class MosaicProjectState {
   /// Panels not yet claimed for distributed capture (WS2) — the claim-all set.
   List<MosaicProjectPanel> get unclaimedPanels =>
       panels.where((p) => !p.isClaimed).toList(growable: false);
+
+  /// Panels THIS rig is currently holding an OUTSTANDING claim on — claimed and
+  /// not yet uploaded. A local panel row only carries a claim token after this
+  /// device's own successful claim (nothing mirrors a peer's claim: the join
+  /// mirror upserts panels with no token and `refreshStatus` only syncs the
+  /// mosaic's lifecycle), so this is "mine", not "claimed by anyone".
+  ///
+  /// An uploaded panel is excluded because its claim is spent: the hub refuses
+  /// to release it and never re-opens it ("an uploaded panel is done — never
+  /// re-claimable", `MosaicBrokerService.claimPanel`/`releasePanel`), so
+  /// counting it would offer the operator work to hand back that cannot be
+  /// handed back. This is the same set the per-panel Release button and the
+  /// claim-expiry caption already use.
+  int get heldPanelCount =>
+      panels.where((p) => p.isClaimed && !p.isUploaded).length;
 
   /// True when this device owns the collaborative mosaic (as opposed to having
   /// joined a peer's as a participant).
@@ -238,6 +256,7 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
     bool hubConfigured = true,
     MosaicCaptureLauncher? captureLauncher,
     IntegrationSettings integrationSettings = IntegrationSettings.defaults,
+    void Function()? onHubStateChanged,
   })  : _projectId = projectId,
         _projectsDao = projectsDao,
         _panelsDao = panelsDao,
@@ -249,6 +268,7 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
         _stitchOutputDirectory = stitchOutputDirectory,
         _captureLauncher = captureLauncher,
         _integrationSettings = integrationSettings,
+        _onHubStateChanged = onHubStateChanged,
         super(const MosaicProjectState()) {
     // Kick the first load; errors land on state.error rather than throwing into
     // the constructor.
@@ -281,6 +301,17 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
   /// tests can drive [startCapture] without the real sequencer/executor.
   final MosaicCaptureLauncher? _captureLauncher;
   final IntegrationSettings _integrationSettings;
+
+  /// Fired after every action that CHANGES hub-side collaborative state
+  /// (publish / claim / release / upload / assemble / join).
+  ///
+  /// The hub listings the Collaborative Sky surface renders are plain (non
+  /// `autoDispose`) `FutureProvider`s, so their first answer is cached for the
+  /// life of the container. Without this hook, publishing a mosaic left that
+  /// surface still rendering "No collaborative mosaics on this hub yet" — the
+  /// screen whose whole job is to show shared mosaics claiming there were none,
+  /// until the operator happened to press its manual refresh icon.
+  final void Function()? _onHubStateChanged;
 
   /// How long the project read may take before the screen stops waiting on it.
   /// A wedged/locked database must surface an actionable error rather than an
@@ -502,6 +533,18 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
   /// never enabled-then-failing-at-the-tap on a rig with no hub.
   bool get canCollaborate => _collaborative != null && _hubConfigured;
 
+  /// Reload this project AND tell the rest of the app that hub-side state moved.
+  ///
+  /// Every collaborative action calls this instead of a bare [load]: [load] only
+  /// re-reads THIS controller's own project row, which is why the shared
+  /// listings elsewhere in the app used to keep serving their pre-publish
+  /// answer. Local-only actions (integrate/stitch) keep calling [load] directly
+  /// so they do not trigger a needless hub round-trip.
+  Future<void> _reloadAfterHubMutation() async {
+    await load();
+    if (mounted) _onHubStateChanged?.call();
+  }
+
   /// Publish this project to the hub as a collaborative mosaic, then reload so
   /// the header reflects the published state.
   Future<void> publishToHub() async {
@@ -517,7 +560,7 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
     state = state.copyWith(isPublishing: true, clearError: true);
     try {
       await collaborative.publishProject(_projectId);
-      await load();
+      await _reloadAfterHubMutation();
       if (mounted) state = state.copyWith(isPublishing: false);
     } catch (e) {
       if (!mounted) return;
@@ -581,7 +624,7 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
     state = state.copyWith(isClaiming: true, clearError: true);
     try {
       final claims = await action();
-      await load();
+      await _reloadAfterHubMutation();
       if (!mounted) return;
       // Surface the hub's OWN deadline for what was just granted, so the person
       // taking a panel can see how long they are holding it for.
@@ -620,7 +663,7 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
     state = state.copyWith(isClaiming: true, clearError: true);
     try {
       final released = await collaborative.releasePanel(_projectId, panelIndex);
-      await load();
+      await _reloadAfterHubMutation();
       if (!mounted) return;
       if (released) {
         state = state.copyWith(isClaiming: false);
@@ -655,7 +698,7 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
     state = state.copyWith(isClaiming: true, clearError: true);
     try {
       await collaborative.forceReleasePanel(_projectId, panelIndex);
-      await load();
+      await _reloadAfterHubMutation();
       if (mounted) state = state.copyWith(isClaiming: false);
     } catch (e) {
       if (!mounted) return;
@@ -717,7 +760,7 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
     state = state.copyWith(isUploading: true, clearError: true);
     try {
       await action();
-      await load();
+      await _reloadAfterHubMutation();
       if (mounted) state = state.copyWith(isUploading: false);
     } catch (e) {
       if (!mounted) return;
@@ -740,7 +783,7 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
     state = state.copyWith(isAssembling: true, clearError: true);
     try {
       await collaborative.assembleMosaic(_projectId);
-      await load();
+      await _reloadAfterHubMutation();
       if (mounted) state = state.copyWith(isAssembling: false);
     } catch (e) {
       if (!mounted) return;
@@ -790,7 +833,7 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
     state = state.copyWith(isJoining: true, clearError: true);
     try {
       await collaborative.joinAsParticipant(_projectId, hubMosaicId);
-      await load();
+      await _reloadAfterHubMutation();
       if (mounted) state = state.copyWith(isJoining: false);
     } catch (e) {
       if (!mounted) return;
@@ -945,6 +988,11 @@ final mosaicProjectControllerProvider = StateNotifierProvider.family<
           mosaicStitchOutputDirectory(args.artifactsBaseDir, project),
       captureLauncher: buildMosaicCaptureLauncher(ref),
       integrationSettings: args.integrationSettings,
+      // A hub mutation here invalidates the shared Collaborative Sky listings,
+      // which are cached for the container's life. Without it the Collaborate
+      // surface keeps rendering the answer it got BEFORE this project was
+      // published/claimed.
+      onHubStateChanged: () => invalidateCollaborativeMosaicState(ref),
     );
   },
 );

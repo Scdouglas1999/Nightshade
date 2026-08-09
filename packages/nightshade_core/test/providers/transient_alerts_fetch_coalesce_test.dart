@@ -26,6 +26,7 @@ import 'package:nightshade_core/src/services/notification/secrets_store.dart';
 import 'package:nightshade_core/src/services/transient_alert_service.dart';
 
 import '../fakes/fakes.dart';
+import '../harness/in_memory_database.dart';
 
 /// Service whose getAllAlerts hands back a controllable completer per call so
 /// the test can hold a fetch "in flight" and count how many fetches ran.
@@ -124,6 +125,7 @@ void main() {
     () async {
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           settingsDaoProvider.overrideWithValue(db.settingsDao),
           transientAlertServiceProvider.overrideWithValue(service),
           allTransientDetectionsProvider.overrideWith(
@@ -202,6 +204,7 @@ void main() {
     addTearDown(recordingService.dispose);
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         settingsDaoProvider.overrideWithValue(db.settingsDao),
         secretsStoreProvider.overrideWithValue(secureStore),
         scienceSettingsProvider.overrideWith(
@@ -290,6 +293,7 @@ void main() {
       );
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith(
             (ref) => _FixedBackendNotifier(ref, backend),
           ),

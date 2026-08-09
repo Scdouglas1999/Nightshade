@@ -75,38 +75,49 @@ extension _TargetStep on _QuickStartWizardDialogState {
                   BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(color: colors.border),
             ),
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: _searchResults.length,
-              itemBuilder: (context, index) {
-                final target = _searchResults[index];
-                return ListTile(
-                  dense: true,
-                  title: Text(
-                    target.name,
-                    style: TextStyle(
-                        color: colors.textPrimary,
-                        fontSize: NightshadeTypography.fontSize13),
-                  ),
-                  subtitle: Text(
-                    '${target.catalogId ?? ""} | RA: ${_formatRa(target.ra)} Dec: ${_formatDec(target.dec)}',
-                    style: TextStyle(
-                        color: colors.textMuted,
-                        fontSize: NightshadeTypography.fontSize11),
-                  ),
-                  trailing: target.magnitude != null
-                      ? Text(
-                          'mag ${target.magnitude!.toStringAsFixed(1)}',
-                          style: TextStyle(
-                              color: colors.textMuted,
-                              fontSize: NightshadeTypography.fontSize11),
-                        )
-                      : null,
-                  onTap: () => _selectTarget(target),
-                );
-              },
+            // The rows are ListTiles inside a decorated box, so without an
+            // intervening Material they paint no ink splash at all (and
+            // Flutter asserts about it in debug).
+            child: Material(
+              type: MaterialType.transparency,
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: _searchResults.length,
+                itemBuilder: (context, index) {
+                  final target = _searchResults[index];
+                  return ListTile(
+                    dense: true,
+                    title: Text(
+                      target.name,
+                      style: TextStyle(
+                          color: colors.textPrimary,
+                          fontSize: NightshadeTypography.fontSize13),
+                    ),
+                    subtitle: Text(
+                      '${target.catalogId ?? ""} | RA: ${_formatRa(target.ra)} Dec: ${_formatDec(target.dec)}',
+                      style: TextStyle(
+                          color: colors.textMuted,
+                          fontSize: NightshadeTypography.fontSize11),
+                    ),
+                    trailing: target.magnitude != null
+                        ? Text(
+                            'mag ${target.magnitude!.toStringAsFixed(1)}',
+                            style: TextStyle(
+                                color: colors.textMuted,
+                                fontSize: NightshadeTypography.fontSize11),
+                          )
+                        : null,
+                    onTap: () => _selectTarget(target),
+                  );
+                },
+              ),
             ),
           ),
+
+        // A finished search with nothing to show used to render as silence,
+        // leaving "is this broken or is my library empty?" unanswerable.
+        if (_searchResults.isEmpty && _searchCompleted && !_isSearching)
+          _buildTargetSearchEmptyState(colors),
 
         const SizedBox(height: 20),
 
@@ -204,6 +215,58 @@ extension _TargetStep on _QuickStartWizardDialogState {
           ),
         ],
       ],
+    );
+  }
+
+  /// Says which of the three things actually happened when the results list
+  /// is empty: the lookup errored, the target library is empty, or the
+  /// library simply holds no match. Every branch points at the manual RA/Dec
+  /// fields directly below, which always work.
+  Widget _buildTargetSearchEmptyState(NightshadeColors colors) {
+    final (IconData icon, Color tint, String message) = switch (_searchError) {
+      final Object err => (
+          LucideIcons.alertTriangle,
+          colors.error,
+          'Target lookup failed: $err. Enter RA/Dec below instead.',
+        ),
+      _ when _libraryIsEmpty => (
+          LucideIcons.bookMarked,
+          colors.warning,
+          'Your target library is empty, so there is nothing to search. '
+              'Save targets from Sky or Planner, or enter RA/Dec below.',
+        ),
+      _ => (
+          LucideIcons.searchX,
+          colors.textMuted,
+          'No saved target matches "$_lastSearchQuery". '
+              'Enter RA/Dec below to use it anyway.',
+        ),
+    };
+
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+        border: Border.all(color: colors.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: tint),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: NightshadeTypography.fontSize12,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

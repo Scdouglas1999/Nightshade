@@ -2,24 +2,53 @@
 
 part of '../analytics_screen.dart';
 
-class _SessionTab extends ConsumerWidget {
+class _SessionTab extends ConsumerStatefulWidget {
   const _SessionTab({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_SessionTab> createState() => _SessionTabState();
+}
+
+class _SessionTabState extends ConsumerState<_SessionTab> {
+  /// Session chosen in the review bar. Null follows the live session, or the
+  /// most recent one that actually holds light frames.
+  int? _selectedSessionId;
+
+  @override
+  Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final sessionState = ref.watch(sessionStateProvider);
     final duration = ref.watch(sessionDurationProvider);
     final l10n = context.l10n;
 
-    // Get current session images if active, otherwise show standalone captures
-    final bool isStandaloneMode = sessionState.dbSessionId == null;
-    final imagesAsyncValue = sessionState.dbSessionId != null
-        ? ref.watch(dbSessionImagesProvider(sessionState.dbSessionId!))
+    final allSessions =
+        ref.watch(allSessionsProvider).valueOrNull ?? const <ImagingSession>[];
+    // The tab used to fall back to loose quick-capture snapshots the moment no
+    // session was running, so the night you had just finished was nowhere on
+    // the screen that is literally called "Session".
+    final pickedSessionId =
+        allSessions.any((session) => session.id == _selectedSessionId)
+            ? _selectedSessionId
+            : null;
+    final reviewSessionId = pickedSessionId ??
+        sessionState.dbSessionId ??
+        ref.watch(latestScienceSessionProvider).valueOrNull;
+    final reviewSession = allSessions
+        .cast<ImagingSession?>()
+        .firstWhere((s) => s?.id == reviewSessionId, orElse: () => null);
+    final isLive = sessionState.isActive &&
+        sessionState.dbSessionId != null &&
+        sessionState.dbSessionId == reviewSessionId;
+
+    // Get session images when one is being reviewed, otherwise the standalone
+    // captures that are all this tab has to show.
+    final bool isStandaloneMode = reviewSessionId == null;
+    final imagesAsyncValue = reviewSessionId != null
+        ? ref.watch(dbSessionImagesProvider(reviewSessionId))
         : ref.watch(standaloneImagesProvider);
     void retryImages() {
-      if (sessionState.dbSessionId != null) {
-        ref.invalidate(dbSessionImagesProvider(sessionState.dbSessionId!));
+      if (reviewSessionId != null) {
+        ref.invalidate(dbSessionImagesProvider(reviewSessionId));
       } else {
         ref.invalidate(standaloneImagesProvider);
       }
@@ -27,7 +56,7 @@ class _SessionTab extends ConsumerWidget {
 
     final String headerTitle;
     final String headerSubtitle;
-    if (sessionState.isActive) {
+    if (isLive) {
       headerTitle = l10n.text('analyticsCurrentSession');
       headerSubtitle = sessionState.startTime != null
           ? l10n.text(
@@ -38,6 +67,11 @@ class _SessionTab extends ConsumerWidget {
               },
             )
           : l10n.text('analyticsSessionInProgress');
+    } else if (reviewSession != null) {
+      headerTitle = reviewSession.name ?? l10n.text('analyticsUnnamedSession');
+      headerSubtitle =
+          '${DateFormat('EEE MMM d, yyyy · HH:mm').format(reviewSession.startTime)}'
+          '  ·  ${reviewSession.status}';
     } else if (isStandaloneMode) {
       headerTitle = l10n.text('analyticsQuickCapture');
       headerSubtitle = l10n.text('analyticsQuickCaptureSubtitle');
@@ -46,7 +80,14 @@ class _SessionTab extends ConsumerWidget {
       headerSubtitle = l10n.text('analyticsNoSessionInProgress');
     }
 
-    String standaloneMetric(String Function(List<DbCapturedImage>) value) {
+    // Shared with the chart grid below so the stat strip and the four charts
+    // can never describe different frames.
+    List<DbCapturedImage> acceptedLights(List<DbCapturedImage> images) =>
+        sessionChartFrames(images);
+
+    /// Metric computed from whichever frame set is on screen, so a finished
+    /// session reports its real totals instead of an em-dash.
+    String frameMetric(String Function(List<DbCapturedImage>) value) {
       return imagesAsyncValue.when(
         data: value,
         loading: () => 'Loading…',
@@ -54,80 +95,177 @@ class _SessionTab extends ConsumerWidget {
       );
     }
 
-    List<DbCapturedImage> acceptedLights(List<DbCapturedImage> images) => images
-        .where((image) =>
-            image.isAccepted && image.frameType.toLowerCase() == 'light')
-        .toList(growable: false);
+    // Shared with the History cards so one session can never be described two
+    // ways: an unclosed row used to read "0s" here and "46h 2m elapsed" there.
+    final elapsed = reviewSession == null
+        ? null
+        : sessionElapsed(
+            reviewSession,
+            isLive: isLive,
+            lastFrameAt:
+                ref.watch(lastFrameBySessionProvider)[reviewSession.id],
+          );
 
     final summaryStats = [
       ResponsiveStat(
-        label: l10n.text('analyticsDuration'),
-        value: sessionState.isActive ? duration : '—',
+        label: elapsed == null || !elapsed.isUnfinished
+            ? l10n.text('analyticsDuration')
+            : '${l10n.text('analyticsDuration')} · ${elapsed.captionLabel}',
+        value: isLive ? duration : elapsed?.valueLabel ?? '—',
       ),
       ResponsiveStat(
         label: l10n.text('analyticsExposures'),
-        value: sessionState.isActive
+        value: isLive
             ? '${sessionState.completedExposures}/${sessionState.totalExposures}'
-            : isStandaloneMode
-                ? standaloneMetric((images) => '${images.length}')
-                : '—',
+            : frameMetric((images) {
+                final lights = images
+                    .where((i) => i.frameType.toLowerCase() == 'light')
+                    .length;
+                final accepted = acceptedLights(images).length;
+                return lights == accepted ? '$accepted' : '$accepted/$lights';
+              }),
       ),
       ResponsiveStat(
         label: l10n.text('analyticsIntegration'),
-        value: sessionState.isActive
-            ? '${(sessionState.totalIntegrationSecs / 60).toStringAsFixed(1)}m'
-            : isStandaloneMode
-                ? standaloneMetric((images) {
-                    final seconds = acceptedLights(images).fold<double>(
-                      0,
-                      (sum, image) => image.exposureDuration.isFinite &&
-                              image.exposureDuration > 0
-                          ? sum + image.exposureDuration
-                          : sum,
-                    );
-                    return _formatAnalyticsIntegration(seconds);
-                  })
-                : '—',
+        value: isLive
+            ? _formatAnalyticsIntegration(sessionState.totalIntegrationSecs)
+            : frameMetric((images) {
+                final seconds = acceptedLights(images).fold<double>(
+                  0,
+                  (sum, image) => image.exposureDuration.isFinite &&
+                          image.exposureDuration > 0
+                      ? sum + image.exposureDuration
+                      : sum,
+                );
+                return _formatAnalyticsIntegration(seconds);
+              }),
       ),
       ResponsiveStat(
-        label: l10n.text('analyticsAvgHfr'),
-        value: sessionState.isActive
+        // Median, not mean: a handful of clouded frames drags a mean HFR
+        // upward and makes a good night look worse than it was.
+        label: 'Median HFR',
+        value: isLive
             ? sessionState.avgHfr?.toStringAsFixed(2) ?? '—'
-            : isStandaloneMode
-                ? standaloneMetric((images) {
-                    final hfrs = acceptedLights(images)
-                        .map((image) => image.hfr)
-                        .whereType<double>()
-                        .where((value) => value.isFinite && value >= 0)
-                        .toList(growable: false);
-                    if (hfrs.isEmpty) return 'No data';
-                    final average =
-                        hfrs.fold<double>(0, (sum, value) => sum + value) /
-                            hfrs.length;
-                    return average.toStringAsFixed(2);
-                  })
-                : '—',
+            : frameMetric((images) {
+                final hfrs = acceptedLights(images)
+                    .map((image) => image.hfr)
+                    .whereType<double>()
+                    .where((value) => value.isFinite && value >= 0)
+                    .toList()
+                  ..sort();
+                if (hfrs.isEmpty) return 'No data';
+                final mid = hfrs.length ~/ 2;
+                final median = hfrs.length.isOdd
+                    ? hfrs[mid]
+                    : (hfrs[mid - 1] + hfrs[mid]) / 2;
+                return median.toStringAsFixed(2);
+              }),
       ),
     ];
+
+    // The standalone bucket is a real thing — frames shot outside a sequence —
+    // but it was also the fallback whenever no session was under review, so a
+    // brand-new profile opened Analytics on a card headed "Quick Capture" with
+    // a duration, an exposure count and four blank charts for a night that had
+    // never happened. Show it only when it actually holds frames.
+    final standaloneImages =
+        isStandaloneMode ? imagesAsyncValue.valueOrNull : null;
+    final noStandaloneFrames = isStandaloneMode &&
+        standaloneImages != null &&
+        standaloneImages.isEmpty;
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final isPhone = constraints.maxWidth < BreakpointTokens.breakpointPhone;
         final outerPadding = EdgeInsets.all(isPhone ? 16.0 : 24.0);
 
-        Widget chartGrid(List<DbCapturedImage> images) {
+        if (noStandaloneFrames) {
+          return Padding(
+            padding: outerPadding,
+            child: Column(
+              children: [
+                // With sessions on record the picker stays: the tab has
+                // something to offer, it just isn't the quick-capture bucket.
+                if (allSessions.isNotEmpty) ...[
+                  _SessionReviewBar(
+                    colors: colors,
+                    sessions: allSessions,
+                    selectedId: null,
+                    onSelected: (id) => setState(() => _selectedSessionId = id),
+                  ),
+                  const SizedBox(height: 24),
+                ],
+                Expanded(
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(LucideIcons.folderOpen,
+                            size: 48, color: colors.textMuted),
+                        const SizedBox(height: 16),
+                        Text(
+                          allSessions.isEmpty
+                              ? l10n.text('analyticsNoSessionHistory')
+                              : 'No quick captures',
+                          style: TextStyle(
+                            fontSize: NightshadeTypography.fontSize14,
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          allSessions.isEmpty
+                              ? l10n.text('analyticsNoSessionHistoryDesc')
+                              : 'Choose a session above to review it.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: NightshadeTypography.fontSize12,
+                            color: colors.textMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        Widget chartGrid(List<DbCapturedImage> allImages) {
+          // One population for all four charts, and it is the same one the
+          // stat strip above counts.
+          final images = acceptedLights(allImages);
+          final excluded = allImages.length - images.length;
           final hfr =
               HfrChart(key: AnalyticsTutorialKeys.hfrChart, images: images);
           final guiding = GuidingRmsChart(
               key: AnalyticsTutorialKeys.guidingChart, images: images);
           final focuser = FocuserPositionChart(images: images);
           final temperature = TemperatureChart(images: images);
+          // Say which frames are plotted rather than letting the reader assume
+          // the charts cover everything the session captured.
+          final population = Container(
+            width: double.infinity,
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Text(
+              excluded == 0
+                  ? 'All four charts plot the same ${images.length} accepted light frames.'
+                  : 'All four charts plot the same ${images.length} accepted light frames '
+                      '· $excluded excluded (rejected or calibration)',
+              style: TextStyle(
+                fontSize: NightshadeTypography.fontSize11,
+                color: colors.textMuted,
+              ),
+            ),
+          );
 
           // Phone: a single column of full-width charts so each reads at the
           // viewport width. Tablet/desktop keep the 2-up grid.
           if (isPhone) {
             return Column(
               children: [
+                population,
                 hfr,
                 const SizedBox(height: 16),
                 guiding,
@@ -140,6 +278,7 @@ class _SessionTab extends ConsumerWidget {
           }
           return Column(
             children: [
+              population,
               Row(
                 children: [
                   Expanded(child: hfr),
@@ -163,6 +302,19 @@ class _SessionTab extends ConsumerWidget {
           padding: outerPadding,
           child: Column(
             children: [
+              if (allSessions.isNotEmpty && !isLive) ...[
+                _SessionReviewBar(
+                  colors: colors,
+                  sessions: allSessions,
+                  selectedId: reviewSessionId,
+                  onSelected: (id) => setState(() => _selectedSessionId = id),
+                  onClear: _selectedSessionId == null
+                      ? null
+                      : () => setState(() => _selectedSessionId = null),
+                ),
+                const SizedBox(height: 16),
+              ],
+
               // Session summary bar — header stacks above a reflowing stat
               // strip so the four metrics never overflow a phone column.
               NightshadeCard(
@@ -505,4 +657,101 @@ bool sessionMatchesTargetFilter(
     return name == null || name.isEmpty;
   }
   return name == filter;
+}
+
+/// Picks which past session the Session tab is reviewing.
+///
+/// The tab is the natural place to go the morning after a run, but with no
+/// session live it used to show only loose quick-capture snapshots, so the
+/// night that just finished was unreachable from here.
+class _SessionReviewBar extends StatelessWidget {
+  final NightshadeColors colors;
+  final List<ImagingSession> sessions;
+  final int? selectedId;
+  final ValueChanged<int?> onSelected;
+  final VoidCallback? onClear;
+
+  const _SessionReviewBar({
+    required this.colors,
+    required this.sessions,
+    required this.selectedId,
+    required this.onSelected,
+    this.onClear,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final format = DateFormat('MMM d, yyyy HH:mm');
+    final hasSelection = sessions.any((s) => s.id == selectedId);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeTokens.spaceMd,
+        vertical: NightshadeTokens.spaceSm,
+      ),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt,
+        borderRadius: NightshadeTokens.borderRadiusLg,
+        border: Border.all(color: colors.border),
+      ),
+      child: Row(
+        children: [
+          Icon(LucideIcons.history,
+              size: NightshadeTokens.iconXs, color: colors.textMuted),
+          const SizedBox(width: NightshadeTokens.spaceSm),
+          Text(
+            'Reviewing',
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textSecondary),
+          ),
+          const SizedBox(width: NightshadeTokens.spaceSm),
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<int>(
+                value: hasSelection ? selectedId : null,
+                isExpanded: true,
+                isDense: true,
+                dropdownColor: colors.surfaceElevated,
+                borderRadius: NightshadeTokens.borderRadiusLg,
+                hint: Text(
+                  'Quick captures (no session selected)',
+                  style: NightshadeTypography.labelSm
+                      .copyWith(color: colors.textMuted),
+                ),
+                style: NightshadeTypography.labelSm
+                    .copyWith(color: colors.textPrimary),
+                onChanged: onSelected,
+                items: [
+                  for (final session in sessions.take(60))
+                    DropdownMenuItem<int>(
+                      value: session.id,
+                      child: Text(
+                        '${session.name ?? 'Session ${session.id}'}'
+                        '  ·  ${format.format(session.startTime)}'
+                        '  ·  ${session.successfulExposures} frames',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: NightshadeTypography.labelSm
+                            .copyWith(color: colors.textPrimary),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          if (onClear != null) ...[
+            const SizedBox(width: NightshadeTokens.spaceSm),
+            TextButton(
+              onPressed: onClear,
+              child: Text(
+                'Most recent',
+                style:
+                    NightshadeTypography.caption.copyWith(color: colors.accent),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }

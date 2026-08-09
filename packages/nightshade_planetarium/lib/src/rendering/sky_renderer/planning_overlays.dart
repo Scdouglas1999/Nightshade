@@ -39,7 +39,9 @@ extension _SkyCanvasPainterPlanningOverlays on SkyCanvasPainter {
     final visibility = AstronomyCalculations.calculateObjectVisibility(
       raDeg: raDeg,
       decDeg: decDeg,
-      date: observationTime,
+      // The night containing the clock, not its calendar day: after local
+      // midnight those differ and the overlay would describe tomorrow night.
+      date: AstronomyCalculations.nightDateOf(observationTime),
       latitudeDeg: latitude,
       longitudeDeg: longitude,
     );

@@ -284,6 +284,133 @@ class ShareCardRenderer {
     return img.arial14;
   }
 
+  /// Panel padding / gap / corner radius derived from [font]'s line height, so
+  /// the geometry scales with whichever font the caption ends up rendered in.
+  ///
+  /// Exposed so tests can reproduce the exact bar geometry.
+  ({int lineHeight, int pad, int gap, int radius}) panelGeometry(
+    img.BitmapFont font,
+  ) {
+    final lineHeight = font.lineHeight;
+    return (
+      lineHeight: lineHeight,
+      pad: (lineHeight * 0.5).round().clamp(4, 48),
+      gap: (lineHeight * 0.4).round().clamp(2, 32),
+      radius: (lineHeight * 0.35).round().clamp(2, 24),
+    );
+  }
+
+  /// The built-in bitmap fonts in descending size — the ladder a caption steps
+  /// down when it will not fit the card width.
+  static List<img.BitmapFont> get _fontLadder => [
+    img.arial48,
+    img.arial24,
+    img.arial14,
+  ];
+
+  /// Rows a caption may occupy before it stops being a caption.
+  static const int _maxCaptionRows = 3;
+
+  /// Choose the largest font at or below [preferred] whose greedy wrap of
+  /// [segments] fits [cardWidth] in at most [_maxCaptionRows] rows with no
+  /// single segment overflowing, and return that font with the wrapped rows.
+  ///
+  /// When nothing on the ladder fits, the smallest font is used and any segment
+  /// still wider than the card is ellipsized to fit. A long target name is the
+  /// one segment that can do this (the stat segments are short and bounded), and
+  /// letting [img.drawString] run it off the right edge is exactly the defect
+  /// this method exists to fix — a caption ending in "..." is honest about being
+  /// shortened, one sliced mid-glyph by the card edge is not.
+  ///
+  /// Exposed so a regression test can assert the fit without rendering.
+  ({img.BitmapFont font, List<List<String>> rows}) fitCaption(
+    img.BitmapFont preferred,
+    List<String> segments,
+    int cardWidth,
+  ) {
+    var reached = false;
+    for (final candidate in _fontLadder) {
+      // Skip anything larger than the caller's height-derived choice.
+      if (!reached) {
+        if (candidate.lineHeight > preferred.lineHeight) continue;
+        reached = true;
+      }
+      final available = cardWidth - panelGeometry(candidate).pad * 2;
+      final gap = panelGeometry(candidate).gap * 3;
+      final rows = _wrapSegments(candidate, segments, gap, available);
+      final everyFits = segments.every(
+        (s) => _measureText(candidate, s) <= available,
+      );
+      if (everyFits && rows.length <= _maxCaptionRows) {
+        return (font: candidate, rows: rows);
+      }
+    }
+    final smallest = _fontLadder.last;
+    final geometry = panelGeometry(smallest);
+    final available = cardWidth - geometry.pad * 2;
+    final clamped = [
+      for (final segment in segments) _ellipsize(smallest, segment, available),
+    ];
+    return (
+      font: smallest,
+      rows: _wrapSegments(smallest, clamped, geometry.gap * 3, available),
+    );
+  }
+
+  /// Shorten [text] with a trailing ellipsis until it measures within
+  /// [available] in [font]; returns [text] unchanged when it already fits.
+  ///
+  /// ASCII dots rather than U+2026: the built-in bitmap fonts carry no ellipsis
+  /// glyph, and [_measureText] / [img.drawString] silently drop a character the
+  /// font has no entry for — the shortened caption would then carry no mark that
+  /// anything had been removed.
+  String _ellipsize(img.BitmapFont font, String text, int available) {
+    if (_measureText(font, text) <= available) return text;
+    const marker = '...';
+    final markerWidth = _measureText(font, marker);
+    if (markerWidth > available) return '';
+    // Walk whole runes, not code units: cutting a surrogate pair in half would
+    // leave an unpaired half in the caption.
+    final runes = text.runes.toList();
+    for (var end = runes.length; end > 0; end--) {
+      final candidate = String.fromCharCodes(runes.take(end)).trimRight();
+      if (_measureText(font, candidate) + markerWidth <= available) {
+        return '$candidate$marker';
+      }
+    }
+    return marker;
+  }
+
+  /// Greedy wrap of whole [segments] into rows no wider than [available].
+  /// Segments are never split: each is one "LABEL value" unit and breaking it
+  /// is what produced the truncated caption in the first place.
+  List<List<String>> _wrapSegments(
+    img.BitmapFont font,
+    List<String> segments,
+    int gap,
+    int available,
+  ) {
+    final rows = <List<String>>[];
+    var current = <String>[];
+    var width = 0;
+    for (final segment in segments) {
+      final segmentWidth = _measureText(font, segment);
+      final needed = current.isEmpty
+          ? segmentWidth
+          : width + gap + segmentWidth;
+      if (current.isNotEmpty && needed > available) {
+        rows.add(current);
+        current = <String>[segment];
+        width = segmentWidth;
+      } else {
+        current.add(segment);
+        width = needed;
+      }
+    }
+    if (current.isNotEmpty) rows.add(current);
+    return rows;
+  }
+
   /// Measure the rendered pixel width of [text] in [font], summing per-glyph
   /// advances (matching how [img.drawString] lays glyphs out). Used to size the
   /// stat panel to its contents.
@@ -316,11 +443,11 @@ class ShareCardRenderer {
     final stats = spec.stats;
     if (title.isEmpty && stats.isEmpty) return;
 
-    final lineHeight = font.lineHeight;
-    // Geometry derived from the line height so it scales with the chosen font.
-    final pad = (lineHeight * 0.5).round().clamp(4, 48);
-    final gap = (lineHeight * 0.4).round().clamp(2, 32);
-    final radius = (lineHeight * 0.35).round().clamp(2, 24);
+    final geometry = panelGeometry(font);
+    final lineHeight = geometry.lineHeight;
+    final pad = geometry.pad;
+    final gap = geometry.gap;
+    final radius = geometry.radius;
 
     // Panel fill + stroke: a low-alpha dark fill keeps the underlying image
     // readable; a faint light stroke separates it from a bright nebula edge.
@@ -332,10 +459,6 @@ class ShareCardRenderer {
         _drawBottomBar(
           bitmap,
           font: font,
-          lineHeight: lineHeight,
-          pad: pad,
-          gap: gap,
-          radius: radius,
           fill: fill,
           stroke: stroke,
           title: title,
@@ -360,23 +483,38 @@ class ShareCardRenderer {
   void _drawBottomBar(
     img.Image bitmap, {
     required img.BitmapFont font,
-    required int lineHeight,
-    required int pad,
-    required int gap,
-    required int radius,
     required img.Color fill,
     required img.Color stroke,
     required String title,
     required List<ShareStatLine> stats,
   }) {
-    // A single-row bar: title, then each stat as "LABEL value" segments.
+    // Title, then each stat as a self-contained "LABEL value" segment.
     final segments = <String>[
       if (title.isNotEmpty) title,
-      for (final s in stats) '${s.label.trim()}  ${s.value.trim()}'.trim(),
+      for (final s in stats)
+        if ('${s.label.trim()}  ${s.value.trim()}'.trim().isNotEmpty)
+          '${s.label.trim()}  ${s.value.trim()}'.trim(),
     ];
     if (segments.isEmpty) return;
 
-    final barHeight = lineHeight + pad * 2;
+    // Fit the caption to the card WIDTH, not only to its height. The font is
+    // derived from the image HEIGHT alone, and nothing ever measured the
+    // composed caption against the available width — so on a 512px card
+    // "M51 · Integration 00:35:00 · Frames 7 · Filter L" needed 565px, ran off
+    // the right edge, and drawString silently clipped the last stat mid-word.
+    // This is the artefact the feature exists to produce; it must not ship
+    // truncated.
+    final fitted = fitCaption(font, segments, bitmap.width);
+    final barFont = fitted.font;
+    final rows = fitted.rows;
+    final geometry = panelGeometry(barFont);
+    final lineHeight = geometry.lineHeight;
+    final pad = geometry.pad;
+    final gap = geometry.gap;
+    final radius = geometry.radius;
+
+    final barHeight =
+        rows.length * lineHeight + (rows.length - 1) * gap + pad * 2;
     final y0 = bitmap.height - barHeight;
     final y1 = bitmap.height - 1;
 
@@ -399,50 +537,36 @@ class ShareCardRenderer {
       radius: radius,
     );
 
-    final textY = y0 + pad;
-    var x = pad;
-    // The title renders brighter than the stat segments for hierarchy.
-    if (title.isNotEmpty) {
-      img.drawString(
-        bitmap,
-        title,
-        font: font,
-        x: x + 1,
-        y: textY + 1,
-        color: img.ColorUint8.rgba(0, 0, 0, 200),
-      );
-      img.drawString(
-        bitmap,
-        title,
-        font: font,
-        x: x,
-        y: textY,
-        color: img.ColorUint8.rgb(255, 255, 255),
-      );
-      x += _measureText(font, title) + gap * 3;
-    }
+    // The title renders brighter than the stat segments for hierarchy; it is
+    // segment 0 whenever a title is present.
     final statColor = img.ColorUint8.rgb(210, 220, 235);
-    for (final s in stats) {
-      final segment = '${s.label.trim()}  ${s.value.trim()}'.trim();
-      if (segment.isEmpty) continue;
-      if (x >= bitmap.width - pad) break; // ran out of horizontal room
-      img.drawString(
-        bitmap,
-        segment,
-        font: font,
-        x: x + 1,
-        y: textY + 1,
-        color: img.ColorUint8.rgba(0, 0, 0, 200),
-      );
-      img.drawString(
-        bitmap,
-        segment,
-        font: font,
-        x: x,
-        y: textY,
-        color: statColor,
-      );
-      x += _measureText(font, segment) + gap * 3;
+    final titleColor = img.ColorUint8.rgb(255, 255, 255);
+    final shadow = img.ColorUint8.rgba(0, 0, 0, 200);
+    var index = 0;
+    var textY = y0 + pad;
+    for (final row in rows) {
+      var x = pad;
+      for (final segment in row) {
+        img.drawString(
+          bitmap,
+          segment,
+          font: barFont,
+          x: x + 1,
+          y: textY + 1,
+          color: shadow,
+        );
+        img.drawString(
+          bitmap,
+          segment,
+          font: barFont,
+          x: x,
+          y: textY,
+          color: (index == 0 && title.isNotEmpty) ? titleColor : statColor,
+        );
+        x += _measureText(barFont, segment) + gap * 3;
+        index++;
+      }
+      textY += lineHeight + gap;
     }
   }
 

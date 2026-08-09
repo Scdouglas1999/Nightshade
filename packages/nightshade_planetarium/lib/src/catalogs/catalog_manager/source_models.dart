@@ -67,13 +67,27 @@ enum CatalogPackage {
   standard('Standard', 'Recommended for most users', 30, 8.0, 12.0),
 
   /// Complete package: ~60MB
-  /// - Stars: All HYG stars (~120,000 stars)
+  /// - Stars: All HYG stars (~120,000 stars), complete to [kHygFaintFloorMag]
   /// - DSOs: All OpenNGC objects (~13,000 objects)
-  complete('Complete', 'Full catalogs for advanced users', 60, 15.0, 20.0);
+  complete(
+    'Complete',
+    'Full catalogs for advanced users',
+    60,
+    kHygFaintFloorMag,
+    20.0,
+  );
 
   final String displayName;
   final String description;
   final int approximateSizeMB;
+
+  /// Magnitude to which the package's star catalog is COMPLETE — what the
+  /// settings "Depth" chip reports.
+  ///
+  /// This read 15.0 for [complete], which is the HYG loader's inclusion filter,
+  /// not its depth. Shown next to "Package: Complete" it told the user that the
+  /// nearly-empty field at an imaging FOV was the real sky; HYG is
+  /// Hipparcos-derived and runs out around magnitude 9.
   final double starMagnitudeLimit;
   final double dsoMagnitudeLimit;
 

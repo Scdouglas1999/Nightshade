@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' show Offset;
 
 import 'package:flutter/foundation.dart';
@@ -77,19 +78,40 @@ class ImagingViewerState {
 class ImagingViewerStateNotifier extends StateNotifier<ImagingViewerState> {
   ImagingViewerStateNotifier() : super(const ImagingViewerState());
 
-  /// Min/max zoom mirror what the previous widget-state implementation
-  /// used; keep them here so the bounds are not silently re-derived in the UI.
-  static const double minZoom = 0.25;
-  static const double maxZoom = 8.0;
+  /// Bounds on the scale the frame is actually DRAWN at (screen pixels per
+  /// image pixel), not on the fit-relative multiplier.
+  static const double minDisplayScale = 0.05;
+  static const double maxDisplayScale = 8.0;
   static const double zoomStep = 1.25;
 
-  void zoomIn() {
-    final next = (state.zoomLevel * zoomStep).clamp(minZoom, maxZoom);
+  /// Multiplier bounds for a preview whose fit scale is [fitScale].
+  ///
+  /// Both are pinned so that fit (multiplier 1.0) is always inside the range —
+  /// a sensor big enough that fit is below [minDisplayScale] must still be
+  /// viewable whole.
+  static double _minZoom(double fitScale) =>
+      fitScale <= 0 ? 1.0 : math.min(1.0, minDisplayScale / fitScale);
+
+  static double _maxZoom(double fitScale) =>
+      fitScale <= 0 ? 1.0 : math.max(1.0, maxDisplayScale / fitScale);
+
+  /// [fitScale] is screen pixels per image pixel at multiplier 1.0, as measured
+  /// by the preview (`previewFitScaleProvider`). It defaults to 1.0 — the value
+  /// for a frame that fits natively — so a caller with no preview laid out gets
+  /// the old fit-relative behaviour rather than an exception.
+  void zoomIn({double fitScale = 1.0}) {
+    final next = (state.zoomLevel * zoomStep).clamp(
+      _minZoom(fitScale),
+      _maxZoom(fitScale),
+    );
     state = state.copyWith(zoomLevel: next);
   }
 
-  void zoomOut() {
-    final next = (state.zoomLevel / zoomStep).clamp(minZoom, maxZoom);
+  void zoomOut({double fitScale = 1.0}) {
+    final next = (state.zoomLevel / zoomStep).clamp(
+      _minZoom(fitScale),
+      _maxZoom(fitScale),
+    );
     state = state.copyWith(zoomLevel: next);
   }
 
@@ -98,11 +120,13 @@ class ImagingViewerStateNotifier extends StateNotifier<ImagingViewerState> {
     state = state.copyWith(zoomLevel: 1.0, panOffset: Offset.zero);
   }
 
-  /// Reset to 1:1 actual pixels: same effective state as fit on the current
-  /// implementation, but expressed as a separate intent so behavior can diverge
-  /// without touching call sites.
-  void zoom1to1() {
-    state = state.copyWith(zoomLevel: 1.0, panOffset: Offset.zero);
+  /// Show the frame at one image pixel per screen pixel.
+  ///
+  /// Stored zoom is relative to fit, so 1:1 is `1 / fitScale`.
+  void zoom1to1({double fitScale = 1.0}) {
+    if (fitScale <= 0) return;
+    final next = (1.0 / fitScale).clamp(_minZoom(fitScale), _maxZoom(fitScale));
+    state = state.copyWith(zoomLevel: next, panOffset: Offset.zero);
   }
 
   void pan(Offset delta) {

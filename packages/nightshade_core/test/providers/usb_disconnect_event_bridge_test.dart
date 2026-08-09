@@ -16,6 +16,7 @@ import 'package:nightshade_core/src/providers/usb_disconnect_log_provider.dart';
 import 'package:nightshade_core/src/services/usb_disconnect_log.dart';
 
 import '../mocks/mock_backend.dart';
+import '../harness/in_memory_database.dart';
 
 class _TestBackendNotifier extends BackendNotifier {
   _TestBackendNotifier(super.ref, NightshadeBackend backend) {
@@ -38,6 +39,7 @@ void main() {
 
     container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         backendProvider.overrideWith(
           (ref) => _TestBackendNotifier(ref, backend),
         ),
@@ -161,7 +163,10 @@ void main() {
     final fakeLog = UsbDisconnectLog();
     fakeLog.recordDisconnect(deviceId: 'pre-existing');
     final overridden = ProviderContainer(
-      overrides: [usbDisconnectLogProvider.overrideWithValue(fakeLog)],
+      overrides: [
+        inMemoryDatabaseOverride(),
+        usbDisconnectLogProvider.overrideWithValue(fakeLog),
+      ],
     );
     addTearDown(overridden.dispose);
     expect(

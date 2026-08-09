@@ -74,20 +74,37 @@ class TonightCard extends ConsumerWidget {
     // Use select() to only watch the time field
     final now = ref.watch(observationTimeProvider.select((s) => s.time));
 
+    // Twilight and the dark window are functions of the SITE. With no location
+    // set the observer providers fall back to 0°N 0°E, which yields a perfectly
+    // plausible equatorial dusk and a ~9h window — numbers a user would plan a
+    // night around and that belong to nobody. Gate them on the same predicate
+    // the Target row already uses (appObserverLocationProvider is null until a
+    // real site exists) and show the placeholder instead. Moon illumination is
+    // a phase, not a site quantity, so it stays.
+    final hasSite = ref.watch(appObserverLocationProvider) != null;
+
+    // Settings → Location → Timezone already drives the status bar, the header
+    // chip, the night timeline and the moon card. This card sits among them,
+    // so a twilight time left on the host's clock would show the operator two
+    // different zones on one screen with nothing saying which is which.
+    final clock = ref.watch(clockProvider);
+    String hhmm(DateTime t) {
+      final shown = clock.fromUtc(t.toUtc());
+      return '${shown.hour.toString().padLeft(2, '0')}:'
+          '${shown.minute.toString().padLeft(2, '0')}';
+    }
+
     // Format astro twilight time
     String astroTwilightTime = '--:--';
-    if (twilight.astronomicalDusk != null) {
+    if (hasSite && twilight.astronomicalDusk != null) {
       final dusk = twilight.astronomicalDusk!;
       // If dusk is in the future (relative to simulation time), show it
       if (dusk.isAfter(now)) {
-        astroTwilightTime =
-            '${dusk.hour.toString().padLeft(2, '0')}:${dusk.minute.toString().padLeft(2, '0')}';
+        astroTwilightTime = hhmm(dusk);
       } else {
         // Dusk already passed, show dawn
         if (twilight.astronomicalDawn != null) {
-          final dawn = twilight.astronomicalDawn!;
-          astroTwilightTime =
-              '${dawn.hour.toString().padLeft(2, '0')}:${dawn.minute.toString().padLeft(2, '0')}';
+          astroTwilightTime = hhmm(twilight.astronomicalDawn!);
         }
       }
     }
@@ -97,7 +114,8 @@ class TonightCard extends ConsumerWidget {
 
     // Calculate imaging window (darkness duration)
     String imagingWindow = '--:--';
-    if (twilight.astronomicalDusk != null &&
+    if (hasSite &&
+        twilight.astronomicalDusk != null &&
         twilight.astronomicalDawn != null) {
       final duration =
           twilight.astronomicalDawn!.difference(twilight.astronomicalDusk!);

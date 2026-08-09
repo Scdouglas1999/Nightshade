@@ -6,25 +6,36 @@ import 'package:nightshade_app/screens/tonight/tonight_screen.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+/// The confirm card reads the observing site to tell "nothing is up" apart
+/// from "no site configured", so the body needs a scope with settings in it.
+class _ConfiguredSettings extends AppSettingsNotifier {
+  @override
+  Future<AppSettingsState> build() async =>
+      const AppSettingsState(latitude: 40, longitude: -75);
+}
+
 Future<void> _pumpBody(
   WidgetTester tester,
   AsyncValue<int?> morningSessionAsync, {
   VoidCallback? onRetry,
 }) async {
   await tester.pumpWidget(
-    MaterialApp(
-      theme: NightshadeTheme.dark,
-      home: Scaffold(
-        body: TonightBodyView(
-          colors: NightshadeColors.dark,
-          state: const OneTapTonightState(),
-          activeRun: null,
-          targetAsync: const AsyncData<TargetSuggestion?>(null),
-          onGo: () async {},
-          onReset: () {},
-          onRefreshPick: () {},
-          morningSessionAsync: morningSessionAsync,
-          onRefreshMorningReport: onRetry ?? () {},
+    ProviderScope(
+      overrides: [appSettingsProvider.overrideWith(_ConfiguredSettings.new)],
+      child: MaterialApp(
+        theme: NightshadeTheme.dark,
+        home: Scaffold(
+          body: TonightBodyView(
+            colors: NightshadeColors.dark,
+            state: const OneTapTonightState(),
+            activeRun: null,
+            targetAsync: const AsyncData<TargetSuggestion?>(null),
+            onGo: () async {},
+            onReset: () {},
+            onRefreshPick: () {},
+            morningSessionAsync: morningSessionAsync,
+            onRefreshMorningReport: onRetry ?? () {},
+          ),
         ),
       ),
     ),

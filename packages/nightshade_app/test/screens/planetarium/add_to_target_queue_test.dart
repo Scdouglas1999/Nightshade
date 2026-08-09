@@ -14,6 +14,7 @@ import 'package:nightshade_app/screens/sequencer/widgets/target_queue_panel.dart
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 CelestialObject _object(
   String id, {
@@ -59,6 +60,7 @@ Future<void> _pump(
 
 ProviderContainer _container() {
   final container = ProviderContainer(overrides: [
+    inMemoryDatabaseOverride(),
     tickerProvider(TickerCadence.thirtySeconds).overrideWith(
       (ref) => Stream.value(DateTime.utc(2024, 6, 15, 22)),
     ),

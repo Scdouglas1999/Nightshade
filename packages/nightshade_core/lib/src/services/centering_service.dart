@@ -704,7 +704,7 @@ class CenteringService {
       CapturedImageData? capturedImage;
       _captureInFlight = true;
       try {
-        capturedImage = await imagingService.captureImage(
+        capturedImage = await imagingService.captureUtilityFrame(
           settings: exposureSettings,
           targetName: 'Centering',
         );
@@ -1063,7 +1063,7 @@ class CenteringService {
 
     CapturedImageData? capturedImage;
     try {
-      capturedImage = await imagingService.captureImage(
+      capturedImage = await imagingService.captureUtilityFrame(
         settings: exposureSettings,
         targetName: 'Verification',
       );

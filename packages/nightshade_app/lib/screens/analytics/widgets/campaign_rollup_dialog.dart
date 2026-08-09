@@ -108,6 +108,21 @@ class _Body extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final totalPct = rollup.totalPercentComplete;
+    // The card describes three different populations and used to give all of
+    // them the same words. `totalCapturedIntegrationSecs` and the per-filter
+    // table count ACCEPTED light frames; the session rows print each session's
+    // own `total_integration_secs`, which counts everything it captured. One
+    // target with two rejected 300s lights therefore read "Total integration
+    // 0.0h" and "No frames captured for this target yet" beside a session row
+    // saying "0.17h integration". Both numbers are computed here so the card
+    // can name them instead of contradicting itself.
+    final capturedSecs = rollup.sessions
+        .fold<double>(0, (sum, s) => sum + s.sessionIntegrationSecs);
+    final acceptedSecs = rollup.totalCapturedIntegrationSecs;
+    // Effective imaging only has closed sessions as inputs; with none, the
+    // service's `?? 0.0` turns "nothing to measure" into a measured 0%.
+    final hasClosedSession = rollup.sessions
+        .any((s) => s.endTime != null && s.sessionIntegrationSecs > 0);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -168,10 +183,19 @@ class _Body extends StatelessWidget {
                       colors: colors,
                     ),
                     _SummaryTile(
-                      label: 'Total integration',
-                      value: _formatHours(rollup.totalCapturedIntegrationSecs),
+                      label: 'Integration (accepted)',
+                      value: _formatHours(acceptedSecs),
                       colors: colors,
                     ),
+                    // Only shown when the two disagree, i.e. when frames were
+                    // rejected or have not been graded — otherwise it would
+                    // repeat the tile beside it.
+                    if (capturedSecs - acceptedSecs > 1)
+                      _SummaryTile(
+                        label: 'Integration (captured)',
+                        value: _formatHours(capturedSecs),
+                        colors: colors,
+                      ),
                     _SummaryTile(
                       label: 'First session',
                       value: _formatDate(rollup.firstSessionAt),
@@ -182,13 +206,17 @@ class _Body extends StatelessWidget {
                       value: _formatDate(rollup.lastSessionAt),
                       colors: colors,
                     ),
+                    // Named for their population too: these come from each
+                    // session's own avg_hfr / avg_seeing columns, which count
+                    // every frame the session took, not the accepted subset the
+                    // integration tile and the per-filter table describe.
                     _SummaryTile(
-                      label: 'Mean HFR',
+                      label: 'Mean HFR (session avg)',
                       value: rollup.meanSessionHfr?.toStringAsFixed(2) ?? '-',
                       colors: colors,
                     ),
                     _SummaryTile(
-                      label: 'Mean seeing',
+                      label: 'Mean seeing (session avg)',
                       value: rollup.meanSessionSeeing != null
                           ? '${rollup.meanSessionSeeing!.toStringAsFixed(2)}"'
                           : '-',
@@ -196,8 +224,9 @@ class _Body extends StatelessWidget {
                     ),
                     _SummaryTile(
                       label: 'Effective imaging',
-                      value:
-                          '${(rollup.meanEffectiveImagingFraction * 100).toStringAsFixed(1)}%',
+                      value: hasClosedSession
+                          ? '${(rollup.meanEffectiveImagingFraction * 100).toStringAsFixed(1)}%'
+                          : '-',
                       colors: colors,
                     ),
                   ],
@@ -223,7 +252,16 @@ class _Body extends StatelessWidget {
                 ),
                 if (rollup.filters.isEmpty)
                   Text(
-                    'No frames captured for this target yet.',
+                    capturedSecs > 0
+                        // The table counts accepted frames, so "no frames
+                        // captured" was flatly false for a target whose whole
+                        // night had been rejected in the grader.
+                        ? 'No accepted frames yet — '
+                            '${_formatHours(capturedSecs)} captured across '
+                            '${rollup.sessionCount} '
+                            '${rollup.sessionCount == 1 ? 'session' : 'sessions'}'
+                            ' was rejected or has not been graded.'
+                        : 'No frames captured for this target yet.',
                     style: TextStyle(
                         fontSize: NightshadeTypography.fontSize13,
                         color: colors.textMuted),
@@ -422,7 +460,12 @@ class _OverallProgress extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Captured ${(captured / 3600.0).toStringAsFixed(1)}h of ${(goal / 3600.0).toStringAsFixed(1)}h goal | Remaining: ${remainingHours.toStringAsFixed(1)}h',
+            // "Accepted", because `captured` is CampaignRollup's accepted-only
+            // total. Saying "Captured" here put the card back where it started:
+            // the session rows below now use that same word for every frame the
+            // session took, so one card would read "Captured 0.0h" over
+            // "0.17h captured".
+            'Accepted ${(captured / 3600.0).toStringAsFixed(1)}h of ${(goal / 3600.0).toStringAsFixed(1)}h goal | Remaining: ${remainingHours.toStringAsFixed(1)}h',
             style: TextStyle(
                 fontSize: NightshadeTypography.fontSize11,
                 color: colors.textMuted),
@@ -464,10 +507,14 @@ class _FilterRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
+              // CampaignFilterRollup.capturedFrames counts ACCEPTED light
+              // frames only, so both branches have to say so — the empty state
+              // beside them already does, and the session rows use "captured"
+              // for the unfiltered total.
               if (filter.hasGoal)
                 Flexible(
                   child: Text(
-                    '${filter.capturedFrames}/${filter.goalFrames} frames',
+                    '${filter.capturedFrames}/${filter.goalFrames} frames accepted',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -478,7 +525,7 @@ class _FilterRow extends StatelessWidget {
               else
                 Flexible(
                   child: Text(
-                    '${filter.capturedFrames} frames captured (no goal)',
+                    '${filter.capturedFrames} frames accepted (no goal)',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -597,7 +644,11 @@ class _SessionRow extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${formatDateTime(session.startTime)} | $durationLabel | ${(session.sessionIntegrationSecs / 3600.0).toStringAsFixed(2)}h integration',
+                      // "captured", not "integration": this is the session's
+                      // own total across every frame it took, while the header
+                      // tile and the per-filter table above count only frames
+                      // that survived grading.
+                      '${formatDateTime(session.startTime)} | $durationLabel | ${(session.sessionIntegrationSecs / 3600.0).toStringAsFixed(2)}h captured',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(

@@ -102,30 +102,40 @@ class QuickStartDialog extends ConsumerWidget {
 
   String _formatDate(DateTime dt) {
     final now = DateTime.now();
-    final diff = now.difference(dt);
+    // Calendar days apart, not elapsed hours. `Duration.inDays` truncates, so a
+    // session that ended at 14:57 yesterday is 19 h old when the app opens at
+    // 10:00 the next morning and reported `inDays == 0` — the dialog dated
+    // yesterday's session as "Today at 14:57". Anything a week old or more (or
+    // stamped in the future by a clock jump) gets an explicit date instead of a
+    // relative phrase that would be guessing.
+    final days =
+        DateUtils.dateOnly(now).difference(DateUtils.dateOnly(dt)).inDays;
 
-    if (diff.inDays == 0) {
+    if (days == 0) {
       return 'Today at ${_formatTime(dt)}';
-    } else if (diff.inDays == 1) {
+    } else if (days == 1) {
       return 'Yesterday at ${_formatTime(dt)}';
-    } else if (diff.inDays < 7) {
-      return '${diff.inDays} days ago';
+    } else if (days > 1 && days < 7) {
+      return '$days days ago at ${_formatTime(dt)}';
     } else {
-      return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+      return '${_formatCalendarDate(dt)} at ${_formatTime(dt)}';
     }
+  }
+
+  String _formatCalendarDate(DateTime dt) {
+    return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-'
+        '${dt.day.toString().padLeft(2, '0')}';
   }
 
   String _formatTime(DateTime dt) {
     return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
 
-  String _formatIntegration(double hours) {
-    if (hours >= 1.0) {
-      return '${hours.toStringAsFixed(1)} hours';
-    }
-    final minutes = (hours * 60).round();
-    return '$minutes minutes';
-  }
+  /// Integration in the same h/m/s shape the dashboard's last-run card and
+  /// the history tab use. Whole minutes reported a real 12-second session as
+  /// "0 minutes integration" — the operator's cue that the run captured
+  /// nothing, right next to a card saying "12s".
+  String _formatIntegration(double hours) => formatIntegrationHours(hours);
 
   Widget _buildTitle(NightshadeColors colors, ThemeData theme) {
     return Row(
@@ -370,6 +380,20 @@ class QuickStartDialog extends ConsumerWidget {
     );
   }
 
+  /// Whether "Load Previous Setup" has anything at all to load.
+  ///
+  /// The restore path can only re-activate an equipment profile, re-open a
+  /// sequence, and re-apply the recorded camera/filter/focuser settings. A
+  /// session that recorded none of those — which is exactly the session this
+  /// dialog is already describing as "Unknown Profile" / "No Sequence" two rows
+  /// above the button — leaves the action nothing to do, so it is offered as
+  /// disabled with the reason rather than closing the dialog and reporting
+  /// success.
+  bool get _hasRestorableSetup =>
+      quickStartContext.profileId != null ||
+      quickStartContext.sequenceId != null ||
+      quickStartContext.equipmentSnapshot?.hasEquipmentData == true;
+
   Widget _buildActions(BuildContext buildContext, NightshadeColors colors) {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -402,14 +426,33 @@ class QuickStartDialog extends ConsumerWidget {
               ),
             ],
           )
-        else
+        else if (_hasRestorableSetup)
           NightshadeButton(
             label: 'Load Previous Setup',
             icon: LucideIcons.history,
             variant: ButtonVariant.primary,
             size: ButtonSize.large,
             onPressed: onStartFresh,
+          )
+        else ...[
+          const NightshadeButton(
+            label: 'Load Previous Setup',
+            icon: LucideIcons.history,
+            variant: ButtonVariant.primary,
+            size: ButtonSize.large,
+            onPressed: null,
           ),
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          Text(
+            'Nothing to load: that session recorded no equipment profile, '
+            'no sequence and no camera settings.',
+            style: TextStyle(
+              fontSize: 12,
+              color: colors.textMuted,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
         const SizedBox(height: NightshadeTokens.spaceMd),
         // Skip button
         Center(

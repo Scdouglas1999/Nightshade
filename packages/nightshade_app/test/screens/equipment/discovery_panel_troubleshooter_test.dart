@@ -31,6 +31,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../harness/mock_backend.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 /// A representative ASCOM COM failure: CoCreateInstance returned
 /// `0x80040154` (class not registered) — the driver isn't installed/registered.
@@ -164,6 +165,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
+          inMemoryDatabaseOverride(),
           deviceServiceProvider.overrideWith((ref) {
             deviceService = _ThrowingDeviceService(
               ref,

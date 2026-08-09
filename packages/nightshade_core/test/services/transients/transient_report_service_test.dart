@@ -129,6 +129,58 @@ void main() {
     });
 
     test(
+      'disabled reason names BOTH blockers on a fresh, uncalibrated frame',
+      () {
+        // The state a fresh profile is actually in. Reporting only the observer
+        // code named the one blocker Settings can fix and hid the one it cannot,
+        // so the operator set the field the app pointed at and came back to an
+        // AAVSO that was still disabled for a different reason. This string is
+        // rendered by the report panel AND returned as the headless
+        // /api/firstlight/<id>/export/aavso 400 body.
+        final reason = service.aavsoDisabledReason(
+          _detection(deltaMag: -0.7),
+          observerCode: '',
+          magZeroPoint: null,
+        );
+        expect(reason, isNotNull);
+        expect(reason, contains('photometric zeropoint'));
+        expect(reason, contains('observer code'));
+        expect(
+          reason,
+          isNot(contains('first')),
+          reason: 'the observer code is not the only thing in the way',
+        );
+      },
+    );
+
+    test(
+      'disabled reason is the observer code alone when that is the only gap',
+      () {
+        final reason = service.aavsoDisabledReason(
+          _detection(deltaMag: -0.7),
+          observerCode: '   ',
+          magZeroPoint: 22.5,
+        );
+        expect(
+          reason,
+          'Set your AAVSO observer code in Settings > Science '
+          'first.',
+        );
+      },
+    );
+
+    test('disabled reason is null once both requirements are met', () {
+      expect(
+        service.aavsoDisabledReason(
+          _detection(deltaMag: -0.7),
+          observerCode: 'ABC',
+          magZeroPoint: 22.5,
+        ),
+        isNull,
+      );
+    });
+
+    test(
       'throws when no calibrated magnitude is available (caller must gate)',
       () {
         expect(
@@ -218,7 +270,12 @@ void main() {
       );
       expect(alert.type, TransientType.variableStar);
       expect(alert.name, 'V0123 Cyg');
-      expect(alert.magnitude, closeTo(0.8, 1e-9));
+      // `magnitude` is an APPARENT magnitude — the card buckets it NAKED EYE /
+      // BINOCULAR and `shouldNotify` auto-queues on it. A difference-image
+      // delta is not one, and there is no zero point behind these detections,
+      // so it stays null and the change is reported as a change.
+      expect(alert.magnitude, isNull);
+      expect(alert.classification, contains('Δ0.80 mag brighter'));
     });
 
     test('a dismissed detection maps to a dismissed alert', () {

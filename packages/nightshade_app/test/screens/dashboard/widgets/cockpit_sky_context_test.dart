@@ -29,6 +29,11 @@ const _moon =
 Widget _wrap(List<Override> overrides) {
   return ProviderScope(
     overrides: [
+      // These cases are all "a site IS configured". The no-site behaviour lives
+      // in test/screens/observing_site_gating_test.dart.
+      appObserverLocationProvider.overrideWithValue(
+        const LocationSettings(latitude: 40.71, longitude: -74.01),
+      ),
       planetarium.twilightTimesProvider.overrideWithValue(_twilight),
       planetarium.moonInfoProvider.overrideWithValue(_moon),
       planetarium.observationTimeProvider.overrideWith(

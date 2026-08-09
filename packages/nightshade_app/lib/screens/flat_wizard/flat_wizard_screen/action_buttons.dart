@@ -11,6 +11,12 @@ class _ActionButtons extends ConsumerWidget {
     final state = ref.watch(flatWizardProvider);
     final notifier = ref.read(flatWizardProvider.notifier);
 
+    // The terminal error is a verdict ("no frames were saved"); on its own it
+    // names no cause and no next step. Pair it with the measured diagnosis and
+    // with the per-filter reason the solver already produced.
+    final diagnosis =
+        state.errorMessage != null ? diagnoseFlatFailure(state) : null;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -24,21 +30,82 @@ class _ActionButtons extends ConsumerWidget {
               border: Border.all(color: colors.error.withValues(alpha: 0.3)),
             ),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(LucideIcons.alertCircle, size: 18, color: colors.error),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
-                    state.errorMessage!,
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize13,
-                        color: colors.error),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        state.errorMessage!,
+                        style: TextStyle(
+                            fontSize: NightshadeTypography.fontSize13,
+                            color: colors.error),
+                      ),
+                      if (diagnosis != null) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          diagnosis.reason,
+                          style: TextStyle(
+                              fontSize: NightshadeTypography.fontSize12,
+                              color: colors.textPrimary),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          diagnosis.nextStep,
+                          style: TextStyle(
+                              fontSize: NightshadeTypography.fontSize12,
+                              color: colors.textSecondary),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
                 IconButton(
                   onPressed: notifier.clearError,
                   icon: const Icon(LucideIcons.x, size: 16),
                   color: colors.error,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+        // The solver's own per-filter reason. It was written to
+        // FlatWizardState.warningMessage and never read by anything, so a run
+        // that partly failed showed no explanation at all.
+        if (state.warningMessage != null) ...[
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: colors.warning.withValues(alpha: 0.1),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
+              border: Border.all(color: colors.warning.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(LucideIcons.alertTriangle,
+                    size: 18, color: colors.warning),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    state.warningMessage!,
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize13,
+                        color: colors.warning),
+                  ),
+                ),
+                IconButton(
+                  onPressed: notifier.clearWarning,
+                  icon: const Icon(LucideIcons.x, size: 16),
+                  color: colors.warning,
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                 ),
@@ -55,7 +122,13 @@ class _ActionButtons extends ConsumerWidget {
           )
         else
           NightshadeButton(
-            key: FlatWizardTutorialKeys.startBtn,
+            // A tutorial key is a GlobalKey, so it may be attached to at most
+            // ONE live element. All three mode tabs mount this widget (the
+            // TabBarView keeps the outgoing tab alive across a switch), which
+            // duplicated the key and threw "specified multiple times in the
+            // widget tree" the moment the operator changed tab. The selected
+            // mode is the one the tour should spotlight, so only it claims it.
+            key: mode == state.mode ? FlatWizardTutorialKeys.startBtn : null,
             label:
                 mode == FlatWizardMode.quick ? 'Start Capture' : 'Start Batch',
             onPressed: () => _startCapture(context, ref),

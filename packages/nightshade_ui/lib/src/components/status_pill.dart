@@ -31,6 +31,7 @@ class StatusPill extends StatefulWidget {
 class _StatusPillState extends State<StatusPill>
     with SingleTickerProviderStateMixin {
   bool _isHovered = false;
+  bool _isFocused = false;
   late AnimationController _flashController;
   late Animation<double> _flashAnimation;
   StatusPillStatus? _previousStatus;
@@ -109,7 +110,7 @@ class _StatusPillState extends State<StatusPill>
     final statusColor = _getStatusColor(colors);
     final isLive = widget.status != StatusPillStatus.inactive;
 
-    return MouseRegion(
+    final pill = MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       cursor: widget.onTap != null
@@ -168,6 +169,42 @@ class _StatusPillState extends State<StatusPill>
               ),
             ],
           ),
+        ),
+      ),
+    );
+
+    // A pill is decorative until it is given an onTap; then it is a button and
+    // has to be reachable and announced as one. Wrapping unconditionally would
+    // put a tab stop on every read-only status readout in the app, which is its
+    // own accessibility problem.
+    if (widget.onTap == null) return pill;
+
+    return Semantics(
+      button: true,
+      label: '${widget.label} ${widget.value}',
+      onTap: widget.onTap,
+      child: FocusableActionDetector(
+        mouseCursor: SystemMouseCursors.click,
+        onShowFocusHighlight: (focused) => setState(() => _isFocused = focused),
+        actions: <Type, Action<Intent>>{
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) {
+              widget.onTap!();
+              return null;
+            },
+          ),
+        },
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
+            border: Border.all(
+              color: _isFocused
+                  ? context.nightshadeColors.primary
+                  : Colors.transparent,
+              width: 2,
+            ),
+          ),
+          child: pill,
         ),
       ),
     );

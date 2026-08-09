@@ -145,14 +145,15 @@ class NoExposuresRule implements SequenceValidator {
 
   @override
   List<ValidationIssue> validate(Sequence sequence) {
-    // Count both standalone ExposureNodes and SmartExposure nodes (whose
-    // captures live in per-filter plans) so an auto-built sequence — whose
-    // imaging is a single SmartExposure node — is not falsely flagged as
-    // capturing no images.
+    // Count standalone ExposureNodes, SmartExposure nodes (whose captures live
+    // in per-filter plans) and SciencePhotometry bursts (which capture through
+    // the same TakeExposure pipeline) so neither an auto-built sequence nor a
+    // photometry-only one is falsely flagged as capturing no images.
     final hasEnabledExposure = sequence.nodes.values.any(
       (n) =>
           (n is ExposureNode && n.isEnabled) ||
-          (n is SmartExposureNode && n.isEnabled && n.plans.isNotEmpty),
+          (n is SmartExposureNode && n.isEnabled && n.plans.isNotEmpty) ||
+          (n is SciencePhotometryNode && n.isEnabled && n.count > 0),
     );
     if (hasEnabledExposure) return const [];
 

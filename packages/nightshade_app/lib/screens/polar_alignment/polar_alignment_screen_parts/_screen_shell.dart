@@ -27,13 +27,18 @@ extension _ScreenShell on _PolarAlignmentScreenState {
           isRunning ? null : (selection) => uiNotifier.setMode(selection.first),
     );
 
-    final historyButton = NightshadeButton(
-      label: 'History',
-      icon: NightshadeIcons.history,
-      variant:
-          ui.showHistoryPanel ? ButtonVariant.primary : ButtonVariant.ghost,
-      size: ButtonSize.small,
-      onPressed: () => uiNotifier.toggleHistoryPanel(),
+    final historyButton = Tooltip(
+      message: ui.showHistoryPanel
+          ? 'Hide past alignment runs'
+          : 'Show past alignment runs below the settings',
+      child: NightshadeButton(
+        label: 'History',
+        icon: NightshadeIcons.history,
+        variant:
+            ui.showHistoryPanel ? ButtonVariant.primary : ButtonVariant.ghost,
+        size: ButtonSize.small,
+        onPressed: () => uiNotifier.toggleHistoryPanel(),
+      ),
     );
 
     final backButton = IconButton(
@@ -183,23 +188,38 @@ extension _ScreenShell on _PolarAlignmentScreenState {
         !preferenceAsync.isLoading &&
         !detectionAsync.hasError &&
         !preferenceAsync.hasError;
-    final canStart = equipmentReady && solverReady;
+    // The site is a prerequisite in exactly the same sense as the camera, the
+    // mount and the solver: the az/alt decomposition of a polar-axis error is a
+    // function of latitude, and the app installs a (0, 0) observer at startup,
+    // so without this the wizard measures for an observer on the equator.
+    // `_startAlignment` refuses too, but a disabled button with a reason is the
+    // shape every other prerequisite already uses here.
+    final settingsResolved = ref.watch(appSettingsProvider).hasValue;
+    final siteReady =
+        settingsResolved && ref.watch(appObserverLocationProvider) != null;
+    final canStart = equipmentReady && solverReady && siteReady;
 
-    // Build tooltip message for disabled state
-    String? disabledReason;
-    if (!cameraConnected && !mountConnected) {
-      disabledReason = 'Camera and mount not connected';
-    } else if (!cameraConnected) {
-      disabledReason = 'Camera not connected';
-    } else if (!mountConnected) {
-      disabledReason = 'Mount not connected';
-    } else if (!readinessResolved) {
-      disabledReason = detectionAsync.hasError || preferenceAsync.hasError
-          ? 'Could not check plate solver configuration'
-          : 'Checking plate solver configuration…';
-    } else if (!solverReady) {
-      disabledReason = 'Selected plate solver is not ready';
-    }
+    // Report every unmet prerequisite together.
+    final blockers = <String>[
+      if (!cameraConnected && !mountConnected)
+        'Camera and mount not connected'
+      else if (!cameraConnected)
+        'Camera not connected'
+      else if (!mountConnected)
+        'Mount not connected',
+      if (!siteReady)
+        settingsResolved
+            ? 'No observing location set'
+            : 'Checking observing location…',
+      if (!readinessResolved)
+        detectionAsync.hasError || preferenceAsync.hasError
+            ? 'Could not check plate solver configuration'
+            : 'Checking plate solver configuration…'
+      else if (!solverReady)
+        'Selected plate solver is not ready',
+    ];
+    final String? disabledReason =
+        blockers.isEmpty ? null : blockers.join(' · ');
 
     final status = Row(
       children: [

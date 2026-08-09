@@ -257,7 +257,41 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
     final dao = ref.read(settingsDaoProvider);
     final allSettings = await dao.getAllSettings();
 
-    return _settingsFromStoredMap(allSettings);
+    return _refreshPlateSolverProjection(_settingsFromStoredMap(allSettings));
+  }
+
+  /// `plate_solver` is a projection of the native `PlateSolverPreference`, not
+  /// a store of its own — the dispatcher only ever reads the preference. A
+  /// projection that is written but never re-read goes stale silently, and
+  /// this one did: profiles seeded before the Plate Solving page existed still
+  /// carried `plate_solver=ASTAP` while the preference said Auto, and that
+  /// stale row is what backup export and the remote wire model served.
+  ///
+  /// A failure here is not a settings failure — an unreachable solver config
+  /// (disconnected backend, bridge not loaded under test) just leaves the
+  /// stored value in place rather than taking the whole settings load down.
+  Future<AppSettingsState> _refreshPlateSolverProjection(
+    AppSettingsState stored,
+  ) async {
+    try {
+      final pref = await ref.read(plateSolveServiceProvider).getConfig();
+      final label = pref.choice.settingLabel;
+      if (label == stored.plateSolver) return stored;
+      // Persist so backups and `/api/settings` stop serving the stale name
+      // even if nothing writes a setting this session. Straight to the DAO,
+      // not `_saveSetting`: this runs while `build()` is still resolving, so
+      // the loaded-state guard and the remote write path do not apply — this
+      // is by construction the local store.
+      await ref.read(settingsDaoProvider).setSetting('plate_solver', label);
+      return stored.copyWith(plateSolver: label);
+    } catch (error) {
+      developer.log(
+        'Plate-solver preference unavailable; keeping the stored '
+        'plate_solver projection: $error',
+        name: 'AppSettingsNotifier',
+      );
+      return stored;
+    }
   }
 
   /// Display preferences that belong to the DEVICE rendering the UI, not to
@@ -533,13 +567,27 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
           );
         }
 
-        var next = _requireLoadedSettings(
+        final before = _requireLoadedSettings(
           'applying a remote settings snapshot',
         );
+        var next = before;
         remote.toJson().forEach((key, value) {
           final updated = _applyJsonSettingChange(next, key, value);
           if (updated != null) next = updated;
         });
+
+        // `plateSolver` is a read-only projection of the native
+        // PlateSolverPreference — the only store the solve dispatcher reads —
+        // so a settings snapshot must not be able to move it. Two reasons this
+        // is pinned rather than applied: writing the row would change nothing
+        // about which engine runs (an acknowledged write the solver never
+        // sees), and the wire model defaults this field to 'ASTAP', so a
+        // partial POST built without a previous snapshot would otherwise
+        // announce a switch away from the operator's actual selection.
+        // Clients change the engine through setPlateSolverConfig, which
+        // reaches the store that matters; the value echoed back here stays
+        // truthful either way.
+        next = next.copyWith(plateSolver: before.plateSolver);
 
         await dao.setSettings(_storedMapFromState(next));
         if (generation != _backendGeneration ||

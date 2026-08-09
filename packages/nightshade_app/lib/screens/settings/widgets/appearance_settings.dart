@@ -68,23 +68,43 @@ class AppearanceSettings extends ConsumerWidget {
                 ),
                 isMobile: isMobile,
               ),
-              SettingRow(
-                icon: LucideIcons.palette,
-                title: 'Accent color',
-                subtitle: 'Primary accent color',
-                trailing: SettingsColorPicker(
-                  selectedColor: settings.accentColor,
-                  onColorSelected: (color) {
-                    return ref
-                        .read(appSettingsProvider.notifier)
-                        .setAccentColor(color);
-                  },
+              // In red night the swatch row was two defects at once. The
+              // picker is INERT — `resolveNightshadeThemeData` returns the
+              // fixed `NightshadeTheme.redNight` before it ever looks at the
+              // accent — and it painted seven full-saturation circles
+              // (emerald, amber, cyan, magenta) onto a page whose every other
+              // pixel is red-shifted, so checking the theme at the telescope
+              // was the thing that ruined your dark adaptation. State the
+              // scope instead of rendering a control that does nothing.
+              if (settings.theme == 'redNight')
+                SettingRow(
+                  icon: LucideIcons.palette,
+                  title: 'Accent color',
+                  subtitle: 'Red night is monochrome red, so the accent has '
+                      'no effect while it is selected. ${settings.accentColor} '
+                      'applies again on the Dark and Light themes.',
+                  trailing: const SizedBox.shrink(),
+                  isLast: true,
                   isMobile: isMobile,
+                )
+              else
+                SettingRow(
+                  icon: LucideIcons.palette,
+                  title: 'Accent color',
+                  subtitle: 'Primary accent color',
+                  trailing: SettingsColorPicker(
+                    selectedColor: settings.accentColor,
+                    onColorSelected: (color) {
+                      return ref
+                          .read(appSettingsProvider.notifier)
+                          .setAccentColor(color);
+                    },
+                    isMobile: isMobile,
+                  ),
+                  isLast: true,
+                  isMobile: isMobile,
+                  stackOnMobile: isMobile,
                 ),
-                isLast: true,
-                isMobile: isMobile,
-                stackOnMobile: isMobile,
-              ),
             ],
           ),
           SettingsSection(

@@ -25,6 +25,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/trigger_configuration_dialog.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -113,6 +114,7 @@ void main() {
       (tester) async {
         await tester.pumpWidget(
           ProviderScope(
+            overrides: [inMemoryDatabaseOverride()],
             child: MaterialApp(
               home: Scaffold(
                 body: Builder(
@@ -196,6 +198,7 @@ void main() {
       (tester) async {
         await tester.pumpWidget(
           ProviderScope(
+            overrides: [inMemoryDatabaseOverride()],
             child: MaterialApp(
               home: Scaffold(
                 body: Builder(

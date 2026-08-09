@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:csv/csv.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
+import '../utils/fwhm_conversion.dart';
 import '../database/daos/sessions_dao.dart';
 import '../database/daos/images_dao.dart';
 import '../database/database.dart';
@@ -43,6 +44,7 @@ class SessionExportService {
     }
 
     final images = await _imagesDao.getImagesForSession(sessionId);
+    final measuredFwhm = await _imagesDao.getFwhmForSession(sessionId);
 
     // CSV header
     final List<List<dynamic>> rows = [
@@ -51,7 +53,7 @@ class SessionExportService {
         'Exposure Time (s)',
         'Filter',
         'HFR (px)',
-        'FWHM (px)',
+        'FWHM (px, measured or 2x HFR)',
         'Stars Detected',
         'Sensor Temp (C)',
         'Timestamp',
@@ -66,8 +68,11 @@ class SessionExportService {
 
     // Add image data rows
     for (final image in images) {
-      // Calculate FWHM from HFR (FWHM ≈ HFR * 2.35 for Gaussian profiles)
-      final fwhm = image.hfr != null ? image.hfr! * 2.35 : null;
+      // Prefer the MEASURED fwhm column when the pipeline recorded one;
+      // only derive from HFR when it did not.
+      final fwhm =
+          measuredFwhm[image.id] ??
+          (image.hfr != null ? image.hfr! * kFwhmPerHfr : null);
 
       rows.add([
         image.fileName,
@@ -117,6 +122,7 @@ class SessionExportService {
     }
 
     final images = await _imagesDao.getImagesForSession(sessionId);
+    final measuredFwhm = await _imagesDao.getFwhmForSession(sessionId);
 
     // Build JSON structure
     final data = {
@@ -168,7 +174,9 @@ class SessionExportService {
           },
           'quality': {
             'hfr': image.hfr,
-            'fwhm': image.hfr != null ? image.hfr! * 2.35 : null,
+            'fwhm':
+                measuredFwhm[image.id] ??
+                (image.hfr != null ? image.hfr! * kFwhmPerHfr : null),
             'starCount': image.starCount,
             'background': image.background,
             'noise': image.noise,

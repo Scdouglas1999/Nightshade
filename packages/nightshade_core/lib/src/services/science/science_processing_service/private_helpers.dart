@@ -332,21 +332,6 @@ extension _ScienceProcessingPrivateHelpers on ScienceProcessingService {
         : 1.0;
     final targetFluxSigma = targetFlux / targetSnr;
 
-    final differentialMag =
-        -2.5 *
-        math.log((targetFlux / comparisonFlux).clamp(1e-6, double.infinity)) /
-        math.ln10;
-    final fractionalVariance =
-        math.pow(targetFluxSigma / targetFlux, 2) +
-        math.pow(
-          comparisonFluxUncertainty /
-              comparisonFlux.clamp(1e-6, double.infinity),
-          2,
-        );
-    final uncertainty =
-        1.0857 *
-        math.sqrt(fractionalVariance.isFinite ? fractionalVariance : 0.0);
-
     // Try to apply photometric transform for absolute magnitude
     PhotometricTransformCoefficients? transform;
     if (filterName != null && filterName.isNotEmpty) {
@@ -369,111 +354,23 @@ extension _ScienceProcessingPrivateHelpers on ScienceProcessingService {
         ? exposureSeconds
         : 1.0;
 
-    double? targetStandardMag;
-    if (transform != null && airmass != null && airmass > 0) {
-      final instMag =
-          -2.5 *
-          math.log((targetFlux / safeExposure).clamp(1e-30, double.infinity)) /
-          math.ln10;
-      // Use color index 0.0 as default when unknown — the color term
-      // contribution is typically small for broadband filters.
-      targetStandardMag = transform.applyTransform(
-        instrumentalMag: instMag,
-        airmass: airmass,
-        colorIndex: 0.0,
-      );
-      if (!targetStandardMag.isFinite) {
-        targetStandardMag = null;
-      }
-    }
-
-    final entries = <db.PhotometryMeasurementsCompanion>[
-      db.PhotometryMeasurementsCompanion.insert(
-        capturedImageId: drift.Value(capturedImageId),
-        sessionId: drift.Value(sessionId),
-        objectId: targetObjectId,
-        role: const drift.Value('target'),
-        x: target.x,
-        y: target.y,
-        flux: targetFlux,
-        differentialMagnitude: drift.Value(differentialMag),
-        standardMagnitude: drift.Value(targetStandardMag),
-        snr: drift.Value(target.snr),
-        uncertainty: drift.Value(uncertainty),
-        timestamp: drift.Value(frameTimestamp),
-      ),
-    ];
-
-    double? standardMagFor(StarMeasurement star) {
-      if (transform == null || airmass == null || airmass <= 0) return null;
-      final flux = (star.flux / safeExposure).clamp(1e-6, double.infinity);
-      final instMag =
-          -2.5 * math.log(flux.clamp(1e-30, double.infinity)) / math.ln10;
-      final standard = transform.applyTransform(
-        instrumentalMag: instMag,
-        airmass: airmass,
-        colorIndex: 0.0,
-      );
-      return standard.isFinite ? standard : null;
-    }
-
-    for (var index = 0; index < comparisonObjects.length; index++) {
-      final objectId = comparisonObjects[index].objectId;
-      final star = comparisonObjects[index].star;
-      final isCheck = checkObjectId != null && objectId == checkObjectId;
-
-      // The check star gets its own differential magnitude against the
-      // SAME ensemble used for the target, so its light curve directly
-      // exposes systematics. Plain comparisons keep a null differential —
-      // they ARE the reference.
-      double? checkDiffMag;
-      double? checkUncertainty;
-      if (isCheck) {
-        final checkFlux = star.flux.clamp(1e-6, double.infinity);
-        checkDiffMag =
-            -2.5 *
-            math.log(
-              (checkFlux / comparisonFlux).clamp(1e-6, double.infinity),
-            ) /
-            math.ln10;
-        final checkSnr = star.snr.isFinite
-            ? star.snr.clamp(1.0, 1e6).toDouble()
-            : 1.0;
-        final checkVariance =
-            math.pow(1.0 / checkSnr, 2) +
-            math.pow(
-              comparisonFluxUncertainty /
-                  comparisonFlux.clamp(1e-6, double.infinity),
-              2,
-            );
-        checkUncertainty =
-            1.0857 * math.sqrt(checkVariance.isFinite ? checkVariance : 0.0);
-      }
-
-      entries.add(
-        db.PhotometryMeasurementsCompanion.insert(
-          capturedImageId: drift.Value(capturedImageId),
-          sessionId: drift.Value(sessionId),
-          objectId: objectId,
-          role: drift.Value(isCheck ? 'check' : 'comparison'),
-          x: star.x,
-          y: star.y,
-          flux: star.flux,
-          differentialMagnitude: drift.Value<double?>(checkDiffMag),
-          standardMagnitude: drift.Value(standardMagFor(star)),
-          snr: drift.Value(star.snr),
-          uncertainty: drift.Value<double?>(
-            checkUncertainty ??
-                star.flux /
-                    (star.snr.isFinite
-                        ? star.snr.clamp(1.0, 1e6).toDouble()
-                        : 1.0),
-          ),
-          isOutlier: drift.Value(outlierObjectIds.contains(objectId)),
-          timestamp: drift.Value(frameTimestamp),
-        ),
-      );
-    }
+    final entries = ScienceProcessingService.buildPhotometryMeasurementRows(
+      capturedImageId: capturedImageId,
+      sessionId: sessionId,
+      frameTimestamp: frameTimestamp,
+      targetObjectId: targetObjectId,
+      target: target,
+      targetFlux: targetFlux,
+      targetFluxSigma: targetFluxSigma,
+      comparisons: comparisonObjects,
+      checkObjectId: checkObjectId,
+      outlierObjectIds: outlierObjectIds,
+      comparisonFlux: comparisonFlux,
+      comparisonFluxUncertainty: comparisonFluxUncertainty,
+      transform: transform,
+      airmass: airmass,
+      exposureSeconds: safeExposure,
+    );
 
     if (capturedImageId != null) {
       await _scienceDao.replacePhotometryMeasurementsForImage(
@@ -757,7 +654,7 @@ extension _ScienceProcessingPrivateHelpers on ScienceProcessingService {
         longitude: settings.longitude,
         timeUnixMillis: timestamp.toUtc().millisecondsSinceEpoch,
       );
-      return _airmassFromAltitude(altitude);
+      return airmassForTrueAltitude(altitude);
     } catch (error, stack) {
       _logger.warning(
         'Airmass calculation failed ($sourceLabel RA=$raHours, Dec=$decDegrees, lat=${settings.latitude}, lon=${settings.longitude}, ts=${timestamp.toUtc().toIso8601String()}): $error\n$stack',
@@ -772,7 +669,7 @@ extension _ScienceProcessingPrivateHelpers on ScienceProcessingService {
     required DateTime timestamp,
   }) async {
     if (image.mountAltitude != null) {
-      return _airmassFromAltitude(image.mountAltitude!);
+      return airmassForTrueAltitude(image.mountAltitude!);
     }
     if (image.solvedRa != null && image.solvedDec != null) {
       return _airmassFromCoordinates(
@@ -783,26 +680,6 @@ extension _ScienceProcessingPrivateHelpers on ScienceProcessingService {
       );
     }
     return null;
-  }
-
-  double? _airmassFromAltitude(double altitudeDegrees) {
-    if (!altitudeDegrees.isFinite || altitudeDegrees <= 0.0) {
-      return null;
-    }
-    final altitude = altitudeDegrees.clamp(0.01, 89.9999);
-    final zenithDistance = 90.0 - altitude;
-    final cosZ = math.cos(zenithDistance * math.pi / 180.0);
-    if (cosZ <= 0) {
-      return null;
-    }
-    final kastenYoung =
-        1.0 /
-        (math.sin(altitude * math.pi / 180.0) +
-            0.50572 * math.pow(altitude + 6.07995, -1.6364));
-    if (!kastenYoung.isFinite) {
-      return 1.0 / cosZ;
-    }
-    return kastenYoung.clamp(1.0, 8.0).toDouble();
   }
 
   PhotometricCatalogSource _catalogFromName(String source) {

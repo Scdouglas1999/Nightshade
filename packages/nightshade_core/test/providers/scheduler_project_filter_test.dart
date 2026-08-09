@@ -25,8 +25,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/database/database.dart' hide Sequence;
 import 'package:nightshade_core/src/models/scheduler/integration_goal.dart';
 import 'package:nightshade_core/src/models/sequence/sequence_models.dart'
-    show Sequence;
+    show ExposureNode, Sequence;
 import 'package:nightshade_core/src/providers/database_provider.dart';
+import 'package:nightshade_core/src/providers/profiles_provider.dart'
+    show EquipmentProfileModel, activeEquipmentProfileProvider;
 import 'package:nightshade_core/src/providers/scheduler_provider.dart';
 import 'package:nightshade_core/src/services/planning/project_service.dart';
 import 'package:nightshade_core/src/services/scheduler/integration_goal_service.dart';
@@ -273,6 +275,100 @@ void main() {
         expect(
           incompleteScore.rejectionReasons,
           isNot(contains('all integration goals complete')),
+        );
+      },
+    );
+  });
+
+  group('wheel-less profiles', () {
+    // A profile with no named filters is an OSC/DSLR rig, not a
+    // misconfiguration. The loader used to hand the engine a bare empty
+    // availableFilters list, which made every filter containment check false —
+    // so the unfiltered goal the integration-goals editor now offers scored 0
+    // in _filterCoverageFactor and its frames were dropped from the dispatched
+    // sequence in favour of a defensive 30 s default frame.
+    test(
+      'a profile with no filters is loaded as one unfiltered slot, not none',
+      () async {
+        final container = ProviderContainer(
+          overrides: [
+            databaseProvider.overrideWithValue(database),
+            activeEquipmentProfileProvider.overrideWithValue(
+              const EquipmentProfileModel(name: 'OSC rig', filterNames: []),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        final targetId = await insertTarget(name: 'OSC target');
+        await container
+            .read(integrationGoalServiceProvider)
+            .upsert(
+              IntegrationGoal(
+                targetId: targetId,
+                filter: '',
+                exposureSeconds: 180.0,
+                frameCount: 20,
+                priority: 5,
+                createdAt: DateTime.utc(2026, 5, 11),
+              ),
+            );
+
+        final loaded = await container
+            .read(schedulerCandidateLoaderProvider)
+            .load(projectId: null);
+
+        final candidate = loaded.firstWhere((c) => c.targetId == targetId);
+        expect(candidate.availableFilters, <String>['']);
+
+        // The whole point: the operator's 20 x 180 s unfiltered goal survives
+        // into the dispatched sequence instead of being replaced by the
+        // defensive single 30 s frame.
+        final engine = SchedulerEngine(
+          site: const SchedulerSite(
+            latitudeDegrees: 47.6,
+            longitudeDegrees: -122.3,
+            localOffset: Duration(hours: -8),
+          ),
+          sequenceSink: _NoopSink(),
+        );
+        addTearDown(engine.dispose);
+
+        final sequence = engine.buildSequenceForCandidate(candidate);
+        final exposures = sequence.nodes.values.whereType<ExposureNode>();
+        expect(exposures, hasLength(1));
+        expect(exposures.single.count, 20);
+        expect(exposures.single.durationSecs, 180.0);
+        // null, not '': the empty sentinel would ask a wheel-less rig to
+        // select a filter named "".
+        expect(exposures.single.filter, isNull);
+      },
+    );
+
+    test(
+      'a profile that does name filters is passed through verbatim',
+      () async {
+        final container = ProviderContainer(
+          overrides: [
+            databaseProvider.overrideWithValue(database),
+            activeEquipmentProfileProvider.overrideWithValue(
+              const EquipmentProfileModel(
+                name: 'Mono rig',
+                filterNames: ['L', 'Ha'],
+              ),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        final targetId = await insertTarget(name: 'Mono target');
+        final loaded = await container
+            .read(schedulerCandidateLoaderProvider)
+            .load(projectId: null);
+
+        expect(
+          loaded.firstWhere((c) => c.targetId == targetId).availableFilters,
+          <String>['L', 'Ha'],
         );
       },
     );

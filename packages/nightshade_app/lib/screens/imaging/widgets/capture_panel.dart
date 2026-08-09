@@ -77,6 +77,18 @@ class CapturePanel extends ConsumerWidget {
     final cameraState = ref.watch(cameraStateProvider);
     final hostSuffix = isRemoteMode ? ' (host)' : '';
 
+    // The Session card's "Captured" and "Integration" lines must come from the
+    // SAME record or they can contradict each other. `recentSessionFramesProvider`
+    // only holds frames captured in THIS app run, so after resuming an
+    // interrupted session the card read "Captured 0 frames" directly above
+    // "Integration 40m 0s". SessionService.recoverSession restores
+    // completedExposures from the DB row alongside totalIntegrationSecs, so
+    // prefer it whenever a session row is open; the in-run frame list is only
+    // the fallback for captures taken with no session (dbSessionId == null).
+    final capturedCount = sessionState.dbSessionId != null
+        ? sessionState.completedExposures
+        : sessionImages.length;
+
     // Get binning options based on connected camera's capabilities
     final binningOptions = ref.watch(
       cameraBinningOptionsProvider(cameraState.deviceId ?? ''),
@@ -110,8 +122,9 @@ class CapturePanel extends ConsumerWidget {
                   onChanged: (value) {
                     final parsed = double.tryParse(value);
                     if (parsed != null && parsed > 0) {
-                      ref.read(exposureSettingsProvider.notifier).state =
-                          exposureSettings.copyWith(exposureTime: parsed);
+                      ref.read(manualExposureSettingsUpdaterProvider).update(
+                            exposureSettings.copyWith(exposureTime: parsed),
+                          );
                     }
                   },
                 ),
@@ -128,8 +141,9 @@ class CapturePanel extends ConsumerWidget {
                         (t) => t.displayName == value,
                         orElse: () => FrameType.light,
                       );
-                      ref.read(exposureSettingsProvider.notifier).state =
-                          exposureSettings.copyWith(frameType: type);
+                      ref.read(manualExposureSettingsUpdaterProvider).update(
+                            exposureSettings.copyWith(frameType: type),
+                          );
                     }
                   },
                 ),
@@ -143,11 +157,12 @@ class CapturePanel extends ConsumerWidget {
                   onChanged: (value) {
                     if (value != null) {
                       final parts = value.split('x');
-                      ref.read(exposureSettingsProvider.notifier).state =
-                          exposureSettings.copyWith(
-                        binningX: int.parse(parts[0]),
-                        binningY: int.parse(parts[1]),
-                      );
+                      ref.read(manualExposureSettingsUpdaterProvider).update(
+                            exposureSettings.copyWith(
+                              binningX: int.parse(parts[0]),
+                              binningY: int.parse(parts[1]),
+                            ),
+                          );
                     }
                   },
                 ),
@@ -204,8 +219,8 @@ class CapturePanel extends ConsumerWidget {
                             color: colors.textSecondary)),
                     Flexible(
                       child: Text(
-                        '${sessionImages.length} '
-                        '${sessionImages.length == 1 ? 'frame' : 'frames'}',
+                        '$capturedCount '
+                        '${capturedCount == 1 ? 'frame' : 'frames'}',
                         textAlign: TextAlign.end,
                         overflow: TextOverflow.ellipsis,
                         style: NightshadeTypography.labelSm

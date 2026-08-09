@@ -91,9 +91,13 @@ extension ImageGradingSettingsSection on AppSettingsNotifier {
     _patchState((s) => s.copyWith(imageGradingHfrBaselinePercent: validated));
   }
 
-  /// Reject if star eccentricity exceeds this value. Typical thresholds:
-  /// 0.6 catches trailed frames; 0.8 catches catastrophic tracking
-  /// failure. Pass `null` to disable.
+  /// Reject if median star eccentricity across the frame exceeds this
+  /// value: 0.6 is a 1.25:1 smear, 0.8 a 1.7:1 smear. The star detector
+  /// stops treating a source as a star past 0.95
+  /// (`nightshade_imaging::DETECTION_MAX_ECCENTRICITY`) — it is a satellite
+  /// trail by then — so thresholds above that never fire. Pass `null` to
+  /// disable. The range below stays the full 0-1 domain of the quantity;
+  /// the settings field is what caps operator input at the useful subrange.
   Future<void> setImageGradingEccentricityThreshold(double? value) async {
     final validated = _validateOptionalImageGradingDouble(
       'eccentricity threshold',

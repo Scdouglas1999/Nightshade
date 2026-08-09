@@ -19,10 +19,10 @@ import 'onboarding/onboarding_overlay.dart';
 /// This launcher is the consumer that closes that loop. It watches the status
 /// provider and, on `pending`, overlays the tour on top of the running app so
 /// the replay button actually shows the tour — without a restart and without
-/// the tour ever auto-launching on first run (a fresh install records its
-/// status as completed/skipped only after the user finishes or dismisses, and a
-/// brand-new install's row simply never reaches pending through this path
-/// because nothing resets it).
+/// the tour ever auto-launching on first run. `pending` means "a replay was
+/// explicitly requested and is unfinished"; a brand-new install has no row at
+/// all and reads as [FirstLaunchTourStatus.notStarted], which does not mount
+/// anything.
 ///
 /// The overlay sits in a [Stack] above [child] (rather than as a route) so it
 /// floats over whatever screen the user is on — exactly where the per-step

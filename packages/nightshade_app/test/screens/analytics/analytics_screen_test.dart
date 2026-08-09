@@ -15,6 +15,8 @@ import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/screens/analytics/analytics_screen.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
+import '../../harness/provider_teardown.dart';
 
 /// Test-only TutorialNotifier that reports tutorials disabled so the
 /// `ContextualTourPrompt` short-circuits before scheduling its 500 ms
@@ -218,6 +220,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           ..._commonOverrides(),
           backendProvider.overrideWith(
             (ref) => _FixedBackendNotifier(ref, backend),
@@ -255,6 +258,8 @@ void main() {
       find.text('Session Review is available on the imaging host.'),
       findsOneWidget,
     );
+
+    await settleProviderTeardown(tester);
   });
 
   // The Share action used to throw
@@ -285,6 +290,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           ..._commonOverrides(),
           allSessionsProvider.overrideWith(
             (ref) => Stream<List<ImagingSession>>.value([session]),
@@ -314,6 +320,8 @@ void main() {
     expect(find.byTooltip('Export to CSV'), findsOneWidget);
     // …and the unimplemented-on-desktop Share action is not.
     expect(find.byTooltip('Share'), findsNothing);
+
+    await settleProviderTeardown(tester);
   }, skip: Platform.isAndroid || Platform.isIOS);
 
   // ===========================================================================

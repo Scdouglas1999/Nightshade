@@ -3,6 +3,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../../localization/nightshade_localizations.dart';
+
 /// Single source of truth for the (color, label, icon, dot-variant) tuple
 /// that every sequence-status surface renders.
 ///
@@ -25,57 +27,62 @@ class SequenceStatusVisuals {
   final IconData icon;
   final StatusDotVariant variant;
 
+  /// [l10n] is required, not optional-with-an-English-default: this tuple is
+  /// what the shell status bar, the sequencer toolbar and the mobile playback
+  /// bar all render, and a silent English fallback here is how the bar stayed
+  /// English while the rest of the chrome translated.
   static SequenceStatusVisuals of(
     SequenceExecutionState state,
     NightshadeColors colors,
+    NightshadeLocalizations l10n,
   ) {
     switch (state) {
       case SequenceExecutionState.idle:
         return SequenceStatusVisuals(
           color: colors.textMuted,
-          label: 'Idle',
+          label: l10n.text('idle'),
           icon: LucideIcons.circleOff,
           variant: StatusDotVariant.static,
         );
       case SequenceExecutionState.running:
         return SequenceStatusVisuals(
           color: colors.success,
-          label: 'Running',
+          label: l10n.text('sequenceRunning'),
           icon: LucideIcons.activity,
           variant: StatusDotVariant.static,
         );
       case SequenceExecutionState.paused:
         return SequenceStatusVisuals(
           color: colors.warning,
-          label: 'Paused',
+          label: l10n.text('sequencePaused'),
           icon: LucideIcons.pauseCircle,
           variant: StatusDotVariant.static,
         );
       case SequenceExecutionState.stopping:
         return SequenceStatusVisuals(
           color: colors.warning,
-          label: 'Stopping',
+          label: l10n.text('statusSequenceStopping'),
           icon: LucideIcons.loader,
           variant: StatusDotVariant.static,
         );
       case SequenceExecutionState.completed:
         return SequenceStatusVisuals(
           color: colors.info,
-          label: 'Completed',
+          label: l10n.text('statusSequenceCompleted'),
           icon: LucideIcons.checkCircle,
           variant: StatusDotVariant.static,
         );
       case SequenceExecutionState.failed:
         return SequenceStatusVisuals(
           color: colors.error,
-          label: 'Failed',
+          label: l10n.text('statusSequenceFailed'),
           icon: LucideIcons.xCircle,
           variant: StatusDotVariant.urgent,
         );
       case SequenceExecutionState.recovering:
         return SequenceStatusVisuals(
           color: colors.error,
-          label: 'Recovering',
+          label: l10n.text('statusSequenceRecovering'),
           icon: LucideIcons.rotateCw,
           variant: StatusDotVariant.urgent,
         );
@@ -84,7 +91,7 @@ class SequenceStatusVisuals {
         // error styling so the operator retries the Stop.
         return SequenceStatusVisuals(
           color: colors.error,
-          label: 'Stop failed',
+          label: l10n.text('statusSequenceStopFailed'),
           icon: LucideIcons.alertOctagon,
           variant: StatusDotVariant.urgent,
         );
@@ -93,7 +100,7 @@ class SequenceStatusVisuals {
         // styling — safe, but the Stop retry is needed to finish the wrap-up.
         return SequenceStatusVisuals(
           color: colors.warning,
-          label: 'Cleanup failed',
+          label: l10n.text('statusSequenceCleanupFailed'),
           icon: LucideIcons.alertTriangle,
           variant: StatusDotVariant.urgent,
         );
@@ -102,7 +109,7 @@ class SequenceStatusVisuals {
         // styling — nothing is wrong, the executor is just persisting the run.
         return SequenceStatusVisuals(
           color: colors.info,
-          label: 'Finalizing',
+          label: l10n.text('statusSequenceFinalizing'),
           icon: LucideIcons.loader,
           variant: StatusDotVariant.static,
         );

@@ -19,6 +19,7 @@ import 'widgets/imaging_preview_toolbar.dart';
 import 'widgets/live_preview_area.dart';
 import 'widgets/meridian_flip_countdown_banner.dart';
 import 'widgets/panel_widgets.dart';
+import 'widgets/preview_display_scale.dart' show previewFitScaleProvider;
 import 'widgets/rotator_panel.dart';
 import 'widgets/stacking_panel.dart';
 import '../../widgets/tutorial_keys/imaging_keys.dart';
@@ -348,9 +349,9 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
             if (showPreviewToolbar)
               ImagingPreviewToolbar(
                 colors: colors,
-                zoomLevel: viewerState.zoomLevel,
                 showCrosshair: viewerState.showCrosshair,
                 showStarOverlay: viewerState.showStarOverlay,
+                isStoppingCapture: _isStoppingCapture,
                 onZoomIn: _zoomIn,
                 onZoomOut: _zoomOut,
                 onFitToWindow: _fitToWindow,
@@ -368,6 +369,7 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                 panOffset: viewerState.panOffset,
                 showCrosshair: viewerState.showCrosshair,
                 showStarOverlay: viewerState.showStarOverlay,
+                isStoppingCapture: _isStoppingCapture,
                 onZoomIn: _zoomIn,
                 onZoomOut: _zoomOut,
                 onPanUpdate: _panPreview,
@@ -559,8 +561,9 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
             onChanged: (value) {
               final parsed = double.tryParse(value);
               if (parsed != null && parsed > 0) {
-                ref.read(exposureSettingsProvider.notifier).state =
-                    exposureSettings.copyWith(exposureTime: parsed);
+                ref.read(manualExposureSettingsUpdaterProvider).update(
+                      exposureSettings.copyWith(exposureTime: parsed),
+                    );
               }
             },
           ),

@@ -16,7 +16,17 @@ class ScienceLadderCard extends ConsumerWidget {
   final bool hasPeriodResult;
   final bool hasExportableData;
   final VoidCallback onJumpToPhotometry;
-  final VoidCallback onJumpToFieldQuality;
+
+  /// Runs rung 1. Named for the action, not a destination: the rung's button
+  /// says 'Run calibration', so a host that merely scrolls somewhere is not
+  /// honouring it.
+  final VoidCallback onRunCalibration;
+
+  /// Runs rung 2. Same rule as [onRunCalibration]: the button says 'Pick a
+  /// target', and the only control in the app that picks a photometry target
+  /// is the science HUD on the imaging screen — not a chart section in
+  /// Analytics, and certainly not the calibration wizard.
+  final VoidCallback onPickTarget;
   final VoidCallback onOpenExport;
 
   const ScienceLadderCard({
@@ -28,7 +38,8 @@ class ScienceLadderCard extends ConsumerWidget {
     required this.hasPeriodResult,
     required this.hasExportableData,
     required this.onJumpToPhotometry,
-    required this.onJumpToFieldQuality,
+    required this.onRunCalibration,
+    required this.onPickTarget,
     required this.onOpenExport,
   });
 
@@ -157,14 +168,31 @@ class ScienceLadderCard extends ConsumerWidget {
       state,
       prerequisite: _prerequisiteFor(spec.rung),
       onCta: () => _runCta(context, ref, spec.rung),
+      // Deliberately NOT the rung's own CTA: rung 5's CTA opens the export hub,
+      // and the rung is locked precisely because there is nothing to export.
+      // The unlock action goes where the prerequisite is satisfied instead.
+      //
+      // And deliberately NOT onJumpToPhotometry: on the populated branch of the
+      // Science tab that scrolls to the PHOTOMETRY section, which plots curves
+      // and exports them. Rung 2's CTA was moved OFF that section for exactly
+      // this reason ("it does not choose the star"), so routing the unlock
+      // there would land the operator on an empty Differential Photometry card
+      // — the same dead end one scroll further down. Every lockable
+      // prerequisite (track a star, gather ten points, record something
+      // exportable) is cleared while capturing, in the Science HUD, which is
+      // where onPickTarget goes on both branches.
+      unlockLabel:
+          _prerequisiteFor(spec.rung) == null ? null : 'Open Science HUD',
+      onUnlock: _prerequisiteFor(spec.rung) == null ? null : onPickTarget,
     );
   }
 
   void _runCta(BuildContext context, WidgetRef ref, ScienceRung rung) {
     switch (rung) {
       case ScienceRung.measure:
-        onJumpToFieldQuality();
+        onRunCalibration();
       case ScienceRung.track:
+        onPickTarget();
       case ScienceRung.curve:
       case ScienceRung.period:
         onJumpToPhotometry();
@@ -173,15 +201,22 @@ class ScienceLadderCard extends ConsumerWidget {
     }
   }
 
+  /// Why a rung is locked. Shown only for [RungState.locked], so each string
+  /// has to match the one condition that can actually lock that rung —
+  /// otherwise the sheet states a prerequisite the user has already met.
   String? _prerequisiteFor(ScienceRung rung) {
     return switch (rung) {
+      // Neither of these is ever locked: calibrating and picking a star need
+      // nothing to happen first.
       ScienceRung.measure => null,
-      ScienceRung.track => 'Calibrate your sky first so brightness reads true.',
+      ScienceRung.track => null,
       ScienceRung.curve =>
-        'Turn on live photometry and track a star to start collecting points.',
+        'Track a star — live, or open a session that recorded photometry — to '
+            'start collecting points.',
       ScienceRung.period => 'Gather at least ten light-curve points first.',
       ScienceRung.contribute =>
-        'Find a period — or build out the curve — before exporting.',
+        'Record photometry, a photometric calibration or a moving-object '
+            'candidate before exporting.',
     };
   }
 }

@@ -136,8 +136,9 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
                   onChanged: (value) {
                     final parsed = double.tryParse(value);
                     if (parsed != null && parsed > 0) {
-                      ref.read(exposureSettingsProvider.notifier).state =
-                          exposureSettings.copyWith(exposureTime: parsed);
+                      ref.read(manualExposureSettingsUpdaterProvider).update(
+                            exposureSettings.copyWith(exposureTime: parsed),
+                          );
                     }
                   },
                 ),
@@ -162,8 +163,9 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
             onChanged: (value) {
               final parsed = int.tryParse(value);
               if (parsed != null && parsed >= 0) {
-                ref.read(exposureSettingsProvider.notifier).state =
-                    exposureSettings.copyWith(gain: parsed);
+                ref.read(manualExposureSettingsUpdaterProvider).update(
+                      exposureSettings.copyWith(gain: parsed),
+                    );
               }
             },
           ),
@@ -177,8 +179,9 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
             onChanged: (value) {
               final parsed = int.tryParse(value);
               if (parsed != null && parsed >= 0) {
-                ref.read(exposureSettingsProvider.notifier).state =
-                    exposureSettings.copyWith(offset: parsed);
+                ref.read(manualExposureSettingsUpdaterProvider).update(
+                      exposureSettings.copyWith(offset: parsed),
+                    );
               }
             },
           ),
@@ -197,11 +200,12 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
             onChanged: (value) {
               if (value != null) {
                 final parts = value.split('x');
-                ref.read(exposureSettingsProvider.notifier).state =
-                    exposureSettings.copyWith(
-                  binningX: int.parse(parts[0]),
-                  binningY: int.parse(parts[1]),
-                );
+                ref.read(manualExposureSettingsUpdaterProvider).update(
+                      exposureSettings.copyWith(
+                        binningX: int.parse(parts[0]),
+                        binningY: int.parse(parts[1]),
+                      ),
+                    );
               }
             },
           ),
@@ -219,8 +223,9 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
                   (t) => t.displayName == value,
                   orElse: () => FrameType.light,
                 );
-                ref.read(exposureSettingsProvider.notifier).state =
-                    exposureSettings.copyWith(frameType: type);
+                ref.read(manualExposureSettingsUpdaterProvider).update(
+                      exposureSettings.copyWith(frameType: type),
+                    );
               }
             },
           ),
@@ -415,9 +420,10 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
     final position = filterNames.indexOf(value);
     if (position < 0) return;
 
-    final settingsNotifier = ref.read(exposureSettingsProvider.notifier);
     if (!wheelConnected) {
-      settingsNotifier.state = settingsNotifier.state.copyWith(filter: value);
+      ref.read(manualExposureSettingsUpdaterProvider).update(
+            ref.read(exposureSettingsProvider).copyWith(filter: value),
+          );
       return;
     }
 
@@ -436,7 +442,9 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
         providerContainer.read(deviceServiceProvider),
         deviceService,
       )) {
-        settingsNotifier.state = settingsNotifier.state.copyWith(filter: value);
+        ref.read(manualExposureSettingsUpdaterProvider).update(
+              ref.read(exposureSettingsProvider).copyWith(filter: value),
+            );
       }
     } catch (e) {
       if (mounted &&
@@ -457,6 +465,12 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
     }
   }
 
+  /// Capture one KEEPER frame for the Capture button.
+  ///
+  /// [ImagingService.captureImage] is the keeper-only entry point: the frame is
+  /// written into the operator's light-frame folder under the naming pattern
+  /// and indexed in `captured_images`. That is right for a deliberate single
+  /// capture, and exactly what Loop must not do — see [_captureLoopFrame].
   Future<bool> _captureImage({ImagingService? expectedService}) async {
     if (_isChangingFilter || ref.read(filterWheelStateProvider).isMoving) {
       if (mounted) {
@@ -501,7 +515,7 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
         mounted &&
         generation == _loopGeneration &&
         _isCurrentImagingService(imagingService)) {
-      final captured = await _captureImage(expectedService: imagingService);
+      final captured = await _captureLoopFrame(imagingService);
       if (!_isCurrentImagingService(imagingService) ||
           generation != _loopGeneration) {
         break;
@@ -523,6 +537,52 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
     if (mounted && generation == _loopGeneration) {
       setState(() => _isLooping = false);
     }
+  }
+
+  /// Capture ONE live-view frame for the Loop button.
+  ///
+  /// Loop is framing/focusing, not acquisition, so it must not run
+  /// [ImagingService.captureImage]: that entry point is keeper-only, so this
+  /// panel's Loop wrote every framing frame full-size into the operator's
+  /// light-frame folder and indexed it as a light — roughly 27 GB an hour at
+  /// 5 s subs, from a button that only claims to be a live view. This is the
+  /// same defect already fixed on the Dashboard capture card; the two surfaces
+  /// must not disagree about what Loop keeps.
+  ///
+  /// [ImagingService.startLoopCapture] with `saveFrames: false` reuses one
+  /// scratch file per camera instead, so the preview, annotation and
+  /// plate-solve paths still find a frame on disk while nothing is kept and
+  /// nothing enters the session totals. One frame per call, not a
+  /// service-owned run, because this panel's Stop ends the loop after the
+  /// exposure in flight while Abort is the separate immediate cancel.
+  Future<bool> _captureLoopFrame(ImagingService imagingService) async {
+    if (_isChangingFilter || ref.read(filterWheelStateProvider).isMoving) {
+      if (mounted) {
+        context.showInfoSnackBar('Wait for the filter wheel to finish moving.');
+      }
+      return false;
+    }
+    if (!_isCurrentImagingService(imagingService)) return false;
+    var framesCaptured = 0;
+    String? failure;
+    try {
+      await imagingService.startLoopCapture(
+        settings: ref.read(exposureSettingsProvider),
+        targetName: ref.read(sessionStateProvider).targetName,
+        maxFrames: 1,
+        saveFrames: false,
+        onImageCaptured: (_) => framesCaptured++,
+        onError: (error) => failure ??= error,
+      );
+    } catch (e) {
+      failure ??= e.toString();
+    }
+    if (!_isCurrentImagingService(imagingService)) return false;
+    if (failure != null) {
+      if (mounted) context.showErrorSnackBar('Capture failed: $failure');
+      return false;
+    }
+    return framesCaptured > 0;
   }
 
   void _abortCapture() {

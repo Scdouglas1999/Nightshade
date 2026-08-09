@@ -21,6 +21,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart'
     as planetarium;
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 class _TestSettingsNotifier extends AppSettingsNotifier {
   final Future<AppSettingsState> Function() _load;
@@ -46,6 +47,7 @@ Future<ProviderContainer> _pumpDialog(
 
   final container = ProviderContainer(
     overrides: [
+      inMemoryDatabaseOverride(),
       appSettingsProvider.overrideWith(
         () => _TestSettingsNotifier(
           settingsLoader ?? () async => const AppSettingsState(),
@@ -123,6 +125,7 @@ void main() {
     await _pumpDialog(
       tester,
       overrides: [
+        inMemoryDatabaseOverride(),
         appObserverLocationProvider.overrideWithValue(
           const LocationSettings(latitude: 89, longitude: 0),
         ),
@@ -156,6 +159,7 @@ void main() {
         seedSourceLabel: 'Galaxy Season',
       ),
       overrides: [
+        inMemoryDatabaseOverride(),
         appObserverLocationProvider.overrideWithValue(
           const LocationSettings(latitude: 40, longitude: -75),
         ),
@@ -227,6 +231,7 @@ void main() {
     await _pumpDialog(
       tester,
       overrides: [
+        inMemoryDatabaseOverride(),
         appObserverLocationProvider.overrideWithValue(
           const LocationSettings(latitude: 40, longitude: -75),
         ),
@@ -265,6 +270,7 @@ void main() {
       settingsLoader: () async =>
           const AppSettingsState(smartNightAutoSelect: false),
       overrides: [
+        inMemoryDatabaseOverride(),
         appObserverLocationProvider.overrideWithValue(
           const LocationSettings(latitude: 40, longitude: -75),
         ),
@@ -294,6 +300,7 @@ void main() {
     await _pumpDialog(
       tester,
       overrides: [
+        inMemoryDatabaseOverride(),
         appObserverLocationProvider.overrideWithValue(
           const LocationSettings(latitude: 40, longitude: -75),
         ),

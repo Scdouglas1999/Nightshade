@@ -116,6 +116,12 @@ Future<SingleTargetSequenceResult> _buildPlanTonightTargetSequenceCore({
           );
 
   final smartNightSettings = SmartNightSettings(
+    // The site minimum altitude belongs to the site, not to this builder.
+    // Leaving it at the SmartNightSettings default meant this path refused
+    // targets at 27 deg ("no usable imaging window ... at min altitude 30")
+    // that the scheduler on the very same screen was scoring as eligible
+    // against its own 25 deg.
+    minAltitudeDeg: ref.read(siteMinimumAltitudeDegProvider),
     defaultIntegrationBudgetHours: integrationBudgetHours ??
         const SmartNightSettings().defaultIntegrationBudgetHours,
     targetSnr: settings.smartNightTargetSnr,
@@ -194,10 +200,14 @@ Future<TargetSuggestion> catalogTargetSuggestion({
       AstronomyCalculations.calculateObjectVisibility(
         raDeg: raHours * 15.0,
         decDeg: decDegrees,
-        date: window.start,
+        // window.start is the dark window's opening INSTANT, which at the west
+        // edge of a timezone in mid-summer falls after local midnight. Handing
+        // that to a noon-to-noon scan selected the next night — the same slip
+        // that made "Best Targets Tonight" a sidereal day out.
+        date: AstronomyCalculations.nightDateOf(window.start),
         latitudeDeg: settings.latitude,
         longitudeDeg: settings.longitude,
-        minAltitude: const SmartNightSettings().minAltitudeDeg,
+        minAltitude: ref.read(siteMinimumAltitudeDegProvider),
       );
 
   final altAz = AstronomyCalculations.objectAltAz(
@@ -494,7 +504,7 @@ Future<bool> _addFramedMosaicToSequencer({
     // sequencer path did not, so a panel could start imaging while still below
     // the horizon floor. STRENGTHENS the gate; it never weakens the Dart Sun
     // gate (W1) or the W5 weather gate.
-    minAltitude: const SmartNightSettings().minAltitudeDeg,
+    minAltitude: ref.read(siteMinimumAltitudeDegProvider),
   );
 
   final mosaicName = framingMosaicNameFor(target);

@@ -6,6 +6,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/widgets/focus_model_curve_card.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 void main() {
   testWidgets('compact focus model card opens its merged Settings section', (
@@ -36,6 +37,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           activeEquipmentProfileProvider.overrideWithValue(
             const EquipmentProfileModel(id: 7, name: 'Test rig'),
           ),
@@ -82,6 +84,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           activeEquipmentProfileProvider.overrideWithValue(
             const EquipmentProfileModel(id: 7, name: 'Remote rig'),
           ),
@@ -128,6 +131,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           backendProvider.overrideWith(
             (ref) => _FixedBackendNotifier(ref, backend),
           ),

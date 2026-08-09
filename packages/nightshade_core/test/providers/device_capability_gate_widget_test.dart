@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/models/backend/device_capabilities.dart';
 import 'package:nightshade_core/src/providers/equipment/device_capability_provider.dart';
+import '../harness/in_memory_database.dart';
 
 /// Test widget: shows a button that's gated on `canPark`. Mirrors the
 /// pattern in mount_tab.dart so the gate's behaviour is exercised end-to-end
@@ -48,6 +49,7 @@ void main() {
     // resolved value. This decouples the test from the backend layer.
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         equipmentMountCapabilitiesProvider('mount:supports-park').overrideWith(
           (_) async => const MountCapabilities(canPark: true, canUnpark: true),
         ),
@@ -73,6 +75,7 @@ void main() {
   ) async {
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         equipmentMountCapabilitiesProvider(
           'mount:no-park',
         ).overrideWith((_) async => const MountCapabilities(canPark: false)),
@@ -93,6 +96,7 @@ void main() {
       '(fail-closed)', (tester) async {
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         equipmentMountCapabilitiesProvider('mount:broken').overrideWith(
           (_) => Future<MountCapabilities?>.error(StateError('driver crashed')),
         ),

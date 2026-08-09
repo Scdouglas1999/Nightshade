@@ -15,6 +15,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/target_queue_panel.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
+import '../../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 /// Minimal harness mirroring `_buildDragTarget` in `sequence_tree.dart`:
 /// it accepts a TargetQueueDragPayload and appends the carried
@@ -59,7 +60,8 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    final container = ProviderContainer();
+    final container =
+        ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
     addTearDown(container.dispose);
 
     // Seed an active sequence so addNode has somewhere to land.

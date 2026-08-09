@@ -14,7 +14,7 @@ TargetHeaderNode _target() => TargetHeaderNode(
 
 Widget _wrap(List<Override> overrides) {
   return ProviderScope(
-    overrides: overrides,
+    overrides: [...overrides],
     child: MaterialApp(
       theme: NightshadeTheme.dark,
       home: const Scaffold(body: CockpitNowImaging()),

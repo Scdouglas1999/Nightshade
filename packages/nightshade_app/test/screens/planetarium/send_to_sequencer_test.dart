@@ -11,11 +11,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/utils/add_target_header_helper.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 void main() {
   testWidgets('appends TargetHeaderNode when a sequence is open',
       (tester) async {
-    final container = ProviderContainer();
+    final container =
+        ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
     addTearDown(container.dispose);
 
     container
@@ -62,7 +64,8 @@ void main() {
 
   testWidgets('prompts when no sequence is open, then creates and adds',
       (tester) async {
-    final container = ProviderContainer();
+    final container =
+        ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
     addTearDown(container.dispose);
 
     // Note: no createSequence() — verifies the prompt branch.

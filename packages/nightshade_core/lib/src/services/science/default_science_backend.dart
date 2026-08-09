@@ -5,12 +5,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart';
 
 import '../../backend/nightshade_backend.dart';
+import '../../models/plate_solver.dart';
 import '../../models/science/science_models.dart';
 import '../wcs/gnomonic_projection.dart';
 import '../../providers/backend_provider.dart';
 import '../../providers/database_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../services/logging_service.dart';
+import '../plate_solve_service.dart';
 import '../../utils/utc_timestamp.dart';
 import 'photometric_catalog_service.dart';
 import 'science_backend.dart';
@@ -28,24 +30,16 @@ class DefaultScienceBackend implements ScienceBackend {
 
   @override
   Future<SolverCapabilities> getSolverCapabilities() async {
-    final solver = _resolveSolverId().toLowerCase();
-    if (solver == 'astap' || solver == 'astrometry.net') {
-      return const SolverCapabilities(
-        hasResidualVectors: true,
-        hasDistortionTerms: true,
-        supportsBatchSolve: true,
-        supportsLocalIndexOnly: true,
-      );
-    }
-    if (solver == 'platesolve2') {
-      return const SolverCapabilities(
-        hasResidualVectors: false,
-        hasDistortionTerms: false,
-        supportsBatchSolve: false,
-        supportsLocalIndexOnly: true,
-      );
-    }
-    return const SolverCapabilities();
+    final solver = await _resolveSolver();
+    if (!solver.available) return const SolverCapabilities();
+    // ASTAP and astrometry.net expose the same capability set, so Auto —
+    // which may dispatch to either — carries it too.
+    return const SolverCapabilities(
+      hasResidualVectors: true,
+      hasDistortionTerms: true,
+      supportsBatchSolve: true,
+      supportsLocalIndexOnly: true,
+    );
   }
 
   @override
@@ -75,7 +69,7 @@ class DefaultScienceBackend implements ScienceBackend {
         rotationDegrees: result.rotation,
         fieldWidthDegrees: result.fieldWidth,
         fieldHeightDegrees: result.fieldHeight,
-        solverId: _resolveSolverId(),
+        solverId: (await _resolveSolver()).label,
         cd1_1: result.cd11,
         cd1_2: result.cd12,
         cd2_1: result.cd21,

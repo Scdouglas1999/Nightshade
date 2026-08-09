@@ -4,6 +4,7 @@ import 'package:nightshade_app/services/plugin_node_palette_wiring.dart';
 import 'package:nightshade_app/services/plugin_runtime_bootstrap.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_plugins/nightshade_plugins.dart';
+import '../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -11,7 +12,10 @@ void main() {
   test('startup bootstrap registers bundled nodes without opening settings',
       () async {
     final container = ProviderContainer(
-      overrides: [pluginNodePaletteBlueprintsOverride()],
+      overrides: [
+        inMemoryDatabaseOverride(),
+        pluginNodePaletteBlueprintsOverride()
+      ],
     );
     addTearDown(container.dispose);
 

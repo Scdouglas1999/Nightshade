@@ -23,6 +23,32 @@ final _transientFilterProvider = StateProvider<TransientFilter>((ref) {
   return TransientFilter.all;
 });
 
+// The set of upstreams this build can actually query now lives beside
+// TransientSource itself (`kFetchableTransientSources`), so this sheet and
+// TransientAlertService.getAllAlerts cannot drift apart about which sources
+// are real. Manual is not in it: manual alerts are entered locally, never
+// fetched.
+
+/// When the alert feed last produced a result (or an error), so the operator
+/// can tell "no transients tonight" from "the fetch never ran".
+///
+/// The feed itself is a polling `StreamProvider` with no notion of a last
+/// attempt, and clicking refresh only invalidates it: without this the screen
+/// is byte-identical before and after a refresh, which is what made a broken
+/// upstream indistinguishable from a quiet sky.
+final _lastAlertCheckProvider = StateProvider<DateTime?>((ref) => null);
+
+/// Whether TNS is actually usable: bot identity configured in Science settings
+/// AND an API key in the secrets store. The alert settings sheet has no key
+/// field, so enabling the TNS chip alone changes nothing.
+final _tnsCredentialsReadyProvider = FutureProvider.autoDispose<bool>((
+  ref,
+) async {
+  final science = await ref.watch(scienceSettingsProvider.future);
+  if (science.tnsBotId <= 0 || science.tnsBotName.trim().isEmpty) return false;
+  return ref.watch(secretsStoreProvider).has(SecretField.tnsApiKey);
+});
+
 /// Screen for managing astronomical transient alerts.
 ///
 /// Displays a filterable list of transient alerts (novae, supernovae, comets, etc.)
@@ -59,6 +85,16 @@ class TransientsView extends ConsumerWidget {
     final alertsAsync = ref.watch(activeTransientAlertsProvider);
     final currentFilter = ref.watch(_transientFilterProvider);
 
+    // Stamp every completed attempt, success or failure. Done here rather than
+    // in the refresh handler because the feed also polls on its own timer.
+    ref.listen<AsyncValue<List<TransientAlert>>>(
+      activeTransientAlertsProvider,
+      (previous, next) {
+        if (next.isLoading) return;
+        ref.read(_lastAlertCheckProvider.notifier).state = DateTime.now();
+      },
+    );
+
     return Column(
       children: [
         if (showHeader)
@@ -94,6 +130,7 @@ class TransientsView extends ConsumerWidget {
             ),
           ),
         _CitizenScienceStrip(colors: colors),
+        _SourceStatusStrip(colors: colors, alertsAsync: alertsAsync),
         _FilterTabBar(
           colors: colors,
           currentFilter: currentFilter,
@@ -140,7 +177,7 @@ class TransientsView extends ConsumerWidget {
           itemCount: filteredAlerts.length,
           itemBuilder: (context, index) {
             final alert = filteredAlerts[index];
-            final alertState = states[alert.id];
+            final alertState = resolveTransientAlertState(alert, states);
             return Padding(
               padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceMd),
               child: TransientCard(
@@ -168,19 +205,26 @@ class TransientsView extends ConsumerWidget {
     switch (filter) {
       case TransientFilter.all:
         return alerts;
+      // Every branch resolves through `resolveTransientAlertState` so a
+      // detection confirmed in First Light leaves the "New" bucket here too.
       case TransientFilter.newAlerts:
-        return alerts.where((alert) {
-          final state = states[alert.id];
-          return state == null || state == TransientAlertState.newAlert;
-        }).toList();
+        return alerts
+            .where((alert) =>
+                resolveTransientAlertState(alert, states) ==
+                TransientAlertState.newAlert)
+            .toList();
       case TransientFilter.queued:
-        return alerts.where((alert) {
-          return states[alert.id] == TransientAlertState.queued;
-        }).toList();
+        return alerts
+            .where((alert) =>
+                resolveTransientAlertState(alert, states) ==
+                TransientAlertState.queued)
+            .toList();
       case TransientFilter.observed:
-        return alerts.where((alert) {
-          return states[alert.id] == TransientAlertState.observed;
-        }).toList();
+        return alerts
+            .where((alert) =>
+                resolveTransientAlertState(alert, states) ==
+                TransientAlertState.observed)
+            .toList();
     }
   }
 
@@ -222,7 +266,10 @@ class TransientsView extends ConsumerWidget {
       icon: icon,
       title: message,
       body: filter == TransientFilter.all
-          ? 'Transient alerts from AAVSO, TNS, and other sources will appear here when available.'
+          // Names only the upstream this build queries. "and other sources"
+          // implied AAVSO/MPEC/CBAT monitoring that never happens.
+          ? 'Alerts from TNS appear here. The strip above shows what each '
+              'enabled source returned on the last check.'
           : 'No alerts match the current filter.',
     );
   }
@@ -333,6 +380,120 @@ class _CitizenScienceStrip extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Per-source result of the last fetch, plus when that fetch happened.
+///
+/// Without this the surface could not distinguish "no transients tonight" from
+/// "this feature is broken": refresh produced no spinner, no timestamp, no
+/// count and no error, and a source that is enabled but unusable (TNS with no
+/// API key) looked exactly like one that ran and found nothing.
+class _SourceStatusStrip extends ConsumerWidget {
+  final NightshadeColors colors;
+  final AsyncValue<List<TransientAlert>> alertsAsync;
+
+  const _SourceStatusStrip({required this.colors, required this.alertsAsync});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(transientAlertSettingsProvider);
+    final lastCheck = ref.watch(_lastAlertCheckProvider);
+    final tnsReady = ref.watch(_tnsCredentialsReadyProvider).valueOrNull;
+    final alerts = alertsAsync.valueOrNull;
+
+    final enabledFetchable = kFetchableTransientSources
+        .where(settings.enabledSources.contains)
+        .toList();
+
+    final parts = <String>[];
+    if (alertsAsync.isLoading) {
+      parts.add('Checking sources…');
+    } else if (enabledFetchable.isEmpty) {
+      parts.add('No alert source is enabled');
+    } else {
+      for (final source in enabledFetchable) {
+        final label = _sourceLabel(source);
+        if (source == TransientSource.tns && tnsReady == false) {
+          // Enabling TNS here does nothing on its own: the key lives in
+          // Settings > Science, and this sheet has no field for it.
+          parts.add('$label: skipped — no API key');
+          continue;
+        }
+        if (alertsAsync.hasError) {
+          parts.add('$label: failed');
+          continue;
+        }
+        if (alerts == null) {
+          parts.add('$label: not checked yet');
+          continue;
+        }
+        final count = alerts.where((a) => a.source == source).length;
+        parts.add('$label: $count ${count == 1 ? 'alert' : 'alerts'}');
+      }
+    }
+    parts.add(
+      lastCheck == null
+          ? 'never checked'
+          : 'checked ${_formatClock(lastCheck)}',
+    );
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeTokens.spaceLg,
+        vertical: NightshadeTokens.spaceSm,
+      ),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(bottom: BorderSide(color: colors.border)),
+      ),
+      child: Row(
+        children: [
+          if (alertsAsync.isLoading)
+            Padding(
+              padding: const EdgeInsets.only(right: NightshadeTokens.spaceSm),
+              child: SizedBox(
+                width: 12,
+                height: 12,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: colors.primary,
+                ),
+              ),
+            ),
+          Expanded(
+            child: Text(
+              parts.join(' · '),
+              style: NightshadeTypography.captionSm.copyWith(
+                color: alertsAsync.hasError ? colors.error : colors.textMuted,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _formatClock(DateTime time) {
+  final local = time.toLocal();
+  final hh = local.hour.toString().padLeft(2, '0');
+  final mm = local.minute.toString().padLeft(2, '0');
+  return '$hh:$mm';
+}
+
+String _sourceLabel(TransientSource source) {
+  switch (source) {
+    case TransientSource.aavso:
+      return 'AAVSO';
+    case TransientSource.tns:
+      return 'TNS';
+    case TransientSource.mpec:
+      return 'MPEC';
+    case TransientSource.cbat:
+      return 'CBAT';
+    case TransientSource.manual:
+      return 'Manual';
   }
 }
 
@@ -497,12 +658,34 @@ class _TransientSettingsDialogState
             spacing: NightshadeTokens.spaceSm,
             runSpacing: NightshadeTokens.spaceSm,
             children: TransientSource.values.map((source) {
+              // Manual alerts are entered locally rather than fetched, so they
+              // stay a real toggle; MPEC and CBAT have no fetch path at all.
+              final available = kFetchableTransientSources.contains(source) ||
+                  source == TransientSource.manual;
               return NightshadeChip(
-                label: _getSourceLabel(source),
-                selected: settings.enabledSources.contains(source),
-                onTap: () => _run(() => notifier.toggleSource(source)),
+                label: available
+                    ? _sourceLabel(source)
+                    : '${_sourceLabel(source)} — not available',
+                // Never rendered as monitored: the service would ignore the
+                // stored flag anyway, and showing it selected was the lie.
+                selected: available && settings.enabledSources.contains(source),
+                // Carries the unavailability in the chip's appearance, not only
+                // in a suffix bolted onto its label.
+                enabled: available,
+                onTap: available
+                    ? () => _run(() => notifier.toggleSource(source))
+                    : null,
               );
             }).toList(),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          Text(
+            'TNS is the only feed this build queries, and it needs a bot ID, '
+            'bot name and API key from Settings > Science. AAVSO, MPEC and '
+            'CBAT have no working feed: VSX answers positional catalog '
+            'queries, not alert notices.',
+            style: NightshadeTypography.captionSm
+                .copyWith(color: colors.textMuted),
           ),
           const SizedBox(height: NightshadeTokens.spaceLg),
           Text(
@@ -565,21 +748,6 @@ class _TransientSettingsDialogState
         ],
       ),
     );
-  }
-
-  String _getSourceLabel(TransientSource source) {
-    switch (source) {
-      case TransientSource.aavso:
-        return 'AAVSO';
-      case TransientSource.tns:
-        return 'TNS';
-      case TransientSource.mpec:
-        return 'MPEC';
-      case TransientSource.cbat:
-        return 'CBAT';
-      case TransientSource.manual:
-        return 'Manual';
-    }
   }
 
   String _getTypeLabel(TransientType type) {

@@ -57,6 +57,15 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
   // hover-dependent islands (background color + action cluster) listen.
   final ValueNotifier<bool> _isHovered = ValueNotifier<bool>(false);
 
+  // Selecting a row takes keyboard focus. The screen's Delete / Ctrl+D /
+  // Ctrl+Z bindings are a `CallbackShortcuts` subtree, so they only fire
+  // while primary focus is inside it — and the palette's search field, which
+  // is where a user is typing moments before they click the node they want to
+  // delete, holds focus and swallows those keys. Rows are click targets, not
+  // tab stops (`skipTraversal`), so this changes what the keys act on without
+  // inserting a stop per node into the tab order.
+  final FocusNode _rowFocusNode = FocusNode(debugLabel: 'sequence-tree-row');
+
   // For progress panel persistence
   bool _showProgressPanel = false;
   DateTime? _lastRunningTime;
@@ -97,6 +106,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
   void dispose() {
     _panelPersistTimer?.cancel();
     _isHovered.dispose();
+    _rowFocusNode.dispose();
     super.dispose();
   }
 
@@ -447,7 +457,15 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
   Widget build(BuildContext context) {
     final categoryColor = _getCategoryColor();
     final statusColor = _getStatusColor();
-    final summaryFragments = nodeSummary(widget.node);
+    // An Autofocus node in defaults mode runs the AppSettings method, not its
+    // own `method` field, so the row (and the screen-reader phrase built from
+    // it) has to be told what that global method is.
+    final node = widget.node;
+    final globalAfMethod = node is AutofocusNode && node.useSettingsDefaults
+        ? ref.watch(autofocusSettingsProvider).method
+        : null;
+    final summaryFragments =
+        nodeSummary(node, globalAutofocusMethod: globalAfMethod);
     final summaryA11yText = _summaryA11yText(summaryFragments);
     final isDisabled = !widget.node.isEnabled;
     final isRunning = widget.nodeStatus == NodeStatus.running;
@@ -482,70 +500,83 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
             value: summaryA11yText.isNotEmpty ? summaryA11yText : null,
             hint:
                 'Select node. More actions include reorder and wrap commands.',
-            child: GestureDetector(
-              onTap: widget.onSelect,
-              child: ValueListenableBuilder<bool>(
-                valueListenable: _isHovered,
-                // The container's heavy child (icon / name / summary) is built
-                // ONCE and passed via `child`, so hover only recomputes the
-                // background color, not the whole row.
-                child: _buildRowBody(
-                  context: context,
-                  categoryColor: categoryColor,
-                  statusColor: statusColor,
-                  summaryFragments: summaryFragments,
-                  isDisabled: isDisabled,
-                  isRunning: isRunning,
-                  isSuccess: isSuccess,
-                  isFailed: isFailed,
-                  isSkipped: isSkipped,
-                  isCancelled: isCancelled,
-                  isTargetHeader: isTargetHeader,
-                  isMobile: isMobile,
-                  iconBoxSize: iconBoxSize,
-                  iconSize: iconSize,
-                  titleFontSize: titleFontSize,
-                ),
-                builder: (context, hovered, child) => AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  margin: EdgeInsets.symmetric(vertical: verticalMargin),
-                  padding: EdgeInsets.symmetric(
-                      horizontal: horizontalPadding, vertical: verticalPadding),
-                  decoration: BoxDecoration(
-                    color: widget.isDragging
-                        ? categoryColor.withValues(alpha: 0.2)
-                        : widget.isSelected
-                            ? NightshadeDecorations.selectedSurface(
-                                    categoryColor)
-                                .color
-                            : isSuccess
-                                ? widget.colors.success.withValues(alpha: 0.06)
-                                : isFailed
-                                    ? widget.colors.error
-                                        .withValues(alpha: 0.06)
-                                    : (isSkipped || isCancelled)
-                                        ? widget.colors.textMuted
-                                            .withValues(alpha: 0.04)
-                                        : isTargetHeader
-                                            ? categoryColor.withValues(
-                                                alpha: 0.08)
-                                            : hovered
-                                                ? widget.colors.surfaceAlt
-                                                : widget.colors.surface,
-                    borderRadius: BorderRadius.circular(borderRadius),
-                    border: Border.all(
-                      color: widget.isSelected
-                          ? categoryColor
-                          : isRunning
-                              ? widget.colors.info.withValues(alpha: 0.65)
-                              : isTargetHeader
-                                  ? categoryColor.withValues(alpha: 0.3)
-                                  : widget.colors.border,
-                      width: widget.isSelected || isTargetHeader ? 2 : 1,
-                    ),
-                    boxShadow: null,
+            child: Focus(
+              focusNode: _rowFocusNode,
+              skipTraversal: true,
+              child: GestureDetector(
+                onTap: () {
+                  // Take focus FIRST: the click that selects a node is also
+                  // the moment the keyboard shortcuts must start applying to
+                  // it. Without this the palette's search field keeps primary
+                  // focus and Delete / Ctrl+D / Ctrl+Z silently do nothing.
+                  _rowFocusNode.requestFocus();
+                  widget.onSelect?.call();
+                },
+                child: ValueListenableBuilder<bool>(
+                  valueListenable: _isHovered,
+                  // The container's heavy child (icon / name / summary) is built
+                  // ONCE and passed via `child`, so hover only recomputes the
+                  // background color, not the whole row.
+                  child: _buildRowBody(
+                    context: context,
+                    categoryColor: categoryColor,
+                    statusColor: statusColor,
+                    summaryFragments: summaryFragments,
+                    isDisabled: isDisabled,
+                    isRunning: isRunning,
+                    isSuccess: isSuccess,
+                    isFailed: isFailed,
+                    isSkipped: isSkipped,
+                    isCancelled: isCancelled,
+                    isTargetHeader: isTargetHeader,
+                    isMobile: isMobile,
+                    iconBoxSize: iconBoxSize,
+                    iconSize: iconSize,
+                    titleFontSize: titleFontSize,
                   ),
-                  child: child,
+                  builder: (context, hovered, child) => AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    margin: EdgeInsets.symmetric(vertical: verticalMargin),
+                    padding: EdgeInsets.symmetric(
+                        horizontal: horizontalPadding,
+                        vertical: verticalPadding),
+                    decoration: BoxDecoration(
+                      color: widget.isDragging
+                          ? categoryColor.withValues(alpha: 0.2)
+                          : widget.isSelected
+                              ? NightshadeDecorations.selectedSurface(
+                                      categoryColor)
+                                  .color
+                              : isSuccess
+                                  ? widget.colors.success
+                                      .withValues(alpha: 0.06)
+                                  : isFailed
+                                      ? widget.colors.error
+                                          .withValues(alpha: 0.06)
+                                      : (isSkipped || isCancelled)
+                                          ? widget.colors.textMuted
+                                              .withValues(alpha: 0.04)
+                                          : isTargetHeader
+                                              ? categoryColor.withValues(
+                                                  alpha: 0.08)
+                                              : hovered
+                                                  ? widget.colors.surfaceAlt
+                                                  : widget.colors.surface,
+                      borderRadius: BorderRadius.circular(borderRadius),
+                      border: Border.all(
+                        color: widget.isSelected
+                            ? categoryColor
+                            : isRunning
+                                ? widget.colors.info.withValues(alpha: 0.65)
+                                : isTargetHeader
+                                    ? categoryColor.withValues(alpha: 0.3)
+                                    : widget.colors.border,
+                        width: widget.isSelected || isTargetHeader ? 2 : 1,
+                      ),
+                      boxShadow: null,
+                    ),
+                    child: child,
+                  ),
                 ),
               ),
             ),
@@ -815,17 +846,17 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                   // Inline more-actions menu.
                   //
                   // Reconciliation: the right-click / long-press
-                  // context menu (`SequenceTreeContextMenu`) is now
-                  // the comprehensive surface for tree mutations
-                  // (Insert, Duplicate, Group, Enable/Disable,
-                  // Delete). This kebab is intentionally limited to
-                  // entries that don't belong in a generic
-                  // right-click:
+                  // context menu (`SequenceTreeContextMenu`) is the
+                  // comprehensive surface for tree mutations (Insert,
+                  // Move Up/Down, Duplicate, Group, Enable/Disable,
+                  // Delete). This kebab repeats:
                   //   * Move Up / Move Down — a visible, tappable
-                  //     re-order handle on touch and as a redundant
-                  //     surface alongside the Shift+Up / Shift+Down
-                  //     keyboard shortcut wired in
-                  //     `sequence_tree_shortcuts.dart`.
+                  //     re-order handle. Touch has no right-click and
+                  //     drag-reordering a row inside a scrolling tree
+                  //     is fiddly, so the affordance stays on-screen.
+                  //     (`sequence_tree_shortcuts.dart` binds
+                  //     Shift+Up/Down to EXTEND the selection, not to
+                  //     move a node — there is no keyboard reorder.)
                   //   * Save as Template — a "promote-this-subtree-
                   //     to-the-library" action that is not part of
                   //     the per-node edit vocabulary the context

@@ -61,7 +61,11 @@ void main() {
         expect(mapping['LoopContainer'], 'Loop');
         expect(mapping['TakeExposure'], 'TakeExposure');
         expect(mapping['Dither'], 'Dither');
-        expect(mapping['WaitForTimeSpan'], 'WaitForTime');
+        // A time SPAN is a duration, so it maps to Delay, not to the
+        // wait-until-an-instant node. Mapping it to WaitForTime produced a Wait
+        // with no time set — an error the validator rightly blocks, which made
+        // any NINA sequence containing one fail to import at all.
+        expect(mapping['WaitForTimeSpan'], 'Delay');
         expect(mapping['MeridianFlipTrigger'], 'MeridianFlip');
         expect(mapping['ParkScope'], 'Park');
       },

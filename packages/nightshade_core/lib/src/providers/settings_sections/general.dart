@@ -3,8 +3,8 @@
 // launch / on close / in the background" knobs.
 //
 // Owns:
-//   * startMinimized, autoConnectEquipment, autoSaveSequences,
-//     confirmBeforeClosing, autoDiscoverOnLaunch
+//   * startMinimized, autoConnectEquipment, confirmBeforeClosing,
+//     autoDiscoverOnLaunch
 //
 // Does NOT own:
 //   * Theme / language / fonts → see `appearance.dart`.
@@ -22,11 +22,6 @@ extension GeneralSettingsSection on AppSettingsNotifier {
   Future<void> setAutoConnectEquipment(bool value) async {
     await _saveSetting('auto_connect_equipment', value.toString());
     _patchState((s) => s.copyWith(autoConnectEquipment: value));
-  }
-
-  Future<void> setAutoSaveSequences(bool value) async {
-    await _saveSetting('auto_save_sequences', value.toString());
-    _patchState((s) => s.copyWith(autoSaveSequences: value));
   }
 
   Future<void> setConfirmBeforeClosing(bool value) async {

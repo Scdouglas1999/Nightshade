@@ -27,6 +27,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 // ignore: implementation_imports
 import 'package:nightshade_core/src/models/troubleshooter/connection_diagnostic.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 /// Pumps the card inside an [UncontrolledProviderScope] backed by [container]
 /// so the test can drive the device-state notifier directly (e.g. push the
@@ -54,7 +55,8 @@ void main() {
   group('ConnectedDeviceCard — Diagnose wiring', () {
     testWidgets('healthy card renders no error subtitle and no Diagnose button',
         (tester) async {
-      final container = ProviderContainer();
+      final container =
+          ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
       addTearDown(container.dispose);
       await _pumpCard(tester, container);
 
@@ -71,7 +73,8 @@ void main() {
     testWidgets(
         'errored card shows the troubleshooter headline + Diagnose, and tapping '
         'Diagnose opens the troubleshooter dialog', (tester) async {
-      final container = ProviderContainer();
+      final container =
+          ProviderContainer(overrides: [inMemoryDatabaseOverride()]);
       addTearDown(container.dispose);
       await _pumpCard(tester, container);
 

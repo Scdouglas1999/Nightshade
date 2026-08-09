@@ -292,12 +292,21 @@ class StackedFrameSelection {
   /// Whether this frame is the alignment reference for the stack.
   final bool isReference;
 
+  /// This frame's own exposure length in seconds.
+  ///
+  /// Carried per-frame because the engine can refuse individual subs: the
+  /// integration time a finished stack reports has to be the time that is
+  /// actually IN it, which the selection-wide total cannot express once some
+  /// of the selected frames were rejected.
+  final double exposureSecs;
+
   const StackedFrameSelection({
     required this.imageId,
     required this.filePath,
     this.filter,
     this.qualityScore,
     this.isReference = false,
+    this.exposureSecs = 0,
   });
 
   StackedFrameSelection copyWith({
@@ -306,6 +315,7 @@ class StackedFrameSelection {
     String? filter,
     double? qualityScore,
     bool? isReference,
+    double? exposureSecs,
   }) {
     return StackedFrameSelection(
       imageId: imageId ?? this.imageId,
@@ -313,6 +323,7 @@ class StackedFrameSelection {
       filter: filter ?? this.filter,
       qualityScore: qualityScore ?? this.qualityScore,
       isReference: isReference ?? this.isReference,
+      exposureSecs: exposureSecs ?? this.exposureSecs,
     );
   }
 
@@ -325,11 +336,18 @@ class StackedFrameSelection {
           filePath == other.filePath &&
           filter == other.filter &&
           qualityScore == other.qualityScore &&
-          isReference == other.isReference;
+          isReference == other.isReference &&
+          exposureSecs == other.exposureSecs;
 
   @override
-  int get hashCode =>
-      Object.hash(imageId, filePath, filter, qualityScore, isReference);
+  int get hashCode => Object.hash(
+    imageId,
+    filePath,
+    filter,
+    qualityScore,
+    isReference,
+    exposureSecs,
+  );
 }
 
 /// Summary of which frames were selected for, and which were excluded from, a
@@ -766,6 +784,11 @@ class AstroBinExportMetadata {
   /// Aperture in millimetres.
   final double? aperture;
 
+  /// The night the frames were acquired. AstroBin requires a date on every
+  /// acquisition row, so an export without one cannot be imported at all — the
+  /// user has to retype the whole session.
+  final DateTime? date;
+
   const AstroBinExportMetadata({
     this.title,
     this.subjectType = 'Deep sky',
@@ -776,7 +799,17 @@ class AstroBinExportMetadata {
     this.filter,
     this.focalLength,
     this.aperture,
+    this.date,
   });
+
+  /// The acquisition date in AstroBin's `YYYY-MM-DD` form, or null.
+  String? get dateIso {
+    final d = date;
+    if (d == null) return null;
+    return '${d.year.toString().padLeft(4, '0')}-'
+        '${d.month.toString().padLeft(2, '0')}-'
+        '${d.day.toString().padLeft(2, '0')}';
+  }
 
   /// Per-frame exposure in seconds, derived from total integration and frame
   /// count. Returns `0` when there are no frames (rather than dividing by zero).
@@ -808,6 +841,7 @@ class AstroBinExportMetadata {
     String? filter,
     double? focalLength,
     double? aperture,
+    DateTime? date,
   }) {
     return AstroBinExportMetadata(
       title: title ?? this.title,
@@ -819,6 +853,7 @@ class AstroBinExportMetadata {
       filter: filter ?? this.filter,
       focalLength: focalLength ?? this.focalLength,
       aperture: aperture ?? this.aperture,
+      date: date ?? this.date,
     );
   }
 
@@ -836,6 +871,8 @@ class AstroBinExportMetadata {
       buf.writeln();
     }
 
+    final acquired = dateIso;
+    if (acquired != null) buf.writeln('**Date:** $acquired');
     buf.writeln('**Subject type:** $subjectType');
     buf.writeln('**Frames:** $frames x ${_trimNum(perFrameExposureSecs)}s');
     buf.writeln('**Integration:** $integrationHms');
@@ -876,6 +913,8 @@ class AstroBinExportMetadata {
       'frames': frames,
       'perFrameExposureSecs': perFrameExposureSecs,
     };
+    final acquired = dateIso;
+    if (acquired != null) json['date'] = acquired;
     if (title != null) json['title'] = title;
     if (telescope != null) json['telescope'] = telescope;
     if (camera != null) json['camera'] = camera;
@@ -898,6 +937,7 @@ class AstroBinExportMetadata {
       filter: json['filter'] as String?,
       focalLength: (json['focalLength'] as num?)?.toDouble(),
       aperture: (json['aperture'] as num?)?.toDouble(),
+      date: DateTime.tryParse((json['date'] as String?) ?? ''),
     );
   }
 
@@ -914,7 +954,8 @@ class AstroBinExportMetadata {
           camera == other.camera &&
           filter == other.filter &&
           focalLength == other.focalLength &&
-          aperture == other.aperture;
+          aperture == other.aperture &&
+          dateIso == other.dateIso;
 
   @override
   int get hashCode => Object.hash(
@@ -927,7 +968,28 @@ class AstroBinExportMetadata {
     filter,
     focalLength,
     aperture,
+    dateIso,
   );
+
+  /// The acquisition row as AstroBin's import CSV.
+  ///
+  /// AstroBin's acquisition importer reads a header row and one row per
+  /// acquisition session; `date`, `number` and `duration` are the three fields
+  /// it needs to build a long-exposure acquisition, and they are exactly the
+  /// three a user would otherwise retype from this screen. The filter column is
+  /// deliberately NOT emitted: AstroBin keys filters by their equipment-database
+  /// id, which Nightshade does not hold, and a filter NAME there would break the
+  /// import rather than fill it in — the filter stays in the Markdown block for
+  /// the user to set once.
+  ///
+  /// Returns null when there is no acquisition date: every AstroBin row needs
+  /// one, so a dateless CSV would import as nothing.
+  String? toAstroBinCsv() {
+    final acquired = dateIso;
+    if (acquired == null) return null;
+    final duration = _trimNum(perFrameExposureSecs);
+    return 'date,number,duration\n$acquired,$frames,$duration\n';
+  }
 }
 
 /// Formats a duration in seconds as zero-padded `HH:MM:SS`.

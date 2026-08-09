@@ -88,15 +88,19 @@ final transientDetectionsProvider =
     });
 
 /// Reactive newest-first transient detections across all sessions — backs the
-/// standalone gallery and the export hub's candidate snapshot. Bounded to the
-/// most-recent [kFirstLightFeedLimit] so the feed is an index range over
-/// `idx_transient_detections_detected`, not a full sort of a multi-season log;
-/// the visible recent set is unchanged.
+/// standalone gallery, the export hub's candidate snapshot and the alert bell.
+/// Bounded to the most-recent [kFirstLightFeedLimit] so the feed is an index
+/// range over `idx_transient_detections_detected`, not a full sort of a
+/// multi-season log; the visible recent set is unchanged.
+///
+/// Shares [_liveDetectionsFeed] with the First Light candidate feed rather than
+/// subscribing to the DAO watch directly. The export hub renders its own Retry
+/// on this provider (`science_export_hub.dart`, `ref.invalidate`), and that
+/// button is only honest if invalidating re-runs the query — which, on a bare
+/// drift stream, it does not.
 final allTransientDetectionsProvider =
     StreamProvider<List<TransientDetectionRow>>((ref) {
-      return ref
-          .watch(transientDetectionsDaoProvider)
-          .watchRecentDetections(limit: kFirstLightFeedLimit);
+      return _liveDetectionsFeed(ref.watch(transientDetectionsDaoProvider));
     });
 
 /// Reconstruct a [TransientDetectionRow] from the wire JSON the appliance's
@@ -145,10 +149,58 @@ final firstLightCandidatesProvider =
           () => backend.getFirstLightCandidates(),
         );
       }
-      return ref
-          .watch(transientDetectionsDaoProvider)
-          .watchRecentDetections(limit: kFirstLightFeedLimit);
+      return _liveDetectionsFeed(ref.watch(transientDetectionsDaoProvider));
     });
+
+/// Uses Drift's watch stream as an invalidation signal and publishes a fresh
+/// one-shot read for every signal. Subscribing before the initial read avoids a
+/// lost-update window, while fresh reads let Retry recover from cached stream
+/// errors. Generation checks prevent older reads from overwriting newer ones.
+Stream<List<TransientDetectionRow>> _liveDetectionsFeed(
+  TransientDetectionsDao dao,
+) {
+  final controller = StreamController<List<TransientDetectionRow>>();
+  StreamSubscription<List<TransientDetectionRow>>? changes;
+  var started = 0;
+  var published = 0;
+
+  Future<void> publishFreshRead() async {
+    final generation = ++started;
+    try {
+      final rows = await dao.recentDetections(limit: kFirstLightFeedLimit);
+      // Reads are not guaranteed to complete in the order they began; a slower
+      // older one must never overwrite a newer result.
+      if (controller.isClosed || generation <= published) return;
+      published = generation;
+      controller.add(rows);
+    } catch (error, stack) {
+      if (controller.isClosed || generation <= published) return;
+      published = generation;
+      // A read that genuinely fails is still reported — only the watch
+      // stream's own replayed error is absorbed (below).
+      controller.addError(error, stack);
+    }
+  }
+
+  controller.onListen = () {
+    changes = dao
+        .watchRecentDetections(limit: kFirstLightFeedLimit)
+        .listen(
+          (_) => publishFreshRead(),
+          onError: (Object _, StackTrace __) => publishFreshRead(),
+        );
+    // Do not depend on drift replaying to a new subscriber for the first value.
+    publishFreshRead();
+  };
+
+  controller.onCancel = () async {
+    await changes?.cancel();
+    changes = null;
+    await controller.close();
+  };
+
+  return controller.stream;
+}
 
 /// REST snapshot stream for the remote First Light feed: fetch once, then
 /// re-fetch (debounced) whenever a backend event arrives. Keeps the last good

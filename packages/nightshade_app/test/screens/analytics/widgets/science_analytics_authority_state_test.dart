@@ -6,6 +6,7 @@ import 'package:nightshade_app/screens/analytics/analytics_screen.dart'
 import 'package:nightshade_app/screens/analytics/widgets/science_analytics_tab.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 class _SelectionNotifier extends SciencePhotometrySelectionNotifier {
   @override
@@ -31,6 +32,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            inMemoryDatabaseOverride(),
             allSessionsProvider.overrideWith((ref) {
               sessionAttempts++;
               return Stream<List<ImagingSession>>.error(
@@ -78,6 +80,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           allSessionsProvider.overrideWith(
             (ref) => Stream.value(const <ImagingSession>[]),
           ),

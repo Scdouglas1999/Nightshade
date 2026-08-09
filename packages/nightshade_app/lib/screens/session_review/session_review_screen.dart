@@ -29,6 +29,7 @@ class SessionReviewScreen extends ConsumerStatefulWidget {
 
 class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
   String? _lastShownError;
+  String? _lastShownShortfall;
 
   SessionReviewController get _controller =>
       ref.read(sessionReviewControllerProvider(widget.scope).notifier);
@@ -73,8 +74,14 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
     }
     final state = ref.watch(sessionReviewControllerProvider(widget.scope));
 
-    // Surface controller errors as a toast, once each.
-    if (state.error != null && state.error != _lastShownError) {
+    // Surface controller errors as a toast, once each *occurrence*. Resetting
+    // on the cleared state matters: actions clear the error before they run, so
+    // retrying an action that keeps failing the same way toasts every time
+    // instead of going quiet after the first attempt and leaving the control
+    // looking dead.
+    if (state.error == null) {
+      _lastShownError = null;
+    } else if (state.error != _lastShownError) {
       _lastShownError = state.error;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -82,6 +89,22 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
           context: context,
           message: state.error!,
           severity: NightshadeAlertSeverity.error,
+        );
+      });
+    }
+
+    // An integration that dropped subs is not an error — it returns a master —
+    // but it must never be silent. Same once-each dedupe as the error toast.
+    final shortfall =
+        SessionReviewController.integrationShortfall(state.lastOutcome);
+    if (shortfall != null && shortfall != _lastShownShortfall) {
+      _lastShownShortfall = shortfall;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        NightshadeToastHelper.show(
+          context: context,
+          message: shortfall,
+          severity: NightshadeAlertSeverity.warning,
         );
       });
     }

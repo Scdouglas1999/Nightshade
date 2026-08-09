@@ -87,11 +87,16 @@ typedef OneTapRunner = Future<void> Function(SingleTargetSequenceResult plan);
 /// Thrown when the picker finds no imageable target tonight. Carried as a
 /// loud failure rather than a silent no-op so the screen can explain *why*
 /// (location unset, sky below horizon, weather unsafe).
+///
+/// The default message is the genuinely-ambiguous case: a configured site with
+/// nothing clearing its limits. Causes the picker can identify — an unset
+/// observing location, above all — pass their own message rather than listing
+/// possibilities the app could have checked.
 class NoTonightTargetException implements Exception {
   final String message;
   const NoTonightTargetException([
-    this.message = 'Nothing is imageable right now. The sky may be below your '
-        'horizon, the Moon too close, or your location is not set.',
+    this.message = 'Nothing clears your horizon and moon limits right now. '
+        'Try again later tonight, or widen the limits in Plan Tonight.',
   ]);
   @override
   String toString() => 'NoTonightTargetException: $message';

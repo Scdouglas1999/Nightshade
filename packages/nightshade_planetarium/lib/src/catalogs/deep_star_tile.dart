@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import '../celestial_object.dart';
 import '../coordinate_system.dart';
+import 'hyg_depth.dart';
 
 /// Deep-star tile format ("NSDT") — the on-disk unit of the downloadable
 /// deep-star catalog tier (Tycho-2 / Gaia subset below the bundled HYG floor).
@@ -429,7 +430,20 @@ class DeepStarManifest {
       formatVersion: version,
       name: json['name'] as String? ?? 'Deep-star tier',
       source: json['source'] as String? ?? 'unknown',
-      magnitudeFloor: (json['magnitudeFloor'] as num?)?.toDouble() ?? 11.5,
+      // A manifest that omits its bright cutoff must fall back to where HYG
+      // actually runs out, not to the old 11.5 guess: the merge seam takes
+      // max(kHygFaintFloorMag, magnitudeFloor), so 11.5 here silently discarded
+      // every tier star between mag 9 and 11.5 — magnitudes the bundled catalog
+      // does not hold either, leaving a hole exactly where the tier exists to
+      // fill one. Assuming the seam can only over-request, never under-request.
+      // A manifest that omits its bright cutoff must fall back to where HYG
+      // actually runs out, not to the old 11.5 guess: the merge seam takes
+      // max(kHygFaintFloorMag, magnitudeFloor), so 11.5 here silently discarded
+      // every tier star between mag 9 and 11.5 — magnitudes the bundled catalog
+      // does not hold either, leaving a hole exactly where the tier exists to
+      // fill one. The seam can only over-request, never under-request.
+      magnitudeFloor:
+          (json['magnitudeFloor'] as num?)?.toDouble() ?? kHygFaintFloorMag,
       magnitudeLimit: (json['magnitudeLimit'] as num?)?.toDouble() ?? 13.0,
       generated: json['generated'] is String
           ? DateTime.tryParse(json['generated'] as String)

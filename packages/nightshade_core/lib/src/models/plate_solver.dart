@@ -100,6 +100,40 @@ enum PlateSolverChoice {
     }
   }
 
+  /// Human-readable name carried by the `plate_solver` app-setting, which is
+  /// a projection of this choice for backup export and the remote wire model.
+  /// Distinct from [serialized]: that is the bridge/`platesolver.json` token.
+  String get settingLabel {
+    switch (this) {
+      case PlateSolverChoice.auto:
+        return 'Auto';
+      case PlateSolverChoice.astap:
+        return 'ASTAP';
+      case PlateSolverChoice.astrometry:
+        return 'Astrometry.net';
+    }
+  }
+
+  /// Parse a `plate_solver` app-setting value back into a choice. Tolerant of
+  /// the labels older builds seeded and of anything a remote client sends,
+  /// because an unrecognised name must not be written to the store that
+  /// actually dispatches solves.
+  static PlateSolverChoice? fromSettingLabel(String value) {
+    switch (value.trim().toLowerCase()) {
+      case 'auto':
+      case 'auto-fallback':
+        return PlateSolverChoice.auto;
+      case 'astap':
+        return PlateSolverChoice.astap;
+      case 'astrometry':
+      case 'astrometry.net':
+      case 'astrometry_net':
+        return PlateSolverChoice.astrometry;
+      default:
+        return null;
+    }
+  }
+
   static PlateSolverChoice fromSerialized(String value) {
     switch (value) {
       case 'astap':

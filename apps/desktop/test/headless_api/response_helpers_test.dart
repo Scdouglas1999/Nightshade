@@ -13,6 +13,20 @@ void main() {
       expect(jsonDecode(await response.readAsString()), {'ready': true});
     });
 
+    test('jsonOk maps non-finite numbers to null', () async {
+      final response = jsonOk({
+        'finite': 1.5,
+        'infinite': double.infinity,
+        'notANumber': double.nan,
+      });
+
+      expect(jsonDecode(await response.readAsString()), {
+        'finite': 1.5,
+        'infinite': null,
+        'notANumber': null,
+      });
+    });
+
     test('error helpers preserve caller headers', () async {
       final response = jsonRateLimited(
         {'error': 'rate_limited'},

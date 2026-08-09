@@ -7,6 +7,7 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/dashboard/widgets/standby/night_timeline.dart';
+import 'package:nightshade_core/nightshade_core.dart' show FixedOffsetClock;
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
 void main() {
@@ -28,7 +29,7 @@ void main() {
     test('before astro dusk → counts down to astro dark', () {
       final now = base.add(const Duration(hours: 19)); // 30 min before dusk
       final c = computeNightCountdown(twilight: night(), now: now);
-      expect(c.headlineLabel, 'Astro dark in');
+      expect(c.headlineLabelKey, 'dbAstroDarkIn');
       expect(c.headlineValue, '0h 30m');
       expect(c.isDark, isFalse);
       // 19:30 → 04:30 = 9h window.
@@ -38,7 +39,7 @@ void main() {
     test('inside the dark window → counts down remaining dark', () {
       final now = base.add(const Duration(hours: 22)); // 22:00
       final c = computeNightCountdown(twilight: night(), now: now);
-      expect(c.headlineLabel, 'Dark for another');
+      expect(c.headlineLabelKey, 'dbDarkForAnother');
       expect(c.headlineValue, '6h 30m'); // until 04:30
       expect(c.isDark, isTrue);
     });
@@ -46,7 +47,7 @@ void main() {
     test('after astro dawn but before sunrise → counts down to sunrise', () {
       final now = base.add(const Duration(hours: 29)); // 05:00, dawn passed
       final c = computeNightCountdown(twilight: night(), now: now);
-      expect(c.headlineLabel, 'Sunrise in');
+      expect(c.headlineLabelKey, 'dbSunriseIn');
       expect(c.headlineValue, '1h 0m');
       expect(c.isDark, isFalse);
     });
@@ -54,9 +55,32 @@ void main() {
     test('daytime (after sunrise) → shows next sunset clock time', () {
       final now = base.add(const Duration(hours: 31)); // 07:00, sun up
       final c = computeNightCountdown(twilight: night(), now: now);
-      expect(c.headlineLabel, 'Sunset at');
+      expect(c.headlineLabelKey, 'dbSunsetAt');
       expect(c.headlineValue, '18:00');
       expect(c.isDark, isFalse);
+    });
+
+    // The status bar and the Dashboard header chip render Settings → Location
+    // → Timezone. A clock face on the same screen that stayed host-local would
+    // put two zones side by side — "03:44 now" over "Sunset at 18:00" — which
+    // is worse than the uniformly host-local screen this replaced.
+    test('the sunset clock face follows the chosen site timezone', () {
+      final now = base.add(const Duration(hours: 31)); // 07:00, sun up
+      final hostOffset = now.timeZoneOffset;
+      final c = computeNightCountdown(
+        twilight: night(),
+        now: now,
+        clock: FixedOffsetClock(
+          utcOffset: hostOffset + const Duration(hours: 5),
+          label: 'site',
+        ),
+      );
+      expect(c.headlineLabelKey, 'dbSunsetAt');
+      expect(
+        c.headlineValue,
+        '23:00',
+        reason: 'sunset is 18:00 host-local, so five hours ahead is 23:00',
+      );
     });
 
     test('degrades gracefully when astro twilight is undefined', () {
@@ -71,7 +95,7 @@ void main() {
       // No imaging window since there's no astronomical darkness.
       expect(c.windowLabel, isNull);
       // Still offers a sensible sunrise countdown.
-      expect(c.headlineLabel, 'Sunrise in');
+      expect(c.headlineLabelKey, 'dbSunriseIn');
       expect(c.headlineValue, '4h 0m');
     });
   });

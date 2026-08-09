@@ -12,7 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/dashboard/widgets/cockpit_run_controls.dart';
 import 'package:nightshade_app/widgets/running_sequence_mini_bar.dart';
-import 'package:nightshade_app/widgets/sequence_controls.dart';
+import 'package:nightshade_app/screens/sequencer/widgets/mobile_playback_bar.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -115,12 +115,18 @@ void main() {
         reason: 'A paused run must be skippable from the mini bar (canSkip).');
   });
 
-  testWidgets('mobile sequence controls dispatch a skip while PAUSED',
+  // Retargeted from the deleted `SequenceControls`, which had no call site in
+  // any screen — the surface that actually ships on mobile is
+  // [MobilePlaybackBar], mounted by the sequencer's mobile layout.
+  testWidgets('the mobile playback bar dispatches a skip while PAUSED',
       (tester) async {
     late _SkipRecordingExecutor executor;
     final handle = await pumpAppScreen(
       tester,
-      const SequenceControls(),
+      Builder(
+        builder: (context) =>
+            MobilePlaybackBar(colors: NightshadeColors.of(context)),
+      ),
       size: const Size(430, 400),
       settle: false,
       extraOverrides: [
@@ -135,7 +141,9 @@ void main() {
     await tester.pump();
     handle.container.read(sequenceExecutorProvider);
 
-    await tester.tap(find.text('Skip'));
+    // Icon-only control: the label lives in its tooltip.
+    await tester.tap(find.byTooltip('Skip'));
+    await tester.pump();
     await tester.pump();
 
     expect(executor.skipCount, 1);

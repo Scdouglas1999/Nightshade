@@ -27,12 +27,82 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/imaging/stack_and_share_models.dart'
     show ShareCardFontScale, ShareCardLayout, ShareCardSpec;
+import '../models/sequence/interpolation_catalog.dart'
+    show InterpolationVariable, InterpolationVariableGroup;
 import '../models/sequence/sequence_models.dart'
     show LiveStackingMethod, LiveStackingMode, LiveStackingNode;
 import '../providers/sequence/sequencer_defaults.dart'
     show sequencerDefaultsProvider;
 import 'logging_service.dart';
 import 'share_card_renderer.dart';
+
+/// The watermark template's ENTIRE vocabulary.
+///
+/// The broadcast watermark is not the sequencer's expression language: it is
+/// the flat token map built by `_watermarkTokens` below, and
+/// [expandWatermarkTokens] renders anything else literally — a `${filter}`
+/// picked from the sequencer catalog would be burned verbatim into the
+/// broadcast JPEG. So the watermark field's insert control offers this list,
+/// not `interpolationCatalog`. `live_stacking_watermark_vocabulary_test.dart`
+/// asserts every entry here actually resolves through `renderWatermark()`.
+const List<InterpolationVariable> watermarkVariableCatalog = [
+  InterpolationVariable(
+    name: 'target',
+    description: 'Name of the target being stacked',
+    group: InterpolationVariableGroup.target,
+    example: 'M42',
+    supportsFormat: false,
+  ),
+  InterpolationVariable(
+    name: 'target.name',
+    description: r'Name of the target being stacked (alias of ${target})',
+    group: InterpolationVariableGroup.target,
+    example: 'M42',
+    supportsFormat: false,
+  ),
+  InterpolationVariable(
+    name: 'integration.hms',
+    description: 'Integration time stacked so far, as 2h12m',
+    group: InterpolationVariableGroup.session,
+    example: '2h12m',
+    supportsFormat: false,
+  ),
+  InterpolationVariable(
+    name: 'integration.secs',
+    description: 'Integration time stacked so far, in whole seconds',
+    group: InterpolationVariableGroup.session,
+    example: '7920',
+    supportsFormat: false,
+  ),
+  InterpolationVariable(
+    name: 'frames',
+    description: 'Number of frames accepted into the stack',
+    group: InterpolationVariableGroup.session,
+    example: '44',
+    supportsFormat: false,
+  ),
+  InterpolationVariable(
+    name: 'stack',
+    description: 'Stacking method in use',
+    group: InterpolationVariableGroup.session,
+    example: 'Average',
+    supportsFormat: false,
+  ),
+  InterpolationVariable(
+    name: 'stack.method',
+    description: r'Stacking method in use (alias of ${stack})',
+    group: InterpolationVariableGroup.session,
+    example: 'Average',
+    supportsFormat: false,
+  ),
+  InterpolationVariable(
+    name: 'now',
+    description: 'Local wall-clock time at render',
+    group: InterpolationVariableGroup.time,
+    example: '2026-08-04 22:41:07',
+    supportsFormat: false,
+  ),
+];
 
 /// Snapshot of the broadcast state that the run dashboard renders.
 ///
@@ -441,6 +511,10 @@ class LiveStackingBroadcastService {
   /// shared [expandWatermarkTokens] helper consumes. The broadcast owns this
   /// mapping (it knows what `${integration.hms}` etc. mean for its state);
   /// the helper owns the `${...}` string machinery.
+  ///
+  /// Must stay in lockstep with [watermarkVariableCatalog], which is what the
+  /// watermark field's insert control offers — an offered token this map does
+  /// not answer renders literally into the broadcast JPEG.
   Map<String, String> _watermarkTokens(BroadcastSessionState session) {
     return {
       'target': session.currentTarget ?? '',

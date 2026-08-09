@@ -579,7 +579,9 @@ final weatherStatusProvider = Provider<WeatherStatus>((ref) {
     motion: null, // Updated separately by motion analysis
     radarFrames: radarFrames,
     currentFrameIndex: 0,
-    lastUpdate: lastFetchedAt ?? DateTime.fromMillisecondsSinceEpoch(0),
+    // No sentinel: before the first successful radar fetch there is no update
+    // time, and any stand-in date is read downstream as a real one.
+    lastUpdate: lastFetchedAt,
     isLoading: isLoading,
     errorMessage: errorMessage,
   );

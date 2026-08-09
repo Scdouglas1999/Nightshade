@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/providers/clock_provider.dart';
 import 'package:nightshade_core/src/providers/settings_provider.dart';
+import 'package:nightshade_core/src/services/logging_service.dart';
+import '../harness/in_memory_database.dart';
 
 /// Build a [ProviderContainer] whose [appSettingsProvider] reports the
 /// given [settings] without spinning up a Drift database.
@@ -13,6 +15,7 @@ import 'package:nightshade_core/src/providers/settings_provider.dart';
 ProviderContainer _containerWith(AppSettingsState settings) {
   return ProviderContainer(
     overrides: [
+      inMemoryDatabaseOverride(),
       appSettingsProvider.overrideWith(_FakeAppSettingsNotifier.new),
       _initialSettingsProvider.overrideWithValue(settings),
     ],
@@ -87,6 +90,37 @@ void main() {
       await container.read(appSettingsProvider.future);
       final clock = container.read(clockProvider);
       expect(clock, isA<SystemClock>());
+    });
+
+    // The provider's own doc comment claimed an unparseable label was logged.
+    // It was not, so a Timezone picker value the parser rejects produced a
+    // clock silently identical to "use system time" with nothing anywhere
+    // saying the choice had been ignored.
+    test('an unparseable timezone is reported, not swallowed', () async {
+      final logging = LoggingService();
+      final container = ProviderContainer(
+        overrides: [
+          inMemoryDatabaseOverride(),
+          appSettingsProvider.overrideWith(_FakeAppSettingsNotifier.new),
+          _initialSettingsProvider.overrideWithValue(
+            const AppSettingsState(
+              useSystemTime: false,
+              timezone: 'America/Denver',
+            ),
+          ),
+          loggingServiceProvider.overrideWithValue(logging),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container.read(appSettingsProvider.future);
+
+      expect(container.read(clockProvider), isA<SystemClock>());
+      final warnings = logging
+          .getRecentLogs(minLevel: LogLevel.warning)
+          .where((e) => e.message.contains('America/Denver'))
+          .toList();
+      expect(warnings, isNotEmpty);
+      expect(warnings.single.message, contains('host system time'));
     });
 
     test('UTC label yields zero-offset clock', () async {

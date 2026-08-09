@@ -99,6 +99,9 @@ void main() {
       find.byKey(const ValueKey('builtin-guider-gain')),
       '333',
     );
+    // Apply is disabled until something is actually pending, and `enterText`
+    // does not pump — so the button needs a frame to pick the edit up.
+    await tester.pump();
     final apply = find.byKey(const ValueKey('builtin-guider-apply'));
     await tester.ensureVisible(apply);
     await tester.tap(apply);

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/run_dashboard/cloud_motion_panel.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 Widget _wrap(Widget child, {required List<Override> overrides}) {
   return ProviderScope(
@@ -22,6 +23,7 @@ void main() {
     await tester.pumpWidget(_wrap(
       const RunDashboardCloudMotionPanel(),
       overrides: [
+        inMemoryDatabaseOverride(),
         cloudCoverPercentageProvider.overrideWith((ref) async => 80.0),
         analyzeCloudMotionDetailedProvider.overrideWith(
           (ref) async => const CloudMotionResult.unavailable(
@@ -62,6 +64,7 @@ void main() {
         // rather than reusing the previous iteration's settled AsyncValue.
         key: ValueKey(entry.key),
         overrides: [
+          inMemoryDatabaseOverride(),
           cloudCoverPercentageProvider.overrideWith((ref) async => 50.0),
           analyzeCloudMotionDetailedProvider.overrideWith(
             (ref) async => CloudMotionResult.unavailable(entry.key),
@@ -93,6 +96,7 @@ void main() {
     await tester.pumpWidget(_wrap(
       const RunDashboardCloudMotionPanel(),
       overrides: [
+        inMemoryDatabaseOverride(),
         cloudCoverPercentageProvider.overrideWith((ref) async => 10.0),
         analyzeCloudMotionDetailedProvider.overrideWith(
           (ref) async => CloudMotionResult.available(motion),

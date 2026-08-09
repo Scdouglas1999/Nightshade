@@ -21,6 +21,8 @@ import 'package:nightshade_app/screens/planner/widgets/scheduler_tab_content.dar
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/database/database.dart' as ndb;
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
+import '../../harness/provider_teardown.dart';
 
 class _FakeSink implements SchedulerSequenceSink {
   @override
@@ -207,6 +209,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           ..._commonOverrides(),
           schedulerEngineProvider.overrideWithValue(engine),
           schedulerStatusProvider.overrideWith((ref) {
@@ -247,6 +250,8 @@ void main() {
     // All three candidate names render in the queue.
     expect(find.text('M31'), findsOneWidget);
     expect(find.text('Setting Object'), findsOneWidget);
+
+    await settleProviderTeardown(tester);
   });
 
   testWidgets(
@@ -286,6 +291,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           ..._commonOverrides(),
           schedulerEngineProvider.overrideWithValue(engine),
           schedulerStatusProvider.overrideWith((ref) {
@@ -309,8 +315,11 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
 
     expect(find.text('No targets to schedule'), findsOneWidget);
+    // Catalog and goal streams are overridden to never emit here, so the
+    // empty state genuinely does not know which cause applies and must not
+    // name one. See scheduler_empty_state_cause_test.dart for the diagnoses.
     expect(
-      find.textContaining('The scheduler needs targets with integration'),
+      find.textContaining('produced no candidate targets'),
       findsOneWidget,
     );
     expect(
@@ -331,6 +340,8 @@ void main() {
       find.textContaining('weighted blend of how'),
       findsOneWidget,
     );
+
+    await settleProviderTeardown(tester);
   });
 
   testWidgets('idle decision panel surfaces the explicit "Start" hint copy',
@@ -346,6 +357,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           ..._commonOverrides(),
           schedulerEngineProvider.overrideWithValue(engine),
           schedulerStatusProvider.overrideWith((ref) {
@@ -378,6 +390,8 @@ void main() {
       find.widgetWithText(NightshadeButton, 'Run unattended all night'),
       findsOneWidget,
     );
+
+    await settleProviderTeardown(tester);
   });
 
   testWidgets('running state shows Pause and Stop buttons', (tester) async {
@@ -392,6 +406,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           ..._commonOverrides(),
           schedulerEngineProvider.overrideWithValue(engine),
           schedulerStatusProvider.overrideWith((ref) {
@@ -426,6 +441,8 @@ void main() {
     expect(find.widgetWithText(NightshadeButton, 'Stop'), findsOneWidget);
     expect(find.widgetWithText(NightshadeButton, 'Run unattended all night'),
         findsNothing);
+
+    await settleProviderTeardown(tester);
   });
 
   testWidgets(
@@ -453,6 +470,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           ..._commonOverrides(
             goalService: goalSvc,
             constraintService: constraintSvc,
@@ -502,6 +520,8 @@ void main() {
 
     expect(goalSvc.deletedForTarget, [2]);
     expect(constraintSvc.deletedForTarget, [2]);
+
+    await settleProviderTeardown(tester);
   });
 
   testWidgets(
@@ -529,6 +549,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           ..._commonOverrides(
             goalService: goalSvc,
             constraintService: constraintSvc,
@@ -567,6 +588,8 @@ void main() {
 
     expect(goalSvc.deleteAllCalls, 1);
     expect(constraintSvc.deleteAllCalls, 1);
+
+    await settleProviderTeardown(tester);
   });
 
   testWidgets(
@@ -604,6 +627,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           ..._commonOverrides(),
           schedulerEngineProvider.overrideWithValue(engine),
           schedulerStatusProvider.overrideWith((ref) {
@@ -627,6 +651,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
 
     expect(find.byKey(const ValueKey('scheduler-clear-all')), findsNothing);
+
+    await settleProviderTeardown(tester);
   });
 }
 

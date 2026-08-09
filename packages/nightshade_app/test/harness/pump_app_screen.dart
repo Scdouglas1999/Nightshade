@@ -24,6 +24,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_app/localization/nightshade_localizations.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'mock_backend.dart';
@@ -128,6 +129,7 @@ Future<HarnessHandle> pumpAppScreen(
   bool settle = true,
   ThemeData? theme,
   bool registerTearDown = true,
+  Locale? locale,
 }) async {
   // Why force devicePixelRatio = 1.0: physicalSize is in physical pixels.
   // Leaving the host system's ratio (Retina = 2.0+) makes the surface half
@@ -176,6 +178,18 @@ Future<HarnessHandle> pumpAppScreen(
         // Default to NightshadeTheme.dark to match production GUI. Tests
         // doing golden-image diffs against the light theme can override.
         theme: theme ?? NightshadeTheme.dark,
+        // Only wired when a test asks for a locale: installing the delegates
+        // unconditionally would change what every existing test's tree
+        // resolves for Material/Cupertino strings. With [locale] null,
+        // `NightshadeLocalizations.of` falls back to `en`, which is what the
+        // whole suite has always asserted against.
+        locale: locale,
+        localizationsDelegates: locale == null
+            ? null
+            : NightshadeLocalizations.localizationsDelegates,
+        supportedLocales: locale == null
+            ? const [Locale('en', 'US')]
+            : NightshadeLocalizations.supportedLocales,
         home: Scaffold(body: screen),
       ),
     ),

@@ -5,6 +5,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/screens/sequencer/tabs/templates_tab.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 class _MockSequenceRepository extends Mock implements SequenceRepository {}
 
@@ -25,6 +26,7 @@ void main() {
 
     final container = ProviderContainer(
       overrides: [
+        inMemoryDatabaseOverride(),
         sequenceRepositoryProvider.overrideWithValue(repository),
       ],
     );
@@ -61,6 +63,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           sequenceRepositoryProvider.overrideWithValue(repository),
           currentSequenceProvider.overrideWith((ref) => editor),
           allSnippetsProvider.overrideWithValue(const []),
@@ -91,9 +94,11 @@ void main() {
     await tester.pump();
 
     expect(find.text('Update Template'), findsWidgets);
-    await tester.tap(
-      find.widgetWithText(NightshadeButton, 'Update Template').last,
-    );
+    final updateTemplateButton =
+        find.widgetWithText(NightshadeButton, 'Update Template').last;
+    await tester.ensureVisible(updateTemplateButton);
+    await tester.pump();
+    await tester.tap(updateTemplateButton);
     await tester.pump();
     await tester.pump();
 
@@ -127,6 +132,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           sequenceRepositoryProvider.overrideWithValue(repository),
           currentSequenceProvider.overrideWith((ref) => editor),
           allSnippetsProvider.overrideWithValue(const []),
@@ -179,6 +185,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          inMemoryDatabaseOverride(),
           sequenceRepositoryProvider.overrideWithValue(repository),
           currentSequenceProvider.overrideWith((ref) => editor),
           allSnippetsProvider.overrideWithValue(const []),
@@ -194,7 +201,7 @@ void main() {
     await tester.pump();
 
     await tester.tap(
-      find.widgetWithText(NightshadeButton, 'Use this starter'),
+      find.widgetWithText(NightshadeButton, 'Replace with this starter'),
     );
     await tester.pump();
 

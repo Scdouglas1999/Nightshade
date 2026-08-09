@@ -272,6 +272,20 @@ class ReplayDebugService {
     return controller.stream;
   }
 
+  /// Counts every persisted decision across all runs.
+  ///
+  /// Used by the "Clear all replay history" confirmation so it can state the
+  /// size of what it is about to destroy instead of asking the operator to
+  /// agree to an unknown quantity.
+  Future<int> countAll() async {
+    await _ensureSchema();
+    final rows = await _db
+        .customSelect('SELECT COUNT(*) AS n FROM sequence_decisions')
+        .get();
+    if (rows.isEmpty) return 0;
+    return (rows.first.data['n'] as int?) ?? 0;
+  }
+
   /// Counts decisions for a run (used by the History list to display
   /// a "X decisions" badge next to each run).
   Future<int> countByRun(int sequenceRunId) async {

@@ -886,10 +886,31 @@ class _SmallButtonState extends State<SmallButton> {
   Widget build(BuildContext context) {
     final primaryForeground = Theme.of(context).colorScheme.onPrimary;
     final isEnabled = widget.isEnabled;
+    // The OUTLINE variant used to render its disabled state as a full-strength
+    // `textMuted` border and label — which is exactly how ordinary secondary
+    // text and borders are drawn everywhere else in the app, so a disabled
+    // outline button was indistinguishable from an enabled one. In the imaging
+    // Guiding panel that put a live-looking "Stop" and "Dither" next to a
+    // visibly greyed "Start" while all three were gated on the same
+    // `isConnected`; clicking Dither correctly did nothing, which reads as the
+    // app swallowing the command. Dim the whole control the way the filled
+    // variant already does so "cannot press this" is legible at a glance.
+    final outlineColor = isEnabled
+        ? widget.colors.primary
+        : widget.colors.textMuted
+            .withValues(alpha: NightshadeTokens.opacityDisabled);
     final primaryColor =
         isEnabled ? widget.colors.primary : widget.colors.textMuted;
+    final contentColor = widget.isOutline
+        ? outlineColor
+        : isEnabled
+            ? primaryForeground
+            : widget.colors.textMuted;
 
     return MouseRegion(
+      // A control that cannot be pressed must not offer the pressable cursor.
+      cursor:
+          isEnabled ? SystemMouseCursors.click : SystemMouseCursors.forbidden,
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       child: GestureDetector(
@@ -900,13 +921,13 @@ class _SmallButtonState extends State<SmallButton> {
           decoration: widget.isOutline
               ? BoxDecoration(
                   color: _isHovered && isEnabled
-                      ? primaryColor.withValues(
+                      ? outlineColor.withValues(
                           alpha: NightshadeTokens.opacitySubtle,
                         )
                       : Colors.transparent,
                   borderRadius:
                       BorderRadius.circular(NightshadeTokens.radiusInline8),
-                  border: Border.all(color: primaryColor),
+                  border: Border.all(color: outlineColor),
                 )
               : NightshadeDecorations.filledButton(
                   primaryColor,
@@ -920,22 +941,14 @@ class _SmallButtonState extends State<SmallButton> {
               Icon(
                 widget.icon,
                 size: 14,
-                color: widget.isOutline
-                    ? primaryColor
-                    : isEnabled
-                        ? primaryForeground
-                        : widget.colors.textMuted,
+                color: contentColor,
               ),
               const SizedBox(width: 6),
               Flexible(
                 child: Text(
                   widget.label,
                   style: NightshadeTypography.labelSm.copyWith(
-                    color: widget.isOutline
-                        ? primaryColor
-                        : isEnabled
-                            ? primaryForeground
-                            : widget.colors.textMuted,
+                    color: contentColor,
                   ),
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,

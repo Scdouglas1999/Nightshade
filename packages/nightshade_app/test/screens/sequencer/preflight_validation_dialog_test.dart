@@ -11,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/preflight_validation_dialog.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../harness/mock_database.dart' show inMemoryDatabaseOverride;
 
 class _FakeValidator implements SequenceValidatorService {
   _FakeValidator(this._result);
@@ -88,6 +89,7 @@ void main() {
     Sequence? sequence,
   }) async {
     final container = ProviderContainer(overrides: [
+      inMemoryDatabaseOverride(),
       currentSequenceProvider.overrideWith(
         (ref) => _SeedingNotifier(ref, sequence ?? _sequence()),
       ),
@@ -230,6 +232,7 @@ void main() {
       (tester) async {
     var started = false;
     final container = ProviderContainer(overrides: [
+      inMemoryDatabaseOverride(),
       currentSequenceProvider.overrideWith(
         (ref) => _SeedingNotifier(ref, _sequence()),
       ),
@@ -274,6 +277,7 @@ void main() {
     var started = false;
     var historyReads = 0;
     final container = ProviderContainer(overrides: [
+      inMemoryDatabaseOverride(),
       currentSequenceProvider.overrideWith(
         (ref) => _SeedingNotifier(ref, _sequence()),
       ),
@@ -318,6 +322,7 @@ void main() {
     var started = false;
     var historyReads = 0;
     final container = ProviderContainer(overrides: [
+      inMemoryDatabaseOverride(),
       currentSequenceProvider.overrideWith(
         (ref) => _SeedingNotifier(ref, _sequence()),
       ),
@@ -360,6 +365,7 @@ void main() {
       (tester) async {
     var started = false;
     final container = ProviderContainer(overrides: [
+      inMemoryDatabaseOverride(),
       currentSequenceProvider.overrideWith(
         (ref) => _SeedingNotifier(ref, _sequence()),
       ),

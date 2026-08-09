@@ -5,6 +5,8 @@
 /// - the rolling window evicts oldest samples beyond [windowSize]
 /// - mean / peak / latest / count helpers behave on empty and full windows
 
+library;
+
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';

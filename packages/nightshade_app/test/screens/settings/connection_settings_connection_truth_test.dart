@@ -127,7 +127,10 @@ void main() {
       // Subtitle reflects the configured address.
       expect(find.textContaining('10.0.0.9:7625'), findsOneWidget);
 
-      final configure = find.widgetWithText(NightshadeButton, 'Configure');
+      // Discovery now has two Configure buttons (INDI, then Alpaca); the
+      // INDI row is declared first, so `.first` is the one under test.
+      final configure =
+          find.widgetWithText(NightshadeButton, 'Configure').first;
       await tester.ensureVisible(configure);
       await tester.tap(configure);
       await tester.pumpAndSettle();
@@ -162,7 +165,12 @@ void main() {
       ],
     );
 
-    await tester.tap(find.byTooltip('Refresh host settings'));
+    // Reveal it first: Discovery gained the Alpaca address row, so Remote
+    // Features can start below the fold at the harness surface size.
+    final refresh = find.byTooltip('Refresh host settings');
+    await tester.ensureVisible(refresh);
+    await tester.pump();
+    await tester.tap(refresh);
     await tester.pump();
     await tester.pump();
 

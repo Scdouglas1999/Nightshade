@@ -48,6 +48,13 @@ impl InstructionNode for ChangeFilterInstruction {
         let result = execute_filter_change(config, &ctx, Some(&progress_fn)).await;
         if result.status == NodeStatus::Success {
             context.current_filter = Some(config.filter_name.clone());
+            // Record the slot as well as the name. Only the name was kept, so
+            // every frame captured after a Change Filter node had a FILTER
+            // card but no FILTPOS — `FrameContext.filter_index` falls back to
+            // `current_filter_index`, which stayed None for the whole run.
+            if let Some(index) = config.filter_index {
+                context.current_filter_index = Some(index);
+            }
             if let Some(trigger_state_lock) = &context.trigger_state {
                 let mut trigger_state = trigger_state_lock.write().await;
                 trigger_state.set_filter(config.filter_name.clone());

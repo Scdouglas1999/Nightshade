@@ -230,6 +230,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   FocuserCapabilities dco_decode_box_autoadd_focuser_capabilities(dynamic raw);
 
   @protected
+  FrameCaptureMetadata dco_decode_box_autoadd_frame_capture_metadata(
+    dynamic raw,
+  );
+
+  @protected
   GuidingEvent dco_decode_box_autoadd_guiding_event(dynamic raw);
 
   @protected
@@ -459,6 +464,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   FocuserStatus dco_decode_focuser_status(dynamic raw);
+
+  @protected
+  FrameCaptureMetadata dco_decode_frame_capture_metadata(dynamic raw);
 
   @protected
   FrameType dco_decode_frame_type(dynamic raw);
@@ -1116,6 +1124,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  FrameCaptureMetadata sse_decode_box_autoadd_frame_capture_metadata(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   GuidingEvent sse_decode_box_autoadd_guiding_event(
     SseDeserializer deserializer,
   );
@@ -1403,6 +1416,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   FocuserStatus sse_decode_focuser_status(SseDeserializer deserializer);
+
+  @protected
+  FrameCaptureMetadata sse_decode_frame_capture_metadata(
+    SseDeserializer deserializer,
+  );
 
   @protected
   FrameType sse_decode_frame_type(SseDeserializer deserializer);
@@ -2235,6 +2253,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     // Codec=Cst (C-struct based), see doc to use other codecs
     final ptr = wire.cst_new_box_autoadd_focuser_capabilities();
     cst_api_fill_to_wire_focuser_capabilities(raw, ptr.ref);
+    return ptr;
+  }
+
+  @protected
+  ffi.Pointer<wire_cst_frame_capture_metadata>
+  cst_encode_box_autoadd_frame_capture_metadata(FrameCaptureMetadata raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    final ptr = wire.cst_new_box_autoadd_frame_capture_metadata();
+    cst_api_fill_to_wire_frame_capture_metadata(raw, ptr.ref);
     return ptr;
   }
 
@@ -3347,6 +3374,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     ffi.Pointer<wire_cst_focuser_capabilities> wireObj,
   ) {
     cst_api_fill_to_wire_focuser_capabilities(apiObj, wireObj.ref);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_box_autoadd_frame_capture_metadata(
+    FrameCaptureMetadata apiObj,
+    ffi.Pointer<wire_cst_frame_capture_metadata> wireObj,
+  ) {
+    cst_api_fill_to_wire_frame_capture_metadata(apiObj, wireObj.ref);
   }
 
   @protected
@@ -4524,6 +4559,46 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     wireObj.step_size = cst_encode_f_64(apiObj.stepSize);
     wireObj.is_absolute = cst_encode_bool(apiObj.isAbsolute);
     wireObj.has_temperature = cst_encode_bool(apiObj.hasTemperature);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_frame_capture_metadata(
+    FrameCaptureMetadata apiObj,
+    wire_cst_frame_capture_metadata wireObj,
+  ) {
+    wireObj.gain = cst_encode_opt_box_autoadd_i_32(apiObj.gain);
+    wireObj.offset = cst_encode_opt_box_autoadd_i_32(apiObj.offset);
+    wireObj.sensor_temp_c = cst_encode_opt_box_autoadd_f_64(apiObj.sensorTempC);
+    wireObj.cooler_power_percent = cst_encode_opt_box_autoadd_f_64(
+      apiObj.coolerPowerPercent,
+    );
+    wireObj.mount_ra_hours = cst_encode_opt_box_autoadd_f_64(
+      apiObj.mountRaHours,
+    );
+    wireObj.mount_dec_degrees = cst_encode_opt_box_autoadd_f_64(
+      apiObj.mountDecDegrees,
+    );
+    wireObj.mount_altitude_deg = cst_encode_opt_box_autoadd_f_64(
+      apiObj.mountAltitudeDeg,
+    );
+    wireObj.mount_azimuth_deg = cst_encode_opt_box_autoadd_f_64(
+      apiObj.mountAzimuthDeg,
+    );
+    wireObj.pier_side = cst_encode_opt_String(apiObj.pierSide);
+    wireObj.focuser_position = cst_encode_opt_box_autoadd_i_32(
+      apiObj.focuserPosition,
+    );
+    wireObj.focuser_temperature_c = cst_encode_opt_box_autoadd_f_64(
+      apiObj.focuserTemperatureC,
+    );
+    wireObj.rotator_angle_deg = cst_encode_opt_box_autoadd_f_64(
+      apiObj.rotatorAngleDeg,
+    );
+    wireObj.exposure_secs = cst_encode_f_64(apiObj.exposureSecs);
+    wireObj.bin_x = cst_encode_u_32(apiObj.binX);
+    wireObj.bin_y = cst_encode_u_32(apiObj.binY);
+    wireObj.frame_type = cst_encode_String(apiObj.frameType);
+    wireObj.target_id = cst_encode_opt_String(apiObj.targetId);
   }
 
   @protected
@@ -5910,6 +5985,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       var pre_accepted_total = cst_encode_u_32(apiObj.acceptedTotal);
       var pre_rejected_total = cst_encode_u_32(apiObj.rejectedTotal);
       var pre_save_path = cst_encode_opt_String(apiObj.savePath);
+      var pre_capture = cst_encode_box_autoadd_frame_capture_metadata(
+        apiObj.capture,
+      );
       wireObj.tag = 18;
       wireObj.kind.FrameAccepted.node_id = pre_node_id;
       wireObj.kind.FrameAccepted.frame = pre_frame;
@@ -5920,6 +5998,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       wireObj.kind.FrameAccepted.accepted_total = pre_accepted_total;
       wireObj.kind.FrameAccepted.rejected_total = pre_rejected_total;
       wireObj.kind.FrameAccepted.save_path = pre_save_path;
+      wireObj.kind.FrameAccepted.capture = pre_capture;
       return;
     }
     if (apiObj is SequencerEvent_FrameRejected) {
@@ -5955,6 +6034,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       var pre_sensor_temp_at_capture = cst_encode_opt_box_autoadd_f_64(
         apiObj.sensorTempAtCapture,
       );
+      var pre_capture = cst_encode_box_autoadd_frame_capture_metadata(
+        apiObj.capture,
+      );
       wireObj.tag = 19;
       wireObj.kind.FrameRejected.node_id = pre_node_id;
       wireObj.kind.FrameRejected.frame = pre_frame;
@@ -5978,6 +6060,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
           pre_guide_rms_at_capture;
       wireObj.kind.FrameRejected.sensor_temp_at_capture =
           pre_sensor_temp_at_capture;
+      wireObj.kind.FrameRejected.capture = pre_capture;
       return;
     }
     if (apiObj is SequencerEvent_SchedulerDecision) {
@@ -6930,6 +7013,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_frame_capture_metadata(
+    FrameCaptureMetadata self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_guiding_event(
     GuidingEvent self,
     SseSerializer serializer,
@@ -7297,6 +7386,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_focuser_status(FocuserStatus self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_frame_capture_metadata(
+    FrameCaptureMetadata self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_frame_type(FrameType self, SseSerializer serializer);
@@ -19296,6 +19391,23 @@ class RustLibWire implements BaseWire {
       _cst_new_box_autoadd_focuser_capabilitiesPtr
           .asFunction<ffi.Pointer<wire_cst_focuser_capabilities> Function()>();
 
+  ffi.Pointer<wire_cst_frame_capture_metadata>
+  cst_new_box_autoadd_frame_capture_metadata() {
+    return _cst_new_box_autoadd_frame_capture_metadata();
+  }
+
+  late final _cst_new_box_autoadd_frame_capture_metadataPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Pointer<wire_cst_frame_capture_metadata> Function()
+        >
+      >('frbgen_nightshade_bridge_cst_new_box_autoadd_frame_capture_metadata');
+  late final _cst_new_box_autoadd_frame_capture_metadata =
+      _cst_new_box_autoadd_frame_capture_metadataPtr
+          .asFunction<
+            ffi.Pointer<wire_cst_frame_capture_metadata> Function()
+          >();
+
   ffi.Pointer<wire_cst_guiding_event> cst_new_box_autoadd_guiding_event() {
     return _cst_new_box_autoadd_guiding_event();
   }
@@ -21326,6 +21438,45 @@ final class wire_cst_focuser_capabilities extends ffi.Struct {
   external ffi.Pointer<ffi.Bool> reverse;
 }
 
+final class wire_cst_frame_capture_metadata extends ffi.Struct {
+  external ffi.Pointer<ffi.Int32> gain;
+
+  external ffi.Pointer<ffi.Int32> offset;
+
+  external ffi.Pointer<ffi.Double> sensor_temp_c;
+
+  external ffi.Pointer<ffi.Double> cooler_power_percent;
+
+  external ffi.Pointer<ffi.Double> mount_ra_hours;
+
+  external ffi.Pointer<ffi.Double> mount_dec_degrees;
+
+  external ffi.Pointer<ffi.Double> mount_altitude_deg;
+
+  external ffi.Pointer<ffi.Double> mount_azimuth_deg;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> pier_side;
+
+  external ffi.Pointer<ffi.Int32> focuser_position;
+
+  external ffi.Pointer<ffi.Double> focuser_temperature_c;
+
+  external ffi.Pointer<ffi.Double> rotator_angle_deg;
+
+  @ffi.Double()
+  external double exposure_secs;
+
+  @ffi.Uint32()
+  external int bin_x;
+
+  @ffi.Uint32()
+  external int bin_y;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> frame_type;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> target_id;
+}
+
 final class wire_cst_GuidingEvent_Settled extends ffi.Struct {
   @ffi.Double()
   external double rms;
@@ -21888,6 +22039,8 @@ final class wire_cst_SequencerEvent_FrameAccepted extends ffi.Struct {
   external int rejected_total;
 
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> save_path;
+
+  external ffi.Pointer<wire_cst_frame_capture_metadata> capture;
 }
 
 final class wire_cst_SequencerEvent_FrameRejected extends ffi.Struct {
@@ -21931,6 +22084,8 @@ final class wire_cst_SequencerEvent_FrameRejected extends ffi.Struct {
   external ffi.Pointer<ffi.Double> guide_rms_at_capture;
 
   external ffi.Pointer<ffi.Double> sensor_temp_at_capture;
+
+  external ffi.Pointer<wire_cst_frame_capture_metadata> capture;
 }
 
 final class wire_cst_scheduler_score_entry extends ffi.Struct {
@@ -24094,4 +24249,8 @@ const int SIM_W = 1920;
 
 const int SIM_H = 1080;
 
+const int SIM_MAX_ADU = 65535;
+
 const int SIM_TRUE_FOCUS = 25075;
+
+const double SIM_DEFAULT_EXPOSURE_SECS = 10.0;

@@ -102,7 +102,7 @@ class HygStarCatalog extends Catalog<Star> {
     final file = File(args.path);
     if (!file.existsSync()) return [];
 
-    final stars = <Star>[];
+    final rows = <_HygRow>[];
     final stream = file
         .openRead()
         .transform(utf8.decoder)
@@ -116,9 +116,9 @@ class HygStarCatalog extends Catalog<Star> {
       }
 
       try {
-        final star = _parseHygLine(line);
-        if (star != null && (star.magnitude ?? 99) <= args.magnitudeLimit) {
-          stars.add(star);
+        final row = _parseHygLine(line);
+        if (row != null && (row.star.magnitude ?? 99) <= args.magnitudeLimit) {
+          rows.add(row);
         }
       } catch (e) {
         // Why: HYG CSV contains ~120k rows; a single malformed line (truncated
@@ -134,10 +134,80 @@ class HygStarCatalog extends Catalog<Star> {
       }
     }
 
+    _nameComponentStars(rows);
+    final stars = [for (final row in rows) row.star];
+
     // Sort by magnitude (brightest first)
     stars.sort((a, b) => (a.magnitude ?? 99).compareTo(b.magnitude ?? 99));
 
     return stars;
+  }
+
+  /// Name the unnamed secondary components of a multiple star after their
+  /// primary ("Capella B") instead of letting them fall back to the raw
+  /// catalogue id ("HYG118360").
+  ///
+  /// HYG carries each component of a multiple system as its own row, and a
+  /// secondary usually has no HIP number, no proper name and no Bayer or
+  /// Flamsteed designation — only `comp` (which component it is) and
+  /// `comp_primary` (the id of the row it belongs to). Capella's Ab row is one
+  /// of those, 9 arcsec from Capella itself, so the chart labels the pair
+  /// "Capella" while the catalogue held an entry called "HYG118360" that search
+  /// and the object panel would happily show.
+  ///
+  /// Only rows that HYG itself marks as components are touched, and only when
+  /// the primary row carries a real name, so nothing is invented.
+  static void _nameComponentStars(List<_HygRow> rows) {
+    final wantedPrimaries = <int>{};
+    for (final row in rows) {
+      if (_isUnnamedComponent(row)) wantedPrimaries.add(row.compPrimary);
+    }
+    if (wantedPrimaries.isEmpty) return;
+
+    final primaryNames = <int, String>{};
+    for (final row in rows) {
+      if (row.named && wantedPrimaries.contains(row.hygId)) {
+        primaryNames[row.hygId] = row.star.name;
+      }
+    }
+
+    for (var i = 0; i < rows.length; i++) {
+      final row = rows[i];
+      if (!_isUnnamedComponent(row)) continue;
+      final primaryName = primaryNames[row.compPrimary];
+      if (primaryName == null) continue;
+      final s = row.star;
+      rows[i] = (
+        star: Star(
+          id: s.id,
+          name: '$primaryName ${_componentLetter(row.comp)}',
+          coordinates: s.coordinates,
+          magnitude: s.magnitude,
+          spectralType: s.spectralType,
+          constellation: s.constellation,
+          colorIndex: s.colorIndex,
+          catalogIds: s.catalogIds,
+        ),
+        hygId: row.hygId,
+        comp: row.comp,
+        compPrimary: row.compPrimary,
+        named: true,
+      );
+    }
+  }
+
+  static bool _isUnnamedComponent(_HygRow row) =>
+      !row.named &&
+      row.comp >= 2 &&
+      row.compPrimary != 0 &&
+      row.compPrimary != row.hygId;
+
+  /// HYG's `comp` is 1-based, and component 1 is the primary — so component 2
+  /// is the "B" of the system.
+  static String _componentLetter(int comp) {
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    final index = comp - 1;
+    return index >= 0 && index < letters.length ? letters[index] : 'comp $comp';
   }
 
   /// Parse a line from the HYG CSV file
@@ -146,7 +216,7 @@ class HygStarCatalog extends Catalog<Star> {
   /// 10:pmra, 11:pmdec, 12:rv, 13:mag, 14:absmag, 15:spect, 16:ci,
   /// 17:x, 18:y, 19:z, 20:vx, 21:vy, 22:vz, 23:rarad, 24:decrad,
   /// 25:pmrarad, 26:pmdecrad, 27:bayer, 28:flam, 29:con, ...
-  static Star? _parseHygLine(String line) {
+  static _HygRow? _parseHygLine(String line) {
     final parts = _parseCsvLine(line);
     if (parts.length < 30) return null;
 
@@ -248,6 +318,10 @@ class HygStarCatalog extends Catalog<Star> {
       starName =
           '$flamsteedNumber ${_getConstellationName(constellation ?? '')}';
     }
+    // Whether the name above came from a real designation. When it did not,
+    // [_nameComponentStars] gets a chance to derive one from the multiple-star
+    // system this row belongs to before the raw id stands as the star's name.
+    final named = starName.isNotEmpty;
     if (starName.isEmpty) {
       starName = id;
     }
@@ -258,15 +332,26 @@ class HygStarCatalog extends Catalog<Star> {
     if (hdId != null && hdId > 0) catalogIds.add('HD $hdId');
     if (hrId != null && hrId > 0) catalogIds.add('HR $hrId');
 
-    return Star(
-      id: id,
-      name: starName.trim(),
-      coordinates: CelestialCoordinate(ra: raHours, dec: dec),
-      magnitude: magnitude,
-      spectralType: spectralType?.isNotEmpty == true ? spectralType : null,
-      colorIndex: colorIndex,
-      constellation: constellation?.isNotEmpty == true ? constellation : null,
-      catalogIds: catalogIds,
+    // 30:comp (which component of a multiple system this row is, 1-based),
+    // 31:comp_primary (id of the system's primary row).
+    final comp = parts.length > 30 ? (int.tryParse(parts[30]) ?? 1) : 1;
+    final compPrimary = parts.length > 31 ? (int.tryParse(parts[31]) ?? 0) : 0;
+
+    return (
+      star: Star(
+        id: id,
+        name: starName.trim(),
+        coordinates: CelestialCoordinate(ra: raHours, dec: dec),
+        magnitude: magnitude,
+        spectralType: spectralType?.isNotEmpty == true ? spectralType : null,
+        colorIndex: colorIndex,
+        constellation: constellation?.isNotEmpty == true ? constellation : null,
+        catalogIds: catalogIds,
+      ),
+      hygId: hygId,
+      comp: comp,
+      compPrimary: compPrimary,
+      named: named,
     );
   }
 
@@ -1488,3 +1573,16 @@ class _LoadStarsArgs {
 
   _LoadStarsArgs(this.path, this.magnitudeLimit);
 }
+
+/// One parsed HYG row: the [Star] plus the multiple-star bookkeeping that
+/// [HygStarCatalog._nameComponentStars] needs and [Star] has no field for.
+///
+/// [named] is false when the row carried no proper name, Bayer letter or
+/// Flamsteed number, so the star's name is currently just its catalogue id.
+typedef _HygRow = ({
+  Star star,
+  int hygId,
+  int comp,
+  int compPrimary,
+  bool named,
+});

@@ -8,12 +8,20 @@ class _StatusPillButton extends StatefulWidget {
   final NightshadeColors colors;
   final bool compact;
 
-  /// Narrow-desktop density: keeps the desktop pill's height and its value —
-  /// the part that actually changes — but drops the static label word.
+  /// Narrow-desktop density: keeps the desktop pill's height, but shows only
+  /// ONE of the two words — whichever one is not the same on every pill.
+  ///
+  /// Dropping the label unconditionally was worse than the crowding it fixed:
+  /// with nothing connected, the value of the Camera, Mount and Guider pills is
+  /// the identical word "Disconnected", so a 900 px window read
+  /// "Disconnected  Disconnected  Disconnected" and the only thing telling the
+  /// three apart was a 12 px monochrome glyph. Disconnected is already carried
+  /// by the dot and by the muted icon, so the device NAME is what earns the
+  /// space; once a device is connected its value (profile name, focuser
+  /// position, Guiding/Ready) is the part that changes and it wins instead.
   ///
   /// This is not [compact]: that variant is sized for touch (44 px minimum) and
-  /// would overflow the 36 px desktop status bar, and it hides the value, which
-  /// is the only thing on the pill worth reading.
+  /// would overflow the 36 px desktop status bar, and it hides all text.
   final bool dense;
 
   const _StatusPillButton({
@@ -32,6 +40,12 @@ class _StatusPillButton extends StatefulWidget {
 
 class _StatusPillButtonState extends State<_StatusPillButton> {
   bool _isHovered = false;
+
+  /// The one word a dense pill can afford: the device name while nothing is
+  /// connected (every pill's value is "Disconnected" then), the live value
+  /// once it is.
+  String get _denseText =>
+      widget.dense && !widget.isConnected ? widget.label : widget.value;
 
   @override
   Widget build(BuildContext context) {
@@ -94,10 +108,9 @@ class _StatusPillButtonState extends State<_StatusPillButton> {
                             : widget.colors.textMuted,
                       ),
                       const SizedBox(width: 6),
-                      // The label is the first thing to go when the bar is
-                      // short of room: it never changes, the icon already
-                      // identifies the device, and the tooltip still spells out
-                      // "Mount: Disconnected" in full.
+                      // Both words only when there is room for both; the
+                      // tooltip still spells out "Mount: Disconnected" either
+                      // way.
                       if (!widget.dense) ...[
                         Text(
                           widget.label,
@@ -116,10 +129,13 @@ class _StatusPillButtonState extends State<_StatusPillButton> {
                           ),
                         ),
                         child: Text(
-                          widget.value,
+                          _denseText,
                           overflow: TextOverflow.ellipsis,
-                          style: NightshadeTypography.labelStrongSm
-                              .copyWith(color: widget.colors.textPrimary),
+                          style: NightshadeTypography.labelStrongSm.copyWith(
+                            color: widget.dense && !widget.isConnected
+                                ? widget.colors.textSecondary
+                                : widget.colors.textPrimary,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 6),

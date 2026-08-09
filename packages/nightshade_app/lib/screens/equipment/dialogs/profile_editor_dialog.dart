@@ -25,6 +25,7 @@ part 'profile_editor_dialog/helper_widgets.dart';
 /// section builders read, and widget tests match on them.
 abstract final class ProfileEditorField {
   static const focalLength = 'focalLength';
+  static const reducer = 'reducer';
   static const aperture = 'aperture';
   static const gain = 'gain';
   static const offset = 'offset';
@@ -115,8 +116,13 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
   bool _isDefault = false;
 
   // Section 2: Optical Train
+  //
+  // `_focalLengthController` holds the OTA's NATIVE focal length and
+  // `_reducerController` the reducer/barlow multiplier; the profile's
+  // `focalLength` column is their product (see [_effectiveFocalLengthMm]).
   final _telescopeNameController = TextEditingController();
   final _focalLengthController = TextEditingController();
+  final _reducerController = TextEditingController();
   final _apertureController = TextEditingController();
 
   // Section 3: Devices
@@ -204,13 +210,32 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
       _isDefault = profile.isDefault;
 
       // Section 2: Optical Train
+      //
+      // The profile carries the optical train as a PAIR: `telescopeFocalLength`
+      // is the OTA's native focal length and `focalLength` is what the rig
+      // actually images at (post reducer/barlow) — it is `focalLength` that
+      // reaches the FITS FOCALLEN card, the plate-solve scale hint, the framing
+      // FOV and the guider px->arcsec conversion. Only the first-run wizard ever
+      // wrote the two apart, and this editor used to seed from the telescope
+      // column and then write that same number back into BOTH, so opening a
+      // reducer'd profile and pressing Save with no edits silently multiplied
+      // its focal length back up by 1/reducer (440 mm -> 550 mm, f/4.4 -> f/5.5:
+      // a 25% image-scale error). Reconstruct the reducer from the ratio the two
+      // columns already encode — the row has no reducer column, but the pair is
+      // exactly that ratio — so the pair round-trips instead of collapsing.
       _telescopeNameController.text = profile.telescopeName ?? '';
-      if (profile.telescopeFocalLength != null &&
-          profile.telescopeFocalLength! > 0) {
-        _focalLengthController.text = profile.telescopeFocalLength!.toString();
-      } else if (profile.focalLength > 0) {
-        _focalLengthController.text = profile.focalLength.toString();
+      final nativeFocalLength = profile.telescopeFocalLength != null &&
+              profile.telescopeFocalLength! > 0
+          ? profile.telescopeFocalLength!
+          : (profile.focalLength > 0 ? profile.focalLength : null);
+      if (nativeFocalLength != null) {
+        _focalLengthController.text = nativeFocalLength.toString();
       }
+      _reducerController.text = _formatReducer(
+        nativeFocalLength != null && profile.focalLength > 0
+            ? _roundOptic(profile.focalLength / nativeFocalLength)
+            : 1.0,
+      );
       if (profile.telescopeAperture != null && profile.telescopeAperture! > 0) {
         _apertureController.text = profile.telescopeAperture!.toString();
       } else if (profile.aperture > 0) {
@@ -271,6 +296,7 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
     _nameController.dispose();
     _telescopeNameController.dispose();
     _focalLengthController.dispose();
+    _reducerController.dispose();
     _apertureController.dispose();
     _cameraNameController.dispose();
     _mountNameController.dispose();

@@ -735,12 +735,15 @@ class IntegrationSettings {
           sourcePreset: IntegrationPreset.balanced,
         );
       case IntegrationPreset.maximumQuality:
+        // Maximum Quality must remain behaviorally distinct from Balanced:
+        //  * ransacThresholdPx 1.0 (vs 2.0) — the transform is fit only to
+        //    close star pairs, trading robustness for precision.
+        //  * maxRefStars 120 (vs 60) — better-conditioned matching at extra cost.
+        //  * normalization local (vs global) — per-cell background matching.
         return const IntegrationSettings(
-          resampler: Resampler.lanczos3,
-          weighting: WeightFormula.snrSquared,
-          generateRejectionMap: true,
-          cosmeticCorrection: true,
-          outputBitDepth: OutputBitDepth.f32,
+          ransacThresholdPx: 1.0,
+          maxRefStars: 120,
+          normalization: NormalizationMode.local,
           sourcePreset: IntegrationPreset.maximumQuality,
         );
       case IntegrationPreset.fewSubs:

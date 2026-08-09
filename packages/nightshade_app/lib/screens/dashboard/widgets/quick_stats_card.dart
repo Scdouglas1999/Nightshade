@@ -69,6 +69,10 @@ class QuickStatsCard extends ConsumerWidget {
       }
     }
 
+    // Sensor temp / focus / HFR / RMS are exactly the "read it from across the
+    // room" readouts the Glance mode toggle promises, so they answer it.
+    final glance = ref.watch(glanceModeProvider);
+
     return DashboardGlassCard(
       colors: colors,
       padding: const EdgeInsets.all(0),
@@ -79,6 +83,7 @@ class QuickStatsCard extends ConsumerWidget {
             label: l10n.text('sensor'),
             value: tempValue,
             colors: colors,
+            glance: glance,
             isFirst: true,
           ),
           _QuickStatItem(
@@ -86,18 +91,21 @@ class QuickStatsCard extends ConsumerWidget {
             label: l10n.text('focus'),
             value: focusValue,
             colors: colors,
+            glance: glance,
           ),
           _QuickStatItem(
             icon: LucideIcons.target,
             label: l10n.text('hfr'),
             value: hfrValue,
             colors: colors,
+            glance: glance,
           ),
           _QuickStatItem(
             icon: LucideIcons.activity,
             label: l10n.text('rms'),
             value: rmsValue,
             colors: colors,
+            glance: glance,
             isLast: true,
           ),
         ],
@@ -111,6 +119,7 @@ class _QuickStatItem extends StatelessWidget {
   final String label;
   final String value;
   final NightshadeColors colors;
+  final bool glance;
   final bool isFirst;
   final bool isLast;
 
@@ -119,6 +128,7 @@ class _QuickStatItem extends StatelessWidget {
     required this.label,
     required this.value,
     required this.colors,
+    required this.glance,
     this.isFirst = false,
     this.isLast = false,
   });
@@ -150,9 +160,12 @@ class _QuickStatItem extends StatelessWidget {
             const SizedBox(height: 2),
             Text(
               label,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize10,
-                color: colors.textMuted,
+              style: NightshadeTypography.glanceStyle(
+                TextStyle(
+                  fontSize: NightshadeTypography.fontSize10,
+                  color: colors.textMuted,
+                ),
+                enabled: glance,
               ),
             ),
           ],

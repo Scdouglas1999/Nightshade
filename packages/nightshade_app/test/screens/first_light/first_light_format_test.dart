@@ -29,4 +29,22 @@ void main() {
       expect(describeFirstLightError(''), 'Unknown error.');
     });
   });
+
+  group('firstLightErrorBody', () {
+    // The live capture read "Could not load candidates / FormatException:
+    // Invalid radix-10 number (at character 1) / tile-1 / ^" and nothing else.
+    test('leads with a sentence about the data, not with the exception', () {
+      final body = firstLightErrorBody(
+        const FormatException('Invalid radix-10 number', 'tile-1', 0),
+      );
+
+      expect(body.split('\n').first, isNot(startsWith('FormatException')));
+      expect(body, contains('untouched'));
+      expect(
+        body,
+        contains('Invalid radix-10 number'),
+        reason: 'support still needs the technical detail, just not first',
+      );
+    });
+  });
 }

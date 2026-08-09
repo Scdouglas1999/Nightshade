@@ -6,6 +6,8 @@
 ///   - RPC error responses surface as exceptions,
 ///   - response payloads are coerced into the right return types.
 
+library;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_bridge/src/phd2_client.dart';
 

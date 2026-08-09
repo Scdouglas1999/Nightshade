@@ -44,7 +44,43 @@ class _NameRegionSheetState extends ConsumerState<NameRegionSheet> {
   String? _error;
 
   @override
+  void initState() {
+    super.initState();
+    // A validation message must not outlive the state that produced it. The
+    // sheet used to keep showing "Pick a target first." after the user did
+    // exactly what its own copy told them to do — switch to Custom RA/Dec,
+    // a mode with no target to pick — right through to a successful create.
+    for (final c in [
+      _nameController,
+      _raController,
+      _decController,
+      _radiusController,
+    ]) {
+      c.addListener(_clearError);
+    }
+  }
+
+  void _clearError() {
+    if (_error == null) return;
+    setState(() => _error = null);
+  }
+
+  /// Whether [_create] could possibly succeed as the form now stands. Only the
+  /// unsatisfiable case is blocked: the range errors on the custom fields still
+  /// have to be reachable, because they say what a valid entry looks like.
+  bool get _canSubmit =>
+      _source != _RegionSource.target || _selectedTarget != null;
+
+  @override
   void dispose() {
+    for (final c in [
+      _nameController,
+      _raController,
+      _decController,
+      _radiusController,
+    ]) {
+      c.removeListener(_clearError);
+    }
     _nameController.dispose();
     _raController.dispose();
     _decController.dispose();
@@ -96,7 +132,10 @@ class _NameRegionSheetState extends ConsumerState<NameRegionSheet> {
               const SizedBox(height: NightshadeTokens.spaceLg),
               _SourceToggle(
                 source: _source,
-                onChanged: (s) => setState(() => _source = s),
+                onChanged: (s) => setState(() {
+                  _source = s;
+                  _error = null;
+                }),
               ),
               const SizedBox(height: NightshadeTokens.spaceMd),
               if (_source == _RegionSource.target)
@@ -137,7 +176,7 @@ class _NameRegionSheetState extends ConsumerState<NameRegionSheet> {
                       label: 'Create region',
                       icon: LucideIcons.check,
                       isLoading: _saving,
-                      onPressed: _saving ? null : _create,
+                      onPressed: _saving || !_canSubmit ? null : _create,
                     ),
                   ),
                 ],
@@ -193,6 +232,7 @@ class _NameRegionSheetState extends ConsumerState<NameRegionSheet> {
                   }
                 }
                 _selectedTarget = t;
+                _error = null;
                 if (t != null && _nameController.text.trim().isEmpty) {
                   _nameController.text = t.name;
                 }

@@ -103,6 +103,10 @@ dev_dependencies:
   # (e.g. nightshade_core). Test-only: lets the headless bootstrap tests mint an
   # `is FfiBackend` role double without dragging in the native backend.
   mocktail: ^1.0.4
+  # Test-only: the transient handler tests stand in a fixed alert service, and
+  # `TransientAlertService`'s constructor takes an `http.Client`. Pinned to the
+  # version nightshade_core already resolves.
+  http: ^1.2.0
 
 flutter:
   uses-material-design: true

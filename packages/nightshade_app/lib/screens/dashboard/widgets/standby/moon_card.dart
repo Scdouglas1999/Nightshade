@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../../localization/nightshade_localizations.dart';
 import '../glass_card.dart';
+
+/// Neutral lunar grey, the colour of the lit limb in every theme but red night.
+@visibleForTesting
+const Color moonLitGrey = Color(0xFFD6DCE2);
 
 /// Moon briefing card: a painted phase disc plus illumination, phase name, and
 /// moonrise/moonset times. Degrades to "--" rows when rise/set are undefined
@@ -26,6 +32,10 @@ class MoonCard extends ConsumerWidget {
     // user has never been; blank them rather than pass them off as tonight's.
     final observer = ref.watch(observerLocationProvider);
     final hasSite = observer.latitude != 0.0 || observer.longitude != 0.0;
+    // Same clock as the status bar and the header chip: a dashboard that shows
+    // "now" in the site's zone and moonrise in the host's is worse than one
+    // that is uniformly host-local.
+    final clock = ref.watch(clockProvider);
 
     return DashboardGlassCard(
       colors: colors,
@@ -36,7 +46,7 @@ class MoonCard extends ConsumerWidget {
           DashboardCardHeader(
             colors: colors,
             icon: LucideIcons.moon,
-            title: 'Moon',
+            title: context.l10n.text('dbMoon'),
             accent: colors.info,
           ),
           const SizedBox(height: DashboardCardStyle.headerGap),
@@ -45,10 +55,20 @@ class MoonCard extends ConsumerWidget {
             children: [
               CustomPaint(
                 size: const Size(72, 72),
-                painter: _MoonPainter(
+                painter: MoonPainter(
                   illumination: moon.illumination,
                   waxing: waxing,
-                  litColor: const Color(0xFFD6DCE2),
+                  // The lit limb is a ~50 px SOLID fill, so a fixed off-white
+                  // made it the brightest object anywhere on the dashboard —
+                  // in red night mode, a bluish-white flare on the screen the
+                  // app opens on, which is the one thing that mode exists to
+                  // prevent. Routed through the same theme mapper the charts
+                  // use so red night re-expresses it on the red axis (and
+                  // every other theme keeps the moon-grey unchanged).
+                  litColor: NightshadeChartColors.forTheme(
+                    moonLitGrey,
+                    colors,
+                  ),
                   darkColor: colors.surfaceAlt,
                   borderColor: colors.border,
                 ),
@@ -60,7 +80,10 @@ class MoonCard extends ConsumerWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      moon.phaseName,
+                      // The phase name arrives from the astronomy layer as an
+                      // English literal ("Waning Gibbous"); key off it so the
+                      // card is not half-translated.
+                      context.l10n.text('dbMoonPhase${moon.phaseName}'),
                       style: NightshadeTypography.body.copyWith(
                         color: colors.textPrimary,
                         fontWeight: FontWeight.w600,
@@ -70,7 +93,12 @@ class MoonCard extends ConsumerWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${moon.illumination.toStringAsFixed(0)}% illuminated',
+                      context.l10n.text(
+                        'dbIlluminated',
+                        params: {
+                          'value': moon.illumination.toStringAsFixed(0),
+                        },
+                      ),
                       style: NightshadeTypography.withTabular(
                         NightshadeTypography.bodySm.copyWith(
                           color: colors.textSecondary,
@@ -86,15 +114,15 @@ class MoonCard extends ConsumerWidget {
           _TimeRow(
             colors: colors,
             icon: LucideIcons.arrowUp,
-            label: 'Moonrise',
-            value: _clock(hasSite ? moon.moonrise : null),
+            label: context.l10n.text('dbMoonrise'),
+            value: _clock(hasSite ? moon.moonrise : null, clock),
           ),
           const SizedBox(height: 6),
           _TimeRow(
             colors: colors,
             icon: LucideIcons.arrowDown,
-            label: 'Moonset',
-            value: _clock(hasSite ? moon.moonset : null),
+            label: context.l10n.text('dbMoonset'),
+            value: _clock(hasSite ? moon.moonset : null, clock),
           ),
         ],
       ),
@@ -112,10 +140,13 @@ class MoonCard extends ConsumerWidget {
     return true;
   }
 
-  static String _clock(DateTime? t) {
+  /// HH:MM on the operator's chosen clock; [SystemClock] (the default while
+  /// "Use system time" is on) renders exactly what this used to.
+  static String _clock(DateTime? t, Clock clock) {
     if (t == null) return '--:--';
-    return '${t.hour.toString().padLeft(2, '0')}:'
-        '${t.minute.toString().padLeft(2, '0')}';
+    final shown = clock.fromUtc(t.toUtc());
+    return '${shown.hour.toString().padLeft(2, '0')}:'
+        '${shown.minute.toString().padLeft(2, '0')}';
   }
 }
 
@@ -161,14 +192,19 @@ class _TimeRow extends StatelessWidget {
 
 /// Paints a moon disc lit from one side. The terminator is an ellipse whose
 /// width tracks the illuminated fraction; `waxing` flips which limb is lit.
-class _MoonPainter extends CustomPainter {
+///
+/// Public so a test can read the colours the card hands it: the lit limb is the
+/// largest solid fill on the dashboard and was a fixed off-white in every
+/// theme.
+@visibleForTesting
+class MoonPainter extends CustomPainter {
   final double illumination; // 0..100
   final bool waxing;
   final Color litColor;
   final Color darkColor;
   final Color borderColor;
 
-  _MoonPainter({
+  MoonPainter({
     required this.illumination,
     required this.waxing,
     required this.litColor,
@@ -239,7 +275,7 @@ class _MoonPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_MoonPainter old) =>
+  bool shouldRepaint(MoonPainter old) =>
       old.illumination != illumination ||
       old.waxing != waxing ||
       old.litColor != litColor ||
