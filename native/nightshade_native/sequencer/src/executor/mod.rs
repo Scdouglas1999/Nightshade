@@ -3780,6 +3780,9 @@ impl SequenceExecutor {
                 // SkipToNode requests into the shared slot.
                 let skip_to_node_cmd = skip_to_node.clone();
                 let resume_notify_cmd = resume_notify.clone();
+                // The status API reads the progress snapshot, so every command
+                // that changes the executor's state has to stamp it there too.
+                let progress_for_commands = progress.clone();
                 // Recovery Mode — command-handler-side clone so the
                 // RecoveryTryNow / RecoveryAbort handlers can fire the
                 // signal bus without grabbing the shared executor lock.
@@ -3791,6 +3794,18 @@ impl SequenceExecutor {
                             ExecutorCommand::Pause => {
                                 is_paused_cmd.store(true, Ordering::Relaxed);
                                 *state.write().await = ExecutorState::Paused;
+                                // `SequencerState` is built from the progress
+                                // snapshot (`api/sequencer.rs`,
+                                // `From<SequenceProgress>`), NOT from the lock
+                                // above. Stamping only the lock is why
+                                // `POST /api/sequencer/pause` answered
+                                // `{"status":"paused"}` and the very next
+                                // `GET /api/sequencer/status` said
+                                // `"state":"running"` — reproduced on the Linux
+                                // appliance 2026-08-09. A remote operator, or an
+                                // unattended rig's watchdog, sees a healthy run
+                                // while the node tree is parked.
+                                progress_for_commands.write().state = ExecutorState::Paused;
                                 let _ = event_tx
                                     .send(ExecutorEvent::StateChanged(ExecutorState::Paused));
                             }
@@ -3801,6 +3816,11 @@ impl SequenceExecutor {
                                 is_paused_cmd.store(false, Ordering::Relaxed);
                                 resume_notify_cmd.notify_waiters();
                                 *state.write().await = ExecutorState::Running;
+                                // Symmetric with Pause above: without this the
+                                // snapshot would stay `Paused` forever and a
+                                // resumed run would report as paused — swapping
+                                // one untruth for its mirror image.
+                                progress_for_commands.write().state = ExecutorState::Running;
                                 let _ = event_tx
                                     .send(ExecutorEvent::StateChanged(ExecutorState::Running));
                             }
@@ -5933,6 +5953,10 @@ impl SequenceExecutor {
                                                 is_paused_for_triggers
                                                     .store(true, Ordering::Relaxed);
                                                 *state_clone.write().await = ExecutorState::Paused;
+                                                // The status API is built from the progress snapshot, not from
+                                                // this lock. Stamping only the lock is what let a paused run
+                                                // keep reporting `running` — see mirror_paused_into_progress.
+                                                progress_for_triggers.write().state = ExecutorState::Paused;
                                                 let _ = event_tx_clone2.send(
                                                     ExecutorEvent::StateChanged(
                                                         ExecutorState::Paused,
@@ -5945,6 +5969,10 @@ impl SequenceExecutor {
                                         // pre-Wave-4 implementation.
                                         is_paused_for_triggers.store(true, Ordering::Relaxed);
                                         *state_clone.write().await = ExecutorState::Paused;
+                                        // The status API is built from the progress snapshot, not from
+                                        // this lock. Stamping only the lock is what let a paused run
+                                        // keep reporting `running` — see mirror_paused_into_progress.
+                                        progress_for_triggers.write().state = ExecutorState::Paused;
                                         let _ = event_tx_clone2.send(ExecutorEvent::StateChanged(
                                             ExecutorState::Paused,
                                         ));
@@ -6251,6 +6279,10 @@ impl SequenceExecutor {
                                                 is_paused_for_triggers
                                                     .store(true, Ordering::Relaxed);
                                                 *state_clone.write().await = ExecutorState::Paused;
+                                                // The status API is built from the progress snapshot, not from
+                                                // this lock. Stamping only the lock is what let a paused run
+                                                // keep reporting `running` — see mirror_paused_into_progress.
+                                                progress_for_triggers.write().state = ExecutorState::Paused;
                                                 let _ = event_tx_clone2.send(
                                                     ExecutorEvent::StateChanged(
                                                         ExecutorState::Paused,
@@ -6351,6 +6383,10 @@ impl SequenceExecutor {
                                     );
                                         is_paused_for_triggers.store(true, Ordering::Relaxed);
                                         *state_clone.write().await = ExecutorState::Paused;
+                                        // The status API is built from the progress snapshot, not from
+                                        // this lock. Stamping only the lock is what let a paused run
+                                        // keep reporting `running` — see mirror_paused_into_progress.
+                                        progress_for_triggers.write().state = ExecutorState::Paused;
                                         let _ = event_tx_clone2.send(ExecutorEvent::StateChanged(
                                             ExecutorState::Paused,
                                         ));
@@ -6498,8 +6534,11 @@ impl SequenceExecutor {
                                                     );
                                                     is_paused_for_triggers
                                                         .store(true, Ordering::Relaxed);
-                                                    *state_clone.write().await =
-                                                        ExecutorState::Paused;
+                                                    *state_clone.write().await = ExecutorState::Paused;
+                                                    // The status API is built from the progress snapshot, not from
+                                                    // this lock. Stamping only the lock is what let a paused run
+                                                    // keep reporting `running` — see mirror_paused_into_progress.
+                                                    progress_for_triggers.write().state = ExecutorState::Paused;
                                                     {
                                                         let mut prog =
                                                             progress_for_triggers.write();
@@ -6776,6 +6815,10 @@ impl SequenceExecutor {
                                     );
                                         is_paused_for_triggers.store(true, Ordering::Relaxed);
                                         *state_clone.write().await = ExecutorState::Paused;
+                                        // The status API is built from the progress snapshot, not from
+                                        // this lock. Stamping only the lock is what let a paused run
+                                        // keep reporting `running` — see mirror_paused_into_progress.
+                                        progress_for_triggers.write().state = ExecutorState::Paused;
                                         let _ = event_tx_clone2.send(ExecutorEvent::StateChanged(
                                             ExecutorState::Paused,
                                         ));
@@ -6814,6 +6857,10 @@ impl SequenceExecutor {
                                             );
                                             is_paused_for_triggers.store(true, Ordering::Relaxed);
                                             *state_clone.write().await = ExecutorState::Paused;
+                                            // The status API is built from the progress snapshot, not from
+                                            // this lock. Stamping only the lock is what let a paused run
+                                            // keep reporting `running` — see mirror_paused_into_progress.
+                                            progress_for_triggers.write().state = ExecutorState::Paused;
                                             let _ = event_tx_clone2.send(
                                                 ExecutorEvent::StateChanged(ExecutorState::Paused),
                                             );
@@ -6864,6 +6911,10 @@ impl SequenceExecutor {
                                             );
                                             is_paused_for_triggers.store(true, Ordering::Relaxed);
                                             *state_clone.write().await = ExecutorState::Paused;
+                                            // The status API is built from the progress snapshot, not from
+                                            // this lock. Stamping only the lock is what let a paused run
+                                            // keep reporting `running` — see mirror_paused_into_progress.
+                                            progress_for_triggers.write().state = ExecutorState::Paused;
                                             let _ = event_tx_clone2.send(
                                                 ExecutorEvent::StateChanged(ExecutorState::Paused),
                                             );
@@ -6874,6 +6925,10 @@ impl SequenceExecutor {
                                             // path.
                                             is_paused_for_triggers.store(true, Ordering::Relaxed);
                                             *state_clone.write().await = ExecutorState::Paused;
+                                            // The status API is built from the progress snapshot, not from
+                                            // this lock. Stamping only the lock is what let a paused run
+                                            // keep reporting `running` — see mirror_paused_into_progress.
+                                            progress_for_triggers.write().state = ExecutorState::Paused;
                                             let _ = event_tx_clone2.send(
                                                 ExecutorEvent::StateChanged(ExecutorState::Paused),
                                             );
@@ -6900,6 +6955,10 @@ impl SequenceExecutor {
                                         );
                                         is_paused_for_triggers.store(true, Ordering::Relaxed);
                                         *state_clone.write().await = ExecutorState::Paused;
+                                        // The status API is built from the progress snapshot, not from
+                                        // this lock. Stamping only the lock is what let a paused run
+                                        // keep reporting `running` — see mirror_paused_into_progress.
+                                        progress_for_triggers.write().state = ExecutorState::Paused;
                                         let _ = event_tx_clone2.send(ExecutorEvent::StateChanged(
                                             ExecutorState::Paused,
                                         ));
@@ -6933,6 +6992,10 @@ impl SequenceExecutor {
                                             });
                                         is_paused_for_triggers.store(true, Ordering::Relaxed);
                                         *state_clone.write().await = ExecutorState::Paused;
+                                        // The status API is built from the progress snapshot, not from
+                                        // this lock. Stamping only the lock is what let a paused run
+                                        // keep reporting `running` — see mirror_paused_into_progress.
+                                        progress_for_triggers.write().state = ExecutorState::Paused;
                                         let _ = event_tx_clone2.send(ExecutorEvent::StateChanged(
                                             ExecutorState::Paused,
                                         ));
@@ -6982,6 +7045,10 @@ impl SequenceExecutor {
                                         );
                                         is_paused_for_triggers.store(true, Ordering::Relaxed);
                                         *state_clone.write().await = ExecutorState::Paused;
+                                        // The status API is built from the progress snapshot, not from
+                                        // this lock. Stamping only the lock is what let a paused run
+                                        // keep reporting `running` — see mirror_paused_into_progress.
+                                        progress_for_triggers.write().state = ExecutorState::Paused;
                                         let _ = event_tx_clone2.send(ExecutorEvent::StateChanged(
                                             ExecutorState::Paused,
                                         ));
@@ -7024,6 +7091,10 @@ impl SequenceExecutor {
                                             });
                                         is_paused_for_triggers.store(true, Ordering::Relaxed);
                                         *state_clone.write().await = ExecutorState::Paused;
+                                        // The status API is built from the progress snapshot, not from
+                                        // this lock. Stamping only the lock is what let a paused run
+                                        // keep reporting `running` — see mirror_paused_into_progress.
+                                        progress_for_triggers.write().state = ExecutorState::Paused;
                                         let _ = event_tx_clone2.send(ExecutorEvent::StateChanged(
                                             ExecutorState::Paused,
                                         ));
@@ -7045,6 +7116,10 @@ impl SequenceExecutor {
                                             });
                                         is_paused_for_triggers.store(true, Ordering::Relaxed);
                                         *state_clone.write().await = ExecutorState::Paused;
+                                        // The status API is built from the progress snapshot, not from
+                                        // this lock. Stamping only the lock is what let a paused run
+                                        // keep reporting `running` — see mirror_paused_into_progress.
+                                        progress_for_triggers.write().state = ExecutorState::Paused;
                                         let _ = event_tx_clone2.send(ExecutorEvent::StateChanged(
                                             ExecutorState::Paused,
                                         ));
@@ -7148,6 +7223,10 @@ impl SequenceExecutor {
                                         );
                                         is_paused_for_triggers.store(true, Ordering::Relaxed);
                                         *state_clone.write().await = ExecutorState::Paused;
+                                        // The status API is built from the progress snapshot, not from
+                                        // this lock. Stamping only the lock is what let a paused run
+                                        // keep reporting `running` — see mirror_paused_into_progress.
+                                        progress_for_triggers.write().state = ExecutorState::Paused;
                                         let _ = event_tx_clone2.send(ExecutorEvent::StateChanged(
                                             ExecutorState::Paused,
                                         ));
@@ -7171,6 +7250,10 @@ impl SequenceExecutor {
                                         );
                                         is_paused_for_triggers.store(true, Ordering::Relaxed);
                                         *state_clone.write().await = ExecutorState::Paused;
+                                        // The status API is built from the progress snapshot, not from
+                                        // this lock. Stamping only the lock is what let a paused run
+                                        // keep reporting `running` — see mirror_paused_into_progress.
+                                        progress_for_triggers.write().state = ExecutorState::Paused;
                                         let _ = event_tx_clone2.send(ExecutorEvent::StateChanged(
                                             ExecutorState::Paused,
                                         ));
@@ -7197,6 +7280,10 @@ impl SequenceExecutor {
                                         );
                                         is_paused_for_triggers.store(true, Ordering::Relaxed);
                                         *state_clone.write().await = ExecutorState::Paused;
+                                        // The status API is built from the progress snapshot, not from
+                                        // this lock. Stamping only the lock is what let a paused run
+                                        // keep reporting `running` — see mirror_paused_into_progress.
+                                        progress_for_triggers.write().state = ExecutorState::Paused;
                                         let _ = event_tx_clone2.send(ExecutorEvent::StateChanged(
                                             ExecutorState::Paused,
                                         ));
@@ -7256,6 +7343,10 @@ impl SequenceExecutor {
                                             );
                                             is_paused_for_triggers.store(true, Ordering::Relaxed);
                                             *state_clone.write().await = ExecutorState::Paused;
+                                            // The status API is built from the progress snapshot, not from
+                                            // this lock. Stamping only the lock is what let a paused run
+                                            // keep reporting `running` — see mirror_paused_into_progress.
+                                            progress_for_triggers.write().state = ExecutorState::Paused;
                                             let _ = event_tx_clone2.send(
                                                 ExecutorEvent::StateChanged(ExecutorState::Paused),
                                             );
