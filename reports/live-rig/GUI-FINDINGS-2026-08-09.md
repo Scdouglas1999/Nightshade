@@ -525,3 +525,7 @@ allow an attacker-controlled page served from the dashboard origin to relay cred
 
 This is a markup-level check only — it says the buttons are nameable, not that the dashboard behaves.
 Driving it needs a browser session, which is the same gap as mobile and Windows.
+
+Auth on that surface behaves: `GET /api/sessions` with no token is **401**, and with the bearer token
+`/api/sequencer/status`, `/api/system/disk-space`, `/api/sessions` and `/api/images?limit=5` all
+return **200**.
