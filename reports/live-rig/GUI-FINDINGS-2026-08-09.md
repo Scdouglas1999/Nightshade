@@ -668,3 +668,38 @@ One correction worth recording: I first read the accessibility tree as showing 6
 "RMS (arcsec)" and suspected the guiding chart was plotting HFR. It was not — those were the HFR
 chart's y-axis labels, adjacent in tree order. The screenshot settled it. Same lesson as G11 and
 G12: the tree finds candidates, a second instrument confirms them.
+
+## V2 — pause, resume and abort, driven in the GUI (validation)
+
+The two live-found blockers in this area were "Pause keeps exposing" and L46 "every paused run
+reports itself as running". Both were re-tested by clicking, not by reading state.
+
+**Pause actually stops the camera.** Paused at 3/10 with an 8s exposure and waited 30 seconds —
+room for roughly four more frames. `captured_images` stayed at 13 and the FITS count on disk stayed
+at 13, while the UI held at "Paused · 3 / 10 frames". A pause that only relabels the state would
+have accrued frames here.
+
+**The state is reported as paused everywhere that matters.** The run header, the status bar and the
+frame counter all read Paused, and the primary control became Resume. The only remaining occurrence
+of the word "running" is the tooltip on the locked toolbar buttons — "locked while sequence is
+running" — which explains why they are disabled. A paused run is still an in-progress run, so that
+is fair rather than false; noted, not changed.
+
+**Resume continues from where it stopped**, 3/10 → 4/10 with rows advancing again.
+
+**Abort produces a truthful session report**, and every figure in it is arithmetically consistent
+with the run I had just driven:
+
+| reported | value | check |
+|---|---|---|
+| outcome | `paused-stopped` | it was paused, then stopped — both, not one |
+| wall clock | 2m 0s | 02:36 → 02:38 |
+| integration | 40s | 5 frames × 8s |
+| effective imaging | 33.3% | 40 / 120 |
+| downtime | 1m 20s | 120 − 40, i.e. my 30s pause plus overheads |
+| frames accepted | 5/5, 0 rejected | 5 new rows and 5 new FITS on disk |
+| autofocus / flips / dithers / trigger fires | 0, 0, 0, 0 | none were configured |
+| guiding | "No guide data recorded for this session." | the guider was disconnected throughout |
+| targets | "Untargeted" | no target node existed |
+
+Across both runs the totals reconcile exactly: 15 `captured_images` rows and 15 FITS files on disk.
