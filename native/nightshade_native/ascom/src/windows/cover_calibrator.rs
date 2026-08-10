@@ -1,10 +1,7 @@
 //! ASCOM Cover Calibrator wrapper and batch status types.
 
 use std::ptr;
-use windows::{
-    core::GUID,
-    Win32::System::Com::{DISPATCH_METHOD, DISPPARAMS},
-};
+use windows::Win32::System::Com::{DISPATCH_METHOD, DISPPARAMS};
 
 use super::connection::AscomDeviceConnection;
 use super::health::ConnectionHealth;
@@ -112,17 +109,7 @@ impl AscomCoverCalibrator {
             };
 
             self.device
-                .dispatch
-                .Invoke(
-                    dispid,
-                    &GUID::zeroed(),
-                    0,
-                    DISPATCH_METHOD,
-                    &params,
-                    None,
-                    None,
-                    None,
-                )
+                .invoke_with_retry(dispid, DISPATCH_METHOD, &params, None)
                 .map_err(|e| format!("Failed to call CalibratorOn: {}", e))?;
 
             Ok(())

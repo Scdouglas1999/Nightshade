@@ -1,9 +1,6 @@
 //! ASCOM Camera (ICameraV*) wrapper and batch status types.
 
-use windows::{
-    core::GUID,
-    Win32::System::Com::{DISPATCH_PROPERTYGET, DISPPARAMS},
-};
+use windows::Win32::System::Com::{DISPATCH_PROPERTYGET, DISPPARAMS};
 
 use super::connection::AscomDeviceConnection;
 use super::health::ConnectionHealth;
@@ -198,17 +195,17 @@ impl AscomCamera {
             let mut result = OwnedVariant::empty();
             let params = DISPPARAMS::default();
 
+            // Goes through `invoke_with_retry` rather than a hand-rolled
+            // `dispatch.Invoke`: the hand-rolled call passed `None` for
+            // `pExcepInfo`, so a driver that refused the download had its
+            // sentence discarded and the operator got only
+            // "Exception occurred. (0x80020009)" for a lost frame.
             self.device
-                .dispatch
-                .Invoke(
+                .invoke_with_retry(
                     dispid,
-                    &GUID::zeroed(),
-                    0,
                     DISPATCH_PROPERTYGET,
                     &params,
                     Some(result.as_mut()),
-                    None,
-                    None,
                 )
                 .map_err(|e| format!("Failed to get ImageArray property: {}", e))?;
 

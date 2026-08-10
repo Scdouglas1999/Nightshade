@@ -317,12 +317,15 @@ pub fn probe_device_name(prog_id: &str) -> Option<String> {
 /// - Health monitoring for detecting disconnected devices
 /// - RAII cleanup via Drop trait
 pub struct AscomDeviceConnection {
-    // Why: device-specific wrappers (camera, switch, cover_calibrator) in
-    // sibling modules need direct IDispatch access to invoke methods with
-    // multi-argument SAFEARRAY-bearing signatures that the typed helpers
-    // below do not cover. Visibility is scoped to `super` to keep the field
-    // private to the `windows` module tree.
-    pub(super) dispatch: IDispatch,
+    // Private on purpose. The device wrappers (camera, switch,
+    // cover_calibrator) used to reach in here and hand-roll their own
+    // `Invoke` for signatures the typed helpers do not cover — and every one
+    // of those hand-rolled calls passed `None` for `pExcepInfo`, throwing away
+    // the driver's own account of the failure. They now go through
+    // `invoke_with_retry`, which owns the `EXCEPINFO`. Keeping the field
+    // unreachable outside this file is what stops that regressing: the only
+    // way to call the driver is the way that keeps its explanation.
+    dispatch: IDispatch,
     connected: bool,
     /// Health monitor for tracking device responsiveness
     health: HealthMonitor,
@@ -503,11 +506,18 @@ impl AscomDeviceConnection {
     /// the call site and the operator was shown a bare HRESULT. Making it
     /// unconditional means no caller can drop the driver's account again.
     ///
+    /// Visible to the whole `windows` module tree, not just this file: the
+    /// device wrappers (`camera`, `switch`, `cover_calibrator`) hand-rolled
+    /// their own `dispatch.Invoke` for signatures the typed helpers do not
+    /// cover, and each of those hand-rolled calls passed `None` for
+    /// `pExcepInfo` too. Routing them here is what makes "the driver's
+    /// explanation always survives" true of the crate rather than of one file.
+    ///
     /// # Safety
     /// `params` and every pointer it contains, plus `pvarresult` when present,
     /// must remain valid for all retry attempts. The caller must also invoke
     /// this on the COM object's owning STA thread.
-    unsafe fn invoke_with_retry(
+    pub(super) unsafe fn invoke_with_retry(
         &self,
         dispid: i32,
         flags: DISPATCH_FLAGS,
@@ -1319,8 +1329,12 @@ impl<F: FnOnce()> Drop for AscomCleanupGuard<F> {
 /// property accessors, `invoke_with_retry`, `OwnedExcepInfo::describe`, and
 /// the `String` a caller finally shows an operator — runs for real, with no
 /// COM apartment and no hardware.
+///
+/// The stand-in and its constructors are `pub(super)` so the sibling device
+/// wrappers (`camera`, `switch`, `cover_calibrator`) can drive their own
+/// hand-rolled invoke paths through the same refusing driver.
 #[cfg(test)]
-mod excepinfo_recovery_tests {
+pub(super) mod excepinfo_recovery_tests {
     use super::*;
     use std::mem::ManuallyDrop;
     use std::sync::atomic::{AtomicU32, Ordering};
@@ -1336,7 +1350,7 @@ mod excepinfo_recovery_tests {
     const ASCOM_NOT_IMPLEMENTED: i32 = 0x8004_0400_u32 as i32;
 
     /// What the stand-in driver writes into `EXCEPINFO` when it refuses.
-    enum Excuse {
+    pub(in crate::windows) enum Excuse {
         /// A driver that explains itself, as ASCOM intends.
         Spoken {
             source: &'static str,
@@ -1435,7 +1449,7 @@ mod excepinfo_recovery_tests {
     ///
     /// `connected: false` keeps `Drop` quiet — it only warns about a
     /// still-connected handle and never calls into COM.
-    fn connection(
+    pub(in crate::windows) fn connection(
         excuse: Excuse,
         number_the_attempts: bool,
     ) -> (AscomDeviceConnection, Arc<AtomicU32>) {
@@ -1457,7 +1471,7 @@ mod excepinfo_recovery_tests {
         (device, attempts)
     }
 
-    fn parked_mount() -> Excuse {
+    pub(in crate::windows) fn parked_mount() -> Excuse {
         Excuse::Spoken {
             source: "ASCOM.PegasusAstroUnityServer",
             description: "Cannot set Tracking while the mount is parked",

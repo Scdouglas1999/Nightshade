@@ -2,7 +2,6 @@
 
 use std::ptr;
 use windows::{
-    core::GUID,
     Win32::System::Com::{DISPATCH_METHOD, DISPPARAMS},
     Win32::System::Variant::VARIANT,
 };
@@ -88,17 +87,7 @@ impl AscomSwitch {
 
             let mut result = VARIANT::default();
             self.device
-                .dispatch
-                .Invoke(
-                    dispid,
-                    &GUID::zeroed(),
-                    0,
-                    DISPATCH_METHOD,
-                    &params,
-                    Some(&mut result),
-                    None,
-                    None,
-                )
+                .invoke_with_retry(dispid, DISPATCH_METHOD, &params, Some(&mut result))
                 .map_err(|e| format!("Failed to call GetSwitch: {}", e))?;
 
             variant_to_bool(&result).ok_or_else(|| "GetSwitch did not return a bool".to_string())
@@ -121,17 +110,7 @@ impl AscomSwitch {
             };
 
             self.device
-                .dispatch
-                .Invoke(
-                    dispid,
-                    &GUID::zeroed(),
-                    0,
-                    DISPATCH_METHOD,
-                    &params,
-                    None,
-                    None,
-                    None,
-                )
+                .invoke_with_retry(dispid, DISPATCH_METHOD, &params, None)
                 .map_err(|e| format!("Failed to call SetSwitch: {}", e))?;
 
             Ok(())
@@ -155,17 +134,7 @@ impl AscomSwitch {
 
             let mut result = VARIANT::default();
             self.device
-                .dispatch
-                .Invoke(
-                    dispid,
-                    &GUID::zeroed(),
-                    0,
-                    DISPATCH_METHOD,
-                    &params,
-                    Some(&mut result),
-                    None,
-                    None,
-                )
+                .invoke_with_retry(dispid, DISPATCH_METHOD, &params, Some(&mut result))
                 .map_err(|e| format!("Failed to call GetSwitchName: {}", e))?;
 
             variant_to_string(&result)
@@ -190,17 +159,7 @@ impl AscomSwitch {
 
             let mut result = VARIANT::default();
             self.device
-                .dispatch
-                .Invoke(
-                    dispid,
-                    &GUID::zeroed(),
-                    0,
-                    DISPATCH_METHOD,
-                    &params,
-                    Some(&mut result),
-                    None,
-                    None,
-                )
+                .invoke_with_retry(dispid, DISPATCH_METHOD, &params, Some(&mut result))
                 .map_err(|e| format!("Failed to call GetSwitchDescription: {}", e))?;
 
             variant_to_string(&result)
@@ -225,17 +184,7 @@ impl AscomSwitch {
 
             let mut result = VARIANT::default();
             self.device
-                .dispatch
-                .Invoke(
-                    dispid,
-                    &GUID::zeroed(),
-                    0,
-                    DISPATCH_METHOD,
-                    &params,
-                    Some(&mut result),
-                    None,
-                    None,
-                )
+                .invoke_with_retry(dispid, DISPATCH_METHOD, &params, Some(&mut result))
                 .map_err(|e| format!("Failed to call GetSwitchValue: {}", e))?;
 
             variant_to_f64(&result)
@@ -259,17 +208,7 @@ impl AscomSwitch {
             };
 
             self.device
-                .dispatch
-                .Invoke(
-                    dispid,
-                    &GUID::zeroed(),
-                    0,
-                    DISPATCH_METHOD,
-                    &params,
-                    None,
-                    None,
-                    None,
-                )
+                .invoke_with_retry(dispid, DISPATCH_METHOD, &params, None)
                 .map_err(|e| format!("Failed to call SetSwitchValue: {}", e))?;
 
             Ok(())
@@ -291,17 +230,7 @@ impl AscomSwitch {
 
             let mut result = VARIANT::default();
             self.device
-                .dispatch
-                .Invoke(
-                    dispid,
-                    &GUID::zeroed(),
-                    0,
-                    DISPATCH_METHOD,
-                    &params,
-                    Some(&mut result),
-                    None,
-                    None,
-                )
+                .invoke_with_retry(dispid, DISPATCH_METHOD, &params, Some(&mut result))
                 .map_err(|e| format!("Failed to call MinSwitchValue: {}", e))?;
 
             variant_to_f64(&result)
@@ -324,17 +253,7 @@ impl AscomSwitch {
 
             let mut result = VARIANT::default();
             self.device
-                .dispatch
-                .Invoke(
-                    dispid,
-                    &GUID::zeroed(),
-                    0,
-                    DISPATCH_METHOD,
-                    &params,
-                    Some(&mut result),
-                    None,
-                    None,
-                )
+                .invoke_with_retry(dispid, DISPATCH_METHOD, &params, Some(&mut result))
                 .map_err(|e| format!("Failed to call MaxSwitchValue: {}", e))?;
 
             variant_to_f64(&result)
@@ -357,17 +276,7 @@ impl AscomSwitch {
 
             let mut result = VARIANT::default();
             self.device
-                .dispatch
-                .Invoke(
-                    dispid,
-                    &GUID::zeroed(),
-                    0,
-                    DISPATCH_METHOD,
-                    &params,
-                    Some(&mut result),
-                    None,
-                    None,
-                )
+                .invoke_with_retry(dispid, DISPATCH_METHOD, &params, Some(&mut result))
                 .map_err(|e| format!("Failed to call SwitchStep: {}", e))?;
 
             variant_to_f64(&result).ok_or_else(|| "SwitchStep did not return a number".to_string())
@@ -390,17 +299,7 @@ impl AscomSwitch {
 
             let mut result = VARIANT::default();
             self.device
-                .dispatch
-                .Invoke(
-                    dispid,
-                    &GUID::zeroed(),
-                    0,
-                    DISPATCH_METHOD,
-                    &params,
-                    Some(&mut result),
-                    None,
-                    None,
-                )
+                .invoke_with_retry(dispid, DISPATCH_METHOD, &params, Some(&mut result))
                 .map_err(|e| format!("Failed to call CanWrite: {}", e))?;
 
             variant_to_bool(&result).ok_or_else(|| "CanWrite did not return a bool".to_string())
