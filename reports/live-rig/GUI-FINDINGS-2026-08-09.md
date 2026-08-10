@@ -1222,3 +1222,35 @@ already verified (V12: `minutes_past=5.0`, `auto_center=true`, `max_retries=3`,
 `failure_action=PauseAndAlert`); firing one requires carrying a target across the meridian, i.e.
 simulating hours of sidereal motion, which is the same site-relocation technique used throughout
 this section applied to time rather than longitude.
+
+## Meridian-flip execution — not tested, but the method is worked out (correcting an earlier claim)
+
+I previously wrote that firing a meridian flip needs "hours of sidereal motion the harness cannot
+compress". **That is wrong**, and the correction is the useful part of this entry.
+
+The flip trigger is `MinutesPastMeridian = 5.0`. Nothing has to move through the meridian — the
+target only has to *already be* past it. So pick a target RA slightly west of the current local
+sidereal time and the trigger condition is satisfied on the next evaluation:
+
+```
+LST at the darkness site (lon -135)      = 21.9449 h
+target RA for 15 minutes past meridian   = LST - 0.25 h = 21.6949 h  (21h41m)
+Dec +40                                  (comfortably up at latitude 42)
+```
+
+The recipe, in full:
+
+1. Set `observer_longitude` so the site is in darkness (V12's daylight gate refuses on-sky frames
+   otherwise); recompute for the hour.
+2. Compute LST for that longitude, subtract ~15 minutes, use the result as the target RA.
+3. Build `[Target(RA, Dec +40), Take Exposures]` and run it.
+4. Watch for the flip in the log — the trigger config is pushed at run start and is already verified
+   (V12: `auto_center=true`, `pause_guiding=true`, `resume_guiding=true`, `max_retries=3`,
+   `failure_action=PauseAndAlert`).
+
+What to check when it fires: that guiding pauses before and resumes after, that the post-flip
+plate-solve recenter runs, that `meridianFlips` increments in the run stats, and — given G14 and
+G15 — that a *failed* flip does what `PauseAndAlert` claims rather than ending the run silently.
+
+This was set up and left unrun only because the session ran out of room; it is a handful of steps,
+not a blocked capability, and stating it as blocked earlier was a mistake.
