@@ -792,3 +792,44 @@ The History time filter also works end to end (All Time → This Month, label up
 sessions correctly retained since all are from this month). Its `[DISABLED]` marker in the
 accessibility tree was spurious — the **third** false disabled-state reading from that harness this
 session, after G11 and G12. Treat `[DISABLED]` from `drive_linux.py tree` as unreliable.
+
+## V6 — Settings sweep: 20 leaves opened, search deep-links, no defects found
+
+Walked every Settings leaf reachable from the sidebar. All navigate and render real content; nothing
+claimed a state it did not have.
+
+**GENERAL** — General (startup/behaviour), Appearance (theme), Location (verified in V1),
+Files & Storage (file paths, application data), Help & Tutorials (guided flows), About.
+About reports **"Version 6.1.0 (build 25)"**, which matches `version: 6.1.0+25` in the manifest.
+
+**EQUIPMENT** — Connection (server/connection status, discovery), Equipment Profiles, PHD2 Guiding,
+Plate Solving, Autofocus, Calibration, Dark Library.
+
+- *Plate Solving* does real work rather than asserting: "ASTAP detected" names the exact path it
+  found, and **Verify** executes the binary — its reported
+  `ASTAP astrometric solver version CLI-2026.07.16` matches the binary's own `--help` output
+  byte-for-byte. (`which astap` finds nothing because the install is not on PATH, which is why the
+  app naming the path matters.)
+- *Dark Library* reports 0 dark / 0 bias / 0 master / 0 total, agreeing with the Equipment screen's
+  readiness note "No matching dark frames for your current camera settings". Two surfaces, one
+  answer.
+- *Autofocus* is fully specified — method, curve fit, step size, backlash, per-filter offsets, an
+  R² floor of 0.7, and "Number of attempts: 1 (retry count on failure)". It has **no setting for
+  what to do once those attempts are exhausted**, which is the open product question; confirmed by
+  inspection rather than assumed.
+
+**IMAGING** — Imaging, Adaptive Exposure, Image Grading, Calibration Library, Annotations, Catalogs.
+
+**AUTOMATION & SAFETY** — Sequencer, Pre-flight Checks, Weather Safety (V4), Adaptive Conditions.
+The Sequencer leaf's *Meridian Flip* block is complete for unattended use: trigger method, 5 minutes
+past meridian, pause guiding → flip → **plate-solve recenter** → resume guiding, 10s settle, and
+**Max retries 3 "if flip fails"**. Worth contrasting with autofocus: the flip has a defined
+post-failure behaviour and autofocus does not.
+
+**Settings search works and deep-links.** Typing "meridian" returned results grouped by owning
+section — `Sequencer → Meridian Flip / Minutes past meridian`, `Notifications → Meridian flip /
+Push on meridian flip events` — and clicking a result navigated straight to that setting.
+
+Harness note: resizing the window beyond the Xvfb display (1920x1200) leaves a black window that does
+not recover on resizing back. That is misuse of the harness rather than an app finding — a restart
+clears it — but it is worth knowing before reading a blank screenshot as a rendering defect.
