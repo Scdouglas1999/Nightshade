@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_error;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_desktop/headless_api/handlers/sequencer_handlers.dart';
 import 'package:shelf/shelf.dart';
@@ -509,5 +510,135 @@ void main() {
         verify(() => sequencer.sequencerStart()).called(1);
       },
     );
+  });
+
+  /// Found by running the L29 fix on the live rig rather than by reading it.
+  /// After a `load` that failed on a missing field, the next `start` answered
+  /// `409 no_sequence_loaded` — and `GET /api/sessions` showed **session id 3,
+  /// named after a sequence from twenty minutes earlier, zero exposures,
+  /// status completed**: a night that never happened, labelled with the wrong
+  /// sequence.
+  group('a refused start leaves no session behind', () {
+    late _MockSequencerBackend sequencer;
+    late _MockDeviceBackend devices;
+    late ProviderContainer container;
+    late SequencerHandlers handlers;
+
+    setUp(() {
+      sequencer = _MockSequencerBackend();
+      devices = _MockDeviceBackend();
+      when(() => sequencer.sequencerLoadJson(any())).thenAnswer((_) async {});
+      when(
+        () => sequencer.sequencerSetSimulationMode(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => sequencer.sequencerSetSafetyFailMode(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => sequencer.sequencerSetDevices(
+          cameraId: any(named: 'cameraId'),
+          mountId: any(named: 'mountId'),
+          focuserId: any(named: 'focuserId'),
+          filterwheelId: any(named: 'filterwheelId'),
+          rotatorId: any(named: 'rotatorId'),
+          filterNames: any(named: 'filterNames'),
+          filterFocusOffsets: any(named: 'filterFocusOffsets'),
+        ),
+      ).thenAnswer((_) async {});
+      when(() => sequencer.sequencerStart()).thenAnswer((_) async {});
+      when(() => devices.getConnectedDevices()).thenAnswer((_) async => []);
+      when(
+        () => sequencer.sequencerGetStatus(),
+      ).thenAnswer((_) async => _status('idle'));
+
+      container = createHeadlessTestContainer(
+        overrides: [
+          sequencerBackendProvider.overrideWithValue(sequencer),
+          deviceBackendProvider.overrideWithValue(devices),
+        ],
+      );
+      addTearDown(container.dispose);
+      handlers = SequencerHandlers(container);
+    });
+
+    Future<Response> load(String json) => translateHandlerErrors(
+      handlers.handleSequencerLoad(
+        Request(
+          'POST',
+          Uri.parse('http://localhost/api/sequencer/load'),
+          body: jsonEncode({'json': json}),
+        ),
+      ),
+    );
+
+    Future<Response> start() => translateHandlerErrors(
+      handlers.handleSequencerStart(
+        Request(
+          'POST',
+          Uri.parse('http://localhost/api/sequencer/start'),
+          body: jsonEncode({}),
+        ),
+      ),
+    );
+
+    test('the native executor refusing the start closes the row', () async {
+      await load(_wireSequence());
+      when(() => sequencer.sequencerStart()).thenThrow(
+        const bridge_error.NightshadeError.operationFailed(
+          'Failed to start sequence: No sequence loaded',
+        ),
+      );
+
+      final response = await start();
+      expect(response.statusCode, 409);
+
+      final session = container.read(sessionStateProvider);
+      expect(
+        session.isActive,
+        isFalse,
+        reason:
+            'a run the executor refused must not appear in the session list '
+            'as a night that happened',
+      );
+    });
+
+    test('a failed load drops the previous sequence summary', () async {
+      // The other half of the rig case: the summary that labelled the phantom
+      // session came from a load twenty minutes earlier, because the FAILED
+      // load in between left it in place.
+      await load(_wireSequence(name: 'Twenty Minutes Ago'));
+      when(
+        () => sequencer.sequencerLoadJson(any()),
+      ).thenThrow(StateError('missing field `auto_select_star`'));
+
+      await expectLater(
+        load(_wireSequence(name: 'The One That Failed')),
+        completion(isA<Response>()),
+      );
+
+      // Whatever the next start does, it must not name itself after a
+      // sequence that is no longer loaded.
+      await start();
+      final session = container.read(sessionStateProvider);
+      expect(session.targetName, isNot('Twenty Minutes Ago'));
+      expect(session.dbSessionId, isNull);
+    });
+
+    test('a validator-rejected load drops it too', () async {
+      await load(_wireSequence(name: 'Still Loaded?'));
+
+      // RA 0h / Dec 0deg is the unset-target sentinel the wire validator
+      // blocks, so this load is rejected before it reaches the executor.
+      final rejected = await load(
+        _wireSequence(name: 'Unset', raHours: 0.0, decDegrees: 0.0),
+      );
+      expect(rejected.statusCode, 400);
+
+      await start();
+      expect(
+        container.read(sessionStateProvider).targetName,
+        isNot('Still Loaded?'),
+      );
+    });
   });
 }

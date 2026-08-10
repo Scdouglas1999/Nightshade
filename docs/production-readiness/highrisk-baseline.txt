@@ -2,6 +2,7 @@ apps/desktop/lib/headless_api/handlers/db_read_handlers.dart:153:  // that match
 apps/desktop/lib/headless_api/handlers/db_read_handlers.dart:575:  /// must surface as a Bad Request rather than a silent no-op.
 apps/desktop/lib/headless_api/handlers/device_discovery_handlers.dart:258:  /// it is a POST. Failures surface as 500 rather than a silent no-op.
 apps/desktop/lib/headless_api/handlers/push_handlers.dart:257:      // IDOR. Silent no-op (idempotent 200) when it isn't the caller's, so
+apps/desktop/lib/headless_api/handlers/sequencer_handlers.dart:875:  /// be driven), so a silent no-op there strands them with no path forward.
 apps/desktop/lib/headless_api_server.dart:454:  /// implementations throw [UnimplementedError] until an operator wires
 apps/desktop/lib/headless_api_server/event_forwarding.dart:300:    } on UnimplementedError catch (e) {
 apps/desktop/lib/headless_api_server/event_forwarding.dart:320:  /// scaffolds throw [UnimplementedError]; the headless server logs
@@ -11,12 +12,16 @@ native/nightshade_native/alpaca/src/guard.rs:192:/// mount.disconnect().await.ok
 native/nightshade_native/alpaca/src/safetymonitor.rs:286:            driver_info: driver_info.unwrap_or_default(),
 native/nightshade_native/alpaca/src/switch.rs:159:            let request_line = request.lines().next().unwrap_or_default().to_string();
 native/nightshade_native/alpaca/src/telescope.rs:1046:            let request_line = request.lines().next().unwrap_or_default().to_string();
+native/nightshade_native/ascom/src/windows/connection.rs:1547:                description: "Property Gain is not implemented by this camera",
+native/nightshade_native/ascom/src/windows/connection.rs:1556:            err.contains("Property Gain is not implemented by this camera"),
 native/nightshade_native/ascom/src/windows/connection.rs:178:            let registry_description = get_driver_description(&key, &prog_id).unwrap_or_default();
 native/nightshade_native/ascom/src/windows/switch.rs:418:        let max_switch = self.max_switch().ok();
 native/nightshade_native/bridge/src/api/finishing_analyze.rs:593:            .unwrap_or_default(),
 native/nightshade_native/bridge/src/api/finishing_analyze.rs:597:            .unwrap_or_default(),
 native/nightshade_native/bridge/src/api/imaging.rs:1753:        let mut ext = p.extension().map(|e| e.to_owned()).unwrap_or_default();
 native/nightshade_native/bridge/src/api/imaging.rs:2373:    let config = config.unwrap_or_default();
+native/nightshade_native/bridge/src/api/imaging.rs:7048:        let previous = crate::state::get_platesolver_preference().unwrap_or_default();
+native/nightshade_native/bridge/src/api/imaging.rs:7308:        let previous = crate::state::get_platesolver_preference().unwrap_or_default();
 native/nightshade_native/bridge/src/api/mod.rs:103:        .unwrap_or_default()
 native/nightshade_native/bridge/src/api/mod.rs:122:/// silent no-op — and silent no-ops mask real bugs. If a
 native/nightshade_native/bridge/src/api/post_session.rs:1657:            .unwrap_or_default(),
@@ -74,6 +79,8 @@ native/nightshade_native/bridge/src/device_manager/connection.rs:503:    /// `co
 native/nightshade_native/bridge/src/device_manager/ops/camera.rs:1257:                        let ascom_caps = camera_guard.get_capabilities().await.ok();
 native/nightshade_native/bridge/src/device_manager/ops/camera.rs:1372:                    let gain = camera.gain().await.ok();
 native/nightshade_native/bridge/src/device_manager/ops/camera.rs:1373:                    let offset = camera.offset().await.ok();
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:2818:        let previous = crate::state::get_platesolver_preference().unwrap_or_default();
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:2928:        let previous = crate::state::get_platesolver_preference().unwrap_or_default();
 native/nightshade_native/bridge/src/device_manager/ops/camera.rs:728:                    let temp = camera.ccd_temperature().await.ok();
 native/nightshade_native/bridge/src/device_manager/ops/camera.rs:878:                        let temp = camera.get_temperature().await.ok();
 native/nightshade_native/bridge/src/dispatch/device_common_metadata.rs:132:    let interface_version = device.interface_version().await.ok();
@@ -109,6 +116,7 @@ native/nightshade_native/bridge/src/real_device_ops.rs:2181:            fw.disco
 native/nightshade_native/bridge/src/real_device_ops.rs:2238:            fw.disconnect().await.ok();
 native/nightshade_native/bridge/src/real_device_ops.rs:2278:            fw.disconnect().await.ok();
 native/nightshade_native/bridge/src/real_device_ops.rs:2637:                .unwrap_or_default()
+native/nightshade_native/bridge/src/sim_sky.rs:644:                let home = std::env::var("HOME").unwrap_or_default();
 native/nightshade_native/bridge/src/util/supervisor.rs:269:            GLOBAL_WRITER.set(writer.clone()).ok();
 native/nightshade_native/imaging/src/background_extraction.rs:952:        image.as_u16().unwrap_or_default()
 native/nightshade_native/imaging/src/platesolve.rs:2105:        stdout: stdout_reader.join().unwrap_or_default(),
@@ -145,10 +153,12 @@ native/nightshade_native/sequencer/src/executor/mod.rs:7483:        executor.sto
 native/nightshade_native/sequencer/src/executor/mod.rs:7540:        executor.stop().await.ok();
 native/nightshade_native/sequencer/src/executor/mod.rs:7564:        executor.stop().await.ok();
 native/nightshade_native/sequencer/src/executor/mod.rs:7579:        executor.stop().await.ok();
+native/nightshade_native/sequencer/src/executor/mod.rs:8631:            executor.stop().await.ok();
 native/nightshade_native/sequencer/src/instructions.rs:2946:                            .unwrap_or_default(),
 native/nightshade_native/sequencer/src/instructions.rs:3494:                config.filter.as_deref().unwrap_or_default().trim()
 native/nightshade_native/sequencer/src/instructions.rs:8190:        let msg = result.message.unwrap_or_default();
 native/nightshade_native/sequencer/src/instructions.rs:8299:        let msg = result.message.unwrap_or_default();
+native/nightshade_native/sequencer/src/instructions.rs:9081:        let message = result.message.unwrap_or_default();
 native/nightshade_native/sequencer/src/meridian_flip_executor.rs:1033:        ctx.autofocus_config.clone().unwrap_or_default()
 native/nightshade_native/sequencer/src/node/instructions/expose.rs:1157:            .unwrap_or_default();
 native/nightshade_native/sequencer/src/node/instructions/expose.rs:365:                    .unwrap_or_default();
@@ -170,6 +180,7 @@ packages/nightshade_app/lib/screens/imaging/widgets/annotation_panel_parts/objec
 packages/nightshade_app/lib/screens/planetarium/planetarium_screen/actions.dart:134:      // UnimplementedError there — so the chart goes to a sandbox path and
 packages/nightshade_app/lib/screens/planetarium/widgets/view_controls.dart:348:      // UnimplementedError there — so the chart goes to a sandbox path and
 packages/nightshade_app/lib/screens/sequencer/tabs/sequence_library_tab/sequence_card.dart:819:        // UnimplementedError: getSavePath() has not been implemented."
+packages/nightshade_app/lib/screens/sequencer/widgets/node_summary_inline_editors.dart:201:    // '+' re-applies 4+1 and is a silent no-op, while the popup keeps
 packages/nightshade_app/lib/screens/settings/backup_screen.dart:44:/// iOS have no save dialog (`getSavePath` throws UnimplementedError), so
 packages/nightshade_app/lib/screens/settings/equipment_profiles_screen_parts/screen_shell.dart:40:/// save dialog (`getSavePath` throws UnimplementedError), so exporting a
 packages/nightshade_app/lib/screens/settings/widgets/notification_routing_settings/discord_transport_section.dart:60:          return const _PrepResult.ok();

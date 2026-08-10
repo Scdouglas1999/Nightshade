@@ -148,6 +148,15 @@ class SequencerHandlers {
     // pre-flight from a failure in the setup calls that precede it. Only the
     // former is an operator-fixable rejection.
     var nativeStartAttempted = false;
+    // True between opening this start's `imaging_sessions` row and the native
+    // executor accepting the run. A start the executor then REFUSES must not
+    // leave the row behind: measured on the live rig 2026-08-09, a start whose
+    // sequence had failed to load answered `409 no_sequence_loaded` and still
+    // left session id 3 — name copied from an earlier run, zero exposures,
+    // status completed — sitting in `GET /api/sessions` as a night that never
+    // happened. Cleared once `sequencerStart()` returns, because from then on
+    // the run owns the row and finalization closes it.
+    var openedSessionForThisStart = false;
     try {
       if (hasInEditorSequence) {
         final executor = container.read(sequenceExecutorProvider);
@@ -197,18 +206,22 @@ class SequencerHandlers {
         // set up. Order matters: the session row must exist before the first
         // frame event arrives, or that frame is stamped with a null
         // `session_id`. See [_openSessionRowForNativeRun].
-        await _openSessionRowForNativeRun(backend);
+        openedSessionForThisStart = await _openSessionRowForNativeRun(backend);
         await _attachHostListenersForNativeRun();
         nativeStartAttempted = true;
         await backend.sequencerStart();
+        // The run owns the row from here; nothing below may close it.
+        openedSessionForThisStart = false;
       }
     } on SequenceValidationException catch (e) {
+      await _closeSessionOpenedForRefusedStart(openedSessionForThisStart);
       _logInfo(
         '[API] POST /api/sequencer/start rejected: '
         '${e.result.errorCount} validation errors',
       );
       return jsonBadRequest(e.toJsonBody());
     } catch (error) {
+      await _closeSessionOpenedForRefusedStart(openedSessionForThisStart);
       // Pressing Start with nothing loaded is an ordinary operator mistake, not
       // a server fault. Every other sequencer verb (pause/resume/stop/skip)
       // already answers cleanly when idle; this one surfaced a 500.
@@ -494,6 +507,14 @@ class SequencerHandlers {
     final payload = await readJsonObject(request);
     final json = requireString(payload, 'json');
 
+    // Drop the previous load's summary FIRST. A load that is then rejected —
+    // by the wire validator or by the native deserializer — must not leave the
+    // last successful sequence's name and targets behind for the next start to
+    // label a run with. Live rig 2026-08-09: a `load` that failed on a missing
+    // field was followed by a `start`, and the start opened a session named
+    // after a sequence from twenty minutes earlier.
+    _lastLoadedWire = null;
+
     final rejection = _rejectInvalidWireSequence(json);
     if (rejection != null) return rejection;
 
@@ -545,14 +566,16 @@ class SequencerHandlers {
   /// Failure here is deliberately non-fatal. A run that captures frames is
   /// worth more than a run that refuses to start because its bookkeeping row
   /// could not be written, and the frames still reach disk either way.
-  Future<void> _openSessionRowForNativeRun(SequencerBackend backend) async {
+  /// Returns true when a row was opened, so the caller can close it again if
+  /// the native executor then refuses the start.
+  Future<bool> _openSessionRowForNativeRun(SequencerBackend backend) async {
     final summary = _lastLoadedWire;
     if (summary == null) {
       _logInfo(
         '[API] POST /api/sequencer/start: no loaded-wire summary; skipping the '
         'session row (frames will be attributed to no session)',
       );
-      return;
+      return false;
     }
     try {
       final sessions = container.read(sessionStateProvider.notifier);
@@ -573,7 +596,8 @@ class SequencerHandlers {
             'executor reports "$state"; leaving the session alone and letting '
             'the start be refused',
           );
-          return;
+          // Not ours to close: the live run owns it.
+          return false;
         }
         _logInfo(
           '[API] POST /api/sequencer/start: closing the session left open by '
@@ -591,10 +615,38 @@ class SequencerHandlers {
         profileId: container.read(activeEquipmentProfileProvider)?.id,
       );
       sessions.setTotalExposures(summary.totalExposures);
+      return true;
     } catch (error) {
       _logWarning(
         '[API] POST /api/sequencer/start: could not open the session row '
         '($error); frames will be captured but not registered',
+      );
+      return false;
+    }
+  }
+
+  /// Close the row [_openSessionRowForNativeRun] opened for a start the native
+  /// executor then refused, so a run that never began does not appear in
+  /// `GET /api/sessions` as a night that happened.
+  ///
+  /// Live rig 2026-08-09, found by running the fix rather than reading it: a
+  /// start whose sequence had failed to load answered `409 no_sequence_loaded`
+  /// and still left session id 3 behind — name copied from the previous run,
+  /// zero exposures, status `completed`.
+  ///
+  /// Failure here is logged, not raised: the caller is already returning a
+  /// refusal, and replacing an accurate refusal with a bookkeeping error would
+  /// tell the operator the wrong thing about why their run did not start.
+  Future<void> _closeSessionOpenedForRefusedStart(bool opened) async {
+    if (!opened) return;
+    try {
+      await container
+          .read(sessionStateProvider.notifier)
+          .endSession(status: 'failed');
+    } catch (error) {
+      _logWarning(
+        '[API] POST /api/sequencer/start: the start was refused and the '
+        'session row opened for it could not be closed ($error)',
       );
     }
   }
