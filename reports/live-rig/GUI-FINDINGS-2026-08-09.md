@@ -459,3 +459,21 @@ budget before I could get one.
 
 Left as the first thing to settle on the next drive, with the method: click, then prove the click
 landed before interpreting the absence of a reaction.
+### RESOLVED — the Guiding Connect question was my observation window, not the app
+
+Settled by proving the click landed (the Brain Settings toggle responds to the same technique and the
+button is exactly at the coordinate I used) and then reading the tree **immediately** instead of ten
+seconds later:
+
+> PHD2 connection failed: PHD2 is not running and could not be launched automatically. Install PHD2
+> or set Settings → PHD2 Guiding → PHD2 executable path.
+
+Specific, actionable, and it names the exact setting to change. My earlier "no visible change" was a
+snackbar that had auto-dismissed before I looked. **Fifth** time on this drive that a suspected
+defect was my measurement.
+
+One genuine residual, much smaller than the thing I suspected: the failure leaves **no log line**.
+The snackbar is the only trace, so on an unattended rig — or for anyone who looks away for four
+seconds — a failed guider connect is forensically invisible afterwards. Worth a `logger.warning` in
+`connectPhd2`'s catch; recorded rather than changed, because I cannot rebuild and re-verify within
+budget and a one-line unverified change is how the last three regressions started.
