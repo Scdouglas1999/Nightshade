@@ -501,3 +501,14 @@ being lost between the switch and the tree on this surface only, and the setting
 Not fixed. Every semantics change today needed a rebuild and a same-screen re-measure to tell a fix
 from a no-op, twice I got that wrong, and I do not have the budget left to do it properly. A narrowed
 cause someone can act on beats a fourth unverified attempt.
+## Imaging sub-tabs — all seven opened, clean
+
+Capture, Camera, Focus, Guiding, Mount, Rotator, Stack and Annotations each render their own panel
+with no blank states and no crashes: "Snapshot / Loop" controls, "Session / Captured", "Correction
+settings / Auto-apply when map exists", and the honest "Connect a mount to send guide corrections."
+where hardware is absent. The only `DISABLED` nodes on any of them are the four framework dropdowns
+already tabled above (two on the tabs that carry no frame-type/binning control).
+
+Recorded without naming which tab showed what: my `click-xy` label mapping was off again — sixth time
+this drive — and the tabs' content clearly rotated relative to the names I assigned. What is
+established is that all seven switch, all seven render distinct content, and none is empty or broken.
