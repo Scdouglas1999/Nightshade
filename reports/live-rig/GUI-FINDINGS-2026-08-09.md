@@ -1170,3 +1170,32 @@ no guider connected and check whether the second exposure block produces frames.
 Losing the rest of a night because it could not run inverts the priority — the sensible behaviour is
 to warn, skip dithering, and keep imaging. That is a policy decision of the same shape as the
 autofocus one already on the owner's list, and the two should probably be answered together.
+
+### G15 CONFIRMED — the mid-sequence case, reproduced end to end
+
+The remaining step is done. Built `[Take Exposures ×10, Dither, Take Exposures ×10]` — 3 nodes,
+20 frames planned — with no guider connected, at a site relocated into darkness, and ran it:
+
+```
+Executing child 1/3: 'Take Exposures'    → 10 frames captured
+Executing child 2/3: 'Dither'            → ERROR Dither failed: No active guider configured
+Executing child 3/3                      → NEVER APPEARS  (grep count: 0)
+```
+
+| | expected if it continued | actual |
+|---|---|---|
+| frames on disk | 48 → 68 | 48 → **58** |
+| run record | — | `status=failed, framesCaptured=10, ditherCount=0` |
+
+**Exactly half the planned night, and the second exposure block never started.** This is no longer
+inferred from `execute_children_sequential`'s short-circuit contract — it is the observed behaviour
+of the running app.
+
+So on a normal dithered sequence, a guider that drops at any point ends the night there. The frames
+already taken are safe on disk and correctly registered, but every remaining block is abandoned, and
+the only account of why is one line in `errorMessages`.
+
+Severity is now clear: this costs a night, it does not merely mislabel one. Dithering is a
+noise-reduction convenience; the correct response to a dither that cannot run is to warn, skip it,
+and keep imaging. That is the same policy question as the failed-autofocus one, and the two want a
+single answer — an unattended run should not be ended by an ancillary step failing.
