@@ -1563,22 +1563,35 @@ successful dither resets the streak, so "3 in a row" means three in a row and no
 
 ---
 
-## G20 — the GPU star-detection path can hang, and a hang is not an error *(P2, recorded)*
+## G20 — a test hung the whole suite in the NVIDIA driver *(fixed; my first write-up of this was wrong)*
 
-`extract_plate_stars` calls `gpu_downsample_max_u16` and falls back to `cpu_downsample_max_u16`
-when it returns `Err`. On this machine it does not return at all: the process sits in
-`futex_wait` with `/dev/nvidiactl` open, indefinitely — observed at 21 minutes before being
-killed. A hang is not an `Err`, so the fallback the code was written around never runs.
+`cargo test -p nightshade_imaging` never finished: the process sat in `futex_wait` with
+`/dev/nvidiactl` open, observed at 21 minutes before it was killed, inside
+`platesolve::tests::internal_solver_test_helper_estimates_with_hint_and_blind_metadata`. The cause
+is `gpu_downsample_max_u16`, which `extract_plate_stars` calls with a CPU fallback on `Err` — and a
+hang is not an `Err`, so the fallback never ran.
 
-Found because it stalls `cargo test -p nightshade_imaging` forever
-(`platesolve::tests::internal_solver_test_helper_estimates_with_hint_and_blind_metadata`), which
-is how it would have kept blocking a full gate run. The test is now `#[ignore]`d with that
-reason so the suite completes.
+**Correction to what I first wrote here.** I claimed "the same call sits on the internal-solver
+path in shipped code" and that only `CenterTarget`'s 180 s timeout protected it. That is false.
+`gpu_downsample_max_u16`, `extract_plate_stars` and `solve_internal` are all `#[cfg(test)]` — a
+test-only helper chain that does not ship. I had read the call graph and not the attributes. The
+defect is real test debt that blocked the launch gates; it is **not** a product hang, and I should
+not have said it was.
 
-Why it is not merely test debt: the same call sits on the internal-solver path in shipped code.
-The sequencer's `CenterTarget` wraps its solver call in a 180 s `PLATE_SOLVE_TIMEOUT`, so that
-one caller is protected, but any caller without such a bound would hang exactly as the test does.
+**Why a timeout alone did not fix it.** The first attempt ran the GPU call on its own thread with
+a 10-second deadline and abandoned it on timeout. The test then passed and the binary *still* hung:
+the stranded thread was blocked in `nvkms_open_common` inside the kernel driver, holding the device
+open, and the process could not exit. Thread state at that point, which is what settled it:
 
-The fix is to bound the GPU attempt rather than trusting it to fail — attempt it with a deadline
-and take the CPU path when the deadline passes — which needs care about what happens to the
-thread still holding the GPU, and is why it is recorded rather than patched here.
+```
+tid 1084605 (main):   futex_wait
+tid 1084607 (worker): nvkms_open_common      <- 2 open fds on /dev/nvidia*
+```
+
+There is no interruption point that fixes that from the outside. So the escape is to not make the
+call: `NIGHTSHADE_PLATESOLVE_FORCE_CPU` skips the GPU path entirely, and the test sets it, because
+the test is about the solver's metadata estimation and never cared about the GPU. The deadline and
+the once-per-process latch are kept as a second line of defence for anyone who does exercise that
+path.
+
+Result: the test runs to completion in 0.00 s and is no longer `#[ignore]`d.

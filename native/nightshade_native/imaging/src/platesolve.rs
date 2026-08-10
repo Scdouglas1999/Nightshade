@@ -1449,6 +1449,87 @@ fn cpu_downsample_max_u16(image: &ImageData, factor: u32) -> Result<ImageData, S
     Ok(ImageData::from_u16(out_width, out_height, 1, &output))
 }
 
+/// How long the GPU preprocessing path gets before the CPU path takes over.
+///
+/// Adapter acquisition normally takes milliseconds. Ten seconds is not a
+/// performance budget, it is a liveness one: past this point the GPU is not
+/// slow, it is not answering.
+#[cfg(test)]
+const GPU_ATTEMPT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// Set once a GPU attempt has timed out, and never cleared.
+///
+/// The thread blocked inside the driver cannot be cancelled — `pollster`
+/// parks it and there is no interruption point — so it is abandoned. This
+/// latch is what stops that from being a leak worth caring about: after the
+/// first timeout every later solve takes the CPU path directly, so at most one
+/// thread is ever stranded per process.
+#[cfg(test)]
+static GPU_PLATE_SOLVE_UNRESPONSIVE: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+/// [`gpu_downsample_max_u16`] with a deadline.
+///
+/// The caller falls back to the CPU path when this returns `Err`, which was
+/// always the intent — but a hang is not an `Err`. On this machine
+/// `wgpu::Instance::request_adapter` never returned: the process sat in
+/// `futex_wait` with `/dev/nvidiactl` open, observed at 21 minutes before it
+/// was killed, taking the whole plate solve with it. A solve that hangs on an
+/// operator's machine mid-night hangs exactly the same way.
+///
+/// So the GPU attempt now runs on its own thread against a deadline and a
+/// timeout is converted into the `Err` the fallback was written for.
+#[cfg(test)]
+fn gpu_downsample_max_u16_bounded(image: &ImageData, factor: u32) -> Result<ImageData, String> {
+    use std::sync::atomic::Ordering;
+
+    // Opt out of touching the GPU at all.
+    //
+    // A timeout is not enough on its own: the abandoned thread blocks inside
+    // the driver (`nvkms_open_common`) holding the device open, and the
+    // process then cannot exit — the test passes and the binary hangs at
+    // teardown anyway. There is no interruption point to fix that from the
+    // outside, so the only reliable escape is not to make the call.
+    if std::env::var_os("NIGHTSHADE_PLATESOLVE_FORCE_CPU").is_some() {
+        return Err("GPU preprocessing disabled by NIGHTSHADE_PLATESOLVE_FORCE_CPU".to_string());
+    }
+
+    if GPU_PLATE_SOLVE_UNRESPONSIVE.load(Ordering::Relaxed) {
+        return Err(
+            "GPU preprocessing previously stopped responding; using the CPU path".to_string(),
+        );
+    }
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    let owned = image.clone();
+    std::thread::Builder::new()
+        .name("plate-solve-gpu".into())
+        .spawn(move || {
+            // A send failure means the receiver already gave up on us, which
+            // is the timeout path below; nothing to do but drop the result.
+            let _ = tx.send(gpu_downsample_max_u16(&owned, factor));
+        })
+        .map_err(|e| format!("Could not start the GPU preprocessing thread: {e}"))?;
+
+    match rx.recv_timeout(GPU_ATTEMPT_TIMEOUT) {
+        Ok(result) => result,
+        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+            GPU_PLATE_SOLVE_UNRESPONSIVE.store(true, Ordering::Relaxed);
+            let message = format!(
+                "GPU preprocessing did not respond within {}s and has been abandoned for the \
+                 rest of this session; plate solving continues on the CPU. Star detection is \
+                 slower but unaffected in accuracy.",
+                GPU_ATTEMPT_TIMEOUT.as_secs()
+            );
+            tracing::warn!("{}", message);
+            Err(message)
+        }
+        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+            Err("GPU preprocessing thread ended without a result".to_string())
+        }
+    }
+}
+
 #[cfg(test)]
 fn gpu_downsample_max_u16(image: &ImageData, factor: u32) -> Result<ImageData, String> {
     let mono = to_monochrome_u16(image)?;
@@ -1770,7 +1851,7 @@ fn detect_local_maxima(
 #[cfg(test)]
 fn extract_plate_stars(image: &ImageData) -> Result<Vec<crate::DetectedStar>, String> {
     let factor = 4;
-    let downsampled = match gpu_downsample_max_u16(image, factor) {
+    let downsampled = match gpu_downsample_max_u16_bounded(image, factor) {
         Ok(image) => image,
         Err(error) => {
             tracing::warn!("GPU plate-solve preprocessing unavailable: {}", error);
@@ -2403,16 +2484,18 @@ mod tests {
     }
 
     #[test]
-    // Hangs on this machine and will stall a full `cargo test`: the process
-    // sits in `futex_wait` with `/dev/nvidiactl` open, inside
-    // `extract_plate_stars` -> `gpu_downsample_max_u16`. That call is written
-    // to fall back to the CPU path on `Err`, but a hang is not an `Err`, so
-    // the fallback never runs. Ignored so the suite can complete; the
-    // underlying risk is NOT a test-only problem and is recorded as G20 in
-    // reports/live-rig/GUI-FINDINGS-2026-08-09.md — a solve that hangs on a
-    // user's machine would hang the same way.
-    #[ignore = "hangs in gpu_downsample_max_u16; see G20"]
+    // Used to hang the whole suite: the process sat in `futex_wait` with
+    // `/dev/nvidiactl` open inside `gpu_downsample_max_u16`, which is written
+    // to fall back to the CPU path on `Err` — but a hang is not an `Err`.
+    // `gpu_downsample_max_u16_bounded` now converts a stalled GPU into the
+    // `Err` the fallback was written for, so this runs to completion instead
+    // of needing to be ignored.
     fn internal_solver_test_helper_estimates_with_hint_and_blind_metadata() {
+        // This test is about the solver's metadata estimation, not about the
+        // GPU. Left to its own devices it opens the NVIDIA driver, blocks in
+        // `nvkms_open_common`, and hangs the whole binary at teardown even
+        // once the test itself has passed.
+        std::env::set_var("NIGHTSHADE_PLATESOLVE_FORCE_CPU", "1");
         let path =
             std::env::temp_dir().join(format!("nightshade-platesolve-{}.fits", std::process::id()));
         write_test_fits(&path, 24.0);
