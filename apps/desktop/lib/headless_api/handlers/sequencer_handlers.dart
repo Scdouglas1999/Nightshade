@@ -187,6 +187,12 @@ class SequencerHandlers {
         // `recovering / Device disconnected, progress 0.0` with no frames, and
         // `GET /api/devices/connected` listed the camera the whole time.
         await _wireConnectedDevicesIntoNativeExecutor(backend);
+        // Refuse, before anything is opened, a run that needs a guider, dome
+        // or cover calibrator this rig does not have. See
+        // [_refuseUnassignableRoles] — the native pre-flight cannot see these
+        // three, so this is the only gate they have.
+        final roleRefusal = await _refuseUnassignableRoles();
+        if (roleRefusal != null) return roleRefusal;
         // Give the run the two host-side pieces `executor.start()` would have
         // set up. Order matters: the session row must exist before the first
         // frame event arrives, or that frame is stamped with a null
@@ -592,6 +598,85 @@ class SequencerHandlers {
       );
     }
   }
+
+  /// Refuse a start whose sequence needs a guider, dome or cover calibrator
+  /// that is not connected, returning the same `preflight_rejected` 400 the
+  /// native refusals use.
+  ///
+  /// The Rust `collect_required_devices` walk gates the five roles
+  /// `sequencerSetDevices` carries. These three are reached through
+  /// `device_ops` with no id, so that walk structurally cannot see them — and
+  /// confirmed on the live rig 2026-08-09, `Dither`, `StartGuiding` and
+  /// `CalibratorOn` each answered `{"status":"started"}` and then failed
+  /// mid-run. Waiting cannot conjure a device nobody connected, so the
+  /// recovery retries are futile by construction: refuse at Start, in the
+  /// operator's terms, while there is still a night to save.
+  ///
+  /// The host is the only place with the answer, because it is the only place
+  /// that knows what is connected.
+  ///
+  /// Returns null when the run may proceed. A device-listing failure also
+  /// returns null: this gate exists to convert a mid-run death into an
+  /// up-front refusal, and it must never become a new way to lose a night.
+  Future<Response?> _refuseUnassignableRoles() async {
+    final required = _lastLoadedWire?.unassignableRoleRequirements;
+    if (required == null || required.isEmpty) return null;
+
+    final Set<DeviceType> connected;
+    try {
+      final devices = await container
+          .read(deviceBackendProvider)
+          .getConnectedDevices();
+      connected = devices.map((d) => d.deviceType).toSet();
+    } catch (error) {
+      _logWarning(
+        '[API] POST /api/sequencer/start: could not list connected devices to '
+        'pre-flight the guider/dome/cover roles ($error); letting the run '
+        'proceed',
+      );
+      return null;
+    }
+
+    final missing = <DeviceType, String>{
+      for (final entry in required.entries)
+        if (!connected.contains(entry.key)) entry.key: entry.value,
+    };
+    if (missing.isEmpty) return null;
+
+    final refusals = missing.entries
+        .map((e) => _unassignableRoleRefusal(e.key, e.value))
+        .join(' ');
+    _logWarning('[API] POST /api/sequencer/start refused: $refusals');
+    return jsonBadRequest({
+      'error': 'preflight_rejected',
+      'code': 'preflight_rejected',
+      'message': refusals,
+      'missingDevices': missing.keys.map((t) => t.name).toList(growable: false),
+    });
+  }
+
+  /// Name the missing thing, then the consequence in the operator's terms —
+  /// the same shape as the native `device_refusal` messages this joins.
+  String _unassignableRoleRefusal(DeviceType role, String nodeName) =>
+      switch (role) {
+        DeviceType.guider =>
+          'This sequence guides or dithers at "$nodeName", but no guider is '
+              'connected. Connect the guider before starting — the step would '
+              'otherwise fail mid-run and the recovery loop would wait for a '
+              'guider that was never configured.',
+        DeviceType.dome =>
+          'This sequence moves the dome at "$nodeName", but no dome is '
+              'connected. Connect it before starting — an unattended run would '
+              'otherwise image into a closed dome or stall waiting for one.',
+        DeviceType.coverCalibrator =>
+          'This sequence drives the cover or flat panel at "$nodeName", but no '
+              'cover calibrator is connected. Connect it before starting — the '
+              'step would otherwise fail and any flats it was taking would be '
+              'unusable.',
+        _ =>
+          'This sequence needs a ${role.name} at "$nodeName", but none is '
+              'connected.',
+      };
 
   /// Subscribe the host to the native run's events — the half of the same
   /// omission that actually writes the `captured_images` rows. See
@@ -1880,11 +1965,28 @@ class _WireSequenceSummary {
   /// session progress bar divides by.
   final int totalExposures;
 
+  /// Hardware roles this sequence needs that the NATIVE pre-flight cannot
+  /// check, keyed by role, valued by the node that asks for it.
+  ///
+  /// `sequencerSetDevices` carries five ids — camera, mount, focuser, filter
+  /// wheel, rotator — so `collect_required_devices` in the Rust executor can
+  /// refuse a run that needs one of those and was never given it. The guider,
+  /// dome and cover calibrator are reached through `device_ops` with no id at
+  /// all, so that walk structurally cannot see them, and its own doc comment
+  /// says so about `Dither`.
+  ///
+  /// Confirmed still open on the live rig 2026-08-09: `Dither`, `StartGuiding`
+  /// and `CalibratorOn` each answered `POST /api/sequencer/start -> 200
+  /// {"status":"started"}` and then failed mid-run. The host is the one place
+  /// that can close this — it knows which devices are actually connected.
+  final Map<DeviceType, String> unassignableRoleRequirements;
+
   const _WireSequenceSummary({
     required this.name,
     required this.singleTargetRaHours,
     required this.singleTargetDecDegrees,
     required this.totalExposures,
+    this.unassignableRoleRequirements = const {},
   });
 
   /// Read [json] as a serialized `SequenceDefinition`. Never throws: this runs
@@ -1929,10 +2031,73 @@ class _WireSequenceSummary {
         singleTargetRaHours: _asDouble(single?['ra_hours']),
         singleTargetDecDegrees: _asDouble(single?['dec_degrees']),
         totalExposures: total,
+        unassignableRoleRequirements: _collectUnassignableRoles(nodes, rootId),
       );
     } catch (_) {
       return null;
     }
+  }
+
+  /// Wire node types that need a device `sequencerSetDevices` cannot carry.
+  ///
+  /// `StopGuiding` is deliberately absent: stopping a guider that was never
+  /// started is a no-op, and refusing a run over a cleanup step would be the
+  /// same over-blocking the `FlatWizard` filter-change exemption avoids.
+  static const _rolesByWireType = <String, DeviceType>{
+    'Dither': DeviceType.guider,
+    'StartGuiding': DeviceType.guider,
+    'OpenDome': DeviceType.dome,
+    'CloseDome': DeviceType.dome,
+    'ParkDome': DeviceType.dome,
+    'OpenCover': DeviceType.coverCalibrator,
+    'CloseCover': DeviceType.coverCalibrator,
+    'CalibratorOn': DeviceType.coverCalibrator,
+    'CalibratorOff': DeviceType.coverCalibrator,
+  };
+
+  /// Walk the enabled tree collecting the roles above. Disabled nodes and
+  /// their subtrees contribute nothing — the executor returns `Skipped` before
+  /// it descends, so a disabled branch never reaches hardware and must never
+  /// block a start. Same rule the native walk follows.
+  static Map<DeviceType, String> _collectUnassignableRoles(
+    Map<String, Map<String, Object?>> nodes,
+    Object? rootId,
+  ) {
+    final found = <DeviceType, String>{};
+
+    void visit(String nodeId, Set<String> seen) {
+      if (!seen.add(nodeId)) return;
+      final node = nodes[nodeId];
+      if (node == null || !_isEnabled(node)) return;
+
+      final role = _rolesByWireType[_typeOf(node)];
+      if (role != null) {
+        found.putIfAbsent(
+          role,
+          () => node['name'] is String && (node['name'] as String).isNotEmpty
+              ? node['name'] as String
+              : _typeOf(node),
+        );
+      }
+
+      final children = node['children'];
+      if (children is List) {
+        for (final child in children.whereType<String>()) {
+          visit(child, seen);
+        }
+      }
+    }
+
+    if (rootId is String && nodes.containsKey(rootId)) {
+      visit(rootId, <String>{});
+    } else {
+      // No root: every node is reachable in principle, so treat them all as
+      // enabled leaves rather than reporting no requirements at all.
+      for (final entry in nodes.entries) {
+        visit(entry.key, <String>{});
+      }
+    }
+    return found;
   }
 
   static String _typeOf(Map<String, Object?> node) {

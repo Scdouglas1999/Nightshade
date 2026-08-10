@@ -84,6 +84,45 @@ String _wireSequence({
   ],
 });
 
+/// Live-rig L16 residual (2026-08-09). The Rust `collect_required_devices`
+/// walk gates the five roles `sequencerSetDevices` carries; the guider, dome
+/// and cover calibrator are reached through `device_ops` with no id, so that
+/// walk structurally cannot see them. Confirmed on the rig: `Dither`,
+/// `StartGuiding` and `CalibratorOn` each answered
+/// `POST /api/sequencer/start -> 200 {"status":"started"}` and then failed
+/// mid-run. The host is the only place that knows what is connected.
+String _wireWith(
+  String nodeType, {
+  String name = 'The Step',
+  bool enabled = true,
+}) => jsonEncode({
+  'id': 'seq-role',
+  'name': 'Role Preflight',
+  'root_node_id': 'target-1',
+  'nodes': [
+    {
+      'id': 'target-1',
+      'name': 'M42',
+      'enabled': true,
+      'children': ['step-1'],
+      'node_type': {
+        'type': 'TargetHeader',
+        'target_name': 'M42',
+        'ra_hours': 5.588,
+        'dec_degrees': -5.391,
+        'priority': 0,
+      },
+    },
+    {
+      'id': 'step-1',
+      'name': name,
+      'enabled': enabled,
+      'children': <String>[],
+      'node_type': {'type': nodeType},
+    },
+  ],
+});
+
 void main() {
   group('headless load->start opens the run\'s session row', () {
     late _MockSequencerBackend sequencer;
@@ -330,5 +369,145 @@ void main() {
       expect(after.isActive, isTrue);
       expect(after.targetName, 'The Run In Progress');
     });
+  });
+
+  group('the guider, dome and cover calibrator get the pre-flight the native '
+      'walk cannot give them', () {
+    late _MockSequencerBackend sequencer;
+    late _MockDeviceBackend devices;
+    late ProviderContainer container;
+    late SequencerHandlers handlers;
+
+    setUp(() {
+      sequencer = _MockSequencerBackend();
+      devices = _MockDeviceBackend();
+      when(() => sequencer.sequencerLoadJson(any())).thenAnswer((_) async {});
+      when(
+        () => sequencer.sequencerSetSimulationMode(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => sequencer.sequencerSetSafetyFailMode(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => sequencer.sequencerSetDevices(
+          cameraId: any(named: 'cameraId'),
+          mountId: any(named: 'mountId'),
+          focuserId: any(named: 'focuserId'),
+          filterwheelId: any(named: 'filterwheelId'),
+          rotatorId: any(named: 'rotatorId'),
+          filterNames: any(named: 'filterNames'),
+          filterFocusOffsets: any(named: 'filterFocusOffsets'),
+        ),
+      ).thenAnswer((_) async {});
+      when(() => sequencer.sequencerStart()).thenAnswer((_) async {});
+      when(() => devices.getConnectedDevices()).thenAnswer((_) async => []);
+
+      container = createHeadlessTestContainer(
+        overrides: [
+          sequencerBackendProvider.overrideWithValue(sequencer),
+          deviceBackendProvider.overrideWithValue(devices),
+        ],
+      );
+      addTearDown(container.dispose);
+      handlers = SequencerHandlers(container);
+    });
+
+    Future<Response> loadAndStart(String json) async {
+      await translateHandlerErrors(
+        handlers.handleSequencerLoad(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/sequencer/load'),
+            body: jsonEncode({'json': json}),
+          ),
+        ),
+      );
+      return translateHandlerErrors(
+        handlers.handleSequencerStart(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/sequencer/start'),
+            body: jsonEncode({}),
+          ),
+        ),
+      );
+    }
+
+    void connect(List<DeviceType> types) {
+      when(() => devices.getConnectedDevices()).thenAnswer(
+        (_) async => [
+          for (final t in types)
+            DeviceInfo(
+              id: 'sim_${t.name}',
+              name: t.name,
+              deviceType: t,
+              driverType: DriverType.simulator,
+              description: t.name,
+              driverVersion: '1.0',
+            ),
+        ],
+      );
+    }
+
+    for (final (nodeType, role, phrase) in const [
+      ('Dither', DeviceType.guider, 'guides or dithers'),
+      ('StartGuiding', DeviceType.guider, 'guides or dithers'),
+      ('OpenDome', DeviceType.dome, 'moves the dome'),
+      ('CalibratorOn', DeviceType.coverCalibrator, 'cover or flat panel'),
+    ]) {
+      test(
+        '$nodeType is refused at Start when no ${role.name} is connected',
+        () async {
+          final response = await loadAndStart(_wireWith(nodeType));
+
+          expect(
+            response.statusCode,
+            400,
+            reason:
+                'the rig answered 200 {"status":"started"} and then died mid-run',
+          );
+          final body =
+              jsonDecode(await response.readAsString()) as Map<String, dynamic>;
+          expect(body['error'], 'preflight_rejected');
+          expect(body['message'], contains(phrase));
+          expect(body['missingDevices'], contains(role.name));
+          verifyNever(() => sequencer.sequencerStart());
+        },
+      );
+    }
+
+    test('the same sequence starts once the device is connected', () async {
+      connect([DeviceType.guider]);
+
+      expect((await loadAndStart(_wireWith('Dither'))).statusCode, 200);
+      verify(() => sequencer.sequencerStart()).called(1);
+    });
+
+    test('a disabled node does not block the run', () async {
+      // The executor returns Skipped before it descends, so a disabled branch
+      // never reaches hardware and must never cost the operator a night.
+      expect(
+        (await loadAndStart(_wireWith('Dither', enabled: false))).statusCode,
+        200,
+      );
+      verify(() => sequencer.sequencerStart()).called(1);
+    });
+
+    test('StopGuiding alone is not a reason to refuse', () async {
+      // Stopping a guider that was never started is a no-op.
+      expect((await loadAndStart(_wireWith('StopGuiding'))).statusCode, 200);
+    });
+
+    test(
+      'a device-listing failure does not become a new way to lose a night',
+      () async {
+        when(
+          () => devices.getConnectedDevices(),
+        ).thenThrow(StateError('device manager unavailable'));
+
+        expect((await loadAndStart(_wireWith('Dither'))).statusCode, 200);
+        verify(() => sequencer.sequencerStart()).called(1);
+      },
+    );
   });
 }
