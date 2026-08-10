@@ -15737,6 +15737,33 @@ class RustLibWire implements BaseWire {
       _wire__crate__api__sequencer__api_sequencer_subscribe_eventsPtr
           .asFunction<void Function(int)>();
 
+  void wire__crate__api__sequencer__api_sequencer_update_autofocus_config(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> config_json,
+  ) {
+    return _wire__crate__api__sequencer__api_sequencer_update_autofocus_config(
+      port_,
+      config_json,
+    );
+  }
+
+  late final _wire__crate__api__sequencer__api_sequencer_update_autofocus_configPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_autofocus_config',
+      );
+  late final _wire__crate__api__sequencer__api_sequencer_update_autofocus_config =
+      _wire__crate__api__sequencer__api_sequencer_update_autofocus_configPtr
+          .asFunction<
+            void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)
+          >();
+
   void wire__crate__api__sequencer__api_sequencer_update_autofocus_interval(
     int port_,
     int every_n_frames,
@@ -24254,3 +24281,5 @@ const int SIM_MAX_ADU = 65535;
 const int SIM_TRUE_FOCUS = 25075;
 
 const double SIM_DEFAULT_EXPOSURE_SECS = 10.0;
+
+const int SIM_SKY_STAR_LIMIT = 1500;

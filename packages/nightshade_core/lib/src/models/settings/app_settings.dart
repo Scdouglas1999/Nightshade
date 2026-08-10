@@ -427,6 +427,23 @@ abstract class AppSettings with _$AppSettings {
     /// AF R² fit-quality threshold. DB `af_r_squared_threshold`.
     @Default(0.7) double afRSquaredThreshold,
 
+    /// How far above the reference HFR the frames may sit, as a multiple, and
+    /// still be worth capturing after autofocus has failed.
+    /// DB `af_failure_hfr_tolerance_ratio`.
+    ///
+    /// A failed sweep is not automatically a ruined night: focus can end up
+    /// slightly soft for reasons that leave the data usable, while a focuser
+    /// that has run away to donuts wastes every further frame. At 1.6 a run
+    /// whose good HFR is 2.5 keeps imaging at 3.8 and stops at 10. Zero
+    /// disables the tolerance, making every failure unrecoverable.
+    @Default(1.6) double afFailureHfrToleranceRatio,
+
+    /// What to do when a failed autofocus leaves focus outside the tolerance.
+    /// DB `af_failure_action`. One of `AbortAndPark` or `PauseAndAlert` —
+    /// these are the wire values the native `AutofocusFailureAction` enum
+    /// deserializes, so they are not free text.
+    @Default('AbortAndPark') String afFailureAction,
+
     /// AF focuser settle time (ms). DB `af_focuser_settle_time_ms`.
     @Default(500) int afFocuserSettleTimeMs,
 

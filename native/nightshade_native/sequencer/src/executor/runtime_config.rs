@@ -401,6 +401,28 @@ impl SequenceExecutor {
     /// idle (loaded but not running) executor also picks up the
     /// change immediately — that path can't go through the command
     /// channel because no spawn exists.
+    /// Push the operator's autofocus tuning so trigger-fired refocus uses it.
+    ///
+    /// Until this existed the ONLY source of trigger-autofocus config was an
+    /// Autofocus node inside the sequence, so a sequence without one — which
+    /// is exactly the sequence whose interval trigger fires unattended — ran
+    /// every refocus on library defaults: not the operator's step size,
+    /// exposure, backlash, or (once they existed) their failure tolerance and
+    /// failure action. The executor logged a warning about it and carried on.
+    /// A node still wins at `start()`, because a node is a per-sequence
+    /// decision and this is a global one.
+    pub async fn update_autofocus_config(&mut self, config: crate::AutofocusConfig) {
+        tracing::info!(
+            "Updating trigger-autofocus config from operator settings (attempts={}, \
+             failure tolerance={}x, failure action={:?})",
+            config.number_of_attempts,
+            config.failure_hfr_tolerance_ratio,
+            config.failure_action
+        );
+        let mut rc = self.runtime_config.write();
+        rc.autofocus = Some(config);
+    }
+
     pub async fn update_autofocus_interval(&mut self, every_n_frames: u32) {
         tracing::info!(
             "Updating autofocus-interval cadence: every {} frames",

@@ -380,6 +380,9 @@ abstract final class NativeBridge {
   }) => _nativeBridge.sequencerUpdatePendingIntegrationCarryOver(
     carryOver: carryOver,
   );
+  static Future<void> sequencerUpdateAutofocusConfig({
+    required String configJson,
+  }) => _nativeBridge.sequencerUpdateAutofocusConfig(configJson: configJson);
   static Future<void> sequencerUpdateAutofocusInterval({
     required int everyNFrames,
   }) => _nativeBridge.sequencerUpdateAutofocusInterval(

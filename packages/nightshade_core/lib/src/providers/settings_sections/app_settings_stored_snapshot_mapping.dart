@@ -249,6 +249,12 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
         allSettings['af_r_squared_threshold'],
         0.7,
       ),
+      afFailureHfrToleranceRatio: _parseDouble(
+        allSettings['af_failure_hfr_tolerance_ratio'],
+        1.6,
+      ),
+      afFailureAction:
+          allSettings['af_failure_action'] ?? 'AbortAndPark',
       afDisableGuidingDuringAf: _parseBool(
         allSettings['af_disable_guiding'],
         false,
@@ -641,6 +647,8 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       'af_inner_crop_ratio': s.afInnerCropRatio.toString(),
       'af_binning': s.afBinning.toString(),
       'af_r_squared_threshold': s.afRSquaredThreshold.toString(),
+      'af_failure_hfr_tolerance_ratio': s.afFailureHfrToleranceRatio.toString(),
+      'af_failure_action': s.afFailureAction,
       'af_disable_guiding': s.afDisableGuidingDuringAf.toString(),
       'af_focuser_settle_time_ms': s.afFocuserSettleTimeMs.toString(),
       'af_exposures_per_point': s.afExposuresPerPoint.toString(),

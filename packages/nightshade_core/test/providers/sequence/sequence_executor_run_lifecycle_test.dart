@@ -232,6 +232,9 @@ void _stubBackendForStart(MockBackend backend) {
     () => backend.sequencerUpdateAutofocusInterval(any()),
   ).thenAnswer((_) async {});
   when(
+    () => backend.sequencerUpdateAutofocusConfig(any()),
+  ).thenAnswer((_) async {});
+  when(
     () => backend.sequencerUpdateDitherConfig(
       pixels: any(named: 'pixels'),
       settlePixels: any(named: 'settlePixels'),

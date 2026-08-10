@@ -377,6 +377,36 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
     }
   }
 
+  /// Push the operator's autofocus settings so trigger-fired refocus uses
+  /// them.
+  ///
+  /// Without this the only source of trigger-autofocus tuning is an Autofocus
+  /// node inside the sequence, so a sequence without one runs every
+  /// interval-fired refocus on library defaults.
+  Future<void> sequencerUpdateAutofocusConfig({
+    required String configJson,
+  }) async {
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerUpdateAutofocusConfig');
+    }
+
+    try {
+      await gen_api.apiSequencerUpdateAutofocusConfig(configJson: configJson);
+      developer.log(
+        '[Bridge] Pushed trigger-autofocus config',
+        name: 'NativeBridge',
+        level: 800,
+      );
+    } catch (e) {
+      developer.log(
+        '[Bridge] Error pushing trigger-autofocus config: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
+      rethrow;
+    }
+  }
+
   /// Update the autofocus-interval trigger cadence at
   /// runtime. The bridge rejects 0 (the trigger evaluator treats 0 as
   /// disabled; use the per-trigger `enabled` toggle for that intent).

@@ -3019,6 +3019,20 @@ impl SequenceExecutor {
                         node_af.backlash_compensation,
                     );
                     self.runtime_config.write().autofocus = Some(node_af);
+                } else if let Some(pushed) = self.runtime_config.read().autofocus.clone() {
+                    // No node, but the operator's settings were pushed via
+                    // `update_autofocus_config`. Use those rather than library
+                    // defaults — a sequence with no Autofocus node is exactly
+                    // the one whose interval trigger fires unattended, so this
+                    // is the case where getting the tuning wrong costs a night.
+                    tracing::info!(
+                        "No Autofocus node in the sequence; trigger-fired refocus will use the \
+                         operator's autofocus settings (attempts={}, failure tolerance={}x, \
+                         failure action={:?})",
+                        pushed.number_of_attempts,
+                        pushed.failure_hfr_tolerance_ratio,
+                        pushed.failure_action
+                    );
                 } else {
                     tracing::warn!(
                         "No Autofocus node in the sequence to seed trigger-autofocus tuning; \

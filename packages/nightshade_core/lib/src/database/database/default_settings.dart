@@ -79,12 +79,17 @@ const Map<String, String> _defaultSettings = {
   'af_step_size': '50',
   'af_exposure_time': '4.0',
   'af_initial_offset_steps': '4',
-  'af_number_of_attempts': '1',
+  // Two sweeps, not one: a single failed sweep is weak evidence (a passing
+  // cloud, a gust, a sparse field), and only a repeated failure should be
+  // allowed to act on af_failure_action and end a night.
+  'af_number_of_attempts': '2',
   'af_use_brightest_n_stars': '0',
   'af_outer_crop_ratio': '1.0',
   'af_inner_crop_ratio': '0.0',
   'af_binning': '1',
   'af_r_squared_threshold': '0.7',
+  'af_failure_hfr_tolerance_ratio': '1.6',
+  'af_failure_action': 'AbortAndPark',
   'af_disable_guiding': 'false',
   'af_focuser_settle_time_ms': '500',
   'af_exposures_per_point': '1',

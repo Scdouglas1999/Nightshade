@@ -7,7 +7,7 @@ import '../error.dart';
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `get_sequence_executor`, `recovery_cause_fields`, `recovery_event_completed`, `recovery_event_gave_up`, `recovery_event_progress`, `recovery_event_started`, `recovery_phase_str`, `run_decision_event_loop`, `run_sequencer_event_loop`, `serialize_node_definition`, `serialize_sequence_definition`, `structured_progress_payload_from_progress_detail`, `typed_sequencer_event_from_progress_detail`
+// These functions are ignored because they are not marked as `pub`: `get_sequence_executor`, `recovery_cause_fields`, `recovery_event_completed`, `recovery_event_gave_up`, `recovery_event_progress`, `recovery_event_started`, `recovery_phase_str`, `run_decision_event_loop`, `run_sequencer_event_loop`, `seed_executor_site_from_settings`, `serialize_node_definition`, `serialize_sequence_definition`, `structured_progress_payload_from_progress_detail`, `typed_sequencer_event_from_progress_detail`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `api_sequencer_event_stream`
 
@@ -294,6 +294,22 @@ Future<void> apiSequencerUpdateFilterOffsets({
 Future<void> apiSequencerUpdateAutofocusInterval({required int everyNFrames}) =>
     RustLib.instance.api.crateApiSequencerApiSequencerUpdateAutofocusInterval(
       everyNFrames: everyNFrames,
+    );
+
+/// Push the operator's autofocus settings so trigger-fired refocus uses them.
+///
+/// The only source of trigger-autofocus tuning used to be an Autofocus node
+/// inside the sequence. A sequence without one — which is exactly the sequence
+/// whose interval trigger fires unattended — therefore ran every refocus on
+/// library defaults, ignoring the operator's step size, exposure, backlash,
+/// failure tolerance and failure action. An Autofocus node still wins at
+/// `start()`: a node is a per-sequence decision, this is a global one.
+///
+/// Takes the same JSON shape the sequence's Autofocus node carries, so the
+/// Dart side has exactly one serializer to keep correct.
+Future<void> apiSequencerUpdateAutofocusConfig({required String configJson}) =>
+    RustLib.instance.api.crateApiSequencerApiSequencerUpdateAutofocusConfig(
+      configJson: configJson,
     );
 
 /// update the global default image-grading thresholds at runtime.

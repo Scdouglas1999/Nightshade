@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueNom,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1439742888;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1463207610;
 
 // Section: executor
 
@@ -7416,6 +7416,34 @@ fn wire__crate__api__sequencer__api_sequencer_subscribe_events_impl(
                     (move || async move {
                         let output_ok =
                             crate::api::sequencer::api_sequencer_subscribe_events().await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__sequencer__api_sequencer_update_autofocus_config_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    config_json: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_sequencer_update_autofocus_config",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_config_json = config_json.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::sequencer::api_sequencer_update_autofocus_config(
+                                api_config_json,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -31775,6 +31803,14 @@ mod io {
         port_: i64,
     ) {
         wire__crate__api__sequencer__api_sequencer_subscribe_events_impl(port_)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_autofocus_config(
+        port_: i64,
+        config_json: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__sequencer__api_sequencer_update_autofocus_config_impl(port_, config_json)
     }
 
     #[unsafe(no_mangle)]

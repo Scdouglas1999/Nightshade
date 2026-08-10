@@ -69,6 +69,11 @@ typedef struct _Dart_Handle* Dart_Handle;
  */
 #define SIM_DEFAULT_EXPOSURE_SECS 10.0
 
+/**
+ * How many catalogue stars a real-sky frame renders, brightest first.
+ */
+#define SIM_SKY_STAR_LIMIT 1500
+
 typedef struct wire_cst_list_prim_u_8_strict {
   uint8_t *ptr;
   int32_t len;
@@ -3309,6 +3314,9 @@ void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_stop(in
 
 void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_subscribe_events(int64_t port_);
 
+void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_autofocus_config(int64_t port_,
+                                                                                                 struct wire_cst_list_prim_u_8_strict *config_json);
+
 void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_autofocus_interval(int64_t port_,
                                                                                                    uint32_t every_n_frames);
 
@@ -4367,6 +4375,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_start);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_stop);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_subscribe_events);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_autofocus_config);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_autofocus_interval);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_cloud_motion);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_conditions_score);

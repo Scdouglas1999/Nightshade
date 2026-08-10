@@ -149,6 +149,8 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       afInnerCropRatio: remote.afInnerCropRatio,
       afBinning: remote.afBinning,
       afRSquaredThreshold: remote.afRSquaredThreshold,
+      afFailureHfrToleranceRatio: remote.afFailureHfrToleranceRatio,
+      afFailureAction: remote.afFailureAction,
       afFocuserSettleTimeMs: remote.afFocuserSettleTimeMs,
       afExposuresPerPoint: remote.afExposuresPerPoint,
       afBacklashCompMethod: remote.afBacklashCompMethod,
@@ -337,6 +339,8 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       afInnerCropRatio: settings.afInnerCropRatio,
       afBinning: settings.afBinning,
       afRSquaredThreshold: settings.afRSquaredThreshold,
+      afFailureHfrToleranceRatio: settings.afFailureHfrToleranceRatio,
+      afFailureAction: settings.afFailureAction,
       afFocuserSettleTimeMs: settings.afFocuserSettleTimeMs,
       afExposuresPerPoint: settings.afExposuresPerPoint,
       afBacklashCompMethod: settings.afBacklashCompMethod,
@@ -843,6 +847,14 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       case 'afRSquaredThreshold':
         return value is num
             ? current.copyWith(afRSquaredThreshold: value.toDouble())
+            : null;
+      case 'afFailureHfrToleranceRatio':
+        return value is num
+            ? current.copyWith(afFailureHfrToleranceRatio: value.toDouble())
+            : null;
+      case 'afFailureAction':
+        return value is String
+            ? current.copyWith(afFailureAction: value)
             : null;
       case 'afFocuserSettleTimeMs':
         return value is num

@@ -185,6 +185,11 @@ abstract class SequencerBackend implements AdaptiveSwapBackend {
   /// `everyNFrames` must be >= 1 (the bridge rejects 0).
   Future<void> sequencerUpdateAutofocusInterval(int everyNFrames);
 
+  /// Push the operator's autofocus settings so trigger-fired refocus uses
+  /// them instead of library defaults when the sequence has no Autofocus
+  /// node. `configJson` is the same shape an Autofocus node carries.
+  Future<void> sequencerUpdateAutofocusConfig(String configJson);
+
   /// Update the global default image-grading thresholds. When
   /// `enabled` is false, grading is disabled globally (per-node
   /// `quality_check` on TakeExposure still wins). Drives the FITS-time

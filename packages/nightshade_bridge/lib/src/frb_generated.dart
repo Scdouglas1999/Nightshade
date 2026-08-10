@@ -105,7 +105,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 1439742888;
+  int get rustContentHash => -1463207610;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -1343,6 +1343,10 @@ abstract class RustLibApi extends BaseApi {
   Future<void> crateApiSequencerApiSequencerStop();
 
   Future<void> crateApiSequencerApiSequencerSubscribeEvents();
+
+  Future<void> crateApiSequencerApiSequencerUpdateAutofocusConfig({
+    required String configJson,
+  });
 
   Future<void> crateApiSequencerApiSequencerUpdateAutofocusInterval({
     required int everyNFrames,
@@ -10991,6 +10995,38 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "api_sequencer_subscribe_events",
         argNames: [],
+      );
+
+  @override
+  Future<void> crateApiSequencerApiSequencerUpdateAutofocusConfig({
+    required String configJson,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          var arg0 = cst_encode_String(configJson);
+          return wire
+              .wire__crate__api__sequencer__api_sequencer_update_autofocus_config(
+                port_,
+                arg0,
+              );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_unit,
+          decodeErrorData: dco_decode_nightshade_error,
+        ),
+        constMeta: kCrateApiSequencerApiSequencerUpdateAutofocusConfigConstMeta,
+        argValues: [configJson],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kCrateApiSequencerApiSequencerUpdateAutofocusConfigConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_sequencer_update_autofocus_config",
+        argNames: ["configJson"],
       );
 
   @override

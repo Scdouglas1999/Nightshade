@@ -247,6 +247,27 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
             : 'Seeded autofocus interval: every $frames frames',
         source: 'SequenceExecutor',
       );
+
+      // Push the operator's autofocus tuning as well as the cadence.
+      //
+      // The engine's only other source of trigger-autofocus config is an
+      // Autofocus node inside the sequence, so a sequence without one — which
+      // is exactly the sequence whose interval trigger fires unattended — ran
+      // every refocus on library defaults: not the operator's step size,
+      // exposure, backlash, nor their failure tolerance and failure action. An
+      // Autofocus node still wins; this is the floor, not an override.
+      final afSettings = _ref.read(autofocusSettingsProvider);
+      await backend.sequencerUpdateAutofocusConfig(
+        jsonEncode(
+          _autofocusRuntimeConfig(afSettings, maxDurationSecs: 600),
+        ),
+      );
+      _logger.debug(
+        'Seeded trigger-autofocus config: attempts=${afSettings.numberOfAttempts}, '
+        'failure tolerance=${afSettings.failureHfrToleranceRatio}x, '
+        'failure action=${afSettings.failureAction}',
+        source: 'SequenceExecutor',
+      );
     } catch (e, st) {
       firstError ??= e;
       firstStack ??= st;

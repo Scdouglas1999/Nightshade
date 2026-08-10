@@ -329,6 +329,13 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
   }
 
   @override
+  Future<void> sequencerUpdateAutofocusConfig(String configJson) async {
+    await _post('sequencer/update-autofocus-config', {
+      'configJson': configJson,
+    });
+  }
+
+  @override
   Future<void> sequencerUpdateDefaultQualityCheck({
     double? hfrThreshold,
     double? hfrBaselinePercent,

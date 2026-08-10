@@ -184,6 +184,13 @@ mixin _FfiSequencerRecoveryOperations on _FfiBackendBase {
   }
 
   @override
+  Future<void> sequencerUpdateAutofocusConfig(String configJson) async {
+    await bridge.NativeBridge.sequencerUpdateAutofocusConfig(
+      configJson: configJson,
+    );
+  }
+
+  @override
   Future<void> sequencerUpdateDefaultQualityCheck({
     double? hfrThreshold,
     double? hfrBaselinePercent,

@@ -1888,6 +1888,32 @@ pub async fn api_sequencer_update_autofocus_interval(
     Ok(())
 }
 
+/// Push the operator's autofocus settings so trigger-fired refocus uses them.
+///
+/// The only source of trigger-autofocus tuning used to be an Autofocus node
+/// inside the sequence. A sequence without one — which is exactly the sequence
+/// whose interval trigger fires unattended — therefore ran every refocus on
+/// library defaults, ignoring the operator's step size, exposure, backlash,
+/// failure tolerance and failure action. An Autofocus node still wins at
+/// `start()`: a node is a per-sequence decision, this is a global one.
+///
+/// Takes the same JSON shape the sequence's Autofocus node carries, so the
+/// Dart side has exactly one serializer to keep correct.
+pub async fn api_sequencer_update_autofocus_config(
+    config_json: String,
+) -> Result<(), NightshadeError> {
+    let config: nightshade_sequencer::AutofocusConfig = serde_json::from_str(&config_json)
+        .map_err(|e| {
+            NightshadeError::InvalidParameter(format!(
+                "autofocus config JSON could not be parsed: {e}. Trigger-fired refocus would \
+                 have silently fallen back to library defaults."
+            ))
+        })?;
+    let mut executor = get_sequence_executor().write().await;
+    executor.update_autofocus_config(config).await;
+    Ok(())
+}
+
 /// update the global default image-grading thresholds at runtime.
 ///
 /// All fields are optional; when `enabled` is `false` an `ImageQualityCheck`

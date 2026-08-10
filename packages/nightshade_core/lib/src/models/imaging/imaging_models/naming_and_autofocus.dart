@@ -187,6 +187,12 @@ class AutofocusSettings extends Equatable {
   final double innerCropRatio;
   final int binning;
   final double rSquaredThreshold;
+  /// Multiple of the reference HFR that a failed autofocus may leave the
+  /// frames at and still be worth capturing. Zero disables the tolerance.
+  final double failureHfrToleranceRatio;
+  /// `AbortAndPark` or `PauseAndAlert` — the wire values of the native
+  /// `AutofocusFailureAction`.
+  final String failureAction;
   final bool disableGuidingDuringAf;
   final int focuserSettleTimeMs;
   final int exposuresPerPoint;
@@ -212,6 +218,31 @@ class AutofocusSettings extends Equatable {
   /// These strings are the persisted values of `AppSettings.afCurveFitting`
   /// and are mapped onto the native curve enum by
   /// `autofocusCurveMethodForNativeBridge`.
+  /// What the operator sees for each `failureAction` wire value, and back.
+  ///
+  /// The wire values are what the native `AutofocusFailureAction` enum
+  /// deserializes, so they cannot be prettified in place; this is the one
+  /// place the mapping lives so a settings dropdown and a summary line cannot
+  /// drift into describing the same stored value differently.
+  static const Map<String, String> failureActionLabels = {
+    'AbortAndPark': 'Park and end the sequence',
+    'PauseAndAlert': 'Pause and alert me',
+  };
+
+  /// The wire value for a label from [failureActionLabels], falling back to
+  /// the safe action rather than writing something the engine cannot read.
+  static String failureActionFromLabel(String label) =>
+      failureActionLabels.entries
+          .firstWhere(
+            (entry) => entry.value == label,
+            orElse: () => const MapEntry('AbortAndPark', ''),
+          )
+          .key;
+
+  /// The label for a stored wire value, tolerant of an unrecognised one.
+  static String failureActionLabel(String action) =>
+      failureActionLabels[action] ?? failureActionLabels['AbortAndPark']!;
+
   static const List<String> curveFittingOptions = [
     'Hyperbolic',
     'Parabolic',
@@ -224,12 +255,14 @@ class AutofocusSettings extends Equatable {
     this.stepSize = 50,
     this.exposureTime = 4.0,
     this.initialOffsetSteps = 4,
-    this.numberOfAttempts = 1,
+    this.numberOfAttempts = 2,
     this.useBrightestNStars = 0,
     this.outerCropRatio = 1.0,
     this.innerCropRatio = 0.0,
     this.binning = 1,
     this.rSquaredThreshold = 0.7,
+    this.failureHfrToleranceRatio = 1.6,
+    this.failureAction = 'AbortAndPark',
     this.disableGuidingDuringAf = false,
     this.focuserSettleTimeMs = 500,
     this.exposuresPerPoint = 1,
@@ -252,6 +285,8 @@ class AutofocusSettings extends Equatable {
     double? innerCropRatio,
     int? binning,
     double? rSquaredThreshold,
+    double? failureHfrToleranceRatio,
+    String? failureAction,
     bool? disableGuidingDuringAf,
     int? focuserSettleTimeMs,
     int? exposuresPerPoint,
@@ -273,6 +308,9 @@ class AutofocusSettings extends Equatable {
       innerCropRatio: innerCropRatio ?? this.innerCropRatio,
       binning: binning ?? this.binning,
       rSquaredThreshold: rSquaredThreshold ?? this.rSquaredThreshold,
+      failureHfrToleranceRatio:
+          failureHfrToleranceRatio ?? this.failureHfrToleranceRatio,
+      failureAction: failureAction ?? this.failureAction,
       disableGuidingDuringAf:
           disableGuidingDuringAf ?? this.disableGuidingDuringAf,
       focuserSettleTimeMs: focuserSettleTimeMs ?? this.focuserSettleTimeMs,
@@ -351,6 +389,8 @@ class AutofocusSettings extends Equatable {
     innerCropRatio,
     binning,
     rSquaredThreshold,
+    failureHfrToleranceRatio,
+    failureAction,
     disableGuidingDuringAf,
     focuserSettleTimeMs,
     exposuresPerPoint,

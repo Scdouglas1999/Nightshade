@@ -635,6 +635,11 @@ class DisconnectedBackend
   }
 
   @override
+  Future<void> sequencerUpdateAutofocusConfig(String configJson) async {
+    _throwNotConnected();
+  }
+
+  @override
   Future<void> sequencerUpdateDefaultQualityCheck({
     double? hfrThreshold,
     double? hfrBaselinePercent,

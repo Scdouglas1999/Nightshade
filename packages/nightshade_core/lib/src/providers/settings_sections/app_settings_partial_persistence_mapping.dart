@@ -182,6 +182,8 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
     'af_inner_crop_ratio',
     'af_binning',
     'af_r_squared_threshold',
+    'af_failure_hfr_tolerance_ratio',
+    'af_failure_action',
     'af_focuser_settle_time_ms',
     'af_exposures_per_point',
     'af_backlash_comp_method',
@@ -583,6 +585,14 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
               current.afRSquaredThreshold,
             )
           : null,
+      afFailureHfrToleranceRatio:
+          settings.containsKey('af_failure_hfr_tolerance_ratio')
+          ? _parseDouble(
+              settings['af_failure_hfr_tolerance_ratio'],
+              current.afFailureHfrToleranceRatio,
+            )
+          : null,
+      afFailureAction: settings['af_failure_action'],
       // Canonical key is `af_disable_guiding` — matches the setter in
       // autofocus.dart, the default-settings seed, and the stored-snapshot
       // loader. The old `af_disable_guiding_during_af` key never matched

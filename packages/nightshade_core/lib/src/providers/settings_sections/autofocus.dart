@@ -133,6 +133,27 @@ extension AutofocusSettingsSection on AppSettingsNotifier {
     _patchState((s) => s.copyWith(afRSquaredThreshold: value));
   }
 
+  /// How far above the reference HFR a failed autofocus may leave the frames
+  /// and still be worth capturing. Clamped at zero — a negative tolerance has
+  /// no meaning, and zero already means "treat every failure as
+  /// unrecoverable".
+  Future<void> setAfFailureHfrToleranceRatio(double value) async {
+    final clamped = value.isFinite && value > 0 ? value : 0.0;
+    await _saveSetting('af_failure_hfr_tolerance_ratio', clamped.toString());
+    _patchState((s) => s.copyWith(afFailureHfrToleranceRatio: clamped));
+  }
+
+  /// What an unattended run does when a failed autofocus leaves focus outside
+  /// the tolerance. Only the two wire values the native enum understands are
+  /// accepted; anything else falls back to the safe one rather than being
+  /// written through and failing to deserialize at run start.
+  Future<void> setAfFailureAction(String value) async {
+    const allowed = {'AbortAndPark', 'PauseAndAlert'};
+    final action = allowed.contains(value) ? value : 'AbortAndPark';
+    await _saveSetting('af_failure_action', action);
+    _patchState((s) => s.copyWith(afFailureAction: action));
+  }
+
   Future<void> setAfDisableGuidingDuringAf(bool value) async {
     await _saveSetting('af_disable_guiding', value.toString());
     _patchState((s) => s.copyWith(afDisableGuidingDuringAf: value));

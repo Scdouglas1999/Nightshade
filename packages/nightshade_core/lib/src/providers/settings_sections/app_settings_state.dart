@@ -208,6 +208,8 @@ class AppSettingsState {
   final double afInnerCropRatio;
   final int afBinning;
   final double afRSquaredThreshold;
+  final double afFailureHfrToleranceRatio;
+  final String afFailureAction;
   final bool afDisableGuidingDuringAf;
   final int afFocuserSettleTimeMs;
   final int afExposuresPerPoint;
@@ -593,6 +595,8 @@ class AppSettingsState {
     this.afInnerCropRatio = 0.0,
     this.afBinning = 1,
     this.afRSquaredThreshold = 0.7,
+    this.afFailureHfrToleranceRatio = 1.6,
+    this.afFailureAction = 'AbortAndPark',
     this.afDisableGuidingDuringAf = false,
     this.afFocuserSettleTimeMs = 500,
     this.afExposuresPerPoint = 1,
@@ -759,6 +763,8 @@ class AppSettingsState {
     double? afInnerCropRatio,
     int? afBinning,
     double? afRSquaredThreshold,
+    double? afFailureHfrToleranceRatio,
+    String? afFailureAction,
     bool? afDisableGuidingDuringAf,
     int? afFocuserSettleTimeMs,
     int? afExposuresPerPoint,
@@ -960,6 +966,9 @@ class AppSettingsState {
       afInnerCropRatio: afInnerCropRatio ?? this.afInnerCropRatio,
       afBinning: afBinning ?? this.afBinning,
       afRSquaredThreshold: afRSquaredThreshold ?? this.afRSquaredThreshold,
+      afFailureHfrToleranceRatio:
+          afFailureHfrToleranceRatio ?? this.afFailureHfrToleranceRatio,
+      afFailureAction: afFailureAction ?? this.afFailureAction,
       afDisableGuidingDuringAf:
           afDisableGuidingDuringAf ?? this.afDisableGuidingDuringAf,
       afFocuserSettleTimeMs:

@@ -40,6 +40,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
   final _innerCropRatioController = TextEditingController();
   final _binningController = TextEditingController();
   final _rSquaredThresholdController = TextEditingController();
+  final _failureToleranceController = TextEditingController();
   final _focuserSettleTimeController = TextEditingController();
   final _exposuresPerPointController = TextEditingController();
   final _backlashInController = TextEditingController();
@@ -59,6 +60,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
     _innerCropRatioController.dispose();
     _binningController.dispose();
     _rSquaredThresholdController.dispose();
+    _failureToleranceController.dispose();
     _focuserSettleTimeController.dispose();
     _exposuresPerPointController.dispose();
     _backlashInController.dispose();
@@ -97,6 +99,8 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
         settings.afBinning.toDouble(),
       _ when identical(controller, _rSquaredThresholdController) =>
         settings.afRSquaredThreshold,
+      _ when identical(controller, _failureToleranceController) =>
+        settings.afFailureHfrToleranceRatio,
       _ when identical(controller, _focuserSettleTimeController) =>
         settings.afFocuserSettleTimeMs.toDouble(),
       _ when identical(controller, _exposuresPerPointController) =>
@@ -290,6 +294,38 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                     decimals: 2,
                     onChanged: (value) =>
                         notifier.setAfRSquaredThreshold(value),
+                  ),
+                ),
+                _buildAfSettingRow(
+                  icon: LucideIcons.alertTriangle,
+                  title: 'HFR tolerance on failure',
+                  subtitle:
+                      'Keep imaging while HFR stays within this multiple of '
+                      'your good HFR. 0 = stop on any failure',
+                  trailing: _afNumberInput(
+                    controller: _failureToleranceController,
+                    suffix: '\u00D7',
+                    min: 0.0,
+                    max: 10.0,
+                    decimals: 2,
+                    onChanged: (value) =>
+                        notifier.setAfFailureHfrToleranceRatio(value),
+                  ),
+                ),
+                _buildAfSettingRow(
+                  icon: LucideIcons.octagon,
+                  title: 'If focus is past tolerance',
+                  subtitle: 'What an unattended run does when focus is lost',
+                  trailing: SettingsDropdown(
+                    value: AutofocusSettings.failureActionLabel(
+                      settings.afFailureAction,
+                    ),
+                    items: AutofocusSettings.failureActionLabels.values
+                        .toList(),
+                    onChanged: (value) => notifier.setAfFailureAction(
+                      AutofocusSettings.failureActionFromLabel(value),
+                    ),
+                    width: 200,
                   ),
                   isLast: true,
                 ),
@@ -605,6 +641,37 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
           decimals: 2,
           onChanged: (value) => notifier.setAfRSquaredThreshold(value),
           isMobile: true,
+        ),
+        isMobile: true,
+      ),
+      SettingRow(
+        icon: LucideIcons.alertTriangle,
+        title: 'HFR tolerance on failure',
+        subtitle:
+            'Keep imaging while HFR stays within this multiple of your good '
+            'HFR. 0 = stop on any failure',
+        trailing: _afNumberInput(
+          controller: _failureToleranceController,
+          suffix: '\u00D7',
+          min: 0.0,
+          max: 10.0,
+          decimals: 2,
+          onChanged: (value) => notifier.setAfFailureHfrToleranceRatio(value),
+          isMobile: true,
+        ),
+        isMobile: true,
+      ),
+      SettingRow(
+        icon: LucideIcons.octagon,
+        title: 'If focus is past tolerance',
+        subtitle: 'What an unattended run does when focus is lost',
+        trailing: SettingsDropdown(
+          value: AutofocusSettings.failureActionLabel(settings.afFailureAction),
+          items: AutofocusSettings.failureActionLabels.values.toList(),
+          onChanged: (value) => notifier.setAfFailureAction(
+            AutofocusSettings.failureActionFromLabel(value),
+          ),
+          width: 200,
         ),
         isMobile: true,
       ),
