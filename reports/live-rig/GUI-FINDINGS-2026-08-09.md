@@ -366,3 +366,18 @@ gate I tried to break:
 
 That last one is the behaviour the rest of this report has been asking for, arrived at without
 prompting: refuse to compute rather than compute something false.
+## Phone-width reflow (420×900) — checked, clean
+
+Resized the running window from 1920×1200 to 420×900 mid-wizard:
+
+* the step sidebar collapses to a progress bar with "Step 8 of 13 — Optical train";
+* fields stack full width, Next/Back stack vertically;
+* no overflow, no clipping, no horizontal scroll, and the long placeholder ellipsises
+  ("Not in the camera library — check your ca…") rather than spilling;
+* the notice band and the "Check your inputs" computed values both survive the reflow.
+
+One nit not raised as a finding: the inline `Must be between 0.1 and 10.` under the reducer is
+transient — it is gone at both widths once the field loses focus, leaving the out-of-range value
+committed. The form still refuses to compute and the notice band still names the missing focal
+length, so the invalidity is surfaced; only the specific range hint is short-lived. Recorded rather
+than claimed, because I did not establish whether that is focus-scoped by design.
