@@ -135,6 +135,10 @@ class _DriverTileState extends State<_DriverTile> {
         label: '${driver.shortLabel}. ${driver.description}',
         onTap: onToggle,
         child: InkWell(
+          // The wrapper above is the accessible node; without this the
+          // InkWell publishes a second, unflagged one and AT still reads
+          // the row as disabled. Verified on the running app.
+          excludeFromSemantics: true,
           onTap: onToggle,
           // InkWell is focusable and Space already toggled the row, but its focus
           // highlight paints BEHIND the child, and this row's own opaque surface

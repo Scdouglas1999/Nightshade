@@ -303,3 +303,45 @@ Magnitude, Size, Alt now, Moon — plus Sort still read `[DISABLED]` in the acce
 in the subtree, so a screen-reader user is told the filter row is dead and is never told which
 filters are applied. Given a container `Semantics` with `button`, `enabled` and `selected: active`.
 
+## G3 pass 4 — wrapping an InkWell in `Semantics` does not fix it, and I verified the first one wrong
+
+Two corrections, both found by measuring the same screen before and after instead of a different one.
+
+**The mis-verification.** I reported the onboarding driver rows as "4 → 0". That number came from the
+landing screen *after a relaunch*, where the app had resumed past onboarding and was showing the
+Continue Session dialog. I had counted a different screen. The driver rows were still broken.
+
+**Why the fix did not work.** Wrapping a bare `InkWell` in a new `Semantics(...)` leaves the InkWell
+publishing its **own** node — focusable, no `isEnabled` — alongside the wrapper. AT sees both, and
+the flagged one is still there. Measured after a genuine rebuild+relaunch: Plan Tonight still 8,
+Sequencer still 11, tabs still `[DISABLED]`.
+
+The working pattern is `InkWell(excludeFromSemantics: true, …)` inside the wrapper, so the container
+is the only node. That is different from the `AdaptiveTabBar` case, which already *had* a `Semantics`
+node and only needed the `enabled` field — which is why pass 1 genuinely moved 15 → 11 and this did
+not.
+
+**Verified properly this time**, onboarding step 2 on a fresh profile:
+
+```
+before:  panel: Native
+         Direct SDK connection where the release includes ... [DISABLED]
+
+after:   check box: Native. Direct SDK connection where the release includes ... [ON]
+         check box: Alpaca. ASCOM Alpaca over network ...                       [ON]
+         check box: INDI. INDI protocol through a reachable INDI server ...     [ON]
+         check box: Sim. Simulated device where that workflow is enabled ...    [off]
+```
+
+Role, label and state, all correct, zero `DISABLED` on the step. Plan Tonight went **8 → 2** by the
+same change.
+
+**Reverted as ineffective:** the `Semantics(enabled: true)` wrapper around the sequencer toolbox
+`TabBar`. Flutter's own `Tab` publishes the "Tab N of 3" node from inside `TabBar`, and an ancestor
+`Semantics` does not merge into it — the flag survived the rebuild. `TabBar` exposes no
+`excludeFromSemantics`, so this is a framework limitation rather than something to paper over. Left
+as a known remainder rather than a fix that fixes nothing.
+
+**Known remainders**, all measured, none claimed fixed: the framework `Tab` nodes (3), the node-palette
+category headers (5), `Sort: Score` on the planner, and a few status chips such as `0 connected`.
+

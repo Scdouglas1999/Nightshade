@@ -865,6 +865,10 @@ class _ControlChip extends StatelessWidget {
       label: label,
       onTap: onTap,
       child: InkWell(
+        // The wrapper above is the accessible node; without this the
+        // InkWell publishes a second, unflagged one and AT still reads
+        // the control as disabled. Verified on the running app.
+        excludeFromSemantics: true,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusXl),
         onTap: onTap,
         child: Container(

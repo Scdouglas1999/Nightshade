@@ -418,6 +418,10 @@ class _DeviceTileState extends State<_DeviceTile> {
           '${device.availableBackends.keys.map((b) => b.shortLabel).join(' / ')}',
       onTap: widget.onSelected,
       child: InkWell(
+        // The wrapper above is the accessible node; without this the
+        // InkWell publishes a second, unflagged one and AT still reads
+        // the control as disabled. Verified on the running app.
+        excludeFromSemantics: true,
         onTap: widget.onSelected,
         onFocusChange: (value) {
           if (_focused == value) return;
