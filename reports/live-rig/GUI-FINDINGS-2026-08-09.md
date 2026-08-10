@@ -1017,3 +1017,37 @@ them tells the operator. Polar alignment reaches a terminal error state and name
 screen; autofocus leaves "Measuring point 1/9" on display indefinitely with a truncated toast. So the
 app already contains the pattern G14 needs — the autofocus panel is inconsistent with its sibling
 wizard rather than missing a capability that has to be invented.
+
+## V11 — the Flat Wizard converges on exposure and hits its ADU target (validation)
+
+Ran the wizard end to end from Equipment → Flat Wizard.
+
+**It checks the flats against the lights before capturing anything.** The panel warned, in its own
+words: *"These flats will not match your light frames (offset 10 vs 50). Flats are taken at the same
+gain, offset and binning."* That is a specific, correct calibration check — flats shot at a different
+offset from the lights are useless — and it names the exact mismatch rather than warning in general.
+
+**It refuses to capture without a destination.** "Save Location Required — Choose where to save your
+flat frames", with "Create date subfolder automatically" and "Create filter subfolders" both offered.
+Both were honoured exactly:
+
+```
+/tmp/ns-audit/flats/2026-08-10/R/Flat_R_20260810_045923_1.fits
+/tmp/ns-audit/flats/2026-08-10/R/Flat_R_20260810_045931_2.fits
+```
+
+**And the exposure solve is real.** Target ~32768 ADU on a 16-bit sensor, tolerance ±10%. Measuring
+the written pixel data directly:
+
+| | value |
+|---|---|
+| solved exposure | **7.8633 s** |
+| mean ADU achieved | **32584** |
+| error against target | **0.56% low** — well inside ±10% |
+
+The exposure is a computed, non-round number, and the resulting level lands within a percent of the
+requested one, so the wizard genuinely converges rather than shooting a fixed guess.
+
+Together with V8–V10 this closes the imaging-support features that can be exercised without hardware:
+plate solving, autofocus, polar alignment and flat capture all run their real pipelines against the
+simulators, and three of the four fail correctly when broken on purpose. The exception remains G14.
