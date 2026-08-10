@@ -529,3 +529,28 @@ Driving it needs a browser session, which is the same gap as mobile and Windows.
 Auth on that surface behaves: `GET /api/sessions` with no token is **401**, and with the bearer token
 `/api/sequencer/status`, `/api/system/disk-space`, `/api/sessions` and `/api/images?limit=5` all
 return **200**.
+### G11 root cause — the merge that bound the name dropped the state
+
+`SettingRow` wraps every row in `MergeSemantics`, and the comment above it records exactly why:
+
+> Without this the switch is a correctly-toggled but ANONYMOUS node: measured on the running app,
+> Settings > General exposed three toggle buttons reading "off/ON/ON" with empty names, so assistive
+> technology could report that something was on without being able to say which setting it was.
+
+So the surface has been through both failure modes. **Before** the merge: state without a name
+(`toggle button: [off]`, `[ON]`, `[ON]`). **After** the merge, which is what I measured today: name
+without state (`toggle button: Start minimized`, no `[ON]`/`[off]`). The same component unmerged, on
+the Imaging screen, still publishes `[off]` — which is what isolates the merge as the cause.
+
+That is this campaign's recurring shape — a fix that relocates the untruth rather than removing it —
+and it is worth naming as such rather than as a second independent bug.
+
+**Why it cannot be fixed inside `SettingRow`:** the row receives `trailing` as an opaque `Widget`, so
+it has no way to restate `toggled:` on the merged node. The two honest options are to give
+`SettingRow` the value (a `bool? toggledState` alongside `trailing`), or to move the label into
+`SettingsSwitch` so one node carries both and no merge is needed. Either is a small change with a
+clear before/after test — `matchesSemantics(label: 'Start minimized', isToggled: ..., hasToggledState: true)`
+would fail today and pass after.
+
+Not attempted here: it needs the build-and-remeasure loop, and today has already shown twice that a
+semantics change without that loop is indistinguishable from a no-op.
