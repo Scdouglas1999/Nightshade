@@ -855,3 +855,47 @@ tiles.
 
 With this, every top-level screen, every Analytics tab, every Sequencer tab, every Plan Tonight tab
 and every Settings leaf reachable from the sidebar has been opened and read.
+
+## V8 — plate solving works end to end against simulated frames (validation)
+
+The simulated camera renders the *real* sky, and a real solver confirms it. Captured a frame through
+the Imaging screen with the profile set to 414 mm (a 1.03° × 0.58° field, comparable to a real rig)
+and solved it with the installed ASTAP:
+
+```
+263 stars, 194 quads selected in the image
+Solution found: 00: 00 00.1  +00d 00 01
+Solved in 0.7 sec.  Δ was 1.3".  Mount Δα=-0.9", Δδ=-0.9".
+Used stars down to magnitude: 16.8
+Plate scale from solution: 1.873"/px
+```
+
+Three independent things agree:
+
+1. The solved position is **RA 00h00m00.1s, Dec +00°00′01″**, and the frame's header claimed RA 0 /
+   Dec 0 — agreement to **1.3 arcseconds**.
+2. The recovered plate scale of 1.873″/px equals `206.265 × 3.76 / 414` computed from the optical
+   train, exactly.
+3. `OBJCTALT 45.16°` in the header matches an independent altitude calculation for Dec 0 at that
+   site and sidereal time (45.6°).
+
+So the sim is not painting decorative stars — it is painting the catalogue sky at the coordinates it
+claims, well enough for a real astrometric solver to recover the pointing to under two arcseconds.
+That makes centering, framing and recenter-after-flip testable without hardware.
+
+**Two false alarms of my own, recorded because both were nearly written up as defects.**
+
+*First:* the default simulator profile (1000 mm, 1920×1080, 3.76 µm) gives a **0.414° × 0.233°**
+field, and ASTAP fails on it — "37 stars … 79 database stars, 253 database quads required". That is
+a genuine limitation of the **D05** catalog at very narrow fields, not a fault in the sim or the app.
+It is also why plate solving cannot be exercised with the *default* sim profile; widening the field
+is the fix for the test, not for the product.
+
+*Second:* I then chased whether the owner's rig had the same problem, since their ASTAP install also
+carries only D05 (1476 `.1476` files, zero `.290`). It does not — their 10″ NEWT at 1016 mm gives
+**1.00° × 0.75°** with an ASI1600, comfortably within D05's range. No action needed there, and no
+alarm was raised on the strength of the intermediate result.
+
+*Third, and the actual cause of the failed solves:* ASTAP's `-fov` expects the field **height**, and
+I was passing the **width** (1.03 instead of 0.56). The scale hint was nearly 2× off. Auto-FOV
+(`-fov 0`) found it in 0.7 seconds. A wrong hint and a broken solver look identical from the outside.
