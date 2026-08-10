@@ -159,3 +159,35 @@ unless you `await appSettingsProvider.future`, so the push was skipped for an un
 it silently matched nothing and I was "testing" the unmodified file. The test now asserts the
 settings are *loaded and zero* before starting, and with the guard genuinely removed it fails.
 
+## The editor start path works — which is what made the headless gap a gap
+
+The run I built in the GUI (Target → Take Exposures, 10 × 60 s, Vega) completed, and the bookkeeping
+the headless path was missing all night is simply present here:
+
+```
+frames on disk        10
+captured_images       10
+imaging_sessions      id=1  "New Sequence"  total=10  successful=10  status=completed
+sequence_runs         1
+```
+
+That is the positive result behind L29: `SequenceExecutor.start()` was always doing this correctly,
+and the appliance's `load -> start` branch was the outlier. It now does the same things, and this run
+is the reference the fix was matched against.
+
+Also observed working, unprompted: the pre-flight refused an empty sequence and named why; the disk
+check did real arithmetic ("You have 7.60 GB free; this run will consume ~0.04 GB; 7.56 GB will
+remain"); the target-coordinates rule described the actual consequence ("would point the mount at
+that spot in Pisces and record every frame under it as 'New Target'"); the toolbar locked
+sequence-editing actions during the run and said so in their tooltips; and the Properties panel went
+read-only while running.
+
+## What this drive did not cover
+
+Named plainly, because the drive was one session on one screen size:
+
+* **Imaging, Guiding, Weather, Plan Tonight, Analytics** — navigated past, never operated.
+* **Mobile and the web dashboard** — untouched today.
+* **Windows** — the whole drive was Linux/softpipe. Rendering and native dialogs differ.
+* **Resize, small windows, keyboard-only navigation** — one 1920×1200 window throughout.
+* Onboarding steps 4–13, and the file-picker dialogs (I typed paths instead).
