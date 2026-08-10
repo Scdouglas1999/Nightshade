@@ -849,29 +849,45 @@ class _ControlChip extends StatelessWidget {
         active ? colors.primary.withValues(alpha: 0.5) : colors.border;
     final fg = active ? colors.primary : colors.textSecondary;
 
-    return InkWell(
-      borderRadius: BorderRadius.circular(NightshadeTokens.radiusXl),
+    // Declare the chip. Read off the running app 2026-08-09, all six planner
+    // filters — Type, Constellation, Magnitude, Size, Alt now, Moon — plus the
+    // Sort control came off the accessibility tree as `[DISABLED]` while the
+    // planner was fully live and the scheduler was returning picks. A bare
+    // `InkWell` publishes a focusable node that never sets isEnabled, and
+    // nothing in the subtree carries the on/off state either, so a
+    // screen-reader user is told the filter row is dead and is never told
+    // which filters are applied.
+    return Semantics(
+      container: true,
+      button: true,
+      enabled: true,
+      selected: active,
+      label: label,
       onTap: onTap,
-      child: Container(
-        height: 32,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusXl),
-          border: Border.all(color: border),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: fg),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: NightshadeTypography.labelSm.copyWith(
-                color: fg,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusXl),
+        onTap: onTap,
+        child: Container(
+          height: 32,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusXl),
+            border: Border.all(color: border),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 14, color: fg),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: NightshadeTypography.labelSm.copyWith(
+                  color: fg,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

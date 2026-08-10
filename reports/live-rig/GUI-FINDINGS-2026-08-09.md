@@ -281,3 +281,25 @@ question on real data. That one is the owner's to settle.
 
 Six tests, including the live-rig frame's own numbers and the discrimination property.
 
+## G8 — the location path, proven end to end in the GUI
+
+Setting latitude 39.9719 / longitude -75.3576 in Settings → Location, with nothing else touched:
+
+| before | after |
+|---|---|
+| status bar `LST --:--:--` | `LST 20:46` |
+| Weather: "Location Not Configured … configure your location in Settings" | (radar unblocked) |
+| Plan Tonight: "Location not configured … before using the planner" | `AUTOPILOT WILL RUN — New Target — Live scheduler pick, what the rig would slew to next (score 3.63)`, plus a Night Outlook listing NGC7056 with altitude |
+
+Three screens that were each honestly refusing to guess now compute. This is the other half of the
+G6 story: the app is careful about an unset location everywhere a human can see, and the only place
+that quietly substituted (0, 0) was the push into the executor.
+
+## G9 — the planner's filter row is live and announces itself disabled *(fixed)*
+
+With the planner working and returning scheduler picks, all six filters — Type, Constellation,
+Magnitude, Size, Alt now, Moon — plus Sort still read `[DISABLED]` in the accessibility tree.
+`_ControlChip` is another bare `InkWell`: focusable node, no isEnabled, and no on/off state anywhere
+in the subtree, so a screen-reader user is told the filter row is dead and is never told which
+filters are applied. Given a container `Semantics` with `button`, `enabled` and `selected: active`.
+
