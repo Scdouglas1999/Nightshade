@@ -108,66 +108,99 @@ class _DriverTileState extends State<_DriverTile> {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: InkWell(
+      // One accessible node for the whole row, describing what it actually is.
+      //
+      // Read off the live accessibility tree (GUI drive 2026-08-09), every
+      // driver row came out as:
+      //
+      //   panel: Native
+      //   Direct SDK connection ... [DISABLED]
+      //
+      // — focusable, no checked state, and announced as not enabled, while the
+      // row was in fact live and checked (clicking it toggled the box). Two
+      // untruths at once: a screen-reader user is told there is nothing to
+      // operate here, and is never told whether the driver is selected.
+      //
+      // The cause is that a bare `InkWell` publishes a tappable, focusable node
+      // that never sets `isEnabled`, and its node shadows the
+      // `NightshadeCheckbox`'s own correct `checked`/`enabled` semantics. The
+      // checkbox is not at fault — it is simply not the node assistive tech
+      // reaches. Declaring the container here, and excluding the now-duplicate
+      // inner node, makes the row announce as "Native, <description>, checkbox,
+      // checked" and leaves the pointer/keyboard behaviour untouched.
+      child: Semantics(
+        container: true,
+        checked: selected,
+        enabled: true,
+        label: '${driver.shortLabel}. ${driver.description}',
         onTap: onToggle,
-        // InkWell is focusable and Space already toggled the row, but its focus
-        // highlight paints BEHIND the child, and this row's own opaque surface
-        // decoration covers it — so a keyboard user tabbing through the driver
-        // list saw nothing move and could not tell which row Space would toggle.
-        // The ring is drawn on the row's own decoration, in front of the fill.
-        onFocusChange: (value) {
-          if (_focused == value) return;
-          setState(() => _focused = value);
-        },
-        borderRadius: NightshadeTokens.borderRadiusLg,
-        child: Container(
-          foregroundDecoration: _focused
-              ? BoxDecoration(
-                  borderRadius: NightshadeTokens.borderRadiusLg,
-                  border: Border.all(color: colors.primary, width: 2),
-                )
-              : null,
-          padding: const EdgeInsets.all(12),
-          decoration: selected
-              ? NightshadeDecorations.selectedSurface(
-                  colors.primary,
-                  borderRadius: NightshadeTokens.borderRadiusLg,
-                  fillAlpha: 0.08,
-                )
-              : BoxDecoration(
-                  color: colors.surface,
-                  borderRadius: NightshadeTokens.borderRadiusLg,
-                  border: Border.all(color: colors.border),
-                ),
-          child: Row(
-            children: [
-              NightshadeCheckbox(
-                value: selected,
-                onChanged: (_) => onToggle(),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      driver.shortLabel,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        color: colors.textPrimary,
-                        fontWeight: FontWeight.w600,
-                      ),
+        child: InkWell(
+          onTap: onToggle,
+          // InkWell is focusable and Space already toggled the row, but its focus
+          // highlight paints BEHIND the child, and this row's own opaque surface
+          // decoration covers it — so a keyboard user tabbing through the driver
+          // list saw nothing move and could not tell which row Space would toggle.
+          // The ring is drawn on the row's own decoration, in front of the fill.
+          onFocusChange: (value) {
+            if (_focused == value) return;
+            setState(() => _focused = value);
+          },
+          borderRadius: NightshadeTokens.borderRadiusLg,
+          child: Container(
+            foregroundDecoration: _focused
+                ? BoxDecoration(
+                    borderRadius: NightshadeTokens.borderRadiusLg,
+                    border: Border.all(color: colors.primary, width: 2),
+                  )
+                : null,
+            padding: const EdgeInsets.all(12),
+            decoration: selected
+                ? NightshadeDecorations.selectedSurface(
+                    colors.primary,
+                    borderRadius: NightshadeTokens.borderRadiusLg,
+                    fillAlpha: 0.08,
+                  )
+                : BoxDecoration(
+                    color: colors.surface,
+                    borderRadius: NightshadeTokens.borderRadiusLg,
+                    border: Border.all(color: colors.border),
+                  ),
+            child: ExcludeSemantics(
+              // The row above carries the label, the checked state and the tap.
+              // Leaving these in would make a screen reader read the driver name
+              // twice and offer a second, competing tap target for the same
+              // action.
+              child: Row(
+                children: [
+                  NightshadeCheckbox(
+                    value: selected,
+                    onChanged: (_) => onToggle(),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          driver.shortLabel,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            color: colors.textPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          driver.description,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      driver.description,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
