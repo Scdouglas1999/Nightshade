@@ -1051,3 +1051,41 @@ requested one, so the wizard genuinely converges rather than shooting a fixed gu
 Together with V8–V10 this closes the imaging-support features that can be exercised without hardware:
 plate solving, autofocus, polar alignment and flat capture all run their real pipelines against the
 simulators, and three of the four fail correctly when broken on purpose. The exception remains G14.
+
+## V12 — the daylight gate refuses on-sky frames, correctly and with a precise message (validation)
+
+Building a sequence with a Dither node and running it at 05:04 local produced an immediate, honest
+refusal rather than a night of useless frames:
+
+```
+ERROR Exposure failed: Daylight gate: refusing light-frame exposure — Sun altitude -7.7° is above
+the maximum -12.0° for on-sky light imaging. Daytime flats/darks/bias and a parked rig are
+unaffected; this blocks only on-sky science captures.
+```
+
+The number is right. Computing the sun's altitude independently for 42.35 / -71.06 at 09:04:56Z
+gives **-7.7°** — an exact match to the precision reported. Astronomical dawn at that site was 03:57
+(V3), so by 05:04 the sky is in nautical twilight and light frames would be worthless.
+
+The message is unusually good for a refusal: it gives the measured value, the threshold it violated,
+and — the part that matters — the precise *scope* of the block. "Daytime flats/darks/bias and a
+parked rig are unaffected" tells an operator immediately that their calibration workflow still works
+and nothing is wedged.
+
+Two useful facts fell out of the same run. The sequencer pushes its trigger configuration at start,
+and the meridian-flip block reads:
+
+```
+method=MinutesPastMeridian, minutes_past=5.0, auto_center=true, refocus=false,
+pause_guiding=true, resume_guiding=true, max_retries=3, failure_action=PauseAndAlert
+```
+
+So **the meridian flip has an explicit `failure_action`** — `PauseAndAlert`. That is exactly the
+setting autofocus does not have, which is the open product question, and it shows the concept already
+exists in the sequencer's vocabulary.
+
+**Honest limit on dither, live stacking and meridian-flip execution.** All three need a running
+on-sky sequence, and the app is now correctly refusing on-sky captures at this site and time. They
+are blocked by the daylight gate doing its job, not by anything untested about them — exercising
+them means moving the simulated site into darkness, which is a legitimate technique and simply where
+this session ran out of room.
