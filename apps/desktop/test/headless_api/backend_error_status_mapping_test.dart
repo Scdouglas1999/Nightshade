@@ -221,6 +221,21 @@ void main() {
       const bridge_error.NightshadeError.timeout('slew'): 504,
     };
 
+    // The wire code per status. `internal_error` used to cover everything
+    // `>= 500`, which made a capability the camera does not have read as an
+    // appliance fault. Live rig 2026-08-09, ASI178MM with no cooler:
+    // `POST /api/camera/cooling {"enabled":false}` ->
+    // `501 {"error":"internal_error","message":"Operation not supported"}`.
+    // Only a genuine 500 is internal.
+    const codeForStatus = <int, String>{
+      400: 'device_error',
+      404: 'device_error',
+      409: 'device_error',
+      501: 'not_supported',
+      502: 'device_unreachable',
+      504: 'device_timeout',
+    };
+
     for (final entry in expected.entries) {
       final result = await call(entry.key);
       expect(
@@ -230,8 +245,27 @@ void main() {
       );
       expect(
         result.body['error'],
-        entry.value >= 500 ? 'internal_error' : 'device_error',
+        codeForStatus[entry.value],
+        reason:
+            '${entry.key.runtimeType} (${entry.value}) must not be labelled '
+            'internal_error — no retry and no restart clears a capability the '
+            'device does not have',
       );
     }
+  });
+
+  test('a not-supported capability is not an internal fault', () async {
+    // The exact rig case, kept as its own test because the label is the
+    // finding: the status was right and the code pointed at the appliance.
+    final result = await call(
+      const bridge_error.NightshadeError.notSupported(
+        deviceId: 'native:zwo:1',
+        operation: 'setCoolerOn',
+      ),
+    );
+
+    expect(result.status, 501);
+    expect(result.body['error'], 'not_supported');
+    expect(result.body['error'], isNot('internal_error'));
   });
 }

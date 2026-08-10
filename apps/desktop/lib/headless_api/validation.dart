@@ -143,6 +143,30 @@ String _sanitizeErrorDetail(Object e) {
       : firstLine;
 }
 
+/// The wire `error` code for a mapped backend status.
+///
+/// The status alone was the code: everything `>= 500` was labelled
+/// `internal_error`. Live rig 2026-08-09, on a camera with no cooler:
+///
+/// ```
+/// POST /api/camera/cooling {"deviceId":"native:zwo:1","enabled":false}
+///   -> 501 {"error":"internal_error","message":"Operation not supported"}
+/// ```
+///
+/// The status was right and the code was a lie. `internal_error` says the
+/// appliance broke; the truth is that this camera does not have the capability,
+/// which no retry and no restart will change. The same mislabel covered 502 and
+/// 504 — a driver that is unreachable or slow is not an internal fault of the
+/// host either, and telling a client otherwise sends it looking in the wrong
+/// place. Only a genuine 500 is `internal_error`.
+String _backendErrorCode(int statusCode) => switch (statusCode) {
+  501 => 'not_supported',
+  502 => 'device_unreachable',
+  504 => 'device_timeout',
+  >= 500 => 'internal_error',
+  _ => 'device_error',
+};
+
 int _httpStatusForBackendError(bridge_error.NightshadeError e) {
   return e.maybeMap(
     notSupported: (_) => 501,
@@ -704,7 +728,7 @@ Middleware errorTranslationMiddleware({
           );
         }
         return jsonResponse({
-          'error': statusCode >= 500 ? 'internal_error' : 'device_error',
+          'error': _backendErrorCode(statusCode),
           'message': message,
           'requestId': requestId,
         }, statusCode: statusCode);
