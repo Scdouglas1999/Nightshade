@@ -512,3 +512,16 @@ already tabled above (two on the tabs that carry no frame-type/binning control).
 Recorded without naming which tab showed what: my `click-xy` label mapping was off again — sixth time
 this drive — and the tabs' content clearly rotated relative to the names I assigned. What is
 established is that all seven switch, all seven render distinct content, and none is empty or broken.
+## Web dashboard — served and accessible-clean at the markup level
+
+`GET /dashboard` on the appliance returns 80 KB of HTML, `<title>Nightshade Dashboard</title>`, with
+**113 buttons and 263 `aria-*` attributes**. Parsing every `<button>` for an accessible name — an
+`aria-label`, a `title`, or visible text content — gives **zero with no name at all**. The 14 that
+carry no `aria-label` all have text content, which is the correct way to name a button.
+
+The CSP is also tightened deliberately, with the reasoning in a comment at the top: `connect-src`
+restricted to same origin plus same-origin WebSockets, replacing a `http://*:*` wildcard that "would
+allow an attacker-controlled page served from the dashboard origin to relay credentials".
+
+This is a markup-level check only — it says the buttons are nameable, not that the dashboard behaves.
+Driving it needs a browser session, which is the same gap as mobile and Windows.
