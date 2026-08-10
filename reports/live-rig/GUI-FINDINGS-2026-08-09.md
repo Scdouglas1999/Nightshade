@@ -595,3 +595,29 @@ content is excluded, exactly as the fix intends. Passes.
 
 So the position is: the landed fixes are real at both layers; the *unfixed* remainders rest on
 harness readings alone and should get a widget test before anyone acts on them.
+
+## G12 — WITHDRAWN: the Tonight primary action is correctly disabled
+
+With no observing location configured, the Tonight screen's primary action "Image this target
+tonight" rendered dimmed, did nothing when clicked, and appeared in the accessibility tree with no
+disabled marker — while the same tree printed `Sort: Score [DISABLED]` for another control. That
+looked like a design-system defect affecting every disabled `NightshadeButton` in the app.
+
+The click technique was verified first, per the standing rule: clicking the sibling "Advanced: full
+planner & sequencer" at the same coordinates navigated to Plan Tonight, so the press genuinely
+landed on an inert control.
+
+It is not a defect. `NightshadeButton` already wraps itself in `Semantics(button: true,
+enabled: !isDisabled, label: …)`, and a widget test proves the published node carries
+`hasEnabledState` and *not* `isEnabled` when `onPressed` is null — with the enabled case asserted
+alongside so the test cannot pass by the flag never being set either way. The AT-SPI tree simply
+does not annotate that node. Second false accessibility finding from the harness this session
+(see G11); the rule that settled both is the same — the tree finds candidates, a widget test
+confirms them.
+
+The behaviour is also right as UX: the button sits directly beneath a "Location not configured"
+card that explains the reason and offers "Open Settings", so the disabled state is neither silent
+nor unexplained.
+
+Kept `nightshade_button_disabled_semantics_test.dart` as regression cover, since the design system
+had no test pinning a property the whole app depends on.
