@@ -33,8 +33,11 @@ void main() {
       final names = DeviceType.values.map((d) => d.name.toLowerCase()).toSet();
       for (final n in names) {
         if (n.endsWith('_')) {
-          expect(names.contains(n.substring(0, n.length - 1)), isFalse,
-              reason: 'both $n and its unsuffixed form exist');
+          expect(
+            names.contains(n.substring(0, n.length - 1)),
+            isFalse,
+            reason: 'both $n and its unsuffixed form exist',
+          );
         }
       }
     });
