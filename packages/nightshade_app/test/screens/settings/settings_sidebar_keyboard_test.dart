@@ -115,6 +115,14 @@ void main() {
         hasTapAction: true,
         hasFocusAction: true,
         isFocusable: true,
+        // A live section has to say it is live. `matchesSemantics` treats every
+        // unlisted flag as an assertion that it is ABSENT, so omitting these
+        // two pinned the pre-2026-08-10 behaviour: `Semantics(button: true)`
+        // without `enabled:` publishes no isEnabled flag at all, and AT-SPI
+        // reads that as insensitive. Measured on the running app, the whole
+        // settings sidebar announced as disabled.
+        hasEnabledState: true,
+        isEnabled: true,
       ),
     );
     // The group header is a control too: it collapses/expands the group.
@@ -128,6 +136,8 @@ void main() {
         hasTapAction: true,
         hasFocusAction: true,
         isFocusable: true,
+        hasEnabledState: true,
+        isEnabled: true,
       ),
     );
     semantics.dispose();
