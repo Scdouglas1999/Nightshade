@@ -903,6 +903,51 @@ impl AstapSolver {
     }
 }
 
+/// Length of one FITS header card, fixed by the standard.
+const FITS_CARD_LEN: usize = 80;
+
+/// Split a FITS header into its 80-character cards.
+///
+/// A `.wcs` file is a raw FITS header: fixed-width cards packed end to end
+/// with **no line terminators at all**. Iterating it with `str::lines()`
+/// therefore yields the whole header as one enormous "line", so only the very
+/// first card (`SIMPLE`) is ever inspected and every keyword after it —
+/// `CRVAL1`, the CD matrix, `NAXIS1/2` — is invisible. ASTAP would solve, the
+/// parse would then report the solution as missing `CRVAL1`, and the caller
+/// counted a successful solve as a failed one: `Plate Solve & Center` failed
+/// every attempt and took the run down with it.
+///
+/// Newlines are still honoured first, because some solvers (and this module's
+/// own test fixtures) do write one card per line; only segments longer than a
+/// single card are split further.
+fn fits_header_cards(content: &str) -> Vec<&str> {
+    let mut cards = Vec::new();
+    for segment in content.lines() {
+        if segment.len() <= FITS_CARD_LEN {
+            cards.push(segment);
+            continue;
+        }
+        let bytes = segment.as_bytes();
+        let mut start = 0;
+        while start < bytes.len() {
+            let end = (start + FITS_CARD_LEN).min(bytes.len());
+            // A FITS header is ASCII, so every card boundary is a char
+            // boundary. Anything else is not a header we can card-split;
+            // hand back what is left in one piece rather than panicking on a
+            // mid-character slice.
+            match std::str::from_utf8(&bytes[start..end]) {
+                Ok(card) => cards.push(card),
+                Err(_) => {
+                    cards.push(&segment[start..]);
+                    break;
+                }
+            }
+            start = end;
+        }
+    }
+    cards
+}
+
 /// Free-function form of WCS parsing so the test module can exercise it
 /// without instantiating an `AstapSolver` (which requires a real ASTAP
 /// install on PATH).
@@ -937,7 +982,7 @@ fn parse_wcs_file_inner(
     let mut ap_terms: Vec<(u32, u32, f64)> = Vec::new();
     let mut bp_terms: Vec<(u32, u32, f64)> = Vec::new();
 
-    for line in content.lines() {
+    for line in fits_header_cards(&content) {
         if line.len() < 10 {
             continue;
         }
@@ -2382,6 +2427,49 @@ mod tests {
         assert!(result.success);
         assert!((result.ra - 150.123).abs() < 1e-9);
         assert!((result.dec - 20.456).abs() < 1e-9);
+        assert!(result.pixel_scale > 0.0);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    /// One 80-character FITS card, padded, with no line terminator — the way
+    /// ASTAP actually writes `.wcs`.
+    fn padded_card(keyword: &str, value: &str) -> String {
+        let body = format!("{keyword:<8}= {value}");
+        format!("{body:<80}")
+    }
+
+    /// Regression: a real ASTAP `.wcs` is a stream of fixed 80-character cards
+    /// with **no newlines**, and the camera's own metadata pushes the WCS
+    /// keywords well past the first card. Parsing it with `str::lines()` saw
+    /// only `SIMPLE` and reported the solve as missing `CRVAL1`, so every
+    /// `Plate Solve & Center` attempt failed against a solution ASTAP had
+    /// already found — and the failure took the whole run with it.
+    #[test]
+    fn parse_wcs_file_reads_a_newline_free_card_stream() {
+        let mut content = padded_card("SIMPLE", "                   T");
+        // Instrument metadata ASTAP copies from the source frame, enough of it
+        // to push the solution past the first 2880-byte header block.
+        for index in 0..40 {
+            content.push_str(&padded_card(&format!("NSPAD{index:03}"), "0"));
+        }
+        content.push_str(&padded_card("CRVAL1", "150.123 / RA of reference pixel"));
+        content.push_str(&padded_card("CRVAL2", "20.456 / DEC of reference pixel"));
+        content.push_str(&padded_card("CD1_1", "-0.000358"));
+        content.push_str(&padded_card("CD1_2", "0.000001"));
+        content.push_str(&padded_card("CD2_1", "0.000001"));
+        content.push_str(&padded_card("CD2_2", "0.000358"));
+        content.push_str(&padded_card("NAXIS1", "1920"));
+        content.push_str(&padded_card("NAXIS2", "1080"));
+        assert!(!content.contains('\n'), "fixture must have no newlines");
+
+        let path = write_temp("wcs-card-stream", &content);
+        let result =
+            parse_wcs_file_inner(&path, 0.3).expect("a card-stream .wcs must parse like any other");
+
+        assert!(result.success);
+        assert!((result.ra - 150.123).abs() < 1e-9, "ra was {}", result.ra);
+        assert!((result.dec - 20.456).abs() < 1e-9, "dec was {}", result.dec);
         assert!(result.pixel_scale > 0.0);
 
         let _ = std::fs::remove_file(path);

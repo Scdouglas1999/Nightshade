@@ -1254,3 +1254,128 @@ G15 — that a *failed* flip does what `PauseAndAlert` claims rather than ending
 
 This was set up and left unrun only because the session ran out of room; it is a handful of steps,
 not a blocked capability, and stating it as blocked earlier was a mistake.
+
+---
+
+## G16 — every plate solve is reported as a failure, because the `.wcs` parser assumes newlines *(P0, fixed)*
+
+Found while setting up the meridian-flip execution test (2026-08-10). It is the most serious
+defect this campaign has produced, and it had been sitting behind a green test suite.
+
+**What the app did.** The wizard-built sequence ran `Slew to Target` → `Plate Solve & Center`.
+The Center node made five attempts and failed all five:
+
+```
+12:55:24  INFO  Centering on RA: 339.1650°, Dec: 40.0000° (accuracy: 5.0")
+12:55:24  INFO  Center attempt 1/5
+          Solved in 0.3 sec. Δ was 0.4".  Mount Δα=-0.4",  Δδ=-0.2".
+12:55:30  WARN  Plate solve failed on attempt 1
+          ... attempts 2-5, Δ = 0.9", 0.9", 1.1", 1.3" ...
+12:55:56  ERROR Center Target failed: Failed to center within 5.0" after 5 attempts
+12:55:56  INFO  Child 'Plate Solve & Center' completed with status: Failure
+12:55:56  INFO  Child 'Sequence' completed with status: Failure
+```
+
+ASTAP solved **every** attempt, and every residual (0.4"–1.3") was far inside the 5.0" tolerance
+the node was asked for. The app called each one a failure and then ended the run.
+
+**Why.** The error the app logged names the cause exactly:
+
+```
+ERROR ASTAP reported success but .wcs parse failed:
+      WCS file `/tmp/..._0.wcs` did not contain required keyword `CRVAL1`
+```
+
+`CRVAL1` is in that file. `parse_wcs_file_inner` walked it with `content.lines()`, but a `.wcs`
+file is a raw FITS header — fixed 80-character cards packed end to end with **no line
+terminators**. Verified directly on a solve run by hand:
+
+```
+$ astap_cli -f frame.fits -ra 0 -spd 90 -r 5 -z 2 -d <catalogs> -wcs
+Solution found: 00: 00  00.1 +00d 00  01
+$ python3 -c "d=open('/tmp/wcstest.wcs','rb').read(); print(len(d), d.count(b'\n'))"
+5760 0
+```
+
+5760 bytes, **zero newlines** — 72 cards. `lines()` yields one 5760-character "line", so the
+parser read card 0 (`SIMPLE`) and nothing else. `CRVAL1` sits at card 41, pushed there by the
+instrument metadata ASTAP copies from the source frame, i.e. past the first 2880-byte block.
+
+**Blast radius.** Anything that centres, which on the unattended path is most things:
+
+- `Plate Solve & Center` — fails the node, and the sequential parent short-circuits, so the run
+  ends before a single light frame (exactly what happened above).
+- the post-meridian-flip recenter — the flip config the app pushes at run start is
+  `auto_center=true`, so a flip that mechanically succeeded would still report failure.
+- framing, and any other caller of the same solver.
+
+The unit tests did not catch it because every `.wcs` fixture in the suite is built by a helper
+that appends `'\n'` to each card — the tests encode a file format ASTAP does not produce.
+
+**Fix.** `fits_header_cards()` splits on newlines first (fixtures and any solver that writes
+them keep working) and then splits any segment longer than one card into 80-character cards.
+Regression test `parse_wcs_file_reads_a_newline_free_card_stream` builds a genuine newline-free
+card stream with the WCS keywords past card 36, and asserts the fixture contains no `'\n'` so it
+cannot silently decay back into the format that hid this.
+
+**Note for tonight.** This is in `Plate Solve & Center` on the shipped path. Any sequence built
+by the Quick-Start wizard contains that node.
+
+---
+
+## G17 — the plate solver is never told the field scale, so it has to guess it *(P1, partially addressed)*
+
+Found immediately after G16, on the same runs. Two separate observations, both from the app's
+own log.
+
+**1. The temp FITS handed to ASTAP carries no optics.** `SequencerDeviceOps::plate_solve`
+(`bridge/src/sequencer_ops.rs`) builds a header with `EXPTIME`, `GAIN`, `OFFSET`, `CCD-TEMP`,
+`RA`, `DEC` — and nothing about the telescope or the sensor. Captured directly off disk during a
+run (the file is deleted the moment the solve returns, so it was copied by a watcher loop):
+
+```
+SIMPLE/BITPIX/NAXIS/NAXIS1=1920/NAXIS2=1080/BZERO/BSCALE
+EXPTIME = 5.0        DATE-OBS = '2026-08-10T13:42:47.572Z'   IMAGETYP = 'Light'
+OBJECT  = 'Plate Solve'   GAIN = 100   OFFSET = 10   CCD-TEMP = 20.0
+XBINNING= 1   YBINNING = 1
+RA      = 349.05     OBJCTRA  = '23 16 12.00'
+DEC     = 40.0       OBJCTDEC = '+40 00 00.00'
+END
+```
+
+No `FOCALLEN`, no `XPIXSZ`/`PIXSIZE`. The Center instruction also passes `hint_scale: None`
+(`sequencer/src/instructions.rs`), so the command line carries no `-fov` either.
+
+**2. ASTAP therefore sweeps for the scale, and the sweep is a coin flip.** Every attempt walks
+the field of view down from 9.5°:
+
+```
+Image height: 9.50 / 6.33 / 4.22 / 2.81 / 1.88 / 1.25 / 0.83 / 0.56 / 0.37 degrees
+```
+
+The real field is 0.37°, i.e. the *last* rung. On the 12:55 run it reached it and solved in
+0.3 s — and even then complained `Warning scale was inaccurate! Set FOV=0.23d, scale=0.8"`. On
+the 13:27, 13:35 and 13:49 runs the same target at a different RA never converged and ASTAP
+exited non-zero on all five attempts. Same code, same catalogs, same simulated sensor: the only
+variable is whether the blind sweep happens to land.
+
+**Consequence.** Centering is unreliable for a reason that has nothing to do with the sky, and
+each failed attempt still costs a 5-second exposure plus the sweep, so five attempts burn ~35 s
+before the node gives up and (per the sequential-parent rule) takes the run with it.
+
+**What was changed.** `plate_solve` now writes `FOCALLEN` from the active equipment profile and
+`XPIXSZ`/`YPIXSZ`/`PIXSIZE1`/`PIXSIZE2`/`XBINNING`/`YBINNING` from the camera's reported sensor
+geometry, and logs which of the two it actually had.
+
+**What is NOT closed, and must not be recorded as closed.** On this rig the new cards did *not*
+appear: the snatched header shows `XBINNING`/`YBINNING` (written from camera status) but still no
+`FOCALLEN` and no pixel pitch. So on the live path either the native `AppState` profile's
+`telescope_focal_length` is 0 — the Dart equipment profile holds 1000.0, so the value is not
+reaching the native side — or the camera reports a 0.0 pitch, or both. The diagnostic log line
+added to answer that question did not appear in the log either, which is itself unexplained and
+is the next thing to chase.
+
+Note for whoever picks this up: `imaging/src/platesolve.rs` already contains an ASTAP `-fov`
+code path, gated behind a caller-supplied scale hint *and* a pixel size — see the string
+"Plate-solve scale hint provided without pixel size; skipping ASTAP -fov hint". Feeding that
+path is probably the smaller fix than writing header cards.

@@ -1050,6 +1050,82 @@ impl DeviceOps for BridgeDeviceOps {
             header.set_float("SCALE", scale);
         }
 
+        // The optics, so the solver knows the field scale.
+        //
+        // Without these cards the temp FITS carries no scale information at
+        // all, and ASTAP falls back to sweeping the field of view downward
+        // from ~9.5° — which turns a 0.3-second solve into a multi-second
+        // search that only sometimes reaches the right scale. Observed live:
+        // the same target solved on one run ("Warning scale was inaccurate!
+        // Set FOV=0.23d") and exited non-zero on the next, having never got
+        // below 2.8°. These are measured values, not assumptions: the focal
+        // length is the operator's own profile entry and the pixel pitch is
+        // what the camera reports, so nothing is inferred here — a device
+        // that reports no pitch simply contributes no card.
+        let mut focal_length_written: Option<f64> = None;
+        let mut pixel_pitch_written: Option<f64> = None;
+        if let Some(profile) = crate::get_state().get_profile().await {
+            let focal_length_mm = profile.telescope_focal_length;
+            if focal_length_mm.is_finite() && focal_length_mm > 0.0 {
+                header.set_float("FOCALLEN", focal_length_mm);
+                focal_length_written = Some(focal_length_mm);
+            }
+
+            if let Some(camera_id) = profile.camera_id.as_deref() {
+                match get_camera_status(camera_id.to_string()).await {
+                    Ok(status) => {
+                        // 0.0 is a driver saying "I don't know", not a pitch.
+                        if status.pixel_size_x > 0.0 && status.pixel_size_y > 0.0 {
+                            header.set_float("XPIXSZ", status.pixel_size_x);
+                            header.set_float("YPIXSZ", status.pixel_size_y);
+                            header.set_float("PIXSIZE1", status.pixel_size_x);
+                            header.set_float("PIXSIZE2", status.pixel_size_y);
+                            pixel_pitch_written = Some(status.pixel_size_x);
+                        }
+                        // Binning matters: XPIXSZ above is the unbinned pitch,
+                        // so a binned frame's scale is only right if the solver
+                        // is told the binning too.
+                        if status.bin_x > 0 && status.bin_y > 0 {
+                            header.set_int("XBINNING", i64::from(status.bin_x));
+                            header.set_int("YBINNING", i64::from(status.bin_y));
+                        }
+                    }
+                    Err(e) => {
+                        tracing::debug!(
+                            "Plate solve: camera '{}' status unavailable ({}); solving without \
+                             a pixel-scale hint",
+                            camera_id,
+                            e
+                        );
+                    }
+                }
+            }
+        }
+
+        // Say out loud whether the solver is getting a scale or is about to
+        // sweep for one. A blind sweep is not an error and produces no warning
+        // of its own, so without this line the slow, unreliable case and the
+        // fast, reliable case look identical in the log.
+        match (focal_length_written, pixel_pitch_written) {
+            (Some(focal), Some(pitch)) => tracing::info!(
+                "Plate solve scale hint: focal length {:.1} mm, pixel pitch {:.2} µm \
+                 ({:.2}\"/px unbinned)",
+                focal,
+                pitch,
+                206.264_806 * pitch / focal
+            ),
+            _ => tracing::warn!(
+                "Plate solve has no field-scale hint (focal length {}, pixel pitch {}); \
+                 the solver must search for the scale, which is slower and can fail on a \
+                 field it would otherwise solve. Set the telescope focal length on the \
+                 active equipment profile.",
+                focal_length_written
+                    .map_or_else(|| "unknown".to_string(), |v| format!("{v:.1} mm")),
+                pixel_pitch_written
+                    .map_or_else(|| "unknown".to_string(), |v| format!("{v:.2} µm")),
+            ),
+        }
+
         // Save temp FITS
         nightshade_imaging::write_fits(std::path::Path::new(&temp_path), &img, &header)
             .map_err(|e| format!("Failed to save temp FITS: {}", e))?;
