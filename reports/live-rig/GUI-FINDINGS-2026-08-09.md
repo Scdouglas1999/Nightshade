@@ -1089,3 +1089,46 @@ on-sky sequence, and the app is now correctly refusing on-sky captures at this s
 are blocked by the daylight gate doing its job, not by anything untested about them — exercising
 them means moving the simulated site into darkness, which is a legitimate technique and simply where
 this session ran out of room.
+
+## V13 / G15 — dither runs, fails precisely without a guider, and takes the whole run down with it
+
+Relocated the simulated observing site to longitude -135° so the sun sat 32° below the horizon —
+the daylight gate of V12 correctly refuses on-sky frames otherwise — and ran a two-node sequence:
+Take Exposures ×10, then Dither.
+
+**Dither itself behaves well.** It executes, reports its parameters, and names the exact reason it
+cannot proceed:
+
+```
+Executing child 2/2: 'Dither'
+Dithering 2 pixels (random)
+Dithering 2 pixels (settle: <1.5px in 30s)
+ERROR Dither failed: Dither failed: No active guider configured
+Child 'Dither' completed with status: Failure
+```
+
+"No active guider configured" is the right message — dithering is a guider operation, and the guider
+was disconnected throughout.
+
+**What is questionable is the run's verdict.** The stored record:
+
+```
+status            failed
+framesCaptured    10
+ditherCount       0
+errorMessages     ["Dither: Dither failed: No active guider configured"]
+```
+
+Every requested light frame was captured — 10 of 10, on disk — and the run is reported as `failed`
+because an ancillary step afterwards could not run. An operator reading a morning summary that says
+"failed" will reasonably conclude the night did not produce data. It did.
+
+Dithering reduces fixed-pattern noise; it is not what acquires the science. A dither that cannot run
+is a reason to warn, and arguably to stop dithering, but treating it as a run-level failure
+overstates what happened. Same family as L52 — the status is technically derived but tells the
+operator the wrong story.
+
+**Deliberately not claimed:** this sequence had Dither as its *last* node, so nothing was lost. Whether
+a failed dither in the middle of an `[Exposures, Dither, Exposures, …]` sequence also aborts the
+blocks after it is **untested** and is the thing to check next — that is where this would cost a
+night rather than mislabel one.
