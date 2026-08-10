@@ -85,9 +85,26 @@ class CapturePanel extends ConsumerWidget {
     // completedExposures from the DB row alongside totalIntegrationSecs, so
     // prefer it whenever a session row is open; the in-run frame list is only
     // the fallback for captures taken with no session (dbSessionId == null).
+    // ...and the fallback has to obey the same rule, which it did not. With no
+    // session row open, the count came from `sessionImages` — which includes
+    // frames the SEQUENCER captured this app run — while the integration below
+    // came from `sessionState`, which only accumulates captures this screen
+    // performed. Measured on 2026-08-10 after a ten-frame sequencer run at 8s:
+    // the card read "Captured 10 frames / Integration 0s", and one 2s Snapshot
+    // moved it to "11 frames / 2s". Eleven frames cannot total two seconds at
+    // any exposure.
+    //
+    // So derive both from the same list here, exactly as the DB branch derives
+    // both from the same row.
     final capturedCount = sessionState.dbSessionId != null
         ? sessionState.completedExposures
         : sessionImages.length;
+    final integrationSecs = sessionState.dbSessionId != null
+        ? sessionState.totalIntegrationSecs
+        : sessionImages.fold<double>(
+            0.0,
+            (sum, image) => sum + image.settings.exposureTime,
+          );
 
     // Get binning options based on connected camera's capabilities
     final binningOptions = ref.watch(
@@ -239,7 +256,7 @@ class CapturePanel extends ConsumerWidget {
                             color: colors.textSecondary)),
                     Flexible(
                       child: Text(
-                        _formatDuration(sessionState.totalIntegrationSecs),
+                        _formatDuration(integrationSecs),
                         textAlign: TextAlign.end,
                         overflow: TextOverflow.ellipsis,
                         style: NightshadeTypography.labelSm

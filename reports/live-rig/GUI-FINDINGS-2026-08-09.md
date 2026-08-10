@@ -703,3 +703,34 @@ with the run I had just driven:
 | targets | "Untargeted" | no target node existed |
 
 Across both runs the totals reconcile exactly: 15 `captured_images` rows and 15 FITS files on disk.
+
+## G13 — the Imaging Session card counted sequencer frames but not their integration *(P2, fixed)*
+
+Observed on the Imaging screen after a completed ten-frame sequencer run at 8s:
+
+```
+Session
+  Captured     10 frames
+  Integration  0s
+```
+
+Taking one 2-second Snapshot on that screen moved it to **11 frames / 2s**. Eleven frames cannot
+total two seconds at any exposure, which is what made this checkable rather than merely odd.
+
+The card already carried a comment saying its two lines "must come from the SAME record or they can
+contradict each other" — from an earlier fix for this same contradiction. That fix only covered the
+branch where a database session row is open. In the fallback branch the count came from
+`recentSessionFramesProvider`, which holds every frame captured in this app run *including the
+sequencer's*, while the integration still came from `sessionState`, which only accumulates captures
+the Imaging screen itself performed. Two sources, one card.
+
+The stored rows were never wrong — `imaging_sessions` held `10 / 80.0`, `5 / 40.0`, `10 / 20.0`,
+each internally consistent. Only the live card disagreed with itself.
+
+Fixed by deriving both lines from the same list in the fallback, summing `settings.exposureTime`
+over exactly the frames being counted. Verified in the running app on a fresh ten-frame run at 8s:
+the card now reads **Captured 10 frames / Integration 1m 20s**.
+
+Distinct from L50 despite the identical symptom: L50 was the Rust executor's counter feeding the
+checkpoint, this is a Dart-side display picking two different sources. Finding the second one only
+because the first had trained me to check frames against integration is worth noting.
