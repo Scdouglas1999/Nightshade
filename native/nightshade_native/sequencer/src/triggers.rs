@@ -17,6 +17,12 @@ use tokio::sync::RwLock;
 /// focus-drift detection horizon.
 pub const FOCUS_DRIFT_WINDOW_MAX: usize = 100;
 
+/// Extra time past the end of an exposure during which the camera still counts
+/// as busy, covering sensor readout and download. Generous on purpose: the
+/// cost of over-waiting is that a trigger-fired autofocus starts a few seconds
+/// late, and the cost of under-waiting is a destroyed frame and a dead run.
+pub const CAMERA_BUSY_DOWNLOAD_SLACK_SECS: f64 = 20.0;
+
 /// If `trigger_type` is `FocusDrift` and the configured window exceeds
 /// `FOCUS_DRIFT_WINDOW_MAX`, clamp it and log a warning. Used by
 /// `Trigger::new` so a stored sequence with an oversized window does not
@@ -950,6 +956,27 @@ pub struct TriggerState {
     /// is enabled (other trigger methods are not predictable in advance).
     pub meridian_flip_minutes_past: Option<f64>,
 
+    /// When the capture loop's in-flight exposure is expected to be finished
+    /// and downloaded, as a Unix-millis instant. `None` means no exposure is
+    /// in flight.
+    ///
+    /// A trigger recovery action that drives the camera itself — autofocus is
+    /// the one that fires on a timer — must not start while the capture loop
+    /// is mid-frame. It did, and the frame was destroyed: the autofocus began
+    /// its own exposures 0.35 s after a 10 s light started, and when the
+    /// capture loop came to download its frame the camera had nothing for it
+    /// ("No exposure is available to download"). That failed the exposure
+    /// node, and the sequential parent took the capture loop and the entire
+    /// run with it — at frame 25 of every run, since that is the default
+    /// autofocus cadence.
+    ///
+    /// This is a deadline rather than a boolean on purpose. A boolean that is
+    /// never cleared (a panic, an early return down a path nobody updated)
+    /// would block every future autofocus for the rest of the night; a
+    /// deadline in the past simply stops holding, so the failure mode of this
+    /// mechanism is the behaviour we had before it, not a wedged run.
+    pub camera_busy_until_ms: Option<i64>,
+
     // Guiding
     pub guiding_rms_history: Option<Vec<(Instant, f64)>>,
     pub guiding_enabled: bool,
@@ -1154,6 +1181,7 @@ impl Default for TriggerState {
             current_target_name: None,
             next_meridian_flip_time: None,
             meridian_flip_minutes_past: None,
+            camera_busy_until_ms: None,
             guiding_rms_history: None,
             guiding_enabled: false,
             guide_star_lost: false,
@@ -1665,6 +1693,61 @@ impl TriggerState {
     /// Update the current hour angle (call periodically from mount polling)
     pub fn update_hour_angle(&mut self, hour_angle: f64) {
         self.current_hour_angle = Some(hour_angle);
+    }
+
+    /// Declare the camera busy for the next `duration_secs` of exposure plus
+    /// `CAMERA_BUSY_DOWNLOAD_SLACK_SECS` for the download, so a trigger action
+    /// that needs the camera waits instead of interleaving with the frame.
+    ///
+    /// The slack matters: the frame is not safe the instant the shutter
+    /// closes. The download is exactly when the destroyed-frame failure
+    /// appeared, because that is when the capture loop asks the camera for an
+    /// image the autofocus has already taken.
+    pub fn mark_camera_busy_for(&mut self, duration_secs: f64) {
+        let hold_secs = if duration_secs.is_finite() && duration_secs > 0.0 {
+            duration_secs + CAMERA_BUSY_DOWNLOAD_SLACK_SECS
+        } else {
+            CAMERA_BUSY_DOWNLOAD_SLACK_SECS
+        };
+        self.camera_busy_until_ms =
+            Some(chrono::Utc::now().timestamp_millis() + (hold_secs * 1000.0) as i64);
+    }
+
+    /// The frame is done (or gave up). Clear the hold immediately rather than
+    /// letting the deadline expire, so a trigger waiting on it starts now.
+    pub fn clear_camera_busy(&mut self) {
+        self.camera_busy_until_ms = None;
+    }
+
+    /// Take the camera for `duration_secs` if nobody else holds it, atomically.
+    /// Returns `false` when it is already claimed.
+    ///
+    /// The claim is one token shared by both users of the camera — the capture
+    /// loop's frames and the trigger-fired autofocus — because two independent
+    /// "is the other one busy?" flags cannot be tested and set without a race,
+    /// and losing that race is what destroys a frame. Testing and setting under
+    /// the single write lock the caller already holds is what makes it safe.
+    pub fn try_claim_camera_for(&mut self, duration_secs: f64) -> bool {
+        if self.camera_busy_remaining_secs().is_some() {
+            return false;
+        }
+        self.mark_camera_busy_for(duration_secs);
+        true
+    }
+
+    /// Seconds until the in-flight exposure is expected to be downloaded, or
+    /// `None` if the camera is free. A deadline already in the past reads as
+    /// free — see [`TriggerState::camera_busy_until_ms`] for why this
+    /// self-heals rather than wedging.
+    pub fn camera_busy_remaining_secs(&self) -> Option<f64> {
+        let until = self.camera_busy_until_ms?;
+        let remaining_ms = until - chrono::Utc::now().timestamp_millis();
+        if remaining_ms <= 0 {
+            return None;
+        }
+        // i64 milliseconds -> f64 seconds; exposure holds are seconds to
+        // minutes, nowhere near the f64 mantissa limit.
+        Some(remaining_ms as f64 / 1000.0)
     }
 
     /// Update the current pier side and clear `has_flipped_this_target` if

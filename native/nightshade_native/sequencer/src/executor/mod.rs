@@ -1959,6 +1959,14 @@ async fn cancel_and_wait_for_execution(
 /// we give up loudly rather than waiting silently.
 const TRIGGER_ACTION_QUIESCE_MAX_SECS: u64 = 15 * 60;
 
+/// How long a trigger-fired camera action holds the camera claim before the
+/// claim expires on its own. Long enough for a full V-curve autofocus (15
+/// points at several seconds each, plus focuser travel) and short enough that
+/// an action which dies without releasing costs one hold, not the night. The
+/// action releases explicitly when it finishes, so this only governs the
+/// abnormal path.
+const TRIGGER_CAMERA_CLAIM_SECS: f64 = 10.0 * 60.0;
+
 /// RAII latch marking that a trigger recovery action is executing.
 ///
 /// The trigger monitor is an inline `async` block inside the terminal
@@ -2020,6 +2028,61 @@ fn skip_to_node_accepted_event(node_id: NodeId) -> ExecutorEvent {
 /// fired_triggers.push((trigger_id.clone(), RecoveryAction::ParkAndAbort));
 /// return terminate_with(&is_cancelled_clone, fired_triggers, "ParkAndAbort");
 /// ```
+/// Hold a camera-using trigger action until the capture loop's in-flight
+/// exposure has been downloaded.
+///
+/// Two trigger actions drive the camera themselves — autofocus on its frame
+/// interval, and the meridian flip's post-flip recenter (which already runs
+/// only after the capture loop's own pre-frame gate has held the next frame).
+/// Starting one mid-frame destroys that frame: the capture loop's download
+/// finds the camera empty, the exposure node fails, and the sequential parent
+/// takes the run down with it.
+///
+/// Waiting is bounded by the claim's own deadline (see
+/// [`TriggerState::camera_busy_until_ms`]), so a hold that is never released
+/// expires rather than blocking autofocus for the rest of the night. A cancel
+/// releases immediately: an operator Stop must not wait out an exposure.
+async fn claim_camera_for_trigger_action(
+    trigger_state: &Arc<RwLock<crate::triggers::TriggerState>>,
+    is_cancelled: &Arc<AtomicBool>,
+    action: &str,
+) {
+    let mut announced = false;
+    loop {
+        if is_cancelled.load(Ordering::Relaxed) {
+            tracing::info!("Trigger-fired {} released early: sequence cancelled", action);
+            return;
+        }
+
+        let remaining = {
+            let mut state = trigger_state.write().await;
+            if state.try_claim_camera_for(TRIGGER_CAMERA_CLAIM_SECS) {
+                None
+            } else {
+                state.camera_busy_remaining_secs()
+            }
+        };
+
+        let Some(remaining) = remaining else {
+            if announced {
+                tracing::info!("Camera free; running trigger-fired {} now", action);
+            }
+            return;
+        };
+
+        if !announced {
+            announced = true;
+            tracing::info!(
+                "Holding trigger-fired {} for ~{:.0}s: the capture loop is mid-exposure and \
+                 starting now would destroy the frame",
+                action,
+                remaining
+            );
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
+}
+
 fn terminate_with(
     is_cancelled: &Arc<AtomicBool>,
     triggers: Vec<(String, RecoveryAction)>,
@@ -6181,6 +6244,22 @@ impl SequenceExecutor {
                                     skip_to_next_target_for_triggers.store(true, Ordering::Relaxed);
                                 }
                                 RecoveryAction::Autofocus => {
+                                    // Autofocus drives the camera itself, so it
+                                    // must not start on top of a frame the
+                                    // capture loop is already exposing. It did:
+                                    // the autofocus began its own exposures
+                                    // 0.35 s after a 10 s light started, and the
+                                    // capture loop's download then failed with
+                                    // "No exposure is available to download",
+                                    // failing the exposure node and — through
+                                    // the sequential parent — the whole run, at
+                                    // frame 25 of every run.
+                                    claim_camera_for_trigger_action(
+                                        &trigger_state_for_actions,
+                                        &is_cancelled_clone,
+                                        "autofocus",
+                                    )
+                                    .await;
                                     tracing::info!(
                                         "Executing autofocus as trigger recovery action"
                                     );
@@ -6273,6 +6352,16 @@ impl SequenceExecutor {
                                                 Some(&progress_fn),
                                             )
                                             .await;
+
+                                            // Hand the camera back the moment the sweep
+                                            // is done — success or failure — so the
+                                            // capture loop resumes on its next frame
+                                            // instead of waiting out the claim's
+                                            // ten-minute expiry.
+                                            trigger_state_for_actions
+                                                .write()
+                                                .await
+                                                .clear_camera_busy();
 
                                             // Publish the sweep's verdict.
                                             //
@@ -9454,6 +9543,89 @@ mod tests {
     /// `TRIGGER_ACTION_QUIESCE_MAX_SECS` wait before finishing; a missing
     /// `true` reopens the original defect (the run resolving while a meridian
     /// flip retry ladder is still sleeping, orphaning the recovery).
+    /// A trigger-fired autofocus that starts while the capture loop is
+    /// mid-frame destroys that frame — the loop's download finds the camera
+    /// empty ("No exposure is available to download"), the exposure node
+    /// fails, and the sequential parent takes the run with it. That happened
+    /// at frame 25 of every run, the default autofocus cadence.
+    #[tokio::test]
+    async fn camera_idle_wait_holds_for_an_exposure_then_releases() {
+        let state = Arc::new(RwLock::new(crate::triggers::TriggerState::new()));
+        let cancelled = Arc::new(AtomicBool::new(false));
+
+        // Nothing in flight: the action must not be delayed at all.
+        let started = tokio::time::Instant::now();
+        claim_camera_for_trigger_action(&state, &cancelled, "autofocus").await;
+        assert!(
+            started.elapsed() < std::time::Duration::from_millis(100),
+            "an idle camera must not delay a trigger action"
+        );
+
+        // A frame in flight holds the action until the frame releases it.
+        state.write().await.mark_camera_busy_for(30.0);
+        assert!(
+            state
+                .read()
+                .await
+                .camera_busy_remaining_secs()
+                .is_some_and(|secs| secs > 30.0),
+            "the claim must cover the exposure plus download slack"
+        );
+
+        let release_state = state.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+            release_state.write().await.clear_camera_busy();
+        });
+
+        let started = tokio::time::Instant::now();
+        claim_camera_for_trigger_action(&state, &cancelled, "autofocus").await;
+        let waited = started.elapsed();
+        assert!(
+            waited >= std::time::Duration::from_millis(250),
+            "the action must wait for the in-flight frame, waited {waited:?}"
+        );
+        assert!(
+            waited < std::time::Duration::from_secs(5),
+            "the action must run as soon as the frame releases, not sit out the \
+             whole 30s claim; waited {waited:?}"
+        );
+    }
+
+    /// An operator Stop must not have to wait out a 10-minute sub.
+    #[tokio::test]
+    async fn camera_idle_wait_releases_immediately_on_cancel() {
+        let state = Arc::new(RwLock::new(crate::triggers::TriggerState::new()));
+        let cancelled = Arc::new(AtomicBool::new(false));
+        state.write().await.mark_camera_busy_for(600.0);
+
+        let flag = cancelled.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+            flag.store(true, Ordering::Relaxed);
+        });
+
+        let started = tokio::time::Instant::now();
+        claim_camera_for_trigger_action(&state, &cancelled, "autofocus").await;
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(5),
+            "a cancelled sequence must release the wait immediately"
+        );
+    }
+
+    /// The claim is a deadline, not a boolean, so a hold that is never
+    /// released expires instead of blocking autofocus for the rest of the
+    /// night.
+    #[tokio::test]
+    async fn camera_claim_expires_rather_than_wedging() {
+        let mut state = crate::triggers::TriggerState::new();
+        state.camera_busy_until_ms = Some(chrono::Utc::now().timestamp_millis() - 1);
+        assert!(
+            state.camera_busy_remaining_secs().is_none(),
+            "a claim whose deadline has passed must read as free"
+        );
+    }
+
     #[test]
     fn trigger_action_in_flight_guard_sets_and_clears_on_every_exit() {
         let flag = Arc::new(AtomicBool::new(false));

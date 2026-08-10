@@ -1472,3 +1472,61 @@ is now recognised, with **no** magnitude limit asserted — the published table 
 and a fabricated number would feed the exposure planner.
 
 Verified: 0 occurrences of the warning on the next run, centering still `Success`.
+
+---
+
+## G18 — FIXED and verified live: the camera is now claimed, not shared
+
+The frame-25 kill (recorded above) is closed. Reproduced three times before the fix — runs ending
+at exactly 25 frames — and the fix took two attempts, because the first one moved the race rather
+than closing it.
+
+**Attempt 1 (insufficient).** Made the trigger-fired autofocus wait for the capture loop. The hold
+worked:
+
+```
+16:00:02  Trigger fired: Autofocus Interval
+16:00:02  Holding trigger-fired autofocus for 30.0s: the capture loop is mid-exposure and
+          starting now would destroy the frame
+16:01:04  Camera free; running trigger-fired autofocus now
+16:01:24  ERROR Failed to download image: No exposure is available to download
+```
+
+…and the same failure returned 20 s later, from the other end: nothing stopped the *capture loop*
+starting a frame while the *autofocus* was running. Two independent "is the other one busy?"
+flags cannot be tested and set without a race.
+
+**Attempt 2 (the fix).** One claim on the shared trigger state, taken atomically under a single
+write lock by whoever gets there first (`TriggerState::try_claim_camera_for`), released explicitly
+when the holder is done. It is a **deadline**, not a boolean, so a holder that dies without
+releasing costs one hold rather than wedging every future autofocus for the night. Both users
+acquire it: the capture loop before each exposure, the autofocus trigger before its sweep.
+
+Verified live, same sequence, same 25-frame cadence:
+
+```
+16:16:05  Trigger fired: Autofocus Interval (autofocus_interval)
+16:16:05  Holding trigger-fired autofocus for ~30s: the capture loop is mid-exposure and
+          starting now would destroy the frame
+16:16:46  Camera free; running trigger-fired autofocus now
+16:16:46  Executing autofocus as trigger recovery action
+16:16:46  Holding the next 10s exposure for ~620s: a trigger action is using the camera
+17:17:59  Low curve fit quality: R²=0.000 (required 0.700); returning to original position
+16:18:09  Saved: Flip Test_L_0001_157.fits
+16:18:09  Child 'L' completed with status: Success
+```
+
+Clean handoff in both directions, and **zero** occurrences of "No exposure is available to
+download" across the whole run. Frame count and integration agree exactly (30 frames / 300.0 s at
+10 s each), and the 30 files on disk match the counter.
+
+The run then **paused** — correctly, and it says so in the header ("Sequence Paused"). That is the
+existing failed-autofocus policy, not a new defect: the simulated focuser models no defocus, so
+the V-curve fit is R²=0.000 and can never pass. On real optics the sweep has a real curve to fit.
+Whether a failed autofocus *should* pause an unattended night is the open product question
+already on the list, and is now the only thing between this sequence and running unattended.
+
+**Second half of G18, also fixed:** interval autofocus could not be switched off. The engine has
+always read `every_n_frames == 0` as "never fire", but the Dart seed clamped anything below 1 *up
+to 1* — so the one value an operator would pick to disable it produced a refocus after **every
+frame**, the most aggressive setting available. Zero now passes through as off.

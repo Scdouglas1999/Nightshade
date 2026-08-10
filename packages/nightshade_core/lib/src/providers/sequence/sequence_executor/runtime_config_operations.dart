@@ -227,12 +227,24 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
     // Rust default of 25 is wrong for both very-short and very-long subs.
     try {
       final defaults = _ref.read(sequencerDefaultsProvider);
+      // Zero means OFF, and must be passed through as zero.
+      //
+      // This used to clamp anything below 1 up to 1, which turned the one
+      // value an operator would reach for to disable interval autofocus into
+      // the most aggressive setting there is: refocus after *every* frame.
+      // There was no way to switch the interval off at all. The engine has
+      // always read 0 as "never fire" (`TriggerType::AutofocusInterval`
+      // returns false when `every_n_frames == 0`), so the clamp was the only
+      // thing standing in the way. Negative values are not meaningful and
+      // still resolve to off rather than to a cadence.
       final frames = defaults.autofocusIntervalFrames < 1
-          ? 1
+          ? 0
           : defaults.autofocusIntervalFrames;
       await backend.sequencerUpdateAutofocusInterval(frames);
       _logger.debug(
-        'Seeded autofocus interval: every $frames frames',
+        frames == 0
+            ? 'Seeded autofocus interval: disabled'
+            : 'Seeded autofocus interval: every $frames frames',
         source: 'SequenceExecutor',
       );
     } catch (e, st) {

@@ -2510,6 +2510,43 @@ pub async fn execute_exposure_with_renderer(
         // before the exposure call, is the only place that is actually true.
         let exposure_started_at = chrono::Utc::now();
 
+        // Take the camera before exposing, waiting if a trigger-fired
+        // autofocus currently holds it.
+        //
+        // This is the mirror of the hold on the trigger side, and both halves
+        // are needed. With only the trigger waiting for the capture loop, the
+        // loop simply started the next frame *during* the autofocus and the
+        // same "No exposure is available to download" failure came back 20 s
+        // later — the race had swapped ends, not closed. One claim, taken by
+        // whoever gets there first, is what actually serialises them.
+        if let Some(trigger_state) = &ctx.trigger_state {
+            let mut announced = false;
+            loop {
+                if let Some(result) = ctx.check_cancelled() {
+                    return result;
+                }
+                let remaining = {
+                    let mut state = trigger_state.write().await;
+                    if state.try_claim_camera_for(config.duration_secs) {
+                        None
+                    } else {
+                        state.camera_busy_remaining_secs()
+                    }
+                };
+                let Some(remaining) = remaining else { break };
+                if !announced {
+                    announced = true;
+                    tracing::info!(
+                        "Holding the next {:.0}s exposure for ~{:.0}s: a trigger action is using \
+                         the camera",
+                        config.duration_secs,
+                        remaining
+                    );
+                }
+                tokio::time::sleep(Duration::from_millis(200)).await;
+            }
+        }
+
         // tokio::select! is the only way to honour cancellation during a
         // blocking exposure without driver support; the abort branch tells
         // the camera to stop so it does not continue exposing in the
@@ -2526,6 +2563,9 @@ pub async fn execute_exposure_with_renderer(
                         "Camera abort failed during exposure cancellation: {}",
                         error
                     ),
+                }
+                if let Some(trigger_state) = &ctx.trigger_state {
+                    trigger_state.write().await.clear_camera_busy();
                 }
                 return InstructionResult::cancelled("Exposure cancelled");
             }
@@ -2544,6 +2584,14 @@ pub async fn execute_exposure_with_renderer(
                 result
             }
         };
+        // The frame is off the camera (or failed): release the claim on both
+        // paths. A failure that returns without clearing would leave the hold
+        // to expire on its deadline, which is safe but delays the next
+        // trigger-fired autofocus for no reason.
+        if let Some(trigger_state) = &ctx.trigger_state {
+            trigger_state.write().await.clear_camera_busy();
+        }
+
         let mut image_data = match exposure_result {
             Ok(data) => {
                 tracing::info!(
