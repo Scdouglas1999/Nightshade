@@ -899,3 +899,40 @@ alarm was raised on the strength of the intermediate result.
 *Third, and the actual cause of the failed solves:* ASTAP's `-fov` expects the field **height**, and
 I was passing the **width** (1.03 instead of 0.56). The scale hint was nearly 2× off. Auto-FOV
 (`-fov 0`) found it in 0.7 seconds. A wrong hint and a broken solver look identical from the outside.
+
+## V9 — autofocus runs and measurably improves focus (validation)
+
+Ran a real autofocus from the Imaging screen's Focus panel against the simulated focuser and camera.
+The app's own log:
+
+```
+Starting autofocus: Hyperbolic method, 4 steps, step size 50
+[SEQ] Autofocus point 1..9 sample 1/1 completed: 1920x1080 (2073600 pixels)
+Best focus at position 25075, HFR: 2.78, R²: 0.953
+```
+
+Everything checks:
+
+- **Nine sample points** for a "Steps Out 4" setting — four either side plus the centre — each one a
+  real 1920×1080 capture, not a synthetic curve.
+- **R² 0.953** clears the 0.7 minimum-curve-quality floor configured in Settings → Autofocus, so the
+  fit was legitimately accepted.
+- The chosen position **25075** is not on the 50-step sample grid (25000 ± 50/100/150/200), which is
+  what an interpolated hyperbolic minimum should look like, and the Manual Focus readout moved to
+  match.
+- A `focus_models` row was persisted for temperature compensation.
+
+**And it actually focused**, which is the part a log line alone cannot establish. Capturing a frame
+at the same 2-second exposure before and after:
+
+| | before (focuser 25000) | after (focuser 25075) |
+|---|---|---|
+| HFR | 6.042 (mean of 12 frames) | **1.942** |
+| stars detected | ~37–40 | **249** |
+| quality score | ~32 | **88.85** |
+
+3.1× sharper and six times as many stars — the simulated optics respond to focuser position the way
+real ones do, so the whole autofocus path is exercisable without hardware.
+
+Incidentally this also exercises the G7 quality-score fix at the opposite end of its range: 88.85 for
+a sharp frame against ~32 for a soft one, from the same formula. The score discriminates.
