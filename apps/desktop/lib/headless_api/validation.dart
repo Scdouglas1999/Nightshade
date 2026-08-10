@@ -310,6 +310,43 @@ Future<Map<String, dynamic>> readJsonObject(Request request) async {
   return _decodeJsonObject(raw);
 }
 
+/// Name the keys of [payload] this endpoint understood and the keys it did
+/// not, so a caller can see that a misspelled field had no effect.
+///
+/// Live rig 2026-08-09: `POST /api/sequencer/update-observer-profile` with
+/// `focalLengthMm` / `apertureMm` — the obvious spelling of
+/// `telescopeFocalLengthMm` / `telescopeApertureMm` — answered
+/// `200 {"status":"ok"}` and dropped both values. The next frame carried
+/// `TELESCOP`, `INSTRUME` and `OBSERVER` and no `FOCALLEN` or `APTDIA`, and the
+/// only way to discover that was to read the FITS header.
+///
+/// Reporting rather than rejecting is deliberate. A 400 on an unknown key would
+/// be the stricter contract, but it turns a forward-compatible client — a phone
+/// that auto-updated ahead of its appliance — into a hard failure. Naming the
+/// ignored keys costs nothing, breaks nobody, and is enough: the response stops
+/// claiming it did something it did not.
+///
+/// Use it as the body of a settings-style POST:
+/// `return jsonOk({'status': 'ok', ...fieldReport(payload, const {...})});`
+Map<String, Object?> fieldReport(
+  Map<String, dynamic> payload,
+  Set<String> understood,
+) {
+  final applied = payload.keys.where(understood.contains).toList()..sort();
+  final ignored = payload.keys.where((k) => !understood.contains(k)).toList()
+    ..sort();
+  return {
+    'applied': applied,
+    if (ignored.isNotEmpty) ...{
+      'ignored': ignored,
+      'warning':
+          'These fields are not part of this endpoint and were not applied: '
+          '${ignored.join(', ')}. Accepted fields: '
+          '${(understood.toList()..sort()).join(', ')}.',
+    },
+  };
+}
+
 /// Reads an optional JSON-object body. An absent or whitespace-only body maps
 /// to an empty object; a supplied body is held to the same strict contract as
 /// [readJsonObject]. This is for POST endpoints whose entire payload is

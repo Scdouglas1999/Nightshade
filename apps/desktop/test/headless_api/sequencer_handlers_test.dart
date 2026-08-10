@@ -703,4 +703,92 @@ void main() {
       });
     }
   });
+
+  /// Live rig 2026-08-09: `POST /api/sequencer/update-observer-profile` with
+  /// `focalLengthMm` / `apertureMm` — the obvious spelling of the real keys —
+  /// answered `200 {"status":"ok"}` and dropped both values. The next frame
+  /// carried TELESCOP, INSTRUME and OBSERVER and no FOCALLEN or APTDIA, and
+  /// the only way to discover that was to read the FITS header.
+  group('the observer profile says what it understood', () {
+    late ProviderContainer container;
+    late SequencerHandlers handlers;
+    late _MockSequencerBackend backend;
+
+    setUp(() {
+      backend = _MockSequencerBackend();
+      when(
+        () => backend.sequencerUpdateObserverProfile(
+          observerName: any(named: 'observerName'),
+          siteElevationM: any(named: 'siteElevationM'),
+          cameraMake: any(named: 'cameraMake'),
+          cameraModel: any(named: 'cameraModel'),
+          telescopeName: any(named: 'telescopeName'),
+          telescopeFocalLengthMm: any(named: 'telescopeFocalLengthMm'),
+          telescopeApertureMm: any(named: 'telescopeApertureMm'),
+        ),
+      ).thenAnswer((_) async {});
+      container = createHeadlessTestContainer(
+        overrides: [sequencerBackendProvider.overrideWithValue(backend)],
+      );
+      addTearDown(container.dispose);
+      handlers = SequencerHandlers(container);
+    });
+
+    Future<Map<String, dynamic>> post(Map<String, Object?> body) async {
+      final response = await translateHandlerErrors(
+        handlers.handleSequencerUpdateObserverProfile(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/sequencer/update-observer-profile'),
+            body: jsonEncode(body),
+          ),
+        ),
+      );
+      expect(response.statusCode, 200);
+      return jsonDecode(await response.readAsString()) as Map<String, dynamic>;
+    }
+
+    test('the exact rig payload is reported as ignored', () async {
+      final body = await post({
+        'focalLengthMm': 1000.0,
+        'apertureMm': 200.0,
+        'telescopeName': 'RC8',
+      });
+
+      expect(body['status'], 'ok');
+      expect(body['applied'], ['telescopeName']);
+      expect(body['ignored'], ['apertureMm', 'focalLengthMm']);
+      expect(body['warning'], contains('telescopeFocalLengthMm'));
+    });
+
+    test('a wholly correct payload carries no warning', () async {
+      final body = await post({
+        'telescopeFocalLengthMm': 1000.0,
+        'telescopeApertureMm': 200.0,
+      });
+
+      expect(body['applied'], [
+        'telescopeApertureMm',
+        'telescopeFocalLengthMm',
+      ]);
+      expect(body.containsKey('ignored'), isFalse);
+      expect(body.containsKey('warning'), isFalse);
+    });
+
+    test('the values still reach the backend', () async {
+      await post({'telescopeFocalLengthMm': 1000.0, 'nonsense': 1});
+
+      verify(
+        () => backend.sequencerUpdateObserverProfile(
+          observerName: null,
+          siteElevationM: null,
+          cameraMake: null,
+          cameraModel: null,
+          telescopeName: null,
+          telescopeFocalLengthMm: 1000.0,
+          telescopeApertureMm: null,
+        ),
+      ).called(1);
+    });
+  });
 }

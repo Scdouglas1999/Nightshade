@@ -1257,7 +1257,23 @@ class SequencerHandlers {
       telescopeFocalLengthMm: optionalDouble(payload, 'telescopeFocalLengthMm'),
       telescopeApertureMm: optionalDouble(payload, 'telescopeApertureMm'),
     );
-    return jsonOk({'status': 'ok'});
+    // Say which fields were understood. `focalLengthMm` — the obvious
+    // misspelling of `telescopeFocalLengthMm` — used to answer a bare
+    // `{"status":"ok"}` and drop the value, and the only way to find out was
+    // to read a later FITS header and notice FOCALLEN missing. See
+    // [fieldReport].
+    return jsonOk({
+      'status': 'ok',
+      ...fieldReport(payload, const {
+        'observerName',
+        'siteElevationM',
+        'cameraMake',
+        'cameraModel',
+        'telescopeName',
+        'telescopeFocalLengthMm',
+        'telescopeApertureMm',
+      }),
+    });
   }
 
   Future<Response> handleSequencerUpdateSkyBrightness(Request request) async {
