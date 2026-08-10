@@ -2217,6 +2217,47 @@ class SequenceExecutor {
     }
   }
 
+  /// Attach the host-side event listener to a run the NATIVE executor is about
+  /// to drive on its own, without starting a Dart-orchestrated run.
+  ///
+  /// The headless appliance's canonical flow is
+  /// `POST /api/sequencer/load` -> `POST /api/sequencer/start`, which hands the
+  /// tree straight to Rust and never calls [start]. That skips
+  /// `_startNativeExecution`, and with it the one place that subscribes
+  /// [_handleSequencerEvent] to `backend.eventStream` — so on the appliance
+  /// nothing was listening when the frames came back.
+  ///
+  /// The listener is not decoration. It is what turns a native
+  /// `FrameCaptured` into a `captured_images` row, advances the session
+  /// counters, feeds progress and the run vitals, and drives auto-grading.
+  /// Without it a night's frames are written to disk correctly and the
+  /// database never hears about them: measured on the live rig 2026-08-09 as
+  /// **30 FITS on disk, 8 registered**, and the eight belonged to the single
+  /// run that had gone through [resumeFromCheckpoint] — the other subscribe
+  /// site — rather than through `start`.
+  ///
+  /// Idempotent, and safe to call before every native start: a previous run's
+  /// teardown cancels the subscription, so run two would otherwise be as blind
+  /// as run one was. Never call this for a Dart-orchestrated run; [start]
+  /// installs its own subscription alongside the timers and watchers that a
+  /// native-driven run does not have.
+  Future<void> attachHostListenersForNativeRun() async {
+    _ensureBackendAuthority();
+    final backend = _backend;
+    await _nativeEventSubscription?.cancel();
+    _nativeEventSubscription = backend.eventStream.listen(
+      _handleSequencerEvent,
+      onError: (e) =>
+          _logger.error('Event stream error: $e', source: 'SequenceExecutor'),
+    );
+  }
+
+  /// Whether this executor is currently listening to the native event stream.
+  /// The subscription is what turns native frame events into database rows, so
+  /// "is it attached" is the assertable form of "will this run be recorded".
+  @visibleForTesting
+  bool get isListeningToNativeEventsForTest => _nativeEventSubscription != null;
+
   /// Discard the current checkpoint
   Future<void> discardCheckpoint() async {
     _ensureBackendAuthority();

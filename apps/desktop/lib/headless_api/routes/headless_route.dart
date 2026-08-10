@@ -27,6 +27,9 @@
 ///     compiler enforces the dispatch in [registerRoutes] is exhaustive.
 library;
 
+import 'dart:convert';
+
+import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 
 /// HTTP verbs supported by the headless API router.
@@ -69,7 +72,7 @@ class HeadlessRoute {
 /// [HttpMethod] value without updating the walker, the build fails at
 /// compile time rather than silently dropping registrations.
 void registerRoutes(Router router, List<HeadlessRoute> routes) {
-  for (final route in routes) {
+  for (final route in withMethodNotAllowedFallbacks(routes)) {
     switch (route.method) {
       case HttpMethod.get:
         router.get(route.path, route.handler);
@@ -88,3 +91,109 @@ void registerRoutes(Router router, List<HeadlessRoute> routes) {
     }
   }
 }
+
+/// Verbs a synthesized 405 is generated for. `head` and `options` are
+/// excluded deliberately: OPTIONS is CORS preflight, which the middleware
+/// answers, and a HEAD is a legitimate probe of a GET route.
+const _methodNotAllowedVerbs = <HttpMethod>{
+  HttpMethod.get,
+  HttpMethod.post,
+  HttpMethod.put,
+  HttpMethod.delete,
+  HttpMethod.patch,
+};
+
+const _httpMethodNames = <HttpMethod, String>{
+  HttpMethod.get: 'GET',
+  HttpMethod.post: 'POST',
+  HttpMethod.put: 'PUT',
+  HttpMethod.delete: 'DELETE',
+  HttpMethod.patch: 'PATCH',
+  HttpMethod.head: 'HEAD',
+  HttpMethod.options: 'OPTIONS',
+};
+
+/// Return [routes] with a `405 Method Not Allowed` entry synthesized for every
+/// verb a LITERAL path does not implement.
+///
+/// Live rig L32 (2026-08-09). A GET to a POST-only endpoint did not answer
+/// "wrong verb" — it answered a question nobody asked:
+///
+/// ```
+/// GET /api/calibration/darks/find-match -> 400 {"error":"Path segment is not a
+///                                               valid integer","field":"id"}
+/// GET /api/calibration/darks/clear      -> 400  (identical)
+/// ```
+///
+/// Neither path takes an `id`. Both are registered as POST, correctly ahead of
+/// the parameterised `GET /api/calibration/darks/<id>`; the GET simply finds no
+/// literal GET route, falls through to the `<id>` route, and that handler
+/// dutifully tries to parse `find-match` as an integer. The result names a
+/// field the caller never sent, about a value they never supplied, for a path
+/// that exists — an error that actively points away from its own cause. With
+/// eleven literal siblings on that one prefix, every one of them carried the
+/// same trap for anyone who guessed the verb.
+///
+/// Doing this here rather than per-route is the point: the route table is the
+/// single source of truth for what exists, so a path added tomorrow gets the
+/// correct 405 without anyone remembering to ask for it.
+///
+/// Ordering is load-bearing. Each stub is inserted immediately after the LAST
+/// real registration of its path, which keeps it behind the handlers that do
+/// implement the path and ahead of any parameterised route declared later —
+/// the same ordering rule the literal routes themselves already depend on.
+List<HeadlessRoute> withMethodNotAllowedFallbacks(List<HeadlessRoute> routes) {
+  final implemented = <String, Set<HttpMethod>>{};
+  final lastIndexOfPath = <String, int>{};
+  for (var i = 0; i < routes.length; i++) {
+    final route = routes[i];
+    // Parameterised and catch-all paths are skipped: `<id>` matches whatever
+    // the caller sent, so "this path exists but not with that verb" is not a
+    // claim this function can make about them.
+    if (route.path.contains('<')) continue;
+    implemented.putIfAbsent(route.path, () => <HttpMethod>{}).add(route.method);
+    lastIndexOfPath[route.path] = i;
+  }
+
+  final result = <HeadlessRoute>[];
+  for (var i = 0; i < routes.length; i++) {
+    final route = routes[i];
+    result.add(route);
+    if (lastIndexOfPath[route.path] != i) continue;
+
+    final allowed = implemented[route.path]!;
+    final allowHeader = _methodNotAllowedVerbs
+        .where(allowed.contains)
+        .map((m) => _httpMethodNames[m]!)
+        .join(', ');
+    for (final method in _methodNotAllowedVerbs) {
+      if (allowed.contains(method)) continue;
+      result.add(
+        HeadlessRoute(
+          method,
+          route.path,
+          _methodNotAllowed(route.path, allowHeader),
+        ),
+      );
+    }
+  }
+  return result;
+}
+
+Response Function(Request) _methodNotAllowed(String path, String allowHeader) =>
+    (Request request) => Response(
+      405,
+      body: jsonEncode({
+        'error':
+            '${request.method} is not supported for $path. This endpoint '
+            'accepts: $allowHeader.',
+        'code': 'method_not_allowed',
+        'allow': allowHeader,
+      }),
+      headers: {
+        'content-type': 'application/json',
+        // RFC 9110 requires Allow on a 405, and it is what lets a client fix
+        // itself without reading the route table.
+        'allow': allowHeader,
+      },
+    );

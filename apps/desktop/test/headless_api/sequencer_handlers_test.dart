@@ -577,7 +577,10 @@ void main() {
     setUp(() {
       backend = _MockSequencerBackend();
       when(() => backend.sequencerSetSavePath(any())).thenAnswer((_) async {});
-      container = ProviderContainer(
+      // In-memory database: an accepted save path now also writes the host's
+      // `imageOutputPath` (live-rig L30), so this group touches settings
+      // persistence and a bare container would reach for the real on-disk DB.
+      container = createHeadlessTestContainer(
         overrides: [sequencerBackendProvider.overrideWithValue(backend)],
       );
       handlers = SequencerHandlers(container);

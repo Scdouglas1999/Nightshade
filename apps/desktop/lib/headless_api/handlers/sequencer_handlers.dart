@@ -39,6 +39,9 @@ class SequencerHandlers {
   void _logInfo(String message) =>
       _logger.info(message, source: 'SequencerHandlers');
 
+  void _logWarning(String message) =>
+      _logger.warning(message, source: 'SequencerHandlers');
+
   Future<Response> handleSequencerStatus(Request request) async {
     final backend = container.read(sequencerBackendProvider);
     final status = await backend.sequencerGetStatus();
@@ -184,6 +187,12 @@ class SequencerHandlers {
         // `recovering / Device disconnected, progress 0.0` with no frames, and
         // `GET /api/devices/connected` listed the camera the whole time.
         await _wireConnectedDevicesIntoNativeExecutor(backend);
+        // Give the run the two host-side pieces `executor.start()` would have
+        // set up. Order matters: the session row must exist before the first
+        // frame event arrives, or that frame is stamped with a null
+        // `session_id`. See [_openSessionRowForNativeRun].
+        await _openSessionRowForNativeRun(backend);
+        await _attachHostListenersForNativeRun();
         nativeStartAttempted = true;
         await backend.sequencerStart();
       }
@@ -484,7 +493,126 @@ class SequencerHandlers {
 
     final backend = container.read(sequencerBackendProvider);
     await backend.sequencerLoadJson(json);
+    // Keep what the start path needs to open a session row. The native
+    // executor owns the tree from here on and exposes no way to ask it for the
+    // sequence name or its targets, so if this is dropped the headless run has
+    // nothing to label a session with. See [_openSessionRowForNativeRun].
+    _lastLoadedWire = _WireSequenceSummary.parse(json);
     return jsonOk({'status': 'loaded'});
+  }
+
+  /// Metadata from the most recent `POST /api/sequencer/load`, used to open the
+  /// `imaging_sessions` row for a headless run. Null before the first load.
+  _WireSequenceSummary? _lastLoadedWire;
+
+  /// Native executor states that mean a run is still under way. Mirrors the
+  /// strings `api/sequencer.rs` serializes.
+  static const _nativeRunInProgressStates = <String>{
+    'running',
+    'paused',
+    'stopping',
+    'recovering',
+  };
+
+  /// Open the session row that the headless `load -> start` path never opened.
+  ///
+  /// Found on the live rig 2026-08-09: after six completed headless runs the
+  /// appliance held **30 FITS files on disk and 8 registered images**, all
+  /// eight belonging to the single run that had gone through
+  /// `checkpoint/resume` rather than `start`.
+  ///
+  /// The cause is that `handleSequencerStart`'s headless branch re-implements a
+  /// subset of what `SequenceExecutor.start()` does — it wires devices into the
+  /// native executor (added when the same seam swallowed the camera) but never
+  /// opened a session and never subscribed to the frame events. This half is
+  /// the session; `attachHostListenersForNativeRun` is the other, and the two
+  /// are called together at the start site. Everything the app offers for
+  /// REVIEWING a night reads the database rather than the directory: the image
+  /// library, session review, analytics, the grader, integration totals, the
+  /// run report. An operator imaging unattended would wake to a full disk and
+  /// an app showing nothing.
+  ///
+  /// Without the row specifically, frames that DO get registered carry a null
+  /// `session_id` and the session counters never advance — the night exists as
+  /// a pile of unattributed rows rather than as a session.
+  ///
+  /// Failure here is deliberately non-fatal. A run that captures frames is
+  /// worth more than a run that refuses to start because its bookkeeping row
+  /// could not be written, and the frames still reach disk either way.
+  Future<void> _openSessionRowForNativeRun(SequencerBackend backend) async {
+    final summary = _lastLoadedWire;
+    if (summary == null) {
+      _logInfo(
+        '[API] POST /api/sequencer/start: no loaded-wire summary; skipping the '
+        'session row (frames will be attributed to no session)',
+      );
+      return;
+    }
+    try {
+      final sessions = container.read(sessionStateProvider.notifier);
+      if (container.read(sessionStateProvider).isActive) {
+        // A session the previous run left open. `SessionService.startSession`
+        // refuses to open a second one, so leaving it would file tonight's
+        // second target under the first target's session — the frames would be
+        // registered, and registered against the wrong night.
+        //
+        // Only safe once the native executor is genuinely idle, which is also
+        // the only case where this start can succeed at all: a busy executor
+        // refuses below with a 409, and ending a live run's session on the way
+        // to that refusal would corrupt the run still in progress.
+        final state = (await backend.sequencerGetStatus()).state;
+        if (_nativeRunInProgressStates.contains(state)) {
+          _logWarning(
+            '[API] POST /api/sequencer/start: a session is open and the native '
+            'executor reports "$state"; leaving the session alone and letting '
+            'the start be refused',
+          );
+          return;
+        }
+        _logInfo(
+          '[API] POST /api/sequencer/start: closing the session left open by '
+          'the previous run (native executor is "$state")',
+        );
+        await sessions.endSession(status: 'completed');
+      }
+      await sessions.startSession(
+        targetName: summary.name,
+        // Only a single-target sequence gets coordinates, matching
+        // `_startSessionRow`: picking one header out of several would
+        // misrepresent the session.
+        targetRa: summary.singleTargetRaHours,
+        targetDec: summary.singleTargetDecDegrees,
+        profileId: container.read(activeEquipmentProfileProvider)?.id,
+      );
+      sessions.setTotalExposures(summary.totalExposures);
+    } catch (error) {
+      _logWarning(
+        '[API] POST /api/sequencer/start: could not open the session row '
+        '($error); frames will be captured but not registered',
+      );
+    }
+  }
+
+  /// Subscribe the host to the native run's events — the half of the same
+  /// omission that actually writes the `captured_images` rows. See
+  /// [SequenceExecutor.attachHostListenersForNativeRun] and
+  /// [_openSessionRowForNativeRun].
+  ///
+  /// Non-fatal for the same reason: a night captured but unregistered can be
+  /// imported from the directory afterwards; a night refused cannot be
+  /// recovered at all.
+  Future<void> _attachHostListenersForNativeRun() async {
+    try {
+      await container
+          .read(sequenceExecutorProvider)
+          .attachHostListenersForNativeRun();
+    } catch (error) {
+      _logWarning(
+        '[API] POST /api/sequencer/start: could not subscribe to the run\'s '
+        'frame events ($error); frames will be written to disk but not '
+        'registered in the image library',
+      );
+    }
   }
 
   /// Run the wire pre-flight and turn any blocking finding into the same 400
@@ -845,6 +973,34 @@ class SequencerHandlers {
 
     final backend = container.read(sequencerBackendProvider);
     await backend.sequencerSetSavePath(requested);
+
+    // Point the host's own capture-folder setting at the same directory.
+    //
+    // Live rig L30 (2026-08-09): setting the save path and then writing 30
+    // frames to it left `GET /api/system/disk-space` answering
+    // `{"configured": false}` all night. The two are separate settings —
+    // `sequencerSetSavePath` is the NATIVE executor's output directory, while
+    // the free-space guard, the disk-space watchdog and the capture-folder UI
+    // all read `appSettings.imageOutputPath` — and nothing linked them. A
+    // headless-only operator has no other way to set the second one, so the
+    // guard watched nothing while the disk filled. Set to DIFFERENT volumes it
+    // is worse than inert: it reports healthy space on the wrong disk.
+    //
+    // Non-fatal: the run's frames go where the caller asked either way, and
+    // refusing a valid save path because a monitoring setting could not be
+    // persisted would trade a working night for a bookkeeping one.
+    try {
+      await container.read(appSettingsProvider.future);
+      await container
+          .read(appSettingsProvider.notifier)
+          .setImageOutputPath(requested);
+    } catch (error) {
+      _logWarning(
+        '[API] POST /api/sequencer/save-path: frames will be written to '
+        '"$requested" but the host capture-folder setting could not be '
+        'updated ($error); disk-space monitoring may watch a different volume',
+      );
+    }
     return jsonOk({'status': 'ok', 'path': requested});
   }
 
@@ -1697,5 +1853,166 @@ class SequencerHandlers {
       parsed[targetKey.toString()] = filters;
     });
     return parsed;
+  }
+}
+
+/// The little that the headless start path needs to know about the sequence
+/// the native executor is holding.
+///
+/// The native executor takes the wire JSON and exposes no way to ask it back
+/// for a name or a target, so this is parsed once at load and kept. Fields
+/// mirror `_startSessionRow` in `SequenceExecutor` one for one; the point of
+/// the mirror is that a headless run and an editor run open the same shape of
+/// `imaging_sessions` row, so everything that reads that table afterwards —
+/// image library, session review, analytics, the grader — cannot tell which
+/// path started the night.
+class _WireSequenceSummary {
+  final String name;
+
+  /// Set only when the sequence has exactly one `TargetHeader`, matching
+  /// `_startSessionRow`: a multi-target session has no single pointing to
+  /// record, and picking the first would label the row with a target the run
+  /// may never reach.
+  final double? singleTargetRaHours;
+  final double? singleTargetDecDegrees;
+
+  /// Planned frame count, loop multipliers applied — the denominator the
+  /// session progress bar divides by.
+  final int totalExposures;
+
+  const _WireSequenceSummary({
+    required this.name,
+    required this.singleTargetRaHours,
+    required this.singleTargetDecDegrees,
+    required this.totalExposures,
+  });
+
+  /// Read [json] as a serialized `SequenceDefinition`. Never throws: this runs
+  /// on the load path, and a summary that cannot be built must degrade to a
+  /// less-labelled session row rather than refuse a sequence the executor
+  /// itself accepted. `validateSequenceWireJson` has already run by here and
+  /// rejects anything structurally unusable.
+  static _WireSequenceSummary? parse(String json) {
+    try {
+      final decoded = jsonDecode(json);
+      if (decoded is! Map<String, Object?>) return null;
+
+      final rawNodes = decoded['nodes'];
+      final nodes = <String, Map<String, Object?>>{};
+      if (rawNodes is List) {
+        for (final raw in rawNodes) {
+          if (raw is! Map<String, Object?>) continue;
+          final id = raw['id'];
+          if (id is String && id.isNotEmpty) nodes[id] = raw;
+        }
+      }
+
+      final headers = nodes.values
+          .where(
+            (n) => _typeOf(n) == 'TargetHeader' || _typeOf(n) == 'TargetGroup',
+          )
+          .toList(growable: false);
+      final single = headers.length == 1 ? _configOf(headers.first) : null;
+
+      final rootId = decoded['root_node_id'];
+      final total = rootId is String && nodes.containsKey(rootId)
+          ? _countExposures(nodes, rootId, 1, <String>{})
+          // No root: fall back to the flat sum, matching `Sequence`'s own
+          // fallback rather than reporting a denominator of zero.
+          : nodes.values.fold<int>(0, (sum, n) => sum + _framesIn(n));
+
+      return _WireSequenceSummary(
+        name:
+            decoded['name'] is String && (decoded['name'] as String).isNotEmpty
+            ? decoded['name'] as String
+            : 'Headless Run',
+        singleTargetRaHours: _asDouble(single?['ra_hours']),
+        singleTargetDecDegrees: _asDouble(single?['dec_degrees']),
+        totalExposures: total,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static String _typeOf(Map<String, Object?> node) {
+    final config = node['node_type'];
+    if (config is Map<String, Object?> && config['type'] is String) {
+      return config['type'] as String;
+    }
+    return '';
+  }
+
+  static Map<String, Object?> _configOf(Map<String, Object?> node) {
+    final config = node['node_type'];
+    return config is Map<String, Object?> ? config : const {};
+  }
+
+  /// Rust's serde defaults `enabled` to true when the key is absent, so an
+  /// absent key must read as enabled here too — the same reasoning as in
+  /// `validateSequenceWireJson`.
+  static bool _isEnabled(Map<String, Object?> node) =>
+      node['enabled'] is bool ? node['enabled'] as bool : true;
+
+  static double? _asDouble(Object? value) =>
+      value is num ? value.toDouble() : null;
+
+  static int _asInt(Object? value) => value is num ? value.toInt() : 0;
+
+  /// Frames this single node plans, ignoring anything below it.
+  static int _framesIn(Map<String, Object?> node) {
+    if (!_isEnabled(node)) return 0;
+    final config = _configOf(node);
+    switch (_typeOf(node)) {
+      case 'TakeExposure':
+      case 'SciencePhotometry':
+        return _asInt(config['count']);
+      case 'SmartExposure':
+        final plans = config['plans'];
+        if (plans is! List) return 0;
+        return plans.whereType<Map<String, Object?>>().fold<int>(
+          0,
+          (sum, p) => sum + _asInt(p['count']),
+        );
+      default:
+        return 0;
+    }
+  }
+
+  /// Walk from [nodeId] scaling by the accumulated loop multiplier, mirroring
+  /// `Sequence._countExposures`. Only a `Count` loop multiplies: an unbounded
+  /// loop has no honest denominator, and inventing one would make the progress
+  /// bar claim a total the run was never going to reach.
+  ///
+  /// [seen] guards against a cyclic `children` graph, which the wire format
+  /// permits structurally.
+  static int _countExposures(
+    Map<String, Map<String, Object?>> nodes,
+    String nodeId,
+    int mult,
+    Set<String> seen,
+  ) {
+    if (!seen.add(nodeId)) return 0;
+    final node = nodes[nodeId];
+    if (node == null || !_isEnabled(node)) return 0;
+
+    var count = _framesIn(node) * mult;
+
+    var childMult = mult;
+    if (_typeOf(node) == 'Loop') {
+      final config = _configOf(node);
+      final iterations = _asInt(config['iterations']);
+      if (config['condition'] == 'Count' && iterations > 0) {
+        childMult = mult * iterations;
+      }
+    }
+
+    final children = node['children'];
+    if (children is List) {
+      for (final child in children.whereType<String>()) {
+        count += _countExposures(nodes, child, childMult, seen);
+      }
+    }
+    return count;
   }
 }
