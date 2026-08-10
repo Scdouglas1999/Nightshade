@@ -508,6 +508,7 @@ export 'src/services/session_service.dart';
 export 'src/services/quick_start_service.dart';
 export 'src/services/calibration_service.dart';
 export 'src/services/frame_quality_assessment_service.dart';
+export 'src/services/frame_quality_score.dart';
 // Adaptive sky-conditions target-swap composer + dashboard
 // snapshot decoder.
 export 'src/services/adaptive_swap_service.dart';

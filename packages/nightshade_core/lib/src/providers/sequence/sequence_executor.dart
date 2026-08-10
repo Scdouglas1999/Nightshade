@@ -75,6 +75,7 @@ import '../usb_disconnect_log_provider.dart';
 import 'sequence_validation.dart' as validation;
 import 'sequencer_defaults.dart';
 import 'sequence_executor/frame_attribution.dart';
+import '../../services/frame_quality_score.dart';
 
 part 'sequence_executor/serialization_operations.dart';
 part 'sequence_executor/runtime_config_operations.dart';

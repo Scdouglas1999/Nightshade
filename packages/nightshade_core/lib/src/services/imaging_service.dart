@@ -1,7 +1,6 @@
 // ignore_for_file: unused_element
 
 import 'dart:async';
-import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:io';
 import 'package:flutter/foundation.dart' show visibleForTesting;
@@ -38,6 +37,7 @@ import 'calibration_service.dart';
 import 'notification_service.dart';
 import 'logging_service.dart';
 import 'science/science_processing_service.dart';
+import 'frame_quality_score.dart';
 part 'imaging_service/file_paths.dart';
 part 'imaging_service/persistence.dart';
 part 'imaging_service/quality_processing.dart';

@@ -235,3 +235,49 @@ after a mechanical edit rather than trusting the edit.
 Measured, not asserted: the running app's `DISABLED` count on the onboarding screen went from 4 to
 **0**, and the fix is what the relaunched build shows.
 
+## G7 — every sequencer frame stored a NULL quality score, so grading graded a constant *(P1; fixed)*
+
+The Analytics gallery, after the clean ten-frame run:
+
+```
+Captured Images:   Good: 0    Needs Review: 10    Poor: 0
+every tile:        "65 score", HFR 2.2, badge NEEDS REVIEW
+```
+
+Ten frames from a healthy run, every one flagged for review and not one "Good". Reading the database
+explains it:
+
+```
+sqlite> select hfr, star_count, quality_score, eccentricity from captured_images limit 1;
+        2.2388   35   NULL   0.2296
+```
+
+**`quality_score` is NULL on every sequencer-captured frame.** `FrameQualityAssessmentService` opens
+with `image.qualityScore ?? 75.0`, so the assessment was of the fallback constant, not of the frame;
+penalties took 75 to 65, and 65 sits under the service's `advisoryScore < 70` line, which is why the
+verdict was unanimous.
+
+The asymmetry is the defect. `ImagingService`'s ad-hoc path (Imaging screen snapshot/loop) computes a
+score and stores it. The **sequencer** path — every frame of every unattended night — passes `hfr`,
+`starCount` and `eccentricity` to `insertSequenceFrame` and simply never passes `qualityScore`, even
+though the DAO has taken that parameter all along.
+
+**Worse than a wrong label.** A sharp frame and a soft one scored identically, so anything that ranks
+or rejects on quality — stack frame selection, auto-reject, "best frame" — was ranking a constant.
+
+**Fix.** One shared `computeFrameQualityScore` (new `frame_quality_score.dart`), used by both paths:
+the sequencer now stamps a real score, and `ImagingService._calculateQualityScore` delegates to the
+same function so they cannot drift apart again. A missing background/noise component — the sequencer
+event carries neither — is *omitted and the weights renormalised*, not scored zero; counting an
+unmeasured component as zero would punish every sequencer frame for a number nobody took, which is
+the same mistake wearing a different hat. A frame with nothing measurable returns NaN and stores
+NULL, so the service's fallback still applies where it honestly should.
+
+Weights and bands are lifted verbatim from the existing implementation. **Deliberately not retuned**:
+making the two paths agree is one change; deciding what "Good" ought to mean is a separate question,
+and the pre-existing comment in `frame_quality_assessment_service.dart` — "observed on real captures
+scoring 64-66 with healthy HFR (2.5px) and 200 stars" — says someone has already met the threshold
+question on real data. That one is the owner's to settle.
+
+Six tests, including the live-rig frame's own numbers and the discrimination property.
+

@@ -629,6 +629,15 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     final hfr = (event.data['hfr'] as num?)?.toDouble();
     final eccentricity = (event.data['eccentricity'] as num?)?.toDouble();
     final starCount = event.data['star_count'] as int?;
+    // The frame event carries no background/noise, so the score is the
+    // HFR + star-count components renormalised; NaN when the frame reported
+    // neither, which stores as NULL and lets the assessment service's own
+    // fallback apply to a frame that genuinely was not measured.
+    final rawQualityScore = computeFrameQualityScore(
+      hfr: hfr,
+      starCount: starCount,
+    );
+    final qualityScore = rawQualityScore.isNaN ? null : rawQualityScore;
     // The capture truth the FITS writer used for THIS frame, carried on the
     // event. Reading it here — rather than re-deriving gain/offset/binning
     // from the sequence tree, and leaving temperature, pointing, focuser and
@@ -816,6 +825,12 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
           hfr: hfr,
           starCount: starCount,
           eccentricity: eccentricity,
+          // Stamp the composite score the gallery and every quality-ranked
+          // consumer read. Without it the column stayed NULL for every
+          // sequencer frame and `FrameQualityAssessmentService` assessed the
+          // `?? 75.0` fallback instead of the frame — see
+          // [computeFrameQualityScore] for what that cost.
+          qualityScore: qualityScore,
           logger: logger,
           sidecarService: sidecarService,
         );
