@@ -439,3 +439,23 @@ rebuild — not a different one.
 `nightshade_app` re-run after the one real regression was fixed: **41 distinct failing tests, 40
 distinct goldens named, zero non-golden failures** — classified by name rather than by eyeballing the
 tail. Every remaining failure is a Windows-captured golden diffing on Linux.
+## Open question, not a finding — Guiding "Connect" with no PHD2 running
+
+The Guiding screen renders correctly with nothing attached: `PHD2 Disconnected`, `Stopped`, an empty
+guide graph with `RA — Dec — Total —`, "Connect a guider to acquire a guide star", and a
+`Not Calibrated` badge explaining "PHD2 will calibrate your mount automatically when you start
+guiding." Start / Pause / Loop Exposures / Auto Select / Deselect / Brain Settings are all present.
+
+Pressing **Connect** with no PHD2 process running produced no visible change and **no log line
+whatsoever** — the log's last entry is an unrelated discovery sweep from seconds earlier, and the
+whole session contains only five `guider|phd2` mentions.
+
+That *looks* like a button that fails silently, which would matter on an unattended rig. I am not
+recording it as a finding because I could not confirm the click landed: my `click-xy`/`click-img`
+coordinates have been wrong three separate times on this drive, and one of those produced a
+convincing phantom (the Analytics "tabs lag by one"). Establishing this needs a confirmed hit on the
+button — a distinctive log line, or a state change from a control adjacent to it — and I ran out of
+budget before I could get one.
+
+Left as the first thing to settle on the next drive, with the method: click, then prove the click
+landed before interpreting the absence of a reaction.
