@@ -2001,4 +2001,84 @@ void main() {
       await executor.stop();
     });
   });
+
+  /// Live desktop drive 2026-08-09, on a profile with no observing location —
+  /// the UI said so in three places, and the executor was still told one:
+  ///
+  ///   INFO Updating sequencer location: lat=Some(0.0), lon=Some(0.0)
+  ///   WARN Trigger fired: Altitude Limit (altitude_limit) - action: NextTarget
+  ///   ... once per 60 s cooldown, all run
+  ///
+  /// `sequencerUpdateLocation` takes non-nullable doubles, so an unset site
+  /// arrives in Rust as a real place off West Africa. Vega is below 30° from
+  /// there at that hour, so the always-armed altitude trigger voted to abandon
+  /// the target. With more than one target, every one would be skipped in turn.
+  ///
+  /// The Rust side already handles a genuinely absent location — it computes an
+  /// altitude only when RA, Dec, lat and lon are all present and returns false
+  /// from the condition otherwise. Withholding the push is what lets that work.
+  group('F. an unset observing location is not pushed as Null Island', () {
+    test('no location configured means no location pushed', () async {
+      final container = buildContainer();
+      // Settings must be RESOLVED, not merely absent: the defect is that a
+      // loaded-but-unconfigured profile reports latitude 0 / longitude 0 and
+      // that pair gets pushed as if it were a site. Without this await the
+      // provider is still loading, the push is skipped for an unrelated reason,
+      // and the test passes with the guard deleted — which is exactly what it
+      // did the first time it was written.
+      await container.read(appSettingsProvider.future);
+      final loaded = container.read(appSettingsProvider).valueOrNull;
+      expect(loaded, isNotNull);
+      expect(loaded!.latitude, 0.0);
+      expect(loaded.longitude, 0.0);
+
+      _stubBackendForStart(backend);
+      when(() => backend.sequencerStart()).thenAnswer((_) async {});
+      _stubConfirmingStop(backend, eventController);
+      when(() => backend.discardCheckpoint()).thenAnswer((_) async {});
+      container
+          .read(currentSequenceProvider.notifier)
+          .loadSequence(_buildSequence());
+
+      final executor = container.read(sequenceExecutorProvider);
+      await executor.start();
+
+      verifyNever(
+        () => backend.sequencerUpdateLocation(
+          latitude: any(named: 'latitude'),
+          longitude: any(named: 'longitude'),
+        ),
+      );
+
+      await executor.stop();
+    });
+
+    test('a configured location is still pushed', () async {
+      final container = buildContainer();
+      await container.read(appSettingsProvider.future);
+      final settings = container.read(appSettingsProvider.notifier);
+      await settings.setLatitude(39.9719);
+      await settings.setLongitude(-75.3576);
+
+      _stubBackendForStart(backend);
+      when(() => backend.sequencerStart()).thenAnswer((_) async {});
+      _stubConfirmingStop(backend, eventController);
+      when(() => backend.discardCheckpoint()).thenAnswer((_) async {});
+      container
+          .read(currentSequenceProvider.notifier)
+          .loadSequence(_buildSequence());
+
+      final executor = container.read(sequenceExecutorProvider);
+      await executor.start();
+
+      verify(
+        () => backend.sequencerUpdateLocation(
+          latitude: 39.9719,
+          longitude: -75.3576,
+        ),
+      ).called(1);
+
+      await executor.stop();
+    });
+  });
 }

@@ -120,3 +120,42 @@ the same `targetCoordinatesUnset` predicate the coordinate row already uses says
 
 Small, but it is the L46 family: a surface asserting a state the app has itself determined is false.
 
+## G6 — with no observing location, the app tells the executor it is at 0°N 0°E *(P1 for an unattended night; fixed)*
+
+The most consequential thing the GUI drive turned up, and it is invisible from the API.
+
+The profile had **no observing location**, and the app said so in three places — "Set an observing
+location for twilight times", "Set location in Settings" on the altitude chart, and the readiness
+panel's "No observing location set". Then it started a run:
+
+```
+INFO Updating sequencer location: lat=Some(0.0), lon=Some(0.0)
+INFO Trigger fired: Altitude Limit (altitude_limit) - NextTarget
+WARN Trigger fired: Altitude Limit (altitude_limit) - action: NextTarget
+   ... once per 60 s cooldown, for the whole run (6 firings observed)
+```
+
+`sequencerUpdateLocation` takes **non-nullable** doubles, so an unconfigured site cannot be expressed
+as "unknown" — it is pushed as a real place in the Gulf of Guinea. Vega, the target I had entered,
+sits below 30° from the equator at that hour, so the always-armed altitude trigger computed a
+perfectly correct altitude for somewhere the telescope is not and voted `NextTarget`. With a single
+target the run survived; **with more than one, every target would be skipped in turn**, and the run
+report would say the sky was too low.
+
+**The Rust side was already written for this** and never got the chance: it computes an altitude only
+when RA, Dec, latitude *and* longitude are all present, returns `false` from the altitude condition
+when altitude is unknown, and carries a one-shot *"altitude triggers are dead until location is
+supplied"* warning. That warning never fired in the log — because Rust never saw the absence.
+
+**Fix.** Withhold the push when no site is configured, using the same `!= 0.0` test
+`_startNativeExecution` already applies to the higher-level `setLocation` two hundred lines earlier;
+log a warning naming what stays inactive. The mid-run watcher gets the same guard, so *clearing* a
+location cannot arm the trigger either.
+
+**A note on the test, because the first version of it was worthless.** It passed with the fix
+reverted. Two reasons, both worth remembering: the harness's settings provider is still loading
+unless you `await appSettingsProvider.future`, so the push was skipped for an unrelated reason; and
+`dart format` had reflowed the guard across three lines, so the string replacement I used to revert
+it silently matched nothing and I was "testing" the unmodified file. The test now asserts the
+settings are *loaded and zero* before starting, and with the guard genuinely removed it fails.
+

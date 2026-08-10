@@ -300,13 +300,50 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
     // owns its own lat/lon used by meridian-flip and altitude calculations.
     try {
       final settings = _ref.read(appSettingsProvider).valueOrNull;
-      if (settings != null) {
+      // Only push a location the operator actually set. `sequencerUpdateLocation`
+      // takes non-nullable doubles, so an unconfigured site arrives in Rust as
+      // `Some(0.0), Some(0.0)` — a real place in the Gulf of Guinea — and the
+      // executor cannot tell it from a deliberate one.
+      //
+      // Measured in the running desktop app 2026-08-09, on a profile with no
+      // observing location (the UI said so in three places):
+      //
+      //   INFO Updating sequencer location: lat=Some(0.0), lon=Some(0.0)
+      //   WARN Trigger fired: Altitude Limit (altitude_limit) - action: NextTarget
+      //   ... once per 60 s cooldown, for the whole run
+      //
+      // Vega is below 30° from the equator at that hour, so the always-armed
+      // altitude trigger computed a real altitude for a place the telescope is
+      // not and voted to abandon the target. On an unattended rig with more than
+      // one target, every one of them would be skipped in turn.
+      //
+      // The Rust side is already written for this: it computes an altitude only
+      // when RA, Dec, latitude AND longitude are all present, returns `false`
+      // from the altitude condition when the altitude is unknown, and carries a
+      // one-shot "altitude triggers are dead until location is supplied"
+      // warning — which never fired, because it never saw the absence.
+      // Withholding the push is what lets that design work.
+      //
+      // `!= 0.0` is the same "is a location configured" test
+      // `_startNativeExecution` already uses for the higher-level
+      // `setLocation`. Null Island is not an observing site.
+      final hasLocation =
+          settings != null &&
+          (settings.latitude != 0.0 || settings.longitude != 0.0);
+      if (hasLocation) {
         await backend.sequencerUpdateLocation(
           latitude: settings.latitude,
           longitude: settings.longitude,
         );
         _logger.debug(
           'Seeded sequencer location: lat=${settings.latitude} lon=${settings.longitude}',
+          source: 'SequenceExecutor',
+        );
+      } else if (settings != null) {
+        _logger.warning(
+          'No observing location is set, so the sequencer was not given one. '
+          'Altitude-based triggers and meridian-flip timing stay inactive '
+          'until a site is configured in Settings → Location.',
           source: 'SequenceExecutor',
         );
       }
@@ -732,14 +769,19 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
         if (prevSettings == null || nextSettings == null) return;
         if (prevSettings.latitude != nextSettings.latitude ||
             prevSettings.longitude != nextSettings.longitude) {
-          _logger.debug(
-            'Location changed during execution, propagating to backend',
-            source: 'SequenceExecutor',
-          );
-          backend.sequencerUpdateLocation(
-            latitude: nextSettings.latitude,
-            longitude: nextSettings.longitude,
-          );
+          // Same guard as the seed above: a mid-run change that CLEARS the
+          // location must not be forwarded as (0, 0), which would arm the
+          // altitude trigger against Null Island instead of disarming it.
+          if (nextSettings.latitude != 0.0 || nextSettings.longitude != 0.0) {
+            _logger.debug(
+              'Location changed during execution, propagating to backend',
+              source: 'SequenceExecutor',
+            );
+            backend.sequencerUpdateLocation(
+              latitude: nextSettings.latitude,
+              longitude: nextSettings.longitude,
+            );
+          }
         }
 
         if (prevSettings.safetyFailMode != nextSettings.safetyFailMode) {
