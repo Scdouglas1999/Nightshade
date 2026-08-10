@@ -7,7 +7,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'glass_card.dart';
-import 'smart_night_prompt_card.dart' show smartNightEquipmentReadyProvider;
+import 'smart_night_prompt_card.dart' show smartNightOpticsReadyProvider;
 
 const double _kDesktopPromptWidth = 480.0;
 const double _kBottomInset = 16.0;
@@ -283,7 +283,7 @@ class _NextUsePromptCardState extends ConsumerState<NextUsePromptCard>
 ///
 /// Mirrors the eligibility inputs of [SmartNightPromptCard] that are expressed
 /// as public providers: an active profile with usable optics
-/// ([smartNightEquipmentReadyProvider]), the auto-prompt setting, no active
+/// ([smartNightOpticsReadyProvider]), the auto-prompt setting, no active
 /// sequence, a real observer location, and no Smart Night draft already pending
 /// for tonight. The card's private equipment-ready grace timer and its
 /// per-day "Not now" dismissal are deliberately *not* mirrored: both only delay
@@ -294,7 +294,7 @@ final _smartNightPromptEligibleProvider = Provider<bool>((ref) {
   final profile = ref.watch(activeEquipmentProfileProvider);
   if (profile == null) return false;
 
-  final equipmentReady = ref.watch(smartNightEquipmentReadyProvider);
+  final equipmentReady = ref.watch(smartNightOpticsReadyProvider);
   if (!equipmentReady) return false;
 
   final autoPromptEnabled =

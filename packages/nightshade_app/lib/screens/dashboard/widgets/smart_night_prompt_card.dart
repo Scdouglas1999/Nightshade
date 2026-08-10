@@ -37,7 +37,18 @@ final smartNightPromptClockProvider =
 /// affordance while the prompt occupies the screen. Defaults to false.
 final smartNightAutoPromptShowingProvider = StateProvider<bool>((ref) => false);
 
-final smartNightEquipmentReadyProvider = Provider<bool>((ref) {
+/// Whether the active profile carries enough OPTICS to plan a night: a focal
+/// length and an aperture, which is all Smart Night needs to derive field of
+/// view and image scale.
+///
+/// Deliberately says nothing about whether any device is connected, and must
+/// not be described as such. Planning a night indoors before the gear is even
+/// powered on is a real use, so the gate is right — but it was previously
+/// named `smartNightEquipmentReadyProvider` and headlined the card with
+/// "Hardware ready", which put that claim on screen beside a Readiness panel
+/// reading `Camera Disconnected / Mount Disconnected / Guider Disconnected`
+/// and a `0/5` device count. Observed exactly that way on 2026-08-10.
+final smartNightOpticsReadyProvider = Provider<bool>((ref) {
   final profile = ref.watch(activeEquipmentProfileProvider);
   if (profile == null) return false;
   final focalLength = profile.focalLength > 0
@@ -115,7 +126,7 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
         false;
     final sequenceActive =
         _sequenceIsActive(ref.watch(sequenceExecutionStateProvider));
-    final equipmentReady = ref.watch(smartNightEquipmentReadyProvider);
+    final equipmentReady = ref.watch(smartNightOpticsReadyProvider);
     final readyGraceElapsed = _equipmentReadyGraceElapsed(equipmentReady);
     final dayKey = _astronomicalDayKey(DateTime.now());
     final dismissedDays = ref.watch(_smartNightPromptDismissedDaysProvider);
@@ -225,7 +236,7 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Hardware ready - build tonight\'s plan?',
+                  'Build tonight\'s plan?',
                   style: NightshadeTypography.h5.copyWith(
                     color: colors.textPrimary,
                   ),

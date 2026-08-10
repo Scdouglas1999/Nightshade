@@ -201,7 +201,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Hardware ready - build tonight\'s plan?'), findsNothing);
+    expect(find.text('Build tonight\'s plan?'), findsNothing);
     expect(find.text('Build Plan'), findsNothing);
   });
 
@@ -248,7 +248,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Hardware ready - build tonight\'s plan?'), findsNothing);
+    expect(find.text('Build tonight\'s plan?'), findsNothing);
 
     now = now.add(const Duration(seconds: 61));
     // Fires the grace timer the card armed, which is the only thing that wakes
@@ -257,9 +257,21 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-        find.text('Hardware ready - build tonight\'s plan?'), findsOneWidget);
+        find.text('Build tonight\'s plan?'), findsOneWidget);
     expect(find.text('Plan Tonight'), findsOneWidget);
     expect(container.read(smartNightAutoPromptShowingProvider), isTrue);
+
+    // Nothing in this test connects a device — the gate is optics-only, which
+    // is deliberate (planning indoors before the gear is powered on is a real
+    // use). So the card must not claim otherwise. It used to headline
+    // "Hardware ready", which on 2026-08-10 was rendered directly beside a
+    // Readiness panel reading Camera/Mount/Guider Disconnected and a 0/5
+    // device count.
+    expect(
+      find.textContaining('Hardware', findRichText: true),
+      findsNothing,
+      reason: 'the prompt must not assert hardware state it never checked',
+    );
   });
 
   testWidgets('the production clock advances the grace window', (tester) async {
@@ -305,7 +317,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Hardware ready - build tonight\'s plan?'), findsNothing);
+    expect(find.text('Build tonight\'s plan?'), findsNothing);
 
     // Real wall-clock time has to pass, because the card measures the grace
     // against DateTime.now() rather than the test's fake async clock.
@@ -316,7 +328,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-        find.text('Hardware ready - build tonight\'s plan?'), findsOneWidget);
+        find.text('Build tonight\'s plan?'), findsOneWidget);
   });
 
   testWidgets(
@@ -359,7 +371,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Hardware ready - build tonight\'s plan?'), findsNothing);
+    expect(find.text('Build tonight\'s plan?'), findsNothing);
     expect(find.text('Build Plan'), findsNothing);
   });
 
