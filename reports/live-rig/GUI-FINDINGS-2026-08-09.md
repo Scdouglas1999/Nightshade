@@ -734,3 +734,22 @@ the card now reads **Captured 10 frames / Integration 1m 20s**.
 Distinct from L50 despite the identical symptom: L50 was the Rust executor's counter feeding the
 checkpoint, this is a Dart-side display picking two different sources. Finding the second one only
 because the first had trained me to check frames against integration is worth noting.
+
+## V3 — the dawn safety trigger fires at the right time (validation)
+
+`Dawn Approaching` is defined as `minutes_before: 30.0` against astronomical twilight, with
+`RecoveryAction::ParkAndAbort` and no cooldown. On 2026-08-10 it fired at **03:31 local** for the
+site 42.35 / -71.06.
+
+Checked against an independent solar-position computation rather than against the app's own twilight
+display: the sun reaches -18° at **03:57 local** at that site on that date, so a 30-minute lead puts
+the correct firing time at **03:27**. The observed 03:31 is four minutes later, inside the trigger's
+polling interval.
+
+Worth recording because an earlier reading of "astro dawn 04:24" from the dashboard looked like a
+53-minute overshoot. That figure was captured *before* the observing location was set, so it
+described nowhere in particular. The comparison only became meaningful once both sides referred to
+the same site — the same trap as measuring a fix against a stale binary.
+
+The behaviour itself is what an unattended night wants: the rig parks and the run ends roughly half
+an hour before the sky starts brightening. What it does not do is say so afterwards — see L52.
