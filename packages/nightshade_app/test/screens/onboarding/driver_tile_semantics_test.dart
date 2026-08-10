@@ -1,7 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/onboarding/onboarding_screen.dart';
-import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../harness/harness.dart';
 
