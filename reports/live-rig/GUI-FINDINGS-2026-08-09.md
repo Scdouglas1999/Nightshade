@@ -477,3 +477,27 @@ The snackbar is the only trace, so on an unattended rig — or for anyone who lo
 seconds — a failed guider connect is forensically invisible afterwards. Worth a `logger.warning` in
 `connectPhd2`'s catch; recorded rather than changed, because I cannot rebuild and re-verify within
 budget and a one-line unverified change is how the last three regressions started.
+## G11 — the Settings switches expose no on/off state *(measured; cause narrowed, not fixed)*
+
+```
+Settings → General:   toggle button: Start minimized          (no state)
+                      toggle button: Auto-connect equipment   (no state)
+                      toggle button: Confirm before closing   (no state)
+
+Imaging:              toggle button: Stretch            [off]
+```
+
+The screenshot shows those three in genuinely different positions — Start minimized off,
+Auto-connect on, Confirm before closing on — so a screen-reader user is told there are three switches
+and never which way any of them points. "Auto-connect equipment" in particular decides whether a rig
+grabs its hardware on launch.
+
+`NightshadeSwitch` itself is correct — `Semantics(toggled: value, enabled: isEnabled, onTap:)`, with
+a comment saying "the enclosing row supplies the accessible label; this node supplies the switch
+state". And the identical component on the Imaging screen *does* publish `[off]`. So the state is
+being lost between the switch and the tree on this surface only, and the settings rows are wrapped in
+`MergeSemantics` — the first place to look.
+
+Not fixed. Every semantics change today needed a rebuild and a same-screen re-measure to tell a fix
+from a no-op, twice I got that wrong, and I do not have the budget left to do it properly. A narrowed
+cause someone can act on beats a fourth unverified attempt.
