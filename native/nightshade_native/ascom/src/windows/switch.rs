@@ -408,3 +408,61 @@ mod tests {
         assert_eq!(status.channels[1].value, Some(50.0));
     }
 }
+
+/// Regression cover: all ten `ISwitch` members hand-rolled their own
+/// `IDispatch::Invoke` with `pExcepInfo = None`. A switch is what powers the
+/// mount and the dew heaters, so "why did the port refuse" is exactly the
+/// sentence an operator needs.
+#[cfg(test)]
+mod excepinfo_tests {
+    use super::*;
+    use crate::windows::connection::excepinfo_recovery_tests::{connection, Excuse};
+
+    fn refusing_switch() -> AscomSwitch {
+        let (device, _) = connection(
+            Excuse::Spoken {
+                source: "ASCOM.PegasusAstro.UPBv2.Switch",
+                description: "Switch 3 is read-only",
+                scode: 0x8004_0403_u32 as i32,
+            },
+            false,
+        );
+        AscomSwitch { device }
+    }
+
+    #[test]
+    fn a_refused_switch_write_says_why() {
+        let mut sw = refusing_switch();
+
+        for (label, err) in [
+            ("SetSwitch", sw.set_switch(3, true).unwrap_err()),
+            ("SetSwitchValue", sw.set_switch_value(3, 1.0).unwrap_err()),
+        ] {
+            assert!(
+                err.contains("Switch 3 is read-only"),
+                "{label} dropped the driver's description: {err}"
+            );
+            assert!(
+                !err.contains("Exception occurred"),
+                "{label} fell back to the bare HRESULT: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_refused_switch_read_says_why() {
+        let sw = refusing_switch();
+
+        for (label, err) in [
+            ("GetSwitch", sw.get_switch(3).unwrap_err()),
+            ("GetSwitchName", sw.get_switch_name(3).unwrap_err()),
+            ("GetSwitchValue", sw.get_switch_value(3).unwrap_err()),
+            ("CanWrite", sw.can_write(3).unwrap_err()),
+        ] {
+            assert!(
+                err.contains("Switch 3 is read-only"),
+                "{label} dropped the driver's description: {err}"
+            );
+        }
+    }
+}

@@ -1655,6 +1655,83 @@ mod pointing_tests {
         );
     }
 
+    /// The rig frame, at the layer that actually wrote it.
+    ///
+    /// `Polaris_1_0001.fits` came out of `BridgeDeviceOps::save_fits`, which is
+    /// `build_rich_header` plus a mount read — not `from_frame_context` alone.
+    /// When no mount answers, `read_mount_pointing` returns `None` and NEITHER
+    /// pointing branch below runs, so whatever `from_frame_context` derived is
+    /// what reaches the file. That makes this function, not the constructor,
+    /// the place where "a mountless frame keeps its altitude" is either true or
+    /// silently undone by a later assignment.
+    ///
+    /// Reproduced on hardware before this was written: the real file carried
+    /// `SITELAT 39.97190`, `RA 37.95450`, `DEC 89.264` and neither horizon
+    /// keyword, and a camera-only run against the Linux build wrote the same
+    /// header shape.
+    ///
+    /// Dec 90° is deliberate: the celestial pole sits at the observer's
+    /// latitude for every hour angle, at every longitude, for ever, so the
+    /// expected altitude is a constant that cannot drift with the clock.
+    #[tokio::test]
+    async fn mountless_sequencer_frame_keeps_its_altitude_through_the_save_path() {
+        const SITE_LAT: f64 = 39.9719;
+
+        let mut ctx = FrameContext::new_light("sess-mountless", 1, 1, 3.0, 1);
+        ctx.target_ra_hours = Some(2.5303);
+        ctx.target_dec_degrees = Some(90.0);
+        ctx.site_latitude_deg = Some(SITE_LAT);
+        ctx.site_longitude_deg = Some(-75.3576);
+        ctx.exposure_started_at = Some(chrono::Utc::now());
+        assert!(
+            ctx.mount_ra_hours.is_none() && ctx.mount_altitude_deg.is_none(),
+            "precondition: no mount answered for this frame"
+        );
+
+        // `None` is exactly what `read_mount_pointing` returns with no mount
+        // connected — the state the rig was in.
+        let header = build_rich_header(&tiny_frame(), &ctx, None);
+
+        let scratch = temp_scratch_dir("mountless_save_path");
+        let path = scratch.as_ref().join("mountless_0001.fits");
+        crate::api::save_fits_file_rich(
+            path.to_string_lossy().to_string(),
+            4,
+            4,
+            vec![0u16; 16],
+            header,
+        )
+        .await
+        .expect("FITS save should succeed");
+
+        let (_image, parsed) = read_fits(&path).expect("FITS read-back should succeed");
+
+        let alt = parsed
+            .get_float("OBJCTALT")
+            .expect("a mountless sequencer frame must still record its altitude");
+        assert!(
+            (alt - SITE_LAT).abs() < 0.05,
+            "the pole sits at the observer's latitude {SITE_LAT}, got OBJCTALT {alt}"
+        );
+        // Physics, not a second run of the formula: a refracting atmosphere is
+        // always a slightly shorter path than the plane-parallel sec z.
+        let airmass = parsed
+            .get_float("AIRMASS")
+            .expect("AIRMASS follows from a recorded altitude");
+        let plane_parallel = 1.0 / (90.0 - SITE_LAT).to_radians().cos();
+        assert!(
+            airmass < plane_parallel && plane_parallel - airmass < 0.02,
+            "AIRMASS {airmass} is not just below the plane-parallel ceiling {plane_parallel}"
+        );
+        // ...and it describes the direction the file is labelled with.
+        let ra_deg = parsed.get_float("RA").expect("RA card must be present");
+        assert!(
+            (ra_deg - 2.5303 * 15.0).abs() < 1e-6,
+            "RA card should be the target's 2.5303h in degrees, got {ra_deg}"
+        );
+        assert_eq!(parsed.get_float("DEC"), Some(90.0));
+    }
+
     /// Even with a Target group the old header was wrong in kind: it wrote the
     /// target's NOMINAL coordinates, so an unedited "New Target" stamped
     /// 0h/0° onto frames the mount took 17h away. The mount's report wins.

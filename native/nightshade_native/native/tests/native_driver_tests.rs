@@ -944,7 +944,10 @@ mod fake_sdk_contract {
         camera.set_gain(42).await.expect("set gain");
         camera.set_offset(8).await.expect("set offset");
         camera.set_binning(2, 2).await.expect("set binning");
-        camera.set_cooler(true, -12.0).await.expect("set cooler");
+        camera
+            .set_cooler(true, Some(-12.0))
+            .await
+            .expect("set cooler");
         let status = camera.get_status().await.expect("camera status");
         assert!(status.cooler_on);
         assert_eq!(status.gain, 42);
@@ -1059,7 +1062,7 @@ mod fake_sdk_contract {
         camera.set_offset(4).await.expect("Atik set offset");
         camera.set_binning(2, 2).await.expect("Atik set binning");
         camera
-            .set_cooler(true, -10.0)
+            .set_cooler(true, Some(-10.0))
             .await
             .expect("Atik set cooler");
         assert!(camera
@@ -1143,7 +1146,7 @@ mod fake_sdk_contract {
         camera.set_offset(6).await.expect("SVBONY set offset");
         camera.set_binning(2, 2).await.expect("SVBONY set binning");
         camera
-            .set_cooler(true, -8.0)
+            .set_cooler(true, Some(-8.0))
             .await
             .expect("SVBONY set cooler");
         camera
@@ -1241,7 +1244,7 @@ mod fake_sdk_contract {
             .await
             .expect("Player One set binning");
         cooled
-            .set_cooler(true, -14.0)
+            .set_cooler(true, Some(-14.0))
             .await
             .expect("Player One set cooler");
         let status = cooled.get_status().await.expect("Player One status");
@@ -1322,7 +1325,7 @@ mod fake_sdk_contract {
         assert!(planetary_sensor.color);
         assert_eq!(planetary_sensor.bit_depth, 12);
         planetary
-            .set_cooler(true, -5.0)
+            .set_cooler(true, Some(-5.0))
             .await
             .expect_err("uncooled Player One camera should reject cooler control");
         planetary
@@ -1430,7 +1433,7 @@ mod fake_sdk_contract {
         cooled.set_offset(14).await.expect("QHY set offset");
         cooled.set_binning(2, 2).await.expect("QHY set binning");
         cooled
-            .set_cooler(true, -18.0)
+            .set_cooler(true, Some(-18.0))
             .await
             .expect("QHY set cooler");
         let status = cooled.get_status().await.expect("QHY status");
@@ -1502,7 +1505,7 @@ mod fake_sdk_contract {
             Some(nightshade_native::BayerPattern::Bggr)
         );
         guide
-            .set_cooler(true, -5.0)
+            .set_cooler(true, Some(-5.0))
             .await
             .expect_err("uncooled QHY guide camera should reject cooler control");
         guide.disconnect().await.expect("QHY guide disconnect");
@@ -1553,7 +1556,7 @@ mod fake_sdk_contract {
         assert!(sensor.color);
         assert_eq!(sensor.bit_depth, 12);
         cooled
-            .set_cooler(true, -12.5)
+            .set_cooler(true, Some(-12.5))
             .await
             .expect("ToupTek set cooler");
         cooled.set_gain(250).await.expect("ToupTek set gain");
@@ -1603,7 +1606,7 @@ mod fake_sdk_contract {
         assert!(!uncooled.capabilities().can_cool);
         assert!(!uncooled.get_sensor_info().color);
         uncooled
-            .set_cooler(true, -5.0)
+            .set_cooler(true, Some(-5.0))
             .await
             .expect_err("uncooled ToupTek camera should reject cooler control");
         uncooled
@@ -1659,7 +1662,10 @@ mod fake_sdk_contract {
             ),
             (64, 48)
         );
-        camera.set_cooler(true, -20.0).await.expect("FLI cooler");
+        camera
+            .set_cooler(true, Some(-20.0))
+            .await
+            .expect("FLI cooler");
         camera
             .start_exposure(ExposureParams {
                 duration_secs: 0.01,
@@ -1751,7 +1757,7 @@ mod fake_sdk_contract {
             .await
             .expect("Moravian set binning");
         cooled
-            .set_cooler(true, -15.0)
+            .set_cooler(true, Some(-15.0))
             .await
             .expect("Moravian set cooler");
 
@@ -1800,7 +1806,7 @@ mod fake_sdk_contract {
         assert!(!color.capabilities().can_cool);
         assert!(color.get_sensor_info().color);
         color
-            .set_cooler(true, -5.0)
+            .set_cooler(true, Some(-5.0))
             .await
             .expect_err("uncooled Moravian camera should reject cooler control");
         color.disconnect().await.expect("Moravian color disconnect");
@@ -1839,7 +1845,7 @@ mod fake_sdk_contract {
         assert!(gfx.get_sensor_info().color);
         gfx.set_gain(1600).await.expect("Fujifilm ISO set");
         assert_eq!(gfx.get_gain().await.expect("Fujifilm ISO get"), 1600);
-        gfx.set_cooler(true, -5.0)
+        gfx.set_cooler(true, Some(-5.0))
             .await
             .expect_err("Fujifilm cooler unsupported");
 

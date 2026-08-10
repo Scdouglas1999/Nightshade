@@ -201,12 +201,7 @@ impl AscomCamera {
             // sentence discarded and the operator got only
             // "Exception occurred. (0x80020009)" for a lost frame.
             self.device
-                .invoke_with_retry(
-                    dispid,
-                    DISPATCH_PROPERTYGET,
-                    &params,
-                    Some(result.as_mut()),
-                )
+                .invoke_with_retry(dispid, DISPATCH_PROPERTYGET, &params, Some(result.as_mut()))
                 .map_err(|e| format!("Failed to get ImageArray property: {}", e))?;
 
             // Extract SAFEARRAY from VARIANT (deep-copies the pixels) before the
@@ -411,4 +406,48 @@ pub struct CameraFullStatus {
     pub percent_completed: Option<i32>,
     pub thermal: CameraThermalStatus,
     pub exposure_settings: CameraExposureSettings,
+}
+
+/// Regression cover for the frame download keeping the driver's explanation.
+///
+/// `image_array` hand-rolled its own `IDispatch::Invoke` instead of going
+/// through `invoke_with_retry`, and passed `None` for `pExcepInfo` — the same
+/// omission that made a refused `Tracking` write on the live NYX101 read as
+/// `Exception occurred. (0x80020009)`. On this path the cost is a lost frame
+/// with no stated reason, which is the worst version of it: it happens in the
+/// middle of an unattended night.
+#[cfg(test)]
+mod excepinfo_tests {
+    use super::*;
+    use crate::windows::connection::excepinfo_recovery_tests::{connection, Excuse};
+
+    #[test]
+    fn a_refused_image_download_says_why() {
+        let (device, attempts) = connection(
+            Excuse::Spoken {
+                source: "ASCOM.ASICamera2",
+                description: "ImageArray is not valid until an exposure has completed",
+                scode: 0x8004_0400_u32 as i32,
+            },
+            false,
+        );
+        let camera = AscomCamera { device };
+
+        let err = camera.image_array().unwrap_err();
+
+        assert!(
+            err.contains("ImageArray is not valid until an exposure has completed"),
+            "the frame download dropped the driver's description: {err}"
+        );
+        assert!(err.contains("ASCOM.ASICamera2"), "{err}");
+        assert!(
+            !err.contains("Exception occurred"),
+            "fell back to the bare HRESULT: {err}"
+        );
+        assert_eq!(
+            attempts.load(std::sync::atomic::Ordering::SeqCst),
+            3,
+            "the download now shares the crate's transient-exception retry"
+        );
+    }
 }

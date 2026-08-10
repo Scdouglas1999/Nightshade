@@ -47,6 +47,17 @@
 
 use crate::device::DeviceInfo;
 
+/// Marker phrase carried by the connect error raised when a device id has
+/// re-bound to different hardware.
+///
+/// `connect_device_internal` matches on it for one reason: releasing the wrong
+/// device trips the same reconnect-cancel token a user disconnect trips, and
+/// without this marker the identity error would be rewritten as
+/// [`RECONNECT_CANCELED_MSG`](super::connection::RECONNECT_CANCELED_MSG) and
+/// then suppressed by the reconnection loop. The string is part of that
+/// contract; change it in one place only.
+pub(crate) const IDENTITY_CONFLICT_MARKER: &str = "is no longer the same hardware";
+
 /// What a driver reports about itself once it is connected.
 ///
 /// Every field is optional because transports differ in what they will answer,

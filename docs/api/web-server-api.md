@@ -561,11 +561,41 @@ older clients consuming `RADistanceRaw` / `DECDistanceRaw` continue to work.
 | `ExposureProgress` | `{ "progress": number, "remaining_secs": number }` |
 | `ExposureCompleted` | `{ "file_path": string?, "hfr": number, "stars_detected": int }` |
 | `ExposureCompletedWithFrame` | `{ "frame_number": int, "total_frames": int?, "hfr": number, "stars_detected": int }` |
+| `ExposureComplete` | `{ "success": bool }` — **not a typo, and not the same event as the row above.** See below. |
 | `ImageReady` | `{ "width": int, "height": int }` |
 | `ImageSaved` | `{ "file_path": string }` |
 | `TemperatureChanged` | `{ "temp_celsius": number, "cooler_power": number }` |
 | `ExposureFailed` | `{ "error": string }` |
 | `ExposureCancelled` | `{}` |
+
+##### Three names, two of them one character apart
+
+Filtering an exposure-finished event by name alone will get this wrong. There are three, and which
+ones you see depends on **which code path took the exposure**, not on how the exposure went:
+
+| event | emitted by | when you see it |
+| --- | --- | --- |
+| `sequencer` / `ExposureCompleted` | the sequencer's own frame counter | every frame of a sequence run |
+| `imaging` / `ExposureComplete` | `unified_device_ops` — the capture path the **sequencer** drives | every frame of a sequence run |
+| `imaging` / `ExposureCompleted` | `imaging_ops` — the **ad-hoc** capture path (Imaging screen, quick capture) | single captures, *not* sequence frames |
+
+So during an unattended sequence run you receive `ExposureCompleted` **and** `ExposureComplete` per
+frame — different subsystems reporting different things, not a duplicate emission — and you do
+**not** receive the rich `imaging` / `ExposureCompleted` with `file_path`/`hfr` at all.
+
+Observed on a live rig, 2026-08-09, over `GET /api/run-watch/events` during a 3-frame run:
+
+```
+3 ExposureCompleted   3 ExposureComplete   3 FrameAccepted   6 ExposureStarted
+```
+
+**Always match on the `(category, eventType)` pair.** A client that filters on `eventType` alone
+silently receives the imaging layer's bare `{"success": true}` and never sees the sequencer's frame
+counter, or the reverse — and the difference is invisible when scanning a log.
+
+For per-frame progress use `sequencer` / `ExposureCompleted` (it carries `frame`/`total`). For the
+saved file and its measured quality, use `FrameAccepted` / `FrameRejected`, which carry the path and
+the grading result for sequencer-captured frames.
 
 #### `category: equipment`
 

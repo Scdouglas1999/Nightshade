@@ -852,11 +852,13 @@ pub(crate) struct DeviceRequirement {
 /// | node type | accessor that fails | site |
 /// |---|---|---|
 /// | `TakeExposure` / `SmartExposure` / `FlatWizard` / `SciencePhotometry` | `camera_id()` | `instructions.rs` `execute_exposure_with_renderer` |
-/// | `TakeExposure` with a filter, `SmartExposure` | `validate_exposure_filter_request` / `filterwheel_id()` | `instructions.rs` `execute_filter_change` |
+/// | `TakeExposure` with a filter | `validate_exposure_filter_request` | `instructions.rs` `execute_exposure_with_renderer` |
+/// | `SmartExposure` with any plan | `filterwheel_id()` | `smart_exposure.rs` `run_filter_change` -> `execute_filter_change` |
 /// | `CenterTarget` | `mount_id()` then `camera_id()` | `instructions.rs` `execute_center` |
 /// | `SlewToTarget` / `Park` / `Unpark` / `MeridianFlip` | `mount_id()` | `execute_slew` / `execute_park` / `execute_unpark` / `execute_meridian_flip_with_autofocus` |
 /// | `PolarAlignment` | `mount_id()` then `camera_id()` | `polar_align/mod.rs` |
 /// | `Autofocus` | `camera_id()` then `focuser_id()` | `execute_autofocus_once` |
+/// | `Autofocus` pinned to a filter | explicit "no filter wheel is connected" failure | `execute_autofocus_admitted_with_pause` |
 /// | `TemperatureCompensation` | `focuser_id()` | `temperature_compensation.rs` |
 /// | `CoolCamera` / `WarmCamera` | `camera_id()` | `execute_cool_camera` / `execute_warm_camera` |
 /// | `ChangeFilter` | `filterwheel_id()` | `execute_filter_change` |
@@ -898,11 +900,22 @@ fn collect_required_devices(
         }
         NodeType::SmartExposure(config) => {
             require(RequiredDevice::Camera, true);
-            if config
-                .plans
-                .iter()
-                .any(|plan| names_a_filter(Some(plan.filter_name.as_str()), plan.filter_index))
-            {
+            // EVERY plan moves the wheel, named or not. SmartExposure fires a
+            // ChangeFilter whenever `current_filter != Some(plan.filter_name)`
+            // (`smart_exposure.rs`), and `current_filter` starts a run as
+            // `None` — so even a plan whose filter name is empty triggers the
+            // change, and `execute_filter_change` reads `filterwheel_id()`
+            // before it looks at the name at all.
+            //
+            // Reproduced against the Linux appliance on 2026-08-09 with the
+            // sim camera/mount/focuser connected and NO wheel: a one-plan
+            // SmartExposure with `filter_name: ""` answered
+            // `POST /api/sequencer/start -> 200 {"status":"started"}` and then
+            // logged `ERROR Change Filter failed: No filter wheel connected` /
+            // `WARN [RECOVERY] Change Filter promoted device disconnect to
+            // recovery`, five futile retries, run failed — the exact loop this
+            // preflight exists to prevent.
+            if !config.plans.is_empty() {
                 require(RequiredDevice::FilterWheel, false);
             }
         }
@@ -919,9 +932,26 @@ fn collect_required_devices(
         | NodeType::MeridianFlip(_) => {
             require(RequiredDevice::Mount, false);
         }
-        NodeType::Autofocus(_) => {
+        NodeType::Autofocus(config) => {
             require(RequiredDevice::Camera, false);
             require(RequiredDevice::Focuser, false);
+            // An AF node pinned to a filter reads the wheel before it sweeps:
+            // `execute_autofocus_admitted_with_pause` fails outright with
+            // "Autofocus is configured to use filter \"…\", but no filter wheel
+            // is connected". Reproduced on the Linux appliance on 2026-08-09
+            // with camera + focuser connected and no wheel: `start` answered
+            // 200 and the node then failed with exactly that line.
+            //
+            // `filter_settings` alone is NOT enough to require a wheel — with
+            // no wheel that branch simply leaves the per-filter overrides
+            // unapplied and the sweep still runs.
+            if config
+                .filter
+                .as_deref()
+                .is_some_and(|name| !name.trim().is_empty())
+            {
+                require(RequiredDevice::FilterWheel, false);
+            }
         }
         NodeType::TemperatureCompensation(_) => {
             require(RequiredDevice::Focuser, false);
@@ -8345,6 +8375,126 @@ mod tests {
         assert!(
             !error.contains("no camera"),
             "a camera was assigned; the refusal must be about the wheel: {error}"
+        );
+    }
+
+    /// A SmartExposure plan that names NO filter still moves the wheel.
+    ///
+    /// `smart_exposure.rs` fires its ChangeFilter whenever
+    /// `current_filter != Some(plan.filter_name)`, and `current_filter` is
+    /// `None` at the start of a run — so `""` differs and the change runs.
+    /// Reproduced against the Linux appliance on 2026-08-09 with the sim
+    /// camera / mount / focuser connected and no wheel:
+    /// `POST /api/sequencer/start -> 200 {"status":"started"}`, then
+    /// `ERROR Change Filter failed: No filter wheel connected` +
+    /// `WARN [RECOVERY] Change Filter promoted device disconnect to recovery`,
+    /// five retries, `Failure`. Requiring a wheel only for a plan that NAMES
+    /// one left that path open.
+    #[tokio::test]
+    async fn start_refuses_a_smart_exposure_whose_plan_names_no_filter() {
+        let dir = std::env::temp_dir().join(format!("ns-se-gate-{}", uuid::Uuid::new_v4()));
+        let mut executor = SequenceExecutor::new();
+        executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+        executor
+            .load_sequence(single_instruction_sequence(
+                "Smart Exposure",
+                crate::NodeType::SmartExposure(crate::SmartExposureConfig {
+                    plans: vec![crate::FilterPlan {
+                        filter_name: String::new(),
+                        count: 1,
+                        duration_secs: 0.01,
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                }),
+            ))
+            .expect("sequence loads");
+        executor.set_save_path(Some(dir.clone()));
+        executor.set_devices(Some("cam-1".to_string()), None, None, None, None);
+
+        let error = executor
+            .start()
+            .await
+            .expect_err("a smart exposure with no wheel must be refused");
+        executor.stop().await.ok();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(
+            error.contains("filter wheel"),
+            "the refusal must name the wheel; got: {error}"
+        );
+    }
+
+    /// An autofocus node pinned to a filter reads the wheel before it sweeps.
+    ///
+    /// Reproduced against the Linux appliance on 2026-08-09 with the sim
+    /// camera and focuser connected and no wheel: start answered 200 and the
+    /// node then failed `Autofocus is configured to use filter "Ha", but no
+    /// filter wheel is connected`.
+    #[tokio::test]
+    async fn start_refuses_autofocus_pinned_to_a_filter_with_no_filter_wheel() {
+        let dir = std::env::temp_dir().join(format!("ns-af-fw-{}", uuid::Uuid::new_v4()));
+        let mut executor = SequenceExecutor::new();
+        executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+        executor
+            .load_sequence(single_instruction_sequence(
+                "Autofocus",
+                crate::NodeType::Autofocus(crate::AutofocusConfig {
+                    filter: Some("Ha".to_string()),
+                    ..Default::default()
+                }),
+            ))
+            .expect("sequence loads");
+        executor.set_save_path(Some(dir.clone()));
+        executor.set_devices(
+            Some("cam-1".to_string()),
+            None,
+            Some("focuser-1".to_string()),
+            None,
+            None,
+        );
+
+        let error = executor
+            .start()
+            .await
+            .expect_err("an autofocus pinned to a filter with no wheel must be refused");
+        executor.stop().await.ok();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(
+            error.contains("filter wheel"),
+            "the refusal must name the wheel; got: {error}"
+        );
+    }
+
+    /// …and an autofocus that names no filter is NOT blocked for a wheel.
+    /// With no wheel the per-filter overrides simply go unapplied and the
+    /// sweep still runs, so demanding one here would refuse a run that works.
+    #[tokio::test]
+    async fn start_allows_autofocus_without_a_filter_when_there_is_no_wheel() {
+        let dir = std::env::temp_dir().join(format!("ns-af-nofw-{}", uuid::Uuid::new_v4()));
+        let mut executor = SequenceExecutor::new();
+        executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+        executor
+            .load_sequence(single_instruction_sequence(
+                "Autofocus",
+                crate::NodeType::Autofocus(crate::AutofocusConfig::default()),
+            ))
+            .expect("sequence loads");
+        executor.set_save_path(Some(dir.clone()));
+        executor.set_devices(
+            Some("cam-1".to_string()),
+            None,
+            Some("focuser-1".to_string()),
+            None,
+            None,
+        );
+
+        let result = executor.start().await;
+        executor.stop().await.ok();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(
+            result.is_ok(),
+            "an unfiltered autofocus needs no wheel: {:?}",
+            result.err()
         );
     }
 

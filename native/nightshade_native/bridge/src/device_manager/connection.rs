@@ -8,7 +8,7 @@
 //! monolithic `devices.rs`.
 
 use crate::device::*;
-use crate::device_manager::identity::DeviceIdentity;
+use crate::device_manager::identity::{DeviceIdentity, IDENTITY_CONFLICT_MARKER};
 use crate::device_manager::{DeviceManager, ManagedDevice};
 use crate::event::*;
 use std::time::Duration;
@@ -338,8 +338,18 @@ impl DeviceManager {
         // succeed we deliberately discard that success so the user sees their
         // disconnect honored. The reconnection_loop already special-cases
         // `RECONNECT_CANCELED_MSG` to suppress the "attempt failed" event.
+        //
+        // One result is never converted: an identity conflict trips this very
+        // token itself, because `verify_identity_after_connect` releases the
+        // wrong device through `disconnect_device`. Letting that self-inflicted
+        // trip win would replace "this id is now a different camera" with
+        // "reconnect canceled by manual disconnect" — a sentence that is both
+        // false (nobody canceled anything) and suppressed by the reconnection
+        // loop, so the one path the identity check exists for (a mid-night
+        // replug re-binding the id) would report nothing at all to the
+        // operator.
         if let Some(rx) = cancel_rx.as_ref() {
-            if Self::reconnect_canceled(rx) {
+            if Self::reconnect_canceled(rx) && !Self::is_identity_conflict(&result) {
                 // Best-effort: leave the device in whatever state the post-
                 // dispatch result implies; the disconnect path will fix it up
                 // when it acquires the `devices` write lock next.
@@ -421,6 +431,15 @@ impl DeviceManager {
         result
     }
 
+    /// True when this connect failed because the id re-bound to other hardware.
+    ///
+    /// Used only to stop the self-inflicted disconnect inside
+    /// `verify_identity_after_connect` from masquerading as a user cancel; see
+    /// the post-dispatch cancel check in `connect_device_internal`.
+    fn is_identity_conflict(result: &Result<(), String>) -> bool {
+        matches!(result, Err(e) if e.contains(IDENTITY_CONFLICT_MARKER))
+    }
+
     /// Ask a freshly-connected driver what it is, and refuse the connect if the
     /// answer contradicts what this device id was last observed to be.
     ///
@@ -462,12 +481,13 @@ impl DeviceManager {
         if let Some(previous) = previous {
             if let Some(reason) = observed.conflict_with(&previous) {
                 let message = format!(
-                    "Device id {} is no longer the same hardware: {}. \
+                    "Device id {} {}: {}. \
                      Connected device reports {}; previously it was {}. \
                      This id is a position on the bus, not an identity, so it \
                      re-binds when devices are replugged or re-enumerated. \
                      Refusing the connection rather than using the wrong device.",
                     info.id,
+                    IDENTITY_CONFLICT_MARKER,
                     reason,
                     observed.describe(),
                     previous.describe(),
@@ -514,7 +534,7 @@ impl DeviceManager {
     /// treats as "no opinion" rather than as a match.
     pub(crate) async fn probe_device_identity(&self, info: &DeviceInfo) -> DeviceIdentity {
         if let Some(camera) = self.native_cameras.read().await.get(&info.id) {
-            return Self::identity_from_camera(camera.as_ref());
+            return Self::identity_from_camera(&info.id, camera.as_ref());
         }
 
         if let Some(identity) = self.probe_ascom_camera_identity(&info.id).await {
@@ -522,7 +542,7 @@ impl DeviceManager {
         }
 
         if let Some(device) = self.native_devices.read().await.get(&info.id) {
-            return Self::identity_from_device(device.as_ref());
+            return Self::identity_from_device(&info.id, device.as_ref());
         }
 
         DeviceIdentity::default()
@@ -567,10 +587,28 @@ impl DeviceManager {
         None
     }
 
+    /// A driver-reported model, or `None` when the driver only echoed the id.
+    ///
+    /// Some vendor wrappers implement `NativeDevice::name()` by handing back the
+    /// device id — `ZwoCamera` did exactly that until the model was cached, and
+    /// `PlayerOneCamera` still does. That answer is worthless as identity (it is
+    /// a pure function of the id, so it can never contradict itself across a
+    /// swap) and actively harmful as a name: recording it would replace the
+    /// placeholder `ZWO 1` with the raw `native:zwo:1` in the connected-device
+    /// list and stamp an enumeration index into the FITS `INSTRUME` keyword.
+    /// Treat it as "the driver did not say".
+    fn reported_model(device_id: &str, reported: &str) -> Option<String> {
+        let trimmed = reported.trim();
+        if trimmed.is_empty() || trimmed.eq_ignore_ascii_case(device_id.trim()) {
+            return None;
+        }
+        Some(trimmed.to_string())
+    }
+
     /// Model + serial from any connected native device.
-    fn identity_from_device(device: &dyn NativeDevice) -> DeviceIdentity {
+    fn identity_from_device(device_id: &str, device: &dyn NativeDevice) -> DeviceIdentity {
         DeviceIdentity {
-            model: Some(device.name().to_string()).filter(|n| !n.trim().is_empty()),
+            model: Self::reported_model(device_id, device.name()),
             serial_number: device.serial_number().filter(|s| !s.trim().is_empty()),
             sensor: None,
         }
@@ -580,10 +618,10 @@ impl DeviceManager {
     ///
     /// Geometry is what separates two bodies whose driver-reported names are
     /// identical, which is the normal case behind one ASCOM ProgID.
-    fn identity_from_camera(camera: &dyn NativeCamera) -> DeviceIdentity {
+    fn identity_from_camera(device_id: &str, camera: &dyn NativeCamera) -> DeviceIdentity {
         let sensor = camera.get_sensor_info();
         DeviceIdentity {
-            model: Some(camera.name().to_string()).filter(|n| !n.trim().is_empty()),
+            model: Self::reported_model(device_id, camera.name()),
             serial_number: camera.serial_number().filter(|s| !s.trim().is_empty()),
             sensor: DeviceIdentity::sensor_fingerprint(
                 sensor.width,

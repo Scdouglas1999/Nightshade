@@ -452,6 +452,13 @@ pub struct ZwoCamera {
     /// open, and opening every camera during a discovery scan would fight with
     /// any other application holding one.
     serial_number: Option<String>,
+    /// Model as the SDK states it, e.g. `ZWO ASI1600MM-Cool`.
+    ///
+    /// Empty until `load_camera_info` has run, because the model only exists in
+    /// `ASICameraInfo` and that needs the SDK. [`NativeDevice::name`] falls back
+    /// to the id string while it is empty; see the note there for why the id is
+    /// never an acceptable answer once the camera is open.
+    model_name: String,
     current_bin: i32,
     current_width: i32,
     current_height: i32,
@@ -481,6 +488,7 @@ impl ZwoCamera {
             connected: false,
             device_id: format!("native:zwo:{}", camera_id),
             serial_number: None,
+            model_name: String::new(),
             current_bin: 1,
             current_width: 0,
             current_height: 0,
@@ -531,6 +539,12 @@ impl ZwoCamera {
         self.current_width = info.max_width as i32;
         self.current_height = info.max_height as i32;
         self.camera_info = Some(info);
+        // Cache the model now that the SDK has answered. `name()` has to hand
+        // back a `&str`, so the owned copy has to live in the struct — without
+        // it the only borrowable string was `device_id`, and every caller of
+        // `NativeDevice::name()` was handed the enumeration index instead of
+        // the model.
+        self.model_name = self.camera_name();
         Ok(())
     }
 
@@ -967,10 +981,25 @@ impl NativeDevice for ZwoCamera {
         &self.device_id
     }
 
+    /// The model the SDK reports, e.g. `ZWO ASI1600MM-Cool`.
+    ///
+    /// This used to return `device_id` — `native:zwo:1` — with a comment saying
+    /// a stable identifier would do "until an owned display-name field is
+    /// added". It does not do: `native:zwo:1` is the ASI enumeration index, it
+    /// re-binds to the other body across a replug, and the device-identity
+    /// check and the FITS `INSTRUME` keyword both read this method expecting
+    /// the model. Handing them the id turned one id-derived placeholder into
+    /// another and would have stamped an enumeration index into an archival
+    /// header.
+    ///
+    /// Falls back to the id only before `load_camera_info` has run, i.e. before
+    /// there is any model to report.
     fn name(&self) -> &str {
-        // We need to return a &str, but camera_name() returns String
-        // Use a stable identifier until an owned display-name field is added.
-        &self.device_id
+        if self.model_name.is_empty() {
+            &self.device_id
+        } else {
+            &self.model_name
+        }
     }
 
     fn vendor(&self) -> NativeVendor {
@@ -3589,6 +3618,51 @@ mod tests {
         assert_eq!(raw16_container_max_adu(8), 65280);
         // A true 16-bit sensor needs no shift.
         assert_eq!(raw16_container_max_adu(16), 65535);
+    }
+
+    // -------------------------------------------------------------------------
+    // Reported model (no hardware required)
+    // -------------------------------------------------------------------------
+
+    /// Fill an `ASICameraInfo` as the SDK would, with just the fields the model
+    /// accessor reads.
+    fn camera_info_named(model: &str, camera_id: c_int) -> ASICameraInfo {
+        // SAFETY: `ASICameraInfo` is `#[repr(C)]` POD; zeroed is exactly the
+        // state the real code hands to `ASIGetCameraProperty`.
+        let mut info: ASICameraInfo = unsafe { std::mem::zeroed() };
+        info.camera_id = camera_id;
+        for (slot, byte) in info.name.iter_mut().zip(model.as_bytes()) {
+            *slot = *byte as c_char;
+        }
+        info
+    }
+
+    /// `NativeDevice::name()` must report the model, never the enumeration id.
+    ///
+    /// This is the live-rig defect in one assertion. `native:zwo:1` is the ASI
+    /// enumeration index and it swapped from the ASI1600MM-Cool to the ASI178MM
+    /// across a replug; the device-identity check and the FITS `INSTRUME`
+    /// keyword both read `name()` expecting the model, so returning the id
+    /// labelled frames — and the connected-device list — with a number that
+    /// means a different camera tomorrow.
+    #[test]
+    fn name_reports_the_model_once_camera_info_is_loaded() {
+        let mut camera = ZwoCamera::new(1);
+        assert_eq!(
+            camera.name(),
+            "native:zwo:1",
+            "before the SDK answers there is no model to report"
+        );
+
+        camera.camera_info = Some(camera_info_named("ZWO ASI1600MM-Cool", 1));
+        camera.model_name = camera.camera_name();
+
+        assert_eq!(camera.name(), "ZWO ASI1600MM-Cool");
+        assert_ne!(
+            camera.name(),
+            camera.id(),
+            "the model must not be the positional device id"
+        );
     }
 
     /// Every reported ceiling must be reachable inside a u16 and be an exact
