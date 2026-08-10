@@ -345,3 +345,24 @@ as a known remainder rather than a fix that fixes nothing.
 **Known remainders**, all measured, none claimed fixed: the framework `Tab` nodes (3), the node-palette
 category headers (5), `Sort: Score` on the planner, and a few status chips such as `0 connected`.
 
+## Onboarding steps 2-8, walked on a fresh profile
+
+Zero `DISABLED` on every step after the semantics fix, and the wizard behaved correctly at each
+gate I tried to break:
+
+* **Step 3 with no camera selected.** Six Next presses did nothing — which I initially read as an
+  inert button. It is not: `_validate` returns *"Pick a camera to continue, or use 'Skip onboarding'
+  to set it up later"* and the wizard renders it in a notice band above the footer, with a dismiss.
+  Deliberately not a snackbar, per the comment at the call site: *"a snackbar covers and intercepts
+  the very buttons the user needs to act on the message."* My misread, recorded because it is the
+  second time on this drive that a screen looked broken and turned out to be right.
+* **Driver status chips** on the camera step read `Native (0) ✓`, `Alpaca ⚠`, `INDI ⚠`, `Sim (1) ✓` —
+  the two unreachable backends are marked rather than silently contributing nothing.
+* **Step 8, optical train, with deliberately wrong input.** I mis-aimed and typed 1000 into Aperture
+  and 200 into Reducer / Barlow. The form caught it: inline `Must be between 0.1 and 10.` under the
+  reducer, and all three Computed values — Effective focal length, Focal ratio, Image scale — read
+  **"Check your inputs"** instead of deriving a number from nonsense. The empty pixel-size field
+  reads *"Not in the camera library — check your camera's datasheet"*.
+
+That last one is the behaviour the rest of this report has been asking for, arrived at without
+prompting: refuse to compute rather than compute something false.
