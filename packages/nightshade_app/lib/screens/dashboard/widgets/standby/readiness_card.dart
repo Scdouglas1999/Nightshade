@@ -141,9 +141,17 @@ class _StorageLine extends ConsumerWidget {
           const SizedBox(width: NightshadeTokens.spaceSm),
           Expanded(
             child: Text(
-              context.l10n.text('dbDiskQueryFailed'),
+              // The commonest cause by far is a capture folder that is not
+              // there — an unmounted drive, a deleted folder, a path carried
+              // over from another machine. Saying so is actionable; the old
+              // constant "Disk query failed" was not, and it was what an
+              // operator saw for a folder the app knew by name was missing.
+              e is DiskSpaceException &&
+                      e.kind == DiskSpaceFailureKind.pathMissing
+                  ? context.l10n.text('dbCaptureFolderMissing')
+                  : context.l10n.text('dbDiskQueryFailed'),
               style: NightshadeTypography.bodySm.copyWith(color: colors.error),
-              maxLines: 1,
+              maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
           ),

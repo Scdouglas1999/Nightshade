@@ -191,7 +191,13 @@ class StorageCard extends ConsumerWidget {
         const SizedBox(width: 6),
         Expanded(
           child: Text(
-            'Disk query failed: $error',
+            // Same distinction the readiness card makes: a missing capture
+            // folder is a different problem from a query that broke, and the
+            // exception already knows which one it is.
+            error is DiskSpaceException &&
+                    error.kind == DiskSpaceFailureKind.pathMissing
+                ? 'Capture folder not found: ${error.path}'
+                : 'Disk query failed: $error',
             style: TextStyle(
                 fontSize: NightshadeTypography.fontSize11, color: colors.error),
             overflow: TextOverflow.ellipsis,

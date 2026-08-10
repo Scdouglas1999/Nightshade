@@ -41,11 +41,40 @@ class DiskSpaceException implements Exception {
   final String message;
   final Object? cause;
 
-  const DiskSpaceException(this.path, this.message, [this.cause]);
+  /// Which failure this is, so the UI can say something useful instead of
+  /// "Disk query failed".
+  ///
+  /// The dashboard used to render one constant string for every cause, which
+  /// is how a capture folder that simply was not there — an unmounted drive,
+  /// a deleted folder, a path saved on another machine — reached the operator
+  /// as an unexplained failure. The distinction is not cosmetic on a rig left
+  /// running overnight: "the drive is gone" is actionable and "disk query
+  /// failed" is not. Matching on [kind] rather than on [message] so the copy
+  /// stays free to change.
+  final DiskSpaceFailureKind kind;
+
+  const DiskSpaceException(
+    this.path,
+    this.message, [
+    this.cause,
+    this.kind = DiskSpaceFailureKind.queryFailed,
+  ]);
 
   @override
   String toString() =>
       'DiskSpaceException: $message (path=$path${cause != null ? ", cause=$cause" : ""})';
+}
+
+/// Why a disk-space query failed.
+enum DiskSpaceFailureKind {
+  /// No capture directory is configured at all.
+  pathNotConfigured,
+
+  /// A directory is configured but is not on the filesystem right now.
+  pathMissing,
+
+  /// The query itself failed: subprocess error, unparseable output, and so on.
+  queryFailed,
 }
 
 /// Queries free / total disk space for a directory.
@@ -71,6 +100,8 @@ class DiskSpaceService {
       throw const DiskSpaceException(
         '',
         'Cannot query disk space: path is empty (capture directory not configured)',
+        null,
+        DiskSpaceFailureKind.pathNotConfigured,
       );
     }
 
@@ -79,6 +110,8 @@ class DiskSpaceService {
       throw DiskSpaceException(
         path,
         'Path does not exist; cannot query free space',
+        null,
+        DiskSpaceFailureKind.pathMissing,
       );
     }
 

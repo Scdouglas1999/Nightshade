@@ -706,6 +706,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'dbConnectEquipment': 'Connect equipment',
     'dbCheckingDisk': 'Checking disk…',
     'dbDiskQueryFailed': 'Disk query failed',
+    'dbCaptureFolderMissing': 'Capture folder not found',
     'dbSetCaptureDir': 'Set a capture directory to track free space.',
     'dbFreeStorage': 'Free storage',
     'dbLastNight': 'Last night',
@@ -1444,6 +1445,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'dbConnectEquipment': 'Conectar el equipo',
     'dbCheckingDisk': 'Comprobando el disco…',
     'dbDiskQueryFailed': 'Fallo al consultar el disco',
+    'dbCaptureFolderMissing': 'No se encuentra la carpeta de capturas',
     'dbSetCaptureDir':
         'Define una carpeta de capturas para ver el espacio libre.',
     'dbFreeStorage': 'Espacio libre',
