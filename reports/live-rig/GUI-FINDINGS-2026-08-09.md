@@ -418,3 +418,24 @@ clicked. Clicking the same tab twice returned identical content, which ruled out
 `click-xy` was landing one tab to the left the whole time. Third time on this drive that a suspected
 defect was my measurement rather than the app.
 
+## Known accessibility remainders — measured, root-caused, deliberately not "fixed"
+
+After the sweep, these still read `[DISABLED]` in the live tree. Each was checked; none is guessed:
+
+| nodes | widget | why it is left |
+|---|---|---|
+| `Tab 1/2/3 of 3` (Sequencer toolbox) | Flutter `TabBar` → `Tab` | the framework generates the node inside `TabBar`; an ancestor `Semantics` does not merge into it. Proven: my wrapper survived a rebuild with the flag intact, so it was reverted. `TabBar` exposes no `excludeFromSemantics`. |
+| `Overlays`, `G100`, `Light`, `1x1` (Imaging) | `NightshadeDropdown` → Flutter `DropdownButton` | same shape — the button node comes from the framework. Fixable in principle by wrapping and excluding, but that is the pattern that needed three attempts to get right on `InkWell`, and I have no budget left to build, relaunch and verify it. An unverified accessibility fix is worth less than an accurate note. |
+| node-palette category headers (`Target`, `Imaging`, `Science`, `Guiding`, `Mount`) | expansion headers | not yet traced to a widget. |
+| `Sort: Score`, `0 connected`, `0 nodes`, `1` | status chips / sort control | not yet traced. |
+
+The pattern to apply, established and verified on three widgets today: give the row a container
+`Semantics` with `enabled`, and put `excludeFromSemantics: true` on the inner `InkWell` so it stops
+publishing a second, unflagged node. Verify by counting the **same screen** before and after a
+rebuild — not a different one.
+
+## Final test position for this drive
+
+`nightshade_app` re-run after the one real regression was fixed: **41 distinct failing tests, 40
+distinct goldens named, zero non-golden failures** — classified by name rather than by eyeballing the
+tail. Every remaining failure is a Windows-captured golden diffing on Linux.
