@@ -584,3 +584,14 @@ remainders table is a harness observation, and at least one class of them has no
 reflect the widget layer. The fixes I landed are still right — each was verified by a same-screen
 before/after in the tree AND by the semantics changing in code — but the *unfixed* remainders should
 be re-checked with a widget test before anyone spends time on them.
+
+### The fixes hold at the widget layer too
+
+Having found the harness wrong once, the honest follow-through is to check the fixes with a second
+instrument rather than trust the first. `driver_tile_semantics_test.dart` pumps the real onboarding
+screen, walks to the driver step and reads the row's node directly: the label contains **both**
+"Native" and "Direct SDK connection…", i.e. the container carries the accessible name and the inner
+content is excluded, exactly as the fix intends. Passes.
+
+So the position is: the landed fixes are real at both layers; the *unfixed* remainders rest on
+harness readings alone and should get a widget test before anyone acts on them.
