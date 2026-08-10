@@ -59,11 +59,17 @@ class ImageOutputPathRule implements RefAwareSequenceValidator {
           severity: ValidationSeverity.error,
           category: ValidationCategory.settings,
           title: 'Image Output Path Not Configured',
+          // Read verbatim out of the pre-flight dialog during the GUI drive
+          // 2026-08-09. The old wording named the internal field
+          // (`imageOutputPath`) and an HTTP call (`PUT /api/settings`) to
+          // someone looking at a desktop dialog — neither is something they can
+          // act on, and both invite the reader to think they are missing a
+          // step. The place to go is the same either way, and the
+          // `resolutionHint` below already says it.
           description:
-              'No image output directory is configured. Captured frames '
-              'cannot be saved. Configure imageOutputPath in Settings → '
-              'File Output (or PUT /api/settings) before starting a '
-              'sequence.',
+              'No capture folder is set, so frames would be captured and then '
+              'discarded. Choose where images should be saved before starting '
+              'the sequence.',
           resolutionHint:
               'Configure an image save location in Settings → File Output.',
           code: 'image_output_path_not_configured',

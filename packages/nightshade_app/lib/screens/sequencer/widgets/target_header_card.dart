@@ -511,13 +511,24 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
         ? progress.nodeProgressDetail[currentNodeId]
         : null;
 
+    // The pre-run label is the node's *execution* status, so everything that
+    // has not run yet lands on the default arm. Saying "Ready" there is a claim
+    // the card has already contradicted two rows above: seen during the GUI
+    // drive 2026-08-09, a target reading `RA Not set  Dec Not set`, carrying the
+    // card's own red blocking-issue dot, and refused by pre-flight with "Target
+    // Coordinates Not Set", still announced itself as **Ready**.
+    //
+    // "Ready" is the right word for a target that has not started and could;
+    // it is the wrong word for one the app will refuse to run. The same
+    // `targetCoordinatesUnset` predicate the coordinate row uses decides which
+    // of the two this is.
     final statusLabel = switch (widget.nodeStatus) {
       NodeStatus.running => currentNodeDetail ?? progress.message ?? 'Running',
       NodeStatus.success => 'Completed',
       NodeStatus.failure => 'Failed',
       NodeStatus.skipped => 'Skipped',
       NodeStatus.cancelled => 'Cancelled',
-      _ => 'Ready',
+      _ => targetCoordinatesUnset(widget.node) ? 'Needs coordinates' : 'Ready',
     };
 
     // Build the plan summary. A loop-until-stopped SmartExposure is

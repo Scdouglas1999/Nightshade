@@ -85,3 +85,38 @@ G1 and G2 are the same *symptom* from a different cause — a bare `InkWell` pub
 node with no enabled flag — which is why the driver rows and device rows needed their own container
 semantics rather than this one-word fix.
 
+## G4 — a pre-flight error told a desktop user to send an HTTP request *(fixed)*
+
+Verbatim from the Pre-Flight Validation dialog:
+
+> No image output directory is configured. Captured frames cannot be saved. Configure
+> **imageOutputPath** in Settings → File Output (or **PUT /api/settings**) before starting a
+> sequence.
+
+An internal field name and an HTTP verb, in a dialog on a desktop app. Neither is something the
+reader can act on, and both invite them to think they are missing a step. The issue's own
+`resolutionHint` already said the useful thing — "Configure an image save location in Settings →
+File Output" — so the description now just states the consequence in plain terms. A sweep for other
+`GET|POST|PUT /api/...` strings in user-visible copy found none; the remaining hits are doc comments.
+
+## G5 — a target the app refuses to run calls itself "Ready" *(fixed)*
+
+Same screen, at the same moment: the target card read
+
+```
+New Target
+RA Not set    Dec Not set          <- amber, correct
+Ready · 10 planned exposures · 10m  <- the status chip
+```
+
+…with the card's own red blocking-issue dot in the corner and pre-flight refusing the run with
+"Target Coordinates Not Set". Three parts of one card, and the summary chip contradicted the other
+two.
+
+The chip is derived from the node's *execution* status, so everything that has not run yet lands on
+the default arm and prints "Ready". That is the right word for a target that has not started and
+could; it is the wrong word for one the app will refuse. It now reads **"Needs coordinates"** when
+the same `targetCoordinatesUnset` predicate the coordinate row already uses says so.
+
+Small, but it is the L46 family: a surface asserting a state the app has itself determined is false.
+
