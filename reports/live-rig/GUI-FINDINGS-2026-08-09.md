@@ -936,3 +936,45 @@ real ones do, so the whole autofocus path is exercisable without hardware.
 
 Incidentally this also exercises the G7 quality-score fix at the opposite end of its range: 88.85 for
 a sharp frame against ~32 for a soft one, from the same formula. The score discriminates.
+
+## G14 — a failed autofocus leaves its progress panel showing "Measuring point 1/9" forever *(P2)*
+
+Reproduced with fault injection (`NIGHTSHADE_SIM_FAULTS='focuser.move=after(3):error'`), which lets
+the focuser move three times and then refuse — the shape of a focuser that dies partway through a
+sweep.
+
+What the app does correctly:
+
+- It aborts the sweep rather than continuing with a stuck focuser.
+- It **tries to put the focuser back** where it found it, which is the right instinct.
+- When that restore is also refused it says so at ERROR with the whole causal chain:
+  `Autofocus could not restore original position 25000: return move to 25000 was rejected: Focuser
+  move failed: Operation failed: …`
+- The Manual Focus readout honestly shows the focuser's real position afterwards — **24800**,
+  displaced 200 steps and unrecoverable.
+
+What it does not do is stop showing progress. Forty seconds after the run died — with no further log
+activity, against ~5s per sample — the panel still reads:
+
+```
+Point 1/9    HFR 5.10    Best 5.10    Stars 38
+Measuring point 1/9
+```
+
+with the spinner still turning on the focuser position. The only failure signal is a toast reading
+**"AF: Failed: Operation …"**, truncated before it names a cause and dismissable.
+
+For someone checking a rig remotely on an unattended night this is the wrong story in the worst
+place: an autofocus that appears to be still working, when in fact it died and left the optics 200
+steps off focus. Every subsequent frame would be soft, and the panel would keep saying "Measuring".
+
+Two things would fix it: clear the progress panel to a terminal state on abort, and let the toast
+name the cause — "Autofocus failed: focuser move rejected; focus left at 24800" fits and is
+actionable, where "Operation …" is not. Not fixed here; it is a UI-state change on the same path as
+the toast, and it wants a widget test rather than another unverified attempt at this depth.
+
+**Bearing on the open product question.** The owner still has to choose whether a failed autofocus
+trigger pauses an unattended run or lets it continue. This finding sharpens the choice: whichever is
+picked, the failure must also be *visible*, because today a failed autofocus is quiet on screen and
+leaves the focuser displaced. Continuing without surfacing that means a night of soft frames with the
+UI still claiming to be measuring.
