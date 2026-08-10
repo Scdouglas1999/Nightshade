@@ -273,6 +273,7 @@ class _CaptureGroup extends ConsumerWidget {
               : 'Loop frames are live view only — not saved, not counted',
           child: Semantics(
             button: true,
+            enabled: true,
             toggled: saveLoopFrames,
             label: 'Save loop frames',
             child: SmallButton(

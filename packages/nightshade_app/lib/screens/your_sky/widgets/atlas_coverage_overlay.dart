@@ -178,6 +178,7 @@ class _AllSkyCoverageMap extends StatelessWidget {
                         height: 16,
                         child: Semantics(
                           button: true,
+                          enabled: true,
                           label:
                               '${formatCenter(tile.centerRaDeg, tile.centerDecDeg)}, '
                               '${formatIntegration(tile.integrationSeconds)}, '

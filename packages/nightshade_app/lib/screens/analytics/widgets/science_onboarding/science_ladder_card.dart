@@ -98,6 +98,7 @@ class ScienceLadderCard extends ConsumerWidget {
               ),
               Semantics(
                 button: true,
+                enabled: true,
                 label: 'Collapse science guide',
                 child: IconButton(
                   tooltip: 'Collapse',

@@ -107,6 +107,11 @@ class NightshadeChip extends StatelessWidget {
     // on the active filter — the `selected` flag drove only color before.
     return Semantics(
       button: true,
+      // The disabled branch above passes `enabled: false`; this one has to
+      // pass `enabled: true` explicitly, because `Semantics` publishes the
+      // isEnabled flag only when the field is given. Omitting it made a live
+      // chip announce exactly like the disabled one.
+      enabled: true,
       selected: selected,
       label: label,
       child: InkWell(
