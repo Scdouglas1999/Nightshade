@@ -641,4 +641,107 @@ void main() {
       );
     });
   });
+
+  /// Live rig 2026-08-09, immediately after restarting the appliance with the
+  /// capture folder already configured:
+  ///
+  /// ```
+  /// GET  /api/system/disk-space -> {"configured": true, "path": "C:\\", ...}
+  /// POST /api/sequencer/start   -> 400 preflight_rejected
+  ///        "... no image save path is configured ..."
+  /// ```
+  ///
+  /// The native save path is per-process; imageOutputPath is durable. On an
+  /// unattended rig any restart therefore costs the night, and the refusal
+  /// names a setting the operator has already set.
+  group('a restart does not lose the configured capture folder', () {
+    late _MockSequencerBackend sequencer;
+    late _MockDeviceBackend devices;
+    late ProviderContainer container;
+    late SequencerHandlers handlers;
+
+    setUp(() {
+      sequencer = _MockSequencerBackend();
+      devices = _MockDeviceBackend();
+      when(() => sequencer.sequencerLoadJson(any())).thenAnswer((_) async {});
+      when(
+        () => sequencer.sequencerSetSavePath(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => sequencer.sequencerSetSimulationMode(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => sequencer.sequencerSetSafetyFailMode(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => sequencer.sequencerSetDevices(
+          cameraId: any(named: 'cameraId'),
+          mountId: any(named: 'mountId'),
+          focuserId: any(named: 'focuserId'),
+          filterwheelId: any(named: 'filterwheelId'),
+          rotatorId: any(named: 'rotatorId'),
+          filterNames: any(named: 'filterNames'),
+          filterFocusOffsets: any(named: 'filterFocusOffsets'),
+        ),
+      ).thenAnswer((_) async {});
+      when(() => sequencer.sequencerStart()).thenAnswer((_) async {});
+      when(() => devices.getConnectedDevices()).thenAnswer((_) async => []);
+      when(
+        () => sequencer.sequencerGetStatus(),
+      ).thenAnswer((_) async => _status('idle'));
+
+      container = createHeadlessTestContainer(
+        overrides: [
+          sequencerBackendProvider.overrideWithValue(sequencer),
+          deviceBackendProvider.overrideWithValue(devices),
+        ],
+      );
+      addTearDown(container.dispose);
+      handlers = SequencerHandlers(container);
+    });
+
+    Future<void> start() async {
+      await translateHandlerErrors(
+        handlers.handleSequencerLoad(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/sequencer/load'),
+            body: jsonEncode({'json': _wireSequence()}),
+          ),
+        ),
+      );
+      await translateHandlerErrors(
+        handlers.handleSequencerStart(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/sequencer/start'),
+            body: jsonEncode({}),
+          ),
+        ),
+      );
+    }
+
+    test('start pushes the durable capture folder into the executor', () async {
+      // A process that never saw POST /api/sequencer/save-path, exactly as
+      // after a restart.
+      await container.read(appSettingsProvider.future);
+      await container
+          .read(appSettingsProvider.notifier)
+          .setImageOutputPath('/captures/tonight');
+
+      await start();
+
+      verify(
+        () => sequencer.sequencerSetSavePath('/captures/tonight'),
+      ).called(1);
+    });
+
+    test('an unconfigured folder pushes nothing, rather than null', () async {
+      // Pushing null would clobber a checkpoint-restored path with
+      // "don't save" — the same guard _startNativeExecution keeps.
+      await start();
+
+      verifyNever(() => sequencer.sequencerSetSavePath(any()));
+    });
+  });
 }

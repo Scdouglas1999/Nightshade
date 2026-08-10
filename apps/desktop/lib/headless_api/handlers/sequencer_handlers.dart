@@ -196,6 +196,7 @@ class SequencerHandlers {
         // `recovering / Device disconnected, progress 0.0` with no frames, and
         // `GET /api/devices/connected` listed the camera the whole time.
         await _wireConnectedDevicesIntoNativeExecutor(backend);
+        await _restoreNativeSavePath(backend);
         // Refuse, before anything is opened, a run that needs a guider, dome
         // or cover calibrator this rig does not have. See
         // [_refuseUnassignableRoles] — the native pre-flight cannot see these
@@ -566,6 +567,49 @@ class SequencerHandlers {
   /// Failure here is deliberately non-fatal. A run that captures frames is
   /// worth more than a run that refuses to start because its bookkeeping row
   /// could not be written, and the frames still reach disk either way.
+  /// Push the host's configured capture folder into the native executor.
+  ///
+  /// The native save path is per-process state; `imageOutputPath` is durable.
+  /// Reproduced on the live rig 2026-08-09, immediately after restarting the
+  /// appliance with the capture folder already configured:
+  ///
+  /// ```
+  /// GET  /api/system/disk-space -> {"configured": true, "path": "C:\\", ...}
+  /// POST /api/sequencer/start   -> 400 preflight_rejected
+  ///        "This sequence captures frames but no image save path is
+  ///         configured. Set the sequencer save path before starting ..."
+  /// ```
+  ///
+  /// The appliance knew the folder and refused the run anyway. On an unattended
+  /// rig, any restart — a power blip, the updater, a crash-and-relaunch —
+  /// therefore costs the whole night, and the refusal names a setting the
+  /// operator has already set.
+  ///
+  /// `_startNativeExecution` has always done this for the editor path
+  /// (`sequence_executor.dart`, "only override the checkpoint's restored path
+  /// when the user actually has one configured"). This is the same step,
+  /// missing from the same seam as L22 and L29. The empty-path guard is kept
+  /// for the same reason it exists there: pushing null would clobber a good
+  /// checkpoint-restored path with "don't save".
+  Future<void> _restoreNativeSavePath(SequencerBackend backend) async {
+    try {
+      await container.read(appSettingsProvider.future);
+      final configured =
+          container.read(appSettingsProvider).valueOrNull?.imageOutputPath ??
+          '';
+      if (configured.isEmpty) return;
+      await backend.sequencerSetSavePath(configured);
+    } catch (error) {
+      // Non-fatal: the native save-path pre-flight is the backstop, and it
+      // refuses the run with an operator-facing reason rather than capturing
+      // frames into nowhere.
+      _logWarning(
+        '[API] POST /api/sequencer/start: could not restore the configured '
+        'capture folder into the native executor ($error)',
+      );
+    }
+  }
+
   /// Returns true when a row was opened, so the caller can close it again if
   /// the native executor then refuses the start.
   Future<bool> _openSessionRowForNativeRun(SequencerBackend backend) async {
