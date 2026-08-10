@@ -753,3 +753,42 @@ the same site — the same trap as measuring a fix against a stale binary.
 
 The behaviour itself is what an unattended night wants: the rig parks and the run ends roughly half
 an hour before the sky starts brightening. What it does not do is say so afterwards — see L52.
+
+## V4 — weather safety defaults are correct for a rig with no weather sensor (validation)
+
+The 6.0.0 blocker was a fail-closed weather gate that aborted every run on a rig with no weather
+device. The current settings page resolves it without weakening the safety model:
+
+| setting | value | disclosure on the row |
+|---|---|---|
+| Enable weather safety | **off** | "Pause imaging when unsafe weather is detected" |
+| Safety fail mode | Fail Closed (Park) | "…missing data counts as unsafe: a run will refuse to start and the rig is parked" |
+| Auto-park mount | on | *"inactive until 'Enable weather safety' is on"* |
+| Auto-resume after clear | off | *"inactive until 'Enable weather safety' is on"* |
+| Max humidity / wind / cloud | 90% / 30 km/h / 80% | — |
+
+The important part is the last column: every setting that only takes effect under the master toggle
+says so on its own row. A user reading "Fail Closed (Park)" in isolation would reasonably conclude
+their run is about to be blocked; the row tells them it is not. That is the same fact the Weather
+screen states as "Not monitoring — weather safety is off", so the two surfaces agree.
+
+For a rig with no weather sensor — which is the owner's case tonight — this means the fail-closed
+mode is armed but inert, and a run will start.
+
+## V5 — the Analytics tabs report figures that reconcile with the database
+
+Swept all six. Every displayed number was checked against SQL rather than against another screen:
+
+- **Equipment Stats** — "Accepted Integration 3m 42s" = 222s = `sum(exposure_duration)` over
+  `captured_images` exactly; "Avg HFR Achieved 4.95" = `avg(hfr)` = 4.954. Note it is 222s, not the
+  220s total of the run records: the 2s difference is a single Imaging-screen snapshot, a frame with
+  `session_id IS NULL` that belongs to no run. Right number for the right reason.
+- **History** — per-run HFR 4.35 / 4.33 / 4.33 matches `avg(hfr)` grouped by session (4.355, 4.328,
+  4.328), and the three trigger-aborted runs correctly show 0 frames.
+- **Science** — "No events yet this session", "No story yet for this session"; honest empty states.
+- **Session** — verified earlier in V1.
+
+The History time filter also works end to end (All Time → This Month, label updates, all seven
+sessions correctly retained since all are from this month). Its `[DISABLED]` marker in the
+accessibility tree was spurious — the **third** false disabled-state reading from that harness this
+session, after G11 and G12. Treat `[DISABLED]` from `drive_linux.py tree` as unreliable.
