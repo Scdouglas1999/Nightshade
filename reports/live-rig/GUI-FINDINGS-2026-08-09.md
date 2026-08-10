@@ -1199,3 +1199,26 @@ Severity is now clear: this costs a night, it does not merely mislabel one. Dith
 noise-reduction convenience; the correct response to a dither that cannot run is to warn, skip it,
 and keep imaging. That is the same policy question as the failed-autofocus one, and the two want a
 single answer — an unattended run should not be ended by an ancillary step failing.
+
+## V14 — live stacking runs and tears down cleanly (validation)
+
+Ran `[Take Exposures ×10, Live Stacking]` in darkness with the simulators:
+
+```
+Executing child 2/2: 'Live Stacking'
+Child 'Live Stacking' completed with status: Success
+Live stacker stopped and resources released
+```
+
+Run record: `status=completed, framesCaptured=10`; frames on disk 58 → 68.
+
+Two things worth noting. The node **succeeds** and the run is recorded `completed` — the direct
+contrast with G15, where an ancillary node's failure took the whole run down. And the stacker
+explicitly reports releasing its resources, which is the behaviour you want from something holding
+image buffers across a long night.
+
+With this, the only feature left unexercised is **meridian-flip execution**. Its configuration is
+already verified (V12: `minutes_past=5.0`, `auto_center=true`, `max_retries=3`,
+`failure_action=PauseAndAlert`); firing one requires carrying a target across the meridian, i.e.
+simulating hours of sidereal motion, which is the same site-relocation technique used throughout
+this section applied to time rather than longitude.
