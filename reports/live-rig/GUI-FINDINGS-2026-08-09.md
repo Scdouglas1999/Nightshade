@@ -405,3 +405,16 @@ Two lessons, both about my own claims rather than the app:
 2. **A semantics matcher is a whitelist.** Adding a correct flag will fail any `matchesSemantics`
    that did not anticipate it, and the failure looks like a regression when it is the test encoding
    the old behaviour. Read the diff before assuming either way.
+## Analytics sub-tabs — all six walked, clean
+
+Session, History, Projects, Equipment Stats, Science and Diagnostics on a fresh profile: **zero
+`DISABLED`** on every one, and each renders its own honest empty state rather than a zero or a blank
+panel — "Waiting for the first captured frame", "No session history", "No targets available for
+project tracking yet", "No data", "Solve health appears once light frames start arriving", "No story
+yet for this session — events appear as the Narrator interprets your data".
+
+One near-miss worth recording as method: the tabs appeared to render **one tab behind** what I
+clicked. Clicking the same tab twice returned identical content, which ruled out a lag — my
+`click-xy` was landing one tab to the left the whole time. Third time on this drive that a suspected
+defect was my measurement rather than the app.
+
