@@ -968,6 +968,15 @@ For someone checking a rig remotely on an unattended night this is the wrong sto
 place: an autofocus that appears to be still working, when in fact it died and left the optics 200
 steps off focus. Every subsequent frame would be soft, and the panel would keep saying "Measuring".
 
+Narrowed since (code read only, NOT verified live): `AutofocusOverlayNotifier.onAutofocusFailed`
+already exists and already sets `isRunning: false, hasError: true, isMinimized: true`, and
+`autofocus_controls.dart` does call it on the catch path — which is where the "AF: Failed" toast
+came from. So the stuck "Measuring point 1/9" is very unlikely to be that overlay; it is more
+likely the sequencer's node-progress panel, fed by `ProgressDetail::Autofocus { step, total_steps,
+current_hfr }`, which keeps its last frame because no terminal Autofocus progress event is emitted
+on the abort path. Whoever picks this up should confirm which of the two widgets is on screen
+before changing either.
+
 Two things would fix it: clear the progress panel to a terminal state on abort, and let the toast
 name the cause — "Autofocus failed: focuser move rejected; focus left at 24800" fits and is
 actionable, where "Operation …" is not. Not fixed here; it is a UI-state change on the same path as
