@@ -1132,3 +1132,41 @@ operator the wrong story.
 a failed dither in the middle of an `[Exposures, Dither, Exposures, …]` sequence also aborts the
 blocks after it is **untested** and is the thing to check next — that is where this would cost a
 night rather than mislabel one.
+
+### G15 escalation — a mid-sequence dither failure abandons the rest of the night
+
+The open question from G15 was whether a failed Dither in the middle of
+`[Exposures, Dither, Exposures, …]` also kills the blocks after it. It does.
+`execute_children_sequential` short-circuits, and says so in its own contract:
+
+```rust
+/// Returns Cancelled / Skipped / Failure on the first child that produces
+/// one (short-circuiting); returns Success only when every child finished
+/// Success or Skipped.
+…
+if result == NodeStatus::Failure || result == NodeStatus::Cancelled {
+    return result;
+}
+```
+
+A Dither node returns `Failure` when no guider is configured — observed directly, not assumed —
+so on a sequence with dithering between exposure blocks, the **first** dither failure ends the run
+and every later block is abandoned.
+
+That changes the severity. As observed it merely mislabelled a complete run; with dithering placed
+where it normally goes — between blocks, which is the whole point of it — a guider that drops at
+01:00 ends the night at 01:00, having captured only the first block. The frames already taken are
+safe on disk, but the remaining hours are lost, and the run reports `failed` without making clear
+that the *cause* was an ancillary step rather than the imaging.
+
+**Status of this claim, stated precisely.** The mechanism is the function's documented and
+implemented contract, and it is consistent with what was observed end to end: the Dither returned
+`Failure`, and the two-node run terminated and was recorded `failed` immediately. What was **not**
+reproduced is the multi-block case itself — a `[Exposures, Dither, Exposures]` run showing the third
+node skipped. That reproduction is the remaining step, and it is cheap: build those three nodes with
+no guider connected and check whether the second exposure block produces frames.
+
+**Why it matters for the product, not just the label.** Dithering is a noise-reduction convenience.
+Losing the rest of a night because it could not run inverts the priority — the sensible behaviour is
+to warn, skip dithering, and keep imaging. That is a policy decision of the same shape as the
+autofocus one already on the owner's list, and the two should probably be answered together.
