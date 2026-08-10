@@ -106,6 +106,10 @@ class _NightshadeCardState extends State<NightshadeCard> {
     if (widget.onTap == null) return card;
 
     return Semantics(
+      // Semantics publishes isEnabled only when this field is given;
+      // omitting it makes assistive tech announce a live control as
+      // disabled. Measured on the running app 2026-08-09.
+      enabled: true,
       button: true,
       child: FocusableActionDetector(
         mouseCursor: SystemMouseCursors.click,

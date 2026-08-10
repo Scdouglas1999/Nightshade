@@ -291,6 +291,10 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
               // and only a drag (or the hidden double-click) inserted
               // anything. It is now an always-visible button.
               Semantics(
+                // Semantics publishes isEnabled only when this field is given;
+                // omitting it makes assistive tech announce a live control as
+                // disabled. Measured on the running app 2026-08-09.
+                enabled: true,
                 button: true,
                 label: 'Insert ${widget.snippet.name}',
                 child: Tooltip(

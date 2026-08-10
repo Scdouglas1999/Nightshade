@@ -455,6 +455,10 @@ class _TutorialRowState extends State<_TutorialRow> {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     return Semantics(
+      // Semantics publishes isEnabled only when this field is given;
+      // omitting it makes assistive tech announce a live control as
+      // disabled. Measured on the running app 2026-08-09.
+      enabled: true,
       label: '${widget.title} tutorial, $_statusText',
       button: true,
       child: Container(

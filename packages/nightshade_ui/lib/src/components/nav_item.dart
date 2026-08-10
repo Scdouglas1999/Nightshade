@@ -50,6 +50,10 @@ class _NavItemState extends State<NavItem> {
     final descriptionFontSize = Responsive.fontSize(context, 11);
 
     return Semantics(
+      // Semantics publishes isEnabled only when this field is given;
+      // omitting it makes assistive tech announce a live control as
+      // disabled. Measured on the running app 2026-08-09.
+      enabled: true,
       button: true,
       selected: widget.isSelected,
       label: widget.label,

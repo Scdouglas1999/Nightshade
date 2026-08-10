@@ -663,6 +663,10 @@ class _SegmentButton extends StatelessWidget {
     final colors = context.nightshadeColors;
     final fg = isSelected ? colors.onPrimary : colors.textSecondary;
     return Semantics(
+      // Semantics publishes isEnabled only when this field is given;
+      // omitting it makes assistive tech announce a live control as
+      // disabled. Measured on the running app 2026-08-09.
+      enabled: true,
       button: true,
       selected: isSelected,
       label: spec.label,

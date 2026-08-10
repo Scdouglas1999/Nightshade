@@ -670,6 +670,10 @@ class _GroupHeaderState extends State<_GroupHeader> {
       // order, activates on Enter/Space, and reports itself as a button.
       child: MergeSemantics(
         child: Semantics(
+          // Semantics publishes isEnabled only when this field is given;
+          // omitting it makes assistive tech announce a live control as
+          // disabled. Measured on the running app 2026-08-09.
+          enabled: true,
           button: true,
           expanded: widget.expanded,
           child: InkWell(
@@ -807,6 +811,10 @@ class _SearchRowResultState extends State<_SearchRowResult> {
   Widget build(BuildContext context) {
     final colors = widget.colors;
     return Semantics(
+      // Semantics publishes isEnabled only when this field is given;
+      // omitting it makes assistive tech announce a live control as
+      // disabled. Measured on the running app 2026-08-09.
+      enabled: true,
       button: true,
       child: InkWell(
         onTap: widget.onTap,
@@ -1183,6 +1191,10 @@ class _CategoryItemState extends State<_CategoryItem> {
       // selected state so AT can announce which section is open.
       child: MergeSemantics(
         child: Semantics(
+          // Semantics publishes isEnabled only when this field is given;
+          // omitting it makes assistive tech announce a live control as
+          // disabled. Measured on the running app 2026-08-09.
+          enabled: true,
           button: true,
           selected: widget.isSelected,
           child: InkWell(

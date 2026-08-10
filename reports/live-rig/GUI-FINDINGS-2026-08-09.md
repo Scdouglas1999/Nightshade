@@ -191,3 +191,47 @@ Named plainly, because the drive was one session on one screen size:
 * **Windows** — the whole drive was Linux/softpipe. Rendering and native dialogs differ.
 * **Resize, small windows, keyboard-only navigation** — one 1920×1200 window throughout.
 * Onboarding steps 4–13, and the file-picker dialogs (I typed paths instead).
+### G6 corroborated twice more by the session report
+
+The report that auto-opened when the run finished carried, unprompted:
+
+```
+Warnings: Meridian flip for "New Target" was aborted after 0 attempt(s): ... target 'New Target'
+          altitude is -4.7° which is below the minimum 10.0°. ... The mount was NOT flipped.
+Mount / operations:  Trigger fires 12
+```
+
+Vega at **-4.7°** is Vega seen from the equator, and twelve trigger fires in a ten-minute run is the
+60-second altitude cooldown firing throughout. So the Null Island location did not just arm the
+altitude trigger — it also drove the meridian-flip decision, which refused a flip for a target that
+was in fact high in the sky. Both are closed by the same fix.
+
+Worth recording separately: the report's own arithmetic is exact. Wall clock 10m 3s, integration
+10m 0s (10 × 60 s), downtime 3s, effective imaging 99.5% — 600/603 to the decimal — and frames
+10/10 accepted with HFR 2.23 / FWHM 4.45 / 35 stars per frame.
+
+## G3 continued — the sweep needed three passes, and the first two were wrong
+
+Worth recording as method, not just result.
+
+**Pass 1** — regex over `Semantics(...)` blocks containing `button: true` with no `enabled:` — found
+5 sites. Fixed them, rebuilt, relaunched, and the Sequencer's `DISABLED` count went **15 → 11**.
+
+**Pass 2** — widened the regex to any interactive role or handler — found 4 more, and then reported
+zero remaining. That "zero" was false: the regex only balanced one level of nested parentheses, so
+every `Semantics(` whose child was a deeply nested widget tree (which is most of them) fell outside
+the match entirely. `sub_tab_button.dart` — the Nodes/Snippets/Queue tabs I could see flagged in the
+live tree — was invisible to it.
+
+**Pass 3** — a line-window scan instead: for each line containing `Semantics(`, look at the next 14
+lines for a state/role flag and for `enabled:`. Found **18** more across 13 files, including
+`nav_item.dart` (the app's primary navigation), `sub_tab_button.dart`, `pill_tab.dart`,
+`status_pill.dart`, `nightshade_card.dart` and the mobile dashboard.
+
+The bulk insertion then landed `enabled: true` inside three `MergeSemantics(...)` constructors, which
+do not take it. The analyzer caught all three immediately — which is the argument for running it
+after a mechanical edit rather than trusting the edit.
+
+Measured, not asserted: the running app's `DISABLED` count on the onboarding screen went from 4 to
+**0**, and the fix is what the relaunched build shows.
+
