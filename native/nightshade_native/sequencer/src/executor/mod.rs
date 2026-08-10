@@ -3465,6 +3465,25 @@ impl SequenceExecutor {
                 let node_pending_exposure_completion = Arc::new(StdRwLock::new(
                     std::collections::HashMap::<NodeId, u32>::new(),
                 ));
+                // Integration already credited per FRAME for each node, so the
+                // burst's closing one-shot can add only what is left over.
+                //
+                // Why this exists: integration used to be added in a single lump
+                // when an exposure node finished successfully, so a run
+                // interrupted part-way through a node recorded ZERO seconds. A
+                // real unattended night is one long exposure node per filter, so
+                // a crash at 04:00 after six hours of imaging offered the
+                // operator a resume dialog reading "0m integration". Measured on
+                // 2026-08-10: paused a ten-frame node after three frames and the
+                // on-disk checkpoint held `completed_exposures = 3` beside
+                // `completed_integration_secs = 0.0`.
+                //
+                // Crediting per frame instead of removing the one-shot outright,
+                // because `exposure_node_metadata` only carries TakeExposure
+                // nodes — a producer with no per-frame duration (smart exposure)
+                // still needs its whole burst counted at the end.
+                let node_integration_credited =
+                    Arc::new(StdRwLock::new(std::collections::HashMap::<NodeId, f64>::new()));
                 let exposure_node_metadata = exposure_node_metadata.clone();
                 let target_node_metadata = target_node_metadata.clone();
                 context.progress_callback = Some(Arc::new(move |update: ProgressUpdate| {
@@ -3613,6 +3632,20 @@ impl SequenceExecutor {
                                 prog.completed_exposures.saturating_add(current - *last);
                             *last = current;
 
+                            // Credit the frames that just landed, on the same
+                            // monotonic sighting that advances the frame counter.
+                            // That guard is what makes `completed_exposures`
+                            // exactly-once under retries and batched bursts, so
+                            // the integration riding on it is exactly-once too.
+                            if let Some((duration_secs, _)) = metadata.as_ref() {
+                                let credited = f64::from(current - previous) * *duration_secs;
+                                prog.completed_integration_secs += credited;
+                                *node_integration_credited
+                                    .write()
+                                    .entry(update.node_id.clone())
+                                    .or_insert(0.0) += credited;
+                            }
+
                             if let Some((duration_secs, filter)) = metadata {
                                 exposure_started_event = Some(ExecutorEvent::ExposureStarted {
                                     frame: current,
@@ -3683,7 +3716,17 @@ impl SequenceExecutor {
                     }
 
                     if let Some(exposure_secs) = update.completed_exposure_secs {
-                        prog.completed_integration_secs += exposure_secs;
+                        // The burst's closing total, minus whatever its frames
+                        // already contributed above. For a TakeExposure node
+                        // that ran to completion this is zero; for a producer
+                        // with no per-frame duration it is the whole burst.
+                        // Never negative: a node that reported more per-frame
+                        // than its own total must not claw integration back.
+                        let already = node_integration_credited
+                            .write()
+                            .remove(&update.node_id)
+                            .unwrap_or(0.0);
+                        prog.completed_integration_secs += (exposure_secs - already).max(0.0);
                     }
 
                     // pluck per-target / per-filter
