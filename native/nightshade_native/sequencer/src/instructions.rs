@@ -5505,6 +5505,11 @@ pub async fn execute_dither(
             if let Some(cb) = progress_callback {
                 cb(100.0, "Dither complete".to_string());
             }
+            // A success ends the streak, so "3 in a row" in the warning above
+            // means three in a row and not three all night.
+            if let Some(trigger_state) = &ctx.trigger_state {
+                trigger_state.write().await.consecutive_dither_failures = 0;
+            }
             let pattern_name = match config.pattern {
                 crate::DitherPattern::Random => "random",
                 crate::DitherPattern::Grid => "grid",
@@ -5514,7 +5519,49 @@ pub async fn execute_dither(
                 pattern_name
             ))
         }
-        Err(e) => InstructionResult::failure(format!("Dither failed: {}", e)),
+        Err(e) => {
+            // A dither that fails does NOT justify ending the night.
+            //
+            // Dithering decorrelates fixed-pattern noise between subs. Losing
+            // it costs a little stacking quality; the frames themselves are
+            // perfectly good science. Returning a failure here made the
+            // sequential parent short-circuit, so one failed dither threw away
+            // every remaining exposure: reproduced live as
+            // [Exposures x10, Dither, Exposures x10] finishing with 10 frames
+            // of 20 and `status=failed`, on a rig whose only problem was that
+            // no guider was connected.
+            //
+            // It is still reported loudly — as a warning on the node, in the
+            // log, and in the run's message list — because a dither failing
+            // every time usually means the guider has gone, and that IS worth
+            // an operator's attention even though it is not worth the night.
+            let consecutive = if let Some(trigger_state) = &ctx.trigger_state {
+                let mut state = trigger_state.write().await;
+                state.consecutive_dither_failures =
+                    state.consecutive_dither_failures.saturating_add(1);
+                state.consecutive_dither_failures
+            } else {
+                1
+            };
+
+            let message = if consecutive > 1 {
+                format!(
+                    "Dither failed ({consecutive} in a row): {e}. Continuing to image without \
+                     dithering — frames are unaffected, but check the guider: repeated dither \
+                     failures usually mean guiding has stopped."
+                )
+            } else {
+                format!(
+                    "Dither failed: {e}. Continuing to image without dithering — the frames \
+                     themselves are unaffected."
+                )
+            };
+            tracing::warn!("{}", message);
+            if let Some(cb) = progress_callback {
+                cb(100.0, "Dither failed; continuing".to_string());
+            }
+            InstructionResult::success_with_message(message)
+        }
     }
 }
 

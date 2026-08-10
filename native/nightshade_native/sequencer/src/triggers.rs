@@ -977,6 +977,11 @@ pub struct TriggerState {
     /// mechanism is the behaviour we had before it, not a wedged run.
     pub camera_busy_until_ms: Option<i64>,
 
+    /// Consecutive failed dithers. A single failure is noise; a run of them
+    /// means guiding has stopped, which the operator should hear about even
+    /// though it does not justify ending the night.
+    pub consecutive_dither_failures: u32,
+
     // Guiding
     pub guiding_rms_history: Option<Vec<(Instant, f64)>>,
     pub guiding_enabled: bool,
@@ -1182,6 +1187,7 @@ impl Default for TriggerState {
             next_meridian_flip_time: None,
             meridian_flip_minutes_past: None,
             camera_busy_until_ms: None,
+            consecutive_dither_failures: 0,
             guiding_rms_history: None,
             guiding_enabled: false,
             guide_star_lost: false,

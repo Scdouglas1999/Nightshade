@@ -1530,3 +1530,33 @@ already on the list, and is now the only thing between this sequence and running
 always read `every_n_frames == 0` as "never fire", but the Dart seed clamped anything below 1 *up
 to 1* — so the one value an operator would pick to disable it produced a refocus after **every
 frame**, the most aggressive setting available. Zero now passes through as off.
+
+---
+
+## G15 — FIXED: a failed dither no longer ends the night
+
+Dithering decorrelates fixed-pattern noise between subs. Losing it costs a little stacking
+quality; the frames themselves are perfectly good science. `execute_dither` returned
+`InstructionResult::failure`, the sequential parent short-circuited, and one failed dither threw
+away every remaining exposure — reproduced live as `[Exposures x10, Dither, Exposures x10]`
+finishing with **10 frames of 20** and `status=failed`, on a rig whose only problem was that no
+guider was connected.
+
+It is now non-fatal and loud: a warning on the node, in the log, and in the run's message list,
+with a consecutive-failure count, because a dither failing every time usually means the guider
+has gone — worth an operator's attention, not worth the night.
+
+Verified live, same shape (Dither node inside the capture loop, no guider):
+
+```
+19:49:09  Child 'Dither' completed with status: Success
+19:49:19  WARN Dither failed (2 in a row): No active guider configured. Continuing to image
+          without dithering — frames are unaffected, but check the guider: repeated dither
+          failures usually mean guiding has stopped.
+19:49:19  Child 'Dither' completed with status: Success
+19:49:29  WARN Dither failed (3 in a row): ...
+19:49:29  Child 'Dither' completed with status: Success
+```
+
+The run keeps capturing, and the count escalates the message rather than the consequence. A
+successful dither resets the streak, so "3 in a row" means three in a row and not three all night.
