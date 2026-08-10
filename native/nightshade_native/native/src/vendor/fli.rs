@@ -1174,7 +1174,11 @@ impl NativeCamera for FliCamera {
         })
     }
 
-    async fn set_cooler(&mut self, enabled: bool, target_temp: f64) -> Result<(), NativeError> {
+    async fn set_cooler(
+        &mut self,
+        enabled: bool,
+        target_temp: Option<f64>,
+    ) -> Result<(), NativeError> {
         if !self.connected {
             return Err(NativeError::NotConnected);
         }
@@ -1184,19 +1188,25 @@ impl NativeCamera for FliCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = fli_mutex().lock().await;
 
-        if enabled {
-            // SAFETY: fli_mutex held above; self.handle is valid (connected=true checked); `target_temp` is a pass-by-value c_double.
-            let result = unsafe { (sdk.set_temperature)(self.handle, target_temp) };
-            check_fli_error(result, "set temperature")?;
+        // FLISetTemperature *is* the enable on this SDK: cooling needs a
+        // setpoint, so when the caller names none we reuse the one this driver
+        // already holds instead of inventing a temperature.
+        let setpoint_c = if enabled {
+            target_temp.unwrap_or(self.target_temp)
         } else {
-            // Set to a high temperature to effectively disable cooling
-            // SAFETY: fli_mutex held; self.handle is valid; literal 25.0 is a pass-by-value c_double.
-            let result = unsafe { (sdk.set_temperature)(self.handle, 25.0) };
-            check_fli_error(result, "set temperature")?;
-        }
+            // Disabling needs no setpoint from the caller — a high target is
+            // simply how this SDK parks the TEC.
+            25.0
+        };
+
+        // SAFETY: fli_mutex held above; self.handle is valid (connected=true checked); `setpoint_c` is a pass-by-value c_double.
+        let result = unsafe { (sdk.set_temperature)(self.handle, setpoint_c) };
+        check_fli_error(result, "set temperature")?;
 
         self.cooler_on = enabled;
-        self.target_temp = target_temp;
+        if enabled {
+            self.target_temp = setpoint_c;
+        }
         Ok(())
     }
 

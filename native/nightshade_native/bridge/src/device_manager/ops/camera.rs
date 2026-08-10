@@ -43,9 +43,16 @@
 //! * boolean caps (`can_cool`, `cooler_on`) → `false` — feature-not-declared.
 //! * `gain`/`offset` → 0 — bottom of the legal ASCOM gain table; user
 //!   adjusts via the gain UI before exposing.
-//! * `target_temp.unwrap_or(-10.0)` (set_cooler) — the historical Nightshade
-//!   default target when the caller does not specify; documented in the
-//!   "Imaging Setup" UI help text.
+//!
+//! `set_cooler` deliberately has **no** default target. It used to substitute
+//! `target_temp.unwrap_or(-10.0)`, which meant a plain "turn the cooler off"
+//! command — which carries no setpoint — pushed -10 C at the driver on its way
+//! past. On the reference rig that write is what failed (`SetCCDTemperature` on
+//! a camera reporting `CanSetCCDTemperature = False`), and because it happened
+//! before the `CoolerOn` write the cooler could not be switched off at all.
+//! The `Option` is now carried all the way down to each driver, and
+//! [`DeviceManager::cooler_setpoint_to_command`] drops it entirely when the
+//! cooler is being switched off.
 //!
 //! Connection-level errors are not silenced here; this layer composes
 //! values *after* `with_camera!` has already established the device path.
@@ -2199,6 +2206,25 @@ impl DeviceManager {
         }
     }
 
+    /// The setpoint that may accompany a cooler command.
+    ///
+    /// Switching a cooler **off** carries no setpoint: the TEC stops, and no
+    /// temperature needs naming to make that happen. Nightshade used to send
+    /// one anyway (a fabricated -10 C when the caller named none), and on the
+    /// reference rig that write is what failed — leaving the cooler stuck on.
+    /// End-of-night warm-up and the `safe_rig` shutdown path are both
+    /// `enabled = false` with no target, so this is the shape that matters.
+    pub(crate) fn cooler_setpoint_to_command(
+        enabled: bool,
+        target_temp: Option<f64>,
+    ) -> Option<f64> {
+        if enabled {
+            target_temp
+        } else {
+            None
+        }
+    }
+
     /// Set camera cooler
     pub async fn camera_set_cooler(
         &self,
@@ -2206,6 +2232,7 @@ impl DeviceManager {
         enabled: bool,
         target_temp: Option<f64>,
     ) -> Result<(), DeviceOpError> {
+        let target_temp = Self::cooler_setpoint_to_command(enabled, target_temp);
         let result = self
             .camera_set_cooler_dispatch(device_id, enabled, target_temp)
             .await;
@@ -2248,12 +2275,15 @@ impl DeviceManager {
                     let cameras = self.ascom_cameras.read().await;
                     if let Some(cam) = cameras.get(device_id) {
                         let mut cam = cam.write().await;
-                        let target = target_temp.unwrap_or(-10.0);
-                        cam.set_cooler(enabled, target).await.map_err(|e| {
+                        cam.set_cooler(enabled, target_temp).await.map_err(|e| {
+                            let target = match target_temp {
+                                Some(t) => format!("{}C", t),
+                                None => "unchanged".to_string(),
+                            };
                             DeviceOpError::hardware(
                                 Some(device_id.to_string()),
                                 format!(
-                                "Failed to set ASCOM camera {} cooler (enabled={}, target={}C): {}",
+                                "Failed to set ASCOM camera {} cooler (enabled={}, target={}): {}",
                                 device_id, enabled, target, e
                             ),
                             )
@@ -2324,7 +2354,7 @@ impl DeviceManager {
                 let mut native_cameras = self.native_cameras.write().await;
                 if let Some(camera) = native_cameras.get_mut(device_id) {
                     return camera
-                        .set_cooler(enabled, target_temp.unwrap_or(-10.0))
+                        .set_cooler(enabled, target_temp)
                         .await
                         .map_err(DeviceOpError::from);
                 }

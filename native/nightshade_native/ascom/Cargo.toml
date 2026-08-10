@@ -36,3 +36,9 @@ windows.workspace = true
 [target.'cfg(windows)'.dev-dependencies]
 nightshade_ascom = { path = ".", features = ["mock"] }
 mockall = "0.13"
+
+# Why: `implement` generates the `IDispatch_Impl` trait, which lets the tests
+# stand a Rust object in for an ASCOM driver and drive the real COM path —
+# including the `EXCEPINFO` a driver writes when it refuses a call. Declared as
+# a dev-dependency so production builds never pull the proc-macro crates in.
+windows = { workspace = true, features = ["implement"] }

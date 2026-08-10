@@ -1240,7 +1240,11 @@ impl NativeCamera for MoravianCamera {
         Ok(started_at.elapsed().as_secs_f64() >= self.exposure_duration.max(0.0))
     }
 
-    async fn set_cooler(&mut self, enabled: bool, target_temp: f64) -> Result<(), NativeError> {
+    async fn set_cooler(
+        &mut self,
+        enabled: bool,
+        target_temp: Option<f64>,
+    ) -> Result<(), NativeError> {
         if !self.connected {
             return Err(NativeError::NotConnected);
         }
@@ -1257,9 +1261,13 @@ impl NativeCamera for MoravianCamera {
         let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         if enabled {
+            // gxccd_set_temperature *is* the enable here, so cooling needs a
+            // setpoint; when the caller names none we reuse the one this
+            // driver already holds rather than inventing a temperature.
+            let target = target_temp.unwrap_or(self.target_temp);
             // Set target temperature.
             // SAFETY: moravian_mutex held above (single-threaded gxccd SDK access); self.connected was checked at entry so handle is open; gxccd_set_temperature takes the handle plus a c_float by value.
-            let ret = unsafe { (sdk.set_temperature)(handle, target_temp as c_float) };
+            let ret = unsafe { (sdk.set_temperature)(handle, target as c_float) };
             if ret < 0 {
                 // SAFETY: moravian_mutex held; handle is the open camera handle.
                 let msg = unsafe { sdk_last_error(sdk, handle) };
@@ -1267,27 +1275,24 @@ impl NativeCamera for MoravianCamera {
                     "Moravian gxccd_set_temperature() failed for camera '{}': {} (target {:.1} C)",
                     self.name,
                     msg,
-                    target_temp
+                    target
                 );
                 return Err(NativeError::SdkError(format!(
                     "Failed to set cooler temperature to {:.1} C on Moravian camera '{}': {}",
-                    target_temp, self.name, msg
+                    target, self.name, msg
                 )));
             }
             self.cooler_on = true;
-            self.target_temp = target_temp;
+            self.target_temp = target;
+            tracing::info!("Moravian cooler enabled: target {} C", target);
         } else {
             // Warm up: a high setpoint turns the cooler fully off (mi_ccd.cpp:35).
+            // No caller setpoint is involved or needed.
             // SAFETY: moravian_mutex held above; handle is open (self.connected checked at entry); gxccd_set_temperature accepts the handle and a c_float by value.
             unsafe { (sdk.set_temperature)(handle, TEMP_COOLER_OFF) };
             self.cooler_on = false;
+            tracing::info!("Moravian cooler disabled");
         }
-
-        tracing::info!(
-            "Moravian cooler {}: target {} C",
-            if enabled { "enabled" } else { "disabled" },
-            target_temp
-        );
 
         Ok(())
     }

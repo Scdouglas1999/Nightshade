@@ -3403,10 +3403,10 @@ impl FitsWriteHeaderRich {
         // which build the header from the context and nothing else, agree with
         // it. Taken as a PAIR rather than field by field: half a mount
         // pointing and half a target's is a coordinate that was never true of
-        // anything, and the altitude below is derived from the mount's.
-        let (ra, dec) = match ctx.mount_ra_hours.zip(ctx.mount_dec_degrees) {
-            Some((mount_ra, mount_dec)) => (Some(mount_ra), Some(mount_dec)),
-            None => (ctx.target_ra_hours, ctx.target_dec_degrees),
+        // anything, and the altitude below is derived from the same pair.
+        let (ra, dec) = match ctx.recorded_pointing() {
+            Some((ra_hours, dec_degrees)) => (Some(ra_hours), Some(dec_degrees)),
+            None => (None, None),
         };
 
         Self {
@@ -3432,15 +3432,16 @@ impl FitsWriteHeaderRich {
             set_temp: ctx.set_temp_c,
             ra,
             dec,
-            // The altitude the sequencer derived from that same pointing, in
-            // the same breath it read it. This was hardcoded `None` under a
-            // comment saying `FrameContext` carried no altitude — true when it
-            // was written, false since the mount telemetry moved into the
-            // context (`mount_altitude_deg`). Dropping it here is what left
-            // sequenced frames with neither OBJCTALT nor AIRMASS: extinction
-            // correction needs one of them, and neither can be recovered later
-            // from a file that recorded only where the scope pointed.
-            altitude: ctx.mount_altitude_deg,
+            // The altitude of the pointing selected just above — the mount's
+            // when it was read, otherwise the target's, computed from the site
+            // and the exposure midpoint. Reading `mount_altitude_deg` directly
+            // (what this used to do) meant the altitude existed only when a
+            // mount was connected AND answered, so a rig imaging without one
+            // wrote RA/DEC from the target and then dropped the OBJCTALT and
+            // AIRMASS derived from that identical pointing. Going through
+            // `recorded_altitude_deg` keeps the altitude and the RA/DEC cards
+            // describing one and the same direction, by construction.
+            altitude: ctx.recorded_altitude_deg(),
             telescope: ctx.telescope_name.clone(),
             instrument,
             observer: ctx.observer_name.clone(),
@@ -6054,6 +6055,131 @@ mod rich_header_tests {
         assert!(
             (dec_deg - (-5.39)).abs() < 1e-6,
             "DEC should be the mount's -5.39°, got {dec_deg}"
+        );
+    }
+
+    /// A frame taken with no mount attached still has an altitude, and the
+    /// file must carry it.
+    ///
+    /// `altitude` came straight off `FrameContext::mount_altitude_deg`, which
+    /// the capture path only ever sets inside its "a mount is connected and
+    /// answered the coordinate read" branch. So a rig imaging without a mount
+    /// — or one whose driver declined the read — got `RA`/`DEC` written from
+    /// the TARGET and then lost the `OBJCTALT` and `AIRMASS` derived from that
+    /// identical pointing. Altitude is pure geometry: pointing, site, time,
+    /// all three of them already in this struct.
+    ///
+    /// Reproduced twice before this was written. On the live rig,
+    /// `Polaris_1_0001.fits` carried `SITELAT 39.97190`, `RA 37.95450` and
+    /// `DEC 89.264` and neither horizon keyword; against the Linux simulator
+    /// build with the mount left disconnected, a completed run wrote exactly
+    /// the same header shape.
+    ///
+    /// The geometry is chosen so the expected altitude needs no sidereal-time
+    /// calculation and cannot drift with the clock: the celestial pole sits at
+    /// an altitude equal to the observer's latitude for every hour angle, at
+    /// every longitude, for ever.
+    #[tokio::test]
+    async fn mountless_frame_still_records_altitude_and_airmass() {
+        let width = 4u32;
+        let height = 4u32;
+        let pixels = vec![7u16; (width * height) as usize];
+
+        let scratch = temp_scratch_dir("mountless_horizon");
+        let temp_path = scratch.join("mountless.fits");
+
+        const SITE_LAT: f64 = 39.9719;
+
+        let mut ctx = FrameContext::new_light("sess", 1, 1, 120.0, 1);
+        // No mount: `mount_ra_hours`, `mount_dec_degrees` and
+        // `mount_altitude_deg` all stay None, exactly as the capture path
+        // leaves them when `ExecutionContext::mount_id` is None.
+        ctx.target_ra_hours = Some(2.5303);
+        ctx.target_dec_degrees = Some(90.0);
+        ctx.site_latitude_deg = Some(SITE_LAT);
+        ctx.site_longitude_deg = Some(-75.3576);
+        ctx.exposure_started_at = Some(
+            chrono::DateTime::parse_from_rfc3339("2026-08-10T00:06:02Z")
+                .unwrap()
+                .with_timezone(&chrono::Utc),
+        );
+        assert!(
+            ctx.mount_altitude_deg.is_none(),
+            "precondition: no mount telemetry was recorded for this frame"
+        );
+
+        let header = FitsWriteHeaderRich::from_frame_context(&ctx);
+        save_fits_file_rich(
+            temp_path.to_string_lossy().to_string(),
+            width,
+            height,
+            pixels,
+            header,
+        )
+        .await
+        .expect("FITS save should succeed");
+
+        let (_image, parsed) = read_fits(&temp_path).expect("FITS read-back");
+
+        let recorded_alt = parsed
+            .get_float("OBJCTALT")
+            .expect("a mountless frame must still record the altitude it was taken at");
+        assert!(
+            (recorded_alt - SITE_LAT).abs() < 0.05,
+            "the pole sits at the observer's latitude {SITE_LAT}°, got OBJCTALT {recorded_alt}"
+        );
+
+        // Physics, not a re-run of the formula: at ~40° altitude the
+        // plane-parallel path is sec 50° = 1.5557, and a real refracting
+        // atmosphere is always a slightly shorter path than that.
+        let airmass = parsed
+            .get_float("AIRMASS")
+            .expect("AIRMASS follows from a recorded altitude");
+        let plane_parallel = 1.0 / (90.0 - SITE_LAT).to_radians().cos();
+        assert!(
+            airmass < plane_parallel,
+            "AIRMASS {airmass} is not below the plane-parallel ceiling {plane_parallel}"
+        );
+        assert!(
+            plane_parallel - airmass < 0.02,
+            "AIRMASS {airmass} is {:.4} below sec z — far more curvature than a \
+             real atmosphere has",
+            plane_parallel - airmass
+        );
+
+        // ...and it describes the SAME pointing the file was labelled with.
+        // An altitude derived from one direction beside RA/DEC cards naming
+        // another would be worse than no altitude at all.
+        let ra_deg = parsed.get_float("RA").expect("RA card");
+        assert!(
+            (ra_deg - 2.5303 * 15.0).abs() < 1e-6,
+            "RA should be the target's 2.5303h in degrees, got {ra_deg}"
+        );
+        let dec_deg = parsed.get_float("DEC").expect("DEC card");
+        assert!(
+            (dec_deg - 90.0).abs() < 1e-6,
+            "DEC should be the target's 90.0°, got {dec_deg}"
+        );
+    }
+
+    /// No site, no altitude — the one case where withholding it is right.
+    ///
+    /// Guards the fix above from turning into "always emit something": with no
+    /// observer location the altitude could only come from a guessed site, and
+    /// a guessed `AIRMASS` silently corrupts an extinction correction in a way
+    /// a missing one cannot.
+    #[tokio::test]
+    async fn no_site_means_no_altitude_rather_than_a_guessed_one() {
+        let mut ctx = FrameContext::new_light("sess", 1, 1, 60.0, 1);
+        ctx.target_ra_hours = Some(2.5303);
+        ctx.target_dec_degrees = Some(90.0);
+        ctx.exposure_started_at = Some(chrono::Utc::now());
+        // site_latitude_deg / site_longitude_deg left unset.
+
+        let header = FitsWriteHeaderRich::from_frame_context(&ctx);
+        assert_eq!(
+            header.altitude, None,
+            "altitude must be omitted, not computed from a guessed site"
         );
     }
 

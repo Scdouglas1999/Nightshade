@@ -21,6 +21,7 @@ pub(crate) mod api_version;
 pub(crate) mod connection;
 pub(crate) mod epoch;
 pub(crate) mod heartbeat;
+pub mod identity;
 pub(crate) mod ops;
 
 use crate::device::*;
@@ -409,6 +410,15 @@ pub struct DeviceManager {
     /// Managed devices by their ID
     pub(crate) devices: RwLock<HashMap<String, ManagedDevice>>,
 
+    /// Identity last OBSERVED from a live driver, keyed by device id.
+    ///
+    /// Written only after a successful connect, from what the driver itself
+    /// reported — never from `device_info_from_id`, whose name is derived from
+    /// the id string and would happily "confirm" a swapped camera. This is the
+    /// baseline the next connect for the same id is checked against; see
+    /// [`identity`].
+    pub(crate) observed_identities: RwLock<HashMap<String, identity::DeviceIdentity>>,
+
     /// Reconnection configuration
     reconnect_config: ReconnectConfig,
 
@@ -744,6 +754,7 @@ impl DeviceManager {
         let manager = Arc::new(Self {
             app_state,
             devices: RwLock::new(HashMap::new()),
+            observed_identities: RwLock::new(HashMap::new()),
             reconnect_config: ReconnectConfig::default(),
             stop_reconnect: Arc::new(RwLock::new(false)),
             native_devices: RwLock::new(HashMap::new()),
@@ -815,6 +826,7 @@ impl DeviceManager {
         let manager = Arc::new(Self {
             app_state,
             devices: RwLock::new(HashMap::new()),
+            observed_identities: RwLock::new(HashMap::new()),
             reconnect_config: config,
             stop_reconnect: Arc::new(RwLock::new(false)),
             native_devices: RwLock::new(HashMap::new()),
@@ -1273,6 +1285,7 @@ mod tests {
         DeviceManager {
             app_state: AppState::new(),
             devices: RwLock::new(HashMap::new()),
+            observed_identities: RwLock::new(HashMap::new()),
             reconnect_config: ReconnectConfig::default(),
             stop_reconnect: Arc::new(RwLock::new(false)),
             native_devices: RwLock::new(HashMap::new()),
@@ -1322,6 +1335,182 @@ mod tests {
             active_operations: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
             usb_contention: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
         }
+    }
+
+    // =========================================================================
+    // Device identity: a positional id must not silently re-bind
+    // =========================================================================
+
+    /// A connected vendor-SDK device whose reported identity the test controls.
+    ///
+    /// Stands in for the real thing behind `native:zwo:{n}`: on the reference
+    /// rig that id is an ASI enumeration index, so replugging swapped
+    /// `native:zwo:1` from the ASI1600MM-Cool to the ASI178MM while the id, the
+    /// displayed name and the cached capabilities all stayed put.
+    #[derive(Debug)]
+    struct FakeIdentityDevice {
+        id: String,
+        model: String,
+        serial: Option<String>,
+    }
+
+    #[async_trait::async_trait]
+    impl nightshade_native::traits::NativeDevice for FakeIdentityDevice {
+        fn id(&self) -> &str {
+            &self.id
+        }
+        fn name(&self) -> &str {
+            &self.model
+        }
+        fn vendor(&self) -> nightshade_native::NativeVendor {
+            nightshade_native::NativeVendor::Zwo
+        }
+        fn serial_number(&self) -> Option<String> {
+            self.serial.clone()
+        }
+        fn is_connected(&self) -> bool {
+            true
+        }
+        async fn connect(&mut self) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+        async fn disconnect(&mut self) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+    }
+
+    fn build_identity_camera_info() -> DeviceInfo {
+        DeviceInfo {
+            id: "sim_camera_1".to_string(),
+            // The placeholder `device_info_from_id` derives from the id string:
+            // it knows the vendor token and the index, and nothing else.
+            name: "ZWO 1".to_string(),
+            device_type: DeviceType::Camera,
+            driver_type: DriverType::Simulator,
+            description: "Native zwo driver".to_string(),
+            driver_version: "Native".to_string(),
+            serial_number: None,
+            unique_id: None,
+            display_name: "ZWO 1".to_string(),
+        }
+    }
+
+    async fn install_fake_device(
+        manager: &DeviceManager,
+        id: &str,
+        model: &str,
+        serial: Option<&str>,
+    ) {
+        manager.native_devices.write().await.insert(
+            id.to_string(),
+            Box::new(FakeIdentityDevice {
+                id: id.to_string(),
+                model: model.to_string(),
+                serial: serial.map(|s| s.to_string()),
+            }),
+        );
+    }
+
+    /// A connect must read identity back off the driver and replace the
+    /// id-derived placeholder name with it.
+    ///
+    /// Before this, `GET /api/devices/connected` reported `native:zwo:1` as
+    /// `"ZWO 1"` on the live rig while discovery for the same id said
+    /// `"ZWO ASI178MM"` — the connected-device name was a pure function of the
+    /// id string and the driver was never asked.
+    #[tokio::test]
+    async fn connect_replaces_the_id_derived_name_with_the_drivers_own() {
+        let _guard = simulator_singleton_test_lock().lock().await;
+        let manager = build_device_manager();
+        let info = build_identity_camera_info();
+
+        manager.register_device(info.clone(), false).await;
+        install_fake_device(&manager, &info.id, "ZWO ASI1600MM-Cool", None).await;
+
+        manager
+            .connect_device_internal(&info)
+            .await
+            .expect("connect should succeed");
+
+        assert_eq!(
+            manager.get_device_display_name(&info.id).await.as_deref(),
+            Some("ZWO ASI1600MM-Cool"),
+            "the driver's own name must replace the id-derived placeholder"
+        );
+
+        crate::api::devices::simulation::get_sim_camera()
+            .write()
+            .await
+            .status
+            .connected = false;
+    }
+
+    /// The headline case: the id survives a replug but the hardware behind it
+    /// does not. The connect must fail rather than image the wrong sensor.
+    #[tokio::test]
+    async fn connect_refuses_an_id_that_re_bound_to_different_hardware() {
+        let _guard = simulator_singleton_test_lock().lock().await;
+        let manager = build_device_manager();
+        let info = build_identity_camera_info();
+
+        manager.register_device(info.clone(), false).await;
+
+        // First connect: this id is the 1600, and that is recorded.
+        install_fake_device(&manager, &info.id, "ZWO ASI1600MM-Cool", None).await;
+        manager
+            .connect_device_internal(&info)
+            .await
+            .expect("first connect should succeed");
+
+        // Replug. The SDK re-enumerates and the same id is now the other body.
+        install_fake_device(&manager, &info.id, "ZWO ASI178MM", Some("3520810329000900")).await;
+
+        let err = manager
+            .connect_device_internal(&info)
+            .await
+            .expect_err("a swapped camera must not connect");
+
+        assert!(
+            err.contains("no longer the same hardware"),
+            "error should name the cause, got: {err}"
+        );
+        assert!(
+            err.contains("ZWO ASI1600MM-Cool") && err.contains("ZWO ASI178MM"),
+            "error should name both cameras so the operator can see the swap, got: {err}"
+        );
+
+        crate::api::devices::simulation::get_sim_camera()
+            .write()
+            .await
+            .status
+            .connected = false;
+    }
+
+    /// Reconnecting to the SAME hardware must stay routine — the gate must not
+    /// turn an ordinary USB blip into a night-ending failure.
+    #[tokio::test]
+    async fn reconnecting_the_same_camera_is_not_treated_as_a_swap() {
+        let _guard = simulator_singleton_test_lock().lock().await;
+        let manager = build_device_manager();
+        let info = build_identity_camera_info();
+
+        manager.register_device(info.clone(), false).await;
+        install_fake_device(&manager, &info.id, "ZWO ASI178MM", Some("3520810329000900")).await;
+
+        manager
+            .connect_device_internal(&info)
+            .await
+            .expect("first connect should succeed");
+        manager
+            .connect_device_internal(&info)
+            .await
+            .expect("reconnecting the same camera must succeed");
+
+        crate::api::devices::simulation::get_sim_camera()
+            .write()
+            .await
+            .status
+            .connected = false;
     }
 
     #[tokio::test]
@@ -2807,5 +2996,313 @@ mod tests {
         );
 
         get_sim_mount().write().await.status.connected = false;
+    }
+
+    // =========================================================================
+    // Cooler setpoint: what actually reaches the driver
+    // =========================================================================
+
+    /// A native camera that records every `set_cooler` argument it is handed.
+    ///
+    /// The point of the recording is the second element: whether a setpoint
+    /// reached the driver at all. Nightshade used to substitute -10 C for a
+    /// `None` target, so a "switch the cooler off" command arrived at the
+    /// hardware carrying a temperature nobody asked for.
+    #[derive(Debug, Clone, Default)]
+    struct RecordingCoolerCamera {
+        calls: Arc<std::sync::Mutex<Vec<(bool, Option<f64>)>>>,
+    }
+
+    #[async_trait::async_trait]
+    impl nightshade_native::traits::NativeDevice for RecordingCoolerCamera {
+        fn id(&self) -> &str {
+            "native:test:cooler"
+        }
+        fn name(&self) -> &str {
+            "Recording Cooler Camera"
+        }
+        fn vendor(&self) -> nightshade_native::NativeVendor {
+            nightshade_native::NativeVendor::Other("Test".to_string())
+        }
+        fn is_connected(&self) -> bool {
+            true
+        }
+        async fn connect(&mut self) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+        async fn disconnect(&mut self) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl nightshade_native::traits::NativeCamera for RecordingCoolerCamera {
+        fn capabilities(&self) -> nightshade_native::camera::CameraCapabilities {
+            nightshade_native::camera::CameraCapabilities {
+                can_cool: true,
+                ..Default::default()
+            }
+        }
+        async fn get_status(
+            &self,
+        ) -> Result<nightshade_native::camera::CameraStatus, nightshade_native::traits::NativeError>
+        {
+            Ok(nightshade_native::camera::CameraStatus {
+                state: nightshade_native::camera::CameraState::Idle,
+                sensor_temp: Some(-10.0),
+                cooler_power: Some(0.0),
+                target_temp: Some(-10.0),
+                cooler_on: false,
+                gain: 0,
+                offset: 0,
+                bin_x: 1,
+                bin_y: 1,
+                exposure_remaining: None,
+            })
+        }
+        async fn start_exposure(
+            &mut self,
+            _params: nightshade_native::camera::ExposureParams,
+        ) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+        async fn abort_exposure(&mut self) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+        async fn is_exposure_complete(
+            &self,
+        ) -> Result<bool, nightshade_native::traits::NativeError> {
+            Ok(true)
+        }
+        async fn download_image(
+            &mut self,
+        ) -> Result<nightshade_native::camera::ImageData, nightshade_native::traits::NativeError>
+        {
+            Err(nightshade_native::traits::NativeError::NotSupported)
+        }
+        async fn set_cooler(
+            &mut self,
+            enabled: bool,
+            target_temp: Option<f64>,
+        ) -> Result<(), nightshade_native::traits::NativeError> {
+            self.calls
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .push((enabled, target_temp));
+            Ok(())
+        }
+        async fn get_temperature(&self) -> Result<f64, nightshade_native::traits::NativeError> {
+            Ok(-10.0)
+        }
+        async fn get_cooler_power(&self) -> Result<f64, nightshade_native::traits::NativeError> {
+            Ok(0.0)
+        }
+        async fn set_gain(
+            &mut self,
+            _gain: i32,
+        ) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+        async fn get_gain(&self) -> Result<i32, nightshade_native::traits::NativeError> {
+            Ok(0)
+        }
+        async fn set_offset(
+            &mut self,
+            _offset: i32,
+        ) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+        async fn get_offset(&self) -> Result<i32, nightshade_native::traits::NativeError> {
+            Ok(0)
+        }
+        async fn set_binning(
+            &mut self,
+            _bin_x: i32,
+            _bin_y: i32,
+        ) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+        async fn get_binning(&self) -> Result<(i32, i32), nightshade_native::traits::NativeError> {
+            Ok((1, 1))
+        }
+        async fn set_subframe(
+            &mut self,
+            _subframe: Option<nightshade_native::camera::SubFrame>,
+        ) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+        fn get_sensor_info(&self) -> nightshade_native::camera::SensorInfo {
+            nightshade_native::camera::SensorInfo {
+                width: 4656,
+                height: 3520,
+                pixel_size_x: 3.8,
+                pixel_size_y: 3.8,
+                max_adu: 65535,
+                bit_depth: 16,
+                color: false,
+                bayer_pattern: None,
+            }
+        }
+        async fn get_readout_modes(
+            &self,
+        ) -> Result<
+            Vec<nightshade_native::camera::ReadoutMode>,
+            nightshade_native::traits::NativeError,
+        > {
+            Ok(Vec::new())
+        }
+        async fn set_readout_mode(
+            &mut self,
+            _mode: &nightshade_native::camera::ReadoutMode,
+        ) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+        async fn get_vendor_features(
+            &self,
+        ) -> Result<nightshade_native::camera::VendorFeatures, nightshade_native::traits::NativeError>
+        {
+            Ok(nightshade_native::camera::VendorFeatures::default())
+        }
+        async fn get_gain_range(
+            &self,
+        ) -> Result<(i32, i32), nightshade_native::traits::NativeError> {
+            Ok((0, 600))
+        }
+        async fn get_offset_range(
+            &self,
+        ) -> Result<(i32, i32), nightshade_native::traits::NativeError> {
+            Ok((0, 255))
+        }
+    }
+
+    fn build_native_camera_info(id: &str) -> DeviceInfo {
+        DeviceInfo {
+            id: id.to_string(),
+            name: "Recording Cooler Camera".to_string(),
+            device_type: DeviceType::Camera,
+            driver_type: DriverType::Native,
+            description: "Native camera under test".to_string(),
+            driver_version: "1.0".to_string(),
+            serial_number: None,
+            unique_id: None,
+            display_name: "Recording Cooler Camera".to_string(),
+        }
+    }
+
+    /// L19, reproduced on the reference rig on 2026-08-09: `POST
+    /// /api/camera/cooling {"enabled":false}` carries no setpoint, and the
+    /// device layer used to substitute -10 C (`target_temp.unwrap_or(-10.0)`)
+    /// before handing the command to the driver. On the rig that fabricated
+    /// write is what threw — `SetCCDTemperature` on a camera reporting
+    /// `CanSetCCDTemperature = False` — so the cooler could not be turned off
+    /// at all, which is exactly what end-of-night warm-up and the safe-rig
+    /// shutdown both do.
+    #[tokio::test]
+    async fn turning_the_cooler_off_sends_no_setpoint_to_the_driver() {
+        let manager = Arc::new(build_device_manager());
+        let device_id = "native:test:cooler_off";
+        manager
+            .register_device(build_native_camera_info(device_id), false)
+            .await;
+
+        let camera = RecordingCoolerCamera::default();
+        let calls = camera.calls.clone();
+        manager
+            .native_cameras
+            .write()
+            .await
+            .insert(device_id.to_string(), Box::new(camera));
+
+        // The exact request the warm-up controller and safe_rig both issue.
+        manager
+            .camera_set_cooler(device_id, false, None)
+            .await
+            .expect("turning a cooler off must not fail");
+
+        let recorded = calls.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        assert_eq!(
+            recorded,
+            vec![(false, None)],
+            "a cooler-off command must reach the driver with no setpoint; \
+             a fabricated default here is what failed on the rig"
+        );
+    }
+
+    /// Even a caller that does name a temperature while switching off must not
+    /// cause a setpoint write: the driver is being told to stop, and on ASCOM
+    /// the write is a separate property that may not exist.
+    #[tokio::test]
+    async fn a_setpoint_supplied_with_a_cooler_off_command_is_dropped() {
+        let manager = Arc::new(build_device_manager());
+        let device_id = "native:test:cooler_off_with_target";
+        manager
+            .register_device(build_native_camera_info(device_id), false)
+            .await;
+
+        let camera = RecordingCoolerCamera::default();
+        let calls = camera.calls.clone();
+        manager
+            .native_cameras
+            .write()
+            .await
+            .insert(device_id.to_string(), Box::new(camera));
+
+        // The sequencer's WarmCamera instruction ends with exactly this shape:
+        // `camera_set_cooler(id, false, 20.0)`.
+        manager
+            .camera_set_cooler(device_id, false, Some(20.0))
+            .await
+            .expect("turning a cooler off must not fail");
+
+        let recorded = calls.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        assert_eq!(recorded, vec![(false, None)]);
+
+        // …and the recorded desired state (replayed after a USB reconnect)
+        // must not resurrect a setpoint the operator never asked for.
+        assert_eq!(
+            manager
+                .devices
+                .read()
+                .await
+                .get(device_id)
+                .unwrap()
+                .desired_cooler,
+            Some((false, None))
+        );
+    }
+
+    /// The enable direction is unchanged: the caller's setpoint is passed
+    /// through verbatim, and an absent one is still not invented.
+    #[tokio::test]
+    async fn enabling_passes_the_callers_setpoint_through_unchanged() {
+        let manager = Arc::new(build_device_manager());
+        let device_id = "native:test:cooler_on";
+        manager
+            .register_device(build_native_camera_info(device_id), false)
+            .await;
+
+        let camera = RecordingCoolerCamera::default();
+        let calls = camera.calls.clone();
+        manager
+            .native_cameras
+            .write()
+            .await
+            .insert(device_id.to_string(), Box::new(camera));
+
+        manager
+            .camera_set_cooler(device_id, true, Some(-15.0))
+            .await
+            .expect("enabling the cooler should succeed");
+        manager
+            .camera_set_cooler(device_id, true, None)
+            .await
+            .expect("enabling without a setpoint should succeed");
+
+        let recorded = calls.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        assert_eq!(
+            recorded,
+            vec![(true, Some(-15.0)), (true, None)],
+            "no -10C (or any other) default may be substituted for an absent setpoint"
+        );
     }
 }

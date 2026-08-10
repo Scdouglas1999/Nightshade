@@ -69,6 +69,16 @@ struct ASICameraInfo {
     unused: [c_char; 16],               // Unused[16] - padding
 }
 
+/// ZWO serial-number payload — `typedef struct _ASI_SN { unsigned char id[8]; } ASI_SN;`
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Default)]
+struct AsiSerialNumber {
+    id: [c_uchar; 8],
+}
+
+/// `ASI_ERROR_CODE ASIGetSerialNumber(int iCameraID, ASI_SN *pSN)`
+type AsiGetSerialNumberFn = unsafe extern "C" fn(c_int, *mut AsiSerialNumber) -> c_int;
+
 /// ASI Exposure Status
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -324,6 +334,30 @@ load_vendor_sdk! {
     }
 }
 
+/// Resolve `ASIGetSerialNumber` lazily and **optionally**.
+///
+/// Why this is not in the `load_vendor_sdk!` table above: every symbol declared
+/// there is mandatory, and one unresolved entry makes the entire SDK fail to
+/// load. `ASIGetSerialNumber` only appeared in ASI SDK v1.15, so listing it
+/// would turn "your ASI SDK is a few years old" into "Nightshade cannot see any
+/// ZWO camera at all". An absent symbol yields `None`, and callers fall back to
+/// the model/geometry fingerprint.
+fn asi_get_serial_number_fn() -> Option<AsiGetSerialNumberFn> {
+    static RESOLVED: OnceLock<Option<AsiGetSerialNumberFn>> = OnceLock::new();
+    *RESOLVED.get_or_init(|| {
+        let sdk = AsiSdk::get()?;
+        // SAFETY: the signature is hand-derived from ASICamera2.h
+        // (`ASICAMERA_API ASI_ERROR_CODE ASIGetSerialNumber(int iCameraID, ASI_SN* pSN)`),
+        // matching the policy the `load_vendor_sdk!` call site already applies
+        // to every other ASI symbol. The returned pointer outlives this call
+        // because `_library` is owned by the `AsiSdk` singleton, which lives in
+        // a process-lifetime `OnceLock`.
+        let symbol: libloading::Symbol<AsiGetSerialNumberFn> =
+            unsafe { sdk._library.get(b"ASIGetSerialNumber\0").ok()? };
+        Some(*symbol)
+    })
+}
+
 /// Check ASI error and convert to NativeError with detailed messages
 fn check_asi_error(code: c_int) -> Result<(), NativeError> {
     match code {
@@ -410,6 +444,14 @@ pub struct ZwoCamera {
     camera_info: Option<ASICameraInfo>,
     connected: bool,
     device_id: String,
+    /// Hardware serial read from the OPEN camera during `connect()`.
+    ///
+    /// `None` means "this unit has no readable serial" — see
+    /// [`NativeDevice::serial_number`]. It is populated at connect rather than
+    /// at discovery on purpose: `ASIGetSerialNumber` requires the camera to be
+    /// open, and opening every camera during a discovery scan would fight with
+    /// any other application holding one.
+    serial_number: Option<String>,
     current_bin: i32,
     current_width: i32,
     current_height: i32,
@@ -438,6 +480,7 @@ impl ZwoCamera {
             camera_info: None,
             connected: false,
             device_id: format!("native:zwo:{}", camera_id),
+            serial_number: None,
             current_bin: 1,
             current_width: 0,
             current_height: 0,
@@ -489,6 +532,44 @@ impl ZwoCamera {
         self.current_height = info.max_height as i32;
         self.camera_info = Some(info);
         Ok(())
+    }
+
+    /// Read this unit's hardware serial from the SDK.
+    ///
+    /// Preconditions: the caller holds `zwo_camera_mutex` AND the camera has
+    /// already been opened — `ASIGetSerialNumber` answers
+    /// `ASI_ERROR_CAMERA_CLOSED` on a closed handle.
+    ///
+    /// `None` is a normal outcome, not a failure: on the reference rig the
+    /// ASI178MM returns a serial while the ASI1600MM-Cool beside it answers
+    /// `ASI_ERROR_GENERAL_ERROR` (16), because that model stores no serial.
+    fn read_serial_number_locked(&self) -> Option<String> {
+        let get_serial = asi_get_serial_number_fn()?;
+        let mut sn = AsiSerialNumber::default();
+        // SAFETY: per this function's contract the caller holds
+        // zwo_camera_mutex and the camera is open (connect() calls this only
+        // after ASIOpenCamera and ASIInitCamera both succeeded). `sn` is a
+        // valid stack out-pointer whose layout matches ASI_SN exactly.
+        let rc = unsafe { get_serial(self.camera_id, &mut sn) };
+        if rc != 0 {
+            tracing::debug!(
+                "ZWO camera {} reports no serial number (ASI error {})",
+                self.camera_id,
+                rc
+            );
+            return None;
+        }
+        // An all-zero payload means the flash field was never programmed. Treat
+        // it as absent rather than handing every such camera the same "serial",
+        // which would make two different bodies look like one device.
+        if sn.id.iter().all(|&b| b == 0) {
+            tracing::debug!(
+                "ZWO camera {} returned an all-zero serial; treating as absent",
+                self.camera_id
+            );
+            return None;
+        }
+        Some(sn.id.iter().map(|b| format!("{:02x}", b)).collect())
     }
 
     /// Get camera name using safe string conversion
@@ -896,6 +977,10 @@ impl NativeDevice for ZwoCamera {
         NativeVendor::Zwo
     }
 
+    fn serial_number(&self) -> Option<String> {
+        self.serial_number.clone()
+    }
+
     fn is_connected(&self) -> bool {
         self.connected
     }
@@ -1003,8 +1088,17 @@ impl NativeDevice for ZwoCamera {
         cleanup_guard.defuse();
 
         self.connected = true;
+        // Read identity while the camera is open and the SDK mutex is still
+        // held. `native:zwo:{n}` is an enumeration index that re-binds to a
+        // different body across a replug, so the serial is the only thing that
+        // lets a caller notice the swap.
+        self.serial_number = self.read_serial_number_locked();
         let camera_name = self.camera_name();
-        tracing::info!("Successfully connected to ZWO camera: {}", camera_name);
+        tracing::info!(
+            "Successfully connected to ZWO camera: {} (serial: {})",
+            camera_name,
+            self.serial_number.as_deref().unwrap_or("not reported")
+        );
         let quirk_lookup_id = format!("native:zwo:{}", camera_name);
         {
             let mut pending = self
@@ -1416,7 +1510,11 @@ impl NativeCamera for ZwoCamera {
         })
     }
 
-    async fn set_cooler(&mut self, enabled: bool, target_temp: f64) -> Result<(), NativeError> {
+    async fn set_cooler(
+        &mut self,
+        enabled: bool,
+        target_temp: Option<f64>,
+    ) -> Result<(), NativeError> {
         if !self.connected {
             return Err(NativeError::NotConnected);
         }
@@ -1434,13 +1532,15 @@ impl NativeCamera for ZwoCamera {
             return Err(NativeError::NotSupported);
         }
 
-        // Use async versions with mutex protection
-        self.set_control_async(
-            ASIControlType::ASI_TARGET_TEMP,
-            target_temp as c_long,
-            false,
-        )
-        .await?;
+        // Only touch ASI_TARGET_TEMP when the caller actually named a
+        // setpoint. Writing it unconditionally meant a plain "cooler off"
+        // command first drove the TEC target somewhere the operator never
+        // asked for.
+        if let Some(target) = target_temp {
+            // Use async versions with mutex protection
+            self.set_control_async(ASIControlType::ASI_TARGET_TEMP, target as c_long, false)
+                .await?;
+        }
         self.set_control_async(
             ASIControlType::ASI_COOLER_ON,
             if enabled { 1 } else { 0 },
@@ -1455,7 +1555,9 @@ impl NativeCamera for ZwoCamera {
         {
             let mut state = self.cooler_state.lock().unwrap_or_else(|e| e.into_inner());
             state.enabled = enabled;
-            state.target_c = target_temp;
+            if let Some(target) = target_temp {
+                state.target_c = target;
+            }
         }
 
         Ok(())

@@ -4028,7 +4028,7 @@ mod tests {
         async fn set_cooler(
             &mut self,
             _enabled: bool,
-            _target_temp: f64,
+            _target_temp: Option<f64>,
         ) -> Result<(), nightshade_native::traits::NativeError> {
             Ok(())
         }

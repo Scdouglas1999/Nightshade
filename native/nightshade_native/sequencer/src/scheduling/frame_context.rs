@@ -427,6 +427,53 @@ impl FrameContext {
         Some(started + chrono::Duration::milliseconds(half_millis))
     }
 
+    /// The pointing this frame is actually going to be labelled with, in
+    /// `(ra_hours, dec_degrees)`: where the mount said it was, falling back to
+    /// where the sequence meant to be.
+    ///
+    /// Taken as a PAIR, never field by field — half a mount pointing and half
+    /// a target's is a coordinate that was never true of anything.
+    pub fn recorded_pointing(&self) -> Option<(f64, f64)> {
+        self.mount_ra_hours
+            .zip(self.mount_dec_degrees)
+            .or_else(|| self.target_ra_hours.zip(self.target_dec_degrees))
+    }
+
+    /// Altitude in degrees of [`Self::recorded_pointing`] at the exposure
+    /// midpoint — the number behind `OBJCTALT`, and through it `AIRMASS`.
+    ///
+    /// `mount_altitude_deg` is preferred when the mount was read, because the
+    /// capture path derived it in the same breath as the pointing. It is only
+    /// ever set inside the "a mount is connected and answered" branch, and
+    /// that gate is what left every mountless frame with no `OBJCTALT` and no
+    /// `AIRMASS` — on a rig with no mount attached, or one whose driver
+    /// declined the coordinate read, the writer still stamped `RA`/`DEC` from
+    /// the target and then dropped the altitude derived from that very same
+    /// pointing. Altitude is pure geometry: pointing, site and time, all three
+    /// of which are already in this struct. Withholding it did not make the
+    /// file more honest, it made it unusable for photometry.
+    ///
+    /// Still `None` — deliberately — when there is no pointing at all or the
+    /// observer location is unset, because then it would have to be computed
+    /// from a guessed site.
+    pub fn recorded_altitude_deg(&self) -> Option<f64> {
+        if let Some(alt) = self.mount_altitude_deg {
+            return Some(alt);
+        }
+        let (ra_hours, dec_degrees) = self.recorded_pointing()?;
+        let lat = self.site_latitude_deg?;
+        let lon = self.site_longitude_deg?;
+        if ![ra_hours, dec_degrees, lat, lon]
+            .iter()
+            .all(|v| v.is_finite())
+        {
+            return None;
+        }
+        let when = self.exposure_midpoint()?;
+        let (alt, _az) = crate::meridian::calculate_alt_az(ra_hours, dec_degrees, lat, lon, when);
+        Some(alt)
+    }
+
     /// Display label suitable for log lines. Used by the FITS writer to
     /// produce a one-line "captured: <label>" summary.
     pub fn log_label(&self) -> String {

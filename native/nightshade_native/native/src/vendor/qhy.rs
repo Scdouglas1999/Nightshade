@@ -1583,7 +1583,11 @@ impl NativeCamera for QhyCamera {
         })
     }
 
-    async fn set_cooler(&mut self, enabled: bool, target_temp: f64) -> Result<(), NativeError> {
+    async fn set_cooler(
+        &mut self,
+        enabled: bool,
+        target_temp: Option<f64>,
+    ) -> Result<(), NativeError> {
         if !self.connected {
             return Err(NativeError::NotConnected);
         }
@@ -1592,36 +1596,46 @@ impl NativeCamera for QhyCamera {
             return Err(NativeError::NotSupported);
         }
 
-        if enabled {
+        // Use async versions with mutex protection
+        let committed_target = if enabled {
+            // CONTROL_COOLER carries the setpoint *and* engages the TEC, so a
+            // target is genuinely required on this vendor. Fall back to the
+            // last setpoint we commanded rather than inventing a temperature.
+            let target = target_temp.or(self.cooler_target_c).ok_or_else(|| {
+                NativeError::InvalidParameter(format!(
+                    "QHY cooler on {} needs a target temperature: CONTROL_COOLER is \
+                     the setpoint and no previous setpoint is known for this camera",
+                    self.device_id
+                ))
+            })?;
             if let Some((min_temp, max_temp)) = crate::quirks::get_cooler_range(&self.device_id) {
-                if target_temp < min_temp || target_temp > max_temp {
+                if target < min_temp || target > max_temp {
                     return Err(NativeError::InvalidParameter(format!(
-                        "QHY cooler target {target_temp}C is outside the supported range {min_temp}C..={max_temp}C for {}",
+                        "QHY cooler target {target}C is outside the supported range {min_temp}C..={max_temp}C for {}",
                         self.device_id
                     )));
                 }
             }
-        }
-
-        // Use async versions with mutex protection
-        if enabled {
             self.set_control_async(QhyControl::CONTROL_MANULPWM, 0.0)
                 .await?;
-            self.set_control_async(QhyControl::CONTROL_COOLER, target_temp)
+            self.set_control_async(QhyControl::CONTROL_COOLER, target)
                 .await?;
+            Some(target)
         } else {
+            // Switching off needs no setpoint: park the PWM registers only.
             self.set_control_async(QhyControl::CONTROL_MANULPWM, 0.0)
                 .await?;
             self.set_control_async(QhyControl::CONTROL_CURPWM, 0.0)
                 .await?;
-        }
+            None
+        };
 
         // Why: only commit tracked state after SDK calls succeed so a failed
         // setpoint write leaves the previous state intact (no silent fallback).
         // QHY SDK has no register to read cooler enable back — CONTROL_COOLER
         // is the target setpoint, not an on/off flag — so we mirror locally.
         self.cooler_on = enabled;
-        self.cooler_target_c = if enabled { Some(target_temp) } else { None };
+        self.cooler_target_c = committed_target;
 
         Ok(())
     }
@@ -2955,7 +2969,7 @@ mod tests {
         // handle is None and the QHY SDK is not loaded in tests, so
         // set_control_async fails at QhySdk::get() with SdkNotLoaded.
 
-        let result = cam.set_cooler(true, -15.0).await;
+        let result = cam.set_cooler(true, Some(-15.0)).await;
         assert!(
             result.is_err(),
             "set_cooler must propagate SDK errors, not swallow them"
@@ -2979,7 +2993,7 @@ mod tests {
         let mut cam = QhyCamera::new("TEST-DISCONNECTED".to_string());
         // connected stays false.
 
-        let result = cam.set_cooler(true, -10.0).await;
+        let result = cam.set_cooler(true, Some(-10.0)).await;
         assert!(matches!(result, Err(NativeError::NotConnected)));
         assert!(!cam.cooler_on);
         assert_eq!(cam.cooler_target_c, None);
@@ -2993,7 +3007,7 @@ mod tests {
         cam.connected = true;
         // has_cooler stays false (e.g. a non-cooled QHY model).
 
-        let result = cam.set_cooler(true, -10.0).await;
+        let result = cam.set_cooler(true, Some(-10.0)).await;
         assert!(matches!(result, Err(NativeError::NotSupported)));
         assert!(!cam.cooler_on);
         assert_eq!(cam.cooler_target_c, None);

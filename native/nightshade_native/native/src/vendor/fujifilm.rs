@@ -2048,7 +2048,11 @@ impl NativeCamera for FujifilmCamera {
         })
     }
 
-    async fn set_cooler(&mut self, _enabled: bool, _target_temp: f64) -> Result<(), NativeError> {
+    async fn set_cooler(
+        &mut self,
+        _enabled: bool,
+        _target_temp: Option<f64>,
+    ) -> Result<(), NativeError> {
         Err(NativeError::NotSupported)
     }
 

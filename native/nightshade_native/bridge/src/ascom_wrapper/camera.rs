@@ -217,7 +217,7 @@ enum AscomCommand {
     SetGain(i32, oneshot::Sender<Result<(), String>>),
     SetOffset(i32, oneshot::Sender<Result<(), String>>),
     SetReadoutMode(i32, oneshot::Sender<Result<(), String>>),
-    SetCooler(bool, f64, oneshot::Sender<Result<(), String>>),
+    SetCooler(bool, Option<f64>, oneshot::Sender<Result<(), String>>),
     /// Heartbeat check to verify device is still responding
     Heartbeat(oneshot::Sender<Result<CameraConnectionHealth, String>>),
     /// Get interface version number
@@ -811,18 +811,45 @@ impl AscomCameraWrapper {
                     }
                     AscomCommand::SetCooler(enabled, target_temp, reply) => {
                         tracing::info!(
-                            "ASCOM: SetCooler called: enabled={}, temp={}",
+                            "ASCOM: SetCooler called: enabled={}, temp={:?}",
                             enabled,
                             target_temp
                         );
                         if let Some(cam) = &mut camera {
-                            let result = cam
-                                .set_ccd_temperature(target_temp)
-                                .and_then(|_| cam.set_cooler_on(enabled))
-                                .map_err(|e| format!("Failed to set cooler: {}", e));
+                            // Which setpoint (if any) may be written is decided
+                            // by `cooler_policy`, not here — see that module for
+                            // why an off-command must never carry one. Writing
+                            // SetCCDTemperature unconditionally is what made
+                            // "turn the cooler off" fail outright on a camera
+                            // reporting CanSetCCDTemperature = False.
+                            let writable = nightshade_ascom::cooler_policy::setpoint_to_write(
+                                enabled,
+                                target_temp,
+                                cam.can_set_ccd_temperature().ok(),
+                            );
+                            if target_temp.is_some() && writable.is_none() {
+                                tracing::info!(
+                                    "ASCOM: skipping SetCCDTemperature write \
+                                     (enabled={}, requested={:?}) — the driver does not \
+                                     accept a setpoint here",
+                                    enabled,
+                                    target_temp
+                                );
+                            }
+                            let mut outcome: Result<(), String> = Ok(());
+                            if let Some(t) = writable {
+                                outcome = cam.set_ccd_temperature(t);
+                            }
+                            if outcome.is_ok() {
+                                outcome = cam.set_cooler_on(enabled);
+                            }
+                            let result =
+                                outcome.map_err(|e| format!("Failed to set cooler: {}", e));
                             if result.is_ok() {
-                                // Track the setpoint since ASCOM SetCCDTemperature is write-only
-                                last_target_temp = Some(target_temp);
+                                if let Some(t) = writable {
+                                    // Track the setpoint since ASCOM SetCCDTemperature is write-only
+                                    last_target_temp = Some(t);
+                                }
                             }
                             let _ = reply.send(result);
                         } else {
@@ -1248,7 +1275,11 @@ impl NativeCamera for AscomCameraWrapper {
         Self::recv_with_timeout(rx, Timeouts::image_download_large(), "download_image").await
     }
 
-    async fn set_cooler(&mut self, enabled: bool, target_temp: f64) -> Result<(), NativeError> {
+    async fn set_cooler(
+        &mut self,
+        enabled: bool,
+        target_temp: Option<f64>,
+    ) -> Result<(), NativeError> {
         let (tx, rx) = oneshot::channel();
         self.sender
             .send(AscomCommand::SetCooler(enabled, target_temp, tx))

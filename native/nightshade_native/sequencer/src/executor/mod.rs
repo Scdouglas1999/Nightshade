@@ -820,48 +820,221 @@ fn tree_needs_base_save_path(node: &dyn Node) -> bool {
             .any(|child| tree_needs_base_save_path(&**child))
 }
 
-/// True when some node in the tree cannot run without a camera.
-///
-/// Deliberately NOT the same predicate as [`tree_needs_base_save_path`]: an
-/// absolute `save_to` frees a `TakeExposure` from the run's base save path, but
-/// nothing frees it from needing a camera to expose with.
-fn tree_needs_camera(node: &dyn Node) -> bool {
-    let needs_here = matches!(
-        node.node_type(),
-        NodeType::TakeExposure(_) | NodeType::SmartExposure(_) | NodeType::FlatWizard(_)
-    );
-    needs_here
-        || node
-            .children()
-            .iter()
-            .any(|child| tree_needs_camera(&**child))
+/// A hardware role the loaded sequence declares it needs, in the order the
+/// refusal lists them (camera first — it is the one an imaging run cannot do
+/// anything at all without).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum RequiredDevice {
+    Camera,
+    Mount,
+    FilterWheel,
+    Focuser,
+    Rotator,
 }
 
-/// Confirm the run has a camera to expose with.
+/// Why a role is required: which node asked for it, and (for the camera)
+/// whether the asking node captures frames.
 ///
-/// `camera_id` stays `None` until something calls `set_devices()`. The Dart
-/// executor does that from the connected-device providers on every start; the
-/// headless `load -> start` path did not, so the run began with no camera, the
-/// first `TakeExposure` failed with "No camera connected", and that string is
-/// classified as a device *disconnect* — which sends the run into the recovery
-/// loop to wait for a device that was never configured to come back.
+/// The node name is carried so the refusal can point at the step the operator
+/// authored rather than at an abstract capability.
+#[derive(Debug, Clone)]
+pub(crate) struct DeviceRequirement {
+    node_name: String,
+    captures_frames: bool,
+}
+
+/// Every hardware role the enabled part of `node`'s subtree needs, keyed by
+/// role and remembering the FIRST node in tree order that needs it.
 ///
-/// Reproduced on the live rig (ZWO ASI1600MM-Cool) on 2026-08-09:
-/// `POST /api/sequencer/start` answered `{"status":"started"}` and the run then
-/// sat at `{"state":"recovering","message":"Recovering: Device disconnected",
-/// "progress":0.0}` with no frames, while `GET /api/devices/connected` listed
-/// that same camera. Refuse at Start instead: no amount of waiting can populate
-/// an id, so the retry is futile by construction.
-fn validate_capture_camera(camera_id: Option<&str>) -> Result<(), String> {
-    if camera_id.map(str::trim).is_some_and(|id| !id.is_empty()) {
-        return Ok(());
+/// The mapping is not guesswork — each arm mirrors a `ctx.<role>_id()` call
+/// that hard-fails the instruction when the id is absent:
+///
+/// | node type | accessor that fails | site |
+/// |---|---|---|
+/// | `TakeExposure` / `SmartExposure` / `FlatWizard` / `SciencePhotometry` | `camera_id()` | `instructions.rs` `execute_exposure_with_renderer` |
+/// | `TakeExposure` with a filter, `SmartExposure` | `validate_exposure_filter_request` / `filterwheel_id()` | `instructions.rs` `execute_filter_change` |
+/// | `CenterTarget` | `mount_id()` then `camera_id()` | `instructions.rs` `execute_center` |
+/// | `SlewToTarget` / `Park` / `Unpark` / `MeridianFlip` | `mount_id()` | `execute_slew` / `execute_park` / `execute_unpark` / `execute_meridian_flip_with_autofocus` |
+/// | `PolarAlignment` | `mount_id()` then `camera_id()` | `polar_align/mod.rs` |
+/// | `Autofocus` | `camera_id()` then `focuser_id()` | `execute_autofocus_once` |
+/// | `TemperatureCompensation` | `focuser_id()` | `temperature_compensation.rs` |
+/// | `CoolCamera` / `WarmCamera` | `camera_id()` | `execute_cool_camera` / `execute_warm_camera` |
+/// | `ChangeFilter` | `filterwheel_id()` | `execute_filter_change` |
+/// | `MoveRotator` | `rotator_id()` | `execute_rotator_move` |
+///
+/// Two deliberate non-entries: `FlatWizard`'s filter change returns `Ok` when
+/// there is no wheel (`flat_wizard/mod.rs` `do_filter_change`), so a flat run
+/// is not blocked for a wheel it will not touch; and `Dither` steers the
+/// guider, which is not one of the five ids `set_devices` carries.
+///
+/// Disabled nodes contribute nothing, and neither do their children:
+/// `RuntimeNode::execute` returns `Skipped` before it descends, so a disabled
+/// subtree never reaches hardware and must never block a start.
+fn collect_required_devices(
+    node: &dyn Node,
+    out: &mut std::collections::BTreeMap<RequiredDevice, DeviceRequirement>,
+) {
+    if !node.is_enabled() {
+        return;
     }
-    Err(
-        "This sequence captures frames but no camera is assigned to the run. Connect a \
-         camera and assign it before starting — every exposure would otherwise fail and the \
-         run would sit in recovery waiting for a camera it was never given."
-            .to_string(),
-    )
+
+    let mut require = |role: RequiredDevice, captures_frames: bool| {
+        out.entry(role).or_insert_with(|| DeviceRequirement {
+            node_name: node.name().to_string(),
+            captures_frames,
+        });
+    };
+
+    fn names_a_filter(filter: Option<&str>, filter_index: Option<i32>) -> bool {
+        filter_index.is_some() || filter.map(str::trim).is_some_and(|name| !name.is_empty())
+    }
+
+    match node.node_type() {
+        NodeType::TakeExposure(config) => {
+            require(RequiredDevice::Camera, true);
+            if names_a_filter(config.filter.as_deref(), config.filter_index) {
+                require(RequiredDevice::FilterWheel, false);
+            }
+        }
+        NodeType::SmartExposure(config) => {
+            require(RequiredDevice::Camera, true);
+            if config
+                .plans
+                .iter()
+                .any(|plan| names_a_filter(Some(plan.filter_name.as_str()), plan.filter_index))
+            {
+                require(RequiredDevice::FilterWheel, false);
+            }
+        }
+        NodeType::FlatWizard(_) | NodeType::SciencePhotometry(_) => {
+            require(RequiredDevice::Camera, true);
+        }
+        NodeType::CenterTarget(_) | NodeType::PolarAlignment(_) => {
+            require(RequiredDevice::Camera, false);
+            require(RequiredDevice::Mount, false);
+        }
+        NodeType::SlewToTarget(_)
+        | NodeType::Park
+        | NodeType::Unpark
+        | NodeType::MeridianFlip(_) => {
+            require(RequiredDevice::Mount, false);
+        }
+        NodeType::Autofocus(_) => {
+            require(RequiredDevice::Camera, false);
+            require(RequiredDevice::Focuser, false);
+        }
+        NodeType::TemperatureCompensation(_) => {
+            require(RequiredDevice::Focuser, false);
+        }
+        NodeType::CoolCamera(_) | NodeType::WarmCamera(_) => {
+            require(RequiredDevice::Camera, false);
+        }
+        NodeType::ChangeFilter(_) => {
+            require(RequiredDevice::FilterWheel, false);
+        }
+        NodeType::MoveRotator(_) => {
+            require(RequiredDevice::Rotator, false);
+        }
+        _ => {}
+    }
+
+    for child in node.children() {
+        collect_required_devices(&**child, out);
+    }
+}
+
+/// Confirm every hardware role the sequence declares is actually assigned to
+/// the run.
+///
+/// The device ids stay `None` until something calls `set_devices()`. When one
+/// is missing the instruction that needs it fails with "No <device>
+/// connected", the recovery classifier reads that as a device *disconnect*,
+/// and the run then burns its whole recovery budget waiting for hardware that
+/// was never configured. No amount of waiting can populate an id, so the retry
+/// is futile by construction — refuse at Start instead.
+///
+/// Reproduced against the Linux appliance (release bundle, headless, no
+/// devices connected) on 2026-08-09. Each of these answered
+/// `POST /api/sequencer/start -> 200 {"status":"started"}` and then died
+/// mid-run at `{"state":"failed","message":"Cancelled: Target"}`, with the
+/// real reason visible only in the log:
+///
+/// ```text
+/// ERROR Change Filter failed: No filter wheel connected
+/// WARN  [RECOVERY] Change Filter promoted device disconnect to recovery: No filter wheel connected
+/// ERROR Slew failed: No mount connected
+/// ERROR Park failed: No mount connected
+/// ERROR Cool Camera failed: No camera connected
+/// ERROR Autofocus failed: No camera connected
+/// ERROR Center Target failed: No mount connected
+/// ERROR Move Rotator failed: No rotator connected
+/// ```
+///
+/// Only `TakeExposure` was gated, so only `TakeExposure` was refused up front.
+fn validate_required_devices(
+    required: &std::collections::BTreeMap<RequiredDevice, DeviceRequirement>,
+    assigned: impl Fn(RequiredDevice) -> Option<String>,
+) -> Result<(), String> {
+    let mut refusals = Vec::new();
+
+    for (role, requirement) in required {
+        if assigned(*role).is_some_and(|id| !id.trim().is_empty()) {
+            continue;
+        }
+        refusals.push(device_refusal(*role, requirement));
+    }
+
+    if refusals.is_empty() {
+        Ok(())
+    } else {
+        Err(refusals.join(" "))
+    }
+}
+
+/// Name the missing thing, then the consequence in the operator's terms —
+/// the shape of the save-path and plate-solver refusals this joins.
+fn device_refusal(role: RequiredDevice, requirement: &DeviceRequirement) -> String {
+    let step = &requirement.node_name;
+    match role {
+        // The capture wording is kept verbatim: it is the refusal the live rig
+        // produced on 2026-08-09 and the one the headless API's 400 envelope is
+        // documented against.
+        RequiredDevice::Camera if requirement.captures_frames => {
+            "This sequence captures frames but no camera is assigned to the run. Connect a \
+             camera and assign it before starting — every exposure would otherwise fail and \
+             the run would sit in recovery waiting for a camera it was never given."
+                .to_string()
+        }
+        RequiredDevice::Camera => format!(
+            "This sequence runs \"{step}\", which needs a camera, but no camera is assigned to \
+             the run. Connect a camera and assign it before starting — that step would \
+             otherwise fail and the run would sit in recovery waiting for a camera it was \
+             never given."
+        ),
+        RequiredDevice::Mount => format!(
+            "This sequence moves the mount for \"{step}\" but no mount is assigned to the run. \
+             Assign one to the active equipment profile before starting — every slew, park and \
+             flip would otherwise fail and the run would sit in recovery waiting for a mount it \
+             was never given."
+        ),
+        RequiredDevice::FilterWheel => format!(
+            "This sequence changes filters for \"{step}\" but no filter wheel is assigned to the \
+             run. Assign one to the active equipment profile before starting — every exposure \
+             that requests a filter would otherwise fail and the run would sit in recovery \
+             waiting for a wheel it was never given."
+        ),
+        RequiredDevice::Focuser => format!(
+            "This sequence focuses for \"{step}\" but no focuser is assigned to the run. Assign \
+             one to the active equipment profile before starting — that step would otherwise \
+             fail and the run would sit in recovery waiting for a focuser it was never given."
+        ),
+        RequiredDevice::Rotator => format!(
+            "This sequence rotates the camera for \"{step}\" but no rotator is assigned to the \
+             run. Assign one to the active equipment profile before starting — that step would \
+             otherwise fail and the run would sit in recovery waiting for a rotator it was \
+             never given."
+        ),
+    }
 }
 
 /// Collect every instruction in the tree that the executor can never reach,
@@ -2516,19 +2689,26 @@ impl SequenceExecutor {
             validate_capture_save_path(self.save_path.as_deref())?;
         }
 
-        // Camera preflight. A sequence that exposes with no camera assigned is
-        // not a run either: the first TakeExposure fails "No camera connected",
-        // which the disconnect classifier promotes to a DeviceDisconnected
-        // recovery, and the run then burns its whole recovery budget waiting for
-        // a device that was never configured. Refuse it here, beside the
-        // save-path check, so every start path (desktop, mobile, headless
-        // load->start) gets the same answer.
-        if self
-            .root_node
-            .as_ref()
-            .is_some_and(|root| tree_needs_camera(&**root))
+        // Device preflight. A sequence that declares hardware the executor
+        // cannot resolve is not a run either: the instruction fails
+        // "No <device> connected", the disconnect classifier promotes that to a
+        // DeviceDisconnected recovery, and the run burns its whole recovery
+        // budget waiting for a device that was never configured. Refuse here,
+        // beside the save-path check, so every start path (desktop, mobile,
+        // headless load->start) gets the same answer — and so the operator
+        // reads it before going to bed rather than finding "Failed" at dawn.
         {
-            validate_capture_camera(self.camera_id.as_deref())?;
+            let mut required = std::collections::BTreeMap::new();
+            if let Some(root) = self.root_node.as_ref() {
+                collect_required_devices(&**root, &mut required);
+            }
+            validate_required_devices(&required, |role| match role {
+                RequiredDevice::Camera => self.camera_id.clone(),
+                RequiredDevice::Mount => self.mount_id.clone(),
+                RequiredDevice::FilterWheel => self.filterwheel_id.clone(),
+                RequiredDevice::Focuser => self.focuser_id.clone(),
+                RequiredDevice::Rotator => self.rotator_id.clone(),
+            })?;
         }
 
         // Unreachable-instruction preflight. Detected before the mount moves so
@@ -7906,9 +8086,9 @@ mod tests {
     /// `DeviceDisconnected` recovery, and the loop then waited for a device
     /// that was never configured.
     ///
-    /// Reverting either `tree_needs_camera` or the `validate_capture_camera`
-    /// call in `start()` puts the run back on that path: this test then sees
-    /// `Ok` from `start()` instead of the refusal.
+    /// Reverting either `collect_required_devices` or the
+    /// `validate_required_devices` call in `start()` puts the run back on that
+    /// path: this test then sees `Ok` from `start()` instead of the refusal.
     #[tokio::test]
     async fn start_refuses_a_capture_sequence_with_no_camera() {
         let dir = std::env::temp_dir().join(format!("ns-cam-gate-{}", uuid::Uuid::new_v4()));
@@ -8029,11 +8209,346 @@ mod tests {
     /// case. An id of `"   "` is not an id, and treating it as one would send
     /// the run straight back into the disconnect-recovery loop.
     #[test]
-    fn validate_capture_camera_rejects_absent_and_blank_ids() {
-        assert!(validate_capture_camera(None).is_err());
-        assert!(validate_capture_camera(Some("")).is_err());
-        assert!(validate_capture_camera(Some("   ")).is_err());
-        assert!(validate_capture_camera(Some("ascom:ASCOM.ASICamera2.Camera")).is_ok());
+    fn validate_required_devices_rejects_absent_and_blank_ids() {
+        let required = std::collections::BTreeMap::from([(
+            RequiredDevice::Camera,
+            DeviceRequirement {
+                node_name: "Take Exposures".to_string(),
+                captures_frames: true,
+            },
+        )]);
+        let with = |id: Option<&str>| {
+            let owned = id.map(str::to_string);
+            validate_required_devices(&required, move |_| owned.clone())
+        };
+
+        assert!(with(None).is_err());
+        assert!(with(Some("")).is_err());
+        assert!(with(Some("   ")).is_err());
+        assert!(with(Some("ascom:ASCOM.ASICamera2.Camera")).is_ok());
+    }
+
+    /// Build a one-instruction sequence under a named target, the shape every
+    /// live-rig reproduction below used.
+    fn single_instruction_sequence(name: &str, node_type: crate::NodeType) -> SequenceDefinition {
+        let mut sequence = SequenceDefinition::new(format!("{name} probe"));
+        sequence.nodes.push(crate::NodeDefinition {
+            id: "root".to_string(),
+            name: "Target".to_string(),
+            node_type: crate::NodeType::TargetHeader(crate::TargetHeaderConfig {
+                target_name: "GuardProbe".to_string(),
+                ra_hours: 5.5,
+                dec_degrees: 22.0,
+                ..Default::default()
+            }),
+            enabled: true,
+            children: vec!["step".to_string()],
+        });
+        sequence.nodes.push(crate::NodeDefinition {
+            id: "step".to_string(),
+            name: name.to_string(),
+            node_type,
+            enabled: true,
+            children: vec![],
+        });
+        sequence.root_node_id = Some("root".to_string());
+        sequence
+    }
+
+    async fn start_refusal_for(node_type: crate::NodeType, step_name: &str) -> String {
+        let dir = std::env::temp_dir().join(format!("ns-dev-gate-{}", uuid::Uuid::new_v4()));
+        let mut executor = SequenceExecutor::new();
+        executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+        executor
+            .load_sequence(single_instruction_sequence(step_name, node_type))
+            .expect("sequence loads");
+        // A real destination, so nothing can be refused for the reason the
+        // save-path preflight already covers.
+        executor.set_save_path(Some(dir.clone()));
+
+        let outcome = executor.start().await;
+        executor.stop().await.ok();
+        let _ = std::fs::remove_dir_all(&dir);
+        match outcome {
+            Ok(()) => panic!("{step_name} with no device assigned must be refused at start"),
+            Err(error) => error,
+        }
+    }
+
+    /// Live-rig L16 (2026-08-09). Pre-flight refused a missing save path and a
+    /// missing plate solver, but a sequence that declared a DEVICE the executor
+    /// could not resolve was allowed to start and then died mid-run.
+    ///
+    /// Reproduced against the Linux appliance (release bundle, headless, no
+    /// devices connected), each one `POST /api/sequencer/start -> 200
+    /// {"status":"started"}` followed by
+    /// `{"state":"failed","message":"Cancelled: Target"}`, with the real reason
+    /// only in the log — `ERROR Change Filter failed: No filter wheel
+    /// connected`, `ERROR Slew failed: No mount connected`, `ERROR Cool Camera
+    /// failed: No camera connected`, `ERROR Autofocus failed: No camera
+    /// connected`, `ERROR Center Target failed: No mount connected`,
+    /// `ERROR Move Rotator failed: No rotator connected` — each immediately
+    /// promoted to a futile disconnect recovery.
+    ///
+    /// Reverting `collect_required_devices` to the old
+    /// `TakeExposure | SmartExposure | FlatWizard` camera-only predicate puts
+    /// every case below back on that path: `start()` then returns `Ok`.
+    #[tokio::test]
+    async fn start_refuses_a_filter_change_with_no_filter_wheel() {
+        let error = start_refusal_for(
+            crate::NodeType::ChangeFilter(crate::FilterConfig {
+                filter_name: "Ha".to_string(),
+                filter_index: Some(2),
+                timeout_secs: None,
+            }),
+            "Change Filter",
+        )
+        .await;
+        assert!(
+            error.contains("filter wheel") && error.contains("Change Filter"),
+            "the refusal must name the wheel and the step; got: {error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn start_refuses_an_exposure_that_requests_a_filter_with_no_filter_wheel() {
+        let dir = std::env::temp_dir().join(format!("ns-fw-gate-{}", uuid::Uuid::new_v4()));
+        let mut executor = SequenceExecutor::new();
+        executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+        executor
+            .load_sequence(single_instruction_sequence(
+                "Take Exposures",
+                crate::NodeType::TakeExposure(crate::ExposureConfig {
+                    count: 1,
+                    duration_secs: 0.01,
+                    filter_index: Some(0),
+                    ..Default::default()
+                }),
+            ))
+            .expect("sequence loads");
+        executor.set_save_path(Some(dir.clone()));
+        // A camera IS assigned — this isolates the wheel, and is the live-rig
+        // case: "an exposure on filter position 0, wheel not visible to the
+        // executor" started and failed mid-run.
+        executor.set_devices(Some("cam-1".to_string()), None, None, None, None);
+
+        let error = executor
+            .start()
+            .await
+            .expect_err("an exposure on filter position 0 with no wheel must be refused");
+        executor.stop().await.ok();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(
+            error.contains("filter wheel"),
+            "the refusal must name the wheel; got: {error}"
+        );
+        assert!(
+            !error.contains("no camera"),
+            "a camera was assigned; the refusal must be about the wheel: {error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn start_refuses_a_slew_with_no_mount() {
+        let error = start_refusal_for(
+            crate::NodeType::SlewToTarget(crate::SlewConfig::default()),
+            "Slew to Target",
+        )
+        .await;
+        assert!(
+            error.contains("mount") && error.contains("Slew to Target"),
+            "the refusal must name the mount and the step; got: {error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn start_refuses_a_park_with_no_mount() {
+        let error = start_refusal_for(crate::NodeType::Park, "Park").await;
+        assert!(
+            error.contains("mount"),
+            "the refusal must name the mount; got: {error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn start_refuses_cool_camera_with_no_camera() {
+        let error = start_refusal_for(
+            crate::NodeType::CoolCamera(crate::CoolConfig::default()),
+            "Cool Camera",
+        )
+        .await;
+        assert!(
+            error.contains("camera") && error.contains("Cool Camera"),
+            "the refusal must name the camera and the step; got: {error}"
+        );
+        assert!(
+            !error.contains("captures frames"),
+            "cooling captures nothing; the capture wording would be a lie: {error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn start_refuses_autofocus_naming_both_the_camera_and_the_focuser() {
+        let error = start_refusal_for(
+            crate::NodeType::Autofocus(crate::AutofocusConfig::default()),
+            "Autofocus",
+        )
+        .await;
+        assert!(
+            error.contains("camera"),
+            "autofocus exposes; the refusal must name the camera: {error}"
+        );
+        assert!(
+            error.contains("focuser"),
+            "autofocus moves the focuser; the refusal must name it too: {error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn start_refuses_center_target_with_no_mount_or_camera() {
+        let error = start_refusal_for(
+            crate::NodeType::CenterTarget(crate::CenterConfig::default()),
+            "Center Target",
+        )
+        .await;
+        assert!(
+            error.contains("camera") && error.contains("mount"),
+            "centering needs both; the refusal must name both: {error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn start_refuses_a_rotator_move_with_no_rotator() {
+        let error = start_refusal_for(
+            crate::NodeType::MoveRotator(crate::RotatorConfig {
+                target_angle: 90.0,
+                relative: false,
+            }),
+            "Move Rotator",
+        )
+        .await;
+        assert!(
+            error.contains("rotator") && error.contains("Move Rotator"),
+            "the refusal must name the rotator and the step; got: {error}"
+        );
+    }
+
+    /// The same trees start once the hardware is assigned — proving the gate
+    /// keys on the missing device and nothing else.
+    #[tokio::test]
+    async fn start_accepts_those_same_sequences_once_the_devices_are_assigned() {
+        for (name, node_type) in [
+            (
+                "Change Filter",
+                crate::NodeType::ChangeFilter(crate::FilterConfig {
+                    filter_name: "Ha".to_string(),
+                    filter_index: Some(2),
+                    timeout_secs: None,
+                }),
+            ),
+            (
+                "Slew to Target",
+                crate::NodeType::SlewToTarget(crate::SlewConfig::default()),
+            ),
+            (
+                "Cool Camera",
+                crate::NodeType::CoolCamera(crate::CoolConfig::default()),
+            ),
+            (
+                "Move Rotator",
+                crate::NodeType::MoveRotator(crate::RotatorConfig {
+                    target_angle: 90.0,
+                    relative: false,
+                }),
+            ),
+        ] {
+            let dir = std::env::temp_dir().join(format!("ns-dev-ok-{}", uuid::Uuid::new_v4()));
+            let mut executor = SequenceExecutor::new();
+            executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+            executor
+                .load_sequence(single_instruction_sequence(name, node_type))
+                .expect("sequence loads");
+            executor.set_save_path(Some(dir.clone()));
+            executor.set_devices(
+                Some("cam-1".to_string()),
+                Some("mount-1".to_string()),
+                Some("focuser-1".to_string()),
+                Some("wheel-1".to_string()),
+                Some("rotator-1".to_string()),
+            );
+
+            let result = executor.start().await;
+            executor.stop().await.ok();
+            let _ = std::fs::remove_dir_all(&dir);
+            assert!(result.is_ok(), "{name} was refused: {:?}", result.err());
+        }
+    }
+
+    /// The gate must not over-reach. A DISABLED node is skipped before it ever
+    /// reaches hardware (`RuntimeNode::execute` returns `Skipped` without
+    /// descending), so it must not block a start — otherwise switching a step
+    /// off, the operator's normal way of working round missing kit, would stop
+    /// working.
+    #[tokio::test]
+    async fn start_ignores_devices_only_a_disabled_subtree_would_need() {
+        let mut sequence = single_instruction_sequence(
+            "Change Filter",
+            crate::NodeType::ChangeFilter(crate::FilterConfig {
+                filter_name: "Ha".to_string(),
+                filter_index: Some(2),
+                timeout_secs: None,
+            }),
+        );
+        sequence
+            .nodes
+            .iter_mut()
+            .find(|node| node.id == "step")
+            .expect("step node")
+            .enabled = false;
+
+        let dir = std::env::temp_dir().join(format!("ns-dev-off-{}", uuid::Uuid::new_v4()));
+        let mut executor = SequenceExecutor::new();
+        executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+        executor.load_sequence(sequence).expect("sequence loads");
+        executor.set_save_path(Some(dir.clone()));
+
+        let result = executor.start().await;
+        executor.stop().await.ok();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(
+            result.is_ok(),
+            "a disabled filter change needs no wheel: {:?}",
+            result.err()
+        );
+    }
+
+    /// And the flat wizard is not blocked for a wheel it will not touch:
+    /// `FlatWizardRun::do_filter_change` returns `Ok` when there is no wheel.
+    #[tokio::test]
+    async fn start_does_not_demand_a_filter_wheel_for_a_flat_wizard() {
+        let dir = std::env::temp_dir().join(format!("ns-flat-gate-{}", uuid::Uuid::new_v4()));
+        let mut executor = SequenceExecutor::new();
+        executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+        executor
+            .load_sequence(single_instruction_sequence(
+                "Flat Wizard",
+                crate::NodeType::FlatWizard(crate::FlatWizardConfig {
+                    filter: Some("Ha".to_string()),
+                    ..Default::default()
+                }),
+            ))
+            .expect("sequence loads");
+        executor.set_save_path(Some(dir.clone()));
+        executor.set_devices(Some("cam-1".to_string()), None, None, None, None);
+
+        let result = executor.start().await;
+        executor.stop().await.ok();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(
+            result.is_ok(),
+            "the flat wizard skips its filter change without a wheel: {:?}",
+            result.err()
+        );
     }
 
     #[test]

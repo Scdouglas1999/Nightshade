@@ -1724,6 +1724,15 @@ impl DeviceOps for RealDeviceOps {
             target_temp
         );
 
+        // Switching a cooler off carries no setpoint — see
+        // `DeviceManager::cooler_setpoint_to_command`. Writing one anyway is
+        // what made "cooler off" fail outright on a camera that reports
+        // `CanSetCCDTemperature = False`.
+        let setpoint = crate::device_manager::DeviceManager::cooler_setpoint_to_command(
+            enabled,
+            Some(target_temp),
+        );
+
         #[cfg(windows)]
         {
             if camera_id.starts_with("ascom:") {
@@ -1733,7 +1742,14 @@ impl DeviceOps for RealDeviceOps {
                     nightshade_ascom::init_com().map_err(|e| format!("COM init failed: {}", e))?;
                     let result = (|| {
                         let mut camera = AscomCamera::new(&prog_id)?;
-                        camera.set_ccd_temperature(target_temp)?;
+                        let writable = nightshade_ascom::cooler_policy::setpoint_to_write(
+                            enabled,
+                            setpoint,
+                            camera.can_set_ccd_temperature().ok(),
+                        );
+                        if let Some(t) = writable {
+                            camera.set_ccd_temperature(t)?;
+                        }
                         camera.set_cooler_on(enabled)?;
                         Ok(())
                     })();
@@ -1750,7 +1766,9 @@ impl DeviceOps for RealDeviceOps {
                 let (_, _, device_name) = parse_indi_device_id(camera_id)?;
                 let camera = IndiCamera::new(client, &device_name);
                 camera.set_cooler(enabled).await?;
-                camera.set_temperature(target_temp).await?;
+                if let Some(t) = setpoint {
+                    camera.set_temperature(t).await?;
+                }
                 return Ok(());
             }
         }
@@ -1758,7 +1776,9 @@ impl DeviceOps for RealDeviceOps {
         if camera_id.starts_with("alpaca:") {
             let info = parse_alpaca_device_id(camera_id)?;
             let camera = AlpacaCamera::from_server(&info.base_url, info.device_num);
-            camera.set_ccd_temperature(target_temp).await?;
+            if let Some(t) = setpoint {
+                camera.set_ccd_temperature(t).await?;
+            }
             camera.set_cooler_on(enabled).await?;
             return Ok(());
         }
@@ -1768,7 +1788,7 @@ impl DeviceOps for RealDeviceOps {
             let mut native_cameras = self.device_manager.native_cameras.write().await;
             if let Some(camera) = native_cameras.get_mut(camera_id) {
                 camera
-                    .set_cooler(enabled, target_temp)
+                    .set_cooler(enabled, setpoint)
                     .await
                     .map_err(|e| format!("Failed to set cooler: {}", e))?;
                 return Ok(());
@@ -1879,6 +1899,10 @@ impl DeviceOps for RealDeviceOps {
         }
 
         Err(format!("Camera {} not found or unsupported", camera_id))
+    }
+
+    async fn camera_get_model(&self, camera_id: &str) -> DeviceResult<Option<String>> {
+        Ok(crate::sequencer_ops::connected_camera_label(camera_id).await)
     }
 
     // =========================================================================

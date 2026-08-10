@@ -3932,6 +3932,28 @@ async fn build_frame_context_for_save(
     // Equipment identification.
     frame_ctx.camera_make = ctx.camera_make.clone();
     frame_ctx.camera_model = ctx.camera_model.clone();
+    // Ask the DRIVER which camera this is when the observer profile does not
+    // say. The profile is a cross-product of app settings and the active
+    // equipment profile, so a rig running without one — which is every
+    // headless run that has not had a profile created, and was exactly the
+    // state of the live rig — wrote frames with no INSTRUME at all. The camera
+    // is connected and has a name; there is no reason for the file not to
+    // carry it. Only fills the gap: a profile that names a camera still wins,
+    // because that is the operator stating what they want in their archive.
+    if frame_ctx.camera_make.is_none() && frame_ctx.camera_model.is_none() {
+        if let Some(camera_id) = &ctx.camera_id {
+            match ctx.device_ops.camera_get_model(camera_id).await {
+                Ok(Some(model)) => frame_ctx.camera_model = Some(model),
+                Ok(None) => tracing::debug!(
+                    "[CAPTURE] camera {} reports no model name; INSTRUME omitted",
+                    camera_id
+                ),
+                Err(e) => {
+                    tracing::debug!("[CAPTURE] camera_get_model failed; INSTRUME omitted: {}", e)
+                }
+            }
+        }
+    }
     // Sensor pixel pitch (FITS XPIXSZ/YPIXSZ). Asked of the driver here rather
     // than taken from the observer profile, which has no pixel-size field: this
     // is the only place in a sequenced capture where the number is reachable,
@@ -6369,11 +6391,24 @@ pub async fn execute_warm_camera(
         sleep(Duration::from_secs(10)).await;
     }
 
-    // Turn off cooler
-    let _ = ctx
+    // Turn off cooler. The setpoint argument is ignored downstream for a
+    // disable (see `DeviceManager::cooler_setpoint_to_command`); the DeviceOps
+    // trait just has nowhere to say "none".
+    //
+    // The outcome is NOT discarded: on the reference rig this exact call
+    // failed, and the instruction still reported "Camera warmed to ambient"
+    // while the TEC stayed powered. A warm-up that could not switch the cooler
+    // off has not warmed anything up.
+    if let Err(e) = ctx
         .device_ops
         .camera_set_cooler(&camera_id, false, 20.0)
-        .await;
+        .await
+    {
+        return InstructionResult::failure(format!(
+            "Warmed to {:.1}°C but could not switch the cooler off: {}",
+            target_temp, e
+        ));
+    }
 
     // Emit final progress
     if let Some(cb) = progress_callback {
@@ -8452,6 +8487,12 @@ mod tests {
         camera_exposure_calls: AtomicU32,
         camera_abort_calls: AtomicU32,
         hang_camera_exposure: bool,
+        /// Every `(enabled, target)` the instruction handed the cooler.
+        cooler_commands: Mutex<Vec<(bool, f64)>>,
+        /// When `Some`, a `camera_set_cooler(_, false, _)` fails with this
+        /// message — the shape the reference rig produced when its cooler
+        /// could not be switched off.
+        cooler_off_error: Option<String>,
         /// Raised by the first exposure only; see
         /// [`ScriptedDomeRotatorOps::pausing_after_first_exposure`].
         pause_flag_after_first_exposure: Option<Arc<AtomicBool>>,
@@ -8521,6 +8562,8 @@ mod tests {
                 camera_exposure_calls: AtomicU32::new(0),
                 camera_abort_calls: AtomicU32::new(0),
                 hang_camera_exposure: false,
+                cooler_commands: Mutex::new(Vec::new()),
+                cooler_off_error: None,
                 pause_flag_after_first_exposure: None,
                 mount_parked: false,
                 focuser_moves: Mutex::new(Vec::new()),
@@ -8632,6 +8675,13 @@ mod tests {
 
         fn with_hanging_camera(mut self) -> Self {
             self.hang_camera_exposure = true;
+            self
+        }
+
+        /// Stand in for the reference rig on 2026-08-09: the cooler-off
+        /// command comes back as an error.
+        fn with_failing_cooler_off(mut self, message: &str) -> Self {
+            self.cooler_off_error = Some(message.to_string());
             self
         }
 
@@ -8789,6 +8839,12 @@ mod tests {
             self.inner.camera_abort_exposure(id).await
         }
         async fn camera_set_cooler(&self, id: &str, e: bool, t: f64) -> DeviceResult<()> {
+            self.cooler_commands.lock().unwrap().push((e, t));
+            if !e {
+                if let Some(err) = &self.cooler_off_error {
+                    return Err(err.clone());
+                }
+            }
             self.inner.camera_set_cooler(id, e, t).await
         }
         async fn camera_get_temperature(&self, id: &str) -> DeviceResult<f64> {
@@ -8805,6 +8861,11 @@ mod tests {
                 Some(pitch) => Ok(Some(pitch)),
                 None => self.inner.camera_get_pixel_size_um(id).await,
             }
+        }
+        /// What the bridge impls return: the driver's name for the connected
+        /// camera, with the serial that tells two of the same model apart.
+        async fn camera_get_model(&self, _id: &str) -> DeviceResult<Option<String>> {
+            Ok(Some("ZWO ASI1600MM-Cool (1600-A1B2)".to_string()))
         }
         async fn focuser_move_to(&self, _id: &str, p: i32) -> DeviceResult<()> {
             self.focuser_moves.lock().unwrap().push(p);
@@ -8987,6 +9048,50 @@ mod tests {
         ec.dome_id = Some("dome-1".to_string());
         ec.rotator_id = Some("rotator-1".to_string());
         ec.to_instruction_context("test-node").await
+    }
+
+    /// A WarmCamera whose final "switch the cooler off" fails must not report
+    /// success. On the reference rig (2026-08-09, L19) that call failed for
+    /// every request — the instruction ran its whole ramp, discarded the
+    /// error, and reported "Camera warmed to ambient" with the TEC still
+    /// powered.
+    #[tokio::test(start_paused = true)]
+    async fn warm_camera_reports_failure_when_the_cooler_will_not_switch_off() {
+        let ops = Arc::new(
+            ScriptedDomeRotatorOps::new().with_failing_cooler_off(
+                "Failed to set cooler: Failed to set property SetCCDTemperature",
+            ),
+        );
+        let ctx = ctx_with_ops(ops.clone()).await;
+
+        let result = execute_warm_camera(
+            &WarmConfig {
+                rate_per_min: 60.0,
+                target_temp: Some(20.0),
+            },
+            &ctx,
+            None,
+        )
+        .await;
+
+        assert!(
+            !result.success,
+            "a warm-up that could not switch the cooler off must not report success: {:?}",
+            result.message
+        );
+        let message = result.message.unwrap_or_default();
+        assert!(
+            message.contains("could not switch the cooler off"),
+            "the failure must name what actually went wrong, got: {message}"
+        );
+        assert!(
+            ops.cooler_commands
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|(enabled, _)| !*enabled),
+            "the instruction must still have attempted the cooler-off"
+        );
     }
 
     #[tokio::test(start_paused = true)]
@@ -10363,6 +10468,68 @@ mod tests {
             "a known filter must never render as the synthetic nofilter label, got {}",
             paths[0]
         );
+    }
+
+    /// A frame has to say which camera took it, even on a rig with no
+    /// equipment profile.
+    ///
+    /// `INSTRUME` was built only from `ExecutionContext::camera_make/model`,
+    /// which come from the observer profile — a cross-product of app settings
+    /// and the ACTIVE EQUIPMENT PROFILE. A headless rig that never had a
+    /// profile created has neither, so every frame it wrote carried no
+    /// `INSTRUME` at all. Reproduced on the live rig: a real run wrote
+    /// `Polaris_1_0001.fits` with `PIXSIZE 2.4` as the only clue to which of
+    /// the two attached ZWO cameras took it, and reproduced again against the
+    /// Linux simulator build, whose frames were identically silent.
+    ///
+    /// `expose_node_execution_ctx` sets no `camera_make`/`camera_model`, so
+    /// this is exactly that rig. The camera is connected and the driver knows
+    /// its name; the file must carry it.
+    #[tokio::test]
+    async fn frame_names_the_camera_when_no_equipment_profile_does() {
+        let scratch = scratch_dir("instrume-fallback");
+        let ops = Arc::new(ScriptedDomeRotatorOps::new());
+        let mut ec = expose_node_execution_ctx(ops.clone(), scratch.0.clone()).await;
+        assert!(
+            ec.camera_make.is_none() && ec.camera_model.is_none(),
+            "precondition: this rig has no equipment profile naming a camera"
+        );
+
+        let status = run_expose_node(one_dark_no_filter(), &mut ec).await;
+        assert_eq!(status, NodeStatus::Success, "burst should complete");
+
+        let saved = ops.saved_frame_contexts();
+        assert_eq!(saved.len(), 1, "one frame should have reached the writer");
+        assert_eq!(
+            saved[0].camera_model.as_deref(),
+            Some("ZWO ASI1600MM-Cool (1600-A1B2)"),
+            "INSTRUME must fall back to the camera the driver reports"
+        );
+    }
+
+    /// The operator's own answer outranks the driver's.
+    ///
+    /// Guards the fallback against becoming an override: someone who has named
+    /// their camera in an equipment profile has said what they want in their
+    /// archive, and a generic driver string must not displace it.
+    #[tokio::test]
+    async fn equipment_profile_camera_name_beats_the_driver_string() {
+        let scratch = scratch_dir("instrume-profile");
+        let ops = Arc::new(ScriptedDomeRotatorOps::new());
+        let mut ec = expose_node_execution_ctx(ops.clone(), scratch.0.clone()).await;
+        ec.camera_make = Some("ZWO".to_string());
+        ec.camera_model = Some("ASI178MM".to_string());
+
+        let status = run_expose_node(one_dark_no_filter(), &mut ec).await;
+        assert_eq!(status, NodeStatus::Success, "burst should complete");
+
+        let saved = ops.saved_frame_contexts();
+        assert_eq!(
+            saved[0].camera_model.as_deref(),
+            Some("ASI178MM"),
+            "a profile-named camera must survive the driver fallback"
+        );
+        assert_eq!(saved[0].camera_make.as_deref(), Some("ZWO"));
     }
 
     /// The burst's resolved filter identity must be PUBLISHED, not just kept in

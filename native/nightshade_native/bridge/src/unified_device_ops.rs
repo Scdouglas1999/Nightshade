@@ -1050,6 +1050,10 @@ impl DeviceOps for UnifiedDeviceOps {
         })
     }
 
+    async fn camera_get_model(&self, camera_id: &str) -> DeviceResult<Option<String>> {
+        Ok(crate::sequencer_ops::connected_camera_label(camera_id).await)
+    }
+
     // =========================================================================
     // FOCUSER OPERATIONS
     // =========================================================================
@@ -1998,7 +2002,7 @@ mod tests {
         async fn set_cooler(
             &mut self,
             _enabled: bool,
-            _target_temp: f64,
+            _target_temp: Option<f64>,
         ) -> Result<(), NativeError> {
             Ok(())
         }

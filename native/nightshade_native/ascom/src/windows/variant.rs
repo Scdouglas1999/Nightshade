@@ -4,6 +4,7 @@
 //! Rust types and the COM `VARIANT` / `SAFEARRAY` representations that
 //! ASCOM drivers exchange via `IDispatch`.
 
+use std::mem::ManuallyDrop;
 use windows::core::BSTR;
 use windows::Win32::Foundation::VARIANT_BOOL;
 use windows::Win32::System::{
@@ -343,26 +344,101 @@ pub(super) fn variant_to_string_array(var: &VARIANT) -> Option<Vec<String>> {
     unsafe { extract_safearray_string(var).ok() }
 }
 
-/// Extract error message from EXCEPINFO structure
-/// Returns the bstrDescription if available, otherwise bstrSource, otherwise a generic message
-pub(super) fn excepinfo_to_string(excep: &EXCEPINFO) -> String {
-    // Try to get the description first (most useful)
-    if !excep.bstrDescription.is_empty() {
-        return excep.bstrDescription.to_string();
+/// RAII guard that owns an `EXCEPINFO` out-parameter of `IDispatch::Invoke`
+/// and frees the driver-allocated strings inside it on drop.
+///
+/// Two reasons this type exists rather than a bare `EXCEPINFO` local:
+///
+/// 1. **Ownership.** windows-rs 0.52 declares the three string members as
+///    `ManuallyDrop<BSTR>` and gives `EXCEPINFO` no `Drop`, so a plain local
+///    leaks every `BSTR` the driver writes. `IDispatch::Invoke` transfers
+///    ownership of those to the caller, and a retrying loop allocates a fresh
+///    set per attempt.
+/// 2. **Recovery.** `describe` is the only place that decides what a driver's
+///    exception says, so no call site can accidentally drop it.
+pub(super) struct OwnedExcepInfo(EXCEPINFO);
+
+impl OwnedExcepInfo {
+    /// Create a zeroed guard to receive an `Invoke` `pExcepInfo` out-param.
+    pub(super) fn new() -> Self {
+        Self(EXCEPINFO::default())
     }
-    // Fall back to source
-    if !excep.bstrSource.is_empty() {
-        let source = excep.bstrSource.to_string();
-        return format!("ASCOM error from {source}");
+
+    /// Mutable reference to the inner structure, for use as the `Invoke`
+    /// `pExcepInfo` out-parameter.
+    pub(super) fn as_mut(&mut self) -> &mut EXCEPINFO {
+        &mut self.0
     }
-    // Last resort: use the error code
-    if excep.scode != 0 {
-        return format!("ASCOM error code: 0x{:08X}", excep.scode);
+
+    /// What the driver itself said about the failure, or `None` when it left
+    /// the structure empty (the caller's signal to fall back to the HRESULT).
+    ///
+    /// The three parts are all worth keeping. Measured on the Pegasus NYX101,
+    /// 2026-08-09, setting `Tracking = true` on the parked mount:
+    /// `bstrDescription = "Object reference not set to an instance of an
+    /// object."`, `bstrSource = "ASCOM.PegasusAstroUnityServer"`,
+    /// `scode = 0x80004003`. The description says what happened, the source
+    /// names which component raised it (driver vs. hub vs. server), and `scode`
+    /// is the real error code — the HRESULT on the call itself is only
+    /// `DISP_E_EXCEPTION`, which says nothing but "an exception occurred".
+    pub(super) fn describe(&self) -> Option<String> {
+        let description = self.0.bstrDescription.to_string();
+        let description = description.trim();
+        let source = self.0.bstrSource.to_string();
+        let source = source.trim();
+
+        let code = if self.0.scode != 0 {
+            Some(format!("0x{:08X}", self.0.scode))
+        } else if self.0.wCode != 0 {
+            Some(format!("code {}", self.0.wCode))
+        } else {
+            None
+        };
+
+        if description.is_empty() && source.is_empty() && code.is_none() {
+            return None;
+        }
+
+        // With no description there is still something worth saying: naming the
+        // component beats a bare number, so keep going on source/code alone.
+        let head = if description.is_empty() {
+            "The driver raised an exception".to_string()
+        } else {
+            description.to_string()
+        };
+
+        let mut detail = Vec::new();
+        if !source.is_empty() {
+            detail.push(format!("reported by {source}"));
+        }
+        if let Some(code) = code {
+            detail.push(code);
+        }
+
+        if detail.is_empty() {
+            Some(head)
+        } else {
+            Some(format!("{head} ({})", detail.join(", ")))
+        }
     }
-    if excep.wCode != 0 {
-        return format!("ASCOM error code: {}", excep.wCode);
+}
+
+impl Drop for OwnedExcepInfo {
+    fn drop(&mut self) {
+        // SAFETY: COM out-param ownership — `IDispatch::Invoke` transfers the
+        // three `BSTR`s to the caller, and this guard is their sole owner
+        // (`EXCEPINFO` itself has no `Drop`, so nothing else frees them and
+        // there is no double-free to race). `ManuallyDrop::drop` runs
+        // `BSTR::drop` → `SysFreeString`, which is a no-op on the null pointers
+        // left by `EXCEPINFO::default()` when `Invoke` succeeded or wrote
+        // nothing. The fields are never read again after this. Runs on the STA
+        // worker thread that issued `Invoke`, satisfying the apartment rule.
+        unsafe {
+            ManuallyDrop::drop(&mut self.0.bstrSource);
+            ManuallyDrop::drop(&mut self.0.bstrDescription);
+            ManuallyDrop::drop(&mut self.0.bstrHelpFile);
+        }
     }
-    "Unknown ASCOM error".to_string()
 }
 
 /// Extract i32 array from SAFEARRAY in VARIANT

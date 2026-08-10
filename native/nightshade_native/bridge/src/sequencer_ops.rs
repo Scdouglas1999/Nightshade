@@ -207,6 +207,38 @@ fn context_altitude_pointing(
     })
 }
 
+/// The label the app already knows a connected camera by, for FITS `INSTRUME`.
+///
+/// Prefers `display_name` over `name` because `display_name` is
+/// `"<name> (<serial>)"` whenever the driver reports a serial, and on a rig
+/// carrying two of the same model the serial is the only part of the string
+/// that tells the frames apart. Falls back to `name`, and to `None` when the
+/// id names nothing connected — the writer then omits the keyword.
+///
+/// Only the DRIVER's answer is used. Nothing here derives an instrument from
+/// the device id: `native:zwo:1` is an enumeration index that re-orders across
+/// a replug, so stamping it into an archival keyword would label frames with
+/// something that means a different camera tomorrow.
+pub(crate) async fn connected_camera_label(camera_id: &str) -> Option<String> {
+    api_get_connected_devices()
+        .await
+        .into_iter()
+        .find(|d| d.id == camera_id && d.device_type == DeviceType::Camera)
+        .and_then(|d| {
+            let display = d.display_name.trim();
+            let label = if display.is_empty() {
+                d.name.trim()
+            } else {
+                display
+            };
+            if label.is_empty() {
+                None
+            } else {
+                Some(label.to_string())
+            }
+        })
+}
+
 /// Assemble the rich FITS header for a sequencer-saved frame.
 ///
 /// Split out of `save_fits` so the pointing decision is exercisable without a
@@ -271,9 +303,15 @@ fn build_rich_header(
         // configuration. See `context_altitude_pointing`, which is where the
         // fallback's coordinates come from — they are this same context's, so
         // the card is still describing one instant, not two reads.
+        // `.or(header.altitude)` last: an assignment cannot be allowed to
+        // replace the altitude `from_frame_context` already derived from this
+        // same pointing with `None`. Overwriting a good value with nothing is
+        // how a keyword disappears from a file for a reason that has nothing
+        // to do with whether it was knowable.
         header.altitude = frame_ctx
             .mount_altitude_deg
-            .or_else(|| pointing.and_then(|p| p.altitude_deg));
+            .or_else(|| pointing.and_then(|p| p.altitude_deg))
+            .or(header.altitude);
     } else if let Some(p) = pointing {
         header.ra = Some(p.ra_hours);
         header.dec = Some(p.dec_degrees);
@@ -662,6 +700,10 @@ impl DeviceOps for BridgeDeviceOps {
             (x, y) if x > 0.0 && y > 0.0 => Some((x, y)),
             _ => None,
         })
+    }
+
+    async fn camera_get_model(&self, camera_id: &str) -> DeviceResult<Option<String>> {
+        Ok(connected_camera_label(camera_id).await)
     }
 
     // =========================================================================

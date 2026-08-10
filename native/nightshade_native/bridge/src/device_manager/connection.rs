@@ -8,14 +8,15 @@
 //! monolithic `devices.rs`.
 
 use crate::device::*;
+use crate::device_manager::identity::DeviceIdentity;
 use crate::device_manager::{DeviceManager, ManagedDevice};
 use crate::event::*;
 use std::time::Duration;
 use tokio::sync::watch;
 use tokio::time::interval;
-// Windows: trait must be in scope so ASCOM wrapper guards resolve its methods.
-#[cfg(windows)]
-use nightshade_native::traits::NativeDevice;
+// `NativeDevice` also backs the ASCOM wrapper guards on Windows; the identity
+// probe below needs it (and `NativeCamera`) on every platform.
+use nightshade_native::traits::{NativeCamera, NativeDevice};
 
 /// Error message returned by `connect_device_internal` when an in-flight
 /// reconnect attempt is aborted by a manual disconnect. The string is part
@@ -316,6 +317,17 @@ impl DeviceManager {
             DriverType::Native => self.connect_native(info).await,
         };
 
+        // The driver is open now, so ask it who it actually is. Every device id
+        // Nightshade uses is positional (`native:zwo:1` is an SDK enumeration
+        // index, `ascom:ASCOM.ASICamera2.Camera` is a driver slot), so a
+        // successful connect proves only that SOMETHING answered — not that it
+        // is the device the caller named. This turns a successful open into a
+        // failed connect when the hardware behind the id has changed.
+        let result = match result {
+            Ok(()) => self.verify_identity_after_connect(info).await,
+            Err(e) => Err(e),
+        };
+
         // Post-dispatch cancel check: the driver dispatch above can take
         // seconds (TCP/USB negotiation). If `disconnect_device` tripped the
         // token while we were awaiting, treat the result as canceled so we
@@ -407,6 +419,178 @@ impl DeviceManager {
         }
 
         result
+    }
+
+    /// Ask a freshly-connected driver what it is, and refuse the connect if the
+    /// answer contradicts what this device id was last observed to be.
+    ///
+    /// Runs on every connect, including reconnects — a mid-night USB dropout
+    /// followed by a re-enumeration is exactly how an id silently re-binds to
+    /// the other camera on the bus.
+    ///
+    /// Outcomes:
+    ///
+    /// * driver reports nothing identifiable → `Ok`, nothing recorded. We do
+    ///   not store an empty baseline, because it would later match anything.
+    /// * no baseline yet → record it, refresh the registered `DeviceInfo` so
+    ///   the API stops reporting the id-derived placeholder name, `Ok`.
+    /// * baseline agrees → refresh and `Ok`.
+    /// * baseline contradicted → tear the driver back down and `Err`.
+    ///
+    /// The teardown on conflict is the point: leaving the handle open would
+    /// leave a live connection to the wrong sensor that every later command
+    /// would happily address. `disconnect_device` also clears `auto_reconnect`,
+    /// so the manager stops re-opening the wrong camera in a loop. Recovering
+    /// from a genuine swap needs a human, and stopping is the safe answer for
+    /// an unattended run.
+    pub(crate) async fn verify_identity_after_connect(
+        &self,
+        info: &DeviceInfo,
+    ) -> Result<(), String> {
+        let observed = self.probe_device_identity(info).await;
+        if observed.is_empty() {
+            tracing::debug!(
+                "No identity reported by {} ({:?}); identity check skipped",
+                info.id,
+                info.driver_type
+            );
+            return Ok(());
+        }
+
+        let previous = self.observed_identities.read().await.get(&info.id).cloned();
+
+        if let Some(previous) = previous {
+            if let Some(reason) = observed.conflict_with(&previous) {
+                let message = format!(
+                    "Device id {} is no longer the same hardware: {}. \
+                     Connected device reports {}; previously it was {}. \
+                     This id is a position on the bus, not an identity, so it \
+                     re-binds when devices are replugged or re-enumerated. \
+                     Refusing the connection rather than using the wrong device.",
+                    info.id,
+                    reason,
+                    observed.describe(),
+                    previous.describe(),
+                );
+                tracing::error!("{}", message);
+
+                if let Err(e) = self.disconnect_device(&info.id).await {
+                    tracing::warn!(
+                        "Failed to release the mismatched device {} after an identity conflict: {}",
+                        info.id,
+                        e
+                    );
+                }
+                return Err(message);
+            }
+        }
+
+        tracing::info!("Device {} identified as {}", info.id, observed.describe());
+
+        self.observed_identities
+            .write()
+            .await
+            .insert(info.id.clone(), observed.clone());
+
+        // Replace the placeholder identity that `device_info_from_id` derived
+        // from the id string with what the driver reported.
+        {
+            let mut devices = self.devices.write().await;
+            if let Some(dev) = devices.get_mut(&info.id) {
+                observed.apply_to(&mut dev.info);
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Read identity straight off the connected driver.
+    ///
+    /// Cameras are the case that matters and the case that can answer: both the
+    /// vendor-SDK cameras and the ASCOM wrapper implement `NativeCamera`, so
+    /// model, serial and sensor geometry come from one code path. Non-camera
+    /// native devices contribute model and serial. Transports with no
+    /// post-connect identity surface return an empty identity, which the caller
+    /// treats as "no opinion" rather than as a match.
+    pub(crate) async fn probe_device_identity(&self, info: &DeviceInfo) -> DeviceIdentity {
+        if let Some(camera) = self.native_cameras.read().await.get(&info.id) {
+            return Self::identity_from_camera(camera.as_ref());
+        }
+
+        if let Some(identity) = self.probe_ascom_camera_identity(&info.id).await {
+            return identity;
+        }
+
+        if let Some(device) = self.native_devices.read().await.get(&info.id) {
+            return Self::identity_from_device(device.as_ref());
+        }
+
+        DeviceIdentity::default()
+    }
+
+    /// Identity of a connected ASCOM camera, when this platform has ASCOM.
+    ///
+    /// **Geometry only, deliberately.** `AscomCameraWrapper::name()` returns the
+    /// ProgID it was constructed with, not anything the driver said, so feeding
+    /// it in as `model` would compare a constant against itself and would also
+    /// overwrite the displayed name with `ASCOM.ASICamera2.Camera`. The sensor
+    /// cache, by contrast, is refreshed from the live driver during
+    /// `AscomCameraWrapper::connect` (which calls `get_capabilities` and fails
+    /// the connect if the driver cannot answer), so the geometry read here is
+    /// genuinely the connected camera's — and geometry is exactly what
+    /// distinguishes two bodies sharing one ProgID.
+    ///
+    /// Getting the real model over ASCOM needs a `Name` read *after*
+    /// `Connected = true`. Measured on the reference rig, an unconnected
+    /// `ASCOM.ASICamera2.Camera` answers `Name = "ASI Camera (1)"` and an empty
+    /// `SensorName`, so the existing `nightshade_ascom::probe_device_name`
+    /// helper — which reads `Name` without connecting — cannot supply it.
+    #[cfg(windows)]
+    async fn probe_ascom_camera_identity(&self, device_id: &str) -> Option<DeviceIdentity> {
+        let cameras = self.ascom_cameras.read().await;
+        let camera = cameras.get(device_id)?.clone();
+        drop(cameras);
+        let sensor = camera.read().await.get_sensor_info();
+        Some(DeviceIdentity {
+            model: None,
+            serial_number: None,
+            sensor: DeviceIdentity::sensor_fingerprint(
+                sensor.width,
+                sensor.height,
+                sensor.pixel_size_x,
+            ),
+        })
+    }
+
+    #[cfg(not(windows))]
+    async fn probe_ascom_camera_identity(&self, _device_id: &str) -> Option<DeviceIdentity> {
+        None
+    }
+
+    /// Model + serial from any connected native device.
+    fn identity_from_device(device: &dyn NativeDevice) -> DeviceIdentity {
+        DeviceIdentity {
+            model: Some(device.name().to_string()).filter(|n| !n.trim().is_empty()),
+            serial_number: device.serial_number().filter(|s| !s.trim().is_empty()),
+            sensor: None,
+        }
+    }
+
+    /// Model + serial + sensor geometry from any connected camera.
+    ///
+    /// Geometry is what separates two bodies whose driver-reported names are
+    /// identical, which is the normal case behind one ASCOM ProgID.
+    fn identity_from_camera(camera: &dyn NativeCamera) -> DeviceIdentity {
+        let sensor = camera.get_sensor_info();
+        DeviceIdentity {
+            model: Some(camera.name().to_string()).filter(|n| !n.trim().is_empty()),
+            serial_number: camera.serial_number().filter(|s| !s.trim().is_empty()),
+            sensor: DeviceIdentity::sensor_fingerprint(
+                sensor.width,
+                sensor.height,
+                sensor.pixel_size_x,
+            ),
+        }
     }
 
     /// Connect to a simulator device.

@@ -246,6 +246,23 @@ pub trait DeviceOps: Send + Sync {
         Ok(None)
     }
 
+    /// How the app knows this camera — the driver-reported name, with whatever
+    /// serial or unique id it has to tell two identical models apart.
+    ///
+    /// Fills FITS `INSTRUME` when no equipment profile names a camera. Without
+    /// it a sequenced frame says nothing at all about which camera took it,
+    /// and on a two-camera rig the sensor geometry is the only clue — so the
+    /// keyword every stacker and archive groups by is the one keyword absent.
+    /// This is the driver's answer, not a profile the operator has to have
+    /// remembered to fill in.
+    ///
+    /// `Ok(None)` means the id is not a connected camera or has no name worth
+    /// recording, and the writer then omits `INSTRUME` rather than inventing
+    /// one. Defaulted so test doubles and the null ops need not answer.
+    async fn camera_get_model(&self, _camera_id: &str) -> DeviceResult<Option<String>> {
+        Ok(None)
+    }
+
     // =========================================================================
     // FOCUSER OPERATIONS
     // =========================================================================

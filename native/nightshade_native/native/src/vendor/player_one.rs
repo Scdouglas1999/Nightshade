@@ -1331,7 +1331,11 @@ impl NativeCamera for PlayerOneCamera {
         })
     }
 
-    async fn set_cooler(&mut self, enabled: bool, target_temp: f64) -> Result<(), NativeError> {
+    async fn set_cooler(
+        &mut self,
+        enabled: bool,
+        target_temp: Option<f64>,
+    ) -> Result<(), NativeError> {
         if !self.connected {
             return Err(NativeError::NotConnected);
         }
@@ -1348,8 +1352,11 @@ impl NativeCamera for PlayerOneCamera {
         // Acquire mutex for SDK operations
         let _lock = player_one_mutex().lock().await;
 
-        // Set target temperature (POA_TARGET_TEMP is in C, int value)
-        self.set_control_int(POAConfig::POA_TARGET_TEMP, target_temp as c_long, false)?;
+        // Set target temperature (POA_TARGET_TEMP is in C, int value) only
+        // when the caller named one — a "cooler off" carries no setpoint.
+        if let Some(target) = target_temp {
+            self.set_control_int(POAConfig::POA_TARGET_TEMP, target as c_long, false)?;
+        }
 
         // Enable/disable cooler (POA_COOLER is a bool)
         self.set_control_bool(POAConfig::POA_COOLER, enabled, false)?;
@@ -1357,16 +1364,13 @@ impl NativeCamera for PlayerOneCamera {
         // Record the accepted state so `get_status` can report cooler_on
         // accurately on cameras whose firmware doesn't expose POA_COOLER for
         // read-back. Only update after both SDK calls above succeeded.
-        match self.cooler_state.lock() {
-            Ok(mut guard) => {
-                guard.enabled = enabled;
-                guard.target_c = target_temp;
-            }
-            Err(poisoned) => {
-                let mut guard = poisoned.into_inner();
-                guard.enabled = enabled;
-                guard.target_c = target_temp;
-            }
+        let mut guard = self
+            .cooler_state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        guard.enabled = enabled;
+        if let Some(target) = target_temp {
+            guard.target_c = target;
         }
 
         Ok(())

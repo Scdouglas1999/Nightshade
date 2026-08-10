@@ -24,9 +24,9 @@ use windows::{
 
 use super::health::{ConnectionHealth, HealthMonitor};
 use super::variant::{
-    excepinfo_to_string, extract_safearray_i32, extract_safearray_string, variant_bool,
-    variant_bstr, variant_date, variant_f64, variant_i32, variant_to_bool, variant_to_date,
-    variant_to_f64, variant_to_i32, variant_to_string, OwnedVariant, DISPID_PROPERTYPUT,
+    extract_safearray_i32, extract_safearray_string, variant_bool, variant_bstr, variant_date,
+    variant_f64, variant_i32, variant_to_bool, variant_to_date, variant_to_f64, variant_to_i32,
+    variant_to_string, OwnedExcepInfo, OwnedVariant, DISPID_PROPERTYPUT,
 };
 
 /// Initialize COM for the current thread
@@ -330,6 +330,40 @@ pub struct AscomDeviceConnection {
     prog_id: String,
 }
 
+/// A failed `IDispatch::Invoke`, carrying whatever the driver itself said.
+///
+/// COM reports a refused call twice over: an HRESULT, and — when that HRESULT
+/// is `DISP_E_EXCEPTION` — an `EXCEPINFO` the driver fills with a human
+/// sentence, the component that raised it, and the underlying error code. Only
+/// the HRESULT used to reach the operator, and `DISP_E_EXCEPTION` means nothing
+/// more than "an exception occurred", so every driver-refused property write
+/// arrived as the unactionable `Exception occurred. (0x80020009)`.
+///
+/// Measured against the Pegasus NYX101 on 2026-08-09: enabling tracking on the
+/// parked mount returned exactly that HRESULT, while the same call read through
+/// a raw `IDispatch::Invoke` probe carried
+/// `bstrSource = ASCOM.PegasusAstroUnityServer`,
+/// `bstrDescription = "Object reference not set to an instance of an object."`,
+/// `scode = 0x80004003`. The app had the sentence available and threw it away.
+pub(super) struct InvokeError {
+    /// HRESULT-level failure reported by `IDispatch::Invoke` itself.
+    hresult: windows::core::Error,
+    /// The driver's own account, when it wrote one into `EXCEPINFO`.
+    driver: Option<String>,
+}
+
+impl std::fmt::Display for InvokeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Prefer the driver's sentence: when a driver bothered to explain
+        // itself, that explanation is strictly more useful than the HRESULT,
+        // and it already carries the real error code via `scode`.
+        match &self.driver {
+            Some(driver) => write!(f, "{driver}"),
+            None => write!(f, "{}", self.hresult),
+        }
+    }
+}
+
 impl AscomDeviceConnection {
     /// Create a new ASCOM device connection
     pub fn new(prog_id: &str) -> Result<Self, String> {
@@ -463,22 +497,33 @@ impl AscomDeviceConnection {
 
     /// Invoke an ASCOM IDispatch member, retrying transient driver exceptions.
     ///
+    /// The `EXCEPINFO` is owned here rather than accepted as a parameter. It
+    /// used to be optional, and every property read and write passed `None`,
+    /// so a driver that refused an operation had its explanation discarded at
+    /// the call site and the operator was shown a bare HRESULT. Making it
+    /// unconditional means no caller can drop the driver's account again.
+    ///
     /// # Safety
-    /// `params` and every pointer it contains, plus `pvarresult` and `pexcepinfo`
-    /// when present, must remain valid for all retry attempts. The caller must also
-    /// invoke this on the COM object's owning STA thread.
+    /// `params` and every pointer it contains, plus `pvarresult` when present,
+    /// must remain valid for all retry attempts. The caller must also invoke
+    /// this on the COM object's owning STA thread.
     unsafe fn invoke_with_retry(
         &self,
         dispid: i32,
         flags: DISPATCH_FLAGS,
         params: &DISPPARAMS,
         pvarresult: Option<*mut VARIANT>,
-        pexcepinfo: Option<*mut EXCEPINFO>,
-    ) -> windows::core::Result<()> {
+    ) -> Result<(), InvokeError> {
         const DISP_E_EXCEPTION: u32 = 0x8002_0009;
         const MAX_ATTEMPTS: u32 = 3;
 
         for attempt in 1..=MAX_ATTEMPTS {
+            // Fresh per attempt: a failing driver allocates new BSTRs into this
+            // structure every time, and reusing one buffer across attempts
+            // would overwrite the previous attempt's pointers without freeing
+            // them. The guard's `Drop` runs at the end of each iteration.
+            let mut excep_info = OwnedExcepInfo::new();
+
             let result = self.dispatch.Invoke(
                 dispid,
                 &GUID::zeroed(),
@@ -486,22 +531,31 @@ impl AscomDeviceConnection {
                 flags,
                 params,
                 pvarresult,
-                pexcepinfo,
+                Some(excep_info.as_mut() as *mut EXCEPINFO),
                 None,
             );
 
             match result {
+                Ok(()) => return Ok(()),
                 Err(e) if e.code().0 as u32 == DISP_E_EXCEPTION && attempt < MAX_ATTEMPTS => {
                     tracing::debug!(
-                        "ASCOM IDispatch::Invoke returned DISP_E_EXCEPTION for DISPID {}; \
+                        "ASCOM IDispatch::Invoke returned DISP_E_EXCEPTION for DISPID {} ({}); \
                          retrying (attempt {}/{})",
                         dispid,
+                        excep_info
+                            .describe()
+                            .unwrap_or_else(|| "no driver description".to_string()),
                         attempt + 1,
                         MAX_ATTEMPTS
                     );
                     std::thread::sleep(std::time::Duration::from_millis(60));
                 }
-                result => return result,
+                Err(hresult) => {
+                    return Err(InvokeError {
+                        driver: excep_info.describe(),
+                        hresult,
+                    })
+                }
             }
         }
 
@@ -537,14 +591,8 @@ impl AscomDeviceConnection {
             let mut result = OwnedVariant::empty();
             let params = DISPPARAMS::default();
 
-            self.invoke_with_retry(
-                dispid,
-                DISPATCH_PROPERTYGET,
-                &params,
-                Some(result.as_mut()),
-                None,
-            )
-            .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
+            self.invoke_with_retry(dispid, DISPATCH_PROPERTYGET, &params, Some(result.as_mut()))
+                .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
 
             // `variant_to_string` copies the BSTR into an owned `String` before
             // the `OwnedVariant` guard drops and frees the source BSTR.
@@ -564,14 +612,8 @@ impl AscomDeviceConnection {
             let mut result = OwnedVariant::empty();
             let params = DISPPARAMS::default();
 
-            self.invoke_with_retry(
-                dispid,
-                DISPATCH_PROPERTYGET,
-                &params,
-                Some(result.as_mut()),
-                None,
-            )
-            .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
+            self.invoke_with_retry(dispid, DISPATCH_PROPERTYGET, &params, Some(result.as_mut()))
+                .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
 
             // `extract_safearray_string` copies into owned `String`s before the
             // `OwnedVariant` guard drops and frees the source SAFEARRAY.
@@ -589,14 +631,8 @@ impl AscomDeviceConnection {
             let mut result = OwnedVariant::empty();
             let params = DISPPARAMS::default();
 
-            self.invoke_with_retry(
-                dispid,
-                DISPATCH_PROPERTYGET,
-                &params,
-                Some(result.as_mut()),
-                None,
-            )
-            .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
+            self.invoke_with_retry(dispid, DISPATCH_PROPERTYGET, &params, Some(result.as_mut()))
+                .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
 
             // `extract_safearray_i32` copies into an owned `Vec<i32>` before the
             // `OwnedVariant` guard drops and frees the source SAFEARRAY.
@@ -622,14 +658,8 @@ impl AscomDeviceConnection {
             };
 
             let mut result = OwnedVariant::empty();
-            self.invoke_with_retry(
-                dispid,
-                DISPATCH_PROPERTYGET,
-                &params,
-                Some(result.as_mut()),
-                None,
-            )
-            .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
+            self.invoke_with_retry(dispid, DISPATCH_PROPERTYGET, &params, Some(result.as_mut()))
+                .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
 
             // VT_R8 is a non-heap arm, but routing the indexed result through
             // `OwnedVariant` keeps cleanup uniform (and covers a driver that
@@ -654,14 +684,8 @@ impl AscomDeviceConnection {
             };
 
             let mut result = OwnedVariant::empty();
-            self.invoke_with_retry(
-                dispid,
-                DISPATCH_PROPERTYGET,
-                &params,
-                Some(result.as_mut()),
-                None,
-            )
-            .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
+            self.invoke_with_retry(dispid, DISPATCH_PROPERTYGET, &params, Some(result.as_mut()))
+                .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
 
             // `variant_to_string` copies the BSTR into an owned `String` before
             // the `OwnedVariant` guard drops and frees the source BSTR.
@@ -679,14 +703,8 @@ impl AscomDeviceConnection {
             let mut result = VARIANT::default();
             let params = DISPPARAMS::default();
 
-            self.invoke_with_retry(
-                dispid,
-                DISPATCH_PROPERTYGET,
-                &params,
-                Some(&mut result),
-                None,
-            )
-            .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
+            self.invoke_with_retry(dispid, DISPATCH_PROPERTYGET, &params, Some(&mut result))
+                .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
 
             variant_to_bool(&result).ok_or_else(|| format!("Property {} is not a bool", name))
         }
@@ -709,7 +727,7 @@ impl AscomDeviceConnection {
                 cNamedArgs: 1,
             };
 
-            self.invoke_with_retry(dispid, DISPATCH_PROPERTYPUT, &params, None, None)
+            self.invoke_with_retry(dispid, DISPATCH_PROPERTYPUT, &params, None)
                 .map_err(|e| format!("Failed to set property {}: {}", name, e))?;
 
             Ok(())
@@ -724,14 +742,8 @@ impl AscomDeviceConnection {
             let mut result = VARIANT::default();
             let params = DISPPARAMS::default();
 
-            self.invoke_with_retry(
-                dispid,
-                DISPATCH_PROPERTYGET,
-                &params,
-                Some(&mut result),
-                None,
-            )
-            .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
+            self.invoke_with_retry(dispid, DISPATCH_PROPERTYGET, &params, Some(&mut result))
+                .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
 
             variant_to_f64(&result).ok_or_else(|| format!("Property {} is not a double", name))
         }
@@ -753,7 +765,7 @@ impl AscomDeviceConnection {
                 cNamedArgs: 1,
             };
 
-            self.invoke_with_retry(dispid, DISPATCH_PROPERTYPUT, &params, None, None)
+            self.invoke_with_retry(dispid, DISPATCH_PROPERTYPUT, &params, None)
                 .map_err(|e| format!("Failed to set property {}: {}", name, e))?;
 
             Ok(())
@@ -768,14 +780,8 @@ impl AscomDeviceConnection {
             let mut result = VARIANT::default();
             let params = DISPPARAMS::default();
 
-            self.invoke_with_retry(
-                dispid,
-                DISPATCH_PROPERTYGET,
-                &params,
-                Some(&mut result),
-                None,
-            )
-            .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
+            self.invoke_with_retry(dispid, DISPATCH_PROPERTYGET, &params, Some(&mut result))
+                .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
 
             variant_to_date(&result).ok_or_else(|| format!("Property {} is not a VT_DATE", name))
         }
@@ -796,7 +802,7 @@ impl AscomDeviceConnection {
                 cNamedArgs: 1,
             };
 
-            self.invoke_with_retry(dispid, DISPATCH_PROPERTYPUT, &params, None, None)
+            self.invoke_with_retry(dispid, DISPATCH_PROPERTYPUT, &params, None)
                 .map_err(|e| format!("Failed to set property {}: {}", name, e))?;
 
             Ok(())
@@ -813,14 +819,8 @@ impl AscomDeviceConnection {
             let mut result = VARIANT::default();
             let params = DISPPARAMS::default();
 
-            self.invoke_with_retry(
-                dispid,
-                DISPATCH_PROPERTYGET,
-                &params,
-                Some(&mut result),
-                None,
-            )
-            .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
+            self.invoke_with_retry(dispid, DISPATCH_PROPERTYGET, &params, Some(&mut result))
+                .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
 
             let vt = (*result.Anonymous.Anonymous).vt;
             tracing::debug!(
@@ -849,7 +849,7 @@ impl AscomDeviceConnection {
                 cNamedArgs: 1,
             };
 
-            self.invoke_with_retry(dispid, DISPATCH_PROPERTYPUT, &params, None, None)
+            self.invoke_with_retry(dispid, DISPATCH_PROPERTYPUT, &params, None)
                 .map_err(|e| format!("Failed to set property {}: {}", name, e))?;
 
             Ok(())
@@ -858,31 +858,13 @@ impl AscomDeviceConnection {
 
     pub fn call_method(&self, name: &str) -> Result<(), String> {
         // SAFETY: DISPATCH_METHOD with no arguments — DISPPARAMS::default() is the
-        // documented zero-args shape (rgvarg null, cArgs 0). EXCEPINFO out-pointer
-        // is a stack local that outlives the call.
+        // documented zero-args shape (rgvarg null, cArgs 0).
         unsafe {
             let dispid = self.get_dispid(name)?;
             let params = DISPPARAMS::default();
 
-            // Capture exception info for better error messages
-            let mut excep_info = EXCEPINFO::default();
-
-            let result = self.invoke_with_retry(
-                dispid,
-                DISPATCH_METHOD,
-                &params,
-                None,
-                Some(&mut excep_info),
-            );
-
-            if let Err(e) = result {
-                // Check if we have exception info with a better message
-                let excep_msg = excepinfo_to_string(&excep_info);
-                if excep_msg != "Unknown ASCOM error" {
-                    return Err(format!("Failed to call method {}: {}", name, excep_msg));
-                }
-                return Err(format!("Failed to call method {}: {}", name, e));
-            }
+            self.invoke_with_retry(dispid, DISPATCH_METHOD, &params, None)
+                .map_err(|e| format!("Failed to call method {}: {}", name, e))?;
 
             Ok(())
         }
@@ -891,8 +873,8 @@ impl AscomDeviceConnection {
     pub fn call_method_2_double(&self, name: &str, arg1: f64, arg2: f64) -> Result<(), String> {
         // SAFETY: DISPATCH_METHOD with two positional args — DISPPARAMS::rgvarg points
         // into the stack array `args[2]` (whose length matches `cArgs = 2`), and there
-        // are no named args (`rgdispidNamedArgs` null, `cNamedArgs` 0). EXCEPINFO is a
-        // stack out-pointer. All pointers outlive the FFI call.
+        // are no named args (`rgdispidNamedArgs` null, `cNamedArgs` 0). All pointers
+        // outlive the FFI call.
         unsafe {
             let dispid = self.get_dispid(name)?;
 
@@ -906,25 +888,8 @@ impl AscomDeviceConnection {
                 cNamedArgs: 0,
             };
 
-            // Capture exception info for better error messages
-            let mut excep_info = EXCEPINFO::default();
-
-            let result = self.invoke_with_retry(
-                dispid,
-                DISPATCH_METHOD,
-                &params,
-                None,
-                Some(&mut excep_info),
-            );
-
-            if let Err(e) = result {
-                // Check if we have exception info with a better message
-                let excep_msg = excepinfo_to_string(&excep_info);
-                if excep_msg != "Unknown ASCOM error" {
-                    return Err(format!("Failed to call method {}: {}", name, excep_msg));
-                }
-                return Err(format!("Failed to call method {}: {}", name, e));
-            }
+            self.invoke_with_retry(dispid, DISPATCH_METHOD, &params, None)
+                .map_err(|e| format!("Failed to call method {}: {}", name, e))?;
 
             Ok(())
         }
@@ -933,7 +898,6 @@ impl AscomDeviceConnection {
     pub fn call_method_1_double(&self, name: &str, arg: f64) -> Result<(), String> {
         // SAFETY: DISPATCH_METHOD with one positional arg — DISPPARAMS::rgvarg points
         // into the 1-element stack array `args` (matching `cArgs = 1`), no named args.
-        // EXCEPINFO is a stack out-pointer that outlives the call.
         unsafe {
             let dispid = self.get_dispid(name)?;
             let mut args = [variant_f64(arg)];
@@ -945,24 +909,8 @@ impl AscomDeviceConnection {
                 cNamedArgs: 0,
             };
 
-            // Capture exception info for better error messages
-            let mut excep_info = EXCEPINFO::default();
-
-            let result = self.invoke_with_retry(
-                dispid,
-                DISPATCH_METHOD,
-                &params,
-                None,
-                Some(&mut excep_info),
-            );
-
-            if let Err(e) = result {
-                let excep_msg = excepinfo_to_string(&excep_info);
-                if excep_msg != "Unknown ASCOM error" {
-                    return Err(format!("Failed to call method {}: {}", name, excep_msg));
-                }
-                return Err(format!("Failed to call method {}: {}", name, e));
-            }
+            self.invoke_with_retry(dispid, DISPATCH_METHOD, &params, None)
+                .map_err(|e| format!("Failed to call method {}: {}", name, e))?;
 
             Ok(())
         }
@@ -971,7 +919,7 @@ impl AscomDeviceConnection {
     pub fn call_method_1_int(&self, name: &str, arg: i32) -> Result<(), String> {
         // SAFETY: DISPATCH_METHOD with one positional VT_I4 arg — same shape as
         // `call_method_1_double` but with an i32-typed VARIANT. `cArgs = 1` matches the
-        // 1-element stack array; EXCEPINFO is a stack out-pointer.
+        // 1-element stack array.
         unsafe {
             let dispid = self.get_dispid(name)?;
             let mut args = [variant_i32(arg)];
@@ -983,24 +931,8 @@ impl AscomDeviceConnection {
                 cNamedArgs: 0,
             };
 
-            // Capture exception info for better error messages
-            let mut excep_info = EXCEPINFO::default();
-
-            let result = self.invoke_with_retry(
-                dispid,
-                DISPATCH_METHOD,
-                &params,
-                None,
-                Some(&mut excep_info),
-            );
-
-            if let Err(e) = result {
-                let excep_msg = excepinfo_to_string(&excep_info);
-                if excep_msg != "Unknown ASCOM error" {
-                    return Err(format!("Failed to call method {}: {}", name, excep_msg));
-                }
-                return Err(format!("Failed to call method {}: {}", name, e));
-            }
+            self.invoke_with_retry(dispid, DISPATCH_METHOD, &params, None)
+                .map_err(|e| format!("Failed to call method {}: {}", name, e))?;
 
             Ok(())
         }
@@ -1010,9 +942,9 @@ impl AscomDeviceConnection {
     /// Used for ASCOM methods like CanMoveAxis(TelescopeAxes) -> Boolean
     pub fn call_method_1_int_return_bool(&self, name: &str, arg: i32) -> Result<bool, String> {
         // SAFETY: DISPATCH_METHOD with one VT_I4 arg and a result VARIANT — `args` is a
-        // 1-element stack array (matching `cArgs = 1`); `result_var` and `excep_info`
-        // are stack VARIANT/EXCEPINFO out-pointers. All pointers outlive the call.
-        // `variant_to_bool` reads the result under its own `vt`-guarded match.
+        // 1-element stack array (matching `cArgs = 1`); `result_var` is a stack VARIANT
+        // out-pointer. All pointers outlive the call. `variant_to_bool` reads the result
+        // under its own `vt`-guarded match.
         unsafe {
             let dispid = self.get_dispid(name)?;
             let mut args = [variant_i32(arg)];
@@ -1024,25 +956,10 @@ impl AscomDeviceConnection {
                 cNamedArgs: 0,
             };
 
-            // Capture exception info and result
-            let mut excep_info = EXCEPINFO::default();
             let mut result_var = VARIANT::default();
 
-            let result = self.invoke_with_retry(
-                dispid,
-                DISPATCH_METHOD,
-                &params,
-                Some(&mut result_var),
-                Some(&mut excep_info),
-            );
-
-            if let Err(e) = result {
-                let excep_msg = excepinfo_to_string(&excep_info);
-                if excep_msg != "Unknown ASCOM error" {
-                    return Err(format!("Failed to call method {}: {}", name, excep_msg));
-                }
-                return Err(format!("Failed to call method {}: {}", name, e));
-            }
+            self.invoke_with_retry(dispid, DISPATCH_METHOD, &params, Some(&mut result_var))
+                .map_err(|e| format!("Failed to call method {}: {}", name, e))?;
 
             // Extract boolean result
             variant_to_bool(&result_var)
@@ -1052,8 +969,8 @@ impl AscomDeviceConnection {
 
     pub fn call_method_2_int(&self, name: &str, arg1: i32, arg2: i32) -> Result<(), String> {
         // SAFETY: DISPATCH_METHOD with two VT_I4 positional args — `cArgs = 2` matches
-        // the 2-element stack array `args`; no named args. EXCEPINFO is a stack
-        // out-pointer that outlives the call.
+        // the 2-element stack array `args`; no named args. All pointers outlive the
+        // call.
         unsafe {
             let dispid = self.get_dispid(name)?;
 
@@ -1067,24 +984,8 @@ impl AscomDeviceConnection {
                 cNamedArgs: 0,
             };
 
-            // Capture exception info for better error messages
-            let mut excep_info = EXCEPINFO::default();
-
-            let result = self.invoke_with_retry(
-                dispid,
-                DISPATCH_METHOD,
-                &params,
-                None,
-                Some(&mut excep_info),
-            );
-
-            if let Err(e) = result {
-                let excep_msg = excepinfo_to_string(&excep_info);
-                if excep_msg != "Unknown ASCOM error" {
-                    return Err(format!("Failed to call method {}: {}", name, excep_msg));
-                }
-                return Err(format!("Failed to call method {}: {}", name, e));
-            }
+            self.invoke_with_retry(dispid, DISPATCH_METHOD, &params, None)
+                .map_err(|e| format!("Failed to call method {}: {}", name, e))?;
 
             Ok(())
         }
@@ -1097,8 +998,8 @@ impl AscomDeviceConnection {
         arg2: bool,
     ) -> Result<(), String> {
         // SAFETY: DISPATCH_METHOD with two positional args (VT_BOOL then VT_R8) —
-        // `cArgs = 2` matches the 2-element stack array `args`; no named args; EXCEPINFO
-        // is a stack out-pointer that outlives the call.
+        // `cArgs = 2` matches the 2-element stack array `args`; no named args. All
+        // pointers outlive the call.
         unsafe {
             let dispid = self.get_dispid(name)?;
 
@@ -1112,24 +1013,8 @@ impl AscomDeviceConnection {
                 cNamedArgs: 0,
             };
 
-            // Capture exception info for better error messages
-            let mut excep_info = EXCEPINFO::default();
-
-            let result = self.invoke_with_retry(
-                dispid,
-                DISPATCH_METHOD,
-                &params,
-                None,
-                Some(&mut excep_info),
-            );
-
-            if let Err(e) = result {
-                let excep_msg = excepinfo_to_string(&excep_info);
-                if excep_msg != "Unknown ASCOM error" {
-                    return Err(format!("Failed to call method {}: {}", name, excep_msg));
-                }
-                return Err(format!("Failed to call method {}: {}", name, e));
-            }
+            self.invoke_with_retry(dispid, DISPATCH_METHOD, &params, None)
+                .map_err(|e| format!("Failed to call method {}: {}", name, e))?;
 
             Ok(())
         }
@@ -1138,8 +1023,8 @@ impl AscomDeviceConnection {
     /// Call a method with an int and a double argument (e.g., MoveAxis)
     pub fn call_method_int_double(&self, name: &str, arg1: i32, arg2: f64) -> Result<(), String> {
         // SAFETY: DISPATCH_METHOD with two positional args (VT_R8 then VT_I4) — `cArgs
-        // = 2` matches the 2-element stack array `args`; no named args; EXCEPINFO is a
-        // stack out-pointer that outlives the call.
+        // = 2` matches the 2-element stack array `args`; no named args. All pointers
+        // outlive the call.
         unsafe {
             let dispid = self.get_dispid(name)?;
 
@@ -1153,24 +1038,8 @@ impl AscomDeviceConnection {
                 cNamedArgs: 0,
             };
 
-            // Capture exception info for better error messages
-            let mut excep_info = EXCEPINFO::default();
-
-            let result = self.invoke_with_retry(
-                dispid,
-                DISPATCH_METHOD,
-                &params,
-                None,
-                Some(&mut excep_info),
-            );
-
-            if let Err(e) = result {
-                let excep_msg = excepinfo_to_string(&excep_info);
-                if excep_msg != "Unknown ASCOM error" {
-                    return Err(format!("Failed to call method {}: {}", name, excep_msg));
-                }
-                return Err(format!("Failed to call method {}: {}", name, e));
-            }
+            self.invoke_with_retry(dispid, DISPATCH_METHOD, &params, None)
+                .map_err(|e| format!("Failed to call method {}: {}", name, e))?;
 
             Ok(())
         }
@@ -1180,7 +1049,7 @@ impl AscomDeviceConnection {
     pub fn call_method_0(&self, name: &str) -> Result<(), String> {
         // SAFETY: DISPATCH_METHOD with zero args — DISPPARAMS uses null `rgvarg` and
         // null `rgdispidNamedArgs` paired with `cArgs = 0`, `cNamedArgs = 0`, which is
-        // the documented zero-arg shape. EXCEPINFO is a stack out-pointer.
+        // the documented zero-arg shape.
         unsafe {
             let dispid = self.get_dispid(name)?;
 
@@ -1191,24 +1060,8 @@ impl AscomDeviceConnection {
                 cNamedArgs: 0,
             };
 
-            // Capture exception info for better error messages
-            let mut excep_info = EXCEPINFO::default();
-
-            let result = self.invoke_with_retry(
-                dispid,
-                DISPATCH_METHOD,
-                &params,
-                None,
-                Some(&mut excep_info),
-            );
-
-            if let Err(e) = result {
-                let excep_msg = excepinfo_to_string(&excep_info);
-                if excep_msg != "Unknown ASCOM error" {
-                    return Err(format!("Failed to call method {}: {}", name, excep_msg));
-                }
-                return Err(format!("Failed to call method {}: {}", name, e));
-            }
+            self.invoke_with_retry(dispid, DISPATCH_METHOD, &params, None)
+                .map_err(|e| format!("Failed to call method {}: {}", name, e))?;
 
             Ok(())
         }
@@ -1436,5 +1289,299 @@ impl<F: FnOnce()> Drop for AscomCleanupGuard<F> {
         if let Some(cleanup) = self.cleanup.take() {
             cleanup();
         }
+    }
+}
+
+/// Regression cover for the driver's own explanation surviving a failed
+/// `IDispatch::Invoke`.
+///
+/// Reproduced on the live rig 2026-08-09. Enabling tracking on the parked
+/// Pegasus NYX101 through the appliance produced:
+///
+/// ```text
+/// POST /api/mount/tracking {"enabled":true}
+///  -> "Failed to set ASCOM mount ascom:ASCOM.PegasusAstroNYX101.Telescope
+///      tracking=true: SDK error: Failed to set property Tracking:
+///      Exception occurred. (0x80020009)"
+/// ```
+///
+/// while a raw `IDispatch::Invoke` probe issued against the same driver, with
+/// an `EXCEPINFO` supplied, read back:
+///
+/// ```text
+/// hr=0x80020009 | scode=0x80004003
+///   bstrSource      = ASCOM.PegasusAstroUnityServer
+///   bstrDescription = Object reference not set to an instance of an object.
+/// ```
+///
+/// The sentence existed; the app declined to ask for it. These tests stand a
+/// Rust `IDispatch` in for the driver so the whole path — the public
+/// property accessors, `invoke_with_retry`, `OwnedExcepInfo::describe`, and
+/// the `String` a caller finally shows an operator — runs for real, with no
+/// COM apartment and no hardware.
+#[cfg(test)]
+mod excepinfo_recovery_tests {
+    use super::*;
+    use std::mem::ManuallyDrop;
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::Arc;
+    use windows::core::{implement, Error, BSTR, HRESULT};
+    use windows::Win32::System::Com::{IDispatch_Impl, ITypeInfo};
+
+    const DISP_E_EXCEPTION: HRESULT = HRESULT(0x8002_0009_u32 as i32);
+    const E_NOTIMPL: HRESULT = HRESULT(0x8000_4001_u32 as i32);
+    /// The `scode` the NYX101 wrote alongside its description.
+    const DRIVER_SCODE: i32 = 0x8000_4003_u32 as i32;
+    /// ASCOM's `NotImplementedException` base code, used by the read case.
+    const ASCOM_NOT_IMPLEMENTED: i32 = 0x8004_0400_u32 as i32;
+
+    /// What the stand-in driver writes into `EXCEPINFO` when it refuses.
+    enum Excuse {
+        /// A driver that explains itself, as ASCOM intends.
+        Spoken {
+            source: &'static str,
+            description: &'static str,
+            scode: i32,
+        },
+        /// A driver that raises `DISP_E_EXCEPTION` and writes nothing — the
+        /// case where a bare HRESULT genuinely is all there is.
+        Silent,
+    }
+
+    /// An `IDispatch` that refuses every call the way the parked NYX101 did.
+    #[implement(IDispatch)]
+    struct RefusingDriver {
+        excuse: Excuse,
+        /// Shared with the test so it can count `Invoke` attempts.
+        attempts: Arc<AtomicU32>,
+        /// When set, each description names its attempt number, so a test can
+        /// prove the reported message came from the LAST attempt.
+        number_the_attempts: bool,
+    }
+
+    impl IDispatch_Impl for RefusingDriver {
+        fn GetTypeInfoCount(&self) -> windows::core::Result<u32> {
+            Ok(0)
+        }
+
+        fn GetTypeInfo(&self, _itinfo: u32, _lcid: u32) -> windows::core::Result<ITypeInfo> {
+            Err(Error::from(E_NOTIMPL))
+        }
+
+        fn GetIDsOfNames(
+            &self,
+            _riid: *const GUID,
+            _rgsznames: *const PCWSTR,
+            cnames: u32,
+            _lcid: u32,
+            rgdispid: *mut i32,
+        ) -> windows::core::Result<()> {
+            // Any DISPID will do — this stand-in refuses every member.
+            for i in 0..cnames as isize {
+                // SAFETY: `get_dispid` passes a `*mut i32` buffer of at least
+                // `cnames` elements (it is always exactly 1 here).
+                unsafe { *rgdispid.offset(i) = 0x2A };
+            }
+            Ok(())
+        }
+
+        fn Invoke(
+            &self,
+            _dispidmember: i32,
+            _riid: *const GUID,
+            _lcid: u32,
+            _wflags: DISPATCH_FLAGS,
+            _pdispparams: *const DISPPARAMS,
+            _pvarresult: *mut VARIANT,
+            pexcepinfo: *mut EXCEPINFO,
+            _puargerr: *mut u32,
+        ) -> windows::core::Result<()> {
+            let attempt = self.attempts.fetch_add(1, Ordering::SeqCst) + 1;
+
+            if let (
+                Excuse::Spoken {
+                    source,
+                    description,
+                    scode,
+                },
+                false,
+            ) = (&self.excuse, pexcepinfo.is_null())
+            {
+                let description = if self.number_the_attempts {
+                    format!("{description} (attempt {attempt})")
+                } else {
+                    (*description).to_string()
+                };
+
+                // SAFETY: `pexcepinfo` is the caller's `EXCEPINFO` out-param,
+                // checked non-null just above. Writing freshly allocated
+                // `BSTR`s is precisely what a real driver does: ownership
+                // transfers to the caller, which is the transfer
+                // `OwnedExcepInfo` exists to account for. The fields being
+                // overwritten are the nulls left by `EXCEPINFO::default()`.
+                unsafe {
+                    (*pexcepinfo).bstrSource = ManuallyDrop::new(BSTR::from(*source));
+                    (*pexcepinfo).bstrDescription =
+                        ManuallyDrop::new(BSTR::from(description.as_str()));
+                    (*pexcepinfo).scode = *scode;
+                }
+            }
+
+            Err(Error::from(DISP_E_EXCEPTION))
+        }
+    }
+
+    /// Build a connection wrapped around the stand-in driver.
+    ///
+    /// `connected: false` keeps `Drop` quiet — it only warns about a
+    /// still-connected handle and never calls into COM.
+    fn connection(
+        excuse: Excuse,
+        number_the_attempts: bool,
+    ) -> (AscomDeviceConnection, Arc<AtomicU32>) {
+        let attempts = Arc::new(AtomicU32::new(0));
+        let dispatch: IDispatch = RefusingDriver {
+            excuse,
+            attempts: Arc::clone(&attempts),
+            number_the_attempts,
+        }
+        .into();
+
+        let device = AscomDeviceConnection {
+            dispatch,
+            connected: false,
+            health: HealthMonitor::default(),
+            prog_id: "ASCOM.PegasusAstroNYX101.Telescope".to_string(),
+        };
+
+        (device, attempts)
+    }
+
+    fn parked_mount() -> Excuse {
+        Excuse::Spoken {
+            source: "ASCOM.PegasusAstroUnityServer",
+            description: "Cannot set Tracking while the mount is parked",
+            scode: DRIVER_SCODE,
+        }
+    }
+
+    #[test]
+    fn property_write_surfaces_the_drivers_explanation() {
+        let (device, _) = connection(parked_mount(), false);
+
+        let err = device.set_bool_property("Tracking", true).unwrap_err();
+
+        assert!(
+            err.contains("Cannot set Tracking while the mount is parked"),
+            "the driver's sentence was dropped: {err}"
+        );
+        assert!(
+            err.contains("ASCOM.PegasusAstroUnityServer"),
+            "the component that raised it was dropped: {err}"
+        );
+        assert!(
+            err.contains("0x80004003"),
+            "the driver's own error code was dropped: {err}"
+        );
+        // "Exception occurred. (0x80020009)" is the text the operator used to
+        // get INSTEAD of everything above. It must not be the whole message.
+        assert!(
+            !err.contains("Exception occurred"),
+            "fell back to the bare HRESULT: {err}"
+        );
+    }
+
+    #[test]
+    fn every_typed_property_write_surfaces_it_not_just_bool() {
+        // Each setter passed its own `None`, so each lost the description
+        // independently. These four are the writes a night depends on:
+        // tracking, gain/offset, the cooling setpoint, and the clock.
+        let (device, _) = connection(parked_mount(), false);
+
+        for (label, err) in [
+            (
+                "bool",
+                device.set_bool_property("Tracking", true).unwrap_err(),
+            ),
+            ("int", device.set_int_property("Gain", 120).unwrap_err()),
+            (
+                "double",
+                device
+                    .set_double_property("SetCCDTemperature", -10.0)
+                    .unwrap_err(),
+            ),
+            (
+                "date",
+                device.set_date_property("UTCDate", 45_000.0).unwrap_err(),
+            ),
+        ] {
+            assert!(
+                err.contains("Cannot set Tracking while the mount is parked"),
+                "{label} setter lost the driver's description: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn property_reads_surface_it_too() {
+        // Reads passed the same `None`. A camera that does not implement
+        // `Gain` says so in the EXCEPINFO; that is the difference between
+        // "your camera has no gain control" and a hex code.
+        let (device, _) = connection(
+            Excuse::Spoken {
+                source: "ASCOM.ASICamera2",
+                description: "Property Gain is not implemented by this camera",
+                scode: ASCOM_NOT_IMPLEMENTED,
+            },
+            false,
+        );
+
+        let err = device.get_int_property("Gain").unwrap_err();
+
+        assert!(
+            err.contains("Property Gain is not implemented by this camera"),
+            "the getter lost the driver's description: {err}"
+        );
+        assert!(err.contains("ASCOM.ASICamera2"), "{err}");
+    }
+
+    #[test]
+    fn a_silent_driver_still_reports_the_hresult() {
+        // Not every driver fills in an EXCEPINFO. When none is offered the
+        // operator must still get the HRESULT, not an empty tail.
+        let (device, attempts) = connection(Excuse::Silent, false);
+
+        let err = device.set_bool_property("Tracking", true).unwrap_err();
+
+        assert!(
+            err.contains("0x80020009"),
+            "expected the raw HRESULT when the driver said nothing: {err}"
+        );
+        assert_eq!(
+            attempts.load(Ordering::SeqCst),
+            3,
+            "DISP_E_EXCEPTION is retried three times"
+        );
+    }
+
+    #[test]
+    fn the_reported_description_is_the_final_attempts() {
+        // `invoke_with_retry` retries DISP_E_EXCEPTION, and each attempt has
+        // the driver allocate a fresh pair of BSTRs. Hoisting one EXCEPINFO
+        // out of the loop would leak the earlier attempts' strings and risk
+        // reporting a stale sentence; a per-attempt guard cannot.
+        let (device, attempts) = connection(parked_mount(), true);
+
+        let err = device.set_bool_property("Tracking", true).unwrap_err();
+
+        assert_eq!(attempts.load(Ordering::SeqCst), 3);
+        assert!(
+            err.contains("attempt 3"),
+            "expected the final attempt's description: {err}"
+        );
+        assert!(
+            !err.contains("attempt 1"),
+            "a stale description leaked into the message: {err}"
+        );
     }
 }

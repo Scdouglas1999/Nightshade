@@ -146,6 +146,24 @@ pub trait NativeDevice: Send + Sync + Debug {
     /// Get the vendor name
     fn vendor(&self) -> crate::NativeVendor;
 
+    /// Hardware serial number, when the vendor SDK exposes one for THIS unit.
+    ///
+    /// This is the only thing a vendor SDK offers that survives a replug: every
+    /// `native:{vendor}:{n}` id is an enumeration index, so `n` re-binds to a
+    /// different physical device whenever USB re-orders. A serial is what lets
+    /// the app notice that.
+    ///
+    /// Defaults to `None`, and returning `None` is a legitimate answer — plenty
+    /// of hardware genuinely has no readable serial (the ASI1600MM-Cool on the
+    /// reference rig answers `ASI_ERROR_GENERAL_ERROR` to `ASIGetSerialNumber`
+    /// while the ASI178MM beside it returns one). Callers must therefore treat
+    /// a serial as a bonus discriminator and fall back to the model/geometry
+    /// fingerprint. Never synthesise a stand-in value here: a fabricated serial
+    /// is worse than an absent one, because identity checks trust it.
+    fn serial_number(&self) -> Option<String> {
+        None
+    }
+
     /// Check if the device is connected
     fn is_connected(&self) -> bool;
 
@@ -180,8 +198,19 @@ pub trait NativeCamera: NativeDevice {
     /// Download the image data from the camera
     async fn download_image(&mut self) -> Result<ImageData, NativeError>;
 
-    /// Set cooler state and target temperature
-    async fn set_cooler(&mut self, enabled: bool, target_temp: f64) -> Result<(), NativeError>;
+    /// Set cooler state and, optionally, the target temperature.
+    ///
+    /// `target_temp == None` means *the caller did not name a setpoint* —
+    /// implementations must leave the driver's existing setpoint alone rather
+    /// than substituting one. Turning a cooler off needs no setpoint at all,
+    /// and inventing one (Nightshade used to substitute -10 C two layers up)
+    /// both pushes a temperature the operator never asked for and fails
+    /// outright on cameras that reject a set-temperature write.
+    async fn set_cooler(
+        &mut self,
+        enabled: bool,
+        target_temp: Option<f64>,
+    ) -> Result<(), NativeError>;
 
     /// Get current sensor temperature
     async fn get_temperature(&self) -> Result<f64, NativeError>;

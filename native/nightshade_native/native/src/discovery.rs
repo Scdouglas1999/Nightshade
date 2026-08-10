@@ -117,12 +117,18 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
 
     // Discover ZWO devices
     tracing::debug!("Discovering ZWO cameras...");
-    // ZWO SDK doesn't expose serial numbers, so we use discovery index for disambiguation
+    // The ASI SDK DOES expose a serial (`ASIGetSerialNumber`, v1.15+), but only
+    // for an OPEN camera, and opening every camera during a discovery scan
+    // would fight with any other application holding one. So discovery stays
+    // index-keyed and the serial is read at connect instead — see
+    // `ZwoCamera::read_serial_number_locked` and the post-connect identity
+    // check in `bridge::device_manager::identity`. The index is a position, not
+    // an identity: it re-orders across a replug.
     match crate::vendor::zwo::discover_devices().await {
         Ok(zwo_devices) => {
             tracing::debug!("Found {} ZWO cameras", zwo_devices.len());
             devices.extend(zwo_devices.into_iter().map(|info| {
-                // ZWO doesn't have serial numbers, use index for disambiguation
+                // Index-based disambiguation only; the real serial arrives at connect.
                 let display_name = NativeDeviceInfo::generate_display_name(
                     &info.name,
                     None,

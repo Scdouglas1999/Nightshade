@@ -2393,7 +2393,11 @@ impl NativeCamera for GPhoto2Camera {
         self.decode_raw_to_image_data(&raw_bytes)
     }
 
-    async fn set_cooler(&mut self, _enabled: bool, _target_temp: f64) -> Result<(), NativeError> {
+    async fn set_cooler(
+        &mut self,
+        _enabled: bool,
+        _target_temp: Option<f64>,
+    ) -> Result<(), NativeError> {
         Err(NativeError::NotSupported)
     }
 

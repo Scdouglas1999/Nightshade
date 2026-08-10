@@ -1972,7 +1972,11 @@ impl NativeCamera for TouptekCamera {
         Ok(self.state != CameraState::Exposing)
     }
 
-    async fn set_cooler(&mut self, enabled: bool, target_temp: f64) -> Result<(), NativeError> {
+    async fn set_cooler(
+        &mut self,
+        enabled: bool,
+        target_temp: Option<f64>,
+    ) -> Result<(), NativeError> {
         if !self.connected {
             return Err(NativeError::NotConnected);
         }
@@ -1980,6 +1984,10 @@ impl NativeCamera for TouptekCamera {
         if !self.capabilities.can_cool {
             return Err(NativeError::NotSupported);
         }
+
+        // Only while cooling, and only when the caller named a setpoint:
+        // switching the TEC off needs no target temperature.
+        let target_temp = target_temp.filter(|_| enabled);
 
         let brand = self.brand.clone();
 
@@ -2015,18 +2023,18 @@ impl NativeCamera for TouptekCamera {
             // i16's range [-32768, 32767] with plenty of room. f64 -> i16 saturating
             // truncation is well-defined for finite values; NaN saturates to 0 which the
             // SDK rejects.
-            if enabled {
-                let temp = (target_temp * 10.0) as i16;
+            if let Some(target) = target_temp {
+                let temp = (target * 10.0) as i16;
                 // SAFETY: touptek_mutex held; `handle` valid; Ogmacam_put_Temperature takes (handle, i16 in 0.1°C units) POD per the SDK header. Range clamping is the SDK's responsibility.
                 let result = unsafe { (sdk.put_temperature)(handle, temp) };
                 if result < 0 {
                     tracing::error!(
                         "Touptek put_Temperature() failed for camera '{}'. Target: {:.1}°C, error code: {}",
-                        name, target_temp, result
+                        name, target, result
                     );
                     return Err(NativeError::SdkError(format!(
                         "Failed to set cooler temperature to {:.1}°C on Touptek camera '{}'. SDK error: {}",
-                        target_temp, name, result
+                        target, name, result
                     )));
                 }
             }
@@ -2034,7 +2042,9 @@ impl NativeCamera for TouptekCamera {
         })?;
 
         self.cooler_on = enabled;
-        self.target_temp = target_temp;
+        if let Some(target) = target_temp {
+            self.target_temp = target;
+        }
         Ok(())
     }
 

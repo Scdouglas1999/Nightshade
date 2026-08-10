@@ -1381,7 +1381,11 @@ impl NativeCamera for SvbonyCamera {
         })
     }
 
-    async fn set_cooler(&mut self, enabled: bool, target_temp: f64) -> Result<(), NativeError> {
+    async fn set_cooler(
+        &mut self,
+        enabled: bool,
+        target_temp: Option<f64>,
+    ) -> Result<(), NativeError> {
         if !self.connected {
             return Err(NativeError::NotConnected);
         }
@@ -1392,20 +1396,19 @@ impl NativeCamera for SvbonyCamera {
         // Use async mutex-protected methods
         self.set_control_value_async(SvbControlType::CoolerEnable, if enabled { 1 } else { 0 })
             .await?;
-        if enabled {
+        // Only when the caller named a setpoint, and only while cooling:
+        // switching off needs no target temperature.
+        if let Some(target) = target_temp.filter(|_| enabled) {
             // SVBony uses temperature * 10.
-            // Why: target_temp is f64 Celsius typically in [-50.0, 50.0]; multiplied by 10
+            // Why: target is f64 Celsius typically in [-50.0, 50.0]; multiplied by 10
             // it fits trivially in i64. f64 -> i64 saturating cast is well-defined for
             // finite values in this range; NaN sentinel would be clamped to 0.
-            self.set_control_value_async(
-                SvbControlType::TargetTemperature,
-                (target_temp * 10.0) as i64,
-            )
-            .await?;
+            self.set_control_value_async(SvbControlType::TargetTemperature, (target * 10.0) as i64)
+                .await?;
+            self.target_temp = target;
         }
 
         self.cooler_on = enabled;
-        self.target_temp = target_temp;
         Ok(())
     }
 

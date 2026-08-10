@@ -1529,7 +1529,11 @@ impl NativeCamera for AtikCamera {
         })
     }
 
-    async fn set_cooler(&mut self, enabled: bool, target_temp: f64) -> Result<(), NativeError> {
+    async fn set_cooler(
+        &mut self,
+        enabled: bool,
+        target_temp: Option<f64>,
+    ) -> Result<(), NativeError> {
         if !self.connected {
             return Err(NativeError::NotConnected);
         }
@@ -1537,12 +1541,22 @@ impl NativeCamera for AtikCamera {
             return Err(NativeError::NotSupported);
         }
 
-        if enabled {
+        // ArtemisSetCooling *is* the enable on this SDK, so cooling needs a
+        // setpoint; when the caller names none we reuse the one this driver
+        // already holds rather than inventing a temperature. Switching off
+        // goes through ArtemisCoolerWarmUp and needs no setpoint at all.
+        let setpoint_c = if enabled {
+            Some(target_temp.unwrap_or(self.target_temp))
+        } else {
+            None
+        };
+
+        if let Some(target) = setpoint_c {
             let quirk_lookup_id = format!("native:atik:{}", self.name);
             if let Some((min_temp, max_temp)) = crate::quirks::get_cooler_range(&quirk_lookup_id) {
-                if target_temp < min_temp || target_temp > max_temp {
+                if target < min_temp || target > max_temp {
                     return Err(NativeError::InvalidParameter(format!(
-                        "Atik cooler target {target_temp}C is outside the supported range {min_temp}C..={max_temp}C for {}",
+                        "Atik cooler target {target}C is outside the supported range {min_temp}C..={max_temp}C for {}",
                         self.name
                     )));
                 }
@@ -1556,9 +1570,9 @@ impl NativeCamera for AtikCamera {
 
         let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
-        if enabled {
+        if let Some(target) = setpoint_c {
             // Temperature in hundredths of degrees
-            let setpoint = (target_temp * 100.0) as c_int;
+            let setpoint = (target * 100.0) as c_int;
             // SAFETY: atik_mutex held; self.connected and can_cool checked at entry; handle is
             // valid; setpoint is pass-by-value c_int (hundredths of degrees per AtikCameras.h).
             let result = unsafe { (sdk.set_cooling)(handle, setpoint) };
@@ -1575,7 +1589,9 @@ impl NativeCamera for AtikCamera {
         }
 
         self.cooler_on = enabled;
-        self.target_temp = target_temp;
+        if let Some(target) = setpoint_c {
+            self.target_temp = target;
+        }
         Ok(())
     }
 
