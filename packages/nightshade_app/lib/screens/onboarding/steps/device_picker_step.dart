@@ -389,64 +389,93 @@ class _DeviceTileState extends State<_DeviceTile> {
     final device = widget.device;
     final isSelected = widget.isSelected;
 
-    return InkWell(
+    // One accessible node for the row, declared as what it is: a radio in a
+    // mutually-exclusive group.
+    //
+    // Read off the live accessibility tree during the GUI drive 2026-08-09, the
+    // camera step's only device came out as:
+    //
+    //   panel: Simulated Camera
+    //   Sim [DISABLED]
+    //
+    // — focusable, no selected state, announced as not enabled, on a row that
+    // selects perfectly well with a click. A bare `InkWell` publishes a
+    // tappable, focusable node that never sets `isEnabled`, and nothing in the
+    // subtree carries the selection (it is drawn as an icon swap, which has no
+    // semantics at all). So a screen-reader user is told the row is dead and is
+    // never told which device is chosen.
+    //
+    // This tile is shared by the camera, mount, focuser, filter-wheel and guider
+    // steps, so the same two untruths were on five of the thirteen onboarding
+    // steps.
+    return Semantics(
+      container: true,
+      inMutuallyExclusiveGroup: true,
+      checked: isSelected,
+      selected: isSelected,
+      enabled: true,
+      label: '${device.displayName}. '
+          '${device.availableBackends.keys.map((b) => b.shortLabel).join(' / ')}',
       onTap: widget.onSelected,
-      onFocusChange: (value) {
-        if (_focused == value) return;
-        setState(() => _focused = value);
-      },
-      borderRadius: NightshadeTokens.borderRadiusLg,
-      child: Container(
-        foregroundDecoration: _focused
-            ? BoxDecoration(
-                borderRadius: NightshadeTokens.borderRadiusLg,
-                border: Border.all(color: colors.primary, width: 2),
-              )
-            : null,
-        padding: const EdgeInsets.all(12),
-        decoration: isSelected
-            ? NightshadeDecorations.selectedSurface(
-                colors.primary,
-                borderRadius: NightshadeTokens.borderRadiusLg,
-                fillAlpha: 0.08,
-              )
-            : BoxDecoration(
-                color: colors.surface,
-                borderRadius: NightshadeTokens.borderRadiusLg,
-                border: Border.all(color: colors.border),
+      child: InkWell(
+        onTap: widget.onSelected,
+        onFocusChange: (value) {
+          if (_focused == value) return;
+          setState(() => _focused = value);
+        },
+        borderRadius: NightshadeTokens.borderRadiusLg,
+        child: Container(
+          foregroundDecoration: _focused
+              ? BoxDecoration(
+                  borderRadius: NightshadeTokens.borderRadiusLg,
+                  border: Border.all(color: colors.primary, width: 2),
+                )
+              : null,
+          padding: const EdgeInsets.all(12),
+          decoration: isSelected
+              ? NightshadeDecorations.selectedSurface(
+                  colors.primary,
+                  borderRadius: NightshadeTokens.borderRadiusLg,
+                  fillAlpha: 0.08,
+                )
+              : BoxDecoration(
+                  color: colors.surface,
+                  borderRadius: NightshadeTokens.borderRadiusLg,
+                  border: Border.all(color: colors.border),
+                ),
+          child: Row(
+            children: [
+              Icon(
+                isSelected ? LucideIcons.checkCircle2 : NightshadeIcons.circle,
+                color: isSelected ? colors.primary : colors.textMuted,
+                size: 18,
               ),
-        child: Row(
-          children: [
-            Icon(
-              isSelected ? LucideIcons.checkCircle2 : NightshadeIcons.circle,
-              color: isSelected ? colors.primary : colors.textMuted,
-              size: 18,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    device.displayName,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      color: colors.textPrimary,
-                      fontWeight: FontWeight.w600,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      device.displayName,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: colors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    device.availableBackends.keys
-                        .map((b) => b.shortLabel)
-                        .join(' / '),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colors.textSecondary,
+                    const SizedBox(height: 2),
+                    Text(
+                      device.availableBackends.keys
+                          .map((b) => b.shortLabel)
+                          .join(' / '),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colors.textSecondary,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

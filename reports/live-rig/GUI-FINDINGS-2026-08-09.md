@@ -55,3 +55,33 @@ keyboard behaviour are untouched.
 **Worth noting for the rest of the app:** any bare `InkWell` used as a control has this same
 signature. This fix addresses the surface that was reproduced; a sweep for the pattern is warranted.
 
+## G3 — fifteen live controls on one screen announce themselves as disabled *(systemic; root cause fixed)*
+
+Counting `DISABLED` flags on the Sequencer screen's accessibility tree gave **15**, including every
+one of the primary tabs:
+
+```
+Builder [DISABLED]      Templates [DISABLED]     Sequences [DISABLED]    History [DISABLED]
+Tab 1 of 3 [DISABLED]   Tab 2 of 3 [DISABLED]    Tab 3 of 3 [DISABLED]
+panel: Target [DISABLED]  panel: Imaging [DISABLED]  panel: Science [DISABLED]   ...
+```
+
+All of them work — I navigated the app by clicking them. The harness only prints `DISABLED` for a
+node that is interactive **and** lacks `enabled`/`sensitive`, so this is not a labelling nit: a
+screen reader is being told the app's main navigation is dead.
+
+**Root cause, and it is one line.** `Semantics(button: true, …)` publishes
+`SemanticsFlag.isEnabled` **only when `enabled` is passed**. `button: true` on its own leaves the
+flag unset, and AT-SPI reads an interactive node with no enabled state as insensitive.
+`AdaptiveTabBar` — used for the tab strips across the app — declared its tabs and its scroll
+affordances exactly that way.
+
+Fixed in `adaptive_tab_bar.dart` (both the tab button and the edge affordance), then swept the rest
+of the design system and app for the same shape: five more sites in `error_dialog.dart`,
+`tutorial_overlay/tooltip.dart` and `atlas_coverage_overlay.dart`. A regex over every
+`Semantics(...)` block containing `button: true` and no `enabled:` now returns zero.
+
+G1 and G2 are the same *symptom* from a different cause — a bare `InkWell` publishing a focusable
+node with no enabled flag — which is why the driver rows and device rows needed their own container
+semantics rather than this one-word fix.
+

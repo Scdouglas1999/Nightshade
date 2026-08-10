@@ -79,6 +79,10 @@ class _ErrorDialogState extends State<ErrorDialog> {
         actions: [
           Semantics(
             button: true,
+            // Live 2026-08-09: `button: true` without `enabled` publishes no
+            // isEnabled flag, and AT-SPI reads that as disabled — the same
+            // false signal the sequencer tabs carried.
+            enabled: true,
             label: 'Close error dialog',
             child: NightshadeButton(
               label: 'Close',
@@ -90,6 +94,10 @@ class _ErrorDialogState extends State<ErrorDialog> {
           if (widget.onRetry != null)
             Semantics(
               button: true,
+              // Live 2026-08-09: `button: true` without `enabled` publishes no
+              // isEnabled flag, and AT-SPI reads that as disabled — the same
+              // false signal the sequencer tabs carried.
+              enabled: true,
               label: 'Retry the failed operation',
               child: NightshadeButton(
                 label: 'Retry',
@@ -123,6 +131,10 @@ class _ErrorDialogState extends State<ErrorDialog> {
               const SizedBox(height: NightshadeTokens.spaceLg),
               Semantics(
                 button: true,
+                // Live 2026-08-09: `button: true` without `enabled` publishes no
+                // isEnabled flag, and AT-SPI reads that as disabled — the same
+                // false signal the sequencer tabs carried.
+                enabled: true,
                 label: _showDetails
                     ? 'Hide technical details'
                     : 'Show technical details',

@@ -301,6 +301,12 @@ class _EdgeAffordance extends StatelessWidget {
       // the affordance is rendered only when there IS more to scroll to.
       child: Semantics(
         button: true,
+        // `Semantics` only publishes SemanticsFlag.isEnabled when `enabled` is
+        // given. A button declared without it carries no enabled flag at all,
+        // and AT-SPI reads the absence as "not sensitive" — so assistive tech
+        // announces a live control as disabled. See the note on the tab button
+        // below, where this was measured.
+        enabled: true,
         label: isLeading ? 'Scroll tabs left' : 'Scroll tabs right',
         child: Tooltip(
           message: 'More tabs',
@@ -428,6 +434,17 @@ class _AdaptiveTabButtonState extends State<_AdaptiveTabButton> {
 
     return Semantics(
       button: true,
+      // Measured on the running app during the GUI drive 2026-08-09: the
+      // sequencer's four tabs came off the accessibility tree as
+      // `Builder [DISABLED]`, `Templates [DISABLED]`, `Sequences [DISABLED]`,
+      // `History [DISABLED]` — every one of them live and clickable. Fifteen
+      // controls on that one screen carried the same false flag.
+      //
+      // `Semantics` publishes SemanticsFlag.isEnabled ONLY when `enabled` is
+      // passed; `button: true` alone leaves the flag unset, and AT-SPI treats
+      // an interactive node with no enabled/sensitive state as disabled. The
+      // `onTap` is non-nullable on this button, so the control is always live.
+      enabled: true,
       selected: widget.isSelected,
       label: tab.semanticLabel ?? tab.label,
       child: MouseRegion(

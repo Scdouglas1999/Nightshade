@@ -405,6 +405,10 @@ class _TooltipWidget extends StatelessWidget {
                     // Skip button
                     Semantics(
                       button: true,
+                      // Live 2026-08-09: `button: true` without `enabled` publishes no
+                      // isEnabled flag, and AT-SPI reads that as disabled — the same
+                      // false signal the sequencer tabs carried.
+                      enabled: true,
                       label: 'Skip tour',
                       hint: 'Press Escape to skip',
                       child: NightshadeButton(
@@ -422,6 +426,10 @@ class _TooltipWidget extends StatelessWidget {
                     if (!isFirst)
                       Semantics(
                         button: true,
+                        // Live 2026-08-09: `button: true` without `enabled` publishes no
+                        // isEnabled flag, and AT-SPI reads that as disabled — the same
+                        // false signal the sequencer tabs carried.
+                        enabled: true,
                         label: 'Previous step',
                         hint: 'Press Backspace or Left Arrow',
                         child: NightshadeButton(
@@ -439,6 +447,10 @@ class _TooltipWidget extends StatelessWidget {
                     // Next/Done button
                     Semantics(
                       button: true,
+                      // Live 2026-08-09: `button: true` without `enabled` publishes no
+                      // isEnabled flag, and AT-SPI reads that as disabled — the same
+                      // false signal the sequencer tabs carried.
+                      enabled: true,
                       label: isLast ? 'Finish tutorial' : 'Next step',
                       hint: 'Press Enter, Space, or Right Arrow',
                       child: NightshadeButton(
