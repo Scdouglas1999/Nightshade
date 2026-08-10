@@ -1379,3 +1379,61 @@ Note for whoever picks this up: `imaging/src/platesolve.rs` already contains an 
 code path, gated behind a caller-supplied scale hint *and* a pixel size — see the string
 "Plate-solve scale hint provided without pixel size; skipping ASTAP -fov hint". Feeding that
 path is probably the smaller fix than writing header cards.
+
+---
+
+## G18 — an interval trigger kills the run mid-exposure; a night ends at frame 25 *(P0, reproduced)*
+
+Found while running the meridian-flip test. The sequence was built by the Quick-Start wizard
+with **Autofocus off and Dithering off**, no guider connected, 90 × 10 s L frames. It captured
+24 frames cleanly and then died. Verbatim, from the app's own log:
+
+```
+13:58:54.266  INFO  === LOOP ITERATION 26 STARTING ===
+13:58:54.266  INFO  Capturing frame 1/1 (10.0s)
+13:58:54.266  INFO  camera_start_exposure: Simulator exposure started        <- 10s exposure in flight
+13:58:54.620  WARN  Trigger fired: Dither Interval (dither_interval)
+13:58:54.620  WARN  Trigger fired: Autofocus Interval (autofocus_interval)
+13:58:54.620  INFO  [DITHER] Trigger 'Dither Interval' fired - executing dither
+...autofocus drives its OWN 3s exposures on the same camera...
+13:59:00.115  INFO  [SEQ] Autofocus point 1 sample 1/1 completed
+13:59:00.187  INFO  Position 24300 HFR: 8.65, Stars: 32
+13:59:00.187  INFO  Focus point 2/15 at position 24400
+13:59:00.429 ERROR  Exposure failed: Failed to download image: No exposure is available to
+                    download from the simulated camera. Start an exposure first.
+13:59:00.429  INFO  Child 'L' completed with status: Failure
+13:59:00.429  INFO  Child 'Capture Loop' completed with status: Failure
+13:59:00.429  INFO  Child 'Sequence' completed with status: Failure
+13:59:00.429  WARN  Node tree finished while a trigger recovery action is still running;
+                    waiting up to 900s for it to complete before ending the run
+```
+
+Two separate defects, both live-reproduced:
+
+**1. Features the operator switched off still fire.** The wizard's Autofocus and Dithering
+toggles decide which *nodes* get built. The *global interval triggers* are pushed at run start
+regardless — the run log shows `Updating sequencer autofocus-interval cadence: every 25 frames`
+and `Updating sequencer dither config: pixels=2 ...` on a sequence that contains neither. The
+executor even warns about the contradiction and proceeds anyway: *"No Autofocus node in the
+sequence to seed trigger-autofocus tuning; trigger-fired refocus will use library defaults."*
+The dither trigger fired with **no guider connected at all**.
+
+**2. The trigger drives the camera on top of a live exposure.** The autofocus began its own
+3-second exposures 0.35 s after the capture loop started a 10-second one. When the capture loop
+came to download its frame, the camera had nothing for it, the exposure node failed, and the
+sequential parent took the loop and the whole run down with it. The autofocus then kept
+stepping to point 15 against a run that was already dead.
+
+**Why this is a ship-blocker for an unattended night.** The autofocus cadence default is *every
+25 frames*, so this is not an edge case — it is what happens on the 25th frame of any run whose
+exposures are long enough to still be in flight when the trigger fires. This run's own numbers:
+25 frames accepted, 4 m 10 s integration (25 × 10 s — the two agree), then failure. On the rig
+that is a night that stops shortly after it starts, with the mount still tracking.
+
+**Not yet fixed.** Two candidate fixes, and they are not alternatives — both look necessary:
+a trigger that needs the camera must wait for the in-flight exposure to complete (or abort it
+deliberately and re-queue the frame) rather than interleaving; and a sequence built with a
+feature switched off should not have that feature's global interval trigger installed.
+
+**Session report accuracy:** the report told the truth — *failed*, 25/25 frames accepted,
+4 m 10 s integration, and the download error quoted verbatim. The reporting is not the problem.
