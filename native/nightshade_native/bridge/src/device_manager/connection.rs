@@ -375,6 +375,32 @@ impl DeviceManager {
             }
         }
 
+        // A connect that failed because the device is no longer in the vendor
+        // SDK's enumeration proves the cached discovery list is stale. Drop it,
+        // so the next list tells the truth instead of continuing to offer
+        // hardware that is gone.
+        //
+        // Reproduced on the live rig 2026-08-09. `GET /api/devices` listed
+        // `native:zwo:0 | ZWO ASI178MM`; the connect answered "ZWO camera ID 0
+        // is no longer present in the SDK enumeration"; the list went on
+        // offering it. The discovery cache holds for 60 s
+        // (`DISCOVERY_CACHE_TTL`), so a client that retries — or an unattended
+        // rig auto-connecting at dusk — keeps failing against a list nobody has
+        // refreshed. A manual rescan cleared it and the very next connect
+        // succeeded, which is the manual form of exactly this call.
+        if let Err(e) = &result {
+            if Self::is_stale_enumeration_error(e) {
+                tracing::warn!(
+                    "Connect to {} failed because the SDK no longer enumerates it \
+                     ({}); invalidating the discovery cache so the next list is \
+                     accurate",
+                    device_id,
+                    e
+                );
+                crate::api::api_invalidate_discovery_cache().await;
+            }
+        }
+
         // Publish result event
         match &result {
             Ok(_) => {
@@ -438,6 +464,26 @@ impl DeviceManager {
     /// the post-dispatch cancel check in `connect_device_internal`.
     fn is_identity_conflict(result: &Result<(), String>) -> bool {
         matches!(result, Err(e) if e.contains(IDENTITY_CONFLICT_MARKER))
+    }
+
+    /// True when a connect failed because the vendor SDK no longer enumerates
+    /// the device — as opposed to the many ways a device that IS present can
+    /// refuse to open (in use, permissions, a driver fault).
+    ///
+    /// The distinction decides whether the cached discovery list is wrong. A
+    /// busy or faulty device is still on the bus and the list is accurate; a
+    /// device the SDK cannot enumerate is not, and the list is lying.
+    ///
+    /// Matched on the message because these strings cross a vendor boundary as
+    /// plain `String` (`NativeError::InvalidDevice` carries no code). The
+    /// phrases are the ones the vendor modules emit — `zwo.rs` for the first,
+    /// and the generic form the shared enumeration helpers use.
+    fn is_stale_enumeration_error(message: &str) -> bool {
+        const MARKERS: [&str; 2] = [
+            "no longer present in the SDK enumeration",
+            "not present in the SDK enumeration",
+        ];
+        MARKERS.iter().any(|m| message.contains(m))
     }
 
     /// Ask a freshly-connected driver what it is, and refuse the connect if the
@@ -1335,5 +1381,43 @@ impl DeviceManager {
     pub async fn unregister_device(&self, device_id: &str) {
         let mut devices = self.devices.write().await;
         devices.remove(device_id);
+    }
+}
+
+#[cfg(test)]
+mod stale_enumeration_tests {
+    use super::*;
+
+    /// The message the live rig produced on 2026-08-09, verbatim. The list went
+    /// on offering `native:zwo:0` for the full 60 s discovery TTL after the SDK
+    /// stopped enumerating it, so every retry failed against a list nobody had
+    /// refreshed.
+    #[test]
+    fn recognises_the_live_rig_message() {
+        assert!(DeviceManager::is_stale_enumeration_error(
+            "Failed to connect to native:zwo:0 via native bridge: \
+             NightshadeError.connectionFailed(deviceId: native:zwo:0, reason: \
+             Invalid device: ZWO camera ID 0 is no longer present in the SDK \
+             enumeration)"
+        ));
+    }
+
+    /// A device that IS on the bus and merely refuses to open must not
+    /// invalidate the cache: the list is accurate and dropping it would make
+    /// every busy-camera retry re-run a full multi-driver scan.
+    #[test]
+    fn leaves_present_but_unopenable_devices_alone() {
+        for message in [
+            "Device disconnected",
+            "ASIOpenCamera failed: rc=5",
+            "Camera is already in use by another application",
+            "Access denied opening ASCOM.ASICamera2.Camera",
+            "Timed out waiting for the driver to connect",
+        ] {
+            assert!(
+                !DeviceManager::is_stale_enumeration_error(message),
+                "{message:?} is not an enumeration failure"
+            );
+        }
     }
 }
