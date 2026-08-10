@@ -1415,8 +1415,7 @@ impl DeviceOps for UnifiedDeviceOps {
                  would otherwise solve. Set the telescope focal length on the active equipment \
                  profile.",
                 focal_length_mm.map_or_else(|| "unknown".to_string(), |v| format!("{v:.1} mm")),
-                pixel_size
-                    .map_or_else(|| "unknown".to_string(), |(x, _)| format!("{x:.2} um")),
+                pixel_size.map_or_else(|| "unknown".to_string(), |(x, _)| format!("{x:.2} um")),
             ),
         }
 

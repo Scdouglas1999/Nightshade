@@ -1121,8 +1121,7 @@ impl DeviceOps for BridgeDeviceOps {
                  active equipment profile.",
                 focal_length_written
                     .map_or_else(|| "unknown".to_string(), |v| format!("{v:.1} mm")),
-                pixel_pitch_written
-                    .map_or_else(|| "unknown".to_string(), |v| format!("{v:.2} µm")),
+                pixel_pitch_written.map_or_else(|| "unknown".to_string(), |v| format!("{v:.2} µm")),
             ),
         }
 

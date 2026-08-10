@@ -2050,7 +2050,10 @@ async fn claim_camera_for_trigger_action(
     let mut announced = false;
     loop {
         if is_cancelled.load(Ordering::Relaxed) {
-            tracing::info!("Trigger-fired {} released early: sequence cancelled", action);
+            tracing::info!(
+                "Trigger-fired {} released early: sequence cancelled",
+                action
+            );
             return;
         }
 
@@ -2103,9 +2106,7 @@ impl AutofocusOutcome {
             Self::TooSoft { current_hfr, limit } => {
                 format!("HFR {current_hfr:.2} is past the {limit:.2} limit")
             }
-            Self::Unmeasurable => {
-                "there is no HFR measurement to judge focus by".to_string()
-            }
+            Self::Unmeasurable => "there is no HFR measurement to judge focus by".to_string(),
         }
     }
 }
@@ -2137,9 +2138,15 @@ fn autofocus_failure_verdict(
     }
     let limit = reference * ratio;
     if current <= limit {
-        AutofocusOutcome::KeepImaging { current_hfr: current, limit }
+        AutofocusOutcome::KeepImaging {
+            current_hfr: current,
+            limit,
+        }
     } else {
-        AutofocusOutcome::TooSoft { current_hfr: current, limit }
+        AutofocusOutcome::TooSoft {
+            current_hfr: current,
+            limit,
+        }
     }
 }
 
@@ -3619,8 +3626,9 @@ impl SequenceExecutor {
                 // because `exposure_node_metadata` only carries TakeExposure
                 // nodes — a producer with no per-frame duration (smart exposure)
                 // still needs its whole burst counted at the end.
-                let node_integration_credited =
-                    Arc::new(StdRwLock::new(std::collections::HashMap::<NodeId, f64>::new()));
+                let node_integration_credited = Arc::new(StdRwLock::new(
+                    std::collections::HashMap::<NodeId, f64>::new(),
+                ));
                 let exposure_node_metadata = exposure_node_metadata.clone();
                 let target_node_metadata = target_node_metadata.clone();
                 context.progress_callback = Some(Arc::new(move |update: ProgressUpdate| {
@@ -6136,7 +6144,8 @@ impl SequenceExecutor {
                                                 // The status API is built from the progress snapshot, not from
                                                 // this lock. Stamping only the lock is what let a paused run
                                                 // keep reporting `running` — see mirror_paused_into_progress.
-                                                progress_for_triggers.write().state = ExecutorState::Paused;
+                                                progress_for_triggers.write().state =
+                                                    ExecutorState::Paused;
                                                 let _ = event_tx_clone2.send(
                                                     ExecutorEvent::StateChanged(
                                                         ExecutorState::Paused,
@@ -6476,8 +6485,7 @@ impl SequenceExecutor {
                                                 // must be read BEFORE `reset_baseline_hfr`
                                                 // overwrites it with the degraded value.
                                                 let verdict = {
-                                                    let ts =
-                                                        trigger_state_for_actions.read().await;
+                                                    let ts = trigger_state_for_actions.read().await;
                                                     autofocus_failure_verdict(
                                                         ts.baseline_hfr,
                                                         ts.current_hfr,
@@ -6583,7 +6591,8 @@ impl SequenceExecutor {
                                                 // The status API is built from the progress snapshot, not from
                                                 // this lock. Stamping only the lock is what let a paused run
                                                 // keep reporting `running` — see mirror_paused_into_progress.
-                                                progress_for_triggers.write().state = ExecutorState::Paused;
+                                                progress_for_triggers.write().state =
+                                                    ExecutorState::Paused;
                                                 let _ = event_tx_clone2.send(
                                                     ExecutorEvent::StateChanged(
                                                         ExecutorState::Paused,
@@ -7161,7 +7170,8 @@ impl SequenceExecutor {
                                             // The status API is built from the progress snapshot, not from
                                             // this lock. Stamping only the lock is what let a paused run
                                             // keep reporting `running` — see mirror_paused_into_progress.
-                                            progress_for_triggers.write().state = ExecutorState::Paused;
+                                            progress_for_triggers.write().state =
+                                                ExecutorState::Paused;
                                             let _ = event_tx_clone2.send(
                                                 ExecutorEvent::StateChanged(ExecutorState::Paused),
                                             );
@@ -7215,7 +7225,8 @@ impl SequenceExecutor {
                                             // The status API is built from the progress snapshot, not from
                                             // this lock. Stamping only the lock is what let a paused run
                                             // keep reporting `running` — see mirror_paused_into_progress.
-                                            progress_for_triggers.write().state = ExecutorState::Paused;
+                                            progress_for_triggers.write().state =
+                                                ExecutorState::Paused;
                                             let _ = event_tx_clone2.send(
                                                 ExecutorEvent::StateChanged(ExecutorState::Paused),
                                             );
@@ -7229,7 +7240,8 @@ impl SequenceExecutor {
                                             // The status API is built from the progress snapshot, not from
                                             // this lock. Stamping only the lock is what let a paused run
                                             // keep reporting `running` — see mirror_paused_into_progress.
-                                            progress_for_triggers.write().state = ExecutorState::Paused;
+                                            progress_for_triggers.write().state =
+                                                ExecutorState::Paused;
                                             let _ = event_tx_clone2.send(
                                                 ExecutorEvent::StateChanged(ExecutorState::Paused),
                                             );
@@ -7647,7 +7659,8 @@ impl SequenceExecutor {
                                             // The status API is built from the progress snapshot, not from
                                             // this lock. Stamping only the lock is what let a paused run
                                             // keep reporting `running` — see mirror_paused_into_progress.
-                                            progress_for_triggers.write().state = ExecutorState::Paused;
+                                            progress_for_triggers.write().state =
+                                                ExecutorState::Paused;
                                             let _ = event_tx_clone2.send(
                                                 ExecutorEvent::StateChanged(ExecutorState::Paused),
                                             );

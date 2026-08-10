@@ -187,9 +187,11 @@ class AutofocusSettings extends Equatable {
   final double innerCropRatio;
   final int binning;
   final double rSquaredThreshold;
+
   /// Multiple of the reference HFR that a failed autofocus may leave the
   /// frames at and still be worth capturing. Zero disables the tolerance.
   final double failureHfrToleranceRatio;
+
   /// `AbortAndPark` or `PauseAndAlert` — the wire values of the native
   /// `AutofocusFailureAction`.
   final String failureAction;
@@ -231,13 +233,13 @@ class AutofocusSettings extends Equatable {
 
   /// The wire value for a label from [failureActionLabels], falling back to
   /// the safe action rather than writing something the engine cannot read.
-  static String failureActionFromLabel(String label) =>
-      failureActionLabels.entries
-          .firstWhere(
-            (entry) => entry.value == label,
-            orElse: () => const MapEntry('AbortAndPark', ''),
-          )
-          .key;
+  static String failureActionFromLabel(String label) => failureActionLabels
+      .entries
+      .firstWhere(
+        (entry) => entry.value == label,
+        orElse: () => const MapEntry('AbortAndPark', ''),
+      )
+      .key;
 
   /// The label for a stored wire value, tolerant of an unrecognised one.
   static String failureActionLabel(String action) =>

@@ -253,8 +253,7 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
         allSettings['af_failure_hfr_tolerance_ratio'],
         1.6,
       ),
-      afFailureAction:
-          allSettings['af_failure_action'] ?? 'AbortAndPark',
+      afFailureAction: allSettings['af_failure_action'] ?? 'AbortAndPark',
       afDisableGuidingDuringAf: _parseBool(
         allSettings['af_disable_guiding'],
         false,

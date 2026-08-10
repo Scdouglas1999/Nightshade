@@ -258,9 +258,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
       // Autofocus node still wins; this is the floor, not an override.
       final afSettings = _ref.read(autofocusSettingsProvider);
       await backend.sequencerUpdateAutofocusConfig(
-        jsonEncode(
-          _autofocusRuntimeConfig(afSettings, maxDurationSecs: 600),
-        ),
+        jsonEncode(_autofocusRuntimeConfig(afSettings, maxDurationSecs: 600)),
       );
       _logger.debug(
         'Seeded trigger-autofocus config: attempts=${afSettings.numberOfAttempts}, '

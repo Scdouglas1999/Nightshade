@@ -320,8 +320,8 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                     value: AutofocusSettings.failureActionLabel(
                       settings.afFailureAction,
                     ),
-                    items: AutofocusSettings.failureActionLabels.values
-                        .toList(),
+                    items:
+                        AutofocusSettings.failureActionLabels.values.toList(),
                     onChanged: (value) => notifier.setAfFailureAction(
                       AutofocusSettings.failureActionFromLabel(value),
                     ),
