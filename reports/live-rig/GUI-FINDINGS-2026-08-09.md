@@ -621,3 +621,50 @@ nor unexplained.
 
 Kept `nightshade_button_disabled_semantics_test.dart` as regression cover, since the design system
 had no test pinning a property the whole app depends on.
+
+## V1 — full unattended spine driven through the GUI, end to end (validation, not a defect)
+
+Everything below was done by clicking the desktop app, not by calling the API, and every number was
+checked against an independent source rather than against another part of the app.
+
+**Setup, in the GUI.** Settings → Location, typed 42.35 / -71.06. Persisted (`observer_latitude`,
+`observer_longitude`) and propagated: the status bar LST went from `--:--` to `23:00`, which matches
+an independent Meeus GMST computation for that longitude at the machine's UTC to the minute
+(23:00:26).
+
+**Pre-flight refuses what it should.** Start on an empty sequence produced "Cannot Start Sequence /
+Please fix 1 error(s)" — *"The sequence has no runnable instructions"* — plus a simulation panel and
+a dark-window warning. Adding one Take Exposures node moved it to "Ready with Warnings" with a
+precise complaint: *"Exposures exist but no target is defined. The mount will image at its current
+position."* The proceed button is honestly labelled **Start Anyway**.
+
+**The run guards itself.** Starting with the mount parked stopped the run with "Mount is Parked" and
+offered *Unpark Now* / *Cancel Sequence* rather than exposing through a parked mount.
+
+**Ten frames, and every claim about them is true.**
+
+| claim | where the app says it | independently verified |
+|---|---|---|
+| 10 frames | header, Analytics | 10 FITS + 10 thumbnails on disk, 10 `captured_images` rows |
+| integration 20s | Analytics | 10 × 2s configured |
+| median HFR 6.72 | Analytics | median of the 10 stored HFRs = 6.7215 |
+| p90 6.763, range 6.665–6.770 | Analytics | matches the rows exactly |
+| EXPTIME 2.0 | FITS header | the value set in the builder — this keyword used to be pinned at 1.0 |
+| SITELAT/SITELONG | FITS header | 42.35 / -71.06, the coordinates typed into Settings minutes earlier |
+| OBJCTALT 45.73°, AIRMASS 1.3948 | FITS header | independent alt 45.57° (difference is refraction, correct sign); Kasten-Young airmass 1.3987 |
+
+**G7 confirmed on the real sequencer path.** All 10 rows carry a `quality_score` where the sequencer
+used to write NULL, the values *vary per frame* (32.35–33.0) instead of being one constant, and
+recomputing the weighting independently from each row's HFR and star count reproduces every stored
+score to the second decimal.
+
+**The app declines to invent data it does not have.** With the guider disconnected the whole run,
+the Guiding panel reads "No guiding RMS recorded for these frames" rather than drawing a chart.
+Focus drift shows a true flat 25000–25000 and sensor temperature a true 20.00–20.00, because neither
+moved. The frames are named `untargeted_L_0001.fits`, which is what they are. A note above the
+charts states "All four charts plot the same 10 accepted light frames."
+
+One correction worth recording: I first read the accessibility tree as showing 6.700–6.800 under
+"RMS (arcsec)" and suspected the guiding chart was plotting HFR. It was not — those were the HFR
+chart's y-axis labels, adjacent in tree order. The screenshot settled it. Same lesson as G11 and
+G12: the tree finds candidates, a second instrument confirms them.
