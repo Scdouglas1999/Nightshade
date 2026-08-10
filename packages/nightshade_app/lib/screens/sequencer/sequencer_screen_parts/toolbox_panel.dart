@@ -90,51 +90,61 @@ class _ToolboxPanelState extends ConsumerState<_ToolboxPanel>
             child: Row(
               children: [
                 Expanded(
-                  child: TabBar(
-                    controller: _tabController,
-                    isScrollable: true,
-                    tabAlignment: TabAlignment.start,
-                    indicatorSize: TabBarIndicatorSize.tab,
-                    indicator: NightshadeDecorations.statusChip(
-                      widget.colors.primary,
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(8),
-                      ),
-                      bordered: false,
-                    ),
-                    dividerColor: Colors.transparent,
-                    labelColor: widget.colors.primary,
-                    unselectedLabelColor: widget.colors.textMuted,
-                    labelPadding: EdgeInsets.symmetric(
-                      horizontal: Responsive.spacing(context, 12),
-                    ),
-                    labelStyle: TextStyle(
-                      fontSize: Responsive.fontSize(context, 12),
-                      fontWeight: FontWeight.w600,
-                    ),
-                    unselectedLabelStyle: TextStyle(
-                      fontSize: Responsive.fontSize(context, 12),
-                      fontWeight: FontWeight.w500,
-                    ),
-                    tabs: [
-                      Tab(
-                        height: Responsive.spacing(context, 34),
-                        child: const Text('Nodes'),
-                      ),
-                      Tab(
-                        height: Responsive.spacing(context, 34),
-                        // §4: surface the Ctrl+T accelerator on the Snippets
-                        // tab so the keyboard toggle is discoverable.
-                        child: const Tooltip(
-                          message: 'Toggle snippets (Ctrl+T)',
-                          child: Text('Snippets'),
+                  child: Semantics(
+                    enabled: true,
+                    child: TabBar(
+                      controller: _tabController,
+                      isScrollable: true,
+                      tabAlignment: TabAlignment.start,
+                      indicatorSize: TabBarIndicatorSize.tab,
+                      indicator: NightshadeDecorations.statusChip(
+                        widget.colors.primary,
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(8),
                         ),
+                        bordered: false,
                       ),
-                      Tab(
-                        height: Responsive.spacing(context, 34),
-                        child: const Text('Queue'),
+                      dividerColor: Colors.transparent,
+                      labelColor: widget.colors.primary,
+                      unselectedLabelColor: widget.colors.textMuted,
+                      labelPadding: EdgeInsets.symmetric(
+                        horizontal: Responsive.spacing(context, 12),
                       ),
-                    ],
+                      labelStyle: TextStyle(
+                        fontSize: Responsive.fontSize(context, 12),
+                        fontWeight: FontWeight.w600,
+                      ),
+                      unselectedLabelStyle: TextStyle(
+                        fontSize: Responsive.fontSize(context, 12),
+                        fontWeight: FontWeight.w500,
+                      ),
+                      // Flutter's own `Tab` publishes a "Tab N of M" semantics
+                      // node that never sets isEnabled, so AT-SPI reported all
+                      // three of these as disabled — read off the running app
+                      // 2026-08-09, alongside the app's own controls which are
+                      // fixed at their widgets. Wrapping the strip states the
+                      // truth for the framework's nodes without touching the
+                      // TabBar's behaviour.
+                      tabs: [
+                        Tab(
+                          height: Responsive.spacing(context, 34),
+                          child: const Text('Nodes'),
+                        ),
+                        Tab(
+                          height: Responsive.spacing(context, 34),
+                          // §4: surface the Ctrl+T accelerator on the Snippets
+                          // tab so the keyboard toggle is discoverable.
+                          child: const Tooltip(
+                            message: 'Toggle snippets (Ctrl+T)',
+                            child: Text('Snippets'),
+                          ),
+                        ),
+                        Tab(
+                          height: Responsive.spacing(context, 34),
+                          child: const Text('Queue'),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 if (widget.onCollapse != null)
