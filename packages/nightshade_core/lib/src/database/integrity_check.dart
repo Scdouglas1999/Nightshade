@@ -652,6 +652,27 @@ Future<DatabaseRestoreOutcome?> applyPendingRestore(File dbFile) async {
     }
   }
 
+  // The recovery marker says exactly one thing: "the database you are using
+  // now is not yours." The swap above just made that false, so the marker has
+  // to go with it. Observed on the owner's rig on 2026-08-09: after a restore
+  // put back a profile, five sequences and fifty frames, every subsequent
+  // launch still announced "your existing settings, profiles, sessions and
+  // captures are not in the new database" — about a database that had all of
+  // them. Worse than merely stale: the quarantined file is now named
+  // `nightshade-replaced-*`, so `_findMostRecentBackup` finds nothing to
+  // offer and the notice degrades to an alarm the user cannot act on.
+  //
+  // Only on success. A restore that failed leaves the user on the wrong
+  // database, where the marker is still telling the truth and must survive.
+  for (final marker in await _recoveryMarkerFiles(dir)) {
+    try {
+      await marker.delete();
+    } on FileSystemException {
+      // Best effort, matching acknowledgeRecoveryMarker: an undeletable marker
+      // repeats the notice, but the restored database is intact either way.
+    }
+  }
+
   return DatabaseRestoreOutcome(
     restored: true,
     restoredFrom: source,
