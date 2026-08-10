@@ -978,3 +978,42 @@ trigger pauses an unattended run or lets it continue. This finding sharpens the 
 picked, the failure must also be *visible*, because today a failed autofocus is quiet on screen and
 leaves the focuser displaced. Continuing without surfacing that means a night of soft frames with the
 UI still claiming to be measuring.
+
+## V10 — polar alignment runs the real pipeline and fails correctly (validation)
+
+Started Three-Point Polar Alignment from Equipment → Polar Alignment. The screen itself is careful:
+four numbered prerequisites, a hemisphere toggle, an exposure slider, and a bullseye with 30″/60″/120″
+error rings whose Azimuth / Altitude / Total readouts show `--` rather than zeros before anything is
+measured.
+
+It drives the genuine pipeline:
+
+```
+Starting polar alignment (gen 1): exposure=5s, step=15°, binning=2, north=true, manual=false, east=true
+Polar alignment: Capturing point 1/3...       (phase=measuring, point=1)
+Polar alignment: Plate solving point 1/3...
+Blind plate solving: /tmp/polar_align_point_1_….fits
+Running ASTAP: astap_cli -f … -z 2 -d <catalog dir> -wcs
+```
+
+— a real capture, a real blind solve, and a correctly-formed ASTAP invocation with downsampling, the
+catalogue directory and WCS output requested.
+
+The solve then failed, for the environment reason established in V8: the default simulator profile's
+0.414° field is below what the D05 catalogue can solve. What matters is the handling, and it is
+right:
+
+```
+ERROR Polar alignment failed: Plate solve timed out after 30.0 seconds for point 1
+INFO  Polar alignment: Error: Plate solve timed out after 30.0 seconds for point 1 (phase=error, point=0)
+```
+
+The wait is **bounded** (30s, no indefinite hang), the run moves to an explicit `phase=error`, and
+the screen shows **"Error Occurred"** with the full reason — "Plate solve timed out after 30.0
+seconds for point 1" — in the UI, not only in the log.
+
+**This sharpens G14.** Polar alignment and autofocus fail in the same family of ways, but only one of
+them tells the operator. Polar alignment reaches a terminal error state and names the cause on
+screen; autofocus leaves "Measuring point 1/9" on display indefinitely with a truncated toast. So the
+app already contains the pattern G14 needs — the autofocus panel is inconsistent with its sibling
+wizard rather than missing a capability that has to be invented.
