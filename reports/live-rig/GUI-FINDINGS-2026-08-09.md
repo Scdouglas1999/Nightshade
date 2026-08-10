@@ -381,3 +381,27 @@ transient — it is gone at both widths once the field loses focus, leaving the 
 committed. The form still refuses to compute and the notice band still names the missing focal
 length, so the invalidity is surfaced; only the specific range hint is short-lived. Recorded rather
 than claimed, because I did not establish whether that is focus-scoped by design.
+## G10 — my own accessibility change broke a test, and my first count of the damage was wrong *(fixed)*
+
+I reported "41 failures, all Windows-captured goldens" from a **partial** run. The completed suite
+says **3,056 passed, 42 failed**, and classifying every one of the 42 by name:
+
+* **41** are golden pixel diffs — `Pixel test failed, 13.39% / 21.41% / 75.00%` — the
+  Windows-captured goldens that have never matched on Linux. Checked individually, including the
+  three `imaging_landscape_capture` and three `planner_fold_cover` cases that did not look like
+  goldens from their names but are.
+* **1** was a real regression from today's work:
+  `settings_sidebar_keyboard_test: sections and group headers announce themselves as buttons`.
+
+`matchesSemantics` treats every flag you do not list as an assertion that it is **absent**, so by
+omitting `hasEnabledState`/`isEnabled` the test was pinning the pre-fix behaviour — asserting that
+the settings sidebar must NOT report an enabled state. That is precisely the defect: the whole
+sidebar announced as insensitive. The expectation now requires the flags instead of forbidding them.
+
+Two lessons, both about my own claims rather than the app:
+
+1. **Do not classify a test run before it finishes.** The partial log was one failure short and I
+   generalised from it.
+2. **A semantics matcher is a whitelist.** Adding a correct flag will fail any `matchesSemantics`
+   that did not anticipate it, and the failure looks like a regression when it is the test encoding
+   the old behaviour. Read the diff before assuming either way.
