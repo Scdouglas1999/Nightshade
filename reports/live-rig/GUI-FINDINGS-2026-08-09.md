@@ -1393,3 +1393,82 @@ the run down with it.
 plus a pixel size ("Plate-solve scale hint provided without pixel size; skipping ASTAP -fov
 hint"). Feeding that too would let the solver skip even the first FOV guess; the header cards
 were sufficient here, so it is left as a further improvement rather than a fix.
+
+---
+
+## MERIDIAN FLIP — executed end to end and completed successfully *(the last untested feature)*
+
+2026-08-10 14:54 UTC. Sandbox site at longitude +123.75 (early night, ~4 h of darkness in hand),
+target `Flip Test` at RA 20.34 h / Dec +40, slewed to while still ~2.5 minutes **east** of the
+meridian so the mount took the pre-flip (West) pier side, 30 s L frames, trigger left at its
+default `MinutesPastMeridian = 5.0`.
+
+The pre-frame gate fired first, and said exactly the right thing:
+
+```
+14:53:20  Waiting for the meridian flip before the next 30s exposure: the flip fires in ~40s
+          (hour angle +0.07h, threshold 5 min past meridian) and would interrupt the frame
+```
+
+Then the flip itself, all eight steps:
+
+```
+14:54:00  Trigger fired: Meridian Flip (meridian_flip)
+14:54:00  [MERIDIAN] Pre-flip altitude check: target 'Flip Test' altitude = 87.5° (min = 10.0°)
+14:54:00  [MERIDIAN] FLIP TRIGGER ACTIVATED
+14:54:00  [MERIDIAN]   Hour Angle: 0.08h (5.0 minutes past meridian)
+14:54:00  [MERIDIAN]   Current Pier Side: West
+14:54:00  [MERIDIAN] Step 1/8: Pausing guider...      (no guider configured — nothing to pause)
+14:54:00  [MERIDIAN] Step 2/8: Stopping tracking...
+14:54:00  [MERIDIAN] Step 3/8: Slewing to target (flip): RA=20.3400h, Dec=40.0000°   (2.0s)
+14:54:02  [MERIDIAN] Step 4/8: Verifying pier side... New pier side: East
+14:54:02  [MERIDIAN] Step 5/8: Resuming tracking...
+14:54:02  [MERIDIAN] Step 6/8: Plate solving and centering...
+14:54:08  [MERIDIAN] Plate solve result: offset=0.5" (RA=0.4", Dec=0.3") — within tolerance
+14:54:08  [MERIDIAN] Step 7/8: Resuming guider...
+14:54:08  [MERIDIAN] Step 8/8: Settling... (10s)
+14:54:18  [MERIDIAN] FLIP COMPLETED SUCCESSFULLY  — total 18.3s, new pier side East
+14:54:20  Capturing frame 1/1 (30.0s)
+```
+
+Checked against three independent sources, not just the log:
+
+- **Pier side really changed**, West → East, and step 4 verified it rather than assuming it.
+- **The post-flip recenter ran and succeeded** — 0.5″ residual. This is the step G16 and G17 would
+  each have broken; the flip config carries `auto_center: true`, so before today's two fixes a
+  mechanically perfect flip would still have reported failure here.
+- **`meridianFlips: 1`** in `sequence_runs.stats_json`, alongside `framesCaptured: 13` and
+  `integrationSecs: 390.0` — 390 ÷ 13 = exactly 30.0 s per frame, so the counters agree with the
+  exposure length actually in use.
+- **Capture resumed 2 s after the flip completed.**
+
+The one thing still not exercised is a *failed* flip (`failure_action: PauseAndAlert`); every step
+succeeded here.
+
+---
+
+## G19 — "no ASTAP star database found" on a rig that is solving fine *(P2, fixed)*
+
+Surfaced by the run above: `sequence_runs.stats_json` carried
+
+```
+"errorMessages":["Plate-solve setup: no ASTAP star database found. ASTAP needs a star catalog
+                  installed separately from astap.exe ... target centering in this sequence
+                  will fail"]
+```
+
+while ASTAP was solving to 0.5″ against its D05 catalogs in the very same run.
+
+Cause: the sequencer pre-flight called `detect_astap_catalog(None, None)`, which only searches
+the *default* install locations. Every other entry point in that module consults the global
+`ACTIVE_SOLVER_PREF` — the file even says so ("without any caller needing to pass the config
+explicitly") — but this one did not, so on any rig whose ASTAP lives somewhere else the check
+reported a missing catalog on every run. `detect_astap_catalog` now falls back to the configured
+paths when the caller passes none.
+
+Second, smaller cause: the catalog-name table knew `V17/V50/D80/G18/H18/H17/W08` but not `D05`,
+so a directory of working D05 files identified as "catalog present, version unrecognized". `D05`
+is now recognised, with **no** magnitude limit asserted — the published table does not give one,
+and a fabricated number would feed the exposure planner.
+
+Verified: 0 occurrences of the warning on the next run, centering still `Success`.

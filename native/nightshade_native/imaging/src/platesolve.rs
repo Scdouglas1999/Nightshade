@@ -377,6 +377,29 @@ pub fn detect_astap_catalog(
     let local_app_data = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
     let home = home_dir();
 
+    // Fall back to the operator's configured Plate Solving paths when the
+    // caller supplies none. Every other entry point into this module already
+    // consults `ACTIVE_SOLVER_PREF` for exactly this reason ("without any
+    // caller needing to pass the config explicitly"); this one did not, so it
+    // only ever searched the default install locations.
+    //
+    // The visible consequence: on any rig whose ASTAP lives somewhere else,
+    // the sequencer's pre-flight check reported "no ASTAP star database found
+    // ... target centering in this sequence will fail" as a run-level error,
+    // on runs where the catalogs were present and ASTAP was solving to 0.5".
+    // A setup warning that fires while the thing it warns about is working is
+    // worse than no warning: the next real one gets ignored.
+    let pref_exe;
+    let pref_catalog;
+    let (exe_path, configured) = if exe_path.is_none() && configured.is_none() {
+        let pref = ACTIVE_SOLVER_PREF.read().expect("solver-pref RwLock");
+        pref_exe = pref.astap_path.clone();
+        pref_catalog = pref.catalog_path.clone();
+        (pref_exe.as_deref(), pref_catalog.as_deref())
+    } else {
+        (exe_path, configured)
+    };
+
     let inputs = CatalogSearchInputs {
         os: OsFamily::host(),
         exe_path,
