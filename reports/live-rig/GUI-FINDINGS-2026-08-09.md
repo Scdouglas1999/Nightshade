@@ -554,3 +554,33 @@ would fail today and pass after.
 
 Not attempted here: it needs the build-and-remeasure loop, and today has already shown twice that a
 semantics change without that loop is indistinguishable from a no-op.
+### G11 WITHDRAWN — the widget layer is correct; this was my instrument again
+
+I wrote a root cause above blaming `MergeSemantics` for trading the state away. That was wrong, and a
+widget test settles it. Pumping a real `SettingRow` with a `NightshadeSwitch(value: true)` and reading
+the merged node:
+
+```
+flags: [hasEnabledState, isEnabled, hasToggledState, isToggled]
+label: "Start minimized\nLaunch app minimized to system tray"
+```
+
+Both halves are present. The merge binds the label **and keeps the toggled state**; the earlier fix
+did not relocate anything. What I measured in the accessibility tree — a `toggle button` with a name
+and no `[ON]`/`[off]` — is therefore lost between Flutter's semantics and what the audit harness reads
+over AT-SPI, not inside the app.
+
+**Sixth measurement-caused false lead of this drive**, and the one I had gone furthest with: I had
+already written a cause, an explanation of why it could not be fixed in `SettingRow`, and two
+suggested designs. All of it was reasoning on top of a bad reading.
+
+The test is kept as a regression guard
+(`setting_row_toggle_semantics_test.dart`) — if a future change to `SettingRow` or `NightshadeSwitch`
+drops either the label or the state, it fails at the widget layer where it is cheap to see, instead
+of in an accessibility tree nobody reads.
+
+**Consequence for the rest of this report:** every `[DISABLED]` and missing-state reading in the
+remainders table is a harness observation, and at least one class of them has now been shown not to
+reflect the widget layer. The fixes I landed are still right — each was verified by a same-screen
+before/after in the tree AND by the semantics changing in code — but the *unfixed* remainders should
+be re-checked with a widget test before anyone spends time on them.
