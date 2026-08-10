@@ -1560,3 +1560,25 @@ Verified live, same shape (Dither node inside the capture loop, no guider):
 
 The run keeps capturing, and the count escalates the message rather than the consequence. A
 successful dither resets the streak, so "3 in a row" means three in a row and not three all night.
+
+---
+
+## G20 — the GPU star-detection path can hang, and a hang is not an error *(P2, recorded)*
+
+`extract_plate_stars` calls `gpu_downsample_max_u16` and falls back to `cpu_downsample_max_u16`
+when it returns `Err`. On this machine it does not return at all: the process sits in
+`futex_wait` with `/dev/nvidiactl` open, indefinitely — observed at 21 minutes before being
+killed. A hang is not an `Err`, so the fallback the code was written around never runs.
+
+Found because it stalls `cargo test -p nightshade_imaging` forever
+(`platesolve::tests::internal_solver_test_helper_estimates_with_hint_and_blind_metadata`), which
+is how it would have kept blocking a full gate run. The test is now `#[ignore]`d with that
+reason so the suite completes.
+
+Why it is not merely test debt: the same call sits on the internal-solver path in shipped code.
+The sequencer's `CenterTarget` wraps its solver call in a 180 s `PLATE_SOLVE_TIMEOUT`, so that
+one caller is protected, but any caller without such a bound would hang exactly as the test does.
+
+The fix is to bound the GPU attempt rather than trusting it to fail — attempt it with a deadline
+and take the CPU path when the deadline passes — which needs care about what happens to the
+thread still holding the GPU, and is why it is recorded rather than patched here.

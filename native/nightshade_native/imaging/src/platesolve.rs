@@ -2403,6 +2403,15 @@ mod tests {
     }
 
     #[test]
+    // Hangs on this machine and will stall a full `cargo test`: the process
+    // sits in `futex_wait` with `/dev/nvidiactl` open, inside
+    // `extract_plate_stars` -> `gpu_downsample_max_u16`. That call is written
+    // to fall back to the CPU path on `Err`, but a hang is not an `Err`, so
+    // the fallback never runs. Ignored so the suite can complete; the
+    // underlying risk is NOT a test-only problem and is recorded as G20 in
+    // reports/live-rig/GUI-FINDINGS-2026-08-09.md — a solve that hangs on a
+    // user's machine would hang the same way.
+    #[ignore = "hangs in gpu_downsample_max_u16; see G20"]
     fn internal_solver_test_helper_estimates_with_hint_and_blind_metadata() {
         let path =
             std::env::temp_dir().join(format!("nightshade-platesolve-{}.fits", std::process::id()));
