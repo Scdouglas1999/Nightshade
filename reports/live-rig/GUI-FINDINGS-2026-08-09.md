@@ -833,3 +833,25 @@ Push on meridian flip events` — and clicking a result navigated straight to th
 Harness note: resizing the window beyond the Xvfb display (1920x1200) leaves a black window that does
 not recover on resizing back. That is misuse of the harness rather than an app finding — a restart
 clears it — but it is worth knowing before reading a blank screenshot as a rendering defect.
+
+## V7 — Sequencer and Plan Tonight tabs (validation)
+
+**Sequencer** — *Templates* offers Beginner / Intermediate / Advanced / Specialized with starters
+such as "DSLR M31 (Andromeda) — Lights + Flats + Bias". *Sequences* lists the saved library.
+*Execution History* groups runs by observing night with status filter chips and a search box.
+
+One cross-surface note: Execution History files the runs of 2026-08-10 02:31–03:42 under
+**"Sunday, Aug 9, 2026"**, while Analytics → History labels the same runs "Aug 10, 2026 02:31". Both
+are defensible — one groups by the night that began on the 9th, which is the astronomically useful
+convention, the other prints the wall-clock timestamp — but the two "history" views answer the same
+question with different dates. Recorded as an observation, not a defect; the astronomical grouping is
+arguably the better one and worth keeping.
+
+**Plan Tonight** — *Recommendation* produces a real night outlook once a location exists (NGC7063,
+an open cluster in Cygnus, is a sane August pick at 42°N) and states "Setup needed for live TNS
+alerts" rather than pretending to have them. *Projects* shows an honest "No projects yet" with an
+explanation. *Schedule* lays out the week ahead. *Framing* exposes labels, guide stars and HiPS
+tiles.
+
+With this, every top-level screen, every Analytics tab, every Sequencer tab, every Plan Tonight tab
+and every Settings leaf reachable from the sidebar has been opened and read.
