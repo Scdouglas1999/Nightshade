@@ -2032,6 +2032,51 @@ pub struct AutofocusConfig {
     /// Pause an active guider for the complete filter-switch + focus run.
     #[serde(default)]
     pub disable_guiding_during_af: bool,
+    /// How far above the reference HFR the frames may sit, as a multiple, and
+    /// still be worth continuing to capture after autofocus has failed.
+    ///
+    /// A failed autofocus is not automatically a ruined night. Focus can end
+    /// up slightly soft for reasons that leave the data perfectly usable —
+    /// thin cloud over the sweep, a star field too sparse to fit a curve, a
+    /// gust during a point — and slightly-soft frames stack and deconvolve
+    /// fine. A focuser that has run away to donuts is a different thing
+    /// entirely, and every further frame is wasted disk.
+    ///
+    /// So the decision is made on the measurement rather than on the fact of
+    /// the failure: at 1.6, a run whose reference HFR is 2.5 keeps imaging at
+    /// 3.8 (1.52x) and stops at 10 (4x). Expressed as a ratio rather than an
+    /// absolute HFR because the same number means different things at
+    /// different focal lengths and pixel scales; the log always prints the
+    /// absolute limit it worked out, so the operator can see both.
+    ///
+    /// Zero or negative disables the tolerance — every autofocus failure is
+    /// then treated as unrecoverable, which is the behaviour this setting
+    /// replaced.
+    #[serde(default = "default_af_failure_hfr_tolerance_ratio")]
+    pub failure_hfr_tolerance_ratio: f64,
+    /// What to do when a failed autofocus leaves the frames outside
+    /// [`AutofocusConfig::failure_hfr_tolerance_ratio`] and the retries in
+    /// [`AutofocusConfig::number_of_attempts`] are spent.
+    #[serde(default)]
+    pub failure_action: AutofocusFailureAction,
+}
+
+/// What an unattended run does when autofocus has failed and the frames it
+/// would keep producing are not worth keeping.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub enum AutofocusFailureAction {
+    /// Stop imaging, park the mount, close cover and dome. The default: an
+    /// unattended rig producing donuts should be made safe, not left tracking
+    /// until dawn filling the disk with frames nobody can use.
+    #[default]
+    AbortAndPark,
+    /// Hold the sequence and wait for the operator. Correct when someone is
+    /// at the keyboard and would rather rescue the night than end it.
+    PauseAndAlert,
+}
+
+fn default_af_failure_hfr_tolerance_ratio() -> f64 {
+    1.6
 }
 
 fn default_af_max_duration() -> f64 {
@@ -2071,7 +2116,11 @@ fn default_af_min_star_count() -> u32 {
 }
 
 fn default_af_number_of_attempts() -> u32 {
-    1
+    // Two sweeps, not one. A single failed sweep is weak evidence — the
+    // common causes (a passing cloud, a gust, a sparse field) are transient
+    // and a second sweep usually succeeds. Only a repeated failure justifies
+    // acting on [`AutofocusConfig::failure_action`] and ending a night.
+    2
 }
 
 fn default_af_exposures_per_point() -> u32 {
@@ -2117,6 +2166,8 @@ impl Default for AutofocusConfig {
             focuser_settle_time_ms: default_af_focuser_settle_time_ms(),
             backlash_out_compensation: 0,
             disable_guiding_during_af: false,
+            failure_hfr_tolerance_ratio: default_af_failure_hfr_tolerance_ratio(),
+            failure_action: AutofocusFailureAction::default(),
         }
     }
 }

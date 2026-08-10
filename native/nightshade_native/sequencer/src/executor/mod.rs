@@ -2083,6 +2083,66 @@ async fn claim_camera_for_trigger_action(
     }
 }
 
+/// What to do about the frames a failed autofocus would keep producing.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum AutofocusOutcome {
+    /// Soft, but inside tolerance — keep imaging.
+    KeepImaging { current_hfr: f64, limit: f64 },
+    /// Measurably worse than the tolerance allows.
+    TooSoft { current_hfr: f64, limit: f64 },
+    /// No usable measurement to judge by.
+    Unmeasurable,
+}
+
+impl AutofocusOutcome {
+    fn describe(self) -> String {
+        match self {
+            Self::KeepImaging { current_hfr, limit } => {
+                format!("HFR {current_hfr:.2} is within the {limit:.2} limit")
+            }
+            Self::TooSoft { current_hfr, limit } => {
+                format!("HFR {current_hfr:.2} is past the {limit:.2} limit")
+            }
+            Self::Unmeasurable => {
+                "there is no HFR measurement to judge focus by".to_string()
+            }
+        }
+    }
+}
+
+/// Decide whether frames are still worth capturing after autofocus failed.
+///
+/// `reference` is the run's good HFR (the baseline the degradation trigger
+/// watches), `current` is what the frames are measuring now, and `ratio` is
+/// how many times the reference is still acceptable.
+///
+/// Without a reference or a current measurement the answer is
+/// [`AutofocusOutcome::Unmeasurable`] — deliberately NOT "carry on". Claiming
+/// the frames are fine on the strength of no evidence is how a night fills a
+/// disk with donuts; the caller's failure action decides what to do, and it
+/// gets to make that decision knowing the focus is simply unknown.
+fn autofocus_failure_verdict(
+    reference: Option<f64>,
+    current: Option<f64>,
+    ratio: f64,
+) -> AutofocusOutcome {
+    if !ratio.is_finite() || ratio <= 0.0 {
+        return AutofocusOutcome::Unmeasurable;
+    }
+    let (Some(reference), Some(current)) = (reference, current) else {
+        return AutofocusOutcome::Unmeasurable;
+    };
+    if !reference.is_finite() || !current.is_finite() || reference <= 0.0 || current <= 0.0 {
+        return AutofocusOutcome::Unmeasurable;
+    }
+    let limit = reference * ratio;
+    if current <= limit {
+        AutofocusOutcome::KeepImaging { current_hfr: current, limit }
+    } else {
+        AutofocusOutcome::TooSoft { current_hfr: current, limit }
+    }
+}
+
 fn terminate_with(
     is_cancelled: &Arc<AtomicBool>,
     triggers: Vec<(String, RecoveryAction)>,
@@ -6394,7 +6454,24 @@ impl SequenceExecutor {
                                                     ts.mark_autofocus_performed();
                                                 }
                                             } else {
-                                                // BUG-3: Reset the HFR baseline to the current degraded
+                                                // A failed autofocus is not automatically a
+                                                // ruined night. Judge the frames it would keep
+                                                // producing, not the fact that the sweep failed:
+                                                // slightly-soft frames stack and deconvolve
+                                                // fine, donuts are wasted disk. The reference
+                                                // must be read BEFORE `reset_baseline_hfr`
+                                                // overwrites it with the degraded value.
+                                                let verdict = {
+                                                    let ts =
+                                                        trigger_state_for_actions.read().await;
+                                                    autofocus_failure_verdict(
+                                                        ts.baseline_hfr,
+                                                        ts.current_hfr,
+                                                        af_config.failure_hfr_tolerance_ratio,
+                                                    )
+                                                };
+
+                                                // Reset the HFR baseline to the current degraded
                                                 // value so the trigger doesn't keep firing with a stale
                                                 // baseline from before the failed autofocus attempt.
                                                 {
@@ -6406,6 +6483,84 @@ impl SequenceExecutor {
                                                      to prevent repeated trigger firing with stale baseline",
                                                     ts.baseline_hfr
                                                 );
+                                                }
+
+                                                if let AutofocusOutcome::KeepImaging {
+                                                    current_hfr,
+                                                    limit,
+                                                } = verdict
+                                                {
+                                                    let message = format!(
+                                                        "Autofocus failed after {} attempt(s), but HFR {:.2} is \
+                                                         within the {:.2} tolerance limit — continuing to image. \
+                                                         Frames will be slightly soft; focus will be retried on \
+                                                         the next interval.",
+                                                        af_config.number_of_attempts.max(1),
+                                                        current_hfr,
+                                                        limit
+                                                    );
+                                                    tracing::warn!("{}", message);
+                                                    let _ = event_tx_clone2
+                                                        .send(ExecutorEvent::Error { message });
+                                                    fired_triggers.push((trigger_id, action));
+                                                    continue;
+                                                }
+
+                                                if af_config.failure_action
+                                                    == crate::AutofocusFailureAction::AbortAndPark
+                                                {
+                                                    let message = format!(
+                                                        "Autofocus failed after {} attempt(s) and {} — ending the \
+                                                         sequence and parking. Further frames would not be worth \
+                                                         keeping.",
+                                                        af_config.number_of_attempts.max(1),
+                                                        verdict.describe()
+                                                    );
+                                                    tracing::error!("{}", message);
+                                                    let _ = event_tx_clone2
+                                                        .send(ExecutorEvent::Error { message });
+
+                                                    let safe_state =
+                                                        crate::device_ops::park_and_close_safe_state(
+                                                            &device_ops_for_triggers,
+                                                            trigger_action_context
+                                                                .mount_id
+                                                                .as_deref(),
+                                                            trigger_action_context
+                                                                .cover_calibrator_id
+                                                                .as_deref(),
+                                                            trigger_action_context
+                                                                .dome_id
+                                                                .as_deref(),
+                                                            1,
+                                                            2.0,
+                                                        )
+                                                        .await;
+                                                    if let Some(park) = &safe_state.park {
+                                                        if !park.success {
+                                                            let _ = event_tx_clone2.send(
+                                                                ExecutorEvent::Error {
+                                                                    message: format!(
+                                                                        "Autofocus abort: parking the mount failed \
+                                                                         ({}). The mount may still be tracking — \
+                                                                         check it.",
+                                                                        park.last_error
+                                                                            .clone()
+                                                                            .unwrap_or_else(|| {
+                                                                                "no detail".into()
+                                                                            })
+                                                                    ),
+                                                                },
+                                                            );
+                                                        }
+                                                    }
+
+                                                    fired_triggers.push((trigger_id, action));
+                                                    return terminate_with(
+                                                        &is_cancelled_clone,
+                                                        fired_triggers,
+                                                        "AutofocusFailureAction::AbortAndPark",
+                                                    );
                                                 }
 
                                                 is_paused_for_triggers
@@ -9543,6 +9698,81 @@ mod tests {
     /// `TRIGGER_ACTION_QUIESCE_MAX_SECS` wait before finishing; a missing
     /// `true` reopens the original defect (the run resolving while a meridian
     /// flip retry ladder is still sleeping, orphaning the recovery).
+    /// A failed autofocus is judged on what the frames measure, not on the
+    /// fact that the sweep failed. Slightly-soft frames stack and deconvolve
+    /// fine; donuts are wasted disk.
+    #[test]
+    fn autofocus_failure_is_judged_on_hfr_not_on_the_failure() {
+        // Soft but usable: a run whose good HFR is 2.5 keeps imaging at 3.8.
+        assert_eq!(
+            autofocus_failure_verdict(Some(2.5), Some(3.8), 1.6),
+            AutofocusOutcome::KeepImaging {
+                current_hfr: 3.8,
+                limit: 4.0
+            }
+        );
+
+        // Donuts: the same rig at HFR 10 is not producing anything worth
+        // keeping, and an unattended night should stop rather than fill the
+        // disk.
+        assert!(matches!(
+            autofocus_failure_verdict(Some(2.5), Some(10.0), 1.6),
+            AutofocusOutcome::TooSoft { .. }
+        ));
+
+        // The boundary belongs to the operator: exactly at the limit keeps
+        // imaging, a hair past it does not.
+        assert!(matches!(
+            autofocus_failure_verdict(Some(2.0), Some(4.0), 2.0),
+            AutofocusOutcome::KeepImaging { .. }
+        ));
+        assert!(matches!(
+            autofocus_failure_verdict(Some(2.0), Some(4.001), 2.0),
+            AutofocusOutcome::TooSoft { .. }
+        ));
+
+        // A tighter tolerance rejects what a looser one accepts — the setting
+        // has to actually move the decision, or it is decoration.
+        assert!(matches!(
+            autofocus_failure_verdict(Some(2.5), Some(3.8), 1.2),
+            AutofocusOutcome::TooSoft { .. }
+        ));
+    }
+
+    /// Never claim the frames are fine on the strength of no evidence: that
+    /// is how an unattended night fills a disk with donuts. Missing or absurd
+    /// inputs report Unmeasurable so the failure action decides knowing the
+    /// focus is unknown.
+    #[test]
+    fn autofocus_verdict_refuses_to_guess() {
+        for (reference, current) in [
+            (None, Some(3.0)),
+            (Some(2.5), None),
+            (None, None),
+            (Some(0.0), Some(3.0)),
+            (Some(2.5), Some(0.0)),
+            (Some(f64::NAN), Some(3.0)),
+            (Some(2.5), Some(f64::INFINITY)),
+        ] {
+            assert_eq!(
+                autofocus_failure_verdict(reference, current, 1.6),
+                AutofocusOutcome::Unmeasurable,
+                "reference {reference:?} / current {current:?} must not produce a verdict"
+            );
+        }
+
+        // Zero or negative disables the tolerance entirely: every failure is
+        // then unrecoverable, which is the behaviour this setting replaced.
+        assert_eq!(
+            autofocus_failure_verdict(Some(2.5), Some(2.6), 0.0),
+            AutofocusOutcome::Unmeasurable
+        );
+        assert_eq!(
+            autofocus_failure_verdict(Some(2.5), Some(2.6), -1.0),
+            AutofocusOutcome::Unmeasurable
+        );
+    }
+
     /// A trigger-fired autofocus that starts while the capture loop is
     /// mid-frame destroys that frame — the loop's download finds the camera
     /// empty ("No exposure is available to download"), the exposure node
