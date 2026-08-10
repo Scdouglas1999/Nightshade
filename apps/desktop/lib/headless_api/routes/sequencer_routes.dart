@@ -132,6 +132,11 @@ List<HeadlessRoute> buildSequencerRoutes(
   ),
   HeadlessRoute(
     HttpMethod.post,
+    '/api/sequencer/update-autofocus-config',
+    h.handleSequencerUpdateAutofocusConfig,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
     '/api/sequencer/update-default-quality-check',
     h.handleSequencerUpdateDefaultQualityCheck,
   ),

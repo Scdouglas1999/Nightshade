@@ -1307,6 +1307,20 @@ class SequencerHandlers {
     return jsonOk({'status': 'ok', 'everyNFrames': everyNFrames});
   }
 
+  /// Push the operator's autofocus tuning so trigger-fired refocus uses it
+  /// instead of library defaults when the sequence carries no Autofocus node.
+  /// The body is the same JSON shape an Autofocus node carries, so the remote
+  /// client and the local FFI path share one serializer.
+  Future<Response> handleSequencerUpdateAutofocusConfig(Request request) async {
+    _logInfo('[API] POST /api/sequencer/update-autofocus-config');
+    final payload = await readJsonObject(request);
+    final configJson = requireString(payload, 'configJson');
+
+    final backend = container.read(sequencerBackendProvider);
+    await backend.sequencerUpdateAutofocusConfig(configJson);
+    return jsonOk({'status': 'ok'});
+  }
+
   Future<Response> handleSequencerUpdateDefaultQualityCheck(
     Request request,
   ) async {

@@ -182,6 +182,7 @@ List<String> availableHeadlessEndpoints() {
     'POST /api/sequencer/update-filter-offsets',
     'POST /api/sequencer/update-pending-integration-carry-over',
     'POST /api/sequencer/update-autofocus-interval',
+    'POST /api/sequencer/update-autofocus-config',
     'POST /api/sequencer/update-default-quality-check',
     'POST /api/sequencer/update-reject-folder-path',
     'POST /api/sequencer/update-observer-profile',
