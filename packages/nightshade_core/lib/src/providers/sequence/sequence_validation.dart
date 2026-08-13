@@ -15,6 +15,8 @@ import 'rules/plugin_node_rules.dart';
 // Pre-flight checks (darks + equipment health + optical train).
 import 'rules/preflight_rules.dart';
 import 'rules/settings_rules.dart';
+// Daylight gate / observing site / mount-pointing pre-flight rules.
+import 'rules/sky_readiness_rules.dart';
 // LiveStacking node validation rules.
 import 'rules/live_stacking_rules.dart';
 // Science: SciencePhotometry node validation rules.
@@ -355,6 +357,12 @@ final List<RefAwareSequenceValidator> defaultRefAwareSequenceValidators =
       FilterInProfileRule(),
       // Fail-closed weather gate with no sensor aborts the run seconds in.
       WeatherSafetyNoSourceRule(),
+      // The daylight gate refuses every light frame categorically; the missing
+      // observing site disables it silently; a target with no Slew images
+      // whatever the mount was left on.
+      DaylightGateRule(),
+      ObserverLocationUnsetRule(),
+      MountOffTargetRule(),
       ImageOutputPathRule(),
       DefaultSequenceNameRule(),
       LongEstimatedDurationRule(),

@@ -19,6 +19,7 @@ import 'equipment_status_widget.dart';
 import 'flat_wizard_dialog.dart';
 import 'mosaic_wizard_dialog.dart';
 import 'quick_start_wizard_dialog.dart';
+import 'slew_to_target_dialog.dart';
 import 'smart_night_dialog.dart';
 import 'trigger_configuration_dialog.dart';
 import '../import_sequence_dialog.dart';
@@ -435,21 +436,62 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
             }
           }
 
+          // One click used to command a real slew — no confirmation, no
+          // "Slewing" state, and not one line in the log — so the only way to
+          // learn the mount had moved (including to a target below the
+          // horizon) was to open another screen and read the Equipment panel.
           Future<void> slewToTarget() async {
-            if (sequence == null || sequence.targetHeaders.isEmpty) return;
-            final targetGroup = ref.read(runDashboardActiveTargetProvider);
-            if (targetGroup == null) return;
+            final target = ref.read(runDashboardActiveTargetProvider);
+            if (target == null) {
+              context.showInfoSnackBar(
+                'Add a target with coordinates before slewing.',
+              );
+              return;
+            }
+            final logger = ref.read(loggingServiceProvider);
+            final confirmed = await showSlewToTargetConfirmation(
+              context,
+              targetName: target.targetName,
+              raHours: target.raHours,
+              decDegrees: target.decDegrees,
+              altitudeDegrees:
+                  ref.read(runDashboardSkyStatsProvider)?.altitudeDeg,
+            );
+            if (!confirmed) {
+              logger.info(
+                'Slew to ${target.targetName} cancelled at the confirmation.',
+                source: 'Sequencer',
+              );
+              return;
+            }
+            logger.info(
+              'Slewing to ${target.targetName} '
+              '(RA ${CoordinateParser.formatRaHms(target.raHours)}, '
+              'Dec ${CoordinateParser.formatDecDms(target.decDegrees)}) '
+              'from the sequencer toolbar.',
+              source: 'Sequencer',
+            );
+            if (context.mounted) {
+              context.showInfoSnackBar('Slewing to ${target.targetName}…');
+            }
             try {
               final deviceService = ref.read(deviceServiceProvider);
               await deviceService.slewMountToCoordinates(
-                targetGroup.raHours,
-                targetGroup.decDegrees,
+                target.raHours,
+                target.decDegrees,
+              );
+              logger.info(
+                'Slew to ${target.targetName} commanded.',
+                source: 'Sequencer',
               );
               if (context.mounted) {
-                context
-                    .showInfoSnackBar('Slewing to ${targetGroup.targetName}');
+                context.showInfoSnackBar('Mount is on ${target.targetName}.');
               }
             } catch (e) {
+              logger.error(
+                'Slew to ${target.targetName} failed: $e',
+                source: 'Sequencer',
+              );
               if (context.mounted) {
                 context.showErrorSnackBar('Failed to slew: $e');
               }
@@ -544,8 +586,12 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
             if (sequence != null && sequence.targetHeaders.isNotEmpty)
               _ToolbarAction(
                 icon: LucideIcons.navigation,
-                label: 'Slew to Target',
-                onPressed: slewToTarget,
+                // A mount command during a run fights the executor for the
+                // telescope: the audit slewed away mid-exposure and the run
+                // went on counting the frames either side as accepted. It
+                // locks with its neighbours.
+                label: 'Slew to Target$lockedTooltipSuffix',
+                onPressed: canEdit ? slewToTarget : null,
               ),
             _ToolbarAction(
               icon: LucideIcons.undo2,

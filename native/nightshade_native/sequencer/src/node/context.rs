@@ -1294,6 +1294,33 @@ pub(crate) fn current_sun_altitude_degrees(latitude: f64, longitude: f64) -> f64
     crate::solar::sun_altitude_degrees(latitude, longitude, &chrono::Utc::now())
 }
 
+/// Normalize an observer location, mapping the Null Island sentinel to "unset".
+///
+/// An operator who never entered a site is UNKNOWN, not at (0°, 0°) in the Gulf
+/// of Guinea — but that is exactly how absence reaches the sequencer: the
+/// persisted settings carry `Some(lat: 0, lon: 0)` and the bridge seeds it
+/// verbatim. The daylight gate then computed a real Sun altitude for Greenwich
+/// and refused every light frame of an Australian night, blaming the Sun for a
+/// missing setting. Every consumer of the site (gate, altitude limits, dawn,
+/// meridian hour angle) is better served by knowing it does not know.
+///
+/// A partial pair is also unset: half a location cannot place a telescope.
+pub(crate) fn normalized_observer_location(
+    latitude: Option<f64>,
+    longitude: Option<f64>,
+) -> (Option<f64>, Option<f64>) {
+    match (latitude, longitude) {
+        (Some(lat), Some(lon)) if lat == 0.0 && lon == 0.0 => {
+            tracing::info!(
+                "Observer location (0, 0) treated as unset: no observing site is configured"
+            );
+            (None, None)
+        }
+        (Some(lat), Some(lon)) => (Some(lat), Some(lon)),
+        _ => (None, None),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

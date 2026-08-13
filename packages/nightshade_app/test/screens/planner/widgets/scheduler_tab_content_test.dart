@@ -734,7 +734,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
 
     expect(find.text('Unattended Autopilot'), findsOneWidget);
-    expect(find.text('Target queue'), findsOneWidget);
+    expect(find.text('Scheduler queue'), findsOneWidget);
     expect(find.text('NGC 7000'), findsAtLeastNWidgets(1));
 
     final title = tester.renderObject<RenderParagraph>(

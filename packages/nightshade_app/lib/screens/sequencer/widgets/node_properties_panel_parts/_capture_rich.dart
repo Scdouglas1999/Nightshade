@@ -65,9 +65,9 @@ class _FilterChangeProperties extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Get filter names from active profile
-    final profile = ref.watch(activeEquipmentProfileProvider);
-    final filterNames = profile?.filterNames ?? <String>[];
+    // The profile's filters, falling back to the connected wheel's — see
+    // [builderFilterSource].
+    final filterNames = builderFilterSource(ref).names;
 
     // Build list of filter options with their indices
     // Each item is a record of (index, name)
@@ -107,7 +107,7 @@ class _FilterChangeProperties extends ConsumerWidget {
               ? NodeTextInput(
                   colors: colors,
                   value: node.filterName,
-                  hint: 'No filters in profile',
+                  hint: BuilderFilterSource.emptyHint,
                   onChanged: (value) {
                     ref.read(currentSequenceProvider.notifier).updateNode(
                           node.copyWith(filterName: value),

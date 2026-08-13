@@ -211,9 +211,15 @@ class SkyCalculations {
   }
 
   /// Find evening end (sun sinks below `targetAltitude`) and morning start
-  /// (sun climbs back above it) for the local calendar date implied by
-  /// `noonLocal`. Uses 1-minute bisection over the 24-hour window centered
-  /// on the local solar transit.
+  /// (sun climbs back above it) for the night nearest `noonLocal`. Uses
+  /// 1-minute sampling with bisection refinement over the 24 hours from the
+  /// site's own solar noon, so dusk is always found before dawn.
+  ///
+  /// The window is anchored at the SITE's noon, not the caller's: `noonLocal`
+  /// only names which night is wanted. Anchoring on the caller's clock made a
+  /// host in one timezone start the search in the middle of a site's night in
+  /// another, find the morning crossing first, and return a dawn EARLIER than
+  /// its dusk — which every consumer reads as "no astronomical darkness".
   ///
   /// Returns nulls when the sun does not cross the threshold (polar
   /// regions in summer / winter).
@@ -224,7 +230,10 @@ class SkyCalculations {
     required TwilightKind kind,
   }) {
     final targetAlt = _twilightAltitudes[kind]!;
-    final searchStart = noonLocal.toUtc();
+    final searchStart = _solarNoonUtcNearest(
+      noonLocal.toUtc(),
+      longitudeDegrees,
+    );
     final searchEnd = searchStart.add(const Duration(hours: 24));
 
     DateTime? eveningEnd;
@@ -278,6 +287,33 @@ class SkyCalculations {
       eveningEnd: eveningEnd,
       morningStart: morningStart,
     );
+  }
+
+  /// Mean solar noon at [longitudeDegrees], on whichever day puts it closest
+  /// to [anchorUtc]. Mean rather than apparent solar noon: the equation of
+  /// time shifts this by at most ~16 minutes, which cannot move a twilight
+  /// crossing in or out of a window that is half a day wide on either side.
+  static DateTime _solarNoonUtcNearest(
+    DateTime anchorUtc,
+    double longitudeDegrees,
+  ) {
+    final noonOffset = Duration(
+      minutes: ((12.0 - longitudeDegrees / 15.0) * 60).round(),
+    );
+    final anchorDay = DateTime.utc(
+      anchorUtc.year,
+      anchorUtc.month,
+      anchorUtc.day,
+    );
+    var nearest = anchorDay.add(noonOffset);
+    for (final days in const [-1, 1]) {
+      final candidate = anchorDay.add(Duration(days: days) + noonOffset);
+      if (candidate.difference(anchorUtc).abs() <
+          nearest.difference(anchorUtc).abs()) {
+        nearest = candidate;
+      }
+    }
+    return nearest;
   }
 
   static DateTime _bisectCrossing({

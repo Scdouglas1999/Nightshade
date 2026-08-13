@@ -54,15 +54,16 @@ class _AutopilotPreviewBanner extends ConsumerWidget {
       headerLabel = 'AUTOPILOT STANDING BY';
       title = 'No targets in your scheduler queue';
       subtitle =
-          'The autopilot runs targets from your scheduler queue, which is '
+          'The autopilot runs targets from the scheduler queue, which is '
           'empty. The Night Outlook below is your object catalog — add targets '
-          'to the Target Queue (with integration goals) for the autopilot to '
-          'run them.';
+          'to the scheduler queue (with integration goals) for the autopilot '
+          'to run them. It is a different list from the builder\'s Target '
+          'Queue.';
     } else {
       headerLabel = 'AUTOPILOT STANDING BY';
       title = 'Nothing eligible right now';
       subtitle =
-          'Targets are queued, but none pass the scheduler right now (e.g. '
+          'The scheduler queue has targets, but none pass right now (e.g. '
           'still below the horizon, or their filters are not in the active '
           'wheel). The outlook below shows when they become available tonight.';
     }
@@ -125,7 +126,7 @@ class _AutopilotPreviewBanner extends ConsumerWidget {
           ],
           const SizedBox(height: NightshadeTokens.spaceMd),
           NightshadeButton(
-            label: 'Open Target Queue',
+            label: 'Open Scheduler Queue',
             icon: LucideIcons.listOrdered,
             variant: ButtonVariant.outline,
             onPressed: () => context.go('/planner?tab=scheduler'),

@@ -185,7 +185,7 @@ class _QueueTable extends ConsumerWidget {
                   size: NightshadeTokens.iconMd, color: colors.primary),
               const SizedBox(width: NightshadeTokens.spaceSm),
               Text(
-                'Target queue',
+                'Scheduler queue',
                 style: TextStyle(
                   fontSize: NightshadeTypography.fontSize16,
                   fontWeight: FontWeight.w700,
@@ -194,14 +194,17 @@ class _QueueTable extends ConsumerWidget {
               ),
               const Spacer(),
               if (decision != null)
-                Padding(
-                  padding:
-                      const EdgeInsets.only(right: NightshadeTokens.spaceSm),
-                  child: Text(
-                    'Last evaluation ${_formatTime(decision!.evaluatedAt)}',
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
-                        color: colors.textMuted),
+                Flexible(
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.only(right: NightshadeTokens.spaceSm),
+                    child: Text(
+                      'Last evaluation ${_formatTime(decision!.evaluatedAt)}',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize11,
+                          color: colors.textMuted),
+                    ),
                   ),
                 ),
               if (hasRows)

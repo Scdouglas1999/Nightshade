@@ -31,6 +31,7 @@ import '../database_provider.dart'
     show guideRmsHistoryDaoProvider, imagesDaoProvider, targetsDaoProvider;
 import '../defect_map_provider.dart' show seedDefectMapRuntimeForSequence;
 import '../../database/daos/campaigns_dao.dart' show campaignsDaoProvider;
+import '../../database/daos/targets_dao.dart' show TargetsDao;
 import '../disk_space_provider.dart';
 import '../equipment_provider.dart';
 // Sky-brightness poll reads the tracker via this
@@ -441,6 +442,12 @@ class SequenceExecutor {
   void handleSequencerEventForTest(NightshadeEvent event) =>
       _handleSequencerEvent(event);
 
+  /// Runs the start-time catalog binding on its own, so a test can assert what
+  /// the `targets` rows hold afterwards without driving a whole run.
+  @visibleForTesting
+  Future<void> bindCatalogTargetsForTest(Sequence sequence) =>
+      _bindCatalogTargets(sequence);
+
   /// Completes when every live-stacking feed AND fire-and-forget frame
   /// persistence queued SO FAR has finished (the feed chain serialises
   /// feeds, so awaiting the current tail covers all frames pumped before
@@ -722,11 +729,13 @@ class SequenceExecutor {
       // answer rather than inventing a library entry called "".
       if (name.isEmpty) continue;
       try {
-        _runCatalogTargetIds[header.id] = await dao.findOrCreateByName(
+        final targetId = await dao.findOrCreateByName(
           name: name,
           raHours: header.raHours,
           decDegrees: header.decDegrees,
         );
+        _runCatalogTargetIds[header.id] = targetId;
+        await _refreshCatalogCoordinates(dao, targetId, header);
       } catch (e) {
         _logger.warning(
           'Could not bind target "$name" to a targets row; its frames will be '
@@ -735,6 +744,48 @@ class SequenceExecutor {
         );
       }
     }
+  }
+
+  /// Bring the catalog row's coordinates up to date with the target the run is
+  /// actually imaging.
+  ///
+  /// `findOrCreateByName` matches on the name alone, so re-pointing a target in
+  /// the builder and running it again returned the same row with its ORIGINAL
+  /// RA/Dec. That row is the only thing the autopilot reads, so the scheduler
+  /// went on rejecting a target at the zenith as "below horizon" — quoting the
+  /// altitude of coordinates the operator had replaced half an hour earlier.
+  ///
+  /// Only the coordinates move, and only for a node carrying real ones: an
+  /// unset (0, 0) target must never blank a stored position, and the rest of
+  /// the row (priority, altitude floor, goals, notes) belongs to the library.
+  Future<void> _refreshCatalogCoordinates(
+    TargetsDao dao,
+    int targetId,
+    TargetHeaderNode header,
+  ) async {
+    if (header.raHours == 0.0 && header.decDegrees == 0.0) return;
+    final row = await dao.getTargetById(targetId);
+    if (row == null) return;
+    // One arcsecond in each axis — below it the difference is float noise from
+    // a round trip, not an operator re-pointing the telescope.
+    const raEpsilonHours = 1.0 / 54000.0;
+    const decEpsilonDegrees = 1.0 / 3600.0;
+    if ((row.ra - header.raHours).abs() < raEpsilonHours &&
+        (row.dec - header.decDegrees).abs() < decEpsilonDegrees) {
+      return;
+    }
+    await dao.updateTarget(
+      row.copyWith(
+        ra: header.raHours,
+        dec: header.decDegrees,
+        updatedAt: DateTime.now(),
+      ),
+    );
+    _logger.info(
+      'Target "${row.name}" re-pointed to RA ${header.raHours}h / '
+      'Dec ${header.decDegrees}°; the scheduler now evaluates it there.',
+      source: 'SequenceExecutor',
+    );
   }
 
   /// `targets.id` for the frame produced by [nodeId], from the binding made at

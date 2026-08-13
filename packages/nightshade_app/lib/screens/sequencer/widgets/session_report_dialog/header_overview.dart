@@ -25,7 +25,7 @@ class _Header extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '${report.sessionName} - ${report.status}',
+                '${report.sessionName} - ${runStatusLabel(report.status)}',
                 style: NightshadeTypography.labelStrong
                     .copyWith(color: colors.textPrimary),
               ),

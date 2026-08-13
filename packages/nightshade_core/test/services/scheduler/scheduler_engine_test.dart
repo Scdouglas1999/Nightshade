@@ -672,6 +672,81 @@ void main() {
     );
   });
 
+  group('SchedulerEngine - only stops runs it started', () {
+    // A target that can never clear the site minimum altitude (Dec -80 from
+    // lat +40 culminates at -30 deg), evaluated in deep night. Every tick
+    // finds nothing eligible while the Sun is far below the darkness limit,
+    // so the engine takes the transient mid-night empty path — the exact
+    // state the autopilot sits in while it reports "No eligible target right
+    // now".
+    SchedulerCandidate neverEligible() => _candidate(
+      id: 1,
+      name: 'Below horizon',
+      raHours: 14.0,
+      decDegrees: -80.0,
+    );
+
+    test(
+      'a no-eligible tick never stops a sequence the autopilot did not start',
+      () async {
+        final sink = _RecordingSink();
+        final engine = SchedulerEngine(
+          site: _site,
+          sequenceSink: sink,
+          candidateLoader: () async => <SchedulerCandidate>[neverEligible()],
+          clock: _fixedNow,
+        );
+
+        await engine.start();
+        expect(
+          sink.dispatched,
+          isEmpty,
+          reason: 'nothing is eligible, so the autopilot owns no run',
+        );
+        await engine.evaluateNow(reason: 'tick');
+        await engine.evaluateNow(reason: 'tick');
+
+        expect(
+          sink.stopCount,
+          0,
+          reason:
+              'stopping here kills whatever the operator started by hand '
+              '(SEQ-12)',
+        );
+        await engine.dispose();
+      },
+    );
+
+    test('stopping its own run says why on the decision', () async {
+      final sink = _RecordingSink();
+      var eligible = true;
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => <SchedulerCandidate>[
+          eligible
+              ? _candidate(id: 1, name: 'Bode', raHours: 14.0, decDegrees: 30.0)
+              : neverEligible(),
+        ],
+        clock: _fixedNow,
+      );
+
+      await engine.start();
+      expect(sink.dispatched.length, 1);
+
+      eligible = false;
+      await engine.evaluateNow(reason: 'tick');
+
+      expect(sink.stopCount, 1, reason: 'the autopilot owns this run');
+      expect(
+        engine.lastDecision!.reasoning,
+        contains(allOf(contains('Stopped'), contains('Bode'))),
+        reason: 'the panel must say why imaging stopped',
+      );
+      await engine.dispose();
+    });
+  });
+
   group('SchedulerEngine - end-of-night park', () {
     // Local noon at the site (lon -75 -> solar noon ~17:00 UTC): the Sun is
     // high above the -12 deg darkness limit, so every candidate is

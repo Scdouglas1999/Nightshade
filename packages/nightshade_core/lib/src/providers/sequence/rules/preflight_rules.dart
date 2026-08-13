@@ -10,6 +10,7 @@ import '../../../models/imaging/imaging_models.dart' show FrameType;
 import '../../../models/sequence/sequence_models.dart';
 import '../../../services/dark_library_coverage_service.dart';
 import '../../backend_provider.dart';
+import '../../capability_provider.dart';
 import '../../dark_library_provider.dart';
 import '../../equipment/camera_state_provider.dart';
 import '../../equipment/filter_wheel_state_provider.dart';
@@ -118,7 +119,15 @@ class DarkLibraryCoverageRule implements AsyncSequenceValidator {
     // sequence checked (and offered to capture) darks at the camera default
     // for a run whose Cool Camera node cools to something else entirely.
     final cameraState = ref.read(cameraStateProvider);
-    final camTargetTemp = cameraState.targetTemp;
+    final uncooled = await _cameraCannotRegulateTemperature(ref, cameraState);
+    // A camera with no cooler never reaches the profile's setpoint, so darks
+    // captured to satisfy a setpoint requirement could never match a light
+    // frame — the check sent operators off to spend an hour producing
+    // calibration data that was useless by construction. What the lights will
+    // actually be taken at is the sensor's own reading.
+    final camTargetTemp = uncooled
+        ? (cameraState.temperature ?? cameraState.targetTemp)
+        : cameraState.targetTemp;
     final plannedTemps = _plannedSensorTemps(sequence, camTargetTemp);
     var anyPlannedByNode = false;
 
@@ -194,6 +203,9 @@ class DarkLibraryCoverageRule implements AsyncSequenceValidator {
     // expects the camera's current setpoint can see the sequence overrode it.
     final tempSource = anyPlannedByNode
         ? '\nTemperatures are the setpoints this sequence cools to.'
+        : uncooled
+        ? '\nThis camera has no cooler, so the temperature is its current '
+              'sensor reading.'
         : '';
 
     if (missing.isNotEmpty) {
@@ -238,6 +250,25 @@ class DarkLibraryCoverageRule implements AsyncSequenceValidator {
 
     return issues;
   }
+}
+
+/// True when the connected camera cannot regulate its sensor temperature, so
+/// its cooling setpoint is a number nothing will ever honour.
+///
+/// Unknown capabilities (no camera, no id, driver does not report) keep the
+/// setpoint: that is the historical behaviour and the only honest answer when
+/// we cannot tell whether a cooler exists.
+Future<bool> _cameraCannotRegulateTemperature(
+  Ref ref,
+  CameraStateSnapshot camera,
+) async {
+  if (camera.connectionState != DeviceConnectionState.connected) return false;
+  final deviceId = camera.deviceId;
+  if (deviceId == null || deviceId.isEmpty) return false;
+  final capabilities = await ref.read(
+    cameraCapabilitiesProvider(deviceId).future,
+  );
+  return capabilities != null && !capabilities.canSetCcdTemperature;
 }
 
 /// Sensor setpoint each enabled exposure node will execute at, keyed by node id.

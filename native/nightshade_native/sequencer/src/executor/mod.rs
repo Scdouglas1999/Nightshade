@@ -9383,6 +9383,34 @@ mod tests {
         assert_eq!(executor.longitude, Some(-122.6));
     }
 
+    /// SCI-39: an unset observing site reaches the executor as `Some(0, 0)`
+    /// (that is what the persisted settings hold and what the bridge seeds).
+    /// Accepting it as a real site put the rig on Null Island: the daylight
+    /// gate refused every light frame of an Australian night quoting a
+    /// Greenwich Sun altitude, and the altitude limits gated on the wrong sky.
+    #[test]
+    fn null_island_is_an_unset_site_not_a_site_at_0n_0e() {
+        let mut executor = SequenceExecutor::new();
+
+        executor.set_location(Some(0.0), Some(0.0));
+
+        assert_eq!(executor.latitude, None);
+        assert_eq!(executor.longitude, None);
+    }
+
+    #[tokio::test]
+    async fn update_location_also_rejects_null_island() {
+        let mut executor = SequenceExecutor::new();
+        executor.update_location(Some(0.0), Some(0.0)).await;
+
+        assert_eq!(executor.latitude, None);
+        assert_eq!(executor.longitude, None);
+        let handle = executor.runtime_config_handle();
+        let rc = handle.read();
+        assert_eq!(rc.latitude, None);
+        assert_eq!(rc.longitude, None);
+    }
+
     #[test]
     fn safety_fail_mode_updates_runtime_config() {
         let mut executor = SequenceExecutor::new();

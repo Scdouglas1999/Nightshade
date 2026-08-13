@@ -630,8 +630,10 @@ class _EmptyState extends ConsumerWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              'Add targets from the planetarium or the Tonight tab. '
-              'Drag them into the sequence tree to start a plan.',
+              'Add targets from Plan Tonight \u2192 Planetarium, then drag '
+              'them into the sequence tree to start a plan. This queue is the '
+              'builder\'s own \u2014 the autopilot runs the separate '
+              'scheduler queue in Plan Tonight \u2192 Schedule.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: NightshadeTypography.fontSize11,

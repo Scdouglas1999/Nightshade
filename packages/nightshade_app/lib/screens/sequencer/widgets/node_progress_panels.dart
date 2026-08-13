@@ -23,6 +23,7 @@ Widget? getProgressPanelForNode({
   required double progressPercent,
   required String? progressDetail,
   InstructionProgressDetail? structuredProgressDetail,
+  NodeStatus? nodeStatus,
 }) {
   // Parse progress detail to extract relevant info
   final detail = progressDetail ?? '';
@@ -51,6 +52,7 @@ Widget? getProgressPanelForNode({
       detail: detail,
       structuredDetail: structuredProgressDetail,
       node: node,
+      isComplete: nodeStatus == NodeStatus.success,
     );
   }
 

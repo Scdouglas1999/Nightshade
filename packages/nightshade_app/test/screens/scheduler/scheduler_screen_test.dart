@@ -246,7 +246,7 @@ void main() {
     // Active target name appears in the decision panel.
     expect(find.text('NGC 7000'), findsAtLeastNWidgets(1));
     // The queue table heading.
-    expect(find.text('Target queue'), findsOneWidget);
+    expect(find.text('Scheduler queue'), findsOneWidget);
     // All three candidate names render in the queue.
     expect(find.text('M31'), findsOneWidget);
     expect(find.text('Setting Object'), findsOneWidget);

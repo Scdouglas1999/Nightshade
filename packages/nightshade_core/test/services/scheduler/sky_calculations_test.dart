@@ -203,6 +203,35 @@ void main() {
       },
     );
 
+    // SEQ-14: Plan Tonight reported "No astronomical darkness" for all seven
+    // nights at a latitude-35 site in August, while the Dashboard counted down
+    // "Dark 4h 56m left". The forecast anchors each night at the MACHINE's
+    // local noon; on a host whose clock is not the site's (UTC here, site at
+    // UTC+10) that anchor lands in the middle of the site's night, so the
+    // search found the morning crossing first and returned a dawn EARLIER than
+    // its dusk — which the forecast reads as zero dark hours.
+    test('an anchor that is not the site\'s noon still brackets one night', () {
+      const latitude = -35.0;
+      const longitude = 148.0; // UTC+9.9 — 10 hours from the host's UTC clock.
+      final t = SkyCalculations.computeTwilight(
+        noonLocal: DateTime.utc(2026, 8, 11, 12, 0),
+        latitudeDegrees: latitude,
+        longitudeDegrees: longitude,
+        kind: TwilightKind.astronomical,
+      );
+      expect(t.eveningEnd, isNotNull);
+      expect(t.morningStart, isNotNull);
+      expect(
+        t.morningStart!.isAfter(t.eveningEnd!),
+        isTrue,
+        reason: 'dawn must follow the dusk of the same night',
+      );
+      final darkHours =
+          t.morningStart!.difference(t.eveningEnd!).inMinutes / 60;
+      expect(darkHours, greaterThan(9.0));
+      expect(darkHours, lessThan(13.0));
+    });
+
     test('polar circle in summer has no astronomical twilight', () {
       // Tromsø, Norway (lat 69.65) on 2020-06-21 — sun never sets below -18°.
       final noonLocal = DateTime.utc(2020, 6, 21, 11, 0);

@@ -170,7 +170,10 @@ impl SequenceExecutor {
     /// the runtime-config Arc. They write the same fields; the split is
     /// because pre-start setters are sync and mid-flight setters route
     /// through the command channel.
+    /// (0, 0) is normalized to unset — see
+    /// [`crate::node::context::normalized_observer_location`].
     pub fn set_location(&mut self, lat: Option<f64>, lon: Option<f64>) {
+        let (lat, lon) = crate::node::context::normalized_observer_location(lat, lon);
         self.latitude = lat;
         self.longitude = lon;
     }

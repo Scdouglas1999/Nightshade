@@ -12,6 +12,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
 import '../../equipment/dialogs/profile_editor_dialog.dart';
+import '../filter_source.dart';
 import 'delete_node_confirmation.dart';
 import 'live_stacking_properties.dart';
 import 'meridian_flip_edit_helper.dart';

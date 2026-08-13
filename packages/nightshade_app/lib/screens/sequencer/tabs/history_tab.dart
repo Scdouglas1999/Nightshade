@@ -5,6 +5,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../run_status_presentation.dart';
 import '../sequencer_screen.dart';
 import 'sequence_library_tab.dart';
 import '../widgets/notes_panel.dart';
@@ -328,8 +329,7 @@ class _HistoryFilterBarState extends ConsumerState<_HistoryFilterBar> {
                 children: [
                   for (final status in _HistoryFilterBar._statuses)
                     FilterChip(
-                      label:
-                          Text(status[0].toUpperCase() + status.substring(1)),
+                      label: Text(runStatusLabel(status)),
                       selected: selected.contains(status),
                       visualDensity: VisualDensity.compact,
                       onSelected: (on) {
@@ -745,7 +745,7 @@ class _RunCard extends ConsumerWidget {
                       BorderRadius.circular(NightshadeTokens.radiusInline4),
                 ),
                 child: Text(
-                  status[0].toUpperCase() + status.substring(1),
+                  runStatusLabel(status),
                   style: NightshadeTypography.labelStrongSm
                       .copyWith(color: statusColor),
                 ),

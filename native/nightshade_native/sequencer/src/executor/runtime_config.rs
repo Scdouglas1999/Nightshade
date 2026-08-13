@@ -239,6 +239,9 @@ impl SequenceExecutor {
     /// updated through `ExecutorCommand::UpdateLocation`; an idle one is
     /// patched directly, since it has no task to send to.
     pub async fn update_location(&mut self, lat: Option<f64>, lon: Option<f64>) {
+        // (0, 0) is how an unset observing site reaches us; it must not become a
+        // real site in the Gulf of Guinea.
+        let (lat, lon) = crate::node::context::normalized_observer_location(lat, lon);
         tracing::info!("Updating executor location: lat={:?}, lon={:?}", lat, lon);
         self.latitude = lat;
         self.longitude = lon;

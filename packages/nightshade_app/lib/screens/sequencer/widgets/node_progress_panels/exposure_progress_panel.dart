@@ -7,12 +7,18 @@ class _ExposureProgressPanel extends StatelessWidget {
   final InstructionProgressDetail? structuredDetail;
   final ExposureNode node;
 
+  /// The node finished all its frames. The live per-frame detail is cleared on
+  /// the success path, so without this the card fell back to frame 0 and read
+  /// "0 / 4 frames" directly above the four thumbnails it had just captured.
+  final bool isComplete;
+
   const _ExposureProgressPanel({
     required this.colors,
     required this.progressPercent,
     required this.detail,
     this.structuredDetail,
     required this.node,
+    this.isComplete = false,
   });
 
   @override
@@ -26,11 +32,14 @@ class _ExposureProgressPanel extends StatelessWidget {
     // regex only runs when it is absent. Kept (not deleted) until every
     // shipped backend is confirmed to populate the typed detail.
     final frameMatch = RegExp(r'Frame (\d+)/(\d+)').firstMatch(detail);
-    final currentFrame =
-        exposureDetail?.frame ?? int.tryParse(frameMatch?.group(1) ?? '') ?? 0;
     final totalFrames = exposureDetail?.total ??
         int.tryParse(frameMatch?.group(2) ?? '') ??
         node.count;
+    final liveFrame =
+        exposureDetail?.frame ?? int.tryParse(frameMatch?.group(1) ?? '') ?? 0;
+    // A finished node has no frame in flight; every planned frame is done.
+    final currentFrame = isComplete ? 0 : liveFrame;
+    final completedFrames = isComplete ? totalFrames : liveFrame - 1;
     final durationSecs =
         exposureDetail != null && exposureDetail.durationSecs > 0
             ? exposureDetail.durationSecs
@@ -64,7 +73,8 @@ class _ExposureProgressPanel extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                '$currentFrame / $totalFrames frames',
+                '${isComplete ? totalFrames : currentFrame} / $totalFrames '
+                'frames',
                 style: TextStyle(
                   fontSize: NightshadeTypography.fontSize10,
                   color: colors.textMuted,
@@ -78,7 +88,7 @@ class _ExposureProgressPanel extends StatelessWidget {
           _FrameGrid(
             colors: colors,
             totalFrames: totalFrames,
-            completedFrames: currentFrame - 1,
+            completedFrames: completedFrames,
             currentFrame: currentFrame,
           ),
           const SizedBox(height: 12),

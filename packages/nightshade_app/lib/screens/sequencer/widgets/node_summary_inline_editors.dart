@@ -45,6 +45,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../filter_source.dart';
+
 import 'node_summary.dart';
 
 /// Open the anchored inline editor for [kind] on [node].
@@ -862,7 +864,7 @@ class _FreeTextFilterEditorState extends State<_FreeTextFilterEditor> {
       child: NightshadeTextField(
         controller: _controller,
         focusNode: _focusNode,
-        hint: 'No filters in profile',
+        hint: BuilderFilterSource.emptyHint,
         onChanged: (value) => widget.onCommit(value.trim()),
       ),
     );

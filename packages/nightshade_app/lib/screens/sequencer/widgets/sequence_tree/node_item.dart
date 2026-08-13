@@ -590,6 +590,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                 progressPercent: widget.progressPercent ?? 0,
                 progressDetail: widget.progressDetail,
                 structuredProgressDetail: widget.structuredProgressDetail,
+                nodeStatus: widget.nodeStatus,
               ) ??
               const SizedBox.shrink(),
       ],

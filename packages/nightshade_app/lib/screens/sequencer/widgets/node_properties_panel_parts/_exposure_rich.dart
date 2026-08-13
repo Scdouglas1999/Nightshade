@@ -485,9 +485,10 @@ class _ExposureRichState extends ConsumerState<_ExposureProperties> {
     final colors = widget.colors;
     final node = widget.node;
 
-    // Get filter names from active profile
-    final profile = ref.watch(activeEquipmentProfileProvider);
-    final filterNames = profile?.filterNames ?? <String>[];
+    // The profile's filters, falling back to the connected wheel's — the
+    // builder must not deny a filter the capture path is already writing into
+    // the filenames.
+    final filterNames = builderFilterSource(ref).names;
 
     // Build list of filter options with their indices
     final filterOptions = <({int index, String name})>[
@@ -542,7 +543,7 @@ class _ExposureRichState extends ConsumerState<_ExposureProperties> {
               ? NodeTextInput(
                   colors: colors,
                   value: node.filter ?? '',
-                  hint: 'No filters in profile',
+                  hint: BuilderFilterSource.emptyHint,
                   onChanged: (value) {
                     final filter = value.isEmpty ? null : value;
                     ref.read(currentSequenceProvider.notifier).updateNode(

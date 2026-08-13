@@ -309,18 +309,33 @@ class SchedulerEngine {
       reason: reason,
     );
 
-    _publishDecision(outcome.decision);
-
     // Re-evaluate while idle/paused is a read-only operator preview. Mutating
     // currentTargetId here used to make a later Start see isSwitch=false and
     // skip dispatch entirely; paused re-evaluations could similarly claim a
     // target switch the sequencer never performed.
-    if (_status.state != SchedulerState.running) return;
-
-    if (outcome.winner == null) {
-      await _handleNoEligibleTarget(now);
+    if (_status.state != SchedulerState.running) {
+      _publishDecision(outcome.decision);
       return;
     }
+
+    if (outcome.winner == null) {
+      // The empty path can stop imaging, so its decision is published AFTER the
+      // side effect, carrying the sentence that explains it. `finally` so a
+      // throwing park/stop still publishes the tick the operator is watching.
+      String? note;
+      try {
+        note = await _handleNoEligibleTarget(now);
+      } finally {
+        _publishDecision(
+          note == null
+              ? outcome.decision
+              : _withReasoning(outcome.decision, note),
+        );
+      }
+      return;
+    }
+
+    _publishDecision(outcome.decision);
 
     if (outcome.isSwitch) {
       final winner = outcome.winner!;
@@ -621,21 +636,31 @@ class SchedulerEngine {
 
   /// Shared handling for both empty paths in [_evaluateOnce] (no candidates at
   /// all, and candidates present but none eligible). Clears the current target,
-  /// stops the running sequence, and — only when it is genuinely end-of-night
-  /// (Sun up) and we have not already parked for this dawn — invokes the
-  /// distinct end-of-night park hook exactly once.
-  Future<void> _handleNoEligibleTarget(DateTime now) async {
+  /// stops the sequence the autopilot itself dispatched, and — only when it is
+  /// genuinely end-of-night (Sun up) and we have not already parked for this
+  /// dawn — invokes the distinct end-of-night park hook exactly once.
+  ///
+  /// Returns the operator-facing sentence to append to this tick's reasoning
+  /// when imaging was stopped, or null when the tick changed nothing.
+  Future<String?> _handleNoEligibleTarget(DateTime now) async {
     final running = _status.state == SchedulerState.running;
-    if (_status.currentTargetId != null) {
+    // Whether the autopilot has a run of its OWN in progress. A tick that
+    // stopped unconditionally destroyed any sequence the operator had started
+    // by hand — mid-exposure, every 60 s, all night — because the autopilot
+    // shares one executor with the manual Start button and had no idea which
+    // run it was ending.
+    final ownedTarget = _status.currentTargetName;
+    final ownsRun = _status.currentTargetId != null;
+    if (ownsRun) {
       _updateStatus(_status.copyWith(clearCurrentTarget: true));
     }
-    if (!running) return;
+    if (!running) return null;
 
     if (_isEndOfNight(now)) {
       // Starting the autopilot before sunset is an ordinary pre-arm workflow.
       // Until this run has actually dispatched a target there is no completed
       // observing night to safe, so wait quietly for a later eligible tick.
-      if (!_dispatchedSinceStart) return;
+      if (!_dispatchedSinceStart) return null;
       // Dawn: park the mount so it stops tracking into the ground/daylight.
       // Guarded so we park once per dawn, not on every subsequent tick while
       // the Sun stays up. Park first (the safety-critical action), then the
@@ -644,14 +669,37 @@ class SchedulerEngine {
       if (!_parkedForEndOfNight) {
         _parkedForEndOfNight = true;
         await _sequenceSink.parkForEndOfNight();
+        return 'The observing night is over — parked the mount and ended '
+            'unattended imaging.';
       }
-      return;
+      return null;
     }
 
     // Transient no-eligible mid-night (clouds, all goals momentarily
-    // complete): stop the running sequence but never park — the night isn't
-    // over and the next tick may re-dispatch.
+    // complete): stop the autopilot's OWN sequence but never park — the night
+    // isn't over and the next tick may re-dispatch. A run the operator started
+    // by hand is not ours to end.
+    if (!ownsRun) return null;
     await _sequenceSink.stopSequence();
+    return 'Stopped ${ownedTarget ?? 'imaging'} — no target passes the '
+        'scheduler right now; the next evaluation will re-check.';
+  }
+
+  /// [decision] with one more line on its reasoning list — how a side effect
+  /// the pure [_evaluate] cannot know about (stopping imaging, parking at
+  /// dawn) reaches the operator, since the decision panel renders `reasoning`
+  /// and nothing else explains itself.
+  SchedulerDecision _withReasoning(SchedulerDecision decision, String line) {
+    return SchedulerDecision(
+      chosenTargetId: decision.chosenTargetId,
+      chosenTargetName: decision.chosenTargetName,
+      score: decision.score,
+      reasoning: [...decision.reasoning, line],
+      scoredCandidates: decision.scoredCandidates,
+      rejected: decision.rejected,
+      evaluatedAt: decision.evaluatedAt,
+      isSwitch: decision.isSwitch,
+    );
   }
 
   /// Returns true if the candidate has an enabled scheduledWindow

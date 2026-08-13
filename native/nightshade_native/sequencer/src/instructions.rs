@@ -120,14 +120,20 @@ pub(crate) fn daylight_gate_block_reason(
     max_sun_altitude_degrees: f64,
     what: &str,
 ) -> Option<String> {
+    // (0, 0) is the shape an unset site arrives in, not a site in the Gulf of
+    // Guinea: quoting a Greenwich Sun altitude refused every light frame of an
+    // Australian night and blamed the Sun for a missing setting.
+    let (latitude, longitude) =
+        crate::node::context::normalized_observer_location(latitude, longitude);
     let (lat, lon) = match (latitude, longitude) {
         (Some(lat), Some(lon)) => (lat, lon),
         _ => {
             // No location => cannot compute Sun altitude. Abstain (the Dart W1
             // gate still protects the autopilot path); never fabricate a block
             // that would wedge a location-less rig.
-            tracing::debug!(
-                "Daylight gate abstaining for {what}: observer location unset (lat/lon None)"
+            tracing::warn!(
+                "Daylight gate cannot protect {what}: no observing site is set, so the \
+                 Sun's altitude is unknown. Set your latitude and longitude in Settings."
             );
             return None;
         }
@@ -9973,6 +9979,19 @@ mod tests {
         assert!(daylight_gate_block_reason(None, Some(TEST_LON), -90.0, "test").is_none());
         assert!(daylight_gate_block_reason(Some(TEST_LAT), None, -90.0, "test").is_none());
         assert!(daylight_gate_block_reason(None, None, -90.0, "test").is_none());
+    }
+
+    /// SCI-39: an operator who skipped the optional site step was judged
+    /// against Null Island. The persisted site arrives as `Some(0, 0)`, the
+    /// gate computed a real Greenwich Sun altitude from it, and every light
+    /// frame of the night was refused with a message blaming the Sun rather
+    /// than the missing setting. (0, 0) must read as "no site".
+    #[test]
+    fn daylight_gate_treats_null_island_as_no_location() {
+        assert!(
+            daylight_gate_block_reason(Some(0.0), Some(0.0), -90.0, "test").is_none(),
+            "an unset site must abstain, not fabricate a Sun altitude for 0N 0E"
+        );
     }
 
     #[test]
