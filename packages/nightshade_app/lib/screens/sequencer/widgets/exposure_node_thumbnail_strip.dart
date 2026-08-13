@@ -1,20 +1,15 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart'
-    show
-        ProducingNodeThumbnail,
-        imagingBackendProvider,
-        exposureNodeThumbnailsProvider,
-        isRemoteModeProvider,
-        loggingServiceProvider;
+    show ProducingNodeThumbnail, exposureNodeThumbnailsProvider;
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'thumbnail_strip_prefs.dart';
 import '../../../utils/filter_label.dart';
+import '../../../widgets/frame_thumbnail_loader.dart';
 
 /// Inline frame strip rendered beneath each
 /// ExposureNode in the sequence tree.
@@ -264,18 +259,11 @@ class _ThumbnailTileState extends ConsumerState<_ThumbnailTile> {
   }
 
   Future<Uint8List?> _loadBytes() async {
-    try {
-      final backend = ref.read(imagingBackendProvider);
-      final bytes = await backend.getImageThumbnail(widget.thumbnail.id);
-      if (bytes.isNotEmpty) return bytes;
-    } catch (e) {
-      ref.read(loggingServiceProvider).debug(
-            'ExposureNodeThumbnailStrip: backend thumbnail fetch failed '
-            'for image ${widget.thumbnail.id}: $e',
-            source: 'ExposureNodeThumbnailStrip',
-          );
-    }
-    return null;
+    return fetchFrameThumbnailBytes(
+      ref,
+      widget.thumbnail.id,
+      source: 'ExposureNodeThumbnailStrip',
+    );
   }
 
   Color _borderColor() {
@@ -363,7 +351,8 @@ class _ThumbnailTileState extends ConsumerState<_ThumbnailTile> {
                 ),
               ),
               clipBehavior: Clip.antiAlias,
-              child: _ThumbnailImage(
+              child: FrameThumbnail(
+                iconSize: 14,
                 bytesFuture: _bytesFuture,
                 fallbackFilePath: widget.thumbnail.filePath,
                 colors: widget.colors,
@@ -389,90 +378,6 @@ class _ThumbnailTileState extends ConsumerState<_ThumbnailTile> {
         ),
       ),
     );
-  }
-}
-
-class _ThumbnailImage extends ConsumerWidget {
-  final Future<Uint8List?>? bytesFuture;
-  final String fallbackFilePath;
-  final NightshadeColors colors;
-
-  const _ThumbnailImage({
-    required this.bytesFuture,
-    required this.fallbackFilePath,
-    required this.colors,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final isRemoteMode = ref.watch(isRemoteModeProvider);
-    return FutureBuilder<Uint8List?>(
-      future: bytesFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(
-            child: SizedBox(
-              width: 12,
-              height: 12,
-              child: CircularProgressIndicator(
-                strokeWidth: 1.4,
-                valueColor: AlwaysStoppedAnimation<Color>(colors.textMuted),
-              ),
-            ),
-          );
-        }
-        final bytes = snapshot.data;
-        if (bytes != null && bytes.isNotEmpty) {
-          return Image.memory(
-            bytes,
-            fit: BoxFit.cover,
-            width: double.infinity,
-            height: double.infinity,
-            gaplessPlayback: true,
-            errorBuilder: (_, __, ___) => Icon(
-              LucideIcons.image,
-              size: 14,
-              color: colors.textMuted,
-            ),
-          );
-        }
-        // Backend has no thumbnail (e.g. ad-hoc capture before grading
-        // shipped). If we're not in remote mode and the underlying file
-        // exists and is NOT a FITS / XISF (Flutter can't decode those),
-        // fall back to Image.file.
-        if (!isRemoteMode && _isImageLikePath(fallbackFilePath)) {
-          final file = File(fallbackFilePath);
-          // We won't await `exists` here because we're in a sync build;
-          // Image.file errorBuilder handles missing files.
-          return Image.file(
-            file,
-            fit: BoxFit.cover,
-            width: double.infinity,
-            height: double.infinity,
-            gaplessPlayback: true,
-            errorBuilder: (_, __, ___) => Icon(
-              LucideIcons.image,
-              size: 14,
-              color: colors.textMuted,
-            ),
-          );
-        }
-        return Icon(
-          LucideIcons.image,
-          size: 14,
-          color: colors.textMuted,
-        );
-      },
-    );
-  }
-
-  bool _isImageLikePath(String path) {
-    final lower = path.toLowerCase();
-    return lower.endsWith('.png') ||
-        lower.endsWith('.jpg') ||
-        lower.endsWith('.jpeg') ||
-        lower.endsWith('.tif') ||
-        lower.endsWith('.tiff');
   }
 }
 

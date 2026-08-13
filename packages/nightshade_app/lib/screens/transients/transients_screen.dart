@@ -5,6 +5,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../utils/transient_type_style.dart';
 import 'widgets/transient_card.dart';
 
 /// Filter options for the transient alerts list.
@@ -698,7 +699,7 @@ class _TransientSettingsDialogState
             runSpacing: NightshadeTokens.spaceSm,
             children: TransientType.values.map((type) {
               return NightshadeChip(
-                label: _getTypeLabel(type),
+                label: TransientTypeStyle.shortLabel(type),
                 selected: settings.typesToMonitor.contains(type),
                 onTap: () => _run(() => notifier.toggleType(type)),
               );
@@ -748,26 +749,5 @@ class _TransientSettingsDialogState
         ],
       ),
     );
-  }
-
-  String _getTypeLabel(TransientType type) {
-    switch (type) {
-      case TransientType.nova:
-        return 'Nova';
-      case TransientType.supernova:
-        return 'Supernova';
-      case TransientType.cataclysmic:
-        return 'Cataclysmic';
-      case TransientType.comet:
-        return 'Comet';
-      case TransientType.asteroid:
-        return 'Asteroid';
-      case TransientType.variableStar:
-        return 'Variable Star';
-      case TransientType.gammaRayBurst:
-        return 'GRB';
-      case TransientType.other:
-        return 'Other';
-    }
   }
 }

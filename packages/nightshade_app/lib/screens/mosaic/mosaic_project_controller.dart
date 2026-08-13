@@ -257,6 +257,8 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
     MosaicCaptureLauncher? captureLauncher,
     IntegrationSettings integrationSettings = IntegrationSettings.defaults,
     void Function()? onHubStateChanged,
+    this.hubTimeout = defaultHubTimeout,
+    this.hubTransferTimeout = defaultHubTransferTimeout,
   })  : _projectId = projectId,
         _projectsDao = projectsDao,
         _panelsDao = panelsDao,
@@ -317,6 +319,32 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
   /// A wedged/locked database must surface an actionable error rather than an
   /// indefinite spinner the operator cannot interpret.
   static const Duration loadTimeout = Duration(seconds: 20);
+
+  /// How long a hub control-plane call (publish / claim / release / discover /
+  /// join / refresh) may take before the screen stops waiting on it.
+  ///
+  /// The local read above states a bound; the calls that actually cross a
+  /// network stated none, so a hub that accepted the connection and then went
+  /// quiet left the action buttons disabled behind a spinner with no way back
+  /// except leaving the screen.
+  static const Duration defaultHubTimeout = Duration(seconds: 60);
+
+  /// The bound for hub calls that move image bytes or stitch server-side —
+  /// panel-master upload, finished-mosaic download, central assembly. Minutes
+  /// rather than seconds because a panel master is hundreds of megabytes, but
+  /// still finite.
+  static const Duration defaultHubTransferTimeout = Duration(minutes: 10);
+
+  /// Injected so tests can trip the bound without waiting on wall-clock time.
+  final Duration hubTimeout;
+  final Duration hubTransferTimeout;
+
+  String _hubTimeoutMessage(String action, Duration bound) {
+    final elapsed =
+        bound.inSeconds < 60 ? '${bound.inSeconds}s' : '${bound.inMinutes} min';
+    return '$action timed out after $elapsed — the hub did not answer. '
+        'Check the hub is reachable and try again.';
+  }
 
   /// Load (or reload) the project, its panels, the per-panel masters, and the
   /// stitched output. Errors are captured onto [MosaicProjectState.error]; the
@@ -559,9 +587,15 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
     }
     state = state.copyWith(isPublishing: true, clearError: true);
     try {
-      await collaborative.publishProject(_projectId);
+      await collaborative.publishProject(_projectId).timeout(hubTimeout);
       await _reloadAfterHubMutation();
       if (mounted) state = state.copyWith(isPublishing: false);
+    } on TimeoutException {
+      if (!mounted) return;
+      state = state.copyWith(
+        isPublishing: false,
+        error: _hubTimeoutMessage('Publish', hubTimeout),
+      );
     } catch (e) {
       if (!mounted) return;
       state = state.copyWith(isPublishing: false, error: 'Publish failed: $e');
@@ -623,7 +657,7 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
     }
     state = state.copyWith(isClaiming: true, clearError: true);
     try {
-      final claims = await action();
+      final claims = await action().timeout(hubTimeout);
       await _reloadAfterHubMutation();
       if (!mounted) return;
       // Surface the hub's OWN deadline for what was just granted, so the person
@@ -637,6 +671,12 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
         claimExpiresAt: expiries.isEmpty
             ? null
             : expiries.reduce((a, b) => a.isBefore(b) ? a : b),
+      );
+    } on TimeoutException {
+      if (!mounted) return;
+      state = state.copyWith(
+        isClaiming: false,
+        error: _hubTimeoutMessage('Claim', hubTimeout),
       );
     } catch (e) {
       if (!mounted) return;
@@ -662,7 +702,9 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
     }
     state = state.copyWith(isClaiming: true, clearError: true);
     try {
-      final released = await collaborative.releasePanel(_projectId, panelIndex);
+      final released = await collaborative
+          .releasePanel(_projectId, panelIndex)
+          .timeout(hubTimeout);
       await _reloadAfterHubMutation();
       if (!mounted) return;
       if (released) {
@@ -674,6 +716,12 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
               'holds a claim for this device.',
         );
       }
+    } on TimeoutException {
+      if (!mounted) return;
+      state = state.copyWith(
+        isClaiming: false,
+        error: _hubTimeoutMessage('Release', hubTimeout),
+      );
     } catch (e) {
       if (!mounted) return;
       state = state.copyWith(isClaiming: false, error: 'Release failed: $e');
@@ -697,9 +745,17 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
     }
     state = state.copyWith(isClaiming: true, clearError: true);
     try {
-      await collaborative.forceReleasePanel(_projectId, panelIndex);
+      await collaborative
+          .forceReleasePanel(_projectId, panelIndex)
+          .timeout(hubTimeout);
       await _reloadAfterHubMutation();
       if (mounted) state = state.copyWith(isClaiming: false);
+    } on TimeoutException {
+      if (!mounted) return;
+      state = state.copyWith(
+        isClaiming: false,
+        error: _hubTimeoutMessage('Force-release', hubTimeout),
+      );
     } catch (e) {
       if (!mounted) return;
       state =
@@ -716,12 +772,14 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
     required bool attributionConsent,
   }) async {
     await _runUpload(
-      () => _collaborative!.uploadPanelMaster(
-        _projectId,
-        panelIndex,
-        license: license,
-        attributionConsent: attributionConsent,
-      ),
+      () => _collaborative!
+          .uploadPanelMaster(
+            _projectId,
+            panelIndex,
+            license: license,
+            attributionConsent: attributionConsent,
+          )
+          .timeout(hubTransferTimeout),
     );
   }
 
@@ -737,12 +795,16 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
     if (indices.isEmpty) return;
     await _runUpload(() async {
       for (final index in indices) {
-        await _collaborative!.uploadPanelMaster(
-          _projectId,
-          index,
-          license: license,
-          attributionConsent: attributionConsent,
-        );
+        // Per panel, not per batch: a twenty-panel upload is legitimately long,
+        // but no single panel may stall forever.
+        await _collaborative!
+            .uploadPanelMaster(
+              _projectId,
+              index,
+              license: license,
+              attributionConsent: attributionConsent,
+            )
+            .timeout(hubTransferTimeout);
       }
     });
   }
@@ -762,6 +824,12 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
       await action();
       await _reloadAfterHubMutation();
       if (mounted) state = state.copyWith(isUploading: false);
+    } on TimeoutException {
+      if (!mounted) return;
+      state = state.copyWith(
+        isUploading: false,
+        error: _hubTimeoutMessage('Upload', hubTransferTimeout),
+      );
     } catch (e) {
       if (!mounted) return;
       state = state.copyWith(isUploading: false, error: 'Upload failed: $e');
@@ -782,9 +850,17 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
     }
     state = state.copyWith(isAssembling: true, clearError: true);
     try {
-      await collaborative.assembleMosaic(_projectId);
+      await collaborative.assembleMosaic(_projectId).timeout(
+            hubTransferTimeout,
+          );
       await _reloadAfterHubMutation();
       if (mounted) state = state.copyWith(isAssembling: false);
+    } on TimeoutException {
+      if (!mounted) return;
+      state = state.copyWith(
+        isAssembling: false,
+        error: _hubTimeoutMessage('Assemble', hubTransferTimeout),
+      );
     } catch (e) {
       if (!mounted) return;
       state = state.copyWith(isAssembling: false, error: 'Assemble failed: $e');
@@ -804,7 +880,14 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
       return const [];
     }
     try {
-      return await collaborative.listMosaics();
+      return await collaborative.listMosaics().timeout(hubTimeout);
+    } on TimeoutException {
+      if (mounted) {
+        state = state.copyWith(
+          error: _hubTimeoutMessage('Discover', hubTimeout),
+        );
+      }
+      return const [];
     } catch (e) {
       if (mounted) state = state.copyWith(error: 'Discover failed: $e');
       return const [];
@@ -832,9 +915,17 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
     }
     state = state.copyWith(isJoining: true, clearError: true);
     try {
-      await collaborative.joinAsParticipant(_projectId, hubMosaicId);
+      await collaborative
+          .joinAsParticipant(_projectId, hubMosaicId)
+          .timeout(hubTimeout);
       await _reloadAfterHubMutation();
       if (mounted) state = state.copyWith(isJoining: false);
+    } on TimeoutException {
+      if (!mounted) return;
+      state = state.copyWith(
+        isJoining: false,
+        error: _hubTimeoutMessage('Join', hubTimeout),
+      );
     } catch (e) {
       if (!mounted) return;
       state = state.copyWith(isJoining: false, error: 'Join failed: $e');
@@ -856,9 +947,15 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
     }
     state = state.copyWith(isRefreshing: true, clearError: true);
     try {
-      await collaborative.refreshStatus(_projectId);
+      await collaborative.refreshStatus(_projectId).timeout(hubTimeout);
       await load();
       if (mounted) state = state.copyWith(isRefreshing: false);
+    } on TimeoutException {
+      if (!mounted) return;
+      state = state.copyWith(
+        isRefreshing: false,
+        error: _hubTimeoutMessage('Refresh', hubTimeout),
+      );
     } catch (e) {
       if (!mounted) return;
       state = state.copyWith(isRefreshing: false, error: 'Refresh failed: $e');
@@ -881,9 +978,17 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
     }
     state = state.copyWith(isDownloading: true, clearError: true);
     try {
-      await collaborative.downloadOutput(_projectId);
+      await collaborative.downloadOutput(_projectId).timeout(
+            hubTransferTimeout,
+          );
       await load();
       if (mounted) state = state.copyWith(isDownloading: false);
+    } on TimeoutException {
+      if (!mounted) return;
+      state = state.copyWith(
+        isDownloading: false,
+        error: _hubTimeoutMessage('Download', hubTransferTimeout),
+      );
     } catch (e) {
       if (!mounted) return;
       state =

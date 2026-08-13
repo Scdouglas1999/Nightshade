@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../utils/user_facing_error.dart';
 import 'settings_widgets.dart';
@@ -15,6 +15,46 @@ String? _validatePositiveScienceId(String value) {
   }
   return null;
 }
+
+String? _validateAavsoObserverCode(String value) {
+  if (value.isEmpty) return null;
+  if (value.length > 5) return 'AAVSO codes must be 1-5 characters';
+  return null;
+}
+
+String? _validateMpcObservatoryCode(String value) {
+  if (value.isEmpty) return null;
+  if (!RegExp(r'^[A-Z0-9]{3}$').hasMatch(value)) {
+    return 'MPC codes must be exactly 3 letters or digits';
+  }
+  return null;
+}
+
+/// Raised by a science row when the operator's text fails that row's own
+/// validation.
+///
+/// It has to be thrown rather than merely reported: [SettingsTextInput] treats
+/// a callback that returns normally as an accepted write and would then show
+/// the rejected text as if it were stored.
+class _ScienceValueRejected implements Exception {
+  final String message;
+  const _ScienceValueRejected(this.message);
+
+  @override
+  String toString() => 'Science setting rejected: $message';
+}
+
+/// Authority key for a science row's [SettingsTextInput].
+///
+/// The backend identity on its own is not enough here: these rows normalise
+/// what the operator typed (trim, upper-case, clamp to range), and when the
+/// normalised value equals what was already stored the input has no change to
+/// react to and would keep showing the raw text — "100000" over a stored
+/// "65535". Folding a per-commit counter in makes every accepted write
+/// re-assert the stored value. `identical` on two equal ints is true, which is
+/// what [SettingsTextInput] compares.
+Object _rowAuthority(Object? backend, int commits) =>
+    Object.hash(identityHashCode(backend), commits);
 
 class ScienceSettingsPage extends ConsumerWidget {
   final bool isMobile;
@@ -239,14 +279,41 @@ class ScienceSettingsPage extends ConsumerWidget {
               title: 'AAVSO',
               isMobile: isMobile,
               children: [
-                _AavsoObserverCodeRow(isMobile: isMobile),
+                _ScienceTextRow(
+                  isMobile: isMobile,
+                  icon: LucideIcons.userCheck,
+                  title: 'AAVSO observer code',
+                  subtitle: 'Your assigned AAVSO observer initials (1-5 chars, '
+                      'e.g., "XYZ")',
+                  hint: 'e.g. XYZ',
+                  width: 100,
+                  uppercase: true,
+                  maxLength: 5,
+                  validate: _validateAavsoObserverCode,
+                  value: science.aavsoObserverCode,
+                  onCommit: scienceNotifier.setAavsoObserverCode,
+                  isLast: true,
+                ),
               ],
             ),
             SettingsSection(
               title: 'Minor Planet Center (MPC)',
               isMobile: isMobile,
               children: [
-                _MpcObservatoryCodeRow(isMobile: isMobile),
+                _ScienceTextRow(
+                  isMobile: isMobile,
+                  icon: LucideIcons.star,
+                  title: 'MPC observatory code',
+                  subtitle: 'Your 3-character MPC observatory code (e.g., '
+                      '"G40"). Required for MPC report export.',
+                  hint: 'e.g. G40',
+                  width: 80,
+                  uppercase: true,
+                  maxLength: 3,
+                  validate: _validateMpcObservatoryCode,
+                  value: science.mpcObservatoryCode,
+                  onCommit: scienceNotifier.setMpcObservatoryCode,
+                ),
                 _ScienceTextRow(
                   isMobile: isMobile,
                   icon: LucideIcons.bookOpen,
@@ -256,8 +323,8 @@ class ScienceSettingsPage extends ConsumerWidget {
                       '"Gaia2"). Blank reports as UNK.',
                   hint: 'e.g. Gaia2',
                   width: 110,
-                  read: (s) => s.mpcAstrometricCatalog,
-                  write: (n, v) => n.setMpcAstrometricCatalog(v),
+                  value: science.mpcAstrometricCatalog,
+                  onCommit: scienceNotifier.setMpcAstrometricCatalog,
                   isLast: true,
                 ),
               ],
@@ -275,8 +342,8 @@ class ScienceSettingsPage extends ConsumerWidget {
                       'field.',
                   hint: 'e.g. Jane Doe',
                   width: 160,
-                  read: (s) => s.observerName,
-                  write: (n, v) => n.setObserverName(v),
+                  value: science.observerName,
+                  onCommit: scienceNotifier.setObserverName,
                   isLast: true,
                 ),
               ],
@@ -294,8 +361,11 @@ class ScienceSettingsPage extends ConsumerWidget {
                   width: 100,
                   numeric: true,
                   validate: _validatePositiveScienceId,
-                  read: (s) => s.tnsBotId == 0 ? '' : s.tnsBotId.toString(),
-                  write: (n, v) => n.setTnsBotId(int.tryParse(v) ?? 0),
+                  value:
+                      science.tnsBotId == 0 ? '' : science.tnsBotId.toString(),
+                  onCommit: (v) => scienceNotifier.setTnsBotId(
+                    int.tryParse(v) ?? 0,
+                  ),
                 ),
                 _ScienceTextRow(
                   isMobile: isMobile,
@@ -304,8 +374,8 @@ class ScienceSettingsPage extends ConsumerWidget {
                   subtitle: 'Your TNS bot name (tns_marker name).',
                   hint: 'e.g. NightshadeBot',
                   width: 160,
-                  read: (s) => s.tnsBotName,
-                  write: (n, v) => n.setTnsBotName(v),
+                  value: science.tnsBotName,
+                  onCommit: scienceNotifier.setTnsBotName,
                 ),
                 _ScienceTextRow(
                   isMobile: isMobile,
@@ -316,11 +386,12 @@ class ScienceSettingsPage extends ConsumerWidget {
                   width: 100,
                   numeric: true,
                   validate: _validatePositiveScienceId,
-                  read: (s) => s.tnsReportingGroupId == 0
+                  value: science.tnsReportingGroupId == 0
                       ? ''
-                      : s.tnsReportingGroupId.toString(),
-                  write: (n, v) =>
-                      n.setTnsReportingGroupId(int.tryParse(v) ?? 0),
+                      : science.tnsReportingGroupId.toString(),
+                  onCommit: (v) => scienceNotifier.setTnsReportingGroupId(
+                    int.tryParse(v) ?? 0,
+                  ),
                 ),
                 _ScienceTextRow(
                   isMobile: isMobile,
@@ -331,10 +402,12 @@ class ScienceSettingsPage extends ConsumerWidget {
                   width: 100,
                   numeric: true,
                   validate: _validatePositiveScienceId,
-                  read: (s) => s.tnsDataSourceId == 0
+                  value: science.tnsDataSourceId == 0
                       ? ''
-                      : s.tnsDataSourceId.toString(),
-                  write: (n, v) => n.setTnsDataSourceId(int.tryParse(v) ?? 0),
+                      : science.tnsDataSourceId.toString(),
+                  onCommit: (v) => scienceNotifier.setTnsDataSourceId(
+                    int.tryParse(v) ?? 0,
+                  ),
                 ),
                 _ScienceTextRow(
                   isMobile: isMobile,
@@ -344,8 +417,8 @@ class ScienceSettingsPage extends ConsumerWidget {
                       'name).',
                   hint: 'e.g. Jane Doe',
                   width: 160,
-                  read: (s) => s.tnsReporterName,
-                  write: (n, v) => n.setTnsReporterName(v),
+                  value: science.tnsReporterName,
+                  onCommit: scienceNotifier.setTnsReporterName,
                 ),
                 const _TnsApiKeyRow(),
                 _TnsSandboxRow(isMobile: isMobile),
@@ -401,242 +474,17 @@ class ScienceSettingsPage extends ConsumerWidget {
   }
 }
 
-class _AavsoObserverCodeRow extends ConsumerStatefulWidget {
-  final bool isMobile;
-  const _AavsoObserverCodeRow({this.isMobile = false});
-  @override
-  ConsumerState<_AavsoObserverCodeRow> createState() =>
-      _AavsoObserverCodeRowState();
-}
-
-class _AavsoObserverCodeRowState extends ConsumerState<_AavsoObserverCodeRow> {
-  late TextEditingController _controller;
-  late FocusNode _focusNode;
-  String? _validationError;
-  bool _loading = true;
-  String _lastCommitted = '';
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController();
-    _focusNode = FocusNode()..addListener(_onFocusChange);
-    _loadValue();
-  }
-
-  void _onFocusChange() {
-    if (!_focusNode.hasFocus) _commit();
-  }
-
-  Future<void> _loadValue() async {
-    final science = ref.read(scienceSettingsProvider).valueOrNull;
-    if (science != null && science.aavsoObserverCode.isNotEmpty && mounted) {
-      _controller.text = science.aavsoObserverCode;
-      _lastCommitted = science.aavsoObserverCode;
-    }
-    _loading = false;
-  }
-
-  Future<void> _commit() async {
-    if (_loading) return;
-    final trimmed = _controller.text.trim().toUpperCase();
-    if (trimmed == _lastCommitted) return;
-    if (trimmed.isNotEmpty && trimmed.length > 5) {
-      setState(() {
-        _validationError = 'AAVSO codes must be 1-5 characters';
-      });
-      return;
-    }
-    setState(() => _validationError = null);
-    final notifier = ref.read(scienceSettingsProvider.notifier);
-    final previous = _lastCommitted;
-    _lastCommitted = trimmed;
-    try {
-      await notifier.setAavsoObserverCode(trimmed);
-    } catch (_) {
-      _lastCommitted = previous;
-      rethrow;
-    }
-    if (mounted) {
-      _controller.text = trimmed;
-    }
-  }
-
-  @override
-  void dispose() {
-    _focusNode.removeListener(_onFocusChange);
-    _focusNode.dispose();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SettingRow(
-      icon: LucideIcons.userCheck,
-      title: 'AAVSO observer code',
-      subtitle: _validationError != null
-          ? _validationError!
-          : 'Your assigned AAVSO observer initials (1-5 chars, e.g., "XYZ")',
-      trailing: SizedBox(
-        width: 100,
-        child: TextField(
-          controller: _controller,
-          focusNode: _focusNode,
-          maxLength: 5,
-          textCapitalization: TextCapitalization.characters,
-          style: TextStyle(
-            color: NightshadeColors.of(context).textPrimary,
-            fontSize: NightshadeTypography.fontSize13,
-          ),
-          decoration: InputDecoration(
-            isDense: true,
-            counterText: '',
-            hintText: 'e.g. XYZ',
-            hintStyle: TextStyle(
-              color: NightshadeColors.of(context).textMuted,
-              fontSize: NightshadeTypography.fontSize13,
-            ),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-              borderSide:
-                  BorderSide(color: NightshadeColors.of(context).border),
-            ),
-            errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-              borderSide: BorderSide(color: NightshadeColors.of(context).error),
-            ),
-          ),
-          onSubmitted: (_) => _commit(),
-        ),
-      ),
-      isLast: true,
-      isMobile: widget.isMobile,
-    );
-  }
-}
-
-class _MpcObservatoryCodeRow extends ConsumerStatefulWidget {
-  final bool isMobile;
-  const _MpcObservatoryCodeRow({this.isMobile = false});
-  @override
-  ConsumerState<_MpcObservatoryCodeRow> createState() =>
-      _MpcObservatoryCodeRowState();
-}
-
-class _MpcObservatoryCodeRowState
-    extends ConsumerState<_MpcObservatoryCodeRow> {
-  late TextEditingController _controller;
-  late FocusNode _focusNode;
-  String? _validationError;
-  bool _loading = true;
-  String _lastCommitted = '';
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController();
-    _focusNode = FocusNode()..addListener(_onFocusChange);
-    _loadValue();
-  }
-
-  void _onFocusChange() {
-    if (!_focusNode.hasFocus) _commit();
-  }
-
-  Future<void> _loadValue() async {
-    final science = ref.read(scienceSettingsProvider).valueOrNull;
-    if (science != null && science.mpcObservatoryCode.isNotEmpty && mounted) {
-      _controller.text = science.mpcObservatoryCode;
-      _lastCommitted = science.mpcObservatoryCode;
-    }
-    _loading = false;
-  }
-
-  Future<void> _commit() async {
-    if (_loading) return;
-    final trimmed = _controller.text.trim().toUpperCase();
-    if (trimmed == _lastCommitted) return;
-    if (trimmed.isNotEmpty &&
-        (trimmed.length != 3 || !RegExp(r'^[A-Z0-9]{3}$').hasMatch(trimmed))) {
-      setState(() {
-        _validationError = 'MPC codes must be exactly 3 letters or digits';
-      });
-      return;
-    }
-    setState(() => _validationError = null);
-    final notifier = ref.read(scienceSettingsProvider.notifier);
-    final previous = _lastCommitted;
-    _lastCommitted = trimmed;
-    try {
-      await notifier.setMpcObservatoryCode(trimmed);
-    } catch (_) {
-      _lastCommitted = previous;
-      rethrow;
-    }
-    if (mounted) {
-      _controller.text = trimmed;
-    }
-  }
-
-  @override
-  void dispose() {
-    _focusNode.removeListener(_onFocusChange);
-    _focusNode.dispose();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SettingRow(
-      icon: LucideIcons.star,
-      title: 'MPC observatory code',
-      subtitle: _validationError != null
-          ? _validationError!
-          : 'Your 3-character MPC observatory code (e.g., "G40"). Required for MPC report export.',
-      trailing: SizedBox(
-        width: 80,
-        child: TextField(
-          controller: _controller,
-          focusNode: _focusNode,
-          maxLength: 3,
-          textCapitalization: TextCapitalization.characters,
-          style: TextStyle(
-            color: NightshadeColors.of(context).textPrimary,
-            fontSize: NightshadeTypography.fontSize13,
-          ),
-          decoration: InputDecoration(
-            isDense: true,
-            counterText: '',
-            hintText: 'e.g. G40',
-            hintStyle: TextStyle(
-              color: NightshadeColors.of(context).textMuted,
-              fontSize: NightshadeTypography.fontSize13,
-            ),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-              borderSide:
-                  BorderSide(color: NightshadeColors.of(context).border),
-            ),
-          ),
-          onSubmitted: (_) => _commit(),
-        ),
-      ),
-      isLast: true,
-      isMobile: widget.isMobile,
-    );
-  }
-}
-
-/// Generic single-line science-settings text row backed by a ScienceSettings
-/// getter + a notifier setter. Used for the TNS bot identifiers and the
-/// observer-name / astrometric-catalog fields (all non-secret, persisted via
-/// the science settings keyring, master/slave-aware).
+/// Single-line science-settings text row, rendered on the canonical
+/// [SettingsTextInput].
+///
+/// The canonical input owns the parts every settings field needs and these
+/// rows kept re-implementing badly: authoritative-value sync (so a value
+/// written by another client or restored from a backup shows up here), an
+/// authority key (so switching rigs discards a half-typed edit instead of
+/// writing it to the new host), a serialised write tail, and a rollback that
+/// puts the stored value back when a write is refused. This row adds only what
+/// is science-specific — normalisation, per-field validation shown in the
+/// subtitle, and the failure toast.
 class _ScienceTextRow extends ConsumerStatefulWidget {
   final bool isMobile;
   final IconData icon;
@@ -644,11 +492,20 @@ class _ScienceTextRow extends ConsumerStatefulWidget {
   final String subtitle;
   final String hint;
   final double width;
+
+  /// The stored value, watched by the caller. Blank renders the hint.
+  final String value;
+
+  final Future<void> Function(String) onCommit;
+
+  /// Fold to upper case both as the operator types and before committing —
+  /// the AAVSO and MPC codes are stored and reported upper-case.
+  final bool uppercase;
+
+  final int? maxLength;
   final bool numeric;
   final bool isLast;
   final String? Function(String value)? validate;
-  final String Function(ScienceSettings) read;
-  final Future<void> Function(ScienceSettingsNotifier, String) write;
 
   const _ScienceTextRow({
     required this.isMobile,
@@ -657,8 +514,10 @@ class _ScienceTextRow extends ConsumerStatefulWidget {
     required this.subtitle,
     required this.hint,
     required this.width,
-    required this.read,
-    required this.write,
+    required this.value,
+    required this.onCommit,
+    this.uppercase = false,
+    this.maxLength,
     this.numeric = false,
     this.isLast = false,
     this.validate,
@@ -669,64 +528,54 @@ class _ScienceTextRow extends ConsumerStatefulWidget {
 }
 
 class _ScienceTextRowState extends ConsumerState<_ScienceTextRow> {
-  late TextEditingController _controller;
-  late FocusNode _focusNode;
-  bool _loading = true;
-  String _lastCommitted = '';
-  String? _validationError;
+  final _controller = TextEditingController();
+  late final List<TextInputFormatter>? _formatters = _buildFormatters();
+  String? _rowError;
+  int _commits = 0;
 
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController();
-    _focusNode = FocusNode()..addListener(_onFocusChange);
-    _loadValue();
-  }
-
-  void _onFocusChange() {
-    if (!_focusNode.hasFocus) _commit();
-  }
-
-  Future<void> _loadValue() async {
-    final science = ref.read(scienceSettingsProvider).valueOrNull;
-    if (science != null && mounted) {
-      final value = widget.read(science);
-      if (value.isNotEmpty) {
-        _controller.text = value;
-        _lastCommitted = value;
-      }
-    }
-    _loading = false;
-  }
-
-  Future<void> _commit() async {
-    if (_loading) return;
-    final trimmed = _controller.text.trim();
-    if (trimmed == _lastCommitted) return;
-    final validationError = widget.validate?.call(trimmed);
-    if (validationError != null) {
-      setState(() => _validationError = validationError);
-      return;
-    }
-    setState(() => _validationError = null);
-    final notifier = ref.read(scienceSettingsProvider.notifier);
-    final previous = _lastCommitted;
-    _lastCommitted = trimmed;
-    try {
-      await widget.write(notifier, trimmed);
-    } catch (_) {
-      _lastCommitted = previous;
-      rethrow;
-    }
-    if (mounted) _controller.text = trimmed;
+  List<TextInputFormatter>? _buildFormatters() {
+    final formatters = <TextInputFormatter>[
+      if (widget.maxLength != null)
+        LengthLimitingTextInputFormatter(widget.maxLength),
+      if (widget.uppercase)
+        TextInputFormatter.withFunction(
+          (_, value) => value.copyWith(text: value.text.toUpperCase()),
+        ),
+    ];
+    return formatters.isEmpty ? null : formatters;
   }
 
   @override
   void dispose() {
-    _focusNode.removeListener(_onFocusChange);
-    _focusNode.dispose();
     _controller.dispose();
     super.dispose();
+  }
+
+  Future<void> _commit(String raw) async {
+    final value = widget.uppercase ? raw.trim().toUpperCase() : raw.trim();
+    final rejection = widget.validate?.call(value);
+    if (rejection != null) {
+      setState(() => _rowError = rejection);
+      throw _ScienceValueRejected(rejection);
+    }
+    if (_rowError != null) setState(() => _rowError = null);
+
+    try {
+      await widget.onCommit(value);
+    } catch (error) {
+      final message = 'Could not save ${widget.title.toLowerCase()}: '
+          '${userFacingError(error)}';
+      if (mounted) {
+        setState(() => _rowError = message);
+        ScaffoldMessenger.maybeOf(context)
+            ?.showSnackBar(SnackBar(content: Text(message)));
+      }
+      // Hands the failure back to SettingsTextInput, which restores the stored
+      // value. Swallowing it here would leave unsaved text on screen looking
+      // saved.
+      rethrow;
+    }
+    if (mounted) setState(() => _commits++);
   }
 
   @override
@@ -734,35 +583,17 @@ class _ScienceTextRowState extends ConsumerState<_ScienceTextRow> {
     return SettingRow(
       icon: widget.icon,
       title: widget.title,
-      subtitle: _validationError ?? widget.subtitle,
-      trailing: SizedBox(
+      subtitle: _rowError ?? widget.subtitle,
+      trailing: SettingsTextInput(
+        controller: _controller,
+        authoritativeValue: widget.value,
+        authorityKey: _rowAuthority(ref.watch(backendProvider), _commits),
+        hint: widget.hint,
         width: widget.width,
-        child: TextField(
-          controller: _controller,
-          focusNode: _focusNode,
-          keyboardType: widget.numeric ? TextInputType.number : null,
-          style: TextStyle(
-            color: NightshadeColors.of(context).textPrimary,
-            fontSize: NightshadeTypography.fontSize13,
-          ),
-          decoration: InputDecoration(
-            isDense: true,
-            counterText: '',
-            hintText: widget.hint,
-            hintStyle: TextStyle(
-              color: NightshadeColors.of(context).textMuted,
-              fontSize: NightshadeTypography.fontSize13,
-            ),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-              borderSide:
-                  BorderSide(color: NightshadeColors.of(context).border),
-            ),
-          ),
-          onSubmitted: (_) => _commit(),
-        ),
+        isMobile: widget.isMobile,
+        keyboardType: widget.numeric ? TextInputType.number : null,
+        inputFormatters: _formatters,
+        onChanged: _commit,
       ),
       isLast: widget.isLast,
       isMobile: widget.isMobile,
@@ -780,19 +611,24 @@ class _TnsApiKeyRow extends ConsumerStatefulWidget {
 
 class _TnsApiKeyRowState extends ConsumerState<_TnsApiKeyRow> {
   final _controller = TextEditingController();
-  late final FocusNode _focusNode;
   bool _hasKey = false;
-  bool _saving = false;
+  String? _writeError;
+
+  /// Bumped after each stored key so [SettingsTextInput] treats the field as
+  /// re-owned and clears it. The key itself is never read back, so a reset
+  /// token is the only "authoritative value" this row can have.
+  Object _authority = Object();
 
   @override
   void initState() {
     super.initState();
-    _focusNode = FocusNode()..addListener(_onFocusChange);
     _loadHas();
   }
 
-  void _onFocusChange() {
-    if (!_focusNode.hasFocus) _commit();
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   Future<void> _loadHas() async {
@@ -800,30 +636,32 @@ class _TnsApiKeyRowState extends ConsumerState<_TnsApiKeyRow> {
     if (mounted) setState(() => _hasKey = has);
   }
 
-  Future<void> _commit() async {
-    if (_saving) return;
-    final trimmed = _controller.text.trim();
+  Future<void> _commit(String raw) async {
+    final trimmed = raw.trim();
     if (trimmed.isEmpty) return;
-    _saving = true;
     try {
       await ref
           .read(secretsStoreProvider)
           .write(SecretField.tnsApiKey, trimmed);
+    } catch (error) {
+      // A locked keyring or an absent secret service is a real condition on a
+      // headless host. Say so and keep the pasted key on screen so it can be
+      // retried; clearing the field here would look exactly like success.
       if (mounted) {
-        _controller.clear();
-        setState(() => _hasKey = true);
+        final message =
+            'Could not store the TNS bot key: ${userFacingError(error)}';
+        setState(() => _writeError = message);
+        ScaffoldMessenger.maybeOf(context)
+            ?.showSnackBar(SnackBar(content: Text(message)));
       }
-    } finally {
-      _saving = false;
+      return;
     }
-  }
-
-  @override
-  void dispose() {
-    _focusNode.removeListener(_onFocusChange);
-    _focusNode.dispose();
-    _controller.dispose();
-    super.dispose();
+    if (!mounted) return;
+    setState(() {
+      _hasKey = true;
+      _writeError = null;
+      _authority = Object();
+    });
   }
 
   @override
@@ -831,37 +669,19 @@ class _TnsApiKeyRowState extends ConsumerState<_TnsApiKeyRow> {
     return SettingRow(
       icon: LucideIcons.keyRound,
       title: 'Bot API key',
-      subtitle: _hasKey
-          ? 'Stored securely in the keyring. Enter a new value to replace it.'
-          : 'Your TNS bot API key — stored securely, never in backups.',
-      trailing: SizedBox(
+      subtitle: _writeError ??
+          (_hasKey
+              ? 'Stored securely in the keyring. Enter a new value to replace '
+                  'it.'
+              : 'Your TNS bot API key — stored securely, never in backups.'),
+      trailing: SettingsTextInput(
+        controller: _controller,
+        authoritativeValue: '',
+        authorityKey: _authority,
+        hint: _hasKey ? '•••••• (stored securely)' : 'paste key',
         width: 180,
-        child: TextField(
-          controller: _controller,
-          focusNode: _focusNode,
-          obscureText: true,
-          style: TextStyle(
-            color: NightshadeColors.of(context).textPrimary,
-            fontSize: NightshadeTypography.fontSize13,
-          ),
-          decoration: InputDecoration(
-            isDense: true,
-            counterText: '',
-            hintText: _hasKey ? '•••••• (stored securely)' : 'paste key',
-            hintStyle: TextStyle(
-              color: NightshadeColors.of(context).textMuted,
-              fontSize: NightshadeTypography.fontSize13,
-            ),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-              borderSide:
-                  BorderSide(color: NightshadeColors.of(context).border),
-            ),
-          ),
-          onSubmitted: (_) => _commit(),
-        ),
+        obscure: true,
+        onChanged: _commit,
       ),
       isMobile: false,
     );
@@ -1021,9 +841,15 @@ class _ScienceCameraAutoRowState extends ConsumerState<_ScienceCameraAutoRow> {
   }
 }
 
-/// Numeric camera-property row backed by a raw settings key. Shared by the
-/// read-noise, gain, and saturation rows so all three validate and persist
-/// identically.
+/// Numeric camera-property row backed by a raw settings key, rendered on the
+/// canonical [SettingsTextInput] so the read-noise, gain, and saturation rows
+/// inherit the serialised write tail and the rollback-on-refusal, and so a
+/// value the auto-configure switch writes from the connected camera reaches
+/// the field without a hand-rolled post-frame resync.
+///
+/// The parse/clamp stays here rather than moving to [SettingsNumberInput]:
+/// these rows have to *say* why an entry was refused, and a digits-only
+/// formatter would swallow the offending text before the row ever saw it.
 class _ScienceCameraValueRow extends ConsumerStatefulWidget {
   final bool isMobile;
   final String settingKey;
@@ -1056,67 +882,41 @@ class _ScienceCameraValueRow extends ConsumerStatefulWidget {
 
 class _ScienceCameraValueRowState
     extends ConsumerState<_ScienceCameraValueRow> {
-  late TextEditingController _controller;
-  late FocusNode _focusNode;
-  bool _loading = true;
-  late String _lastCommitted;
-  String? _validationError;
+  final _controller = TextEditingController();
+  String? _rowError;
+  int _commits = 0;
+
+  /// The text this row last stored, held until the settings provider catches
+  /// up. It is what makes a clamped entry ("100000" → "65535") visible the
+  /// moment it is written instead of a frame later.
+  String? _pendingWrite;
 
   @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController(text: widget.defaultText);
-    _lastCommitted = widget.defaultText;
-    _focusNode = FocusNode()..addListener(_onFocusChange);
-    _loadValue();
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
-  void _onFocusChange() {
-    if (!_focusNode.hasFocus) _commit();
-  }
-
-  Future<void> _loadValue() async {
-    final settings = await ref.read(scienceRawSettingsProvider.future);
-    if (!mounted) return;
-    _syncCommittedValue(settings[widget.settingKey] ?? widget.defaultText);
-    _loading = false;
-  }
-
-  void _syncCommittedValue(String stored) {
-    if (_focusNode.hasFocus || _controller.text != _lastCommitted) return;
-    _controller.text = stored;
-    _lastCommitted = stored;
-  }
-
-  Future<void> _commit() async {
-    if (_loading) return;
-    final value = _controller.text.trim();
-    if (value == _lastCommitted) return;
-    final parsed = double.tryParse(value);
+  Future<void> _commit(String raw) async {
+    final parsed = double.tryParse(raw.trim());
     if (parsed == null || !parsed.isFinite) {
-      setState(() {
-        _validationError = 'Enter a number from ${widget.min} to ${widget.max}';
-      });
-      return;
+      final message = 'Enter a number from ${widget.min} to ${widget.max}';
+      setState(() => _rowError = message);
+      throw _ScienceValueRejected(message);
     }
-    setState(() => _validationError = null);
+    if (_rowError != null) setState(() => _rowError = null);
+
     final clamped = parsed.clamp(widget.min, widget.max);
     final stored =
         widget.integer ? clamped.round().toString() : clamped.toString();
-    final previous = _lastCommitted;
-    _lastCommitted = stored;
     try {
       await ref
           .read(scienceRawSettingsActionsProvider)
           .setManualCameraValue(widget.settingKey, stored);
     } catch (error) {
-      _lastCommitted = previous;
       ref.invalidate(scienceRawSettingsProvider);
       if (mounted) {
-        setState(() {
-          _controller.text = previous;
-          _validationError = 'Could not save this value';
-        });
+        setState(() => _rowError = 'Could not save this value');
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
           SnackBar(
             content: Text(
@@ -1125,61 +925,39 @@ class _ScienceCameraValueRowState
           ),
         );
       }
-      return;
+      rethrow;
     }
     if (mounted) {
-      _controller.text = stored;
+      setState(() {
+        _pendingWrite = stored;
+        _commits++;
+      });
     }
-  }
-
-  @override
-  void dispose() {
-    _focusNode.removeListener(_onFocusChange);
-    _focusNode.dispose();
-    _controller.dispose();
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final rawSettings = ref.watch(scienceRawSettingsProvider);
-    if (!rawSettings.isLoading) {
-      final authoritative =
-          rawSettings.valueOrNull?[widget.settingKey] ?? widget.defaultText;
-      if (authoritative != _lastCommitted &&
-          !_focusNode.hasFocus &&
-          _controller.text == _lastCommitted) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _syncCommittedValue(authoritative);
-        });
+    // Once the provider has re-read the host, it is the authority again —
+    // including when the auto-configure switch overwrote what this row wrote.
+    ref.listen(scienceRawSettingsProvider, (_, next) {
+      if (next.hasValue && _pendingWrite != null) {
+        setState(() => _pendingWrite = null);
       }
-    }
+    });
+    final stored =
+        ref.watch(scienceRawSettingsProvider).valueOrNull?[widget.settingKey];
     return SettingRow(
       icon: widget.icon,
       title: widget.title,
-      subtitle: _validationError ?? widget.subtitle,
-      trailing: SizedBox(
+      subtitle: _rowError ?? widget.subtitle,
+      trailing: SettingsTextInput(
+        controller: _controller,
+        authoritativeValue: _pendingWrite ?? stored ?? widget.defaultText,
+        authorityKey: _rowAuthority(ref.watch(backendProvider), _commits),
         width: 72,
-        child: TextField(
-          controller: _controller,
-          focusNode: _focusNode,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          style: TextStyle(
-            color: NightshadeColors.of(context).textPrimary,
-            fontSize: NightshadeTypography.fontSize13,
-          ),
-          decoration: InputDecoration(
-            isDense: true,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-              borderSide:
-                  BorderSide(color: NightshadeColors.of(context).border),
-            ),
-          ),
-          onSubmitted: (_) => _commit(),
-        ),
+        isMobile: widget.isMobile,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        onChanged: _commit,
       ),
       isLast: widget.isLast,
       isMobile: widget.isMobile,

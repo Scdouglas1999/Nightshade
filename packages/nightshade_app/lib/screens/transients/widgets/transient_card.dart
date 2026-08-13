@@ -3,6 +3,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../utils/transient_type_style.dart';
+
 /// Card widget displaying a transient alert with its details and actions.
 ///
 /// Shows:
@@ -86,12 +88,12 @@ class _TransientCardState extends State<TransientCard> {
         Container(
           padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
           decoration: NightshadeDecorations.tintedBadge(
-            _getTypeColor(colors),
+            TransientTypeStyle.color(widget.alert.type, colors),
           ),
           child: Icon(
-            _getTypeIcon(),
+            TransientTypeStyle.icon(widget.alert.type),
             size: NightshadeTokens.iconMd,
-            color: _getTypeColor(colors),
+            color: TransientTypeStyle.color(widget.alert.type, colors),
           ),
         ),
 
@@ -119,7 +121,7 @@ class _TransientCardState extends State<TransientCard> {
                   style: NightshadeTypography.caption
                       .copyWith(color: colors.textSecondary),
                   children: [
-                    TextSpan(text: _getTypeLabel()),
+                    TextSpan(text: TransientTypeStyle.label(widget.alert.type)),
                     if (widget.alert.classification != null)
                       TextSpan(
                         text: ' - ${widget.alert.classification}',
@@ -378,69 +380,6 @@ class _TransientCardState extends State<TransientCard> {
         ),
       ),
     );
-  }
-
-  IconData _getTypeIcon() {
-    switch (widget.alert.type) {
-      case TransientType.nova:
-        return NightshadeIcons.star;
-      case TransientType.supernova:
-        return NightshadeIcons.sparkle;
-      case TransientType.comet:
-        return LucideIcons.orbit;
-      case TransientType.cataclysmic:
-        return NightshadeIcons.bolt;
-      case TransientType.asteroid:
-        return NightshadeIcons.circle;
-      case TransientType.variableStar:
-        return NightshadeIcons.activity;
-      case TransientType.gammaRayBurst:
-        return LucideIcons.flame;
-      case TransientType.other:
-        return NightshadeIcons.help;
-    }
-  }
-
-  Color _getTypeColor(NightshadeColors colors) {
-    switch (widget.alert.type) {
-      case TransientType.nova:
-        return colors.warning;
-      case TransientType.supernova:
-        return colors.error;
-      case TransientType.comet:
-        return colors.info;
-      case TransientType.cataclysmic:
-        return colors.accent;
-      case TransientType.asteroid:
-        return colors.textSecondary;
-      case TransientType.variableStar:
-        return colors.success;
-      case TransientType.gammaRayBurst:
-        return colors.error;
-      case TransientType.other:
-        return colors.textMuted;
-    }
-  }
-
-  String _getTypeLabel() {
-    switch (widget.alert.type) {
-      case TransientType.nova:
-        return 'Nova';
-      case TransientType.supernova:
-        return 'Supernova';
-      case TransientType.comet:
-        return 'Comet';
-      case TransientType.cataclysmic:
-        return 'Cataclysmic Variable';
-      case TransientType.asteroid:
-        return 'Asteroid';
-      case TransientType.variableStar:
-        return 'Variable Star';
-      case TransientType.gammaRayBurst:
-        return 'Gamma-Ray Burst';
-      case TransientType.other:
-        return 'Other';
-    }
   }
 
   String _getSourceLabel(TransientSource source) {

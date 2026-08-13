@@ -854,6 +854,57 @@ class _SelectMarker extends StatelessWidget {
   }
 }
 
+/// How many decoded sub thumbnails stay resident.
+///
+/// Sized well past a full viewport of the 200px grid so ordinary scrolling
+/// never evicts, and small enough that a 500-sub night cannot pin the whole
+/// set: at a typical ~40 KB JPEG that is roughly 5 MB.
+const int _subThumbnailCacheCapacity = 128;
+
+/// Decoded thumbnail bytes for one sub, memoized across cell recycling.
+///
+/// `GridView.builder` disposes a cell the moment it leaves the viewport, so
+/// fetching in the tile's own `initState` re-issued a decode (FFI backend) or a
+/// full HTTP GET (paired tablet) every time the operator scrolled back. Keyed
+/// on the image id and retained through [_subThumbnailRetentionProvider], which
+/// bounds how many stay in memory.
+final subThumbnailProvider =
+    FutureProvider.autoDispose.family<Uint8List, int>((ref, imageId) {
+  ref.watch(_subThumbnailRetentionProvider).retain(imageId, ref.keepAlive());
+  return ref.watch(imagingBackendProvider).getImageThumbnail(imageId);
+});
+
+final _subThumbnailRetentionProvider = Provider<_ThumbnailRetention>((ref) {
+  final retention = _ThumbnailRetention(_subThumbnailCacheCapacity);
+  ref.onDispose(retention.clear);
+  return retention;
+});
+
+/// Holds the keep-alive links for the most recently requested thumbnails and
+/// closes the oldest once [capacity] is exceeded, letting Riverpod dispose that
+/// entry and free its bytes.
+class _ThumbnailRetention {
+  _ThumbnailRetention(this.capacity);
+
+  final int capacity;
+  final Map<int, KeepAliveLink> _links = <int, KeepAliveLink>{};
+
+  void retain(int imageId, KeepAliveLink link) {
+    _links.remove(imageId)?.close();
+    _links[imageId] = link;
+    while (_links.length > capacity) {
+      _links.remove(_links.keys.first)?.close();
+    }
+  }
+
+  void clear() {
+    for (final link in _links.values) {
+      link.close();
+    }
+    _links.clear();
+  }
+}
+
 class _SubThumbnail extends ConsumerStatefulWidget {
   final int imageId;
   final NightshadeColors colors;
@@ -865,41 +916,27 @@ class _SubThumbnail extends ConsumerStatefulWidget {
 }
 
 class _SubThumbnailState extends ConsumerState<_SubThumbnail> {
-  late Future<Uint8List> _future;
-
-  @override
-  void initState() {
-    super.initState();
-    _future =
-        ref.read(imagingBackendProvider).getImageThumbnail(widget.imageId);
-  }
-
   @override
   Widget build(BuildContext context) {
+    final thumbnail = ref.watch(subThumbnailProvider(widget.imageId));
     return Container(
       color: widget.colors.surface,
-      child: FutureBuilder<Uint8List>(
-        future: _future,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 1.8),
+      child: thumbnail.when(
+        loading: () => const Center(
+          child: SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 1.8),
+          ),
+        ),
+        error: (_, __) => _placeholder(),
+        data: (bytes) => bytes.isEmpty
+            ? _placeholder()
+            : Image.memory(
+                bytes,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _placeholder(),
               ),
-            );
-          }
-          final bytes = snapshot.data;
-          if (bytes != null && bytes.isNotEmpty) {
-            return Image.memory(
-              bytes,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => _placeholder(),
-            );
-          }
-          return _placeholder();
-        },
       ),
     );
   }

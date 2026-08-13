@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:io' show Platform;
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:file_selector/file_selector.dart' show XTypeGroup;
@@ -145,6 +147,15 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
   /// The mono buffer the current [_displayRgba] was rendered from. Tracked so we
   /// only recompute when the source actually changes.
   Uint16List? _renderedFrom;
+
+  /// The (buffer, stretch) pair a render is currently in flight for, so a
+  /// rebuild while it runs does not queue a second pass over the same pixels.
+  Uint16List? _renderingBuffer;
+  StackViewerStretch? _renderingStretch;
+
+  /// Bumped per scheduled render; a result whose generation is stale is dropped
+  /// rather than painted over a newer one.
+  int _renderGeneration = 0;
 
   /// True while an export/share operation is running, used to disable the
   /// action buttons so a user cannot launch two save pickers at once.
@@ -458,6 +469,12 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
     AsyncValue<Uint8List?> previewAsync,
   ) {
     if (rgba == null) {
+      // A scheduled stretch owns the viewer until it lands — otherwise the
+      // first frame of a freshly stacked result would read "Image not
+      // available" for the image it is in the middle of rendering.
+      if (_renderPending) {
+        return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+      }
       return previewAsync.when(
         loading: () => const Center(
           child: CircularProgressIndicator(strokeWidth: 2),
@@ -608,10 +625,12 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
     Uint8List? durablePreview,
   ) {
     if (buffer != null) {
-      // Recompute only when the source buffer or selected stretch changed.
+      // Recompute only when the source buffer or selected stretch changed. The
+      // render itself is scheduled, never awaited here: it is tens of millions
+      // of iterations plus a width*height*4 allocation, and this runs inside
+      // `build`.
       if (!identical(_renderedFrom, buffer) || _displayRgba == null) {
-        _displayRgba = _renderStretch(result, buffer, channels);
-        _renderedFrom = buffer;
+        _scheduleStretch(result, buffer, channels);
       }
       return _displayRgba;
     }
@@ -621,6 +640,44 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
       return liveState.resultRgba;
     }
     return durablePreview;
+  }
+
+  /// True while a stretch is in flight and nothing has been painted yet.
+  bool get _renderPending => _renderingBuffer != null && _displayRgba == null;
+
+  /// Kick a render of [buffer] under the current stretch, at most once per
+  /// (buffer, stretch) pair. Called from the build path, so it must not call
+  /// `setState` synchronously — only the completion does.
+  void _scheduleStretch(
+    StackAndShareResult result,
+    Uint16List buffer,
+    int channels,
+  ) {
+    if (identical(_renderingBuffer, buffer) && _renderingStretch == _stretch) {
+      return;
+    }
+    _renderingBuffer = buffer;
+    _renderingStretch = _stretch;
+    final generation = ++_renderGeneration;
+    unawaited(() async {
+      Uint8List? rgba;
+      try {
+        rgba = await _renderStretch(result, buffer, channels);
+      } catch (_) {
+        // A failed stretch leaves the previous pixels (or the empty state) up
+        // rather than tearing the screen down; the buffer is still exportable.
+        rgba = null;
+      }
+      if (!mounted || generation != _renderGeneration) return;
+      setState(() {
+        if (rgba != null) {
+          _displayRgba = rgba;
+          _renderedFrom = buffer;
+        }
+        _renderingBuffer = null;
+        _renderingStretch = null;
+      });
+    }());
   }
 
   String _previewErrorMessage(Object error) {
@@ -655,11 +712,16 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
   ///
   /// Both stretches are genuine, distinct renderings — neither is a no-op nor a
   /// grayscale fallback for colour data.
-  Uint8List _renderStretch(
+  /// The STF branches call synchronous seams in `nightshade_core`
+  /// ([ImagingBackend.autoStretchImage] and [StackingEngineSeam.autoStretch]),
+  /// so they still occupy this isolate — but off the build phase, after the
+  /// frame is on screen. Moving them to a worker needs those two APIs to become
+  /// asynchronous, which is a `nightshade_core` change.
+  Future<Uint8List> _renderStretch(
     StackAndShareResult result,
     Uint16List buffer,
     int channels,
-  ) {
+  ) async {
     switch (_stretch) {
       case StackViewerStretch.autoStf:
         if (channels == 3) {
@@ -676,64 +738,11 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
               data: buffer,
             );
       case StackViewerStretch.linear:
+        final pixelCount = result.width * result.height;
         return channels == 3
-            ? _linearColor(buffer, result.width * result.height)
-            : _linearGray(buffer);
+            ? Isolate.run(() => renderLinearColorRgba(buffer, pixelCount))
+            : Isolate.run(() => renderLinearGrayRgba(buffer));
     }
-  }
-
-  /// Linear min/max normalisation of a u16 mono buffer to grayscale RGBA.
-  Uint8List _linearGray(Uint16List mono) {
-    var min = 65535;
-    var max = 0;
-    for (final v in mono) {
-      if (v < min) min = v;
-      if (v > max) max = v;
-    }
-    final span = max - min;
-    final out = Uint8List(mono.length * 4);
-    for (var i = 0; i < mono.length; i++) {
-      final g = span <= 0 ? 0 : (((mono[i] - min) * 255) ~/ span);
-      final o = i * 4;
-      out[o] = g;
-      out[o + 1] = g;
-      out[o + 2] = g;
-      out[o + 3] = 255;
-    }
-    return out;
-  }
-
-  /// Per-channel linear min/max normalisation of an interleaved RGB16 buffer to
-  /// RGBA. Each channel is stretched against its own extent so the colour
-  /// balance is preserved rather than dominated by the brightest channel.
-  Uint8List _linearColor(Uint16List rgb, int pixelCount) {
-    var rMin = 65535, gMin = 65535, bMin = 65535;
-    var rMax = 0, gMax = 0, bMax = 0;
-    for (var i = 0; i < pixelCount; i++) {
-      final base = i * 3;
-      final r = rgb[base];
-      final g = rgb[base + 1];
-      final b = rgb[base + 2];
-      if (r < rMin) rMin = r;
-      if (r > rMax) rMax = r;
-      if (g < gMin) gMin = g;
-      if (g > gMax) gMax = g;
-      if (b < bMin) bMin = b;
-      if (b > bMax) bMax = b;
-    }
-    final rSpan = rMax - rMin;
-    final gSpan = gMax - gMin;
-    final bSpan = bMax - bMin;
-    final out = Uint8List(pixelCount * 4);
-    for (var i = 0; i < pixelCount; i++) {
-      final base = i * 3;
-      final o = i * 4;
-      out[o] = rSpan <= 0 ? 0 : (((rgb[base] - rMin) * 255) ~/ rSpan);
-      out[o + 1] = gSpan <= 0 ? 0 : (((rgb[base + 1] - gMin) * 255) ~/ gSpan);
-      out[o + 2] = bSpan <= 0 ? 0 : (((rgb[base + 2] - bMin) * 255) ~/ bSpan);
-      out[o + 3] = 255;
-    }
-    return out;
   }
 
   static String _stretchLabel(StackViewerStretch stretch) {
@@ -1011,4 +1020,65 @@ class _StatRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The linear-stretch pixel loops, top-level so they can run in a worker
+/// isolate via `Isolate.run` — the closure that calls them captures only the
+/// buffer and the pixel count, both of which cross an isolate boundary.
+///
+/// A 6000x4000 master is 24 million pixels: two full passes plus a 96 MB
+/// allocation. On the UI isolate, inside `build`, that is a frame stall the
+/// operator sees as the app hanging.
+/// Linear min/max normalisation of a u16 mono buffer to grayscale RGBA.
+Uint8List renderLinearGrayRgba(Uint16List mono) {
+  var min = 65535;
+  var max = 0;
+  for (final v in mono) {
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  final span = max - min;
+  final out = Uint8List(mono.length * 4);
+  for (var i = 0; i < mono.length; i++) {
+    final g = span <= 0 ? 0 : (((mono[i] - min) * 255) ~/ span);
+    final o = i * 4;
+    out[o] = g;
+    out[o + 1] = g;
+    out[o + 2] = g;
+    out[o + 3] = 255;
+  }
+  return out;
+}
+
+/// Per-channel linear min/max normalisation of an interleaved RGB16 buffer to
+/// RGBA. Each channel is stretched against its own extent so the colour
+/// balance is preserved rather than dominated by the brightest channel.
+Uint8List renderLinearColorRgba(Uint16List rgb, int pixelCount) {
+  var rMin = 65535, gMin = 65535, bMin = 65535;
+  var rMax = 0, gMax = 0, bMax = 0;
+  for (var i = 0; i < pixelCount; i++) {
+    final base = i * 3;
+    final r = rgb[base];
+    final g = rgb[base + 1];
+    final b = rgb[base + 2];
+    if (r < rMin) rMin = r;
+    if (r > rMax) rMax = r;
+    if (g < gMin) gMin = g;
+    if (g > gMax) gMax = g;
+    if (b < bMin) bMin = b;
+    if (b > bMax) bMax = b;
+  }
+  final rSpan = rMax - rMin;
+  final gSpan = gMax - gMin;
+  final bSpan = bMax - bMin;
+  final out = Uint8List(pixelCount * 4);
+  for (var i = 0; i < pixelCount; i++) {
+    final base = i * 3;
+    final o = i * 4;
+    out[o] = rSpan <= 0 ? 0 : (((rgb[base] - rMin) * 255) ~/ rSpan);
+    out[o + 1] = gSpan <= 0 ? 0 : (((rgb[base + 1] - gMin) * 255) ~/ gSpan);
+    out[o + 2] = bSpan <= 0 ? 0 : (((rgb[base + 2] - bMin) * 255) ~/ bSpan);
+    out[o + 3] = 255;
+  }
+  return out;
 }

@@ -127,10 +127,10 @@ void main() {
         imagesDao: ImagesDao(db),
         integrationService: PostSessionIntegrationService(
           mastersDao: mastersDao,
-          darkLibrary: DarkLibraryService(DarkLibraryDao(db)),
-          flatLibrary: FlatLibraryService(
-            dao: FlatLibraryDao(db),
-            seam: _NoopSeam(),
+          calibrationLibrary: CalibrationLibraryService(
+            db: db,
+            flatLibraryDao: FlatLibraryDao(db),
+            tagsDao: CalibrationTagsDao(db),
           ),
           seam: _NoopSeam(),
         ),

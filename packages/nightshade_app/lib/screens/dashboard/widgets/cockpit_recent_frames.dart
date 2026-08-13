@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -7,6 +6,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart' hide ConnectionState;
 import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../../utils/filter_label.dart';
+import '../../../widgets/frame_thumbnail_loader.dart';
 
 /// Reusable horizontal strip of the most recent captures from the active
 /// session.
@@ -264,22 +264,7 @@ class _FrameTileState extends ConsumerState<_FrameTile> {
   Future<Uint8List?> _loadBytes() async {
     final imageId = int.tryParse(widget.image.id);
     if (imageId == null) return null;
-
-    try {
-      final backend = ref.read(imagingBackendProvider);
-      final bytes = await backend.getImageThumbnail(imageId);
-      if (bytes.isNotEmpty) return bytes;
-    } catch (e) {
-      // Surface the failure to the log rather than swallowing it silently —
-      // a missing thumbnail is a real condition, but it shouldn't take down
-      // the whole strip, so the tile falls back to the placeholder icon.
-      ref.read(loggingServiceProvider).debug(
-            'RecentFramesStrip: backend thumbnail fetch failed for image '
-            '${widget.image.id}: $e',
-            source: 'RecentFramesStrip',
-          );
-    }
-    return null;
+    return fetchFrameThumbnailBytes(ref, imageId, source: 'RecentFramesStrip');
   }
 
   String _filterLabel() => filterLabel(widget.image.settings.filter);
@@ -321,7 +306,8 @@ class _FrameTileState extends ConsumerState<_FrameTile> {
                 ),
               ),
               clipBehavior: Clip.antiAlias,
-              child: _FrameImage(
+              child: FrameThumbnail(
+                iconSize: 18,
                 bytesFuture: _bytesFuture,
                 fallbackFilePath: widget.image.filePath,
                 colors: colors,
@@ -371,77 +357,5 @@ class _FrameTileState extends ConsumerState<_FrameTile> {
   String _fileName(String path) {
     if (path.isEmpty) return widget.image.targetName ?? 'Captured frame';
     return path.split(RegExp(r'[/\\]')).last;
-  }
-}
-
-class _FrameImage extends ConsumerWidget {
-  final Future<Uint8List?>? bytesFuture;
-  final String fallbackFilePath;
-  final NightshadeColors colors;
-
-  const _FrameImage({
-    required this.bytesFuture,
-    required this.fallbackFilePath,
-    required this.colors,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final isRemoteMode = ref.watch(isRemoteModeProvider);
-    return FutureBuilder<Uint8List?>(
-      future: bytesFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(
-            child: SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(
-                strokeWidth: 1.4,
-                valueColor: AlwaysStoppedAnimation<Color>(colors.textMuted),
-              ),
-            ),
-          );
-        }
-        final bytes = snapshot.data;
-        if (bytes != null && bytes.isNotEmpty) {
-          return Image.memory(
-            bytes,
-            fit: BoxFit.cover,
-            width: double.infinity,
-            height: double.infinity,
-            gaplessPlayback: true,
-            errorBuilder: (_, __, ___) => _placeholder(),
-          );
-        }
-        // No backend thumbnail. When local (not remote) and the source file
-        // is a Flutter-decodable raster (not FITS/XISF), fall back to the
-        // file directly; otherwise show a placeholder icon.
-        if (!isRemoteMode && _isImageLikePath(fallbackFilePath)) {
-          return Image.file(
-            File(fallbackFilePath),
-            fit: BoxFit.cover,
-            width: double.infinity,
-            height: double.infinity,
-            gaplessPlayback: true,
-            errorBuilder: (_, __, ___) => _placeholder(),
-          );
-        }
-        return _placeholder();
-      },
-    );
-  }
-
-  Widget _placeholder() => Center(
-        child: Icon(LucideIcons.image, size: 18, color: colors.textMuted),
-      );
-
-  bool _isImageLikePath(String path) {
-    final lower = path.toLowerCase();
-    return lower.endsWith('.png') ||
-        lower.endsWith('.jpg') ||
-        lower.endsWith('.jpeg') ||
-        lower.endsWith('.tif') ||
-        lower.endsWith('.tiff');
   }
 }

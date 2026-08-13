@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+
+import '../../../utils/transient_type_style.dart';
 import '../../../utils/user_facing_error.dart';
 
 Future<void> _runAlertStateAction(
@@ -417,7 +419,7 @@ class _TransientAlertTileState extends ConsumerState<_TransientAlertTile> {
               // Priority/type indicator
               Padding(
                 padding: const EdgeInsets.only(top: 2),
-                child: _TypeBadge(type: alert.type, priority: alert.priority),
+                child: _TypeBadge(type: alert.type),
               ),
               const SizedBox(width: 10),
 
@@ -502,7 +504,7 @@ class _TransientAlertTileState extends ConsumerState<_TransientAlertTile> {
                       runSpacing: 4,
                       children: [
                         Text(
-                          _typeLabel(alert.type),
+                          TransientTypeStyle.label(alert.type),
                           style: TextStyle(
                               fontSize: NightshadeTypography.fontSize11,
                               color: colors.textMuted),
@@ -601,27 +603,6 @@ class _TransientAlertTileState extends ConsumerState<_TransientAlertTile> {
     );
   }
 
-  String _typeLabel(TransientType type) {
-    switch (type) {
-      case TransientType.nova:
-        return 'Nova';
-      case TransientType.supernova:
-        return 'Supernova';
-      case TransientType.cataclysmic:
-        return 'Cataclysmic Variable';
-      case TransientType.comet:
-        return 'Comet';
-      case TransientType.asteroid:
-        return 'Asteroid';
-      case TransientType.variableStar:
-        return 'Variable Star';
-      case TransientType.gammaRayBurst:
-        return 'GRB Afterglow';
-      case TransientType.other:
-        return 'Other';
-    }
-  }
-
   String _formatRa(double raHours) {
     final h = raHours.truncate();
     final m = ((raHours - h) * 60).truncate();
@@ -644,42 +625,13 @@ class _TransientAlertTileState extends ConsumerState<_TransientAlertTile> {
 
 class _TypeBadge extends StatelessWidget {
   final TransientType type;
-  final int priority;
 
-  const _TypeBadge({required this.type, required this.priority});
+  const _TypeBadge({required this.type});
 
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-
-    IconData icon;
-    Color color;
-    switch (type) {
-      case TransientType.supernova:
-        icon = LucideIcons.sparkles;
-        color = colors.warning;
-      case TransientType.nova:
-        icon = LucideIcons.zap;
-        color = colors.warning;
-      case TransientType.cataclysmic:
-        icon = LucideIcons.flame;
-        color = colors.error;
-      case TransientType.gammaRayBurst:
-        icon = LucideIcons.radio;
-        color = colors.accent;
-      case TransientType.comet:
-        icon = LucideIcons.orbit;
-        color = colors.info;
-      case TransientType.asteroid:
-        icon = LucideIcons.diamond;
-        color = colors.textSecondary;
-      case TransientType.variableStar:
-        icon = LucideIcons.star;
-        color = colors.warning;
-      case TransientType.other:
-        icon = LucideIcons.helpCircle;
-        color = colors.textMuted;
-    }
+    final color = TransientTypeStyle.color(type, colors);
 
     return Container(
       width: 28,
@@ -688,7 +640,7 @@ class _TypeBadge extends StatelessWidget {
         color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
       ),
-      child: Icon(icon, size: 14, color: color),
+      child: Icon(TransientTypeStyle.icon(type), size: 14, color: color),
     );
   }
 }
@@ -840,7 +792,7 @@ class _TransientSettingsDialogState
                   final isEnabled = settings.typesToMonitor.contains(type);
                   return FilterChip(
                     label: Text(
-                      _typeLabel(type),
+                      TransientTypeStyle.shortLabel(type),
                       style: TextStyle(
                         fontSize: NightshadeTypography.fontSize11,
                         color:
@@ -974,27 +926,6 @@ class _TransientSettingsDialogState
         return 'CBAT (Astronomical Telegrams)';
       case TransientSource.manual:
         return 'Manual Entries';
-    }
-  }
-
-  String _typeLabel(TransientType type) {
-    switch (type) {
-      case TransientType.nova:
-        return 'Nova';
-      case TransientType.supernova:
-        return 'Supernova';
-      case TransientType.cataclysmic:
-        return 'Cataclysmic';
-      case TransientType.comet:
-        return 'Comet';
-      case TransientType.asteroid:
-        return 'Asteroid';
-      case TransientType.variableStar:
-        return 'Variable';
-      case TransientType.gammaRayBurst:
-        return 'GRB';
-      case TransientType.other:
-        return 'Other';
     }
   }
 }

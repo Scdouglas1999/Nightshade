@@ -461,37 +461,6 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
     final diagnostics = ref.watch(
       latestSnapshotOpticalTrainDiagnosticsProvider(activeSessionId),
     );
-    final cameraState = ref.watch(cameraStateProvider);
-    final guiderState = ref.watch(guiderStateProvider);
-    final mountState = ref.watch(mountStateProvider);
-    final healthReport = const EquipmentHealthService().analyze(
-      sessions: allSessions,
-      deviceHealth: [
-        if (cameraState.deviceId != null)
-          DeviceHealthSnapshot(
-            deviceId: cameraState.deviceId!,
-            lastSuccessfulTimestampMs: cameraState
-                    .lastSuccessfulCommunication?.millisecondsSinceEpoch ??
-                DateTime.now().millisecondsSinceEpoch,
-            isHealthy: cameraState.isHealthy,
-          ),
-        if (mountState.deviceId != null)
-          DeviceHealthSnapshot(
-            deviceId: mountState.deviceId!,
-            lastSuccessfulTimestampMs: DateTime.now().millisecondsSinceEpoch,
-            isHealthy:
-                mountState.connectionState == DeviceConnectionState.connected,
-          ),
-        if (guiderState.deviceId != null)
-          DeviceHealthSnapshot(
-            deviceId: guiderState.deviceId!,
-            lastSuccessfulTimestampMs: DateTime.now().millisecondsSinceEpoch,
-            isHealthy:
-                guiderState.connectionState == DeviceConnectionState.connected,
-          ),
-      ],
-    );
-
     final latestCal = calibrations.isEmpty ? null : calibrations.last;
     final latestFrameQuality = frameMetrics.isEmpty ? null : frameMetrics.last;
     final selectedFrameQuality =
@@ -715,13 +684,13 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
                   setState(() => _selectedFrameImageId = imageId),
             ),
             const SizedBox(height: 12),
-            ScienceInsightsPanel(
+            _EquipmentHealthSection(
               colors: colors,
+              sessions: allSessions,
               frameMetrics: selectedFrameQuality,
               latestCalibration: latestCal,
               latestTransparency: latestTransparencyRow,
               diagnostics: diagnostics,
-              healthReport: healthReport,
               calibratedFrameCount: calibratedRowCount,
               processedFrameCount: lightFrames.length,
               solvedFrameCount: solvedFrames,
@@ -750,13 +719,13 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
                             setState(() => _selectedFrameImageId = imageId),
                       ),
                       const SizedBox(height: 12),
-                      ScienceInsightsPanel(
+                      _EquipmentHealthSection(
                         colors: colors,
+                        sessions: allSessions,
                         frameMetrics: selectedFrameQuality,
                         latestCalibration: latestCal,
                         latestTransparency: latestTransparencyRow,
                         diagnostics: diagnostics,
-                        healthReport: healthReport,
                         calibratedFrameCount: calibratedRowCount,
                         processedFrameCount: lightFrames.length,
                         solvedFrameCount: solvedFrames,
@@ -1187,5 +1156,86 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
     ref.invalidate(sessionFrameQualityMetricsProvider(sessionId));
     ref.invalidate(sessionTileMetricsProvider(sessionId));
     ref.invalidate(dbSessionImagesProvider(sessionId));
+  }
+}
+
+/// The insights panel plus the equipment-health analysis that feeds it.
+///
+/// Its own [ConsumerWidget] because the three device-state providers below tick
+/// roughly once a second while a camera, mount or guider is connected. Watched
+/// from the tab's `build`, that heartbeat rebuilt all nine science sections —
+/// every chart, the PSF heatmap, the residual painter — on the screen most
+/// likely to be open during a run.
+class _EquipmentHealthSection extends ConsumerWidget {
+  const _EquipmentHealthSection({
+    required this.colors,
+    required this.sessions,
+    required this.frameMetrics,
+    required this.latestCalibration,
+    required this.latestTransparency,
+    required this.diagnostics,
+    required this.calibratedFrameCount,
+    required this.processedFrameCount,
+    required this.solvedFrameCount,
+  });
+
+  final NightshadeColors colors;
+  final List<ImagingSession> sessions;
+  final ScienceFrameQualityMetricsRow? frameMetrics;
+  final FramePhotometricCalibrationRow? latestCalibration;
+  final TransparencySampleRow? latestTransparency;
+  final OpticalTrainDiagnostics? diagnostics;
+  final int calibratedFrameCount;
+  final int processedFrameCount;
+  final int solvedFrameCount;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cameraState = ref.watch(cameraStateProvider);
+    final guiderState = ref.watch(guiderStateProvider);
+    final mountState = ref.watch(mountStateProvider);
+    // `lastSuccessfulTimestampMs` is 0 — not `DateTime.now()` — where the
+    // notifier tracks no heartbeat. Stamping the clock made the analysis input
+    // differ on every rebuild by construction, so nothing upstream could ever
+    // memoize it, for a field `analyze` does not read.
+    final healthReport = const EquipmentHealthService().analyze(
+      sessions: sessions,
+      deviceHealth: [
+        if (cameraState.deviceId != null)
+          DeviceHealthSnapshot(
+            deviceId: cameraState.deviceId!,
+            lastSuccessfulTimestampMs: cameraState
+                    .lastSuccessfulCommunication?.millisecondsSinceEpoch ??
+                0,
+            isHealthy: cameraState.isHealthy,
+          ),
+        if (mountState.deviceId != null)
+          DeviceHealthSnapshot(
+            deviceId: mountState.deviceId!,
+            lastSuccessfulTimestampMs: 0,
+            isHealthy:
+                mountState.connectionState == DeviceConnectionState.connected,
+          ),
+        if (guiderState.deviceId != null)
+          DeviceHealthSnapshot(
+            deviceId: guiderState.deviceId!,
+            lastSuccessfulTimestampMs: 0,
+            isHealthy:
+                guiderState.connectionState == DeviceConnectionState.connected,
+          ),
+      ],
+    );
+
+    return ScienceInsightsPanel(
+      colors: colors,
+      frameMetrics: frameMetrics,
+      latestCalibration: latestCalibration,
+      latestTransparency: latestTransparency,
+      diagnostics: diagnostics,
+      healthReport: healthReport,
+      calibratedFrameCount: calibratedFrameCount,
+      processedFrameCount: processedFrameCount,
+      solvedFrameCount: solvedFrameCount,
+    );
   }
 }

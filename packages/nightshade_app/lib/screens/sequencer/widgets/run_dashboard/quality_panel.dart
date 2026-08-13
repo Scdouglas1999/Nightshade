@@ -6,6 +6,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import 'hfr_sparkline.dart';
+
 /// Run Dashboard Quality Panel (Image Grading).
 ///
 /// Subscribes to the active backend's event stream and reads the typed
@@ -171,7 +173,7 @@ class RunDashboardQualityPanel extends ConsumerWidget {
             SizedBox(
               height: 40,
               child: CustomPaint(
-                painter: _HfrSparklinePainter(
+                painter: HfrSparklinePainter(
                   values: summary.hfrSparkline,
                   accepted: summary.hfrSparklineAccepted,
                   color: colors.primary,
@@ -341,72 +343,6 @@ class _GradeRow extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Lightweight HFR-over-time sparkline. Renders the last N graded frames
-/// as a polyline; rejected frames additionally get a warning-coloured dot
-/// so a focus-collapse episode stays visible in the trend instead of
-/// disappearing with the rejections. No axes — the min–max range label
-/// above the chart provides the scale.
-class _HfrSparklinePainter extends CustomPainter {
-  _HfrSparklinePainter({
-    required this.values,
-    required this.color,
-    this.accepted = const [],
-    this.rejectColor,
-  });
-  final List<double> values;
-  final List<bool> accepted;
-  final Color color;
-  final Color? rejectColor;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (values.length < 2) return;
-    final min = values.reduce((a, b) => a < b ? a : b);
-    final max = values.reduce((a, b) => a > b ? a : b);
-    final range = max - min;
-    final span = range < 1e-3 ? 1.0 : range;
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1.5
-      ..style = PaintingStyle.stroke;
-
-    double xAt(int i) => size.width * (i / (values.length - 1));
-    double yAt(int i) {
-      final normalized = (values[i] - min) / span;
-      // Invert so smaller HFR draws at the top (better focus = up).
-      return size.height * (1 - normalized);
-    }
-
-    final path = Path();
-    for (var i = 0; i < values.length; i++) {
-      if (i == 0) {
-        path.moveTo(xAt(i), yAt(i));
-      } else {
-        path.lineTo(xAt(i), yAt(i));
-      }
-    }
-    canvas.drawPath(path, paint);
-
-    if (rejectColor != null && accepted.length == values.length) {
-      final dotPaint = Paint()
-        ..color = rejectColor!
-        ..style = PaintingStyle.fill;
-      for (var i = 0; i < values.length; i++) {
-        if (!accepted[i]) {
-          canvas.drawCircle(Offset(xAt(i), yAt(i)), 2.5, dotPaint);
-        }
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _HfrSparklinePainter old) =>
-      old.values != values ||
-      old.accepted != accepted ||
-      old.color != color ||
-      old.rejectColor != rejectColor;
 }
 
 // ============================================================================

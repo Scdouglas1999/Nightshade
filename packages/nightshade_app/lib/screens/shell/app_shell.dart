@@ -406,6 +406,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   bool _hasCheckedCatalogs = false;
   Future<AppStartupCheckpointOutcome>? _checkpointCheck;
   String? _lastImmersiveLocation;
+  bool? _lastImmersiveEnabled;
 
   @override
   void initState() {
@@ -728,8 +729,13 @@ class _AppShellState extends ConsumerState<AppShell> {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    final appSettingsAsync = ref.watch(appSettingsProvider);
-    final settings = appSettingsAsync.valueOrNull;
+    // One bool, not the whole settings object: the shell is the root of every
+    // routed screen, so watching all of `appSettingsProvider` rebuilt the nav,
+    // the status bar, the mini-player and the routed child's element tree on
+    // every settings toggle, autosave and remote settings push.
+    final sidebarCollapsed = ref.watch(
+      appSettingsProvider.select((s) => s.valueOrNull?.sidebarCollapsed),
+    );
     final currentLocation = _getCurrentLocation(context);
     final currentIndex = _getCurrentIndex(context);
 
@@ -756,9 +762,8 @@ class _AppShellState extends ConsumerState<AppShell> {
     // read is what makes it tick in the GUI (the headless host eager-reads it in
     // main_headless). No-op until a session is joined and a site is configured.
     ref.watch(coImagingBatonSchedulerProvider);
-    final isSideNavExpanded = settings != null
-        ? !settings.sidebarCollapsed
-        : _fallbackSideNavExpanded;
+    final isSideNavExpanded =
+        sidebarCollapsed != null ? !sidebarCollapsed : _fallbackSideNavExpanded;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -778,16 +783,23 @@ class _AppShellState extends ConsumerState<AppShell> {
         // Pinned visible on desktop/tablet (enabled = false → no timer).
         final chromeVisible = ref.watch(immersiveChromeProvider);
         final immersive = ref.read(immersiveChromeProvider.notifier);
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          immersive.enabled = useBottomNav;
-          // Reveal the chrome (and re-arm the one-shot idle auto-hide) whenever
-          // the operator navigates to a different screen.
-          if (useBottomNav && currentLocation != _lastImmersiveLocation) {
-            _lastImmersiveLocation = currentLocation;
-            immersive.onRouteChanged();
-          }
-        });
+        // Only schedule the sync when it has something to do. Both calls below
+        // are no-ops when nothing changed, so an unconditional post-frame
+        // callback cost one closure allocation per shell rebuild to reach two
+        // early returns.
+        final routeChanged =
+            useBottomNav && currentLocation != _lastImmersiveLocation;
+        if (_lastImmersiveEnabled != useBottomNav || routeChanged) {
+          _lastImmersiveEnabled = useBottomNav;
+          if (routeChanged) _lastImmersiveLocation = currentLocation;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            immersive.enabled = useBottomNav;
+            // Reveal the chrome (and re-arm the one-shot idle auto-hide)
+            // whenever the operator navigates to a different screen.
+            if (routeChanged) immersive.onRouteChanged();
+          });
+        }
 
         // The first-launch tour is replay-only (C13): OnboardingTourReplayLauncher
         // watches firstLaunchTourStatusProvider and overlays OnboardingOverlay on

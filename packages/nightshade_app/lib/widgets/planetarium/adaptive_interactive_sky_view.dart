@@ -4,9 +4,8 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart'
 
 /// Renders the planetarium sky using the v1 `nightshade_planetarium` engine.
 ///
-/// This is the single go-forward renderer. Subclasses ([TargetPickerSkyView],
-/// [FullScreenSkyView]) and call sites ([MosaicPlannerSkyView]) inherit this
-/// stable surface; the widget simply forwards to
+/// This is the single go-forward renderer. Subclasses ([FullScreenSkyView])
+/// inherit this stable surface; the widget simply forwards to
 /// [planetarium_v1.InteractiveSkyView].
 class AdaptiveInteractiveSkyView extends StatelessWidget {
   const AdaptiveInteractiveSkyView({

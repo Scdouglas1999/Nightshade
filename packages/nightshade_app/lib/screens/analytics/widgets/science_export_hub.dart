@@ -844,43 +844,50 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
 
       switch (dataType) {
         case ScienceExportDataset.photometry:
-          rows = await _buildPhotometryRows(
+          rows = await _rowsFor(
+            _photometryDataset,
             sessionIds,
             includeStandalone: includeStandalone,
           );
           filePrefix = 'photometry';
         case ScienceExportDataset.frameQuality:
-          rows = await _buildFrameQualityRows(
+          rows = await _rowsFor(
+            _frameQualityDataset,
             sessionIds,
             includeStandalone: includeStandalone,
           );
           filePrefix = 'frame_quality';
         case ScienceExportDataset.transparency:
-          rows = await _buildTransparencyRows(
+          rows = await _rowsFor(
+            _transparencyDataset,
             sessionIds,
             includeStandalone: includeStandalone,
           );
           filePrefix = 'transparency';
         case ScienceExportDataset.psfTiles:
-          rows = await _buildPsfTileRows(
+          rows = await _rowsFor(
+            _psfTileDataset,
             sessionIds,
             includeStandalone: includeStandalone,
           );
           filePrefix = 'psf_tiles';
         case ScienceExportDataset.residuals:
-          rows = await _buildResidualRows(
+          rows = await _rowsFor(
+            _residualDataset,
             sessionIds,
             includeStandalone: includeStandalone,
           );
           filePrefix = 'astrometric_residuals';
         case ScienceExportDataset.calibration:
-          rows = await _buildCalibrationRows(
+          rows = await _rowsFor(
+            _calibrationDataset,
             sessionIds,
             includeStandalone: includeStandalone,
           );
           filePrefix = 'photometric_calibration';
         case ScienceExportDataset.movingObjects:
-          rows = await _buildMovingObjectRows(
+          rows = await _rowsFor(
+            _movingObjectDataset,
             sessionIds,
             includeStandalone: includeStandalone,
           );
@@ -1070,379 +1077,285 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
     return ref.read(export);
   }
 
-  Future<List<List<dynamic>>> _buildPhotometryRows(
+  /// One pass over the [dataset]'s standalone + per-session rows, filtered by
+  /// the active date range. This is the whole recipe every science CSV follows;
+  /// the header list and the row projection are the only per-dataset code.
+  Future<List<List<dynamic>>> _rowsFor<T>(
+    _ExportDataset<T> dataset,
     List<int> sessionIds, {
     required bool includeStandalone,
   }) async {
-    final rows = <List<dynamic>>[
-      [
-        'Session ID',
-        'Image ID',
-        'Object ID',
-        'Role',
-        'X',
-        'Y',
-        'Flux',
-        'Differential Magnitude',
-        'SNR',
-        'Uncertainty',
-        'Is Outlier',
-        'Timestamp (UTC)',
-        'JD',
-      ]
-    ];
+    final rows = <List<dynamic>>[dataset.header];
 
-    final datasets = <List<PhotometryMeasurementRow>>[];
+    final sources = <List<T>>[];
     if (includeStandalone) {
-      datasets.add(
-        await _standaloneRows(sessionlessPhotometryExportProvider.future),
-      );
+      sources.add(await _standaloneRows(dataset.standaloneExport));
     }
     for (final sessionId in sessionIds) {
-      datasets.add(
-        await ref.read(sessionPhotometryProvider(sessionId).future),
-      );
+      sources.add(await ref.read(dataset.perSession(sessionId)));
     }
-    for (final data in datasets) {
-      for (final m in data) {
-        if (!_withinDateRange(m.timestamp)) continue;
-        rows.add([
-          m.sessionId ?? '',
-          m.capturedImageId ?? '',
-          m.objectId,
-          m.role,
-          m.x,
-          m.y,
-          m.flux,
-          m.differentialMagnitude ?? '',
-          m.snr ?? '',
-          m.uncertainty ?? '',
-          m.isOutlier,
-          _utcStamp(m.timestamp),
-          _julianDate(m.timestamp),
-        ]);
-      }
-    }
-    return rows;
-  }
-
-  Future<List<List<dynamic>>> _buildFrameQualityRows(
-    List<int> sessionIds, {
-    required bool includeStandalone,
-  }) async {
-    final rows = <List<dynamic>>[
-      [
-        'Session ID',
-        'Image ID',
-        'Timestamp (UTC)',
-        'Median',
-        'Mean',
-        'StdDev',
-        'MAD',
-        'Background',
-        'Noise',
-        'SNR',
-        'Dynamic Range (P1-P99)',
-        'Low Clip %',
-        'High Clip %',
-        'Uniformity CV',
-        'Gradient X',
-        'Gradient Y',
-        'Processing Tier',
-        'Processing Ms',
-      ]
-    ];
-
-    final datasets = <List<ScienceFrameQualityMetricsRow>>[];
-    if (includeStandalone) {
-      datasets.add(
-        await _standaloneRows(
-          sessionlessFrameQualityMetricsExportProvider.future,
-        ),
-      );
-    }
-    for (final sessionId in sessionIds) {
-      datasets.add(
-        await ref.read(sessionFrameQualityMetricsProvider(sessionId).future),
-      );
-    }
-    for (final data in datasets) {
-      for (final m in data) {
-        if (!_withinDateRange(m.timestamp)) continue;
-        rows.add([
-          m.sessionId ?? '',
-          m.capturedImageId ?? '',
-          _utcStamp(m.timestamp),
-          m.median,
-          m.mean,
-          m.stdDev,
-          m.mad,
-          m.background,
-          m.noise,
-          m.snr,
-          m.dynamicRangeP1P99,
-          m.lowClipPercent,
-          m.highClipPercent,
-          m.uniformityCv,
-          m.gradientX,
-          m.gradientY,
-          m.processingTier,
-          m.processingMs,
-        ]);
-      }
-    }
-    return rows;
-  }
-
-  Future<List<List<dynamic>>> _buildTransparencyRows(
-    List<int> sessionIds, {
-    required bool includeStandalone,
-  }) async {
-    final rows = <List<dynamic>>[
-      [
-        'Session ID',
-        'Image ID',
-        'Transparency %',
-        'Extinction Coefficient',
-        'Quality Bucket',
-        'Confidence',
-        'Timestamp (UTC)',
-      ]
-    ];
-
-    final datasets = <List<TransparencySampleRow>>[];
-    if (includeStandalone) {
-      datasets.add(
-        await _standaloneRows(
-          sessionlessTransparencySamplesExportProvider.future,
-        ),
-      );
-    }
-    for (final sessionId in sessionIds) {
-      datasets.add(
-        await ref.read(sessionTransparencySamplesProvider(sessionId).future),
-      );
-    }
-    for (final data in datasets) {
-      for (final s in data) {
-        if (!_withinDateRange(s.timestamp)) continue;
-        rows.add([
-          s.sessionId ?? '',
-          s.capturedImageId ?? '',
-          s.transparencyPercent,
-          s.extinctionCoefficient,
-          s.qualityBucket,
-          s.confidence,
-          _utcStamp(s.timestamp),
-        ]);
-      }
-    }
-    return rows;
-  }
-
-  Future<List<List<dynamic>>> _buildPsfTileRows(
-    List<int> sessionIds, {
-    required bool includeStandalone,
-  }) async {
-    final rows = <List<dynamic>>[
-      [
-        'Session ID',
-        'Image ID',
-        'Tile Row',
-        'Tile Col',
-        'Star Count',
-        'Median FWHM',
-        'Median HFR',
-        'Median Eccentricity',
-        'Roundness',
-        'Timestamp (UTC)',
-      ]
-    ];
-
-    final datasets = <List<PsfFieldTileRow>>[];
-    if (includeStandalone) {
-      datasets.add(
-        await _standaloneRows(sessionlessPsfTilesExportProvider.future),
-      );
-    }
-    for (final sessionId in sessionIds) {
-      datasets.add(await ref.read(sessionPsfTilesProvider(sessionId).future));
-    }
-    for (final data in datasets) {
-      for (final t in data) {
-        if (!_withinDateRange(t.timestamp)) continue;
-        rows.add([
-          t.sessionId ?? '',
-          t.capturedImageId ?? '',
-          t.tileRow,
-          t.tileCol,
-          t.starCount,
-          t.medianFwhm,
-          t.medianHfr,
-          t.medianEccentricity,
-          t.roundness,
-          _utcStamp(t.timestamp),
-        ]);
-      }
-    }
-    return rows;
-  }
-
-  Future<List<List<dynamic>>> _buildResidualRows(
-    List<int> sessionIds, {
-    required bool includeStandalone,
-  }) async {
-    final rows = <List<dynamic>>[
-      [
-        'Session ID',
-        'Image ID',
-        'X',
-        'Y',
-        'dX (arcsec)',
-        'dY (arcsec)',
-        'Magnitude (arcsec)',
-        'Recommendation',
-        'Timestamp (UTC)',
-      ]
-    ];
-
-    final datasets = <List<AstrometryResidualVectorRow>>[];
-    if (includeStandalone) {
-      datasets.add(
-        await _standaloneRows(
-          sessionlessResidualVectorsExportProvider.future,
-        ),
-      );
-    }
-    for (final sessionId in sessionIds) {
-      datasets.add(
-        await ref.read(sessionResidualVectorsProvider(sessionId).future),
-      );
-    }
-    for (final data in datasets) {
-      for (final r in data) {
-        if (!_withinDateRange(r.timestamp)) continue;
-        rows.add([
-          r.sessionId ?? '',
-          r.capturedImageId ?? '',
-          r.x,
-          r.y,
-          r.dxArcsec,
-          r.dyArcsec,
-          r.magnitudeArcsec,
-          r.recommendationCode ?? '',
-          _utcStamp(r.timestamp),
-        ]);
-      }
-    }
-    return rows;
-  }
-
-  Future<List<List<dynamic>>> _buildCalibrationRows(
-    List<int> sessionIds, {
-    required bool includeStandalone,
-  }) async {
-    final rows = <List<dynamic>>[
-      [
-        'Session ID',
-        'Image ID',
-        'Is Calibrated',
-        'Zero Point',
-        'Lim Mag 3-sigma',
-        'Lim Mag 5-sigma',
-        'Matched Stars',
-        'Calibration RMS',
-        'Catalog Source',
-        'Solver ID',
-        'Timestamp (UTC)',
-      ]
-    ];
-
-    final datasets = <List<FramePhotometricCalibrationRow>>[];
-    if (includeStandalone) {
-      datasets.add(
-        await _standaloneRows(sessionlessCalibrationsExportProvider.future),
-      );
-    }
-    for (final sessionId in sessionIds) {
-      datasets.add(
-        await ref.read(sessionFrameCalibrationsProvider(sessionId).future),
-      );
-    }
-    for (final data in datasets) {
-      for (final c in data) {
-        if (!_withinDateRange(c.timestamp)) continue;
-        rows.add([
-          c.sessionId ?? '',
-          c.capturedImageId ?? '',
-          c.isCalibrated,
-          c.zeroPoint ?? '',
-          c.limitingMag3Sigma ?? '',
-          c.limitingMag5Sigma ?? '',
-          c.matchedStarCount,
-          c.calibrationRms,
-          c.catalogSource,
-          c.solverId,
-          _utcStamp(c.timestamp),
-        ]);
-      }
-    }
-    return rows;
-  }
-
-  Future<List<List<dynamic>>> _buildMovingObjectRows(
-    List<int> sessionIds, {
-    required bool includeStandalone,
-  }) async {
-    final rows = <List<dynamic>>[
-      [
-        'Session ID',
-        'Image ID',
-        'Candidate ID',
-        'RA (deg)',
-        'Dec (deg)',
-        'Motion (arcsec/min)',
-        'Position Angle (deg)',
-        'Confidence',
-        'Is Known Object',
-        'Object Name',
-        'Source',
-        'Timestamp (UTC)',
-      ]
-    ];
-
-    final datasets = <List<MovingObjectCandidateRow>>[];
-    if (includeStandalone) {
-      datasets.add(
-        await _standaloneRows(
-          sessionlessMovingObjectCandidatesExportProvider.future,
-        ),
-      );
-    }
-    for (final sessionId in sessionIds) {
-      datasets.add(
-        await ref.read(sessionMovingObjectCandidatesProvider(sessionId).future),
-      );
-    }
-    for (final data in datasets) {
-      for (final m in data) {
-        if (!_withinDateRange(m.timestamp)) continue;
-        rows.add([
-          m.sessionId ?? '',
-          m.capturedImageId ?? '',
-          m.candidateId,
-          m.raDegrees,
-          m.decDegrees,
-          m.motionArcsecPerMinute,
-          m.positionAngleDegrees,
-          m.confidence,
-          m.isKnownObject,
-          m.objectName ?? '',
-          m.source,
-          _utcStamp(m.timestamp),
-        ]);
+    for (final source in sources) {
+      for (final row in source) {
+        if (!_withinDateRange(dataset.timestampOf(row))) continue;
+        rows.add(dataset.toCsvRow(row));
       }
     }
     return rows;
   }
 }
+
+/// A science dataset's CSV projection: its published header, where its rows
+/// come from (standalone and per session), and how one row becomes one line.
+///
+/// The seven datasets used to carry seven copies of the same five-step builder,
+/// which is how the header of one could drift from the shape of its rows.
+class _ExportDataset<T> {
+  const _ExportDataset({
+    required this.header,
+    required this.standaloneExport,
+    required this.perSession,
+    required this.timestampOf,
+    required this.toCsvRow,
+  });
+
+  /// Column names, in output order. These are a published file format — other
+  /// people's pipelines parse them — so they are pinned by a parity test.
+  final List<String> header;
+  final ProviderListenable<Future<List<T>>> standaloneExport;
+  final ProviderListenable<Future<List<T>>> Function(int sessionId) perSession;
+  final DateTime Function(T row) timestampOf;
+  final List<dynamic> Function(T row) toCsvRow;
+}
+
+final _photometryDataset = _ExportDataset<PhotometryMeasurementRow>(
+  header: [
+    'Session ID',
+    'Image ID',
+    'Object ID',
+    'Role',
+    'X',
+    'Y',
+    'Flux',
+    'Differential Magnitude',
+    'SNR',
+    'Uncertainty',
+    'Is Outlier',
+    'Timestamp (UTC)',
+    'JD',
+  ],
+  standaloneExport: sessionlessPhotometryExportProvider.future,
+  perSession: (sessionId) => sessionPhotometryProvider(sessionId).future,
+  timestampOf: (m) => m.timestamp,
+  toCsvRow: (m) => [
+    m.sessionId ?? '',
+    m.capturedImageId ?? '',
+    m.objectId,
+    m.role,
+    m.x,
+    m.y,
+    m.flux,
+    m.differentialMagnitude ?? '',
+    m.snr ?? '',
+    m.uncertainty ?? '',
+    m.isOutlier,
+    _utcStamp(m.timestamp),
+    _julianDate(m.timestamp),
+  ],
+);
+
+final _frameQualityDataset = _ExportDataset<ScienceFrameQualityMetricsRow>(
+  header: [
+    'Session ID',
+    'Image ID',
+    'Timestamp (UTC)',
+    'Median',
+    'Mean',
+    'StdDev',
+    'MAD',
+    'Background',
+    'Noise',
+    'SNR',
+    'Dynamic Range (P1-P99)',
+    'Low Clip %',
+    'High Clip %',
+    'Uniformity CV',
+    'Gradient X',
+    'Gradient Y',
+    'Processing Tier',
+    'Processing Ms',
+  ],
+  standaloneExport: sessionlessFrameQualityMetricsExportProvider.future,
+  perSession: (sessionId) =>
+      sessionFrameQualityMetricsProvider(sessionId).future,
+  timestampOf: (m) => m.timestamp,
+  toCsvRow: (m) => [
+    m.sessionId ?? '',
+    m.capturedImageId ?? '',
+    _utcStamp(m.timestamp),
+    m.median,
+    m.mean,
+    m.stdDev,
+    m.mad,
+    m.background,
+    m.noise,
+    m.snr,
+    m.dynamicRangeP1P99,
+    m.lowClipPercent,
+    m.highClipPercent,
+    m.uniformityCv,
+    m.gradientX,
+    m.gradientY,
+    m.processingTier,
+    m.processingMs,
+  ],
+);
+
+final _transparencyDataset = _ExportDataset<TransparencySampleRow>(
+  header: [
+    'Session ID',
+    'Image ID',
+    'Transparency %',
+    'Extinction Coefficient',
+    'Quality Bucket',
+    'Confidence',
+    'Timestamp (UTC)',
+  ],
+  standaloneExport: sessionlessTransparencySamplesExportProvider.future,
+  perSession: (sessionId) =>
+      sessionTransparencySamplesProvider(sessionId).future,
+  timestampOf: (s) => s.timestamp,
+  toCsvRow: (s) => [
+    s.sessionId ?? '',
+    s.capturedImageId ?? '',
+    s.transparencyPercent,
+    s.extinctionCoefficient,
+    s.qualityBucket,
+    s.confidence,
+    _utcStamp(s.timestamp),
+  ],
+);
+
+final _psfTileDataset = _ExportDataset<PsfFieldTileRow>(
+  header: [
+    'Session ID',
+    'Image ID',
+    'Tile Row',
+    'Tile Col',
+    'Star Count',
+    'Median FWHM',
+    'Median HFR',
+    'Median Eccentricity',
+    'Roundness',
+    'Timestamp (UTC)',
+  ],
+  standaloneExport: sessionlessPsfTilesExportProvider.future,
+  perSession: (sessionId) => sessionPsfTilesProvider(sessionId).future,
+  timestampOf: (t) => t.timestamp,
+  toCsvRow: (t) => [
+    t.sessionId ?? '',
+    t.capturedImageId ?? '',
+    t.tileRow,
+    t.tileCol,
+    t.starCount,
+    t.medianFwhm,
+    t.medianHfr,
+    t.medianEccentricity,
+    t.roundness,
+    _utcStamp(t.timestamp),
+  ],
+);
+
+final _residualDataset = _ExportDataset<AstrometryResidualVectorRow>(
+  header: [
+    'Session ID',
+    'Image ID',
+    'X',
+    'Y',
+    'dX (arcsec)',
+    'dY (arcsec)',
+    'Magnitude (arcsec)',
+    'Recommendation',
+    'Timestamp (UTC)',
+  ],
+  standaloneExport: sessionlessResidualVectorsExportProvider.future,
+  perSession: (sessionId) => sessionResidualVectorsProvider(sessionId).future,
+  timestampOf: (r) => r.timestamp,
+  toCsvRow: (r) => [
+    r.sessionId ?? '',
+    r.capturedImageId ?? '',
+    r.x,
+    r.y,
+    r.dxArcsec,
+    r.dyArcsec,
+    r.magnitudeArcsec,
+    r.recommendationCode ?? '',
+    _utcStamp(r.timestamp),
+  ],
+);
+
+final _calibrationDataset = _ExportDataset<FramePhotometricCalibrationRow>(
+  header: [
+    'Session ID',
+    'Image ID',
+    'Is Calibrated',
+    'Zero Point',
+    'Lim Mag 3-sigma',
+    'Lim Mag 5-sigma',
+    'Matched Stars',
+    'Calibration RMS',
+    'Catalog Source',
+    'Solver ID',
+    'Timestamp (UTC)',
+  ],
+  standaloneExport: sessionlessCalibrationsExportProvider.future,
+  perSession: (sessionId) => sessionFrameCalibrationsProvider(sessionId).future,
+  timestampOf: (c) => c.timestamp,
+  toCsvRow: (c) => [
+    c.sessionId ?? '',
+    c.capturedImageId ?? '',
+    c.isCalibrated,
+    c.zeroPoint ?? '',
+    c.limitingMag3Sigma ?? '',
+    c.limitingMag5Sigma ?? '',
+    c.matchedStarCount,
+    c.calibrationRms,
+    c.catalogSource,
+    c.solverId,
+    _utcStamp(c.timestamp),
+  ],
+);
+
+final _movingObjectDataset = _ExportDataset<MovingObjectCandidateRow>(
+  header: [
+    'Session ID',
+    'Image ID',
+    'Candidate ID',
+    'RA (deg)',
+    'Dec (deg)',
+    'Motion (arcsec/min)',
+    'Position Angle (deg)',
+    'Confidence',
+    'Is Known Object',
+    'Object Name',
+    'Source',
+    'Timestamp (UTC)',
+  ],
+  standaloneExport: sessionlessMovingObjectCandidatesExportProvider.future,
+  perSession: (sessionId) =>
+      sessionMovingObjectCandidatesProvider(sessionId).future,
+  timestampOf: (m) => m.timestamp,
+  toCsvRow: (m) => [
+    m.sessionId ?? '',
+    m.capturedImageId ?? '',
+    m.candidateId,
+    m.raDegrees,
+    m.decDegrees,
+    m.motionArcsecPerMinute,
+    m.positionAngleDegrees,
+    m.confidence,
+    m.isKnownObject,
+    m.objectName ?? '',
+    m.source,
+    _utcStamp(m.timestamp),
+  ],
+);

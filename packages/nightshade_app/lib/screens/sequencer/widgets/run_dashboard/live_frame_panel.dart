@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -9,6 +8,8 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../imaging/widgets/image_display.dart';
 import '../../../../utils/filter_label.dart';
+import '../../../../widgets/frame_thumbnail_loader.dart';
+import 'hfr_sparkline.dart';
 
 /// Live-frame tile for the Run dashboard.
 ///
@@ -631,10 +632,11 @@ class _FrameBadge extends StatelessWidget {
               width: 96,
               height: 18,
               child: CustomPaint(
-                painter: _HfrSparklinePainter(
+                painter: HfrSparklinePainter(
                   values: hfrHistory,
-                  lineColor: colors.primary,
+                  color: colors.primary,
                   fillColor: colors.primary.withValues(alpha: 0.15),
+                  showLatestMarker: true,
                 ),
               ),
             ),
@@ -686,80 +688,6 @@ class _QualityChip extends StatelessWidget {
         ),
       ],
     );
-  }
-}
-
-/// Minimal HFR-vs-time sparkline. Auto-scales to the data's min/max so the
-/// trend fills the cell regardless of absolute HFR. Newest point on the right.
-class _HfrSparklinePainter extends CustomPainter {
-  final List<double> values;
-  final Color lineColor;
-  final Color fillColor;
-
-  const _HfrSparklinePainter({
-    required this.values,
-    required this.lineColor,
-    required this.fillColor,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (values.length < 2) return;
-
-    var minV = values.first;
-    var maxV = values.first;
-    for (final v in values) {
-      if (v < minV) minV = v;
-      if (v > maxV) maxV = v;
-    }
-    final range = (maxV - minV).abs();
-    // Flat series: draw a centred line rather than dividing by zero.
-    final span = range < 1e-6 ? 1.0 : range;
-
-    final dx = size.width / (values.length - 1);
-    double yFor(double v) {
-      final norm = (v - minV) / span; // 0 (best/low) .. 1 (worst/high)
-      // Lower HFR is better → draw it higher on screen (smaller y).
-      return size.height - (1.0 - norm) * size.height;
-    }
-
-    final linePath = Path();
-    for (var i = 0; i < values.length; i++) {
-      final x = dx * i;
-      final y = yFor(values[i]);
-      if (i == 0) {
-        linePath.moveTo(x, y);
-      } else {
-        linePath.lineTo(x, y);
-      }
-    }
-
-    final fillPath = Path.from(linePath)
-      ..lineTo(size.width, size.height)
-      ..lineTo(0, size.height)
-      ..close();
-
-    canvas.drawPath(fillPath, Paint()..color = fillColor);
-    canvas.drawPath(
-      linePath,
-      Paint()
-        ..color = lineColor
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.3
-        ..strokeJoin = StrokeJoin.round,
-    );
-
-    // Marker on the latest point.
-    final lastX = dx * (values.length - 1);
-    final lastY = yFor(values.last);
-    canvas.drawCircle(Offset(lastX, lastY), 1.8, Paint()..color = lineColor);
-  }
-
-  @override
-  bool shouldRepaint(covariant _HfrSparklinePainter oldDelegate) {
-    return oldDelegate.values != values ||
-        oldDelegate.lineColor != lineColor ||
-        oldDelegate.fillColor != fillColor;
   }
 }
 
@@ -821,10 +749,21 @@ class _HistoryColumn extends StatelessWidget {
             itemCount: newestFirst.length,
             separatorBuilder: (_, __) =>
                 const SizedBox(height: NightshadeTokens.spaceSm),
+            // Tiles are addressed by frame identity, not by position. The
+            // list is newest-first, so every capture shifts each index by one;
+            // without the key plus this lookup the sliver rebuilds every
+            // visible tile from scratch and each one refetches its thumbnail —
+            // up to 24 `getImageThumbnail` round-trips per captured frame.
+            findItemIndexCallback: (key) {
+              final id = (key as ValueKey<String>).value;
+              final index = newestFirst.indexWhere((i) => i.id == id);
+              return index < 0 ? null : index;
+            },
             itemBuilder: (context, index) {
               final image = newestFirst[index];
               final isCurrent = _matchesCurrent(image, currentPath, currentAt);
               return _HistoryTile(
+                key: ValueKey(image.id),
                 colors: colors,
                 image: image,
                 isCurrent: isCurrent,
@@ -859,6 +798,7 @@ class _HistoryTile extends ConsumerStatefulWidget {
   final bool isCurrent;
 
   const _HistoryTile({
+    super.key,
     required this.colors,
     required this.image,
     required this.isCurrent,
@@ -889,20 +829,11 @@ class _HistoryTileState extends ConsumerState<_HistoryTile> {
   Future<Uint8List?> _loadBytes() async {
     final imageId = int.tryParse(widget.image.id);
     if (imageId == null) return null;
-    try {
-      final backend = ref.read(imagingBackendProvider);
-      final bytes = await backend.getImageThumbnail(imageId);
-      if (bytes.isNotEmpty) return bytes;
-    } catch (e) {
-      // A missing thumbnail is a real condition but must not take down the
-      // whole column; log it and fall back to the placeholder icon.
-      ref.read(loggingServiceProvider).debug(
-            'RunDashboardLiveFrame history thumbnail fetch failed for image '
-            '${widget.image.id}: $e',
-            source: 'RunDashboardLiveFrame',
-          );
-    }
-    return null;
+    return fetchFrameThumbnailBytes(
+      ref,
+      imageId,
+      source: 'RunDashboardLiveFrame',
+    );
   }
 
   String _filterLabel() => filterLabel(widget.image.settings.filter);
@@ -939,7 +870,7 @@ class _HistoryTileState extends ConsumerState<_HistoryTile> {
                   ),
                 ),
                 clipBehavior: Clip.antiAlias,
-                child: _HistoryThumb(
+                child: FrameThumbnail(
                   bytesFuture: _bytesFuture,
                   fallbackFilePath: widget.image.filePath,
                   colors: colors,
@@ -977,78 +908,6 @@ class _HistoryTileState extends ConsumerState<_HistoryTile> {
         ),
       ),
     );
-  }
-}
-
-/// Thumbnail image for a history cell. Mirrors the recent-frames strip: prefer
-/// the backend thumbnail (a pre-rendered JPEG that decodes both locally and
-/// remotely), then a local raster file, then a placeholder icon.
-class _HistoryThumb extends ConsumerWidget {
-  final Future<Uint8List?>? bytesFuture;
-  final String fallbackFilePath;
-  final NightshadeColors colors;
-
-  const _HistoryThumb({
-    required this.bytesFuture,
-    required this.fallbackFilePath,
-    required this.colors,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final isRemoteMode = ref.watch(isRemoteModeProvider);
-    return FutureBuilder<Uint8List?>(
-      future: bytesFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(
-            child: SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(
-                strokeWidth: 1.4,
-                valueColor: AlwaysStoppedAnimation<Color>(colors.textMuted),
-              ),
-            ),
-          );
-        }
-        final bytes = snapshot.data;
-        if (bytes != null && bytes.isNotEmpty) {
-          return Image.memory(
-            bytes,
-            fit: BoxFit.cover,
-            width: double.infinity,
-            height: double.infinity,
-            gaplessPlayback: true,
-            errorBuilder: (_, __, ___) => _placeholder(),
-          );
-        }
-        if (!isRemoteMode && _isImageLikePath(fallbackFilePath)) {
-          return Image.file(
-            File(fallbackFilePath),
-            fit: BoxFit.cover,
-            width: double.infinity,
-            height: double.infinity,
-            gaplessPlayback: true,
-            errorBuilder: (_, __, ___) => _placeholder(),
-          );
-        }
-        return _placeholder();
-      },
-    );
-  }
-
-  Widget _placeholder() => Center(
-        child: Icon(LucideIcons.image, size: 16, color: colors.textMuted),
-      );
-
-  bool _isImageLikePath(String path) {
-    final lower = path.toLowerCase();
-    return lower.endsWith('.png') ||
-        lower.endsWith('.jpg') ||
-        lower.endsWith('.jpeg') ||
-        lower.endsWith('.tif') ||
-        lower.endsWith('.tiff');
   }
 }
 
@@ -1148,8 +1007,12 @@ class _InspectPreview extends ConsumerWidget {
     if (imageId == null) {
       return _fallback();
     }
-    return FutureBuilder<Uint8List>(
-      future: ref.read(imagingBackendProvider).getImageThumbnail(imageId),
+    return FutureBuilder<Uint8List?>(
+      future: fetchFrameThumbnailBytes(
+        ref,
+        imageId,
+        source: 'RunDashboardLiveFrame',
+      ),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Center(

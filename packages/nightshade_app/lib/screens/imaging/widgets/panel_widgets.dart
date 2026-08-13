@@ -180,39 +180,6 @@ class _PanelTab extends StatelessWidget {
   }
 }
 
-class ControlSection extends StatelessWidget {
-  final String title;
-  final Widget child;
-  final NightshadeColors colors;
-
-  const ControlSection({
-    super.key,
-    required this.title,
-    required this.child,
-    required this.colors,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize10,
-            fontWeight: FontWeight.w600,
-            color: colors.textMuted,
-            letterSpacing: 0.5,
-          ),
-        ),
-        const SizedBox(height: NightshadeTokens.spaceSm),
-        child,
-      ],
-    );
-  }
-}
-
 class BigActionButton extends StatefulWidget {
   final IconData icon;
   final String label;

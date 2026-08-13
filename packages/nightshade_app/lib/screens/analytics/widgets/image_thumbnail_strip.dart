@@ -21,7 +21,7 @@ import '../../../utils/snackbar_helper.dart';
 import '../analytics_screen.dart' show dbSessionImagesProvider;
 import '../../../utils/filter_label.dart';
 import 'frame_detail_dialog.dart';
-import 'frame_thumbnail_loader.dart';
+import '../../../widgets/frame_thumbnail_loader.dart';
 
 enum _QualityFilter {
   all,
@@ -484,7 +484,7 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                             }
 
                             if (payload.fileExists &&
-                                !isFitsLikePath(widget.image.filePath) &&
+                                isDisplayableImagePath(widget.image.filePath) &&
                                 !isRemoteMode) {
                               return ClipRRect(
                                 borderRadius: const BorderRadius.only(

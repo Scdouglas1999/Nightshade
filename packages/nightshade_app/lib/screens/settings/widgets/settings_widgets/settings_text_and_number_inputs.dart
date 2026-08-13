@@ -24,6 +24,13 @@ class SettingsTextInput extends StatefulWidget {
 
   final bool obscure;
 
+  final TextInputType? keyboardType;
+
+  /// Applied while the operator types, for the rules the field has to *show*
+  /// rather than only enforce on commit — a length cap, or case folding on a
+  /// code that is stored upper-case.
+  final List<TextInputFormatter>? inputFormatters;
+
   /// May be asynchronous so failed persistence can restore the last confirmed
   /// value instead of leaving the field visually out of sync.
   final FutureOr<void> Function(String)? onChanged;
@@ -42,6 +49,8 @@ class SettingsTextInput extends StatefulWidget {
     this.hint,
     this.width,
     this.obscure = false,
+    this.keyboardType,
+    this.inputFormatters,
     this.onChanged,
     this.isMobile = false,
     this.flexible = false,
@@ -188,6 +197,8 @@ class _SettingsTextInputState extends State<SettingsTextInput> {
       controller: widget.controller,
       focusNode: _focusNode,
       hint: widget.hint,
+      keyboardType: widget.keyboardType,
+      inputFormatters: widget.inputFormatters,
       onSubmitted: (_) => _commit(),
       obscureText: widget.obscure && _obscured,
       suffixWidget: widget.obscure

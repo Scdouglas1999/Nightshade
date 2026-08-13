@@ -16,7 +16,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../utils/filter_label.dart';
 import '../../../utils/snackbar_helper.dart';
-import 'frame_thumbnail_loader.dart';
+import '../../../widgets/frame_thumbnail_loader.dart';
 
 /// Opens the single-frame inspector for [image].
 ///
@@ -152,7 +152,7 @@ class _FrameDetailDialogState extends ConsumerState<FrameDetailDialog> {
               );
             }
             if (payload.fileExists &&
-                !isFitsLikePath(widget.image.filePath) &&
+                isDisplayableImagePath(widget.image.filePath) &&
                 !ref.read(isRemoteModeProvider)) {
               return ClipRRect(
                 borderRadius: NightshadeTokens.borderRadiusMd,

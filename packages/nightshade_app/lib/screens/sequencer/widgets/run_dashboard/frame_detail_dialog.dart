@@ -28,6 +28,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart' hide ConnectionState;
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../../widgets/frame_thumbnail_loader.dart';
 import 'forensics_panel.dart' show forensicsCauseColor;
 
 class FrameDetailDialog extends StatelessWidget {
@@ -229,10 +230,12 @@ class _ImagePreview extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (capturedImageId != null) {
-      return FutureBuilder<Uint8List>(
-        future: ref
-            .read(imagingBackendProvider)
-            .getImageThumbnail(capturedImageId!),
+      return FutureBuilder<Uint8List?>(
+        future: fetchFrameThumbnailBytes(
+          ref,
+          capturedImageId!,
+          source: 'RunDashboardFrameDetail',
+        ),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(

@@ -256,8 +256,7 @@ void main() {
     await tester.pump(const Duration(seconds: 61));
     await tester.pumpAndSettle();
 
-    expect(
-        find.text('Build tonight\'s plan?'), findsOneWidget);
+    expect(find.text('Build tonight\'s plan?'), findsOneWidget);
     expect(find.text('Plan Tonight'), findsOneWidget);
     expect(container.read(smartNightAutoPromptShowingProvider), isTrue);
 
@@ -327,8 +326,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
 
-    expect(
-        find.text('Build tonight\'s plan?'), findsOneWidget);
+    expect(find.text('Build tonight\'s plan?'), findsOneWidget);
   });
 
   testWidgets(

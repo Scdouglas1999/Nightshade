@@ -6,6 +6,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../utils/transient_type_style.dart';
+
 /// A badge widget that displays the count of unacknowledged transient alerts.
 ///
 /// Features:
@@ -526,45 +528,6 @@ class _AlertListItem extends StatelessWidget {
     required this.colors,
   });
 
-  IconData _getTypeIcon() {
-    switch (alert.type) {
-      case TransientType.nova:
-        return LucideIcons.star;
-      case TransientType.supernova:
-        return LucideIcons.sparkles;
-      case TransientType.cataclysmic:
-        return LucideIcons.zap;
-      case TransientType.comet:
-        return LucideIcons.orbit;
-      case TransientType.asteroid:
-        return LucideIcons.circle;
-      case TransientType.variableStar:
-        return LucideIcons.sunDim;
-      case TransientType.gammaRayBurst:
-        return LucideIcons.flame;
-      case TransientType.other:
-        return LucideIcons.helpCircle;
-    }
-  }
-
-  Color _getTypeColor() {
-    switch (alert.type) {
-      case TransientType.nova:
-      case TransientType.supernova:
-        return colors.error;
-      case TransientType.cataclysmic:
-      case TransientType.gammaRayBurst:
-        return colors.warning;
-      case TransientType.comet:
-      case TransientType.asteroid:
-        return colors.info;
-      case TransientType.variableStar:
-        return colors.accent;
-      case TransientType.other:
-        return colors.textMuted;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final onPrimary = Theme.of(context).colorScheme.onPrimary;
@@ -582,14 +545,15 @@ class _AlertListItem extends StatelessWidget {
             width: 28,
             height: 28,
             decoration: BoxDecoration(
-              color: _getTypeColor().withValues(alpha: 0.15),
+              color: TransientTypeStyle.color(alert.type, colors)
+                  .withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(6),
             ),
             child: Center(
               child: Icon(
-                _getTypeIcon(),
+                TransientTypeStyle.icon(alert.type),
                 size: 14,
-                color: _getTypeColor(),
+                color: TransientTypeStyle.color(alert.type, colors),
               ),
             ),
           ),
@@ -612,7 +576,7 @@ class _AlertListItem extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  _formatTypeName(alert.type),
+                  TransientTypeStyle.label(alert.type),
                   style: TextStyle(
                     fontSize: 10,
                     color: colors.textMuted,
@@ -666,26 +630,5 @@ class _AlertListItem extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  String _formatTypeName(TransientType type) {
-    switch (type) {
-      case TransientType.nova:
-        return 'Nova';
-      case TransientType.supernova:
-        return 'Supernova';
-      case TransientType.cataclysmic:
-        return 'Cataclysmic Variable';
-      case TransientType.comet:
-        return 'Comet';
-      case TransientType.asteroid:
-        return 'Asteroid';
-      case TransientType.variableStar:
-        return 'Variable Star';
-      case TransientType.gammaRayBurst:
-        return 'Gamma-Ray Burst';
-      case TransientType.other:
-        return 'Other';
-    }
   }
 }

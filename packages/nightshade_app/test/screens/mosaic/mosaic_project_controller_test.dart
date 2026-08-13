@@ -156,10 +156,10 @@ void main() {
       imagesDao: ImagesDao(db),
       integrationService: PostSessionIntegrationService(
         mastersDao: mastersDao,
-        darkLibrary: DarkLibraryService(DarkLibraryDao(db)),
-        flatLibrary: FlatLibraryService(
-          dao: FlatLibraryDao(db),
-          seam: _noopSeam(),
+        calibrationLibrary: CalibrationLibraryService(
+          db: db,
+          flatLibraryDao: FlatLibraryDao(db),
+          tagsDao: CalibrationTagsDao(db),
         ),
         seam: _noopSeam(),
       ),
@@ -194,8 +194,10 @@ void main() {
     MosaicCaptureLauncher? captureLauncher,
     CollaborativeMosaicService? collaborativeService,
     bool hubConfigured = true,
+    Duration hubTimeout = MosaicProjectController.defaultHubTimeout,
   }) {
     return MosaicProjectController(
+      hubTimeout: hubTimeout,
       projectId: projectId,
       projectsDao: projectsDao,
       panelsDao: panelsDao,
@@ -485,6 +487,29 @@ void main() {
       c.dispose();
     });
 
+    test('a hub that never answers still releases the action button', () async {
+      // The local project read states a bound and surfaces an actionable
+      // message when it trips. Every hub action — the calls that actually
+      // cross a network — stated none, so a hub that accepted the connection
+      // and never replied left the screen spinning with no way back except
+      // leaving it.
+      final projectId = await seedProject(cols: 2);
+      collab.hangOnPublish = const Duration(seconds: 30);
+      final c = makeController(
+        projectId,
+        collaborativeService: collab,
+        hubTimeout: const Duration(milliseconds: 40),
+      );
+      await waitForLoad(c);
+
+      await c.publishToHub();
+
+      expect(c.state.isPublishing, isFalse);
+      expect(c.state.error, contains('timed out'));
+      expect(c.state.error, contains('hub'));
+      c.dispose();
+    });
+
     test('forceReleasePanel drives the service, reloads, and clears busy',
         () async {
       final projectId = await seedProject(cols: 2);
@@ -654,10 +679,14 @@ class _FakeCollab extends CollaborativeMosaicService {
   bool throwOnPublish = false;
   bool throwOnForceRelease = false;
 
+  /// Simulates a hub that accepts the connection and then goes quiet.
+  Duration? hangOnPublish;
+
   @override
   Future<CollabMosaic> publishProject(int projectId) async {
     publishCalls++;
     if (throwOnPublish) throw StateError('boom');
+    if (hangOnPublish != null) await Future<void>.delayed(hangOnPublish!);
     await projectsDao.setHubMosaic(projectId, 'mos-1', 'owner');
     return const CollabMosaic(
       mosaicId: 'mos-1',

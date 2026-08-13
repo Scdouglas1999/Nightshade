@@ -58,9 +58,6 @@ export 'screens/sequencer/widgets/mosaic_wizard_dialog.dart';
 export 'screens/sequencer/widgets/flat_wizard_dialog.dart';
 export 'screens/sequencer/widgets/trigger_configuration_dialog.dart';
 
-// Sequencer Visual Enhancements (Priority 3)
-export 'screens/sequencer/widgets/sequence_enhancements.dart';
-
 // Services
 export 'services/location_sync_service.dart';
 export 'screens/session_review/auto_integration_service.dart';
