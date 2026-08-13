@@ -46,6 +46,7 @@ part 'planetarium_screen/actions.dart';
 part 'planetarium_screen/layouts.dart';
 part 'planetarium_screen/local_widgets.dart';
 part 'widgets/redesign/planetarium_shell.dart';
+part 'planetarium_screen/sheets.dart';
 
 /// Get display name and catalog tag for a DSO
 /// Returns (displayName, catalogTag)

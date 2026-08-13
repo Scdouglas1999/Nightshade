@@ -19,6 +19,7 @@ part 'connected_device_card/actions_and_telemetry.dart';
 part 'connected_device_card/command_handlers.dart';
 part 'connected_device_card/dialogs_and_settings.dart';
 part 'connected_device_card/helper_widgets.dart';
+part 'connected_device_card/motion_dialogs.dart';
 
 // ============================================================================
 // Device Type Enum

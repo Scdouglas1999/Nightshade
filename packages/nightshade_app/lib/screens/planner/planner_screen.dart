@@ -42,6 +42,8 @@ part 'planner_screen_parts/_search_results.dart';
 part 'planner_screen_parts/_projects_tab.dart';
 part 'planner_screen_parts/_schedule_tab.dart';
 part 'planner_screen_parts/_discover_tab.dart';
+part 'planner_screen_parts/_candidate_observing_list.dart';
+part 'planner_screen_parts/_range_controls.dart';
 
 /// Identifies a Plan Tonight sub-tab for deep-linking via `?tab=` query
 /// param. Order here matches the rendered tab order; Recommendation is the

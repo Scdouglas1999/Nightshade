@@ -44,6 +44,7 @@ part 'node_properties_panel_parts/_motion_rich.dart';
 part 'node_properties_panel_parts/_flow_properties.dart';
 part 'node_properties_panel_parts/_misc_properties.dart';
 part 'node_properties_panel_parts/_plugin_properties.dart';
+part 'node_properties_panel_parts/_motion_flip_and_polar.dart';
 
 class NodePropertiesPanel extends ConsumerWidget {
   final NightshadeColors colors;

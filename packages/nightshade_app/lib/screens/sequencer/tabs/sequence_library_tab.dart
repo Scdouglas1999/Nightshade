@@ -23,6 +23,7 @@ part 'sequence_library_tab/supporting_widgets.dart';
 part 'sequence_library_tab/save_sequence_dialog.dart';
 part 'sequence_library_tab/version_history_dialog.dart';
 part 'sequence_library_tab/tag_editor_dialog.dart';
+part 'sequence_library_tab/sequence_card_dialogs.dart';
 
 /// Provider for sequences list - loads from database
 // autoDispose: list is only consumed by SequenceLibraryTab; refetching the

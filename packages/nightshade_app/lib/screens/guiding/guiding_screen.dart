@@ -19,6 +19,7 @@ import '../../widgets/contextual_tour_prompt.dart';
 part 'guiding_screen_parts/state_fields.dart';
 part 'guiding_screen_parts/desktop_sections.dart';
 part 'guiding_screen_parts/mobile_sections.dart';
+part 'guiding_screen_parts/actions.dart';
 
 /// Why Pause is unavailable under Nightshade's own guider.
 ///
@@ -49,6 +50,7 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
     with
         SingleTickerProviderStateMixin,
         _GuidingStateFields,
+        _GuidingActions,
         _GuidingDesktopSections,
         _GuidingMobileSections {
   @override

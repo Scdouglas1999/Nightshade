@@ -31,6 +31,8 @@ part 'sequence_tree/sequence_header.dart';
 part 'sequence_tree/node_tree_view.dart';
 part 'sequence_tree/node_item.dart';
 part 'sequence_tree/support_widgets.dart';
+part 'sequence_tree/tree_controls.dart';
+part 'sequence_tree/node_item_helpers.dart';
 
 /// Live handle to the tree's GlobalKey registry (node id -> row key).
 ///
