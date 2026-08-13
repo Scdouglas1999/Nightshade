@@ -301,7 +301,12 @@ void main() {
     expect(captured, isNotNull);
     expect(captured!.setRunningCalls, 0);
 
-    await tester.tap(find.widgetWithText(NightshadeButton, 'Re-check'));
+    // The LAN pairing card above now carries the phrase, its countdown and a
+    // Stop button, so Re-check can sit below a fixed-size test viewport.
+    final recheck = find.widgetWithText(NightshadeButton, 'Re-check');
+    await tester.ensureVisible(recheck);
+    await tester.pump();
+    await tester.tap(recheck);
     await tester.pump();
 
     expect(captured!.setRunningCalls, 1,

@@ -35,6 +35,17 @@ String pushDeliverySubtitleFor(AsyncValue<PushDeliveryTargets> async) {
       'while it is open on your network.';
 }
 
+/// Why the three original event switches are shown but inoperable.
+///
+/// They are persisted (and synced to remote controllers) but no delivery path
+/// reads them — per-event routing replaced them and nothing migrated the
+/// wiring. Left operable they were three armed-looking guarantees for an
+/// unattended night that could never fire; they stay visible so an operator who
+/// set one recognises it, and say where the working control is.
+const String _legacyEventFlagReason =
+    'Superseded by per-event routing — this switch no longer sends anything. '
+    'Set it under Notification Routing.';
+
 class NotificationSettings extends ConsumerStatefulWidget {
   final bool isMobile;
 
@@ -287,46 +298,60 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                 ),
               ],
             ),
+            // Three sets of near-identically named controls cover "a sequence
+            // finished" on this one leaf, and nothing told the operator which
+            // of them decides whether their phone buzzes. Say it once, at the
+            // top, before any of the switches.
+            const SettingsSection(
+              title: 'Which of these decides where an alert goes',
+              children: [
+                SettingRow(
+                  icon: LucideIcons.share2,
+                  title: 'Per-event routing is the live one',
+                  subtitle:
+                      'Per-event routing (Settings → Notification Routing) '
+                      'maps each event to its transports and is what actually '
+                      'delivers. Push to Mobile below is the separate host '
+                      'push gate; neither overrides the other, so an event '
+                      'enabled in both is sent by both. The event switches '
+                      'under "Legacy event flags" predate routing and are not '
+                      'read by any delivery path.',
+                  trailing: SizedBox.shrink(),
+                  isLast: true,
+                ),
+              ],
+            ),
             SettingsSection(
-              title: 'Notification Events',
+              title: 'Legacy event flags (not wired up)',
               children: [
                 SettingRow(
                   icon: LucideIcons.checkCircle,
                   title: 'Sequence complete',
-                  subtitle: 'Notify when sequence finishes',
+                  subtitle: _legacyEventFlagReason,
                   trailing: SettingsSwitch(
                     value: settings.notifyOnSequenceComplete,
-                    onChanged: (value) {
-                      return ref
-                          .read(appSettingsProvider.notifier)
-                          .setNotifyOnSequenceComplete(value);
-                    },
+                    enabled: false,
+                    onChanged: (_) {},
                   ),
                 ),
                 SettingRow(
                   icon: LucideIcons.alertCircle,
                   title: 'Errors',
-                  subtitle: 'Notify on errors and failures',
+                  subtitle: _legacyEventFlagReason,
                   trailing: SettingsSwitch(
                     value: settings.notifyOnError,
-                    onChanged: (value) {
-                      return ref
-                          .read(appSettingsProvider.notifier)
-                          .setNotifyOnError(value);
-                    },
+                    enabled: false,
+                    onChanged: (_) {},
                   ),
                 ),
                 SettingRow(
                   icon: LucideIcons.rotateCw,
                   title: 'Meridian flip',
-                  subtitle: 'Notify when meridian flip occurs',
+                  subtitle: _legacyEventFlagReason,
                   trailing: SettingsSwitch(
                     value: settings.notifyOnMeridianFlip,
-                    onChanged: (value) {
-                      return ref
-                          .read(appSettingsProvider.notifier)
-                          .setNotifyOnMeridianFlip(value);
-                    },
+                    enabled: false,
+                    onChanged: (_) {},
                   ),
                   isLast: true,
                 ),

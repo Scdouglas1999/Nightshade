@@ -127,6 +127,50 @@ class TutorialKeys {
   }
 }
 
+/// Which way the operator was last moving through a tour.
+enum TutorialDirection { forward, backward }
+
+/// Where a tour should land when the step at [index] describes a panel that is
+/// not on screen, or null when it should stay put.
+///
+/// The dashboard tour narrates Live Image Preview, Quick Capture, Session
+/// Progress and six more panels that the default dashboard layout does not
+/// contain: nine of its twelve steps talked about widgets the operator was not
+/// looking at, with no spotlight and nothing to point at, because their target
+/// keys resolve to widgets that were never built. A tour step whose subject is
+/// absent has nothing to teach, so it is passed over — in whichever direction
+/// the operator was already going, so Back does not bounce off it. Steps with
+/// no target at all (the centred welcome and completion cards) always stand.
+///
+/// Returns null at the ends of the tour and whenever the target is live, which
+/// is what makes the walk terminate.
+///
+/// One step being absent among present siblings is a layout that does not carry
+/// that panel. NOTHING in the tour resolving is a different situation — the
+/// screen has not finished building, or the operator is somewhere else
+/// entirely — and racing to the end of a tour on that evidence would be worse
+/// than showing it, so the whole rule stands down.
+@visibleForTesting
+int? tutorialStepIndexPastMissingTarget({
+  required List<TutorialStep> steps,
+  required int index,
+  required TutorialDirection direction,
+  required bool Function(String targetKey) isTargetLive,
+}) {
+  if (index < 0 || index >= steps.length) return null;
+  final targetKey = steps[index].targetKey;
+  if (targetKey == null || targetKey.isEmpty) return null;
+  if (isTargetLive(targetKey)) return null;
+  final anyLive = steps.any((step) {
+    final key = step.targetKey;
+    return key != null && key.isNotEmpty && isTargetLive(key);
+  });
+  if (!anyLive) return null;
+  final next = direction == TutorialDirection.forward ? index + 1 : index - 1;
+  if (next < 0 || next >= steps.length) return null;
+  return next;
+}
+
 /// Tutorial overlay that displays coach marks with spotlight effect
 class TutorialOverlay extends ConsumerStatefulWidget {
   final Widget child;
@@ -150,10 +194,23 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
   /// routes again.
   String? _routeRequestedForTour;
 
+  /// Which way the operator last moved, so a step that has to be passed over is
+  /// passed over in the same direction rather than bouncing them forward again.
+  TutorialDirection _direction = TutorialDirection.forward;
+
+  /// Guards the post-frame absent-target check against re-entering itself while
+  /// the move it asked for is still in flight.
+  bool _resolvingMissingTarget = false;
+
   void _runAction(
     _TutorialOverlayAction action,
     Future<void> Function() operation,
   ) {
+    if (action == _TutorialOverlayAction.next) {
+      _direction = TutorialDirection.forward;
+    } else if (action == _TutorialOverlayAction.previous) {
+      _direction = TutorialDirection.backward;
+    }
     if (_pendingAction != null) return;
     unawaited(() async {
       setState(() => _pendingAction = action);
@@ -254,10 +311,60 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
     });
   }
 
+  /// Move past a step whose target never appeared.
+  ///
+  /// Deferred a beat past the frame: the step may have just asked go_router for
+  /// another screen, and a target that has not finished building is not a
+  /// missing one.
+  void _passOverMissingTarget(TutorialProgress progress) {
+    if (_resolvingMissingTarget || _pendingAction != null) return;
+    final category = progress.activeCategory;
+    if (category == null) return;
+    final steps = TutorialDefinitions.getStepsForCategory(category);
+    final index = progress.currentStepIndex;
+    _resolvingMissingTarget = true;
+    Future.delayed(const Duration(milliseconds: 450), () async {
+      if (!mounted) {
+        _resolvingMissingTarget = false;
+        return;
+      }
+      try {
+        final current = ref.read(tutorialProvider);
+        if (current.activeCategory != category ||
+            current.currentStepIndex != index) {
+          return;
+        }
+        final target = tutorialStepIndexPastMissingTarget(
+          steps: steps,
+          index: index,
+          direction: _direction,
+          isTargetLive: (key) =>
+              TutorialKeys.getKey(key)?.currentContext != null,
+        );
+        if (target == null) return;
+        final notifier = ref.read(tutorialProvider.notifier);
+        try {
+          await (target > index
+              ? notifier.nextStep()
+              : notifier.previousStep());
+        } catch (_) {
+          // Passing over an absent panel is a courtesy, not an instruction the
+          // operator gave. A progress write that fails here leaves the tour
+          // where it is; the operator's own Next still reports the failure.
+        }
+      } finally {
+        _resolvingMissingTarget = false;
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final tutorialState = ref.watch(tutorialProvider);
     final notifier = ref.read(tutorialProvider.notifier);
+    if (tutorialState.activeCategory != null) {
+      _passOverMissingTarget(tutorialState);
+    }
 
     // Listen for tutorial state changes to navigate to appropriate tabs
     ref.listen<TutorialProgress>(tutorialProvider, (previous, current) {

@@ -135,21 +135,28 @@ class _FieldCard extends StatelessWidget {
             ),
           )
         else
-          Container(
-            height: 36,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-            ),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                value ?? 'Not set',
-                style: NightshadeTypography.h5.copyWith(
-                    color: value != null && value != 'Not set' && value != 'N/A'
-                        ? colors.textPrimary
-                        : colors.textMuted),
+          // Deliberately unboxed. A filled, rounded panel carrying a number is
+          // the same visual language as the editable field above and as the
+          // live binning selector directly beneath, so clicking "400 mm" and
+          // typing produced no focus ring and swallowed every keystroke —
+          // within one card, identical chrome was half live and half dead.
+          // Values that cannot be typed into do not look typed into.
+          Semantics(
+            label: '$label: ${value ?? 'not set'}',
+            readOnly: true,
+            excludeSemantics: true,
+            child: SizedBox(
+              height: 36,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  value ?? 'Not set',
+                  style: NightshadeTypography.h5.copyWith(
+                      color:
+                          value != null && value != 'Not set' && value != 'N/A'
+                              ? colors.textPrimary
+                              : colors.textMuted),
+                ),
               ),
             ),
           ),

@@ -102,7 +102,6 @@ class _OnboardingSiteStepState extends ConsumerState<OnboardingSiteStep> {
 
   /// IP-derived starting point, offered only when there is no site on record.
   (double, double, String?)? _ipEstimate;
-  bool _offerIpEstimate = false;
   bool _ipLookupStarted = false;
   bool _ipLookupRunning = false;
 
@@ -144,8 +143,20 @@ class _OnboardingSiteStepState extends ConsumerState<OnboardingSiteStep> {
     // its first run, with no click and nothing on screen saying so. Nightshade
     // is routinely installed on isolated observatory networks. The offer is
     // still made; it now waits for [_lookUpIpEstimate].
-    _offerIpEstimate = !hasSite;
   }
+
+  /// True when the coordinate fields hold a usable pair, so the "no site on
+  /// record" offer has been answered.
+  ///
+  /// Derived rather than latched at seed time: the offer used to be a one-shot
+  /// flag, so after "Use my current location" filled the fields in the banner
+  /// directly above them still read "No site on record yet" and still offered
+  /// to estimate one — the screen denying the thing it had just done.
+  bool get _siteEntered =>
+      _validateLatitude(_latController.text.trim()) == null &&
+      _validateLongitude(_lonController.text.trim()) == null &&
+      _latController.text.trim().isNotEmpty &&
+      _lonController.text.trim().isNotEmpty;
 
   /// Fetch an approximate position to *offer*, once the operator has asked for
   /// it and agreed to the request. Failure is silent: a first run with no
@@ -175,8 +186,8 @@ class _OnboardingSiteStepState extends ConsumerState<OnboardingSiteStep> {
     final estimate = _ipEstimate;
     if (estimate == null) return;
     final (lat, lon, _) = estimate;
-    _latController.text = _trimNumber(lat);
-    _lonController.text = _trimNumber(lon);
+    _latController.text = _trimNumber(_roundLookup(lat));
+    _lonController.text = _trimNumber(_roundLookup(lon));
     _onFieldChanged();
   }
 
@@ -290,6 +301,17 @@ class _OnboardingSiteStepState extends ConsumerState<OnboardingSiteStep> {
     return value.toString();
   }
 
+  /// Round a looked-up coordinate to the precision the lookup can support.
+  ///
+  /// Both sources behind "Use my current location" are estimates — an IP lookup
+  /// resolves to about 10 km — and the raw reading arrives with seven decimals,
+  /// roughly a centimetre. Printing that invites the user to trust a guess, and
+  /// disagrees with the review step, which already shows four. Four decimals is
+  /// ~11 m: finer than any estimate here and still far finer than an observing
+  /// site needs. A coordinate the user types is left exactly as typed.
+  static double _roundLookup(double value) =>
+      double.parse(value.toStringAsFixed(4));
+
   /// Resolve this machine's position and write the coordinates, mirroring
   /// Settings → Location's "Detect Location" affordance — including its two
   /// rules, which this step used to skip. It asks before the request leaves
@@ -319,7 +341,9 @@ class _OnboardingSiteStepState extends ConsumerState<OnboardingSiteStep> {
         );
         return;
       }
-      final (lat, lon, name) = location;
+      final (rawLat, rawLon, name) = location;
+      final lat = _roundLookup(rawLat);
+      final lon = _roundLookup(rawLon);
       // Only a site already on record can lend a stale elevation; on a first
       // run the field holds whatever the operator has just typed, which is
       // theirs to keep.
@@ -512,9 +536,7 @@ class _OnboardingSiteStepState extends ConsumerState<OnboardingSiteStep> {
                   ),
                 ],
               ),
-              if (_offerIpEstimate ||
-                  _ipLookupRunning ||
-                  _ipEstimate != null) ...[
+              if (!_siteEntered || _ipLookupRunning || _ipEstimate != null) ...[
                 const SizedBox(height: NightshadeTokens.spaceMd),
                 _buildIpEstimate(theme, colors),
               ],

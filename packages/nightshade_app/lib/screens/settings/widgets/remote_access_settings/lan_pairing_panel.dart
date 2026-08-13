@@ -3,15 +3,28 @@ part of '../remote_access_settings.dart';
 class _RemotePairingQrPanel extends StatelessWidget {
   final WebServerState webState;
   final String? pairingCode;
+  final Duration? timeRemaining;
   final String appVersion;
   final VoidCallback? onStartPairing;
+  final VoidCallback? onStopPairing;
 
   const _RemotePairingQrPanel({
     required this.webState,
     required this.pairingCode,
     required this.appVersion,
+    this.timeRemaining,
     this.onStartPairing,
+    this.onStopPairing,
   });
+
+  /// `mm:ss` left on the outstanding code, or null when there is no expiry to
+  /// report.
+  static String? _countdown(Duration? remaining) {
+    if (remaining == null) return null;
+    final minutes = remaining.inMinutes;
+    final seconds = remaining.inSeconds % 60;
+    return '$minutes:${seconds.toString().padLeft(2, '0')}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,6 +51,8 @@ class _RemotePairingQrPanel extends StatelessWidget {
             pairingSupported: true,
             pairingCode: pairingCode,
           );
+    final countdown = _countdown(timeRemaining);
+    final expired = timeRemaining != null && timeRemaining! <= Duration.zero;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -89,35 +104,77 @@ class _RemotePairingQrPanel extends StatelessWidget {
                   fontSize: NightshadeTypography.fontSize12,
                   color: colors.textMuted),
             ),
-          ] else if (pairingCode != null && qrPayload != null) ...[
-            Center(
-              child: QrImageView(
-                data: qrPayload,
-                size: 200,
-                backgroundColor: const Color(0xFFFFFFFF),
-                semanticsLabel:
-                    'Nightshade pairing QR for $host:${webState.actualPort}',
-              ),
-            ),
-          ] else if (pairingCode != null && qrPayload == null) ...[
-            Text(
-              l10n.text('remoteAccessQrNoLanIp'),
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.warning),
-            ),
-            const SizedBox(height: 8),
-            Center(
-              child: Text(
-                pairingCode!,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize16,
-                  fontWeight: FontWeight.w600,
-                  fontFamily: 'monospace',
-                  color: colors.textPrimary,
+          ] else if (pairingCode != null) ...[
+            // The card promises "a QR code and pairing phrase", and a QR alone
+            // is unusable to anyone typing the code into a browser or reading
+            // the screen with assistive tech — the image is the one part of
+            // this panel a screen reader cannot convey. Phrase, countdown and
+            // a way out are text, so all three are announced.
+            if (qrPayload != null)
+              Center(
+                child: QrImageView(
+                  data: qrPayload,
+                  size: 200,
+                  backgroundColor: const Color(0xFFFFFFFF),
+                  semanticsLabel:
+                      'Nightshade pairing QR for $host:${webState.actualPort}',
                 ),
+              )
+            else
+              Text(
+                l10n.text('remoteAccessQrNoLanIp'),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize12,
+                    color: colors.warning),
+              ),
+            const SizedBox(height: 10),
+            Text(
+              _l10nOr(l10n, 'remoteAccessQrPhraseLabel', 'Pairing phrase'),
+              style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12,
+                color: colors.textSecondary,
               ),
             ),
+            const SizedBox(height: 4),
+            SelectableText(
+              pairingCode!,
+              style: TextStyle(
+                fontSize: NightshadeTypography.fontSize16,
+                fontWeight: FontWeight.w600,
+                fontFamily: 'monospace',
+                color: colors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              countdown == null
+                  ? _l10nOr(
+                      l10n,
+                      'remoteAccessQrExpiresUnknown',
+                      'This phrase expires a few minutes after it is created.',
+                    )
+                  : _l10nOr(
+                      l10n,
+                      'remoteAccessQrExpiresIn',
+                      'Expires in {left}',
+                      params: {'left': countdown},
+                    ),
+              style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12,
+                color: expired ? colors.warning : colors.textSecondary,
+              ),
+            ),
+            if (onStopPairing != null) ...[
+              const SizedBox(height: 10),
+              NightshadeButton(
+                label: _l10nOr(
+                    l10n, 'remoteAccessQrStopButton', 'Stop pairing mode'),
+                icon: LucideIcons.x,
+                variant: ButtonVariant.outline,
+                size: ButtonSize.small,
+                onPressed: onStopPairing,
+              ),
+            ],
           ],
         ],
       ),

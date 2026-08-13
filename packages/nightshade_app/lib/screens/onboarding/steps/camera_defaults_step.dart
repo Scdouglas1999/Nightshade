@@ -67,6 +67,10 @@ class _OnboardingCameraDefaultsStepState
   /// would collapse the field out from under the user mid-edit.
   late bool _coolingOn;
 
+  /// Set when applying a preset replaced a pixel size entered on the
+  /// optical-train step; cleared when the user picks a preset that does not.
+  String? _pixelSizeReplacedNote;
+
   @override
   void initState() {
     super.initState();
@@ -237,8 +241,22 @@ class _OnboardingCameraDefaultsStepState
   }
 
   Future<void> _applyPreset(CameraDefaultsPreset preset) async {
+    // Read before applying: the preset also rewrites the pixel size entered on
+    // the optical-train step, which is the one value here the user may have
+    // typed from a datasheet. Overwriting it silently changed the image scale
+    // on the review page with nothing on any screen saying so, so the
+    // replacement is named where it happens.
+    final previousPixelSize =
+        ref.read(onboardingDraftProvider).pixelSizeMicrons;
     await ref.read(onboardingDraftProvider.notifier).applyCameraPreset(preset);
     if (!mounted) return;
+    final replacedPixelSize = previousPixelSize != null &&
+            (previousPixelSize - preset.pixelSizeMicrons).abs() > 0.001
+        ? 'Pixel size changed from ${_trimMicrons(previousPixelSize)} to '
+            '${_trimMicrons(preset.pixelSizeMicrons)} µm by the '
+            '${preset.displayName} preset. Edit it on the previous step if '
+            'your camera differs.'
+        : null;
 
     // Reflect the applied preset in the editable fields.
     _gainController.text = preset.recommendedGain.toString();
@@ -257,8 +275,14 @@ class _OnboardingCameraDefaultsStepState
       _binXError = null;
       _binYError = null;
       _coolingError = null;
+      _pixelSizeReplacedNote = replacedPixelSize;
     });
   }
+
+  /// Micron value without a trailing `.0`.
+  static String _trimMicrons(double value) => value == value.roundToDouble()
+      ? value.toStringAsFixed(0)
+      : value.toString();
 
   @override
   Widget build(BuildContext context) {
@@ -332,6 +356,25 @@ class _OnboardingCameraDefaultsStepState
               ],
             ],
           ),
+          if (_pixelSizeReplacedNote != null) ...[
+            const SizedBox(height: NightshadeTokens.spaceSm),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(NightshadeIcons.info,
+                    size: 14, color: colors.textSecondary),
+                const SizedBox(width: NightshadeTokens.spaceSm),
+                Expanded(
+                  child: Text(
+                    _pixelSizeReplacedNote!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: NightshadeTokens.spaceLg),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,

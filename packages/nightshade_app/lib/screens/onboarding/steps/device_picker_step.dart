@@ -206,70 +206,99 @@ class _BackendStatusRow extends StatelessWidget {
 
     final entries =
         drivers.map((d) => MapEntry(d, discovery.backendStates[d])).toList();
+    final failures = <String>[];
 
-    return Wrap(
-      spacing: 6,
-      runSpacing: 4,
-      children: entries.map((entry) {
-        final driver = entry.key;
-        final state = entry.value;
-        IconData icon;
-        Color color;
-        String label = driver.shortLabel;
-        String? tooltipMessage;
+    final chips = entries.map((entry) {
+      final driver = entry.key;
+      final state = entry.value;
+      IconData icon;
+      Color color;
+      String label = driver.shortLabel;
+      // What a screen reader is told. The chips used to publish only their
+      // driver name, so two red alarm chips on the third screen of the first
+      // run were, to assistive tech, indistinguishable from the green one.
+      String description;
 
-        if (state == null) {
-          icon = NightshadeIcons.circle;
-          color = colors.textMuted;
-          tooltipMessage = 'Not scanned yet';
-        } else {
-          switch (state.status) {
-            case DiscoveryStatus.idle:
-              icon = NightshadeIcons.circle;
-              color = colors.textMuted;
-              break;
-            case DiscoveryStatus.discovering:
-              icon = LucideIcons.loader;
-              color = colors.primary;
-              break;
-            case DiscoveryStatus.completed:
-              icon = LucideIcons.checkCircle2;
-              color = colors.success;
-              final matchingCount = state.devices
-                  .where((device) => device.deviceType == deviceType)
-                  .length;
-              label = '${driver.shortLabel} ($matchingCount)';
-              break;
-            case DiscoveryStatus.error:
-              icon = NightshadeIcons.warning;
-              color = colors.error;
-              tooltipMessage = state.error ?? 'Discovery failed';
-              break;
-          }
+      if (state == null) {
+        icon = NightshadeIcons.circle;
+        color = colors.textMuted;
+        description = '${driver.shortLabel}: not scanned yet';
+      } else {
+        switch (state.status) {
+          case DiscoveryStatus.idle:
+            icon = NightshadeIcons.circle;
+            color = colors.textMuted;
+            description = '${driver.shortLabel}: not scanned yet';
+            break;
+          case DiscoveryStatus.discovering:
+            icon = LucideIcons.loader;
+            color = colors.primary;
+            description = '${driver.shortLabel}: scanning';
+            break;
+          case DiscoveryStatus.completed:
+            icon = LucideIcons.checkCircle2;
+            color = colors.success;
+            final matchingCount = state.devices
+                .where((device) => device.deviceType == deviceType)
+                .length;
+            label = '${driver.shortLabel} ($matchingCount)';
+            description = '${driver.shortLabel}: scan complete, '
+                '$matchingCount found';
+            break;
+          case DiscoveryStatus.error:
+            icon = NightshadeIcons.warning;
+            color = colors.error;
+            label = '${driver.shortLabel} (0)';
+            final reason = state.error ?? 'the scan did not complete';
+            description = '${driver.shortLabel}: nothing answered — $reason';
+            failures.add(description);
+            break;
         }
+      }
 
-        final chip = Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: NightshadeDecorations.statusChip(
-            color,
-            borderRadius: NightshadeTokens.borderRadiusInline8,
+      return Semantics(
+        container: true,
+        label: description,
+        excludeSemantics: true,
+        child: Tooltip(
+          message: description,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: NightshadeDecorations.statusChip(
+              color,
+              borderRadius: NightshadeTokens.borderRadiusInline8,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 12, color: color),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: theme.textTheme.bodySmall?.copyWith(color: color),
+                ),
+              ],
+            ),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 12, color: color),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: theme.textTheme.bodySmall?.copyWith(color: color),
-              ),
-            ],
-          ),
-        );
+        ),
+      );
+    }).toList();
 
-        if (tooltipMessage == null) return chip;
-        return Tooltip(message: tooltipMessage, child: chip);
-      }).toList(),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(spacing: 6, runSpacing: 4, children: chips),
+        // A red chip whose only explanation is a hover tooltip is an unexplained
+        // alarm on the first run of a paid product. Say what happened where the
+        // user is already looking.
+        if (failures.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text(
+            failures.join('\n'),
+            style: theme.textTheme.bodySmall?.copyWith(color: colors.error),
+          ),
+        ],
+      ],
     );
   }
 }

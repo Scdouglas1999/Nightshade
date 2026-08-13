@@ -93,7 +93,12 @@ void main() {
     expect(find.text('Discord'), findsOneWidget);
     expect(_pushLoadAttempts, 1);
 
-    await tester.tap(find.widgetWithText(NightshadeButton, 'Retry').first);
+    // The leaf grew a precedence-disclosure section above this card, so the
+    // Retry button can sit below a fixed-size test viewport.
+    final retry = find.widgetWithText(NightshadeButton, 'Retry').first;
+    await tester.ensureVisible(retry);
+    await tester.pump();
+    await tester.tap(retry);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 

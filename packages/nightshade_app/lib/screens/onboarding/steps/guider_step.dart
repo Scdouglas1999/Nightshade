@@ -175,6 +175,81 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
     }
   }
 
+  /// The card's single status line, or null when there is nothing to report.
+  ///
+  /// One line, describing the guider that is actually recorded. The card used
+  /// to stack a green "Guider set to PHD2" over a red "No response" from the
+  /// probe, and the red line outlived the choice it belonged to: selecting the
+  /// built-in guider underneath cleared the green line and left the PHD2
+  /// failure on screen, so the step ended with a working native guider chosen
+  /// and an error showing. A probe result only qualifies the PHD2 selection it
+  /// was run against; once anything else is the guider it is not the answer to
+  /// any question on screen.
+  List<Widget>? _statusLine(
+    ThemeData theme,
+    NightshadeColors colors,
+    OnboardingDraft draft,
+    String? savedEndpoint,
+  ) {
+    final probeIsCurrent =
+        _lastResult != null && _testedEndpoint == _currentEndpoint;
+    final guiderId = draft.guiderId;
+    final otherGuiderChosen = savedEndpoint == null &&
+        guiderId != null &&
+        guiderId.isNotEmpty &&
+        !guiderId.startsWith('phd2:');
+
+    final String text;
+    final Color color;
+    final IconData icon;
+    if (savedEndpoint == null) {
+      if (otherGuiderChosen || !probeIsCurrent) return null;
+      text = _lastResult == true
+          ? 'PHD2 reachable at $_testedEndpoint. Press Use PHD2 to make it '
+              'this profile\'s guider.'
+          : (_lastError ?? 'Connection failed.');
+      color = _lastResult == true ? colors.success : colors.error;
+      icon = _lastResult == true
+          ? LucideIcons.checkCircle2
+          : NightshadeIcons.warning;
+    } else if (savedEndpoint != _currentEndpoint) {
+      // Fields edited after selecting: name both addresses rather than leaving
+      // a tick over an address that is not the one in the profile.
+      text = 'Saved guider is still PHD2 at $savedEndpoint. Press Use PHD2 to '
+          'switch to $_currentEndpoint.';
+      color = colors.warning;
+      icon = NightshadeIcons.warning;
+    } else if (probeIsCurrent && _lastResult == false) {
+      text = 'Guider set to PHD2 at $savedEndpoint, but nothing answered '
+              'there yet. ${_lastError ?? ''}'
+          .trimRight();
+      color = colors.warning;
+      icon = NightshadeIcons.warning;
+    } else {
+      text = probeIsCurrent
+          ? 'PHD2 reachable at $savedEndpoint. Guider set to PHD2.'
+          : 'Guider set to PHD2 at $savedEndpoint.';
+      color = colors.success;
+      icon = LucideIcons.checkCircle2;
+    }
+
+    return [
+      const SizedBox(height: 10),
+      Row(
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: theme.textTheme.bodySmall?.copyWith(color: color),
+            ),
+          ),
+        ],
+      ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final draft = ref.watch(onboardingDraftProvider);
@@ -321,62 +396,7 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
                     ],
                   ],
                 ),
-                if (savedEndpoint != null) ...[
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Icon(LucideIcons.checkCircle2,
-                          size: 16, color: colors.success),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          phd2IsSelected
-                              ? 'Guider set to PHD2 at $savedEndpoint.'
-                              // Fields edited after selecting: name both
-                              // addresses rather than leaving a tick over an
-                              // address that is not the one in the profile.
-                              : 'Saved guider is still PHD2 at $savedEndpoint. '
-                                  'Press Use PHD2 to switch to '
-                                  '$_currentEndpoint.',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: phd2IsSelected
-                                ? colors.success
-                                : colors.warning,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-                if (_lastResult != null &&
-                    _testedEndpoint == _currentEndpoint) ...[
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Icon(
-                        _lastResult == true
-                            ? LucideIcons.checkCircle2
-                            : NightshadeIcons.warning,
-                        size: 16,
-                        color:
-                            _lastResult == true ? colors.success : colors.error,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _lastResult == true
-                              ? 'PHD2 reachable at $_testedEndpoint.'
-                              : (_lastError ?? 'Connection failed.'),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: _lastResult == true
-                                ? colors.success
-                                : colors.error,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                ...?_statusLine(theme, colors, draft, savedEndpoint),
               ],
             ),
           ),

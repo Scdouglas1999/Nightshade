@@ -168,11 +168,19 @@ class _OnboardingFilterWheelStepState
     ref.read(onboardingDraftProvider.notifier).setFilterNames(names);
   }
 
+  /// Add a slot back, recovering the wheel's own name for that position.
+  ///
+  /// Deleting slot 7 ("SII") and adding one back used to produce "Filter 7" — a
+  /// name nobody typed and no wheel reports, which then travelled into FITS
+  /// headers, flat matching and per-filter focus offsets. The connected wheel
+  /// already told us what sits at that position; when it has not, the row opens
+  /// blank so the user names it rather than inheriting a placeholder.
   void _addSlot() {
+    final driverNames = ref.read(filterWheelStateProvider).filterNames;
+    final index = _controllers.length;
+    final recovered = index < driverNames.length ? driverNames[index] : '';
     setState(() {
-      _controllers.add(
-        TextEditingController(text: 'Filter ${_controllers.length + 1}'),
-      );
+      _controllers.add(TextEditingController(text: recovered));
     });
     _commitFilters();
   }

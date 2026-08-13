@@ -68,7 +68,31 @@ void main() {
   );
 
   test(
-    'an existing Documents store is carried forward once, with its WAL',
+    'a fresh data directory does NOT inherit the machine-wide pairings',
+    () async {
+      final docs = Directory(p.join(root.path, 'Documents'))
+        ..createSync(recursive: true);
+      final legacyDir = Directory(p.join(docs.path, 'Nightshade'))
+        ..createSync(recursive: true);
+      File(
+        p.join(legacyDir.path, 'pairing.db'),
+      ).writeAsStringSync('legacy-main');
+
+      final target = File(p.join(root.path, 'daemon-state', 'pairing.db'));
+      await target.parent.create(recursive: true);
+
+      await migrateLegacyPairingStore(
+        target,
+        environment: const {},
+        documentsDirectoryProvider: () async => docs,
+      );
+
+      expect(target.existsSync(), isFalse);
+    },
+  );
+
+  test(
+    'the opt-in carries an existing Documents store forward, with its WAL',
     () async {
       final docs = Directory(p.join(root.path, 'Documents'))
         ..createSync(recursive: true);
@@ -84,6 +108,7 @@ void main() {
 
       await migrateLegacyPairingStore(
         target,
+        environment: const {importLegacyPairingsEnv: '1'},
         documentsDirectoryProvider: () async => docs,
       );
 
@@ -109,6 +134,7 @@ void main() {
 
       await migrateLegacyPairingStore(
         target,
+        environment: const {importLegacyPairingsEnv: '1'},
         documentsDirectoryProvider: () async => docs,
       );
 
@@ -128,6 +154,7 @@ void main() {
 
       await migrateLegacyPairingStore(
         legacy,
+        environment: const {importLegacyPairingsEnv: '1'},
         documentsDirectoryProvider: () async => docs,
       );
 

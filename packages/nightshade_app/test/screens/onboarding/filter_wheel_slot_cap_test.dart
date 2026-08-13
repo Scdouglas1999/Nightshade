@@ -122,7 +122,51 @@ void main() {
     expect(_addSlotButton(tester).onPressed, isNotNull);
     await tester.tap(find.widgetWithText(NightshadeButton, 'Add slot'));
     await tester.pump();
-    expect(find.widgetWithText(TextField, 'Filter 4'), findsOneWidget);
+    expect(
+      find.widgetWithText(TextField, 'B'),
+      findsOneWidget,
+      reason: 'the wheel says position 4 holds B',
+    );
+    expect(find.widgetWithText(TextField, 'Filter 4'), findsNothing);
+  });
+
+  // SET-2: deleting the last slot and adding it back invented "Filter 7" — a
+  // filter name nobody typed and no wheel reports, which then travels into
+  // FITS headers, flat matching and per-filter focus offsets.
+  testWidgets('a re-added slot recovers the wheel\'s own name for it',
+      (tester) async {
+    await _pump(
+      tester,
+      draftNames: _sevenSlots,
+      wheelSlots: _sevenSlots,
+    );
+
+    await tester.tap(find.byIcon(NightshadeIcons.delete).last);
+    await tester.pump();
+    expect(find.widgetWithText(TextField, 'SII'), findsNothing);
+
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Add slot'));
+    await tester.pump();
+
+    expect(find.widgetWithText(TextField, 'Filter 7'), findsNothing);
+    expect(find.widgetWithText(TextField, 'SII'), findsOneWidget);
+  });
+
+  testWidgets('a slot beyond anything the wheel reports opens blank',
+      (tester) async {
+    await _pump(
+      tester,
+      draftNames: const ['L', 'R', 'G'],
+      wheelSlots: const <String>[],
+    );
+
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Add slot'));
+    await tester.pump();
+
+    expect(find.widgetWithText(TextField, 'Filter 4'), findsNothing);
+    final fields = tester.widgetList<TextField>(find.byType(TextField));
+    expect(fields.length, 4);
+    expect(fields.last.controller?.text, isEmpty);
   });
 
   testWidgets('with no wheel reading the generic cap still applies',

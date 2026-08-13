@@ -440,17 +440,32 @@ Future<File> resolvePairingDatabaseFile({
   return File(p.join(dbFolder.path, 'Nightshade', 'pairing.db'));
 }
 
-/// One-time carry-forward of a pre-override pairing store.
+/// Opt-in for [migrateLegacyPairingStore]. Set to `1`/`true` on an existing
+/// daemon whose pairings predate the data-directory override being honoured.
+const importLegacyPairingsEnv = 'NIGHTSHADE_IMPORT_LEGACY_PAIRINGS';
+
+/// One-time carry-forward of a pre-override pairing store, on request only.
 ///
-/// Only runs when the resolved location differs from the historical Documents
-/// path and nothing has been written to the new one yet. It COPIES rather than
-/// moves: the legacy file is shared with any install that has no override set,
-/// and unpairing that install's devices as a side effect of pointing a daemon
-/// at a state directory would be a worse surprise than a duplicate.
+/// A paired device may drive the mount, so an empty data directory has to mean
+/// an empty trust store. Carrying the machine-wide `Documents/Nightshade` store
+/// forward automatically made the opposite true: a wiped profile — the thing a
+/// user does to revoke access — came back up trusting every phone the install
+/// had ever paired, and a scratch instance on a shared machine inherited
+/// someone else's. Losing pairings on a data-directory move costs a re-pair;
+/// inheriting them costs control of the rig, so this defaults to off.
+///
+/// It COPIES rather than moves: the legacy file is shared with any install that
+/// has no override set, and unpairing that install's devices as a side effect
+/// of pointing a daemon at a state directory would be a worse surprise than a
+/// duplicate.
 Future<void> migrateLegacyPairingStore(
   File target, {
+  Map<String, String>? environment,
   Future<Directory> Function()? documentsDirectoryProvider,
 }) async {
+  final env = environment ?? Platform.environment;
+  final optIn = env[importLegacyPairingsEnv]?.trim().toLowerCase();
+  if (optIn != '1' && optIn != 'true') return;
   if (await target.exists()) return;
 
   final dbFolder =

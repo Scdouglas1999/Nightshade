@@ -35,6 +35,12 @@ Future<bool> confirmGeolocationLookup(
       // row is what decides how wide the dialog ends up.
       content: Align(
         alignment: AlignmentDirectional.centerStart,
+        // Sized to the paragraphs, not to the loose height AlertDialog hands
+        // down: an Align with no heightFactor fills whatever it is given, and
+        // the shared constraints cap height at 85% of the viewport, so two
+        // short paragraphs rendered as a ~680 px dialog with the text floating
+        // between 230 px of empty space above and 225 px below.
+        heightFactor: 1,
         child: ConstrainedBox(
           constraints: AdaptiveDialogConstraints.hybrid(
             dialogContext,

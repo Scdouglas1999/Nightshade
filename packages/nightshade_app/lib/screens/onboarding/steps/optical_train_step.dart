@@ -271,23 +271,39 @@ class _OnboardingOpticalTrainStepState
               if (draft.telescopeName != null) ...[
                 const SizedBox(width: NightshadeTokens.spaceMd),
                 Flexible(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(LucideIcons.checkCircle2,
-                          size: NightshadeTokens.iconSm, color: colors.success),
-                      const SizedBox(width: NightshadeTokens.spaceSm),
-                      Flexible(
-                        child: Text(
-                          draft.telescopeName!,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colors.textPrimary,
-                            fontWeight: FontWeight.w600,
+                  child: Builder(
+                    builder: (context) {
+                      final matchesLibrary = _matchesTelescopePreset(draft);
+                      return Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            matchesLibrary
+                                ? LucideIcons.checkCircle2
+                                : NightshadeIcons.edit,
+                            size: NightshadeTokens.iconSm,
+                            color: matchesLibrary
+                                ? colors.success
+                                : colors.textSecondary,
                           ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
+                          const SizedBox(width: NightshadeTokens.spaceSm),
+                          Flexible(
+                            child: Text(
+                              matchesLibrary
+                                  ? draft.telescopeName!
+                                  : '${draft.telescopeName!} — edited',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: matchesLibrary
+                                    ? colors.textPrimary
+                                    : colors.textSecondary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ),
               ],
@@ -332,7 +348,11 @@ class _OnboardingOpticalTrainStepState
             label: 'Camera pixel size',
             help:
                 "Pixel size in microns — from your camera's datasheet; sets your image scale.",
-            hint: "Not in the camera library — check your camera's datasheet",
+            // Not "not in the camera library": the next step's library supplies
+            // this very number, and the two screens contradicting each other
+            // about whether it can be looked up is what sent users to a
+            // datasheet they did not need.
+            hint: "e.g. 3.76 — or load it with your camera on the next step",
             suffix: 'µm',
             errorText: _pixelSizeError,
             onChanged: () => _commit(_OpticalField.pixelSize),
@@ -445,6 +465,30 @@ class _OnboardingOpticalTrainStepState
         ],
       ),
     );
+  }
+
+  /// True when the optics on screen still describe the telescope the badge
+  /// names.
+  ///
+  /// The badge is a green tick beside a model name, which reads as "validated
+  /// against the library". Applying Askar FRA400 and then typing 1234 mm left
+  /// that tick over 1234 mm / 72 mm / f/13.71 — a scope that does not exist.
+  /// A preset that is no longer in the catalog (a user override that was
+  /// deleted) cannot be checked against, so it is reported as edited rather
+  /// than confirmed.
+  bool _matchesTelescopePreset(OnboardingDraft draft) {
+    final presetId = draft.telescopePresetId;
+    if (presetId == null) return false;
+    final presets = ref.read(hardwarePresetsServiceProvider).allTelescopes();
+    for (final preset in presets) {
+      if (preset.id != presetId) continue;
+      const tolerance = 0.05;
+      return (draft.focalLengthMm ?? -1) != -1 &&
+          (draft.apertureMm ?? -1) != -1 &&
+          (preset.focalLengthMm - draft.focalLengthMm!).abs() < tolerance &&
+          (preset.apertureMm - draft.apertureMm!).abs() < tolerance;
+    }
+    return false;
   }
 
   /// One attribution line under the pixel-size field when the value on screen

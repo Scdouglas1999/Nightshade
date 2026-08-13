@@ -380,10 +380,14 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
               _RemotePairingQrPanel(
                 webState: webState,
                 pairingCode: pairingState.pairingCode,
+                timeRemaining: pairingState.timeRemaining,
                 appVersion: appVersion.version,
                 onStartPairing: pairingState.pairingCode == null
                     ? () => ref.read(pairingProvider.notifier).startPairing()
                     : null,
+                onStopPairing: pairingState.pairingCode == null
+                    ? null
+                    : () => ref.read(pairingProvider.notifier).cancelPairing(),
               ),
               const SizedBox(height: 8),
               _RemoteTailscalePanel(
