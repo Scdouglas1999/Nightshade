@@ -1,6 +1,10 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../database/daos/settings_dao.dart';
 import '../models/backend/device_capabilities.dart';
 import 'backend_provider.dart';
+import 'database_provider.dart';
 
 /// Provider to fetch camera capabilities for a device
 /// Returns null if the device is not connected or doesn't support capabilities
@@ -8,7 +12,44 @@ final cameraCapabilitiesProvider =
     FutureProvider.family<CameraCapabilities?, String>((ref, deviceId) async {
       if (deviceId.isEmpty) return null;
       final backend = ref.watch(deviceBackendProvider);
-      return backend.getCameraCapabilities(deviceId);
+      final capabilities = await backend.getCameraCapabilities(deviceId);
+      // Sensor geometry is a fixed property of the body, and this is the point
+      // where the app learns it. Recording it here means framing and mosaic
+      // planning still work once the rig is unplugged — the user does not have
+      // to have visited a particular screen while connected for the app to
+      // know how big the sensor is.
+      if (capabilities != null) {
+        final px = capabilities.pixelSizeX;
+        final py = capabilities.pixelSizeY;
+        if (px != null && py != null) {
+          try {
+            await ref
+                .read(settingsDaoProvider)
+                .rememberSensorSpec(
+                  deviceId,
+                  RememberedSensorSpec(
+                    sensorWidth: capabilities.maxWidth,
+                    sensorHeight: capabilities.maxHeight,
+                    pixelSizeX: px,
+                    pixelSizeY: py,
+                    recordedAt: DateTime.now(),
+                  ),
+                );
+          } catch (error, stack) {
+            // Remembering is a convenience for a later, offline session. It
+            // must never be able to fail the capability read that device
+            // connection and every camera control depend on.
+            developer.log(
+              'Could not remember sensor geometry for $deviceId.',
+              name: 'Capabilities',
+              level: 900,
+              error: error,
+              stackTrace: stack,
+            );
+          }
+        }
+      }
+      return capabilities;
     });
 
 /// Provider to fetch mount capabilities for a device

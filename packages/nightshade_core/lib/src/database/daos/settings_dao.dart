@@ -1,9 +1,86 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 
 import '../database.dart';
 import '../tables/settings.dart';
 
 part 'settings_dao.g.dart';
+
+/// Sensor geometry read off a camera the last time it was connected.
+///
+/// Sensor size is a fixed property of the hardware, but the app only ever
+/// learned it from a live `getCameraStatus` / `getCameraCapabilities` call, so
+/// framing and mosaic planning — the two things you do indoors, before a
+/// session — required the rig to be powered up and connected. Remembering it
+/// per camera id is what lets those surfaces work from the couch.
+class RememberedSensorSpec {
+  const RememberedSensorSpec({
+    required this.sensorWidth,
+    required this.sensorHeight,
+    required this.pixelSizeX,
+    required this.pixelSizeY,
+    required this.recordedAt,
+  });
+
+  /// Sensor width in pixels.
+  final int sensorWidth;
+
+  /// Sensor height in pixels.
+  final int sensorHeight;
+
+  /// Pixel pitch across, in microns.
+  final double pixelSizeX;
+
+  /// Pixel pitch down, in microns.
+  final double pixelSizeY;
+
+  /// When these values were last read off the live camera.
+  final DateTime recordedAt;
+
+  /// Whether every value is usable for an FOV computation. Anything else is
+  /// treated as "not remembered" rather than displayed as fact.
+  bool get isUsable =>
+      sensorWidth > 0 && sensorHeight > 0 && pixelSizeX > 0 && pixelSizeY > 0;
+
+  Map<String, dynamic> toJson() => {
+    'w': sensorWidth,
+    'h': sensorHeight,
+    'px': pixelSizeX,
+    'py': pixelSizeY,
+    'at': recordedAt.toUtc().toIso8601String(),
+  };
+
+  static RememberedSensorSpec? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final w = json['w'];
+    final h = json['h'];
+    final px = json['px'];
+    final py = json['py'];
+    if (w is! num || h is! num || px is! num || py is! num) return null;
+    final at = DateTime.tryParse(json['at'] as String? ?? '');
+    final spec = RememberedSensorSpec(
+      sensorWidth: w.toInt(),
+      sensorHeight: h.toInt(),
+      pixelSizeX: px.toDouble(),
+      pixelSizeY: py.toDouble(),
+      recordedAt: at ?? DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+    );
+    return spec.isUsable ? spec : null;
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is RememberedSensorSpec &&
+      other.sensorWidth == sensorWidth &&
+      other.sensorHeight == sensorHeight &&
+      other.pixelSizeX == pixelSizeX &&
+      other.pixelSizeY == pixelSizeY;
+
+  @override
+  int get hashCode =>
+      Object.hash(sensorWidth, sensorHeight, pixelSizeX, pixelSizeY);
+}
 
 @DriftAccessor(tables: [AppSettings])
 class SettingsDao extends DatabaseAccessor<NightshadeDatabase>
@@ -151,4 +228,74 @@ class SettingsDao extends DatabaseAccessor<NightshadeDatabase>
   /// Save auto-stretch settings as JSON string
   Future<void> setAutoStretchSettings(String jsonSettings) =>
       setSetting(_autoStretchKey, jsonSettings);
+
+  // Remembered camera sensor geometry ---------------------------------------
+  //
+  // Stored as one JSON object keyed by camera device id rather than as columns
+  // on `equipment_profiles`, because sensor size belongs to the CAMERA, not to
+  // whichever profile happens to reference it: two profiles sharing one camera
+  // (an OTA swap) must not each hold their own copy that can disagree.
+
+  static const String _cameraSensorSpecsKey = 'camera_sensor_specs';
+
+  /// How many cameras to remember. A user cycles through a handful of bodies at
+  /// most; the cap keeps a long-lived install from accumulating a row of stale
+  /// ids forever.
+  static const int _maxRememberedSensorSpecs = 16;
+
+  /// Every remembered camera's sensor geometry, keyed by device id.
+  Future<Map<String, RememberedSensorSpec>> getRememberedSensorSpecs() async {
+    final raw = await getSetting(_cameraSensorSpecsKey);
+    if (raw == null || raw.trim().isEmpty) return const {};
+    Object? decoded;
+    try {
+      decoded = jsonDecode(raw);
+    } on FormatException {
+      // Corrupt value: report nothing remembered rather than throwing on a
+      // path that only ever improves a UI.
+      return const {};
+    }
+    if (decoded is! Map) return const {};
+    final result = <String, RememberedSensorSpec>{};
+    decoded.forEach((key, value) {
+      if (key is! String) return;
+      final spec = RememberedSensorSpec.fromJson(value);
+      if (spec != null) result[key] = spec;
+    });
+    return result;
+  }
+
+  /// The sensor geometry remembered for [cameraId], or null if this camera has
+  /// never been seen connected.
+  Future<RememberedSensorSpec?> getRememberedSensorSpec(String cameraId) async {
+    if (cameraId.isEmpty) return null;
+    return (await getRememberedSensorSpecs())[cameraId];
+  }
+
+  /// Record what a live camera reported, so framing still works once it is
+  /// unplugged. Unusable values are dropped rather than overwriting good ones.
+  Future<void> rememberSensorSpec(
+    String cameraId,
+    RememberedSensorSpec spec,
+  ) async {
+    if (cameraId.isEmpty || !spec.isUsable) return;
+    final existing = Map<String, RememberedSensorSpec>.from(
+      await getRememberedSensorSpecs(),
+    );
+    if (existing[cameraId] == spec) return; // no write for an unchanged sensor
+    existing[cameraId] = spec;
+    if (existing.length > _maxRememberedSensorSpecs) {
+      final byAge = existing.entries.toList()
+        ..sort((a, b) => b.value.recordedAt.compareTo(a.value.recordedAt));
+      existing
+        ..clear()
+        ..addEntries(byAge.take(_maxRememberedSensorSpecs));
+    }
+    await setSetting(
+      _cameraSensorSpecsKey,
+      jsonEncode({
+        for (final entry in existing.entries) entry.key: entry.value.toJson(),
+      }),
+    );
+  }
 }

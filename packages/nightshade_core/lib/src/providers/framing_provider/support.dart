@@ -106,6 +106,7 @@ final framingFOVProvider = FutureProvider<FramingEquipmentResult>((ref) async {
   int? pixelsX;
   int? pixelsY;
   String? cameraMessage;
+  final settingsDao = ref.watch(settingsDaoProvider);
   if (profile.cameraId != null &&
       cameraConnectionState == DeviceConnectionState.connected) {
     try {
@@ -125,6 +126,33 @@ final framingFOVProvider = FutureProvider<FramingEquipmentResult>((ref) async {
         sensorHeightMm = (pixelsY * status.pixelSizeY) / 1000;
 
         cameraMessage = null; // No message needed - using real data
+
+        // Write-through: sensor size does not change, so having read it once
+        // from the live camera the app never needs the rig powered up again to
+        // frame a target. Failing to record it is not a reason to withhold the
+        // FOV we just computed, and its error must not be reported as "could
+        // not query camera specs" — hence its own catch rather than the
+        // enclosing one.
+        try {
+          await settingsDao.rememberSensorSpec(
+            profile.cameraId!,
+            RememberedSensorSpec(
+              sensorWidth: status.sensorWidth,
+              sensorHeight: status.sensorHeight,
+              pixelSizeX: status.pixelSizeX,
+              pixelSizeY: status.pixelSizeY,
+              recordedAt: DateTime.now(),
+            ),
+          );
+        } catch (error, stack) {
+          developer.log(
+            'Could not remember sensor geometry for ${profile.cameraId}.',
+            name: 'Framing',
+            level: 900,
+            error: error,
+            stackTrace: stack,
+          );
+        }
       } else {
         cameraMessage =
             'Camera is connected but did not report valid sensor dimensions.';
@@ -137,6 +165,36 @@ final framingFOVProvider = FutureProvider<FramingEquipmentResult>((ref) async {
         'Camera is not configured for this profile. Configure and connect a camera to enable FOV.';
   } else {
     cameraMessage = 'Camera is not connected. Connect it to compute FOV.';
+  }
+
+  // Fall back to what this camera reported the last time it WAS connected.
+  // Framing and mosaic planning happen indoors, ahead of the session, with the
+  // rig unplugged; gating them on a live device made both unusable exactly
+  // when they are wanted. The values are the camera's own, not an assumption,
+  // and the message below says where they came from.
+  if (pixelsX == null && profile.cameraId != null) {
+    RememberedSensorSpec? remembered;
+    try {
+      remembered = await settingsDao.getRememberedSensorSpec(profile.cameraId!);
+    } catch (error, stack) {
+      developer.log(
+        'Could not read remembered sensor geometry for ${profile.cameraId}.',
+        name: 'Framing',
+        level: 900,
+        error: error,
+        stackTrace: stack,
+      );
+    }
+    if (remembered != null) {
+      pixelsX = remembered.sensorWidth;
+      pixelsY = remembered.sensorHeight;
+      pixelSizeMicrons = remembered.pixelSizeX;
+      sensorWidthMm = (pixelsX * remembered.pixelSizeX) / 1000;
+      sensorHeightMm = (pixelsY * remembered.pixelSizeY) / 1000;
+      cameraMessage =
+          'Sensor size remembered from the last time this camera was '
+          'connected. Connect it to confirm.';
+    }
   }
 
   if (sensorWidthMm == null ||

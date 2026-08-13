@@ -55,6 +55,18 @@ class NightshadeTooltip extends StatefulWidget {
   State<NightshadeTooltip> createState() => _NightshadeTooltipState();
 }
 
+/// The tooltip currently on screen, app-wide.
+///
+/// Every `NightshadeTooltip` owns an independent `OverlayPortalController`, so
+/// nothing used to stop several from being visible at once: the touch trigger
+/// shows on long-press and only retires on its own 3 s timer or a second
+/// long-press, and a hover that never produces a matching `onExit` (pointer
+/// leaves the window, the trigger is rebuilt away under the cursor) strands the
+/// label indefinitely. On the planetarium's dark star field two stale floating
+/// labels read as sky annotations. One tooltip at a time is the contract every
+/// tooltip system has; this single-slot registry is what enforces it.
+_NightshadeTooltipState? _visibleTooltip;
+
 class _NightshadeTooltipState extends State<NightshadeTooltip>
     with SingleTickerProviderStateMixin {
   final _overlayController = OverlayPortalController();
@@ -89,8 +101,18 @@ class _NightshadeTooltipState extends State<NightshadeTooltip>
   void dispose() {
     _dismissTimer?.cancel();
     _showTimer?.cancel();
+    if (identical(_visibleTooltip, this)) _visibleTooltip = null;
     _animController.dispose();
     super.dispose();
+  }
+
+  /// Takes the single visible-tooltip slot, retiring whoever held it.
+  void _claimVisibility() {
+    final previous = _visibleTooltip;
+    if (previous != null && !identical(previous, this)) {
+      previous._hideTooltip();
+    }
+    _visibleTooltip = this;
   }
 
   // The hover delay is a Timer rather than a `Future.delayed` so dispose() can
@@ -103,6 +125,7 @@ class _NightshadeTooltipState extends State<NightshadeTooltip>
     _showTimer = Timer(widget.waitDuration, () {
       _showTimer = null;
       if (!_isHovered || !mounted) return;
+      _claimVisibility();
       _overlayController.show();
       _animController.forward();
     });
@@ -113,6 +136,7 @@ class _NightshadeTooltipState extends State<NightshadeTooltip>
     _showTimer?.cancel();
     _showTimer = null;
     _isHovered = false;
+    if (identical(_visibleTooltip, this)) _visibleTooltip = null;
     _animController.reverse().then((_) {
       if (mounted && _overlayController.isShowing) {
         _overlayController.hide();
@@ -131,6 +155,7 @@ class _NightshadeTooltipState extends State<NightshadeTooltip>
     _showTimer?.cancel();
     _showTimer = null;
     _isHovered = true;
+    _claimVisibility();
     _overlayController.show();
     _animController.forward();
     _dismissTimer = Timer(const Duration(seconds: 3), _hideTooltip);
@@ -195,9 +220,27 @@ class _TooltipOverlay extends StatelessWidget {
         targetKey.currentContext?.findRenderObject() as RenderBox?;
     if (renderBox == null || !renderBox.hasSize) return const SizedBox.shrink();
 
+    // The overlay child is laid out in the HOST OVERLAY's coordinate space, not
+    // the screen's, so the anchor has to be measured against that same overlay.
+    // It used to be `localToGlobal(Offset.zero)` — screen coordinates — laid out
+    // against an overlay origin assumed to be (0, 0). Wherever the overlay is
+    // inset from the window the tooltip was displaced by exactly that inset and
+    // drew next to a different control (observed on the planetarium toolbar,
+    // where the `Layers` label landed 176 px right and 79 px below its button,
+    // out over the star field). `MediaQuery.sizeOf` was wrong for the same
+    // reason: the edge the tooltip must stay inside is the overlay's, not the
+    // window's, and the two clamps disagreeing let a tooltip be constrained to
+    // one box and positioned in another.
+    final overlayBox =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
     final targetSize = renderBox.size;
-    final targetPosition = renderBox.localToGlobal(Offset.zero);
-    final screenSize = MediaQuery.sizeOf(context);
+    final targetPosition = renderBox.localToGlobal(
+      Offset.zero,
+      ancestor: overlayBox,
+    );
+    final screenSize = overlayBox != null && overlayBox.hasSize
+        ? overlayBox.size
+        : MediaQuery.sizeOf(context);
 
     // Safety check for valid values
     if (targetSize.width.isNaN ||

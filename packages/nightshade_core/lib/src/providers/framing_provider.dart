@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
 import '../backend/network_backend.dart';
+import '../database/daos/settings_dao.dart';
 import '../models/equipment/equipment_models.dart';
 import '../models/framing_plate_scale.dart';
 import '../models/planning/target_suggestion.dart';

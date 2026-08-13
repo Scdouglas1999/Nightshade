@@ -94,6 +94,12 @@ void main() {
     );
   });
 
+  // Amended when Framing stopped requiring a live camera: a disconnect used to
+  // drop the card to `noCameraSpecs`, which is what made framing and mosaic
+  // planning impossible with the rig packed away. The invariant this test was
+  // written for — the narrowed watch must still NOTICE a disconnect — is
+  // unchanged and is what the assertions below check; the noticed state is now
+  // "these are the values I remember" rather than "I know nothing".
   test('a disconnect still re-runs it', () async {
     final backend = MockBackend();
     var statusQueries = 0;
@@ -126,11 +132,12 @@ void main() {
     final after = await container.read(framingFOVProvider.future);
 
     expect(
-      after.status,
-      EquipmentStatus.noCameraSpecs,
+      after.message,
+      contains('remembered'),
       reason:
           'narrowing the watch must not make the card go stale — pulling '
-          'the camera has to be noticed',
+          'the camera has to be noticed, and the card has to say the specs '
+          'are now last-seen values rather than live ones',
     );
     expect(statusQueries, 1, reason: 'a disconnected camera is not queried');
   });
