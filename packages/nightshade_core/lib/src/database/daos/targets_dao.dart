@@ -1,7 +1,6 @@
-import 'dart:math' as math;
-
 import 'package:drift/drift.dart';
 
+import '../../services/scheduler/sky_calculations.dart';
 import '../database.dart';
 import '../tables/targets.dart';
 
@@ -238,17 +237,11 @@ class TargetsDao extends DatabaseAccessor<NightshadeDatabase>
       longitudeDeg: longitudeDeg,
     );
     final raDeg = raHours * 15.0;
-    final hourAngleDeg = _normalizeHa(lstDeg - raDeg);
-
-    final latRad = latitudeDeg * math.pi / 180.0;
-    final decRad = decDeg * math.pi / 180.0;
-    final haRad = hourAngleDeg * math.pi / 180.0;
-
-    final sinAlt =
-        math.sin(decRad) * math.sin(latRad) +
-        math.cos(decRad) * math.cos(latRad) * math.cos(haRad);
-    final clamped = sinAlt.clamp(-1.0, 1.0);
-    return math.asin(clamped) * 180.0 / math.pi;
+    return SkyCalculations.altitudeDegrees(
+      hourAngleDegrees: _normalizeHa(lstDeg - raDeg),
+      declinationDegrees: decDeg,
+      latitudeDegrees: latitudeDeg,
+    );
   }
 
   double _localSiderealTimeDegrees({
@@ -259,42 +252,15 @@ class TargetsDao extends DatabaseAccessor<NightshadeDatabase>
     return _normalizeLst(gmstDeg + longitudeDeg);
   }
 
-  double _greenwichMeanSiderealTimeDegrees(DateTime atUtc) {
-    final jd = _julianDate(atUtc);
-    final t = (jd - 2451545.0) / 36525.0;
-    final gmst =
-        280.46061837 +
-        360.98564736629 * (jd - 2451545.0) +
-        0.000387933 * t * t -
-        (t * t * t) / 38710000.0;
-    return _normalizeLst(gmst);
-  }
+  /// This DAO normalizes GMST into [0,360) *before* the site longitude is
+  /// added (see [_localSiderealTimeDegrees]), which is why the wrap stays
+  /// here and only the polynomial comes from [SkyCalculations].
+  double _greenwichMeanSiderealTimeDegrees(DateTime atUtc) =>
+      _normalizeLst(SkyCalculations.gmstDegreesRaw(_julianDate(atUtc)));
 
-  double _julianDate(DateTime atUtc) {
-    final utc = atUtc.toUtc();
-    var year = utc.year;
-    var month = utc.month;
-    final dayFraction =
-        utc.day +
-        (utc.hour / 24.0) +
-        (utc.minute / 1440.0) +
-        (utc.second / 86400.0) +
-        (utc.millisecond / 86400000.0);
-
-    if (month <= 2) {
-      year -= 1;
-      month += 12;
-    }
-
-    final a = (year / 100).floor();
-    final b = 2 - a + (a / 4).floor();
-
-    return (365.25 * (year + 4716)).floorToDouble() +
-        (30.6001 * (month + 1)).floorToDouble() +
-        dayFraction +
-        b -
-        1524.5;
-  }
+  /// Millisecond-accurate day fraction — the precision this DAO has always
+  /// used for its observability filter.
+  double _julianDate(DateTime atUtc) => SkyCalculations.julianDate(atUtc);
 
   /// Normalize an angle into [0, 360) — appropriate for LST and GMST.
   double _normalizeLst(double degrees) {

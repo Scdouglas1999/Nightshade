@@ -22,6 +22,7 @@ import '../constellation/constellation_client.dart';
 import '../constellation/constellation_models.dart';
 import '../constellation/constellation_service.dart';
 import '../logging_service.dart';
+import '../scheduler/sky_calculations.dart';
 import '../constellation/constellation_hub_key.dart';
 
 /// The session context a [CoImagingTileFuser] needs to fold this rig's freshly
@@ -948,6 +949,13 @@ class CoImagingSessionService {
   /// `TargetsDao` observability filter uses), kept pure + static here so the
   /// longitude-baton automation can drive it without a DAO and so it is unit
   /// testable for simulated longitudes.
+  ///
+  /// It deliberately does NOT call [SkyCalculations.altitudeDegrees], which is
+  /// otherwise the shared copy of this formula. This one converts through a
+  /// `const d2r = pi/180` and un-converts by dividing by it; the shared helper
+  /// multiplies by `180/pi`. Those are not the same double — they disagree in
+  /// the last bit for roughly a quarter of all inputs — and this function's
+  /// longitude-baton tests are pinned to the numbers it returns today.
   static double observerAltitudeDegrees({
     required double latitudeDeg,
     required double longitudeDeg,
@@ -969,40 +977,17 @@ class CoImagingSessionService {
     return math.asin(sinAlt.clamp(-1.0, 1.0)) / d2r;
   }
 
+  /// Unlike `TargetsDao`, this wraps GMST once, *after* the site longitude is
+  /// added. The two orders differ by ~1e-9° (GMST is ~3.4e6° for a modern
+  /// date), so the composition stays here and only the polynomial is shared.
   static double _localSiderealTimeDegrees(DateTime atUtc, double longitudeDeg) {
-    final jd = _julianDate(atUtc);
-    final t = (jd - 2451545.0) / 36525.0;
-    final gmst =
-        280.46061837 +
-        360.98564736629 * (jd - 2451545.0) +
-        0.000387933 * t * t -
-        (t * t * t) / 38710000.0;
+    final gmst = SkyCalculations.gmstDegreesRaw(_julianDate(atUtc));
     final lst = (gmst + longitudeDeg) % 360.0;
     return lst < 0 ? lst + 360.0 : lst;
   }
 
-  static double _julianDate(DateTime atUtc) {
-    final utc = atUtc.toUtc();
-    var year = utc.year;
-    var month = utc.month;
-    final dayFraction =
-        utc.day +
-        (utc.hour / 24.0) +
-        (utc.minute / 1440.0) +
-        (utc.second / 86400.0) +
-        (utc.millisecond / 86400000.0);
-    if (month <= 2) {
-      year -= 1;
-      month += 12;
-    }
-    final a = (year / 100).floor();
-    final b = 2 - a + (a / 4).floor();
-    return (365.25 * (year + 4716)).floorToDouble() +
-        (30.6001 * (month + 1)).floorToDouble() +
-        dayFraction +
-        b -
-        1524.5;
-  }
+  static double _julianDate(DateTime atUtc) =>
+      SkyCalculations.julianDate(atUtc);
 
   Future<void> _persistMembership(
     ConstellationCredentials? creds,

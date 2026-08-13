@@ -3,6 +3,7 @@
 import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/sequence/sequence_models.dart';
+import 'scheduler/sky_calculations.dart';
 
 /// Provider for the scheduler service
 final schedulerServiceProvider = Provider<SchedulerService>((ref) {
@@ -82,82 +83,28 @@ class SchedulerService {
     required double latitudeDegrees,
     required double longitudeDegrees,
   }) {
-    final dec = decDegrees * math.pi / 180.0;
-    final lat = latitudeDegrees * math.pi / 180.0;
-
-    final lst = _calculateLST(time, longitudeDegrees);
-    final ha = (lst - raHours) * 15.0 * math.pi / 180.0;
-
-    final sinAlt =
-        math.sin(dec) * math.sin(lat) +
-        math.cos(dec) * math.cos(lat) * math.cos(ha);
-    final alt = math.asin(sinAlt.clamp(-1.0, 1.0));
-
-    final y = -math.sin(ha) * math.cos(dec);
-    final x =
-        math.sin(dec) * math.cos(lat) -
-        math.cos(dec) * math.sin(lat) * math.cos(ha);
-    var az = math.atan2(y, x);
-    if (az < 0) az += 2 * math.pi;
-
-    return (alt * 180.0 / math.pi, az * 180.0 / math.pi);
+    return SkyCalculations.altAzDegrees(
+      raHours: raHours,
+      decDegrees: decDegrees,
+      latitudeDegrees: latitudeDegrees,
+      lstHours: _calculateLST(time, longitudeDegrees),
+    );
   }
 
-  /// Calculate Local Sidereal Time in hours
-  double _calculateLST(DateTime utcTime, double longitudeDegrees) {
-    // Calculate Julian Date
-    final jd = _julianDate(utcTime);
+  /// Calculate Local Sidereal Time in hours.
+  ///
+  /// [SkyCalculations.localSiderealTimeHours] is the same arithmetic this
+  /// method used to carry inline (whole-second day fraction, GMST normalized
+  /// to [0,360) before the longitude is added in hours).
+  double _calculateLST(DateTime utcTime, double longitudeDegrees) =>
+      SkyCalculations.localSiderealTimeHours(utcTime, longitudeDegrees);
 
-    // Calculate centuries since J2000.0
-    final t = (jd - 2451545.0) / 36525.0;
-
-    // Greenwich Mean Sidereal Time at 0h UT1
-    double gmst =
-        280.46061837 +
-        360.98564736629 * (jd - 2451545.0) +
-        0.000387933 * t * t -
-        t * t * t / 38710000.0;
-
-    // Normalize to 0-360
-    gmst = gmst % 360.0;
-    if (gmst < 0) gmst += 360.0;
-
-    // Convert to hours and add longitude
-    double lst = gmst / 15.0 + longitudeDegrees / 15.0;
-
-    // Normalize to 0-24
-    while (lst < 0) {
-      lst += 24.0;
-    }
-    while (lst >= 24) {
-      lst -= 24.0;
-    }
-
-    return lst;
-  }
-
-  /// Calculate Julian Date from DateTime
-  double _julianDate(DateTime dt) {
-    final utc = dt.toUtc();
-    int y = utc.year;
-    int m = utc.month;
-    final d =
-        utc.day + utc.hour / 24.0 + utc.minute / 1440.0 + utc.second / 86400.0;
-
-    if (m <= 2) {
-      y -= 1;
-      m += 12;
-    }
-
-    final a = (y / 100).floor();
-    final b = 2 - a + (a / 4).floor();
-
-    return (365.25 * (y + 4716)).floor() +
-        (30.6001 * (m + 1)).floor() +
-        d +
-        b -
-        1524.5;
-  }
+  /// Calculate Julian Date from DateTime.
+  ///
+  /// Whole-second day fraction — the precision this service has always used,
+  /// and what its moon-position goldens are pinned to.
+  double _julianDate(DateTime dt) =>
+      SkyCalculations.julianDate(dt, includeMilliseconds: false);
 
   /// Compute the next time the target falls to (or below) [horizonDeg].
   ///

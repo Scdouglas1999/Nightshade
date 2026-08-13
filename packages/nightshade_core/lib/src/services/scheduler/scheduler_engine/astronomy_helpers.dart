@@ -6,44 +6,20 @@ extension on SchedulerEngine {
     required double decDegrees,
     required DateTime time,
   }) {
-    final dec = decDegrees * math.pi / 180.0;
-    final lat = _site.latitudeDegrees * math.pi / 180.0;
-    final lst = _localSiderealTime(time);
-    final ha = (lst - raHours) * 15.0 * math.pi / 180.0;
-    final sinAlt =
-        math.sin(dec) * math.sin(lat) +
-        math.cos(dec) * math.cos(lat) * math.cos(ha);
-    final alt = math.asin(sinAlt.clamp(-1.0, 1.0));
-    final y = -math.sin(ha) * math.cos(dec);
-    final x =
-        math.sin(dec) * math.cos(lat) -
-        math.cos(dec) * math.sin(lat) * math.cos(ha);
-    var az = math.atan2(y, x);
-    if (az < 0) az += 2 * math.pi;
-    return (alt * 180.0 / math.pi, az * 180.0 / math.pi);
+    return SkyCalculations.altAzDegrees(
+      raHours: raHours,
+      decDegrees: decDegrees,
+      latitudeDegrees: _site.latitudeDegrees,
+      lstHours: _localSiderealTime(time),
+    );
   }
 
   /// Meeus low-precision lunar ephemeris, matching the established static
   /// scheduler (`scheduler_service.dart`) so unit-tested moon-illumination
   /// behaviour stays in sync.
   _MoonPosition _moonPosition(DateTime time) {
-    final utc = time.toUtc();
-    int y = utc.year;
-    int m = utc.month;
-    final d =
-        utc.day + utc.hour / 24.0 + utc.minute / 1440.0 + utc.second / 86400.0;
-    if (m <= 2) {
-      y -= 1;
-      m += 12;
-    }
-    final a = (y / 100).floor();
-    final b = 2 - a + (a / 4).floor();
-    final jd =
-        (365.25 * (y + 4716)).floor() +
-        (30.6001 * (m + 1)).floor() +
-        d +
-        b -
-        1524.5;
+    // Whole-second day fraction, matching `scheduler_service.dart`.
+    final jd = SkyCalculations.julianDate(time, includeMilliseconds: false);
     final t = (jd - 2451545.0) / 36525.0;
     final l = (218.3164477 + 481267.88123421 * t) % 360.0;
     final dEl = (297.8501921 + 445267.1114034 * t) % 360.0;

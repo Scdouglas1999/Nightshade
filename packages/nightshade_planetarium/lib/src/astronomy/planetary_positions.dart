@@ -19,31 +19,12 @@ class PlanetaryPositions {
   // Obliquity of ecliptic at J2000
   static const double _obliquityJ2000 = 23.439291111;
 
-  /// Convert DateTime to Julian Date
-  static double julianDate(DateTime dt) {
-    final utc = dt.toUtc();
-    final y = utc.year;
-    final m = utc.month;
-    final d =
-        utc.day +
-        utc.hour / 24 +
-        utc.minute / 1440 +
-        utc.second / 86400 +
-        utc.millisecond / 86400000;
-
-    final a = ((14 - m) / 12).floor();
-    final y2 = y + 4800 - a;
-    final m2 = m + 12 * a - 3;
-
-    return d +
-        ((153 * m2 + 2) / 5).floor() +
-        365 * y2 +
-        (y2 / 4).floor() -
-        (y2 / 100).floor() +
-        (y2 / 400).floor() -
-        32045 -
-        0.5;
-  }
+  /// Convert DateTime to Julian Date.
+  ///
+  /// Kept as a name on this class because the VSOP87 code and its callers
+  /// read as one unit; the arithmetic is [AstronomyCalculations.julianDate],
+  /// of which this used to be a byte-for-byte copy.
+  static double julianDate(DateTime dt) => AstronomyCalculations.julianDate(dt);
 
   /// Convert ecliptic to equatorial coordinates
   static (double ra, double dec) eclipticToEquatorial({

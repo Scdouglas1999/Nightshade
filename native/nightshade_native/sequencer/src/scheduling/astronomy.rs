@@ -21,6 +21,23 @@ const J2000: f64 = 2_451_545.0;
 /// Julian Date for the given UTC instant.
 ///
 /// Mirrors `AstronomyCalculations.julianDate` from `astronomy_calculations.dart`.
+///
+/// This is deliberately NOT `crate::meridian::julian_day`, and the two are not
+/// merged. `meridian::julian_day` is Meeus' Gregorian form on a whole-second
+/// day fraction; this is Fliegel–Van Flandern on a millisecond day fraction,
+/// because its whole job is to return the same doubles the Dart planetarium
+/// returns so `scoring`'s parity test can assert numeric equality against it.
+///
+/// On a whole-second instant the two produce the identical f64 — verified by
+/// `meridian::tests::scheduling_astronomy_is_a_deliberately_separate_julian_date`,
+/// which also shows them parting company as soon as sub-second time is
+/// present. So they cannot be collapsed by inspection: picking either one
+/// would silently change the other's callers on any instant carrying
+/// milliseconds, and here that would break the only thing keeping the Rust
+/// scheduler and the Dart planner ranking targets the same way. What the rest
+/// of the crate shares is `meridian::julian_day`: every non-parity caller
+/// (executor, instructions, solar, polar-align, flat-wizard, the bridge)
+/// already goes through it.
 pub fn julian_date(dt: &DateTime<Utc>) -> f64 {
     let y = dt.year() as f64;
     let m = dt.month() as f64;

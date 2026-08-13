@@ -68,8 +68,26 @@ class AstronomyCalculations {
   // Julian Date Calculations
   // ============================================================================
 
-  /// Convert DateTime to Julian Date
-  static double julianDate(DateTime dt) {
+  /// Convert DateTime to Julian Date.
+  ///
+  /// Fliegel–Van Flandern day-number form. This is the Julian Date the whole
+  /// planetarium package uses; `PlanetaryPositions.julianDate`,
+  /// `MinorPlanetCatalog._julianDate` and `VariableStarCatalog._julianDate`
+  /// were byte-for-byte re-typings of it and now call through here.
+  ///
+  /// [includeMilliseconds] reproduces the one real difference between those
+  /// copies: the variable-star catalog stopped its day fraction at whole
+  /// seconds. Passing `false` makes the sub-second term a literal `0`, and
+  /// `x + 0` is exact, so that catalog's phase numbers are unchanged.
+  ///
+  /// This is NOT the same function as `SkyCalculations.julianDate` in
+  /// `nightshade_core`, which uses Meeus' Gregorian form. Both are correct
+  /// Julian Dates and they agree to ~5e-10 d, but they are not the same
+  /// doubles, and each side's goldens are pinned to its own. Merging them
+  /// would move one set of numbers for no gain; `nightshade_planetarium` is a
+  /// leaf package that cannot see `nightshade_core` anyway (the dependency
+  /// runs the other way).
+  static double julianDate(DateTime dt, {bool includeMilliseconds = true}) {
     final utc = dt.toUtc();
     final y = utc.year;
     final m = utc.month;
@@ -78,7 +96,7 @@ class AstronomyCalculations {
         utc.hour / 24 +
         utc.minute / 1440 +
         utc.second / 86400 +
-        utc.millisecond / 86400000;
+        (includeMilliseconds ? utc.millisecond / 86400000 : 0);
 
     final a = ((14 - m) / 12).floor();
     final y2 = y + 4800 - a;

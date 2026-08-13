@@ -11,6 +11,7 @@ import '../database/database.dart';
 import '../models/imaging/night_report.dart';
 import '../providers/database_provider.dart';
 import 'optical_train_diagnostics_service.dart';
+import 'scheduler/sky_calculations.dart';
 
 /// The "Night Doctor" — a deterministic, rule-based analyzer that ingests a
 /// session's (or target's) per-sub time series from `captured_images` (with
@@ -1006,54 +1007,22 @@ class _MoonEphemeris {
     required double latDeg,
     required double lonDeg,
   }) {
-    final dec = decDeg * math.pi / 180.0;
-    final lat = latDeg * math.pi / 180.0;
     final lst = _localSiderealTime(time, lonDeg);
-    final ha = (lst - raHours) * 15.0 * math.pi / 180.0;
-    final sinAlt =
-        math.sin(dec) * math.sin(lat) +
-        math.cos(dec) * math.cos(lat) * math.cos(ha);
-    return math.asin(sinAlt.clamp(-1.0, 1.0)) * 180.0 / math.pi;
+    return SkyCalculations.altitudeDegrees(
+      hourAngleDegrees: (lst - raHours) * 15.0,
+      declinationDegrees: decDeg,
+      latitudeDegrees: latDeg,
+    );
   }
 
-  static double _localSiderealTime(DateTime time, double lonDeg) {
-    final jd = _julianDate(time);
-    final t = (jd - 2451545.0) / 36525.0;
-    var gmst =
-        280.46061837 +
-        360.98564736629 * (jd - 2451545.0) +
-        0.000387933 * t * t -
-        t * t * t / 38710000.0;
-    gmst %= 360.0;
-    if (gmst < 0) gmst += 360.0;
-    var lst = gmst / 15.0 + lonDeg / 15.0;
-    while (lst < 0) {
-      lst += 24.0;
-    }
-    while (lst >= 24) {
-      lst -= 24.0;
-    }
-    return lst;
-  }
+  /// Whole-second day fraction, GMST wrapped into [0,360) before the site
+  /// longitude is added in hours — the arithmetic this service carried
+  /// inline, now shared with the schedulers that use the same convention.
+  static double _localSiderealTime(DateTime time, double lonDeg) =>
+      SkyCalculations.localSiderealTimeHours(time, lonDeg);
 
-  static double _julianDate(DateTime dt) {
-    final utc = dt.toUtc();
-    var y = utc.year;
-    var m = utc.month;
-    final d =
-        utc.day + utc.hour / 24.0 + utc.minute / 1440.0 + utc.second / 86400.0;
-    if (m <= 2) {
-      y -= 1;
-      m += 12;
-    }
-    final a = (y / 100).floor();
-    final b = 2 - a + (a / 4).floor();
-    return (365.25 * (y + 4716)).floor() +
-        (30.6001 * (m + 1)).floor() +
-        d +
-        b -
-        1524.5;
-  }
+  static double _julianDate(DateTime dt) =>
+      SkyCalculations.julianDate(dt, includeMilliseconds: false);
 }
 
 /// Riverpod provider for the Night Doctor. Constructor-injected DAOs mirror the

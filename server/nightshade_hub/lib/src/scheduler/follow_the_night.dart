@@ -256,7 +256,24 @@ class FollowTheNightScheduler {
     return lst;
   }
 
-  static double _julianDay(DateTime utc) {
+  /// Julian Day for [at].
+  ///
+  /// The parameter used to be named `utc` and trusted to be UTC; both call
+  /// sites do normalize first, so `toUtc()` here is a no-op today and every
+  /// number this class produces is unchanged. It is present so that a third
+  /// caller passing a local `DateTime` cannot silently shift the Julian Day
+  /// by the site's UTC offset — which is a whole-hours error in LST, i.e. a
+  /// target scored as up while it is below the horizon.
+  ///
+  /// This copy is NOT shared with `SkyCalculations` in `nightshade_core`:
+  /// `nightshade_hub` is a pure-Dart server package and `nightshade_core` is
+  /// a Flutter package, so there is no import path between them. It also
+  /// builds its day fraction by nested division
+  /// (`(h + (m + (s + ms/1000)/60)/60)/24`) rather than as a sum of
+  /// independent terms, which is a different rounding and therefore not
+  /// interchangeable with `SkyCalculations.julianDate` bit-for-bit.
+  static double _julianDay(DateTime at) {
+    final utc = at.toUtc();
     final y0 = utc.year;
     final m0 = utc.month;
     final day =

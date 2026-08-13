@@ -54,8 +54,9 @@
 //! - **star_count usize → u32** (line 544): real frames have ≤ tens of
 //!   thousands of stars; saturating cast would catch any pathology.
 //! - **Star-count average f64** (line 1300): exact widening.
-//! - **Julian Day chrono fields** (lines 1396-1410): per-site Why comments
-//!   in `sequencer/src/meridian.rs::julian_day` apply identically here.
+//! - **Julian Day chrono fields**: this file no longer computes a Julian Day
+//!   of its own — it calls `sequencer/src/meridian.rs::julian_day`, where
+//!   those per-site Why comments live.
 
 /// Prefix marking a capture that failed *image validation* rather than failing
 /// in the driver or the transport.
@@ -94,6 +95,11 @@ use crate::filter_matching::find_filter_match;
 use crate::state::SharedAppState;
 use crate::FitsWriteHeader;
 use async_trait::async_trait;
+// The Julian Day / LST pair this file used to carry privately was a
+// byte-for-byte copy of these two (same Meeus day-number, same single wrap of
+// `gmst + longitude`), and line 3047 below already called the sequencer's copy
+// directly — so the file was importing and re-typing the same function.
+use nightshade_sequencer::meridian::{julian_day, local_sidereal_time};
 use nightshade_sequencer::{
     CameraSubframe, DeviceOps, DeviceResult, GuidingCalibration, GuidingStatus, ImageData,
     PlateSolveResult, PolarAlignResult,
@@ -353,7 +359,7 @@ fn altitude_degrees(
     lon: f64,
     when: chrono::DateTime<chrono::Utc>,
 ) -> f64 {
-    let lst = local_sidereal_time(julian_day(when), lon);
+    let lst = local_sidereal_time(julian_day(&when), lon);
     let ha_rad = ((lst - ra_hours) * 15.0_f64).to_radians();
     let dec_rad = dec_degrees.to_radians();
     let lat_rad = lat.to_radians();
@@ -1906,7 +1912,7 @@ impl DeviceOps for UnifiedDeviceOps {
     fn calculate_altitude(&self, ra_hours: f64, dec_degrees: f64, lat: f64, lon: f64) -> f64 {
         // Calculate Local Sidereal Time
         let now = chrono::Utc::now();
-        let jd = julian_day(now);
+        let jd = julian_day(&now);
         let lst = local_sidereal_time(jd, lon);
 
         // Calculate hour angle
@@ -2126,48 +2132,6 @@ impl DeviceOps for UnifiedDeviceOps {
         api_cover_calibrator_get_max_brightness(device_id.to_string())
             .await
             .map_err(|e| format!("Get max brightness failed: {}", e))
-    }
-}
-
-/// Calculate Julian Day from UTC datetime
-fn julian_day(dt: chrono::DateTime<chrono::Utc>) -> f64 {
-    use chrono::{Datelike, Timelike};
-
-    let year = dt.year();
-    let month = dt.month() as i32;
-    let day = dt.day() as f64;
-    let hour = dt.hour() as f64 + dt.minute() as f64 / 60.0 + dt.second() as f64 / 3600.0;
-
-    let (y, m) = if month <= 2 {
-        (year - 1, month + 12)
-    } else {
-        (year, month)
-    };
-
-    let a = (y as f64 / 100.0).floor();
-    let b = 2.0 - a + (a / 4.0).floor();
-
-    (365.25 * (y + 4716) as f64).floor()
-        + (30.6001 * (m + 1) as f64).floor()
-        + day
-        + hour / 24.0
-        + b
-        - 1524.5
-}
-
-/// Calculate Local Sidereal Time in hours
-fn local_sidereal_time(jd: f64, longitude: f64) -> f64 {
-    let t = (jd - 2451545.0) / 36525.0;
-
-    // Greenwich Mean Sidereal Time
-    let gmst = 280.46061837 + 360.98564736629 * (jd - 2451545.0) + 0.000387933 * t * t
-        - t * t * t / 38710000.0;
-
-    let lst = (gmst + longitude) % 360.0;
-    if lst < 0.0 {
-        (lst + 360.0) / 15.0
-    } else {
-        lst / 15.0
     }
 }
 

@@ -84,6 +84,22 @@ class CelestialCoordinate {
     );
   }
 
+  /// NOT [AstronomyCalculations.julianDate], and deliberately not re-pointed
+  /// at it during the astronomy consolidation.
+  ///
+  /// This copy omits both the `.toUtc()` normalization and the trailing
+  /// `- 0.5` that turns a noon-based day number into a Julian Date, so it
+  /// returns JD + 0.5. Half a day is 180.49° of GMST — about 12 sidereal
+  /// hours — so switching it to the shared function would move every
+  /// altitude/azimuth this class produces, not round them. `coordinate_system_test.dart`
+  /// asserts the +0.5 value and says the offset "cancels out in
+  /// toHorizontal()", which it does not: the GMST polynomial is a function of
+  /// JD, not of a JD difference.
+  ///
+  /// That is a behaviour question, not a duplication question, and the
+  /// release-pass rule is that behaviour changes are reproduced in the running
+  /// app before they are made. Recorded in
+  /// `reports/release-pass/impl/c2-astronomy-sidereal.md` and left alone here.
   double _julianDate(DateTime dt) {
     final y = dt.year;
     final m = dt.month;

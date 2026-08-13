@@ -515,4 +515,149 @@ mod tests {
         // Should be very close to 2451545.0
         assert!((jd - 2451545.0).abs() < 0.01);
     }
+
+    // --- Consolidation parity (release pass, Wave C2) --------------------
+    //
+    // `bridge/src/unified_device_ops.rs` carried private `julian_day` /
+    // `local_sidereal_time` copies and now imports these. The retired bodies
+    // are transcribed verbatim below and compared with exact `==` on f64,
+    // not an epsilon: a tolerance would pass even if the bridge's mount
+    // altitude and AIRMASS fallback started disagreeing with the sequencer's.
+
+    /// The body deleted from `unified_device_ops.rs:2133`. Note it cast
+    /// `(y + 4716) as f64` after integer addition where this module widens
+    /// first — exact either way for calendar years, which is the point.
+    fn retired_bridge_julian_day(dt: chrono::DateTime<Utc>) -> f64 {
+        use chrono::{Datelike, Timelike};
+
+        let year = dt.year();
+        let month = dt.month() as i32;
+        let day = dt.day() as f64;
+        let hour = dt.hour() as f64 + dt.minute() as f64 / 60.0 + dt.second() as f64 / 3600.0;
+
+        let (y, m) = if month <= 2 {
+            (year - 1, month + 12)
+        } else {
+            (year, month)
+        };
+
+        let a = (y as f64 / 100.0).floor();
+        let b = 2.0 - a + (a / 4.0).floor();
+
+        (365.25 * (y + 4716) as f64).floor()
+            + (30.6001 * (m + 1) as f64).floor()
+            + day
+            + hour / 24.0
+            + b
+            - 1524.5
+    }
+
+    /// The body deleted from `unified_device_ops.rs:2159`.
+    fn retired_bridge_local_sidereal_time(jd: f64, longitude: f64) -> f64 {
+        let t = (jd - 2451545.0) / 36525.0;
+
+        let gmst = 280.46061837 + 360.98564736629 * (jd - 2451545.0) + 0.000387933 * t * t
+            - t * t * t / 38710000.0;
+
+        let lst = (gmst + longitude) % 360.0;
+        if lst < 0.0 {
+            (lst + 360.0) / 15.0
+        } else {
+            lst / 15.0
+        }
+    }
+
+    /// Instants walking the month-rollback branch, leap day, the century and
+    /// 400-year Gregorian corrections, midnight, and both sides of J2000.
+    fn parity_instants() -> Vec<chrono::DateTime<Utc>> {
+        vec![
+            Utc.with_ymd_and_hms(2000, 1, 1, 12, 0, 0).unwrap(),
+            Utc.with_ymd_and_hms(1999, 12, 31, 23, 59, 59).unwrap(),
+            Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap(),
+            Utc.with_ymd_and_hms(2026, 2, 28, 23, 59, 59).unwrap(),
+            Utc.with_ymd_and_hms(2024, 2, 29, 6, 30, 15).unwrap(),
+            Utc.with_ymd_and_hms(1900, 3, 1, 0, 0, 0).unwrap(),
+            Utc.with_ymd_and_hms(2000, 3, 1, 0, 0, 0).unwrap(),
+            Utc.with_ymd_and_hms(2100, 7, 4, 18, 45, 12).unwrap(),
+            Utc.with_ymd_and_hms(2026, 8, 13, 3, 21, 44).unwrap(),
+            Utc.with_ymd_and_hms(1957, 10, 4, 19, 28, 34).unwrap(),
+        ]
+    }
+
+    #[test]
+    fn julian_day_is_bit_identical_to_the_retired_bridge_copy() {
+        for dt in parity_instants() {
+            assert_eq!(
+                julian_day(&dt),
+                retired_bridge_julian_day(dt),
+                "julian_day diverged at {dt}"
+            );
+        }
+    }
+
+    #[test]
+    fn local_sidereal_time_is_bit_identical_to_the_retired_bridge_copy() {
+        // Longitudes east, west, on the prime meridian, and past the
+        // antimeridian in both directions so the negative branch runs.
+        let longitudes = [0.0, -122.4194, 151.2093, 179.9999, -179.9999, -400.0];
+        for dt in parity_instants() {
+            let jd = julian_day(&dt);
+            for lon in longitudes {
+                assert_eq!(
+                    local_sidereal_time(jd, lon),
+                    retired_bridge_local_sidereal_time(jd, lon),
+                    "local_sidereal_time diverged at {dt} lon={lon}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn local_sidereal_time_stays_in_range() {
+        let longitudes = [0.0, -122.4194, 151.2093, 179.9999, -179.9999, -400.0];
+        for dt in parity_instants() {
+            let jd = julian_day(&dt);
+            for lon in longitudes {
+                let lst = local_sidereal_time(jd, lon);
+                assert!(
+                    (0.0..24.0).contains(&lst),
+                    "LST {lst} out of range at {dt} lon={lon}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn scheduling_astronomy_is_a_deliberately_separate_julian_date() {
+        // Pins the non-adoption note on `scheduling::astronomy::julian_date`.
+        // That one is Fliegel-Van Flandern on a MILLISECOND day fraction, kept
+        // byte-compatible with the Dart planetarium so `scoring` can assert
+        // numeric parity against it. This module's is Meeus on a WHOLE-SECOND
+        // day fraction.
+        //
+        // On a whole-second instant the two agree exactly — which is why this
+        // consolidation could not simply pick one and be done: they are the
+        // same number right up until they are not.
+        for dt in parity_instants() {
+            assert_eq!(
+                julian_day(&dt),
+                crate::scheduling::astronomy::julian_date(&dt),
+                "whole-second Julian Dates should coincide at {dt}"
+            );
+        }
+
+        // Add sub-second time and they part company, because `julian_day`
+        // truncates at the second and `julian_date` does not. Merging them
+        // would therefore move one caller's numbers.
+        let sub_second = Utc
+            .with_ymd_and_hms(2026, 8, 13, 3, 21, 44)
+            .unwrap()
+            .with_nanosecond(617_000_000)
+            .unwrap();
+        assert_ne!(
+            julian_day(&sub_second),
+            crate::scheduling::astronomy::julian_date(&sub_second),
+            "the two forms must not silently agree on a sub-second instant"
+        );
+    }
 }

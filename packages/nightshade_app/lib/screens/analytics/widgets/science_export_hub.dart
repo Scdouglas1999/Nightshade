@@ -105,6 +105,13 @@ String _utcStamp(DateTime dt) => dt.toUtc().toIso8601String();
 /// Julian Date for [dt], the time system AAVSO/AID submissions and every period
 /// analysis actually work in. Emitted alongside the ISO stamp so a downstream
 /// script never has to redo the conversion (and never has to guess the zone).
+///
+/// Kept separate from `SkyCalculations.julianDate` on purpose. That one is
+/// Meeus' calendar decomposition; this is the exact epoch conversion
+/// (`ms since 1970 / 86 400 000 + 2440587.5`), which carries the submission's
+/// millisecond timestamp with no calendar arithmetic in between. They agree to
+/// ~1e-10 d but not bit-for-bit, and these values go out in published
+/// photometry files.
 double _julianDate(DateTime dt) =>
     dt.toUtc().millisecondsSinceEpoch / 86400000.0 + 2440587.5;
 

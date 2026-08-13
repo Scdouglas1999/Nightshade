@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import '../../models/planning/night_forecast.dart';
 import '../../models/weather/radar_frame.dart';
 import '../scheduler/sky_calculations.dart';
@@ -380,15 +378,11 @@ class ForecastPlanningService {
     required DateTime timeUtc,
   }) {
     final lstHours = _localSiderealTimeHours(timeUtc);
-    final haRad = (lstHours - raHours) * 15.0 * math.pi / 180.0;
-    final decRad = decDegrees * math.pi / 180.0;
-    final latRad = latitudeDegrees * math.pi / 180.0;
-
-    final sinAlt =
-        math.sin(decRad) * math.sin(latRad) +
-        math.cos(decRad) * math.cos(latRad) * math.cos(haRad);
-    final altRad = math.asin(sinAlt.clamp(-1.0, 1.0));
-    return altRad * 180.0 / math.pi;
+    return SkyCalculations.altitudeDegrees(
+      hourAngleDegrees: (lstHours - raHours) * 15.0,
+      declinationDegrees: decDegrees,
+      latitudeDegrees: latitudeDegrees,
+    );
   }
 
   /// Local apparent sidereal time in hours `[0, 24)` for this site at
@@ -396,12 +390,7 @@ class ForecastPlanningService {
   /// embedded in [SkyCalculations.sunAltAz].
   double _localSiderealTimeHours(DateTime timeUtc) {
     final jd = SkyCalculations.julianDate(timeUtc);
-    final t = (jd - 2451545.0) / 36525.0;
-    var gmstDeg =
-        280.46061837 +
-        360.98564736629 * (jd - 2451545.0) +
-        0.000387933 * t * t -
-        t * t * t / 38710000.0;
+    var gmstDeg = SkyCalculations.gmstDegreesRaw(jd);
     gmstDeg %= 360.0;
     if (gmstDeg < 0) gmstDeg += 360.0;
     var lstDeg = (gmstDeg + longitudeDegrees) % 360.0;

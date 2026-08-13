@@ -42,8 +42,32 @@ class TwilightTimes {
 class SkyCalculations {
   SkyCalculations._();
 
-  /// Julian Date for the given DateTime (treated as UTC).
-  static double julianDate(DateTime dt) {
+  /// Julian Date for the given DateTime (converted to UTC first).
+  ///
+  /// Meeus' Gregorian form. This is the one Julian Date every scheduler,
+  /// planner, DAO and co-imaging surface in `nightshade_core` uses; the
+  /// copies that used to live in `scheduler_service.dart`,
+  /// `night_analysis_service.dart`, `targets_dao.dart`,
+  /// `coimaging_session_service.dart` and `scheduler_engine/astronomy_helpers`
+  /// all call through here now.
+  ///
+  /// [includeMilliseconds] selects the day fraction the retired copies used,
+  /// and it is a real numeric choice rather than a style knob:
+  ///
+  /// * `true` (default) — `day + h/24 + m/1440 + s/86400 + ms/86400000`, the
+  ///   form `targets_dao`, `coimaging_session_service` and the original
+  ///   `SkyCalculations.julianDate` used.
+  /// * `false` — stops at whole seconds, the form `scheduler_service`,
+  ///   `night_analysis_service` and the scheduler engine's lunar ephemeris
+  ///   used.
+  ///
+  /// The two differ by up to 999 ms / 86 400 000 ≈ 1.2e-8 d, which is
+  /// astronomically nothing but is NOT bit-identical, and the schedulers'
+  /// numbers are pinned by golden tests. So the flag reproduces each retired
+  /// copy exactly instead of quietly moving one of them: when
+  /// `includeMilliseconds` is false the sub-second term becomes a literal
+  /// `0`, and `x + 0` is exact for every finite double.
+  static double julianDate(DateTime dt, {bool includeMilliseconds = true}) {
     final utc = dt.toUtc();
     int y = utc.year;
     int m = utc.month;
@@ -52,7 +76,7 @@ class SkyCalculations {
         utc.hour / 24.0 +
         utc.minute / 1440.0 +
         utc.second / 86400.0 +
-        utc.millisecond / 86400000.0;
+        (includeMilliseconds ? utc.millisecond / 86400000.0 : 0);
 
     if (m <= 2) {
       y -= 1;
@@ -67,6 +91,88 @@ class SkyCalculations {
         1524.5;
   }
 
+  /// Greenwich Mean Sidereal Time in DEGREES for [jd], **unnormalized**.
+  ///
+  /// The IAU polynomial `280.46061837 + 360.98564736629·(JD−J2000) +
+  /// 0.000387933·T² − T³/38710000` — the literal that was retyped in nine
+  /// files. Only the polynomial is shared: the callers do not agree on how
+  /// they wrap it (some normalize GMST to [0,360) before adding the site
+  /// longitude, some add first and wrap once; some end in hours, some in
+  /// degrees). Those compositions are one line each and, because GMST for a
+  /// modern date is ~3.4e6 degrees, wrapping in a different order moves the
+  /// result by ~1e-9° — invisible on the sky but not bit-identical. So the
+  /// wrap stays at each call site, where it is already pinned by that site's
+  /// own tests, and the part they genuinely share lives here.
+  static double gmstDegreesRaw(double jd) {
+    final t = (jd - 2451545.0) / 36525.0;
+    return 280.46061837 +
+        360.98564736629 * (jd - 2451545.0) +
+        0.000387933 * t * t -
+        t * t * t / 38710000.0;
+  }
+
+  /// Normalize an angle into `[0, 360)`.
+  static double wrap360(double degrees) => _wrap360(degrees);
+
+  /// Normalize an angle into `[-180, 180)`.
+  static double wrap180(double degrees) => _wrap180(degrees);
+
+  /// Geometric altitude in degrees from an hour angle.
+  ///
+  /// `asin(sin δ · sin φ + cos δ · cos φ · cos H)` — the formula that was
+  /// retyped in `targets_dao`, `night_analysis_service`,
+  /// `forecast_planning_service`, `scheduler_service` and the scheduler
+  /// engine's helpers. The hour angle is taken in degrees and is NOT wrapped
+  /// here: the callers disagree about whether they wrap it (and `cos` of an
+  /// unwrapped angle is not bit-identical to `cos` of its wrapped twin), so
+  /// each caller keeps the hour angle it already computed.
+  static double altitudeDegrees({
+    required double hourAngleDegrees,
+    required double declinationDegrees,
+    required double latitudeDegrees,
+  }) {
+    final dec = declinationDegrees * math.pi / 180.0;
+    final lat = latitudeDegrees * math.pi / 180.0;
+    final ha = hourAngleDegrees * math.pi / 180.0;
+    final sinAlt =
+        math.sin(dec) * math.sin(lat) +
+        math.cos(dec) * math.cos(lat) * math.cos(ha);
+    return math.asin(sinAlt.clamp(-1.0, 1.0)) * 180.0 / math.pi;
+  }
+
+  /// Altitude and azimuth in degrees for an equatorial position, given the
+  /// site latitude and the local sidereal time in hours.
+  ///
+  /// Azimuth is measured east of north. This is the exact body that
+  /// `SchedulerService.calculateAltAz` and the scheduler engine's
+  /// `_calculateAltAz` each carried; note the azimuth numerator carries the
+  /// `cos δ` factor, which [sunAltAz] does not — mathematically the same
+  /// angle, not the same doubles, so the two are kept apart deliberately.
+  static (double altitude, double azimuth) altAzDegrees({
+    required double raHours,
+    required double decDegrees,
+    required double latitudeDegrees,
+    required double lstHours,
+  }) {
+    final dec = decDegrees * math.pi / 180.0;
+    final lat = latitudeDegrees * math.pi / 180.0;
+    final ha = (lstHours - raHours) * 15.0 * math.pi / 180.0;
+
+    final sinAlt =
+        math.sin(dec) * math.sin(lat) +
+        math.cos(dec) * math.cos(lat) * math.cos(ha);
+    final alt = math.asin(sinAlt.clamp(-1.0, 1.0));
+
+    final y = -math.sin(ha) * math.cos(dec);
+    final x =
+        math.sin(dec) * math.cos(lat) -
+        math.cos(dec) * math.sin(lat) * math.cos(ha);
+    var az = math.atan2(y, x);
+    if (az < 0) az += 2 * math.pi;
+
+    return (alt * 180.0 / math.pi, az * 180.0 / math.pi);
+  }
+
   /// Local Sidereal Time in hours [0, 24) for `time` (treated as UTC) at the
   /// given observer longitude (degrees, east positive).
   ///
@@ -79,29 +185,8 @@ class SkyCalculations {
   /// added a `millisecond/86_400_000` term, a sub-millisecond LST difference
   /// that is astronomically negligible; it now matches the scheduler.)
   static double localSiderealTimeHours(DateTime time, double longitudeDegrees) {
-    final utc = time.toUtc();
-    int y = utc.year;
-    int m = utc.month;
-    final d =
-        utc.day + utc.hour / 24.0 + utc.minute / 1440.0 + utc.second / 86400.0;
-    if (m <= 2) {
-      y -= 1;
-      m += 12;
-    }
-    final a = (y / 100).floor();
-    final b = 2 - a + (a / 4).floor();
-    final jd =
-        (365.25 * (y + 4716)).floor() +
-        (30.6001 * (m + 1)).floor() +
-        d +
-        b -
-        1524.5;
-    final t = (jd - 2451545.0) / 36525.0;
-    var gmst =
-        280.46061837 +
-        360.98564736629 * (jd - 2451545.0) +
-        0.000387933 * t * t -
-        t * t * t / 38710000.0;
+    final jd = julianDate(time, includeMilliseconds: false);
+    var gmst = gmstDegreesRaw(jd);
     gmst = gmst % 360.0;
     if (gmst < 0) gmst += 360.0;
     var lst = gmst / 15.0 + longitudeDegrees / 15.0;
@@ -181,12 +266,7 @@ class SkyCalculations {
     final dec = math.asin(math.sin(obliquityRad) * math.sin(apparentLonRad));
 
     // Greenwich mean sidereal time (deg) at time.
-    var gmst =
-        280.46061837 +
-        360.98564736629 * (jd - 2451545.0) +
-        0.000387933 * t * t -
-        t * t * t / 38710000.0;
-    gmst = _wrap360(gmst);
+    final gmst = _wrap360(gmstDegreesRaw(jd));
 
     // Local sidereal time, then local hour angle.
     final lst = _wrap360(gmst + longitudeDegrees);

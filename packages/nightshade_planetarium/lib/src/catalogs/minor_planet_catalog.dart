@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import '../astronomy/astronomy_calculations.dart';
 import '../coordinate_system.dart';
 
 /// Type of minor body
@@ -309,27 +310,11 @@ class KeplerianPropagator {
 
   static double _log10(double x) => math.log(x) / math.ln10;
 
-  static double _julianDate(DateTime dt) {
-    final y = dt.year;
-    final m = dt.month;
-    final d =
-        dt.day +
-        dt.hour / 24 +
-        dt.minute / 1440 +
-        dt.second / 86400 +
-        dt.millisecond / 86400000;
-    final a = ((14 - m) / 12).floor();
-    final y2 = y + 4800 - a;
-    final m2 = m + 12 * a - 3;
-    return d +
-        ((153 * m2 + 2) / 5).floor() +
-        365 * y2 +
-        (y2 / 4).floor() -
-        (y2 / 100).floor() +
-        (y2 / 400).floor() -
-        32045 -
-        0.5;
-  }
+  /// The sole caller already hands this a UTC instant, so routing through
+  /// [AstronomyCalculations.julianDate] (which normalizes with `toUtc()`)
+  /// returns the identical double the private copy did.
+  static double _julianDate(DateTime dt) =>
+      AstronomyCalculations.julianDate(dt);
 
   /// Batch compute positions for multiple minor bodies.
   static List<MinorBodyData> computePositions({
