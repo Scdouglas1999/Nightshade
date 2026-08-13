@@ -1283,7 +1283,7 @@ class SequencerHandlers {
     final payload = await readJsonObject(request);
     final backend = container.read(sequencerBackendProvider);
     await backend.sequencerUpdatePendingIntegrationCarryOver(
-      _readNestedDoubleMap(payload, 'carry_over'),
+      optionalNestedDoubleMap(payload, 'carry_over'),
     );
     return jsonOk({'status': 'ok'});
   }
@@ -1391,7 +1391,7 @@ class SequencerHandlers {
     final payload = await readJsonObject(request);
     final backend = container.read(sequencerBackendProvider);
     await backend.sequencerUpdateSkyBrightness(
-      mag: _readNullableDouble(payload, 'mag'),
+      mag: optionalDouble(payload, 'mag'),
     );
     return jsonOk({'status': 'ok'});
   }
@@ -1411,9 +1411,9 @@ class SequencerHandlers {
       ),
       minExposureSecs: requireDouble(payload, 'minExposureSecs', min: 0),
       maxExposureSecs: requireDouble(payload, 'maxExposureSecs', min: 0),
-      perFilterEnabled: _readStringBoolMap(payload, 'perFilterEnabled'),
-      perFilterMinSecs: _readStringDoubleMap(payload, 'perFilterMinSecs'),
-      perFilterMaxSecs: _readStringDoubleMap(payload, 'perFilterMaxSecs'),
+      perFilterEnabled: optionalStringBoolMap(payload, 'perFilterEnabled'),
+      perFilterMinSecs: optionalStringDoubleMap(payload, 'perFilterMinSecs'),
+      perFilterMaxSecs: optionalStringDoubleMap(payload, 'perFilterMaxSecs'),
     );
     return jsonOk({'status': 'ok'});
   }
@@ -1729,24 +1729,21 @@ class SequencerHandlers {
     final payload = await readJsonObject(request);
     final backend = container.read(sequencerBackendProvider);
     await backend.sequencerUpdateCloudMotion(
-      currentCoverPercent: _readNullableDouble(payload, 'currentCoverPercent'),
-      predictedArrivalMinutes: _readNullableDouble(
+      currentCoverPercent: optionalDouble(payload, 'currentCoverPercent'),
+      predictedArrivalMinutes: optionalDouble(
         payload,
         'predictedArrivalMinutes',
       ),
-      predictedOpeningMinutes: _readNullableDouble(
+      predictedOpeningMinutes: optionalDouble(
         payload,
         'predictedOpeningMinutes',
       ),
-      predictedOpeningDurationSecs: _readNullableDouble(
+      predictedOpeningDurationSecs: optionalDouble(
         payload,
         'predictedOpeningDurationSecs',
       ),
-      predictedClearSkyAlt: _readNullableDouble(
-        payload,
-        'predictedClearSkyAlt',
-      ),
-      predictedClearSkyAz: _readNullableDouble(payload, 'predictedClearSkyAz'),
+      predictedClearSkyAlt: optionalDouble(payload, 'predictedClearSkyAlt'),
+      predictedClearSkyAz: optionalDouble(payload, 'predictedClearSkyAz'),
     );
     return jsonOk({'status': 'ok'});
   }
@@ -1763,7 +1760,7 @@ class SequencerHandlers {
     final payload = await readJsonObject(request);
     final backend = container.read(sequencerBackendProvider);
     await backend.sequencerUpdateWeatherVerdict(
-      unsafeOverride: _readNullableBool(payload, 'unsafeOverride'),
+      unsafeOverride: optionalBool(payload, 'unsafeOverride'),
     );
     return jsonOk({'status': 'ok'});
   }
@@ -1875,7 +1872,7 @@ class SequencerHandlers {
     if (cameraId is! String || cameraId.trim().isEmpty) {
       throw BadRequestError(field: 'cameraId', expected: 'non-empty string');
     }
-    final exposure = _readNullableDouble(decoded, 'exposureSecs');
+    final exposure = optionalDouble(decoded, 'exposureSecs');
     if (exposure == null ||
         !exposure.isFinite ||
         exposure < 0.001 ||
@@ -1892,20 +1889,19 @@ class SequencerHandlers {
         expected: 'non-empty host directory path',
       );
     }
-    final binX = _readOptionalInteger(decoded, 'binX') ?? 1;
-    final binY = _readOptionalInteger(decoded, 'binY') ?? 1;
+    final binX = optionalInt(decoded, 'binX') ?? 1;
+    final binY = optionalInt(decoded, 'binY') ?? 1;
     if (binX < 1 || binX > 16 || binY < 1 || binY > 16) {
       throw BadRequestError(
         field: 'binX/binY',
         expected: 'integers from 1 to 16',
       );
     }
-    final frameCount = _readOptionalInteger(decoded, 'frameCount');
+    final frameCount = optionalInt(decoded, 'frameCount');
     if (frameCount != null && frameCount < 1) {
       throw BadRequestError(field: 'frameCount', expected: 'positive integer');
     }
-    final ditherMaxWait =
-        _readNullableDouble(decoded, 'ditherMaxWaitSecs') ?? 30.0;
+    final ditherMaxWait = optionalDouble(decoded, 'ditherMaxWaitSecs') ?? 30.0;
     if (!ditherMaxWait.isFinite || ditherMaxWait < 0.1 || ditherMaxWait > 600) {
       throw BadRequestError(
         field: 'ditherMaxWaitSecs',
@@ -1932,24 +1928,24 @@ class SequencerHandlers {
       config: bridge_api.SecondaryRigConfigApi(
         cameraId: cameraId,
         exposureSecs: exposure,
-        gain: _readOptionalInteger(decoded, 'gain'),
-        offset: _readOptionalInteger(decoded, 'offset'),
+        gain: optionalInt(decoded, 'gain'),
+        offset: optionalInt(decoded, 'offset'),
         binX: binX,
         binY: binY,
         frameCount: frameCount,
         filterName: decoded['filterName'] as String?,
-        targetTempC: _readNullableDouble(decoded, 'targetTempC'),
+        targetTempC: optionalDouble(decoded, 'targetTempC'),
         rigLabel: (decoded['rigLabel'] as String?) ?? 'Secondary',
         ditherMaxWaitSecs: ditherMaxWait,
         inFlightPolicy: inFlightPolicy,
         saveBasePath: saveBasePath,
         targetName: decoded['targetName'] as String?,
-        targetRaHours: _readNullableDouble(decoded, 'targetRaHours'),
-        targetDecDegrees: _readNullableDouble(decoded, 'targetDecDegrees'),
+        targetRaHours: optionalDouble(decoded, 'targetRaHours'),
+        targetDecDegrees: optionalDouble(decoded, 'targetDecDegrees'),
         observerName: decoded['observerName'] as String?,
-        siteLatitudeDeg: _readNullableDouble(decoded, 'siteLatitudeDeg'),
-        siteLongitudeDeg: _readNullableDouble(decoded, 'siteLongitudeDeg'),
-        siteElevationM: _readNullableDouble(decoded, 'siteElevationM'),
+        siteLatitudeDeg: optionalDouble(decoded, 'siteLatitudeDeg'),
+        siteLongitudeDeg: optionalDouble(decoded, 'siteLongitudeDeg'),
+        siteElevationM: optionalDouble(decoded, 'siteElevationM'),
       ),
     );
     return jsonOk({
@@ -1969,101 +1965,6 @@ class SequencerHandlers {
       if (commandId != null) 'commandId': commandId,
       'status': 'stopped',
     });
-  }
-
-  /// narrow helper: pull an optional double out of the
-  /// JSON payload, accepting either `num` or `null`. Lives next to the
-  /// handler that needs it instead of in the shared helpers because no
-  /// other endpoint currently surfaces optional doubles.
-  double? _readNullableDouble(Map<String, dynamic> payload, String key) {
-    final value = payload[key];
-    if (value == null) return null;
-    if (value is num) return value.toDouble();
-    throw FormatException('Expected number for $key, got ${value.runtimeType}');
-  }
-
-  int? _readOptionalInteger(Map<String, dynamic> payload, String key) {
-    final value = payload[key];
-    if (value == null) return null;
-    if (value is int) return value;
-    if (value is num && value.isFinite && value == value.roundToDouble()) {
-      return value.toInt();
-    }
-    throw BadRequestError(field: key, expected: 'integer');
-  }
-
-  bool? _readNullableBool(Map<String, dynamic> payload, String key) {
-    final value = payload[key];
-    if (value == null) return null;
-    if (value is bool) return value;
-    throw FormatException('Expected bool for $key, got ${value.runtimeType}');
-  }
-
-  Map<String, double> _readStringDoubleMap(
-    Map<String, dynamic> payload,
-    String key,
-  ) {
-    final value = payload[key];
-    if (value == null) return const {};
-    if (value is! Map) {
-      throw BadRequestError(field: key, expected: 'object');
-    }
-    final parsed = <String, double>{};
-    value.forEach((mapKey, mapValue) {
-      if (mapValue is! num) {
-        throw BadRequestError(field: '$key.$mapKey', expected: 'number');
-      }
-      parsed[mapKey.toString()] = mapValue.toDouble();
-    });
-    return parsed;
-  }
-
-  Map<String, bool> _readStringBoolMap(
-    Map<String, dynamic> payload,
-    String key,
-  ) {
-    final value = payload[key];
-    if (value == null) return const {};
-    if (value is! Map) {
-      throw BadRequestError(field: key, expected: 'object');
-    }
-    final parsed = <String, bool>{};
-    value.forEach((mapKey, mapValue) {
-      if (mapValue is! bool) {
-        throw BadRequestError(field: '$key.$mapKey', expected: 'boolean');
-      }
-      parsed[mapKey.toString()] = mapValue;
-    });
-    return parsed;
-  }
-
-  Map<String, Map<String, double>> _readNestedDoubleMap(
-    Map<String, dynamic> payload,
-    String key,
-  ) {
-    final value = payload[key];
-    if (value == null) return const {};
-    if (value is! Map) {
-      throw BadRequestError(field: key, expected: 'object');
-    }
-    final parsed = <String, Map<String, double>>{};
-    value.forEach((targetKey, filterMap) {
-      if (filterMap is! Map) {
-        throw BadRequestError(field: '$key.$targetKey', expected: 'object');
-      }
-      final filters = <String, double>{};
-      filterMap.forEach((filterKey, seconds) {
-        if (seconds is! num) {
-          throw BadRequestError(
-            field: '$key.$targetKey.$filterKey',
-            expected: 'number',
-          );
-        }
-        filters[filterKey.toString()] = seconds.toDouble();
-      });
-      parsed[targetKey.toString()] = filters;
-    });
-    return parsed;
   }
 }
 

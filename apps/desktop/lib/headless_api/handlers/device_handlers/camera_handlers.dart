@@ -518,7 +518,7 @@ extension CameraDeviceHandlers on DeviceHandlers {
       });
     }
 
-    final encoded = encodeCapturedImageDisplayBufferToJpeg(
+    final encoded = await encodeCapturedImageDisplayBufferToJpeg(
       image,
       maxWidth: maxWidth,
       quality: quality,

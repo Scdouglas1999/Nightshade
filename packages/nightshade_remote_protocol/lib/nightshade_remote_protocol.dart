@@ -1,6 +1,5 @@
-/// Nightshade remote-control protocol — LAN discovery, pairing, token
-/// management, and channel encryption used by the headless API server and
-/// the mobile companion.
+/// Nightshade remote-control protocol — LAN discovery, pairing, and token
+/// management used by the headless API server and the mobile companion.
 library;
 
 // Why the rename: this package was originally named nightshade_webrtc, but the
@@ -22,12 +21,8 @@ export 'src/network_uri.dart';
 export 'src/remote_pairing_client.dart';
 export 'src/collaboration/live_collaboration_session.dart';
 
-// Secure authentication and encryption
+// Secure authentication
 export 'src/auth/token_manager.dart';
-export 'src/crypto/channel_encryption.dart';
-
-// Secure pairing-mode discovery (used by the pairing flow)
-export 'src/discovery/secure_discovery.dart';
 
 // Server-side mDNS / Bonjour / DNS-SD advertisement.
 export 'src/discovery/mdns_registration.dart';

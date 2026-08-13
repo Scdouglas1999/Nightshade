@@ -580,6 +580,79 @@ List<T>? optionalList<T>(Map<String, dynamic> payload, String field) {
   return requireList<T>(payload, field);
 }
 
+/// Optional `{ "<key>": <number> }` object — e.g. a per-filter exposure floor.
+/// Absent or null yields an empty map. A bad entry names its own path
+/// (`perFilterMinSecs.L`) so the client knows which key to fix.
+Map<String, double> optionalStringDoubleMap(
+  Map<String, dynamic> payload,
+  String field,
+) {
+  final value = payload[field];
+  if (value == null) return const {};
+  if (value is! Map) {
+    throw BadRequestError(field: field, expected: 'object');
+  }
+  final parsed = <String, double>{};
+  value.forEach((key, entry) {
+    if (entry is! num) {
+      throw BadRequestError(field: '$field.$key', expected: 'number');
+    }
+    parsed[key.toString()] = entry.toDouble();
+  });
+  return parsed;
+}
+
+/// Optional `{ "<key>": <bool> }` object — e.g. a per-filter enable flag.
+Map<String, bool> optionalStringBoolMap(
+  Map<String, dynamic> payload,
+  String field,
+) {
+  final value = payload[field];
+  if (value == null) return const {};
+  if (value is! Map) {
+    throw BadRequestError(field: field, expected: 'object');
+  }
+  final parsed = <String, bool>{};
+  value.forEach((key, entry) {
+    if (entry is! bool) {
+      throw BadRequestError(field: '$field.$key', expected: 'boolean');
+    }
+    parsed[key.toString()] = entry;
+  });
+  return parsed;
+}
+
+/// Optional `{ "<outer>": { "<inner>": <number> } }` object — e.g. carried-over
+/// integration keyed by target and then by filter.
+Map<String, Map<String, double>> optionalNestedDoubleMap(
+  Map<String, dynamic> payload,
+  String field,
+) {
+  final value = payload[field];
+  if (value == null) return const {};
+  if (value is! Map) {
+    throw BadRequestError(field: field, expected: 'object');
+  }
+  final parsed = <String, Map<String, double>>{};
+  value.forEach((outerKey, inner) {
+    if (inner is! Map) {
+      throw BadRequestError(field: '$field.$outerKey', expected: 'object');
+    }
+    final entries = <String, double>{};
+    inner.forEach((innerKey, entry) {
+      if (entry is! num) {
+        throw BadRequestError(
+          field: '$field.$outerKey.$innerKey',
+          expected: 'number',
+        );
+      }
+      entries[innerKey.toString()] = entry.toDouble();
+    });
+    parsed[outerKey.toString()] = entries;
+  });
+  return parsed;
+}
+
 // ===========================================================================
 // Query-string parameter helpers (GET / query endpoints).
 //

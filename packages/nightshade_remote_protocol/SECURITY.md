@@ -63,13 +63,11 @@ admin tokens.
 | Component | Status |
 |-----------|--------|
 | UDP / mDNS discovery (`discovery.dart`, `enhanced_discovery.dart`) | **Supported** for LAN server location |
-| `SecureDiscovery` (`discovery/secure_discovery.dart`) | **Not wired** into desktop startup. The class exists for pairing-mode broadcasts but is not started by `HeadlessApiServer` or the GUI bootstrap. Do not document it as an active control plane. |
 
-## Encryption helpers
-
-`ChannelEncryption` (AES-256-GCM + PBKDF2) remains available for plugins and
-future transports. The headless API itself uses HTTPS at the proxy layer and
-bearer tokens on HTTP/WebSocket — not E2E channel encryption on every JSON body.
+`SecureDiscovery` and the `ChannelEncryption` (AES-256-GCM + PBKDF2) payload
+helper were removed in 6.1: neither had a caller anywhere in the repo, and a
+second, unexercised encryption layer is an audit liability. Transport security
+is TLS plus bearer tokens on HTTP/WebSocket.
 
 ## Token scopes (headless API)
 

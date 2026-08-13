@@ -1,11 +1,159 @@
 import 'dart:developer' as developer;
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'mobile_preferences.dart';
 
 part 'notification_service/contracts.dart';
+
+// One NotificationDetails per Android channel declared in
+// [MobileNotificationService._createNotificationChannels]. Every notify*
+// method used to inline its own copy; eighteen copies of five channels is how
+// the two deliberate variants below became indistinguishable from drift.
+
+const _sequenceDetails = NotificationDetails(
+  android: AndroidNotificationDetails(
+    'nightshade_sequence',
+    'Sequence Events',
+    channelDescription: 'Notifications for sequence completion and failures',
+    importance: Importance.high,
+    priority: Priority.high,
+    playSound: true,
+    enableVibration: true,
+    icon: '@mipmap/ic_launcher',
+  ),
+  iOS: DarwinNotificationDetails(
+    presentAlert: true,
+    presentBadge: true,
+    presentSound: true,
+  ),
+);
+
+const _warningDetails = NotificationDetails(
+  android: AndroidNotificationDetails(
+    'nightshade_warnings',
+    'Warnings',
+    channelDescription: 'Important warnings about battery, disk space, etc.',
+    importance: Importance.high,
+    priority: Priority.high,
+    playSound: true,
+    enableVibration: true,
+    icon: '@mipmap/ic_launcher',
+  ),
+  iOS: DarwinNotificationDetails(
+    presentAlert: true,
+    presentBadge: true,
+    presentSound: true,
+  ),
+);
+
+const _infoDetails = NotificationDetails(
+  android: AndroidNotificationDetails(
+    'nightshade_info',
+    'Information',
+    channelDescription: 'General information like meridian flips',
+    importance: Importance.defaultImportance,
+    priority: Priority.defaultPriority,
+    playSound: false,
+    icon: '@mipmap/ic_launcher',
+  ),
+  iOS: DarwinNotificationDetails(
+    presentAlert: true,
+    presentBadge: false,
+    presentSound: false,
+  ),
+);
+
+const _criticalDetails = NotificationDetails(
+  android: AndroidNotificationDetails(
+    'nightshade_critical',
+    'Critical Alerts',
+    channelDescription:
+        'Safety, guiding loss, and equipment failures during a running sequence',
+    importance: Importance.max,
+    priority: Priority.max,
+    playSound: true,
+    enableVibration: true,
+    icon: '@mipmap/ic_launcher',
+  ),
+  iOS: DarwinNotificationDetails(
+    presentAlert: true,
+    presentBadge: true,
+    presentSound: true,
+    interruptionLevel: InterruptionLevel.critical,
+  ),
+);
+
+/// [MobileNotificationService.notifySafety] is the only post that asks Android
+/// to treat the alert as an alarm. Held apart from [_criticalDetails] so the
+/// difference reads as the decision it is.
+const _criticalAlarmDetails = NotificationDetails(
+  android: AndroidNotificationDetails(
+    'nightshade_critical',
+    'Critical Alerts',
+    channelDescription:
+        'Safety, guiding loss, and equipment failures during a running sequence',
+    importance: Importance.max,
+    priority: Priority.max,
+    playSound: true,
+    enableVibration: true,
+    icon: '@mipmap/ic_launcher',
+    category: AndroidNotificationCategory.alarm,
+  ),
+  iOS: DarwinNotificationDetails(
+    presentAlert: true,
+    presentBadge: true,
+    presentSound: true,
+    interruptionLevel: InterruptionLevel.critical,
+  ),
+);
+
+/// Quieter than [_infoDetails]: low priority on Android, passive interruption
+/// on iOS. Used by [MobileNotificationService.notifyOwnershipAutoReleased],
+/// which reports something the operator did not do and need not act on.
+const _infoPassiveDetails = NotificationDetails(
+  android: AndroidNotificationDetails(
+    'nightshade_info',
+    'Information',
+    channelDescription: 'General information like meridian flips',
+    importance: Importance.defaultImportance,
+    priority: Priority.low,
+    playSound: false,
+    icon: '@mipmap/ic_launcher',
+  ),
+  iOS: DarwinNotificationDetails(
+    presentAlert: true,
+    presentBadge: false,
+    presentSound: false,
+    interruptionLevel: InterruptionLevel.passive,
+  ),
+);
+
+/// Desktop push is the one channel whose importance, priority and sound follow
+/// the payload's `priority` field, so it cannot be a constant.
+NotificationDetails _pushDetails({
+  required Importance importance,
+  required Priority priority,
+  required bool playSound,
+}) => NotificationDetails(
+  android: AndroidNotificationDetails(
+    'nightshade_push',
+    'Desktop Alerts',
+    channelDescription: 'Push notifications from the connected desktop',
+    importance: importance,
+    priority: priority,
+    playSound: playSound,
+    enableVibration: playSound,
+    icon: '@mipmap/ic_launcher',
+  ),
+  iOS: DarwinNotificationDetails(
+    presentAlert: true,
+    presentBadge: true,
+    presentSound: playSound,
+  ),
+);
 
 class MobileNotificationService implements MobileNotificationSink {
   static final MobileNotificationService _instance =
@@ -451,24 +599,7 @@ class MobileNotificationService implements MobileNotificationSink {
       _sequenceCompleteId,
       'Sequence Complete',
       'Imaging of $targetName finished. $imageCount images captured.',
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'nightshade_sequence',
-          'Sequence Events',
-          channelDescription:
-              'Notifications for sequence completion and failures',
-          importance: Importance.high,
-          priority: Priority.high,
-          playSound: true,
-          enableVibration: true,
-          icon: '@mipmap/ic_launcher',
-        ),
-        iOS: DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: true,
-          presentSound: true,
-        ),
-      ),
+      _sequenceDetails,
       payload: 'sequence_complete:$targetName',
     );
   }
@@ -484,24 +615,7 @@ class MobileNotificationService implements MobileNotificationSink {
       _sequenceFailedId,
       'Sequence Failed',
       'Imaging of $targetName failed: $errorMessage',
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'nightshade_sequence',
-          'Sequence Events',
-          channelDescription:
-              'Notifications for sequence completion and failures',
-          importance: Importance.high,
-          priority: Priority.high,
-          playSound: true,
-          enableVibration: true,
-          icon: '@mipmap/ic_launcher',
-        ),
-        iOS: DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: true,
-          presentSound: true,
-        ),
-      ),
+      _sequenceDetails,
       payload: 'sequence_failed:$targetName',
     );
   }
@@ -517,22 +631,7 @@ class MobileNotificationService implements MobileNotificationSink {
       _meridianFlipId,
       'Meridian Flip',
       'Performing meridian flip for $targetName at $timeStr',
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'nightshade_info',
-          'Information',
-          channelDescription: 'General information like meridian flips',
-          importance: Importance.defaultImportance,
-          priority: Priority.defaultPriority,
-          playSound: false,
-          icon: '@mipmap/ic_launcher',
-        ),
-        iOS: DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: false,
-          presentSound: false,
-        ),
-      ),
+      _infoDetails,
       payload: 'meridian_flip:$targetName',
     );
   }
@@ -545,24 +644,7 @@ class MobileNotificationService implements MobileNotificationSink {
       _lowDiskSpaceId,
       'Low Disk Space',
       'Only ${remainingGB.toStringAsFixed(1)} GB remaining. Consider freeing up space.',
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'nightshade_warnings',
-          'Warnings',
-          channelDescription:
-              'Important warnings about battery, disk space, etc.',
-          importance: Importance.high,
-          priority: Priority.high,
-          playSound: true,
-          enableVibration: true,
-          icon: '@mipmap/ic_launcher',
-        ),
-        iOS: DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: true,
-          presentSound: true,
-        ),
-      ),
+      _warningDetails,
       payload: 'low_disk_space',
     );
   }
@@ -586,24 +668,7 @@ class MobileNotificationService implements MobileNotificationSink {
       _lowBatteryId,
       'Low Battery',
       message,
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'nightshade_warnings',
-          'Warnings',
-          channelDescription:
-              'Important warnings about battery, disk space, etc.',
-          importance: Importance.high,
-          priority: Priority.high,
-          playSound: true,
-          enableVibration: true,
-          icon: '@mipmap/ic_launcher',
-        ),
-        iOS: DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: true,
-          presentSound: true,
-        ),
-      ),
+      _warningDetails,
       payload: 'low_battery:$percentage',
     );
   }
@@ -631,26 +696,7 @@ class MobileNotificationService implements MobileNotificationSink {
       _safetyId,
       title,
       body,
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'nightshade_critical',
-          'Critical Alerts',
-          channelDescription:
-              'Safety, guiding loss, and equipment failures during a running sequence',
-          importance: Importance.max,
-          priority: Priority.max,
-          playSound: true,
-          enableVibration: true,
-          icon: '@mipmap/ic_launcher',
-          category: AndroidNotificationCategory.alarm,
-        ),
-        iOS: DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: true,
-          presentSound: true,
-          interruptionLevel: InterruptionLevel.critical,
-        ),
-      ),
+      _criticalAlarmDetails,
       payload: eventType == 'mount_parked' ? 'mount_parked' : 'safety',
     );
   }
@@ -661,25 +707,7 @@ class MobileNotificationService implements MobileNotificationSink {
       _mountParkedId,
       'Mount Parked',
       'Mount has been parked: $reason',
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'nightshade_critical',
-          'Critical Alerts',
-          channelDescription:
-              'Safety, guiding loss, and equipment failures during a running sequence',
-          importance: Importance.max,
-          priority: Priority.max,
-          playSound: true,
-          enableVibration: true,
-          icon: '@mipmap/ic_launcher',
-        ),
-        iOS: DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: true,
-          presentSound: true,
-          interruptionLevel: InterruptionLevel.critical,
-        ),
-      ),
+      _criticalDetails,
       payload: 'mount_parked',
     );
   }
@@ -690,25 +718,7 @@ class MobileNotificationService implements MobileNotificationSink {
       _guidingLostId,
       'Guiding Lost',
       reason,
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'nightshade_critical',
-          'Critical Alerts',
-          channelDescription:
-              'Safety, guiding loss, and equipment failures during a running sequence',
-          importance: Importance.max,
-          priority: Priority.max,
-          playSound: true,
-          enableVibration: true,
-          icon: '@mipmap/ic_launcher',
-        ),
-        iOS: DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: true,
-          presentSound: true,
-          interruptionLevel: InterruptionLevel.critical,
-        ),
-      ),
+      _criticalDetails,
       payload: 'guiding_lost',
     );
   }
@@ -719,24 +729,7 @@ class MobileNotificationService implements MobileNotificationSink {
       _exposureFailedId,
       'Exposure Failed',
       errorMessage,
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'nightshade_warnings',
-          'Warnings',
-          channelDescription:
-              'Important warnings about battery, disk space, etc.',
-          importance: Importance.high,
-          priority: Priority.high,
-          playSound: true,
-          enableVibration: true,
-          icon: '@mipmap/ic_launcher',
-        ),
-        iOS: DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: true,
-          presentSound: true,
-        ),
-      ),
+      _warningDetails,
       payload: 'exposure_failed',
     );
   }
@@ -747,24 +740,7 @@ class MobileNotificationService implements MobileNotificationSink {
       _autofocusFailedId,
       'Autofocus Failed',
       'Autofocus did not complete successfully.',
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'nightshade_warnings',
-          'Warnings',
-          channelDescription:
-              'Important warnings about battery, disk space, etc.',
-          importance: Importance.high,
-          priority: Priority.high,
-          playSound: true,
-          enableVibration: true,
-          icon: '@mipmap/ic_launcher',
-        ),
-        iOS: DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: true,
-          presentSound: true,
-        ),
-      ),
+      _warningDetails,
       payload: 'autofocus_failed',
     );
   }
@@ -778,25 +754,7 @@ class MobileNotificationService implements MobileNotificationSink {
       _equipmentDisconnectedId,
       'Device Disconnected',
       '$deviceType disconnected: $deviceId',
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'nightshade_critical',
-          'Critical Alerts',
-          channelDescription:
-              'Safety, guiding loss, and equipment failures during a running sequence',
-          importance: Importance.max,
-          priority: Priority.max,
-          playSound: true,
-          enableVibration: true,
-          icon: '@mipmap/ic_launcher',
-        ),
-        iOS: DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: true,
-          presentSound: true,
-          interruptionLevel: InterruptionLevel.critical,
-        ),
-      ),
+      _criticalDetails,
       payload: 'equipment_disconnected:$deviceType',
     );
   }
@@ -807,22 +765,7 @@ class MobileNotificationService implements MobileNotificationSink {
       _targetCompletedId,
       'Target Complete',
       'Finished imaging target: $targetName',
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'nightshade_info',
-          'Information',
-          channelDescription: 'General information like meridian flips',
-          importance: Importance.defaultImportance,
-          priority: Priority.defaultPriority,
-          playSound: false,
-          icon: '@mipmap/ic_launcher',
-        ),
-        iOS: DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: false,
-          presentSound: false,
-        ),
-      ),
+      _infoDetails,
       payload: 'target_completed:$targetName',
     );
   }
@@ -868,22 +811,10 @@ class MobileNotificationService implements MobileNotificationSink {
       id,
       title,
       body,
-      NotificationDetails(
-        android: AndroidNotificationDetails(
-          'nightshade_push',
-          'Desktop Alerts',
-          channelDescription: 'Push notifications from the connected desktop',
-          importance: importance,
-          priority: androidPriority,
-          playSound: playSound,
-          enableVibration: playSound,
-          icon: '@mipmap/ic_launcher',
-        ),
-        iOS: DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: true,
-          presentSound: playSound,
-        ),
+      _pushDetails(
+        importance: importance,
+        priority: androidPriority,
+        playSound: playSound,
       ),
       payload: 'push:$eventType',
     );
@@ -905,24 +836,7 @@ class MobileNotificationService implements MobileNotificationSink {
       _plateSolveFailedId,
       'Plate Solve Failed',
       errorMessage,
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'nightshade_warnings',
-          'Warnings',
-          channelDescription:
-              'Important warnings about battery, disk space, etc.',
-          importance: Importance.high,
-          priority: Priority.high,
-          playSound: true,
-          enableVibration: true,
-          icon: '@mipmap/ic_launcher',
-        ),
-        iOS: DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: true,
-          presentSound: true,
-        ),
-      ),
+      _warningDetails,
       payload: 'plate_solve_failed',
     );
   }
@@ -933,24 +847,7 @@ class MobileNotificationService implements MobileNotificationSink {
       _centeringFailedId,
       'Centering Failed',
       errorMessage,
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'nightshade_warnings',
-          'Warnings',
-          channelDescription:
-              'Important warnings about battery, disk space, etc.',
-          importance: Importance.high,
-          priority: Priority.high,
-          playSound: true,
-          enableVibration: true,
-          icon: '@mipmap/ic_launcher',
-        ),
-        iOS: DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: true,
-          presentSound: true,
-        ),
-      ),
+      _warningDetails,
       payload: 'centering_failed',
     );
   }
@@ -961,24 +858,7 @@ class MobileNotificationService implements MobileNotificationSink {
       _polarAlignmentFailedId,
       'Polar Alignment Failed',
       errorMessage,
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'nightshade_warnings',
-          'Warnings',
-          channelDescription:
-              'Important warnings about battery, disk space, etc.',
-          importance: Importance.high,
-          priority: Priority.high,
-          playSound: true,
-          enableVibration: true,
-          icon: '@mipmap/ic_launcher',
-        ),
-        iOS: DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: true,
-          presentSound: true,
-        ),
-      ),
+      _warningDetails,
       payload: 'polar_alignment_failed',
     );
   }
@@ -1002,24 +882,7 @@ class MobileNotificationService implements MobileNotificationSink {
       _ownershipTakenOverId,
       'Control Taken Over',
       body,
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'nightshade_warnings',
-          'Warnings',
-          channelDescription:
-              'Important warnings about battery, disk space, etc.',
-          importance: Importance.high,
-          priority: Priority.high,
-          playSound: true,
-          enableVibration: true,
-          icon: '@mipmap/ic_launcher',
-        ),
-        iOS: DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: true,
-          presentSound: true,
-        ),
-      ),
+      _warningDetails,
       payload: 'ownership_taken_over',
     );
   }
@@ -1030,26 +893,24 @@ class MobileNotificationService implements MobileNotificationSink {
       _ownershipAutoReleasedId,
       'Session Released',
       'Your session was released due to inactivity ($reason).',
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'nightshade_info',
-          'Information',
-          channelDescription: 'General information like meridian flips',
-          importance: Importance.defaultImportance,
-          priority: Priority.low,
-          playSound: false,
-          icon: '@mipmap/ic_launcher',
-        ),
-        iOS: DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: false,
-          presentSound: false,
-          interruptionLevel: InterruptionLevel.passive,
-        ),
-      ),
+      _infoPassiveDetails,
       payload: 'ownership_auto_released',
     );
   }
+
+  /// The shared notification presentations, keyed by the name each
+  /// notify* method refers to them by. Exposed so a test can pin the two
+  /// deliberate variants (`criticalAlarm`, `infoPassive`) against a future
+  /// "cleanup" that folds them back into their base channel.
+  @visibleForTesting
+  static const detailsByName = <String, NotificationDetails>{
+    'sequence': _sequenceDetails,
+    'warning': _warningDetails,
+    'info': _infoDetails,
+    'critical': _criticalDetails,
+    'criticalAlarm': _criticalAlarmDetails,
+    'infoPassive': _infoPassiveDetails,
+  };
 
   Future<void> cancelAll() async {
     await _notifications.cancelAll();

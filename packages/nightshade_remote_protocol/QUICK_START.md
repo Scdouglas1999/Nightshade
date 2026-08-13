@@ -1,403 +1,95 @@
-# WebRTC Security - Quick Start Guide
+# Quick start
 
-**5-Minute Integration Guide for Developers**
+This package provides LAN discovery, pairing, and token management for the
+Nightshade remote control plane. The control plane itself is `HeadlessApiServer`
+(`apps/desktop/lib/headless_api_server.dart`) speaking REST + WebSocket with
+bearer tokens.
 
----
+[INTEGRATION.md](INTEGRATION.md) is the full guide; this page is the five-minute
+version. [SECURITY.md](SECURITY.md) covers the threat model and scopes.
 
-## Installation
+## Desktop: the server is already wired
 
-Add to `pubspec.yaml`:
-```yaml
-dependencies:
-  nightshade_remote_protocol: ^1.0.0
-```
+Remote access is a toggle in **Settings → Remote access**. Nothing in this
+package needs to be started by hand — the desktop bootstrap owns the server,
+the mDNS advertisement (`mdns_registration.dart`), and the pairing database.
 
----
+Show the operator the fingerprint and QR from that screen. `/api/info` reports
+the same fingerprint, so a client can confirm it before trusting the host.
 
-## Desktop Setup (3 steps)
+## Mobile: find a server
 
-### 1. Initialize
 ```dart
-import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
-
-final database = PairingDatabase();
-final tokenManager = TokenManager(database);
-final discovery = SecureDiscovery(tokenManager, 'unique-server-id');
-final signaling = SecureSignalingServer(tokenManager);
-```
-
-### 2. Start Services
-```dart
-await discovery.startServer(
-  signalingPort: 45678,
-  mode: DiscoveryMode.pairedOnly, // Secure by default
+final server = await EnhancedNightshadeDiscovery.discoverWithFallback(
+  onStatus: (msg) => print(msg),
 );
-await signaling.start();
+if (server == null) return;
+
+final info = await EnhancedNightshadeDiscovery.fetchServerInfo(server);
+final target = info ?? server;
 ```
 
-### 3. Handle Pairing
+Manual entry defaults to port **8080**.
+
+## Mobile: pair
+
+Scan the desktop QR, parse it strictly, then exchange the pairing code for a
+bearer token:
+
 ```dart
-// User clicks "Start Pairing" button
-final code = await tokenManager.startPairing();
-print('Show user: $code'); // e.g., "STAR-1234"
+final data = QrConnectionData.parseStrict(scannedPayload);
+// Confirm data.fingerprint with the operator before continuing.
 
-// Code expires in 5 minutes automatically
-
-// After pairing, return to secure mode
-discovery.setMode(DiscoveryMode.pairedOnly, signalingPort: 45678);
-```
-
----
-
-## Mobile Setup (3 steps)
-
-### 1. Discover Servers
-```dart
-final servers = await SecureDiscovery.discoverPairingServers();
-// Shows only servers in pairing mode
-```
-
-### 2. Pair with Server
-```dart
-// Send pairing request to server's HTTP endpoint
-final response = await http.post(
-  Uri.parse('http://${server.host}:8080/pair'),
-  body: jsonEncode({
-    'pairingCode': userEnteredCode,
-    'deviceId': myDeviceId,
-    'deviceName': myDeviceName,
-  }),
+final result = await RemotePairingClient(
+  host: data.host,
+  port: data.webPort,
+).verify(
+  code: data.pairingCode!,
+  deviceId: await MobilePairingService.deviceId(),
+  deviceName: MobilePairingService.deviceName(),
+  requestedScope: 'control',
 );
-
-final sessionToken = jsonDecode(response.body)['sessionToken'];
-// Save this token for future connections
 ```
 
-### 3. Connect
-```dart
-// Create encryption instance
-final encryption = ChannelEncryption.fromToken(sessionToken);
+Send `Authorization: Bearer ${result.token}` on every subsequent request.
+Paired phones get the `control` scope: sequencer, devices, imaging — not backup
+upload or filesystem browsing. See the scope table in INTEGRATION.md.
 
-// Connect to signaling server
-final socket = await Socket.connect(server.host, 45678);
+## Mobile: subscribe to events
 
-// Send auth message (unencrypted, first message only)
-final authMsg = SignalingMessage(
-  type: SignalingMessageType.authRequest,
-  payload: {
-    'deviceId': myDeviceId,
-    'deviceName': myDeviceName,
-    'sessionToken': sessionToken,
-  },
-);
-socket.add(utf8.encode(jsonEncode(authMsg.toJson())));
+Never put a long-lived bearer token in a WebSocket query string. Mint a
+single-use ticket instead:
 
-// All subsequent messages are encrypted
-final encrypted = encryption.encryptJson({'command': 'start'});
-socket.add(base64Decode(encrypted));
-```
+1. `POST /api/ws/ticket` with the bearer token.
+2. Connect `ws://host:port/events?ticket=<ticket>`.
 
----
+## Where the pieces live
 
-## UI Integration
-
-### Add to Settings Menu
-```dart
-ListTile(
-  leading: Icon(Icons.devices),
-  title: Text('Remote Connection'),
-  onTap: () => Navigator.push(
-    context,
-    MaterialPageRoute(builder: (_) => PairingScreen()),
-  ),
-),
-```
-
----
-
-## Common Operations
-
-### Check if Device is Paired
-```dart
-final device = await tokenManager.getActivePairedDevices()
-    .then((devices) => devices.where((d) => d.deviceId == deviceId).firstOrNull);
-
-if (device != null) {
-  print('Device paired: ${device.deviceName}');
-}
-```
-
-### Revoke a Device
-```dart
-await tokenManager.revokeDevice(deviceId);
-```
-
-### Send Encrypted Message
-```dart
-final encryption = ChannelEncryption.fromToken(sessionToken);
-final encrypted = encryption.encryptJson({
-  'type': 'command',
-  'action': 'start_imaging',
-  'target': 'M31',
-});
-
-socket.add(base64Decode(encrypted));
-```
-
-### Receive Encrypted Message
-```dart
-socket.listen((data) {
-  final decrypted = encryption.decryptJson(base64Encode(data));
-  print('Received: $decrypted');
-});
-```
-
----
-
-## Security Checklist
-
-Before deploying:
-
-- [ ] Use unique server ID (UUID) per installation
-- [ ] Store session tokens securely (SharedPreferences/Keychain)
-- [ ] Enable pairing mode only when user requests it
-- [ ] Return to `pairedOnly` mode after pairing
-- [ ] Clean up expired sessions periodically
-- [ ] Test on actual network (not just localhost)
-- [ ] Configure firewall rules (UDP 45679, TCP 45678)
-
----
-
-## Discovery Modes
-
-| Mode | When to Use | Security |
-|------|-------------|----------|
-| `pairedOnly` | Normal operation | ⭐⭐⭐⭐⭐ High |
-| `pairing` | Accepting new device | ⭐⭐⭐⭐ Medium |
-| `hidden` | Maximum stealth | ⭐⭐⭐⭐⭐ Max |
-
----
+| Concern | Type |
+|---|---|
+| Find a host on the LAN | `EnhancedNightshadeDiscovery`, `DiscoveredServer` |
+| Parse and validate a pairing QR | `QrConnectionData` |
+| Exchange a code for a token | `RemotePairingClient` |
+| Issue / verify / revoke tokens (desktop) | `TokenManager`, `PairingDatabase` |
+| Confirm host identity | `computeServerFingerprint` |
+| Version negotiation | `NightshadeServerCompatibility` |
+| Push alerts to paired phones | `push/lan_push_broadcaster.dart` |
 
 ## Troubleshooting
 
-### Pairing Code Invalid
-- Check code hasn't expired (5 minutes)
-- Verify code entered correctly (case-sensitive)
-- Ensure server is in pairing mode
+**Discovery finds nothing.** Check that UDP broadcast is allowed on the
+network — client isolation on guest Wi-Fi blocks it. Fall back to manual
+`host:8080` entry.
 
-### Can't Discover Server
-- Check firewall allows UDP broadcasts (port 45679)
-- Verify both devices on same network
-- Try manual IP entry if broadcasts blocked
+**The pairing code is rejected.** Codes expire after five minutes and are
+single-use. `POST /api/pairing/start` deliberately does not return the code in
+its HTTP response; read it from the desktop screen.
 
-### Connection Drops
-- Check network stability
-- Verify heartbeat responses working
-- Look for firewall interference
+**A request returns 403.** The token's scope is lower than the route requires.
+Re-pair with `requestedScope: 'admin'` only if the device genuinely needs
+backups or filesystem access.
 
-### Performance Issues
-- Profile encryption overhead
-- Check PBKDF2 isn't called per-message (should be once at pairing)
-- Reduce message size if possible
+## Tests
 
----
-
-## API Reference
-
-### TokenManager
-```dart
-generateSecureToken() → String              // 32-byte random token
-generatePairingCode(token) → String         // User-friendly code
-startPairing() → Future<String>             // Begin 5-min pairing window
-verifyPairing(...) → Future<PairingResult>  // Complete pairing
-verifySessionToken(...) → Future<bool>      // Check subsequent connections
-revokeDevice(deviceId) → Future<void>       // Block device
-```
-
-### ChannelEncryption
-```dart
-fromToken(sessionToken) → ChannelEncryption // Create from token
-encrypt(data) → Uint8List                   // Encrypt bytes
-decrypt(data) → Uint8List                   // Decrypt bytes
-encryptJson(map) → String                   // Encrypt JSON → base64
-decryptJson(base64) → Map                   // Decrypt base64 → JSON
-```
-
-### SecureSignalingServer
-```dart
-start() → Future<void>                      // Start server
-stop() → Future<void>                       // Stop server
-sendToClient(deviceId, message) → void      // Send to specific client
-broadcast(message) → void                   // Send to all clients
-```
-
-### SecureDiscovery
-```dart
-startServer(...) → Future<void>             // Start discovery server
-setMode(mode, ...) → void                   // Change discovery mode
-stopServer() → Future<void>                 // Stop server
-discoverServers(...) → Future<List>         // Find servers (client)
-discoverPairingServers(...) → Future<List>  // Find pairing servers
-```
-
----
-
-## Message Types
-
-### Authentication
-- `authRequest` - Client → Server: Initial auth
-- `authResponse` - Server → Client: Auth result
-
-### WebRTC Signaling
-- `offer` - WebRTC offer
-- `answer` - WebRTC answer
-- `candidate` - ICE candidate
-
-### Connection Management
-- `ping` - Server → Client: Heartbeat
-- `pong` - Client → Server: Response
-- `disconnect` - Graceful shutdown
-
-### Errors
-- `error` - Error notification
-
----
-
-## Performance
-
-| Operation | Time | Notes |
-|-----------|------|-------|
-| Token Generation | <1ms | Fast |
-| PBKDF2 Derivation | ~100ms | One-time |
-| AES Encryption | <1ms | Per message |
-| AES Decryption | <1ms | Per message |
-
-**Overhead:** 28 bytes per message (nonce + tag)
-
----
-
-## Documentation
-
-- **Full Security Details:** `SECURITY.md`
-- **Complete Integration:** `INTEGRATION.md`
-- **Verification Results:** `PRODUCTION_READY_VERIFICATION.md`
-
----
-
-## Example: Complete Desktop Implementation
-
-```dart
-class RemoteControlService {
-  late final TokenManager _tokenManager;
-  late final SecureDiscovery _discovery;
-  late final SecureSignalingServer _signaling;
-
-  Future<void> initialize() async {
-    final database = PairingDatabase();
-    _tokenManager = TokenManager(database);
-    _discovery = SecureDiscovery(_tokenManager, 'my-server-id');
-    _signaling = SecureSignalingServer(_tokenManager);
-
-    await _discovery.startServer(
-      signalingPort: 45678,
-      mode: DiscoveryMode.pairedOnly,
-    );
-    await _signaling.start();
-
-    // Listen for new connections
-    _signaling.onClientConnected.listen((deviceId) {
-      print('Device connected: $deviceId');
-    });
-  }
-
-  Future<String> startPairing() async {
-    _discovery.setMode(DiscoveryMode.pairing, signalingPort: 45678);
-    final code = await _tokenManager.startPairing();
-
-    // Auto-disable after 5 minutes
-    Timer(Duration(minutes: 5), () {
-      _discovery.setMode(DiscoveryMode.pairedOnly, signalingPort: 45678);
-    });
-
-    return code;
-  }
-
-  Future<void> dispose() async {
-    await _discovery.stopServer();
-    await _signaling.stop();
-  }
-}
-```
-
----
-
-## Example: Complete Mobile Implementation
-
-```dart
-class MobileRemoteClient {
-  final String deviceId = Uuid().v4();
-  late ChannelEncryption _encryption;
-
-  Future<bool> pairAndConnect(String host, String code) async {
-    // 1. Pair
-    final response = await http.post(
-      Uri.parse('http://$host:8080/pair'),
-      body: jsonEncode({
-        'pairingCode': code,
-        'deviceId': deviceId,
-        'deviceName': 'My Phone',
-      }),
-    );
-
-    if (response.statusCode != 200) return false;
-
-    final sessionToken = jsonDecode(response.body)['sessionToken'];
-    await _saveToken(host, sessionToken);
-
-    // 2. Connect
-    _encryption = ChannelEncryption.fromToken(sessionToken);
-    final socket = await Socket.connect(host, 45678);
-
-    // 3. Authenticate
-    final authMsg = SignalingMessage(
-      type: SignalingMessageType.authRequest,
-      payload: {
-        'deviceId': deviceId,
-        'deviceName': 'My Phone',
-        'sessionToken': sessionToken,
-      },
-    );
-    socket.add(utf8.encode(jsonEncode(authMsg.toJson())));
-
-    // 4. Listen for messages
-    socket.listen((data) {
-      final msg = _encryption.decryptJson(base64Encode(data));
-      _handleMessage(msg);
-    });
-
-    return true;
-  }
-
-  void sendCommand(Socket socket, Map<String, dynamic> command) {
-    final encrypted = _encryption.encryptJson(command);
-    socket.add(base64Decode(encrypted));
-  }
-}
-```
-
----
-
-## Need Help?
-
-1. Check documentation in package
-2. Review examples above
-3. Test with provided unit tests
-4. Open issue with reproduction steps
-
----
-
-**Quick Start Complete! You're ready to integrate secure WebRTC.**
-
----
-
-*Nightshade - Secure Remote Control*
+- `test/remote_pairing_client_test.dart`
+- `apps/desktop/test/headless_api/pairing_handlers_test.dart`

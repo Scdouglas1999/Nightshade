@@ -1289,11 +1289,33 @@ class _TokenBucketState {
   _TokenBucketState({required this.tokens, required this.lastRefillMicros});
 }
 
+/// Ceiling on tracked `(client, method, path)` keys. Matches
+/// [TokenBucketRateLimiter.maxBuckets]: far past any legitimate fan-out, and
+/// small enough that the table cannot grow without bound over a long
+/// unattended run.
+const int defaultEndpointRateLimiterMaxEntries = 8192;
+
+/// Sliding-window limiter keyed by `(clientKey, method, concrete path)`.
+///
+/// Several rate-limited prefixes are parametric (`/api/mosaic/`,
+/// `/api/coimaging/`), so a long collaborative run mints a fresh key per
+/// session id. Entries are therefore evicted LRU past [maxEntries], the same
+/// way [TokenBucketRateLimiter] bounds its buckets. Eviction resets a key's
+/// window, but reaching the cap takes [maxEntries] distinct paths from one
+/// peer, and the per-token bucket limiter — which keys on the token rather
+/// than the path — is what actually bounds a hostile client.
 class EndpointRateLimiter {
   final DateTime Function() _now;
+  final int maxEntries;
+
+  // Insertion order doubles as the LRU order: every touch removes and
+  // reinserts, so the front of the map is the coldest key.
   final _requestsByKey = <String, List<DateTime>>{};
 
-  EndpointRateLimiter({DateTime Function()? now}) : _now = now ?? DateTime.now;
+  EndpointRateLimiter({
+    DateTime Function()? now,
+    this.maxEntries = defaultEndpointRateLimiterMaxEntries,
+  }) : _now = now ?? DateTime.now;
 
   RateLimitDecision check({
     required String clientKey,
@@ -1312,12 +1334,13 @@ class EndpointRateLimiter {
     final now = _now();
     final key = '$clientKey ${method.toUpperCase()} $path';
     final cutoff = now.subtract(limit.window);
-    final requests = _requestsByKey.putIfAbsent(key, () => <DateTime>[]);
+    final requests = _requestsByKey.remove(key) ?? <DateTime>[];
     requests.removeWhere((timestamp) => !timestamp.isAfter(cutoff));
 
     if (requests.length >= limit.maxRequests) {
       final oldest = requests.first;
       final retryAfter = oldest.add(limit.window).difference(now);
+      _retain(key, requests);
       return RateLimitDecision(
         allowed: false,
         maxRequests: limit.maxRequests,
@@ -1326,11 +1349,23 @@ class EndpointRateLimiter {
     }
 
     requests.add(now);
+    _retain(key, requests);
     return RateLimitDecision(
       allowed: true,
       maxRequests: limit.maxRequests,
       retryAfterSeconds: 0,
     );
+  }
+
+  /// Reinsert at the back of the LRU, then trim. A key whose window has
+  /// fully expired carries no state worth holding, so it is dropped outright
+  /// rather than waiting its turn to be evicted.
+  void _retain(String key, List<DateTime> requests) {
+    if (requests.isEmpty) return;
+    _requestsByKey[key] = requests;
+    while (_requestsByKey.length > maxEntries) {
+      _requestsByKey.remove(_requestsByKey.keys.first);
+    }
   }
 
   void clear() {

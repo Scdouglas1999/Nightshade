@@ -21,12 +21,22 @@ class CancelToken {
   }
 }
 
+/// How long the transfer may make no forward progress before it is treated
+/// as dead. This is a *stall* deadline, not a total-transfer deadline: it is
+/// re-armed on every chunk, so a slow-but-moving download is never killed.
+const Duration defaultDownloadStallTimeout = Duration(seconds: 60);
+
 /// Service for downloading update packages with progress tracking
 class UpdateDownloader {
   final http.Client _client;
+  final Duration _stallTimeout;
   CancelToken? _currentCancelToken;
 
-  UpdateDownloader({http.Client? client}) : _client = client ?? http.Client();
+  UpdateDownloader({
+    http.Client? client,
+    Duration stallTimeout = defaultDownloadStallTimeout,
+  }) : _client = client ?? http.Client(),
+       _stallTimeout = stallTimeout;
 
   /// Create a new cancel token for the next download
   CancelToken createCancelToken() {
@@ -68,7 +78,15 @@ class UpdateDownloader {
       request.headers['Range'] = 'bytes=$existingBytes-';
     }
 
-    final streamedResponse = await _client.send(request);
+    final streamedResponse = await _client
+        .send(request)
+        .timeout(
+          _stallTimeout,
+          onTimeout: () => throw DownloadException(
+            'Update server did not respond within '
+            '${_stallTimeout.inSeconds}s while opening the package download.',
+          ),
+        );
 
     // Check if server supports range requests
     final isPartialContent = streamedResponse.statusCode == 206;
@@ -113,7 +131,7 @@ class UpdateDownloader {
     int downloadedBytes = existingBytes;
 
     final chunks = StreamIterator<List<int>>(streamedResponse.stream);
-    Future<bool> moveNextOrCancel() {
+    Future<bool> nextChunk() {
       final token = cancelToken;
       if (token == null) return chunks.moveNext();
       if (token.isCancelled) {
@@ -126,6 +144,17 @@ class UpdateDownloader {
         ),
       ]);
     }
+
+    // Re-armed per chunk, so this bounds the gap between bytes rather than the
+    // transfer. The partial file is deliberately left on disk: a stalled
+    // transfer is resumable via the Range header on the next attempt.
+    Future<bool> moveNextOrCancel() => nextChunk().timeout(
+      _stallTimeout,
+      onTimeout: () => throw DownloadException(
+        'Update download stalled: no data received for '
+        '${_stallTimeout.inSeconds}s.',
+      ),
+    );
 
     var cancelled = false;
     try {

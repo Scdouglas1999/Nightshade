@@ -1,5 +1,5 @@
 name: nightshade_remote_protocol
-description: Nightshade remote-control protocol — LAN discovery, pairing, secure token management, and channel encryption.
+description: Nightshade remote-control protocol — LAN discovery, pairing, and secure token management.
 version: 1.0.0
 publish_to: 'none'
 

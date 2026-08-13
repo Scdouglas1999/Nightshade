@@ -31,6 +31,13 @@ const String _stagedVerifiedMarker = 'staged_verified.marker';
 /// been hash-verified.
 const String _expectedHashesFile = 'expected_hashes.json';
 
+/// Deadline for the two small metadata fetches (`/api/version` and the
+/// manifest). An update host that accepts the connection and never answers
+/// used to hold the controller's single operation slot forever, which turned
+/// every later check/download/apply into a `StateError` until the process
+/// restarted.
+const Duration defaultUpdateHttpTimeout = Duration(seconds: 20);
+
 /// One-shot UI banner queued after [getStagedUpdate] discards a
 /// corrupted marker (§7A.12). The next consumer that reads + clears
 /// this gets a single chance to surface the message; the banner is not
@@ -63,6 +70,7 @@ class UpdateService {
   final UpdateVerifier _verifier;
   final AntiFreezeStore _antiFreezeStore;
   final http.Client _httpClient;
+  final Duration _httpTimeout;
   final Future<Directory> Function() _applicationSupportDirectoryProvider;
   final bool _allowInsecureUpdateSource;
   final String _currentPlatform;
@@ -80,6 +88,7 @@ class UpdateService {
     UpdateVerifier? verifier,
     AntiFreezeStore? antiFreezeStore,
     http.Client? httpClient,
+    Duration httpTimeout = defaultUpdateHttpTimeout,
     Future<Directory> Function()? applicationSupportDirectoryProvider,
     String? currentPlatform,
     String? currentArch,
@@ -101,6 +110,7 @@ class UpdateService {
                  getApplicationSupportDirectory,
            ),
        _httpClient = httpClient ?? http.Client(),
+       _httpTimeout = httpTimeout,
        _applicationSupportDirectoryProvider =
            applicationSupportDirectoryProvider ??
            getApplicationSupportDirectory,
@@ -232,6 +242,18 @@ class UpdateService {
     }
   }
 
+  /// GET with a hard deadline. Every update metadata fetch goes through here
+  /// so no update-server behaviour can leave the caller waiting forever.
+  Future<http.Response> _get(Uri uri) => _httpClient
+      .get(uri)
+      .timeout(
+        _httpTimeout,
+        onTimeout: () => throw UpdateException(
+          'Update server did not respond within ${_httpTimeout.inSeconds}s '
+          '($uri).',
+        ),
+      );
+
   /// Check for available updates
   Future<UpdateCheckResult> checkForUpdates() async {
     if (_updateServerUrl == null) {
@@ -242,7 +264,7 @@ class UpdateService {
       // Fetch version info from server
       final versionUrl = '$_updateServerUrl/api/version';
       _assertSecureUpdateUrl(versionUrl, 'update version check');
-      final response = await _httpClient.get(Uri.parse(versionUrl));
+      final response = await _get(Uri.parse(versionUrl));
 
       if (response.statusCode != 200) {
         throw UpdateException('Server returned ${response.statusCode}');
@@ -316,7 +338,7 @@ class UpdateService {
     final url = baseUri.resolve(manifestUrl).toString();
 
     _assertSecureUpdateUrl(url, 'manifest fetch');
-    final response = await _httpClient.get(Uri.parse(url));
+    final response = await _get(Uri.parse(url));
     if (response.statusCode != 200) {
       throw UpdateException('Failed to fetch manifest: ${response.statusCode}');
     }

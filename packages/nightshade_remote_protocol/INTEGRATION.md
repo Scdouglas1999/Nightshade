@@ -18,7 +18,6 @@ Package exports (see `lib/nightshade_remote_protocol.dart`):
 - `RemotePairingClient`
 - `computeServerFingerprint`, `NightshadeServerCompatibility`
 - `TokenManager`, `PairingDatabase` (desktop GUI pairing UI)
-- `ChannelEncryption` (optional payload encryption helper)
 
 ## Desktop: enable remote access
 
@@ -117,12 +116,6 @@ Do not pass long-lived bearer tokens in WebSocket query strings.
 
 The Shelf server speaks plain HTTP. For TLS, terminate at nginx — full example in
 [docs/remote-control.md](../../docs/remote-control.md).
-
-## SecureDiscovery
-
-`SecureDiscovery` is **not** started by the desktop app today. Use
-`EnhancedNightshadeDiscovery` + pairing QR instead. If you wire `SecureDiscovery`
-in the future, update this document and `SECURITY.md` in the same change.
 
 ## Tests
 

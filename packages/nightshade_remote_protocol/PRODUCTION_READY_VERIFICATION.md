@@ -1,5 +1,12 @@
 # Production Ready Verification
 
+> **Historical record — do not treat as current.** This verifies the 2025-12
+> WebRTC control plane. The WebRTC peer-connection and signaling primitives
+> were removed in the 2026-05-09 audit, and `SecureDiscovery` +
+> `ChannelEncryption` were removed in 6.1 as unreferenced code. Live remote
+> control is REST + WebSocket over TLS with bearer tokens; see
+> [INTEGRATION.md](INTEGRATION.md) and [SECURITY.md](SECURITY.md).
+
 ## Task: WebRTC Security & Authentication (Task Group #5)
 
 **Date:** 2025-12-02
