@@ -4,6 +4,8 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 
+import 'shell_exit_recorder.dart';
+
 /// Callback type for when window close is requested
 typedef OnCloseRequested = Future<bool> Function();
 
@@ -18,6 +20,10 @@ class _WindowCloseListener extends WindowListener {
     final closeDecision = await onCloseRequested?.call();
     final shouldClose = closeDecision != false;
     if (shouldClose) {
+      // Say so BEFORE destroying the window: the entry point's session record
+      // is what tells the next launch whether the previous one ended on
+      // purpose, and nothing after destroy() runs.
+      ShellExit.recordClean('Window closed');
       await windowManager.destroy();
     }
   }

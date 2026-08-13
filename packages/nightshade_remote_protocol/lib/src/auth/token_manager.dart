@@ -314,6 +314,23 @@ class TokenManager {
     }
   }
 
+  /// Revoke every active paired device at once, returning how many were
+  /// deauthorized.
+  ///
+  /// Each revoked session token is announced individually through
+  /// [setRevocationListener] so the auth middleware's in-memory
+  /// `_pairedSessionTokens` map (keyed by token value, not device id) evicts
+  /// them all without a process restart — a bulk revoke that only wrote the
+  /// database would leave every already-connected client authorized until the
+  /// host was restarted.
+  Future<int> revokeAllDevices() async {
+    final revoked = await _database.revokeAllDevices();
+    for (final device in revoked) {
+      _notifyRevocation(device.sessionToken);
+    }
+    return revoked.length;
+  }
+
   /// Rename a paired device without touching its session token.
   ///
   /// Purely cosmetic on purpose: the token, grant and expiry are untouched, so

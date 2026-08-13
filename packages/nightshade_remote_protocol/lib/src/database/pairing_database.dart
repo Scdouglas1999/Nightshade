@@ -169,6 +169,27 @@ class PairingDatabase extends _$PairingDatabase {
     await deletePushPrefsForDevice(deviceId);
   }
 
+  /// Revoke EVERY currently-active paired device, returning the rows that were
+  /// deauthorized (callers need their session tokens to evict live sessions).
+  ///
+  /// "Take my rig off the network now" is one decision, not one decision per
+  /// device: a store inherited from an earlier install can hold a dozen phones
+  /// and browsers, and revoking them one dialog at a time is how half of them
+  /// get left behind. Each row's cellular-push tokens go with it for the same
+  /// reason [revokeDevice] drops them — a deauthorized phone must stop
+  /// receiving criticals immediately.
+  Future<List<PairedDevice>> revokeAllDevices() async {
+    final active = await getActivePairedDevices();
+    if (active.isEmpty) return const [];
+    await (update(pairedDevices)..where((tbl) => tbl.isActive.equals(true)))
+        .write(const PairedDevicesCompanion(isActive: Value(false)));
+    for (final device in active) {
+      await deletePushTokensForDevice(device.deviceId);
+      await deletePushPrefsForDevice(device.deviceId);
+    }
+    return active;
+  }
+
   /// Delete a paired device completely.
   ///
   /// Also drops the device's cellular-push token + preference rows. Those are

@@ -204,6 +204,34 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     ShellBackDispatcher.register(_handleSystemBack);
   }
 
+  /// A second `/settings?section=<key>` navigation while this screen is open.
+  ///
+  /// The `/settings` page is keyless, so the router UPDATES this element with a
+  /// new [SettingsScreen.initialSection] instead of pushing a second screen —
+  /// and reading the key only in [initState] meant every in-Settings link back
+  /// into Settings (the title bar's profile icon, the plate-solver and weather
+  /// banners, the tour's jump targets) silently did nothing once the screen was
+  /// up. Only a CHANGED key is a navigation request: a plain parent rebuild
+  /// carrying the same deep link must leave the operator wherever they walked
+  /// to, and an unknown key names no section, so it moves nothing.
+  @override
+  void didUpdateWidget(SettingsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialSection == oldWidget.initialSection) return;
+    final resolvedKey = resolveSectionKey(widget.initialSection);
+    if (resolvedKey == null || resolvedKey == _selectedKey) return;
+    _highlightTimer?.cancel();
+    setState(() {
+      _selectedKey = resolvedKey;
+      _highlightRow = null;
+      // The link named a destination, so on a phone the detail pane is the
+      // destination — not the grouped list the operator would otherwise land
+      // back on.
+      _mobileShowingDetail = true;
+      _expandedGroups.add(groupTitleForKey(resolvedKey));
+    });
+  }
+
   @override
   void dispose() {
     ShellBackDispatcher.unregister(_handleSystemBack);

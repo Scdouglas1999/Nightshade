@@ -345,6 +345,37 @@ class PairingNotifier extends StateNotifier<PairingState> {
     });
   }
 
+  /// Revoke every paired device in one action.
+  ///
+  /// The paired list is the operator's only view of "who may drive my
+  /// telescope from the network", and it can be inherited wholesale from an
+  /// earlier install. Cutting that off must be one decision: revoking a dozen
+  /// rows one row-menu at a time is how the one that mattered gets missed.
+  /// Returns false when there was nothing to revoke, so the caller never
+  /// reports a revocation that did not happen.
+  Future<bool> revokeAll() {
+    return _enqueue(() async {
+      if (!mounted) return false;
+      try {
+        final revoked = await _tokenManager.revokeAllDevices();
+        final devices = await _tokenManager.getActivePairedDevices();
+        if (!mounted) return false;
+        state = state.copyWith(
+          pairedDevices: devices,
+          error: null,
+        );
+        return revoked > 0;
+      } catch (_) {
+        if (mounted) {
+          state = state.copyWith(
+            error: 'pairingErrorRevokeAll',
+          );
+        }
+        return false;
+      }
+    });
+  }
+
   /// Give a paired device a name the operator will recognise.
   ///
   /// Every phone pairs under a fixed per-platform name ("Android companion"),
@@ -605,12 +636,32 @@ class PairingScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  l10n.text('pairingDevicesTitle'),
-                  style: Theme.of(context).textTheme.headlineSmall,
+                Expanded(
+                  child: Text(
+                    l10n.text('pairingDevicesTitle'),
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
                 ),
+                // Only offered when there is something to revoke: an
+                // always-present "Revoke All" on an empty list is a control
+                // that cannot do anything.
+                if (state.pairedDevices.isNotEmpty) ...[
+                  NightshadeButton(
+                    label: l10n.text('pairingRevokeAllButton'),
+                    icon: NightshadeIcons.shieldOff,
+                    variant: ButtonVariant.destructive,
+                    size: ButtonSize.small,
+                    onPressed: state.isLoading
+                        ? null
+                        : () => _showRevokeAllDialog(
+                              context,
+                              ref,
+                              state.pairedDevices.length,
+                            ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
                 IconButton(
                   onPressed: state.isLoading
                       ? null
@@ -993,6 +1044,26 @@ class PairingScreen extends ConsumerWidget {
     );
   }
 
+  /// Revoke every paired device, after saying how many that is.
+  ///
+  /// The count is the whole point of the confirmation: the list is scrollable
+  /// and inherited stores run to a dozen rows, so "revoke all" without a
+  /// number is asking the operator to agree to something they cannot see.
+  void _showRevokeAllDialog(BuildContext context, WidgetRef ref, int count) {
+    _showConfirmDialog(
+      context,
+      titleKey: 'pairingRevokeAllTitle',
+      body: context.l10n.text(
+        'pairingRevokeAllBody',
+        params: {'count': count.toString()},
+      ),
+      confirmKey: 'pairingRevokeAllConfirm',
+      errorKey: 'pairingErrorRevokeAll',
+      variant: ButtonVariant.destructive,
+      action: () => ref.read(pairingProvider.notifier).revokeAll(),
+    );
+  }
+
   void _showDeviceActionDialog(
     BuildContext context, {
     required String titleKey,
@@ -1000,6 +1071,26 @@ class PairingScreen extends ConsumerWidget {
     required String confirmKey,
     required String errorKey,
     required PairedDevice device,
+    required ButtonVariant variant,
+    required Future<bool> Function() action,
+  }) {
+    _showConfirmDialog(
+      context,
+      titleKey: titleKey,
+      body: context.l10n.text(bodyKey, params: {'name': device.deviceName}),
+      confirmKey: confirmKey,
+      errorKey: errorKey,
+      variant: variant,
+      action: action,
+    );
+  }
+
+  void _showConfirmDialog(
+    BuildContext context, {
+    required String titleKey,
+    required String body,
+    required String confirmKey,
+    required String errorKey,
     required ButtonVariant variant,
     required Future<bool> Function() action,
   }) {
@@ -1013,12 +1104,7 @@ class PairingScreen extends ConsumerWidget {
             canPop: !busy,
             child: AlertDialog(
               title: Text(context.l10n.text(titleKey)),
-              content: Text(
-                context.l10n.text(
-                  bodyKey,
-                  params: {'name': device.deviceName},
-                ),
-              ),
+              content: Text(body),
               actions: [
                 NightshadeButton(
                   label: context.l10n.text('cancel'),

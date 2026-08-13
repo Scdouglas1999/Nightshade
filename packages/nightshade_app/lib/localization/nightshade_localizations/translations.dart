@@ -467,6 +467,11 @@ final Map<String, Map<String, String>> _localizedValues = {
     'pairingRevokeTitle': 'Revoke Device Access',
     'pairingRevokeBody':
         'Are you sure you want to revoke access for "{name}"? This device will no longer be able to connect until it is paired again.',
+    'pairingRevokeAllButton': 'Revoke All',
+    'pairingRevokeAllTitle': 'Revoke Every Paired Device',
+    'pairingRevokeAllBody':
+        'Revoke access for all {count} paired devices? Every phone, tablet and browser loses its connection immediately and must be paired again before it can reach this rig.',
+    'pairingRevokeAllConfirm': 'Revoke All Access',
     'pairingDeleteTitle': 'Delete Device',
     'pairingDeleteBody':
         'Are you sure you want to permanently delete "{name}"? This action cannot be undone.',
@@ -476,6 +481,8 @@ final Map<String, Map<String, String>> _localizedValues = {
         'Nightshade could not cancel pairing. The code is still active; try again.',
     'pairingErrorLoad': 'Nightshade could not load your paired devices.',
     'pairingErrorRevoke': 'Nightshade could not revoke access for that device.',
+    'pairingErrorRevokeAll':
+        'Nightshade could not revoke access for every device. Check the list — some devices may still be paired.',
     'pairingErrorDelete': 'Nightshade could not delete that paired device.',
     'plannerTitle': 'Plan Tonight',
     'plannerLoading': 'Analyzing tonight\'s conditions...',
@@ -1202,6 +1209,11 @@ final Map<String, Map<String, String>> _localizedValues = {
     'pairingRevokeTitle': 'Revocar acceso del dispositivo',
     'pairingRevokeBody':
         '¿Seguro que quieres revocar el acceso de "{name}"? Este dispositivo no podra conectarse hasta que vuelva a emparejarse.',
+    'pairingRevokeAllButton': 'Revocar todo',
+    'pairingRevokeAllTitle': 'Revocar todos los dispositivos emparejados',
+    'pairingRevokeAllBody':
+        '¿Revocar el acceso de los {count} dispositivos emparejados? Cada telefono, tableta y navegador perdera la conexion de inmediato y tendra que emparejarse de nuevo para alcanzar este equipo.',
+    'pairingRevokeAllConfirm': 'Revocar todo el acceso',
     'pairingDeleteTitle': 'Eliminar dispositivo',
     'pairingDeleteBody':
         '¿Seguro que quieres eliminar permanentemente "{name}"? Esta accion no se puede deshacer.',
@@ -1214,6 +1226,8 @@ final Map<String, Map<String, String>> _localizedValues = {
         'Nightshade no pudo cargar tus dispositivos emparejados.',
     'pairingErrorRevoke':
         'Nightshade no pudo revocar el acceso de ese dispositivo.',
+    'pairingErrorRevokeAll':
+        'Nightshade no pudo revocar el acceso de todos los dispositivos. Revisa la lista: puede que algunos sigan emparejados.',
     'pairingErrorDelete':
         'Nightshade no pudo eliminar ese dispositivo emparejado.',
     'plannerTitle': 'Planificar esta noche',

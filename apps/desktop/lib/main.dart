@@ -8,6 +8,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'desktop_app_bootstrap.dart';
+import 'desktop_last_gasp.dart';
 import 'desktop_logging_init.dart';
 import 'frame_timing_probe.dart';
 import 'main_headless.dart' as headless;
@@ -113,7 +114,7 @@ void main(List<String> args) async {
     return;
   }
 
-  await initialiseDesktopLogging();
+  final bootPaths = await initialiseDesktopLogging();
 
   // Single-instance invariant, checked before any window or database work.
   // The GUI and the headless service resolve the SAME default database path,
@@ -211,6 +212,69 @@ void main(List<String> args) async {
 
   final logger = container.read(loggingServiceProvider);
   await logger.ensureInitialized();
+
+  // EQP-23 — the GUI could end with six devices connected and leave nothing
+  // behind: no shutdown record, no safing, a log whose last line was an
+  // unrelated warning. Two halves fix that. (1) Every session stamps a record
+  // and a normal quit marks it clean, so a session that just vanishes is
+  // visible at the NEXT launch instead of being indistinguishable from a
+  // normal one. (2) The death paths this process can actually see — a stop
+  // signal from a logout, `systemctl stop`, or Ctrl+C on a terminal launch —
+  // now record and safe the rig on the way out, exactly as the headless daemon
+  // has always done. Framework errors are recorded, never acted on: an
+  // overflow is not a reason to park a mount mid-sequence.
+  final lastGasp = DesktopLastGasp(
+    recordFile: resolveDesktopSessionRecordFile(bootPaths.dataDirectory),
+    safeRig: () async {
+      await container
+          .read(safeRigServiceProvider)
+          .safeTheRig(
+            reason: 'Nightshade is shutting down',
+            park: true,
+            closeDome: true,
+            closeCover: true,
+            abortExposure: true,
+            disableCooling: true,
+            notify: false,
+          );
+    },
+    exitProcess: exit,
+    onInfo: (message, {error}) =>
+        logger.info(message, source: 'desktop.shutdown'),
+    onCritical: (message, {error}) => logger.error(
+      message,
+      source: 'desktop.shutdown',
+      fields: {if (error != null) 'error': '$error'},
+    ),
+    version: appVersion.version,
+    pid: pid,
+  );
+  final previousSession = lastGasp.readPreviousSession();
+  if (previousSession != null && previousSession.endedWithoutShutdownPath) {
+    logger.error(
+      'The previous Nightshade session ended without a shutdown record: '
+      'nothing was safed on the way out. Check the rig.',
+      source: 'desktop.shutdown',
+      fields: {
+        'endedAt': previousSession.at.toIso8601String(),
+        if (previousSession.version != null)
+          'version': previousSession.version!,
+        'lastError': previousSession.lastError ?? 'none recorded',
+      },
+    );
+  }
+  lastGasp.markRunning();
+  lastGasp.install(
+    signals: [
+      ProcessSignal.sigint,
+      // SIGTERM cannot be watched on Windows; install() logs and moves on.
+      if (!Platform.isWindows) ProcessSignal.sigterm,
+    ],
+  );
+  // The shell owns the close decision (confirmation + edit flush); it tells us
+  // when the operator's quit was accepted so a normal exit is never reported as
+  // a silent death.
+  ShellExit.register(lastGasp.recordCleanExit);
 
   // Plugin nodes execute on the machine that owns the imaging hardware.
   // Register bundled plugins before the UI can start a sequence; historically

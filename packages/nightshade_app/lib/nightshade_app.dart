@@ -26,6 +26,7 @@ export 'screens/settings/settings_screen.dart';
 export 'screens/settings/catalog_settings_screen.dart';
 export 'screens/settings/equipment_profiles_screen.dart';
 export 'screens/shell/app_shell.dart';
+export 'screens/shell/shell_exit_recorder.dart';
 
 // Widgets
 export 'widgets/adaptive_shell.dart';
