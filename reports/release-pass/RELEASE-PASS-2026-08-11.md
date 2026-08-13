@@ -339,11 +339,30 @@ Order of execution from here:
      stage-2 sweep (failing-test-first).
    - **Rotation-sign divergence** between Dart/Rust WCS parsers needs a real ASTAP .wcs from
      the rig — Wave D / live-rig item.
-   Next: **stage-2 sweep** (script: reports/release-pass/scripts/release-stage2-sweep.js,
-   7 batches incl. phd2-crywolf), then **C3** file splits.
-4. **Wave D** adversarial verify over C1 + B-fix (re-drive the GUI clusters against a fresh
-   bundle + the fixed a11y dump; verify no fix merely relocated its defect); loop
-   map→fix→verify until a wave is dry.
+   C2 committed 2026-08-13 (6 topic commits + hub format + docs, through 32ac81d33) after a
+   FULLY CLEAN melos run (every package SUCCESS) + cargo workspace green.
+   **Stage-2 sweep RUNNING as wf_b30baa13-b93** (launched ~17:35; script:
+   reports/release-pass/scripts/release-stage2-sweep.js, 7 parallel batches incl.
+   phd2-crywolf; resume with script + runId after any restart). Then **C3** file splits.
+3b. **Stage-2 sweep** — COMPLETE (wf_b30baa13-b93, 7/7 batches, 17 fixed, 0 FPs, ~40 min).
+   Gates in flight. Notables: SCI-27 root cause was a linear min/max stretch (preview now
+   routes through the shared Rust STF — Wave D must eyeball the live preview since no Dart
+   test loads the native lib); SCI-28 Stop now offers Save-master-first; PHD2 cry-wolf fixed
+   both ways (registry + disconnect route); EQP-23 last-gasp shutdown record + safing hook
+   added at the desktop entry point; dropdown remainder solved with AccessibleDropdown
+   wrappers, not 42 hand edits. Impl logs: reports/release-pass/impl/s2-*.md.
+   NEW leftovers for the next wave: (a) Dart PlateSolveService._solveWithAstap is a THIRD
+   unhinted solver call site (plate_solve_service.dart:398-442) — the two-implementations
+   trap again; (b) SCI-43 pre-flight copy string at preflight_rules.dart:246 (suggested text
+   recorded); (c) phd2 generic-connect route defect (untestable without PHD2 installed —
+   Wave D live item). OWNER decisions flagged by agents: stacked master saves as PNG, not
+   FITS (the FITS writer demands EXPTIME/DATE-OBS the live stacker lacks) — accept or extend
+   the writer.
+
+4. **Wave D** adversarial verify over C1 + B-fix + C2 + stage-2 (re-drive the GUI clusters
+   against a fresh bundle + the fixed a11y dump; verify no fix merely relocated its defect;
+   reproduce the JD+0.5 planetarium suspect and the phd2 generic-connect route live; eyeball
+   the stacked preview); loop map→fix→verify until a wave is dry.
 5. Owner-decision items from Wave A remain parked in their section above; IMG-9 (loop
    frame-count label) joined them from B-fix.
 
