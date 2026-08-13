@@ -358,8 +358,15 @@ pub async fn api_phd2_connect(
     let mut storage = get_phd2_storage().write().await;
     *storage = Some(client);
 
-    // Register PHD2 as a connected guider device in AppState
-    // This ensures api_get_connected_devices() returns the guider
+    // Register the live PHD2 guider in BOTH device registries.
+    //
+    // AppState is the guider-state registry `get_active_guider_id_for_ops` and
+    // the storage API read. DeviceManager is what `api_get_connected_devices` /
+    // `api_is_device_connected` — the Dart-facing answers — actually read, and
+    // PHD2 never wrote it: the app reported "no guider connected" on every
+    // surface a user looks at while the sequencer guided through this very
+    // client. PHD2 owns its own socket (opened above), so it registers as
+    // already-connected rather than going through `connect_device`.
     let phd2_device_info = DeviceInfo {
         id: PHD2_DEVICE_ID.to_string(),
         name: "PHD2".to_string(),
@@ -372,7 +379,10 @@ pub async fn api_phd2_connect(
         display_name: "PHD2 Guiding".to_string(),
     };
     get_state()
-        .register_device(phd2_device_info, ConnectionState::Connected)
+        .register_device(phd2_device_info.clone(), ConnectionState::Connected)
+        .await;
+    get_device_manager()
+        .register_connected_device(phd2_device_info)
         .await;
 
     // Publish event
@@ -388,10 +398,13 @@ pub async fn api_phd2_disconnect() -> Result<(), NightshadeError> {
         client.disconnect();
     }
 
-    // Remove PHD2 from connected devices in AppState
+    // Remove PHD2 from BOTH registries it was registered in by
+    // `api_phd2_connect`. `unregister_device` (a plain map removal) — never
+    // `disconnect_device`, which routes PHD2 ids back here and would recurse.
     get_state()
         .remove_device(DeviceType::Guider, PHD2_DEVICE_ID)
         .await;
+    get_device_manager().unregister_device(PHD2_DEVICE_ID).await;
 
     get_state().publish_guiding_event(GuidingEvent::Disconnected, EventSeverity::Info);
 
@@ -979,6 +992,16 @@ pub struct BuiltinGuiderConfig {
 //     `get_phd2_storage().write().await` + `.as_mut().ok_or_else(…)`.
 //   * `PHD2_DEVICE_ID` replaced the `"phd2_guider"` literal in `api/phd2.rs`
 //     (×5), `api/connection.rs` and `api/discovery.rs`.
+/// Serializes every test that touches the process-global PHD2 client slot
+/// (`PHD2_CLIENT`) or the global device registries.
+///
+/// `cargo test` runs the tests in this binary on parallel threads and the slot
+/// is one static: a test that stores a live client would otherwise make
+/// `client_registry_reports_not_connected_when_no_client_is_stored` fail at
+/// random. Every test below takes this lock first.
+#[cfg(test)]
+static PHD2_TEST_SLOT: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 #[cfg(test)]
 mod registry_split_tests {
     use super::*;
@@ -1053,6 +1076,7 @@ mod registry_split_tests {
         // No PHD2 server exists in the test process, so the client slot is
         // empty and the accessor must produce the identical error the twenty-one
         // inline copies produced: NotConnected("PHD2") — not the device id.
+        let _slot = PHD2_TEST_SLOT.lock().await;
         assert!(get_phd2_storage().read().await.is_none());
         match phd2_client().await {
             Ok(_) => panic!("expected NotConnected with no PHD2 client stored"),
@@ -1065,6 +1089,7 @@ mod registry_split_tests {
     async fn client_registry_releases_the_write_lock_on_the_error_path() {
         // `try_map` hands the guard back inside its Err, which is dropped with
         // the error. If it leaked, this second acquisition would deadlock.
+        let _slot = PHD2_TEST_SLOT.lock().await;
         let _ = phd2_client().await;
         let guard = tokio::time::timeout(
             std::time::Duration::from_secs(2),
@@ -1073,5 +1098,171 @@ mod registry_split_tests {
         .await
         .expect("write lock must be free after a failed phd2_client()");
         assert!(guard.is_none());
+    }
+}
+
+// =============================================================================
+// THE PHD2 CRY-WOLF: A CONNECTED GUIDER THE CONNECTED-DEVICES API CANNOT SEE
+// =============================================================================
+//
+// `api_get_connected_devices` / `api_is_device_connected` read the
+// **DeviceManager** registry; PHD2 connect wrote only the **AppState** mirror.
+// So after a successful PHD2 connect the app told the user "no guider
+// connected" on every surface that asks those two APIs, while
+// `get_active_guider_id_for_ops` resolved `phd2_guider` and the sequencer
+// guided through it all night.
+//
+// These tests drive the real `api_phd2_connect` against a mock PHD2 socket, so
+// they exercise the production connect path end to end rather than a helper.
+#[cfg(test)]
+mod connected_devices_crywolf_tests {
+    use super::*;
+    use std::io::{BufRead, BufReader, Write};
+    use std::net::TcpListener;
+
+    /// A PHD2 stand-in that answers `get_app_state` (all `wait_until_ready`
+    /// needs) and hangs up when the client disconnects.
+    fn spawn_mock_phd2() -> (u16, std::thread::JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind mock PHD2");
+        let port = listener.local_addr().expect("mock PHD2 addr").port();
+        let handle = std::thread::spawn(move || {
+            let (stream, _) = listener.accept().expect("accept the PHD2 client");
+            let mut reader = BufReader::new(stream.try_clone().expect("clone mock stream"));
+            let mut writer = stream;
+            let mut line = String::new();
+            loop {
+                line.clear();
+                match reader.read_line(&mut line) {
+                    Ok(0) | Err(_) => break,
+                    Ok(_) => {}
+                }
+                let Ok(request) = serde_json::from_str::<serde_json::Value>(line.trim()) else {
+                    continue;
+                };
+                let response = serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "result": "Stopped",
+                    "id": request["id"],
+                });
+                if writeln!(writer, "{}", response).is_err() || writer.flush().is_err() {
+                    break;
+                }
+            }
+        });
+        (port, handle)
+    }
+
+    async fn phd2_in_connected_devices() -> bool {
+        crate::api::connection::api_get_connected_devices()
+            .await
+            .iter()
+            .any(|d| d.id == PHD2_DEVICE_ID && d.device_type == DeviceType::Guider)
+    }
+
+    #[tokio::test]
+    async fn a_connected_phd2_is_visible_to_the_connected_devices_api() {
+        let _slot = PHD2_TEST_SLOT.lock().await;
+        let (port, server) = spawn_mock_phd2();
+
+        api_phd2_connect(Some("127.0.0.1".to_string()), Some(port))
+            .await
+            .expect("mock PHD2 must accept the connect");
+
+        // Sample every answer BEFORE asserting, then always disconnect: an
+        // assertion that unwound here would leave a live client in the process-
+        // global slot and fail the client-registry tests instead of this one.
+        let listed = phd2_in_connected_devices().await;
+        let listed_ids = crate::api::connection::api_get_connected_devices()
+            .await
+            .iter()
+            .map(|d| d.id.clone())
+            .collect::<Vec<_>>();
+        let is_connected = crate::api::connection::api_is_device_connected(
+            DeviceType::Guider,
+            PHD2_DEVICE_ID.to_string(),
+        )
+        .await;
+        let in_app_state = get_state()
+            .is_device_connected(DeviceType::Guider, PHD2_DEVICE_ID)
+            .await;
+
+        api_phd2_disconnect().await.expect("disconnect PHD2");
+
+        let listed_after = phd2_in_connected_devices().await;
+        let is_connected_after = crate::api::connection::api_is_device_connected(
+            DeviceType::Guider,
+            PHD2_DEVICE_ID.to_string(),
+        )
+        .await;
+        let in_app_state_after = get_state()
+            .is_device_connected(DeviceType::Guider, PHD2_DEVICE_ID)
+            .await;
+
+        server.join().expect("mock PHD2 server thread finished");
+
+        assert!(
+            listed,
+            "api_get_connected_devices must list the connected PHD2 guider; it listed {:?}",
+            listed_ids
+        );
+        assert!(
+            is_connected,
+            "api_is_device_connected must agree that PHD2 is connected"
+        );
+        // The guider-state registry that `get_active_guider_id_for_ops` and the
+        // storage API read must keep answering exactly as before.
+        assert!(in_app_state, "the AppState mirror must still carry PHD2");
+
+        assert!(
+            !listed_after,
+            "a disconnected PHD2 must leave the connected-devices list"
+        );
+        assert!(
+            !is_connected_after,
+            "api_is_device_connected must report a disconnected PHD2 as gone"
+        );
+        assert!(
+            !in_app_state_after,
+            "the AppState mirror must be cleared too"
+        );
+    }
+
+    /// `device_manager/connection.rs:912` special-cases PHD2 ids so the generic
+    /// disconnect route tears the PHD2 socket down. That branch was
+    /// **unreachable**: `disconnect_device` bails with "Device not found"
+    /// before it, because PHD2 was never in the DeviceManager registry. The
+    /// existing `disconnect_phd2_via_generic_route_calls_phd2_disconnect` test
+    /// pins the id list structurally; this one drives the route.
+    #[tokio::test]
+    async fn the_generic_disconnect_route_reaches_a_connected_phd2() {
+        let _slot = PHD2_TEST_SLOT.lock().await;
+        let (port, server) = spawn_mock_phd2();
+
+        api_phd2_connect(Some("127.0.0.1".to_string()), Some(port))
+            .await
+            .expect("mock PHD2 must accept the connect");
+
+        let result = get_device_manager().disconnect_device(PHD2_DEVICE_ID).await;
+
+        // The client slot proves the socket was actually torn down, not just
+        // the bookkeeping cleared.
+        let client_slot_empty = get_phd2_storage().read().await.is_none();
+        let still_listed = phd2_in_connected_devices().await;
+
+        // Belt and braces: leave no client behind for the next test even if the
+        // route failed to disconnect.
+        let _ = api_phd2_disconnect().await;
+        server.join().expect("mock PHD2 server thread finished");
+
+        assert_eq!(
+            result,
+            Ok(()),
+            "disconnect_device must find the registered PHD2 guider"
+        );
+        assert!(
+            client_slot_empty,
+            "the generic route must run api_phd2_disconnect and drop the client"
+        );
+        assert!(!still_listed, "PHD2 must leave the connected-devices list");
     }
 }

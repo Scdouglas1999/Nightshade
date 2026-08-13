@@ -220,12 +220,42 @@ impl DeviceManager {
 
     /// Register a device for management
     pub async fn register_device(&self, info: DeviceInfo, auto_reconnect: bool) {
+        self.insert_device(info, auto_reconnect, ConnectionState::Disconnected)
+            .await;
+    }
+
+    /// Register a device that is ALREADY connected, in the `Connected` state.
+    ///
+    /// The normal lifecycle is `register_device` (as `Disconnected`) then
+    /// `connect_device`, which dispatches to a driver and flips the state. A
+    /// backend that owns its own out-of-band transport — PHD2 talks JSON-RPC
+    /// over its own TCP socket, opened by `api_phd2_connect`, not by any driver
+    /// in `dispatch/` — has nothing for `connect_device` to dispatch to, so it
+    /// records the already-live connection here instead. Without this it stayed
+    /// invisible to `is_device_connected` / `get_connected_device_infos` and the
+    /// app told the user "no guider connected" while the sequencer guided
+    /// through it.
+    ///
+    /// `auto_reconnect` is always false: `reconnection_loop` reconnects through
+    /// `connect_device_internal`, which cannot re-open a transport it does not
+    /// own.
+    pub async fn register_connected_device(&self, info: DeviceInfo) {
+        self.insert_device(info, false, ConnectionState::Connected)
+            .await;
+    }
+
+    async fn insert_device(
+        &self,
+        info: DeviceInfo,
+        auto_reconnect: bool,
+        connection_state: ConnectionState,
+    ) {
         let mut devices = self.devices.write().await;
         devices.insert(
             info.id.clone(),
             ManagedDevice {
                 info,
-                connection_state: ConnectionState::Disconnected,
+                connection_state,
                 last_error: None,
                 reconnect_attempts: 0,
                 auto_reconnect,
