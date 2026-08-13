@@ -186,28 +186,6 @@ class SkeletonBox extends StatelessWidget {
   }
 }
 
-/// A circular skeleton loading state
-class SkeletonCircle extends StatelessWidget {
-  final double size;
-
-  const SkeletonCircle({super.key, required this.size});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.nightshadeColors;
-
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        shape: BoxShape.circle,
-        border: Border.all(color: colors.border.withValues(alpha: 0.5)),
-      ),
-    );
-  }
-}
-
 /// A text-like skeleton loading state
 class SkeletonText extends StatelessWidget {
   final double? width;

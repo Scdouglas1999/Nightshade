@@ -275,6 +275,63 @@ class NightshadeColors extends ThemeExtension<NightshadeColors> {
       isRedNight: t < 0.5 ? isRedNight : other.isRedNight,
     );
   }
+
+  /// Value equality — load-bearing, not boilerplate.
+  ///
+  /// [ThemeData.==] compares its extensions by value, so without this an
+  /// accent-derived palette (a fresh instance out of [darkWithAccent] every
+  /// call) never equals the previous frame's. `Theme.updateShouldNotify` then
+  /// fires on every root rebuild and every widget reading this palette rebuilds
+  /// with it. The default no-accent path hid the bug: [dark] is `const` and
+  /// therefore canonicalized.
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is NightshadeColors &&
+        other.runtimeType == runtimeType &&
+        other.primary == primary &&
+        other.accent == accent &&
+        other.background == background &&
+        other.surface == surface &&
+        other.surfaceAlt == surfaceAlt &&
+        other.surfaceHover == surfaceHover &&
+        other.surfaceElevated == surfaceElevated &&
+        other.surfaceOverlay == surfaceOverlay &&
+        other.border == border &&
+        other.borderHighlight == borderHighlight &&
+        other.textPrimary == textPrimary &&
+        other.textSecondary == textSecondary &&
+        other.textMuted == textMuted &&
+        other.success == success &&
+        other.warning == warning &&
+        other.error == error &&
+        other.info == info &&
+        other.useDarkOnPrimary == useDarkOnPrimary &&
+        other.isRedNight == isRedNight;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    primary,
+    accent,
+    background,
+    surface,
+    surfaceAlt,
+    surfaceHover,
+    surfaceElevated,
+    surfaceOverlay,
+    border,
+    borderHighlight,
+    textPrimary,
+    textSecondary,
+    textMuted,
+    success,
+    warning,
+    error,
+    info,
+    useDarkOnPrimary,
+    isRedNight,
+  );
 }
 
 /// Shorthand for [NightshadeColors.of] on a [BuildContext].

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '_design_showcase_primitives.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart'
     show ObjectType, DriverType;
@@ -63,7 +65,7 @@ class NightshadeDesignReferenceBoard extends StatelessWidget {
                   right: _DomainPaletteSection(colors: colors),
                 ),
                 const SizedBox(height: NightshadeTokens.space2xl),
-                _BoardSection(
+                ShowcaseSection.boxed(
                   title: 'Typography scale',
                   child: _TypographyScale(colors: colors),
                 ),
@@ -73,7 +75,7 @@ class NightshadeDesignReferenceBoard extends StatelessWidget {
                   right: _StatusAndFeedbackSection(colors: colors),
                 ),
                 const SizedBox(height: NightshadeTokens.space2xl),
-                _BoardSection(
+                ShowcaseSection.boxed(
                   title: 'Layout primitives',
                   child: _LayoutPrimitivesSection(colors: colors),
                 ),
@@ -163,40 +165,6 @@ class NightshadeDesignReferenceBoard extends StatelessWidget {
 // Section shell
 // ===========================================================================
 
-class _BoardSection extends StatelessWidget {
-  const _BoardSection({required this.title, required this.child});
-
-  final String title;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.nightshadeColors;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: NightshadeTypography.overline.copyWith(
-            color: colors.textMuted,
-          ),
-        ),
-        const SizedBox(height: NightshadeTokens.spaceMd),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: NightshadeTokens.borderRadiusMd,
-            border: Border.all(color: colors.border),
-          ),
-          child: child,
-        ),
-      ],
-    );
-  }
-}
-
 // ===========================================================================
 // Semantic palette
 // ===========================================================================
@@ -227,14 +195,18 @@ class _SemanticPaletteSection extends StatelessWidget {
       ('Error', colors.error),
       ('Info', colors.info),
     ];
-    return _BoardSection(
+    return ShowcaseSection.boxed(
       title: 'Semantic palette',
       child: Wrap(
         spacing: NightshadeTokens.spaceMd,
         runSpacing: NightshadeTokens.spaceMd,
         children: [
           for (final swatch in swatches)
-            _Swatch(label: swatch.$1, color: swatch.$2, frame: colors),
+            ShowcaseSwatch.board(
+              label: swatch.$1,
+              color: swatch.$2,
+              frame: colors,
+            ),
         ],
       ),
     );
@@ -252,7 +224,7 @@ class _DomainPaletteSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _BoardSection(
+    return ShowcaseSection.boxed(
       title: 'Domain palettes',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -263,35 +235,35 @@ class _DomainPaletteSection extends StatelessWidget {
             spacing: NightshadeTokens.spaceMd,
             runSpacing: NightshadeTokens.spaceMd,
             children: [
-              _Swatch.compact(
+              ShowcaseSwatch.boardCompact(
                 label: 'Blue',
                 color: NightshadeChartColors.seriesBlue,
               ),
-              _Swatch.compact(
+              ShowcaseSwatch.boardCompact(
                 label: 'Violet',
                 color: NightshadeChartColors.seriesViolet,
               ),
-              _Swatch.compact(
+              ShowcaseSwatch.boardCompact(
                 label: 'Green',
                 color: NightshadeChartColors.seriesGreen,
               ),
-              _Swatch.compact(
+              ShowcaseSwatch.boardCompact(
                 label: 'Amber',
                 color: NightshadeChartColors.seriesAmber,
               ),
-              _Swatch.compact(
+              ShowcaseSwatch.boardCompact(
                 label: 'Indigo',
                 color: NightshadeChartColors.seriesIndigo,
               ),
-              _Swatch.compact(
+              ShowcaseSwatch.boardCompact(
                 label: 'Deep Blue',
                 color: NightshadeChartColors.seriesDeepBlue,
               ),
-              _Swatch.compact(
+              ShowcaseSwatch.boardCompact(
                 label: 'Red',
                 color: NightshadeChartColors.seriesRed,
               ),
-              _Swatch.compact(
+              ShowcaseSwatch.boardCompact(
                 label: 'Orange',
                 color: NightshadeChartColors.seriesOrange,
               ),
@@ -574,7 +546,7 @@ class _ComponentsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _BoardSection(
+    return ShowcaseSection.boxed(
       title: 'Components',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -709,7 +681,7 @@ class _StatusAndFeedbackSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _BoardSection(
+    return ShowcaseSection.boxed(
       title: 'Status & feedback',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -914,60 +886,6 @@ class _SubLabel extends StatelessWidget {
       text,
       style: NightshadeTypography.label.copyWith(color: colors.textSecondary),
     );
-  }
-}
-
-class _Swatch extends StatelessWidget {
-  const _Swatch({required this.label, required this.color, required this.frame})
-    : compactMode = false;
-
-  const _Swatch.compact({required this.label, required this.color})
-    : frame = null,
-      compactMode = true;
-
-  final String label;
-  final Color color;
-  final NightshadeColors? frame;
-  final bool compactMode;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = frame ?? context.nightshadeColors;
-    final width = compactMode ? 92.0 : 116.0;
-    return SizedBox(
-      width: width,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            height: compactMode ? 34 : 44,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: NightshadeTokens.borderRadiusSm,
-              border: Border.all(color: colors.border),
-            ),
-          ),
-          const SizedBox(height: NightshadeTokens.spaceXs),
-          Text(
-            label,
-            style: NightshadeTypography.captionSm.copyWith(
-              color: colors.textSecondary,
-            ),
-          ),
-          Text(
-            _hex(color),
-            style: NightshadeTypography.monoXs.copyWith(
-              color: colors.textMuted,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  static String _hex(Color color) {
-    final value = color.toARGB32() & 0xFFFFFF;
-    return '#${value.toRadixString(16).padLeft(6, '0').toUpperCase()}';
   }
 }
 

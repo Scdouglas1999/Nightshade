@@ -3,17 +3,35 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 void main() {
-  group('clampPanelWidth', () {
+  group('panelWidthFromFraction', () {
     test('clamps fraction of available space', () {
-      expect(clampPanelWidth(1000, fraction: 0.25, min: 200, max: 400), 250);
+      expect(
+        panelWidthFromFraction(1000, fraction: 0.25, min: 200, max: 400),
+        250,
+      );
     });
 
     test('respects minimum', () {
-      expect(clampPanelWidth(400, fraction: 0.1, min: 200, max: 500), 200);
+      expect(
+        panelWidthFromFraction(400, fraction: 0.1, min: 200, max: 500),
+        200,
+      );
     });
 
     test('respects maximum', () {
-      expect(clampPanelWidth(2000, fraction: 0.5, min: 100, max: 400), 400);
+      expect(
+        panelWidthFromFraction(2000, fraction: 0.5, min: 100, max: 400),
+        400,
+      );
+    });
+
+    test('the deprecated clampPanelWidth alias still delegates', () {
+      // ignore: deprecated_member_use_from_same_package
+      expect(
+        // ignore: deprecated_member_use_from_same_package
+        clampPanelWidth(1000, fraction: 0.25, min: 200, max: 400),
+        panelWidthFromFraction(1000, fraction: 0.25, min: 200, max: 400),
+      );
     });
   });
 
@@ -40,7 +58,9 @@ void main() {
       expect(width, 900);
     });
 
-    testWidgets('caps design max at 92% of viewport', (tester) async {
+    testWidgets('caps design max at the shared dialog width fraction', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(800, 600);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
@@ -57,7 +77,10 @@ void main() {
         ),
       );
 
-      expect(width, closeTo(736, 0.01));
+      expect(
+        width,
+        closeTo(800 * AdaptiveDialogConstraints.defaultWidthFraction, 0.01),
+      );
     });
   });
 

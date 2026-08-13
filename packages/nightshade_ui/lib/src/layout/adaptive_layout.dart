@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 
 import '../theme/nightshade_tokens.dart';
+import '../utils/adaptive_dialog_constraints.dart';
 
 /// Fractional panel sizing and viewport-capped dialog widths.
 ///
@@ -15,11 +16,17 @@ import '../theme/nightshade_tokens.dart';
 /// [Responsive] (from `breakpoints.dart`) or [BreakpointTokens] when the UI
 /// should **switch layout modes** at fixed widths (e.g. one column vs two,
 /// bottom nav vs side rail, toolbar overflow). Breakpoints answer “which layout?”;
-/// [clampPanelWidth] and [dialogMaxWidth] answer “how wide in this layout?”.
+/// [panelWidthFromFraction] and [dialogMaxWidth] answer “how wide in this
+/// layout?”.
 ///
 /// Shell chrome heights and nav-vs-bottom thresholds live in
 /// [ShellChromeMetrics], not here.
-double clampPanelWidth(
+///
+/// Not to be confused with [AdaptiveDialogConstraints.clampPanelWidth], which
+/// answers a different question — it reads the viewport off a [BuildContext]
+/// and caps a *design* width, where this takes the available width and a
+/// fraction of it.
+double panelWidthFromFraction(
   double available, {
   required double fraction,
   required double min,
@@ -31,12 +38,28 @@ double clampPanelWidth(
   return (available * fraction).clamp(min, max);
 }
 
-/// Caps a dialog's design width to 92% of the viewport width.
+@Deprecated(
+  'Renamed to panelWidthFromFraction — it was indistinguishable at the call '
+  'site from AdaptiveDialogConstraints.clampPanelWidth, which does something '
+  'else. Will be removed one release after 6.1.0.',
+)
+double clampPanelWidth(
+  double available, {
+  required double fraction,
+  required double min,
+  required double max,
+}) => panelWidthFromFraction(available, fraction: fraction, min: min, max: max);
+
+/// Caps a dialog's design width to
+/// [AdaptiveDialogConstraints.defaultWidthFraction] of the viewport width.
 ///
 /// Prefer this over a raw `designMax` when showing modals on narrow windows or
 /// mobile web. Pair with [Responsive.dialogConstraints] when you also need
 /// height limits and minimum sizes.
 double dialogMaxWidth(BuildContext context, double designMax) {
   final viewportWidth = MediaQuery.sizeOf(context).width;
-  return math.min(designMax, viewportWidth * 0.92);
+  return math.min(
+    designMax,
+    viewportWidth * AdaptiveDialogConstraints.defaultWidthFraction,
+  );
 }

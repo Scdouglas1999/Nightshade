@@ -29,10 +29,49 @@ void main() {
       ),
     );
 
-    expect(constraints.minWidth, 324);
-    expect(constraints.maxWidth, 324);
+    // 360 * AdaptiveDialogConstraints.defaultWidthFraction. This used to be
+    // 324 (a private 0.9) — the two dialog-sizing helpers now share one
+    // fraction, so a Responsive-sized dialog is no longer 2% narrower than an
+    // AdaptiveDialogConstraints-sized one at the same design width.
+    const expectedWidth = 360 * AdaptiveDialogConstraints.defaultWidthFraction;
+    expect(constraints.minWidth, closeTo(expectedWidth, 0.01));
+    expect(constraints.maxWidth, closeTo(expectedWidth, 0.01));
     expect(constraints.minHeight, 480);
     expect(constraints.maxHeight, 480);
+  });
+
+  testWidgets('all three dialog-sizing helpers agree at the same viewport', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(700, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    late double fromDialogMaxWidth;
+    late BoxConstraints fromResponsive;
+    late BoxConstraints fromAdaptive;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) {
+            fromDialogMaxWidth = dialogMaxWidth(context, 900);
+            fromResponsive = Responsive.dialogConstraints(
+              context,
+              preferredWidth: 900,
+            );
+            fromAdaptive = AdaptiveDialogConstraints.hybrid(
+              context,
+              designMaxWidth: 900,
+            );
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+
+    expect(fromResponsive.maxWidth, closeTo(fromDialogMaxWidth, 0.01));
+    expect(fromAdaptive.maxWidth, closeTo(fromDialogMaxWidth, 0.01));
   });
 
   testWidgets('minimums remain unchanged when the viewport has room', (

@@ -129,13 +129,40 @@ void main() {
       );
 
       await tester.pumpWidget(build(offstage: false));
+      // The frames below must ADVANCE TIME. A zero-duration pump ticks the
+      // controller without moving it, so nothing repaints, and the gate — which
+      // decides on painting — correctly concludes the bar is still invisible.
+      // This test used to pump zero-duration frames and pass anyway, because a
+      // freshly built ThemeData put MaterialApp's own AnimatedTheme on screen:
+      // the frame counter was reading Material's ticker, not this bar's.
       // One frame to paint, one post-frame callback to resume the controller.
-      await tester.pump();
-      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 16));
+      await tester.pump(const Duration(milliseconds: 16));
 
       expectAnimatingAtRest(
         tester,
         'an indeterminate NightshadeProgressBar brought back on screen',
+      );
+
+      // …and it is THIS bar that is animating: the indeterminate sweep moves.
+      double sweepPosition() =>
+          (tester
+                      .widget<FractionallySizedBox>(
+                        find.byType(FractionallySizedBox),
+                      )
+                      .alignment
+                  as Alignment)
+              .x;
+
+      final before = sweepPosition();
+      await tester.pump(const Duration(milliseconds: 120));
+      expect(
+        sweepPosition(),
+        isNot(before),
+        reason:
+            'the indeterminate sweep must actually move once the bar is back '
+            'on screen — a running ticker elsewhere in the tree is not proof '
+            'that this animation resumed',
       );
     });
   });

@@ -100,30 +100,58 @@ ThemeData getThemeForMode(AppThemeMode mode, Brightness systemBrightness) {
 class NightshadeTheme {
   NightshadeTheme._();
 
-  static ThemeData get dark =>
-      _buildTheme(NightshadeColors.dark, Brightness.dark);
+  /// Built once. `resolveNightshadeThemeData` runs inside the root widget's
+  /// `build()`, so a getter here re-derives a `ColorScheme`, a full `TextTheme`
+  /// and ~30 sub-themes on every root rebuild only to have `ThemeData.==`
+  /// discard the result. The inputs are compile-time constants.
+  static final ThemeData dark = _buildTheme(
+    NightshadeColors.dark,
+    Brightness.dark,
+  );
 
-  static ThemeData get light =>
-      _buildTheme(NightshadeColors.light, Brightness.light);
+  static final ThemeData light = _buildTheme(
+    NightshadeColors.light,
+    Brightness.light,
+  );
 
   /// Red night vision theme - uses only red wavelengths for dark adaptation
-  static ThemeData get redNight =>
-      _buildTheme(NightshadeColors.redNight, Brightness.dark);
+  static final ThemeData redNight = _buildTheme(
+    NightshadeColors.redNight,
+    Brightness.dark,
+  );
+
+  /// Accent themes are cached one deep per brightness: a user has exactly one
+  /// accent at a time, so a single slot absorbs the whole per-frame call rate
+  /// and never grows.
+  static Color? _darkAccentKey;
+  static ThemeData? _darkAccentTheme;
+  static Color? _lightAccentKey;
+  static ThemeData? _lightAccentTheme;
 
   /// Generate a dark theme with custom accent color
   static ThemeData darkWithAccent(Color accentColor) {
-    return _buildTheme(
+    final cached = _darkAccentTheme;
+    if (cached != null && _darkAccentKey == accentColor) return cached;
+    final theme = _buildTheme(
       NightshadeColors.darkWithAccent(accentColor),
       Brightness.dark,
     );
+    _darkAccentKey = accentColor;
+    _darkAccentTheme = theme;
+    return theme;
   }
 
   /// Generate a light theme with custom accent color
   static ThemeData lightWithAccent(Color accentColor) {
-    return _buildTheme(
+    final cached = _lightAccentTheme;
+    if (cached != null && _lightAccentKey == accentColor) return cached;
+    final theme = _buildTheme(
       NightshadeColors.lightWithAccent(accentColor),
       Brightness.light,
     );
+    _lightAccentKey = accentColor;
+    _lightAccentTheme = theme;
+    return theme;
   }
 
   static ThemeData _buildTheme(NightshadeColors colors, Brightness brightness) {

@@ -41,13 +41,15 @@ void main() {
     expect(
       node.hasFlag(SemanticsFlag.hasEnabledState),
       isTrue,
-      reason: 'without hasEnabledState an assistive client cannot report '
+      reason:
+          'without hasEnabledState an assistive client cannot report '
           'enabled or disabled at all',
     );
     expect(
       node.hasFlag(SemanticsFlag.isEnabled),
       isFalse,
-      reason: 'the button does nothing when pressed, so it must not be '
+      reason:
+          'the button does nothing when pressed, so it must not be '
           'announced as actionable',
     );
 

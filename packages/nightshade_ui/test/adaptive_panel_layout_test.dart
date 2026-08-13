@@ -191,12 +191,27 @@ void main() {
   });
 
   group('tablet / desktop', () {
-    testWidgets('fixed split on tablet (800x1000)', (tester) async {
-      await _pumpAt(tester, const Size(800, 1000), _host());
+    testWidgets('fixed split in the tablet band (700x1000)', (tester) async {
+      await _pumpAt(tester, const Size(700, 1000), _host());
       expect(tester.takeException(), isNull);
       // Side-by-side: both present, no sheet handle button duplication.
       expect(find.text('PRIMARY'), findsOneWidget);
       expect(find.text('CONTROLS'), findsOneWidget);
+      expect(_resizeHandle, findsNothing);
+    });
+
+    // 800 px sits above BreakpointTokens.breakpointTablet (768), which is what
+    // `isAtLeastDesktop` dispatches on — so this is the resizable split, not
+    // the fixed one. Pinned because the doc used to claim the fixed branch ran
+    // up to 1024 and nothing tested the difference.
+    testWidgets('800x1000 is the resizable split, not the fixed one', (
+      tester,
+    ) async {
+      await _pumpAt(tester, const Size(800, 1000), _host());
+      expect(tester.takeException(), isNull);
+      expect(find.text('PRIMARY'), findsOneWidget);
+      expect(find.text('CONTROLS'), findsOneWidget);
+      expect(_resizeHandle, findsOneWidget);
     });
 
     testWidgets('resizable split on desktop (1400x900)', (tester) async {

@@ -172,6 +172,11 @@ class _OnScreenAnimationGateState extends State<OnScreenAnimationGate> {
       _onScreen = true;
       _unpaintedTicks = 0;
       _sync();
+      // _sync() opens a fresh unpainted budget, which would throw away the very
+      // paint that got us here. Without this the gate oscillates: stop on the
+      // budget, resume on the next paint, stop again — an animation whose only
+      // repaint trigger is itself then advances on every other frame.
+      _paintedSinceLastTick = true;
     });
   }
 

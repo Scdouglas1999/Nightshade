@@ -42,10 +42,10 @@ class AdaptivePanel {
 /// The desktop-resizable / tablet-fixed / phone-collapsing replacement for the
 /// old `ResizablePanel` split.
 ///
-/// * **Desktop** (`w >= 1024`): [primary] beside the [secondary] panel(s) with
-///   a draggable divider — equivalent to today's `ResizablePanel` so screens do
-///   not regress.
-/// * **Tablet** (`600 <= w < 1024`): fixed-ratio columns (no drag handle).
+/// * **Desktop** (`w >= 768`, i.e. [BreakpointTokens.isAtLeastDesktop]):
+///   [primary] beside the [secondary] panel(s) with a draggable divider —
+///   equivalent to today's `ResizablePanel` so screens do not regress.
+/// * **Tablet** (`600 <= w < 768`): fixed-ratio columns (no drag handle).
 /// * **Phone portrait** (`w < 600`): the secondary panel(s) collapse per
 ///   [phoneStrategy] — a toggled bottom sheet, or a segmented switch between
 ///   primary and secondary.

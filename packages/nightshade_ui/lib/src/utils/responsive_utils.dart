@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter/widgets.dart';
 import '../theme/nightshade_tokens.dart';
 import '../tokens/breakpoint_tokens.dart';
+import 'adaptive_dialog_constraints.dart';
 
 /// Responsive breakpoint utilities for adaptive UI layouts.
 ///
@@ -27,10 +28,10 @@ abstract final class Responsive {
   /// [BreakpointTokens.breakpointPhone]).
   static const double phoneMaxWidth = BreakpointTokens.breakpointPhone;
 
-  /// Width below which the phone is **compact** (`< 480`) and dense rows need
-  /// extra tightening — e.g. a stat strip should 2-column or stack rather than
-  /// stay in one row.
-  static const double compactPhoneMaxWidth = 480.0;
+  /// Width below which the phone is **compact** (`< 480`,
+  /// [NightshadeTokens.breakpointMobile]) and dense rows need extra tightening
+  /// — e.g. a stat strip should 2-column or stack rather than stay in one row.
+  static const double compactPhoneMaxWidth = NightshadeTokens.breakpointMobile;
 
   /// Returns true on a true **phone**.
   ///
@@ -194,8 +195,8 @@ abstract final class Responsive {
   /// ```
   static BoxConstraints dialogConstraints(
     BuildContext context, {
-    double maxWidthPercent = 0.9,
-    double maxHeightPercent = 0.85,
+    double maxWidthPercent = AdaptiveDialogConstraints.defaultWidthFraction,
+    double maxHeightPercent = AdaptiveDialogConstraints.defaultHeightFraction,
     double? preferredWidth,
     double? preferredHeight,
     double? minWidth,

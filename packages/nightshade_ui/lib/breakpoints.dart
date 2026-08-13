@@ -5,7 +5,7 @@
 /// chrome in [ShellChrome] on desktop targets).
 ///
 /// For fractional panel widths and viewport-capped dialogs, see
-/// [clampPanelWidth] and [dialogMaxWidth] in `adaptive_layout.dart`.
+/// [panelWidthFromFraction] and [dialogMaxWidth] in `adaptive_layout.dart`.
 library;
 
 export 'src/tokens/breakpoint_tokens.dart';

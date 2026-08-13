@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
+import '_design_showcase_primitives.dart';
 import '../components/nightshade_alert.dart';
 import '../components/nightshade_button.dart';
 import '../components/nightshade_card.dart';
@@ -71,44 +72,68 @@ class _NightshadeDesignSystemGalleryState
                     ),
                   ),
                   const SizedBox(height: NightshadeTokens.spaceLg),
-                  _GallerySection(
+                  ShowcaseSection.plain(
                     title: 'Color Palette',
                     child: Wrap(
                       spacing: NightshadeTokens.spaceMd,
                       runSpacing: NightshadeTokens.spaceMd,
                       children: [
-                        _PaletteSwatch(label: 'Primary', color: colors.primary),
-                        _PaletteSwatch(label: 'Accent', color: colors.accent),
-                        _PaletteSwatch(
+                        ShowcaseSwatch.gallery(
+                          label: 'Primary',
+                          color: colors.primary,
+                        ),
+                        ShowcaseSwatch.gallery(
+                          label: 'Accent',
+                          color: colors.accent,
+                        ),
+                        ShowcaseSwatch.gallery(
                           label: 'Background',
                           color: colors.background,
                         ),
-                        _PaletteSwatch(label: 'Surface', color: colors.surface),
-                        _PaletteSwatch(
+                        ShowcaseSwatch.gallery(
+                          label: 'Surface',
+                          color: colors.surface,
+                        ),
+                        ShowcaseSwatch.gallery(
                           label: 'Surface Alt',
                           color: colors.surfaceAlt,
                         ),
-                        _PaletteSwatch(label: 'Success', color: colors.success),
-                        _PaletteSwatch(label: 'Warning', color: colors.warning),
-                        _PaletteSwatch(label: 'Error', color: colors.error),
-                        _PaletteSwatch(label: 'Info', color: colors.info),
-                        _PaletteSwatch(
+                        ShowcaseSwatch.gallery(
+                          label: 'Success',
+                          color: colors.success,
+                        ),
+                        ShowcaseSwatch.gallery(
+                          label: 'Warning',
+                          color: colors.warning,
+                        ),
+                        ShowcaseSwatch.gallery(
+                          label: 'Error',
+                          color: colors.error,
+                        ),
+                        ShowcaseSwatch.gallery(
+                          label: 'Info',
+                          color: colors.info,
+                        ),
+                        ShowcaseSwatch.gallery(
                           label: 'Text Primary',
                           color: colors.textPrimary,
                         ),
-                        _PaletteSwatch(
+                        ShowcaseSwatch.gallery(
                           label: 'Text Secondary',
                           color: colors.textSecondary,
                         ),
-                        _PaletteSwatch(
+                        ShowcaseSwatch.gallery(
                           label: 'Text Muted',
                           color: colors.textMuted,
                         ),
-                        _PaletteSwatch(label: 'Border', color: colors.border),
+                        ShowcaseSwatch.gallery(
+                          label: 'Border',
+                          color: colors.border,
+                        ),
                       ],
                     ),
                   ),
-                  _GallerySection(
+                  ShowcaseSection.plain(
                     title: 'Typography',
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -147,7 +172,7 @@ class _NightshadeDesignSystemGalleryState
                       ],
                     ),
                   ),
-                  _GallerySection(
+                  ShowcaseSection.plain(
                     title: 'Buttons',
                     child: Wrap(
                       spacing: NightshadeTokens.spaceMd,
@@ -190,7 +215,7 @@ class _NightshadeDesignSystemGalleryState
                       ],
                     ),
                   ),
-                  _GallerySection(
+                  ShowcaseSection.plain(
                     title: 'Cards',
                     child: LayoutBuilder(
                       builder: (context, constraints) {
@@ -223,7 +248,7 @@ class _NightshadeDesignSystemGalleryState
                       },
                     ),
                   ),
-                  _GallerySection(
+                  ShowcaseSection.plain(
                     title: 'Inputs',
                     child: Wrap(
                       spacing: NightshadeTokens.spaceMd,
@@ -289,7 +314,7 @@ class _NightshadeDesignSystemGalleryState
                       ],
                     ),
                   ),
-                  _GallerySection(
+                  ShowcaseSection.plain(
                     title: 'Tabs',
                     child: SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
@@ -311,7 +336,7 @@ class _NightshadeDesignSystemGalleryState
                       ),
                     ),
                   ),
-                  _GallerySection(
+                  ShowcaseSection.plain(
                     title: 'Navigation',
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -390,7 +415,7 @@ class _NightshadeDesignSystemGalleryState
                       ],
                     ),
                   ),
-                  _GallerySection(
+                  ShowcaseSection.plain(
                     title: 'Decorations',
                     child: Wrap(
                       spacing: NightshadeTokens.spaceMd,
@@ -436,7 +461,7 @@ class _NightshadeDesignSystemGalleryState
                       ],
                     ),
                   ),
-                  _GallerySection(
+                  ShowcaseSection.plain(
                     title: 'Chips and Status Pills',
                     child: Wrap(
                       spacing: NightshadeTokens.spaceMd,
@@ -486,7 +511,7 @@ class _NightshadeDesignSystemGalleryState
                       ],
                     ),
                   ),
-                  _GallerySection(
+                  ShowcaseSection.plain(
                     title: 'Status Dots',
                     child: Wrap(
                       spacing: NightshadeTokens.spaceLg,
@@ -533,7 +558,7 @@ class _NightshadeDesignSystemGalleryState
                       ],
                     ),
                   ),
-                  _GallerySection(
+                  ShowcaseSection.plain(
                     title: 'Alerts',
                     child: Column(
                       children: [
@@ -574,75 +599,6 @@ class _NightshadeDesignSystemGalleryState
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _GallerySection extends StatelessWidget {
-  final String title;
-  final Widget child;
-
-  const _GallerySection({required this.title, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.nightshadeColors;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: NightshadeTokens.space2xl),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
-          ),
-          const SizedBox(height: NightshadeTokens.spaceMd),
-          child,
-        ],
-      ),
-    );
-  }
-}
-
-class _GalleryCardSpecimen extends StatelessWidget {
-  final String title;
-  final String value;
-  final CardVariant variant;
-  final bool isSelected;
-
-  const _GalleryCardSpecimen({
-    required this.title,
-    required this.value,
-    this.variant = CardVariant.standard,
-    this.isSelected = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.nightshadeColors;
-
-    return NightshadeCard(
-      padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
-      variant: variant,
-      isSelected: isSelected,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            title,
-            style: NightshadeTypography.label.copyWith(
-              color: colors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: NightshadeTokens.spaceSm),
-          Text(
-            value,
-            style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
-          ),
-        ],
       ),
     );
   }
@@ -734,42 +690,6 @@ class _DecorationSpecimen extends StatelessWidget {
   }
 }
 
-class _PaletteSwatch extends StatelessWidget {
-  final String label;
-  final Color color;
-
-  const _PaletteSwatch({required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.nightshadeColors;
-
-    return SizedBox(
-      width: 112,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            height: 44,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: NightshadeTokens.borderRadiusSm,
-              border: Border.all(color: colors.border),
-            ),
-          ),
-          const SizedBox(height: NightshadeTokens.spaceXs),
-          Text(
-            label,
-            style: NightshadeTypography.caption.copyWith(
-              color: colors.textSecondary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _StatusDotSample extends StatelessWidget {
   final String label;
   final Widget dot;
@@ -830,6 +750,48 @@ class _TypographySpecimen extends StatelessWidget {
             style: style.copyWith(
               color: muted ? colors.textMuted : colors.textPrimary,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GalleryCardSpecimen extends StatelessWidget {
+  final String title;
+  final String value;
+  final CardVariant variant;
+  final bool isSelected;
+
+  const _GalleryCardSpecimen({
+    required this.title,
+    required this.value,
+    this.variant = CardVariant.standard,
+    this.isSelected = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.nightshadeColors;
+
+    return NightshadeCard(
+      padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+      variant: variant,
+      isSelected: isSelected,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            title,
+            style: NightshadeTypography.label.copyWith(
+              color: colors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          Text(
+            value,
+            style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
           ),
         ],
       ),

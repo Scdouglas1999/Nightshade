@@ -42,6 +42,11 @@ class FocusRing extends StatefulWidget {
 class _FocusRingState extends State<FocusRing>
     with SingleTickerProviderStateMixin {
   late FocusNode _focusNode;
+
+  /// True while [_focusNode] is the node this state created, and so the node
+  /// this state must dispose. Reading `widget.focusNode == null` instead is
+  /// wrong on a swap: it describes the incoming node, not the outgoing one.
+  late bool _ownsNode;
   late AnimationController _controller;
   late Animation<double> _opacityAnimation;
   bool _isFocused = false;
@@ -49,6 +54,7 @@ class _FocusRingState extends State<FocusRing>
   @override
   void initState() {
     super.initState();
+    _ownsNode = widget.focusNode == null;
     _focusNode = widget.focusNode ?? FocusNode();
     _focusNode.addListener(_handleFocusChange);
 
@@ -67,15 +73,20 @@ class _FocusRingState extends State<FocusRing>
     super.didUpdateWidget(oldWidget);
     if (widget.focusNode != oldWidget.focusNode) {
       _focusNode.removeListener(_handleFocusChange);
+      final replaced = _ownsNode ? _focusNode : null;
+      _ownsNode = widget.focusNode == null;
       _focusNode = widget.focusNode ?? FocusNode();
       _focusNode.addListener(_handleFocusChange);
+      // A live FocusNode stays registered with FocusManager, so an abandoned
+      // self-created node is a retained listener, not just memory.
+      replaced?.dispose();
     }
   }
 
   @override
   void dispose() {
     _focusNode.removeListener(_handleFocusChange);
-    if (widget.focusNode == null) {
+    if (_ownsNode) {
       _focusNode.dispose();
     }
     _controller.dispose();
@@ -141,83 +152,6 @@ class _FocusRingState extends State<FocusRing>
         },
         child: widget.child,
       ),
-    );
-  }
-}
-
-/// A builder that provides focus state for custom focus styling.
-///
-/// Use this when you need more control over focus appearance than
-/// [FocusRing] provides.
-class FocusBuilder extends StatefulWidget {
-  /// Builder that receives focus state and builds the child
-  final Widget Function(BuildContext context, bool isFocused) builder;
-
-  /// Focus node to track (optional)
-  final FocusNode? focusNode;
-
-  /// Whether to only show focus state for keyboard navigation
-  final bool keyboardOnly;
-
-  const FocusBuilder({
-    super.key,
-    required this.builder,
-    this.focusNode,
-    this.keyboardOnly = true,
-  });
-
-  @override
-  State<FocusBuilder> createState() => _FocusBuilderState();
-}
-
-class _FocusBuilderState extends State<FocusBuilder> {
-  late FocusNode _focusNode;
-  bool _isFocused = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _focusNode = widget.focusNode ?? FocusNode();
-    _focusNode.addListener(_handleFocusChange);
-  }
-
-  @override
-  void didUpdateWidget(FocusBuilder oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.focusNode != oldWidget.focusNode) {
-      _focusNode.removeListener(_handleFocusChange);
-      _focusNode = widget.focusNode ?? FocusNode();
-      _focusNode.addListener(_handleFocusChange);
-    }
-  }
-
-  @override
-  void dispose() {
-    _focusNode.removeListener(_handleFocusChange);
-    if (widget.focusNode == null) {
-      _focusNode.dispose();
-    }
-    super.dispose();
-  }
-
-  void _handleFocusChange() {
-    final hasFocus = _focusNode.hasFocus;
-
-    if (widget.keyboardOnly) {
-      final focusHighlightMode = FocusManager.instance.highlightMode;
-      final isKeyboardFocus =
-          focusHighlightMode == FocusHighlightMode.traditional;
-      setState(() => _isFocused = hasFocus && isKeyboardFocus);
-    } else {
-      setState(() => _isFocused = hasFocus);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Focus(
-      focusNode: _focusNode,
-      child: widget.builder(context, _isFocused),
     );
   }
 }

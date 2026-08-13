@@ -64,6 +64,7 @@ class _NightshadeTooltipState extends State<NightshadeTooltip>
   late Animation<double> _scaleAnimation;
   bool _isHovered = false;
   Timer? _dismissTimer;
+  Timer? _showTimer;
 
   @override
   void initState() {
@@ -87,24 +88,30 @@ class _NightshadeTooltipState extends State<NightshadeTooltip>
   @override
   void dispose() {
     _dismissTimer?.cancel();
+    _showTimer?.cancel();
     _animController.dispose();
     super.dispose();
   }
 
-  void _showTooltip() async {
-    if (_overlayController.isShowing) return;
+  // The hover delay is a Timer rather than a `Future.delayed` so dispose() can
+  // cancel it; an uncancellable delay keeps this state object alive past
+  // teardown and turns any throw into an unhandled zone error.
+  void _showTooltip() {
+    if (_overlayController.isShowing || _showTimer != null) return;
 
     _isHovered = true;
-    await Future.delayed(widget.waitDuration);
-
-    if (_isHovered && mounted) {
+    _showTimer = Timer(widget.waitDuration, () {
+      _showTimer = null;
+      if (!_isHovered || !mounted) return;
       _overlayController.show();
-      await _animController.forward();
-    }
+      _animController.forward();
+    });
   }
 
   void _hideTooltip() {
     _dismissTimer?.cancel();
+    _showTimer?.cancel();
+    _showTimer = null;
     _isHovered = false;
     _animController.reverse().then((_) {
       if (mounted && _overlayController.isShowing) {
@@ -121,6 +128,8 @@ class _NightshadeTooltipState extends State<NightshadeTooltip>
       return;
     }
     _dismissTimer?.cancel();
+    _showTimer?.cancel();
+    _showTimer = null;
     _isHovered = true;
     _overlayController.show();
     _animController.forward();
@@ -372,31 +381,6 @@ class _ArrowPainter extends CustomPainter {
     return color != oldDelegate.color ||
         borderColor != oldDelegate.borderColor ||
         isPointingUp != oldDelegate.isPointingUp;
-  }
-}
-
-/// A simple wrapper that adds a tooltip to any widget.
-///
-/// This is a convenience widget for common tooltip use cases.
-class WithTooltip extends StatelessWidget {
-  final Widget child;
-  final String tooltip;
-  final NightshadeTooltipPosition position;
-
-  const WithTooltip({
-    super.key,
-    required this.child,
-    required this.tooltip,
-    this.position = NightshadeTooltipPosition.top,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return NightshadeTooltip(
-      message: tooltip,
-      position: position,
-      child: child,
-    );
   }
 }
 
