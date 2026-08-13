@@ -1611,58 +1611,13 @@ impl DeviceOps for UnifiedDeviceOps {
         // catalogs, same sensor — the only variable was whether the blind
         // sweep happened to land.
         //
-        // Both values are measured, not assumed: the focal length is the
-        // operator's own profile entry and the pitch is what the camera
-        // reports. A device that reports neither contributes no card and the
-        // solver behaves exactly as it did before.
-        let mut focal_length_mm: Option<f64> = None;
-        let mut pixel_size: Option<(f64, f64)> = None;
-        let mut binning = (1, 1);
-        if let Some(profile) = crate::get_state().get_profile().await {
-            focal_length_mm = Some(profile.telescope_focal_length)
-                .filter(|focal| focal.is_finite() && *focal > 0.0);
-
-            if let Some(camera_id) = profile.camera_id.as_deref() {
-                match get_camera_status(camera_id.to_string()).await {
-                    Ok(status) => {
-                        // 0.0 is a driver saying "I don't know", not a pitch.
-                        if status.pixel_size_x > 0.0 && status.pixel_size_y > 0.0 {
-                            pixel_size = Some((status.pixel_size_x, status.pixel_size_y));
-                        }
-                        if status.bin_x > 0 && status.bin_y > 0 {
-                            binning = (status.bin_x, status.bin_y);
-                        }
-                    }
-                    Err(e) => tracing::debug!(
-                        "Plate solve: camera '{}' status unavailable ({}); solving without a \
-                         pixel-scale hint",
-                        camera_id,
-                        e
-                    ),
-                }
-            }
-        }
-
-        // A blind scale sweep is not an error and logs no warning of its own,
-        // so without this line the fast reliable case and the slow unreliable
-        // one look identical afterwards.
-        match (focal_length_mm, pixel_size) {
-            (Some(focal), Some((pitch_x, _))) => tracing::info!(
-                "Plate solve scale hint: focal length {:.1} mm, pixel pitch {:.2} um \
-                 ({:.2}\"/px unbinned)",
-                focal,
-                pitch_x,
-                206.264_806 * pitch_x / focal
-            ),
-            _ => tracing::warn!(
-                "Plate solve has no field-scale hint (focal length {}, pixel pitch {}); the \
-                 solver must search for the scale, which is slower and can fail on a field it \
-                 would otherwise solve. Set the telescope focal length on the active equipment \
-                 profile.",
-                focal_length_mm.map_or_else(|| "unknown".to_string(), |v| format!("{v:.1} mm")),
-                pixel_size.map_or_else(|| "unknown".to_string(), |(x, _)| format!("{x:.2} um")),
-            ),
-        }
+        // Gathered by the shared helper so this is the same header every other
+        // production solve path writes.
+        let hints = crate::api::plate_solve::gather_solve_hints().await;
+        hints.log_scale("Plate solve");
+        let focal_length_mm = hints.focal_length_mm;
+        let pixel_size = hints.pixel_size_um;
+        let binning = hints.binning;
 
         // Save the image data to the temp file first
         let header = FitsWriteHeader {

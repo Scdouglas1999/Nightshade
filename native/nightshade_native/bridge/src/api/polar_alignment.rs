@@ -561,6 +561,18 @@ pub(crate) async fn run_polar_alignment(
 
     let mut solved_points: Vec<(f64, f64)> = Vec::new();
 
+    // The field scale, read once for the run: the optics and the sensor do not
+    // change between the three measurement frames. The pitch is asked of the
+    // camera this run is imaging through — not the profile's imaging camera,
+    // which polar alignment is often not using — and scaled by the binning
+    // these frames are actually being taken at, which the camera has not been
+    // set to yet at this point.
+    let mut solve_hints = gather_solve_hints_for_camera(Some(&camera_id)).await;
+    if binning > 0 {
+        solve_hints.binning = (binning, binning);
+    }
+    solve_hints.log_scale("Polar alignment solve");
+
     // Phase 1: Capture and solve 3 points
     for point in 1..=3 {
         // Check for cancellation / supersession before starting hardware work.
@@ -620,7 +632,7 @@ pub(crate) async fn run_polar_alignment(
         let temp_path_str = temp_path.to_string_lossy().to_string();
 
         // Write FITS file for plate solving
-        if let Err(e) = write_temp_fits_for_solve(&image, &temp_path_str) {
+        if let Err(e) = write_temp_fits_for_solve(&image, &temp_path_str, &solve_hints) {
             return Err(format!("Failed to write temp FITS: {}", e));
         }
 
@@ -856,7 +868,7 @@ pub(crate) async fn run_polar_alignment(
         let temp_path = create_unique_temp_fits_path("polar_align_adjust");
         let temp_path_str = temp_path.to_string_lossy().to_string();
 
-        if let Err(e) = write_temp_fits_for_solve(&image, &temp_path_str) {
+        if let Err(e) = write_temp_fits_for_solve(&image, &temp_path_str, &solve_hints) {
             consecutive_failures += 1;
             tracing::warn!("Failed to write temp FITS: {}", e);
             emit_polar_status(
@@ -1091,10 +1103,18 @@ pub(crate) async fn run_polar_alignment(
     }
 }
 
-/// Helper to write a temp FITS file for plate solving
+/// Write the temp FITS a polar-alignment frame is solved from.
+///
+/// `hints` carries the field scale (see [`SolveHints`]). Polar alignment
+/// solves blind on purpose — it runs before the mount's pointing can be
+/// trusted, so no position hint is stamped — but the scale is known from the
+/// operator's profile and the camera, and without it ASTAP has to sweep for
+/// the field of view on all three measurement frames plus every frame of the
+/// adjustment loop.
 pub(crate) fn write_temp_fits_for_solve(
     image: &CapturedImageResult,
     path: &str,
+    hints: &SolveHints,
 ) -> Result<(), String> {
     use nightshade_imaging::{write_fits, FitsHeader, ImageData, PixelType};
     use std::path::Path;
@@ -1131,7 +1151,9 @@ pub(crate) fn write_temp_fits_for_solve(
     );
     image_data.data = raw_bytes;
 
-    let header = FitsHeader::new();
+    let mut header = FitsHeader::new();
+    header.set_float("EXPTIME", image.exposure_time);
+    hints.apply_to_fits_header(&mut header);
 
     write_fits(Path::new(path), &image_data, &header)
         .map_err(|e| format!("FITS write error: {:?}", e))
@@ -1521,6 +1543,101 @@ mod polar_run_control_tests {
     #[test]
     fn plate_solve_ra_is_already_degrees_for_polar_geometry() {
         assert_eq!(plate_solve_ra_degrees(10.0), 10.0);
+    }
+
+    /// IMG-14: the frame polar alignment hands the solver must carry the field
+    /// scale the operator already told us about. Without `FOCALLEN` and the
+    /// binned pixel pitch, ASTAP has no scale to work from and sweeps its
+    /// field-of-view ladder — the slow path that fails on fields it would
+    /// otherwise solve, three times per alignment run.
+    #[test]
+    fn polar_solve_frame_carries_the_field_scale_hints() {
+        use super::{write_temp_fits_for_solve, SolveHints};
+        use crate::api::imaging::{CapturedImageResult, ImageStatsResult};
+
+        let width = 8u32;
+        let height = 6u32;
+        let image = CapturedImageResult {
+            width,
+            height,
+            display_data: vec![32u8; (width * height * 4) as usize],
+            histogram: vec![0; 256],
+            stats: ImageStatsResult {
+                min: 0.0,
+                max: 1.0,
+                mean: 0.5,
+                median: 0.5,
+                std_dev: 0.1,
+                hfr: None,
+                eccentricity: None,
+                fwhm: None,
+                star_count: 0,
+            },
+            exposure_time: 2.0,
+            timestamp: "2026-08-13T00:00:00Z".to_string(),
+            is_color: false,
+        };
+
+        let path = crate::api::create_unique_temp_fits_path("polar_hint_test");
+        let path_str = path.to_string_lossy().to_string();
+        // A 416 mm scope and a 3.76 um sensor binned 2x2 — the operator's own
+        // profile entry and what the camera reports.
+        let hints = SolveHints {
+            focal_length_mm: Some(416.0),
+            pixel_size_um: Some((3.76, 3.76)),
+            binning: (2, 2),
+        };
+        write_temp_fits_for_solve(&image, &path_str, &hints).expect("temp FITS write");
+
+        let (_data, header) = nightshade_imaging::read_fits(&path).expect("read back temp FITS");
+        assert_eq!(header.get_float("FOCALLEN"), Some(416.0));
+        let xpixsz = header.get_float("XPIXSZ").expect("XPIXSZ card");
+        let ypixsz = header.get_float("YPIXSZ").expect("YPIXSZ card");
+        assert!(
+            (xpixsz - 7.52).abs() < 1e-6 && (ypixsz - 7.52).abs() < 1e-6,
+            "a 3.76 um sensor binned 2x2 has 7.52 um effective pixels, got {xpixsz} x {ypixsz}"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A rig that reports neither optic nor pitch contributes no card, and the
+    /// solver behaves exactly as it did before — no invented numbers.
+    #[test]
+    fn polar_solve_frame_omits_scale_cards_when_nothing_is_known() {
+        use super::{write_temp_fits_for_solve, SolveHints};
+        use crate::api::imaging::{CapturedImageResult, ImageStatsResult};
+
+        let image = CapturedImageResult {
+            width: 4,
+            height: 4,
+            display_data: vec![0u8; 4 * 4 * 4],
+            histogram: vec![0; 256],
+            stats: ImageStatsResult {
+                min: 0.0,
+                max: 0.0,
+                mean: 0.0,
+                median: 0.0,
+                std_dev: 0.0,
+                hfr: None,
+                eccentricity: None,
+                fwhm: None,
+                star_count: 0,
+            },
+            exposure_time: 1.0,
+            timestamp: "2026-08-13T00:00:00Z".to_string(),
+            is_color: false,
+        };
+
+        let path = crate::api::create_unique_temp_fits_path("polar_hint_absent_test");
+        let path_str = path.to_string_lossy().to_string();
+        write_temp_fits_for_solve(&image, &path_str, &SolveHints::default()).expect("write");
+
+        let (_data, header) = nightshade_imaging::read_fits(&path).expect("read back temp FITS");
+        assert_eq!(header.get_float("FOCALLEN"), None);
+        assert_eq!(header.get_float("XPIXSZ"), None);
+
+        let _ = std::fs::remove_file(&path);
     }
 
     /// The pole-region slew target sits on the meridian (RA == LST, wrapped into

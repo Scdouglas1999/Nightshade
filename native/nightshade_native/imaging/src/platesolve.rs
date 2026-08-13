@@ -536,6 +536,170 @@ pub fn verify_solver(path: &Path) -> Result<SolverInfo, SolverVerifyError> {
     })
 }
 
+/// A private working directory for one solver invocation.
+///
+/// External solvers name their output after the file they were handed and
+/// write it into that file's folder: ASTAP produces `<image>.ini` and
+/// `<image>.wcs`, astrometry.net produces `<image>.axy`, `.corr`, `.rdls`,
+/// `.solved`, `.new` and `.wcs`. Handing them the operator's capture meant a
+/// night of centering solves littered sidecars through the light folder, and
+/// any solve that was cut short — a hung solver we had to kill, a non-zero
+/// exit — left them there for good.
+///
+/// So the solver is handed a **hard link** to the image inside a directory we
+/// own, and the whole directory is removed when the solve returns. A hard link
+/// costs nothing and never copies the frame; when one cannot be made (the
+/// image's filesystem differs from the temp filesystem *and* its own folder is
+/// not writable) the solve falls back to running in place, and the guard then
+/// removes only the artifacts that appeared during this solve.
+struct SolveScratch {
+    /// Directory created for this solve, removed wholesale on drop.
+    dir: Option<PathBuf>,
+    /// The path handed to the solver.
+    input: PathBuf,
+    /// In-place fallback bookkeeping: the folder to sweep, the base name that
+    /// marks an artifact of this solve, and the entries that were already
+    /// there (which are the operator's, not ours).
+    sweep: Option<(PathBuf, String, Vec<std::ffi::OsString>)>,
+}
+
+static SCRATCH_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+impl SolveScratch {
+    fn new(image_path: &Path) -> Self {
+        let file_name = image_path.file_name();
+        let parent = image_path.parent();
+
+        // A bare relative name ("frame.fits") parents to the empty path, which
+        // is not a directory anything can be created in.
+        let parent = parent.map(|parent| {
+            if parent.as_os_str().is_empty() {
+                Path::new(".")
+            } else {
+                parent
+            }
+        });
+
+        if let (Some(file_name), Some(parent)) = (file_name, parent) {
+            let unique = format!(
+                "nightshade-solve-{}-{}",
+                std::process::id(),
+                SCRATCH_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            );
+            // The temp directory first; the image's own folder second, because
+            // a hard link there is guaranteed to be on the same filesystem.
+            // A dot-prefixed name keeps it out of the operator's way for the
+            // seconds it exists.
+            let candidates = [
+                std::env::temp_dir().join(&unique),
+                parent.join(format!(".{unique}")),
+            ];
+            for candidate in candidates {
+                if fs::create_dir_all(&candidate).is_err() {
+                    continue;
+                }
+                let linked = candidate.join(file_name);
+                if fs::hard_link(image_path, &linked).is_ok() {
+                    return Self {
+                        dir: Some(candidate),
+                        input: linked,
+                        sweep: None,
+                    };
+                }
+                let _ = fs::remove_dir_all(&candidate);
+            }
+        }
+
+        // Fallback: solve the file where it lies and reclaim what the solver
+        // adds beside it.
+        let sweep = match (parent, image_path.file_stem()) {
+            (Some(parent), Some(stem)) => match fs::read_dir(parent) {
+                Ok(entries) => {
+                    let existing = entries
+                        .filter_map(|entry| entry.ok())
+                        .map(|entry| entry.file_name())
+                        .collect::<Vec<_>>();
+                    Some((
+                        parent.to_path_buf(),
+                        stem.to_string_lossy().into_owned(),
+                        existing,
+                    ))
+                }
+                // Without a pre-solve snapshot the post-solve diff cannot tell
+                // debris from files that were already there — skip the sweep
+                // rather than risk deleting a pre-existing sidecar.
+                Err(_) => None,
+            },
+            _ => None,
+        };
+        tracing::debug!(
+            "Plate solve could not stage {:?} in a private directory; solving in place",
+            image_path
+        );
+        Self {
+            dir: None,
+            input: image_path.to_path_buf(),
+            sweep,
+        }
+    }
+
+    /// The path to hand the solver.
+    fn input(&self) -> &Path {
+        &self.input
+    }
+
+    /// The directory the solver should write its output into.
+    fn work_dir(&self) -> &Path {
+        self.input.parent().unwrap_or_else(|| Path::new("."))
+    }
+
+    /// Where an artifact with the given extension will land.
+    fn artifact(&self, extension: &str) -> PathBuf {
+        self.input.with_extension(extension)
+    }
+}
+
+impl Drop for SolveScratch {
+    fn drop(&mut self) {
+        if let Some(dir) = &self.dir {
+            if let Err(error) = fs::remove_dir_all(dir) {
+                tracing::warn!("Could not remove plate-solve scratch {:?}: {}", dir, error);
+            }
+            return;
+        }
+        if let Some((dir, stem, existing)) = &self.sweep {
+            reclaim_new_artifacts(dir, stem, existing);
+        }
+    }
+}
+
+/// Remove the files a solve added to `dir` whose names start with `stem`,
+/// leaving everything that was already there (`existing`) alone. Used only by
+/// the in-place fallback: the operator's own sidecars are not ours to delete,
+/// and neither is the frame itself, which is in `existing` by construction.
+fn reclaim_new_artifacts(dir: &Path, stem: &str, existing: &[std::ffi::OsString]) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.filter_map(|entry| entry.ok()) {
+        let name = entry.file_name();
+        if existing.contains(&name) {
+            continue;
+        }
+        if !name.to_string_lossy().starts_with(stem) {
+            continue;
+        }
+        if !entry
+            .file_type()
+            .map(|kind| kind.is_file())
+            .unwrap_or(false)
+        {
+            continue;
+        }
+        let _ = fs::remove_file(entry.path());
+    }
+}
+
 /// Plate solver using ASTAP
 pub struct AstapSolver {
     config: PlateSolverConfig,
@@ -609,10 +773,15 @@ impl AstapSolver {
         //
         // IMPORTANT: ASTAP exits 0 even on a failed solve. The actual result
         // is only in PLTSOLVD inside the .ini file. Do NOT gate on exit status.
+        // ASTAP writes `.ini` / `.wcs` against the base name of the file it is
+        // given, so it is given a link inside a directory we own instead of
+        // the operator's capture. See `SolveScratch`.
+        let scratch = SolveScratch::new(image_path);
+
         let mut cmd = Command::new(astap_path);
 
         // Input file
-        cmd.arg("-f").arg(image_path);
+        cmd.arg("-f").arg(scratch.input());
 
         // Hint coordinates — only add when provided (near solve)
         if let (Some(ra), Some(dec)) = (hint_ra, hint_dec) {
@@ -796,8 +965,8 @@ impl AstapSolver {
         //   2. If PLTSOLVD=T, parse .wcs for the full CD-matrix solution.
         //   3. Fall back to .ini coordinates if .wcs is missing.
 
-        let ini_path = image_path.with_extension("ini");
-        let wcs_path = image_path.with_extension("wcs");
+        let ini_path = scratch.artifact("ini");
+        let wcs_path = scratch.artifact("wcs");
 
         // Check .ini for PLTSOLVD flag — gives us the ASTAP-side result
         // and any error information before attempting to parse coordinates.
@@ -836,9 +1005,7 @@ impl AstapSolver {
                         };
 
                         tracing::warn!("{}", msg);
-                        // Clean up artifacts
-                        let _ = fs::remove_file(&ini_path);
-                        let _ = fs::remove_file(&wcs_path);
+                        // `scratch` removes the artifacts as it drops.
                         return PlateSolveResult {
                             success: false,
                             error: Some(msg),
@@ -875,18 +1042,13 @@ impl AstapSolver {
                     }
                 }
             };
-            // Clean up artifacts
-            let _ = fs::remove_file(&ini_path);
-            let _ = fs::remove_file(&wcs_path);
             return result;
         }
 
         // No .wcs — fall back to .ini coordinates (produced by -update;
         // also present with -wcs for some ASTAP versions).
         if ini_path.exists() {
-            let result = self.parse_astap_ini(&ini_path, solve_time);
-            let _ = fs::remove_file(&ini_path);
-            return result;
+            return self.parse_astap_ini(&ini_path, solve_time);
         }
 
         // No output artifacts at all — ASTAP produced neither .wcs nor .ini.
@@ -1529,8 +1691,14 @@ fn solve_with_astrometry(
     timeout_secs: u32,
     start: std::time::Instant,
 ) -> PlateSolveResult {
-    let output_dir = image_path.parent().unwrap_or_else(|| Path::new("."));
-    let wcs_path = image_path.with_extension("wcs");
+    // `solve-field` writes its whole product set (.axy, .corr, .rdls,
+    // .solved, .new, .wcs) into `--dir`, named after the input frame. Give it
+    // a directory we own so none of it lands beside the operator's capture.
+    // See `SolveScratch`.
+    let scratch = SolveScratch::new(image_path);
+    let output_dir = scratch.work_dir().to_path_buf();
+    let image_path = scratch.input();
+    let wcs_path = scratch.artifact("wcs");
     if wcs_path.exists() {
         if let Err(error) = fs::remove_file(&wcs_path) {
             return PlateSolveResult {
@@ -2290,11 +2458,275 @@ mod tests {
         let _ = std::fs::remove_file(path);
     }
 
+    /// Names left in the folder the caller asked us to solve, excluding the
+    /// image itself. Any entry here is solver debris in the user's capture
+    /// folder.
+    #[cfg(unix)]
+    fn debris_beside(capture_dir: &std::path::Path, image: &std::path::Path) -> Vec<String> {
+        let mut names: Vec<String> = std::fs::read_dir(capture_dir)
+            .expect("read capture dir")
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.path())
+            .filter(|path| path != image)
+            .filter_map(|path| {
+                path.file_name()
+                    .map(|name| name.to_string_lossy().into_owned())
+            })
+            .collect();
+        names.sort();
+        names
+    }
+
+    /// Serialises the tests that write an executable fixture and then run it.
+    /// A `fork` on another test's thread inherits the still-open write
+    /// descriptor, and exec'ing the script inside that window fails with
+    /// ETXTBSY ("Text file busy") — a race in the harness, not the solver.
+    #[cfg(unix)]
+    fn lock_script_fixtures() -> std::sync::MutexGuard<'static, ()> {
+        static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    #[cfg(unix)]
+    fn make_executable(path: &std::path::Path) {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = std::fs::metadata(path)
+            .expect("solver metadata")
+            .permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(path, permissions).expect("make solver executable");
+    }
+
+    /// A `.wcs` body ASTAP/astrometry.net would have written for a solved
+    /// frame, in the newline-free 80-column card form both really emit.
+    #[cfg(unix)]
+    fn solved_wcs_body() -> String {
+        let mut content = padded_card("SIMPLE", "                   T");
+        content.push_str(&padded_card("CRVAL1", "150.123"));
+        content.push_str(&padded_card("CRVAL2", "20.456"));
+        content.push_str(&padded_card("CD1_1", "-0.000358"));
+        content.push_str(&padded_card("CD1_2", "0.000001"));
+        content.push_str(&padded_card("CD2_1", "0.000001"));
+        content.push_str(&padded_card("CD2_2", "0.000358"));
+        content.push_str(&padded_card("NAXIS1", "1920"));
+        content.push_str(&padded_card("NAXIS2", "1080"));
+        content
+    }
+
+    /// SCI-48: ASTAP writes `<image>.ini` / `<image>.wcs` next to the file it
+    /// was pointed at. When the solve is cut short — the solver hangs and we
+    /// kill it — those artifacts stayed behind in the operator's capture
+    /// folder, where the next session sees `M31_L_0007.ini` sitting beside
+    /// `M31_L_0007.fits`.
+    #[cfg(unix)]
+    #[test]
+    fn astap_leaves_no_debris_in_the_capture_folder() {
+        use super::{AstapSolver, PlateSolverChoice, PlateSolverConfig};
+        let _fixtures = lock_script_fixtures();
+
+        let nonce = format!("{}-astap-debris", std::process::id());
+        let dir = std::env::temp_dir().join(format!("nightshade-solver-{nonce}"));
+        let _ = std::fs::remove_dir_all(&dir);
+        let capture = dir.join("captures");
+        std::fs::create_dir_all(&capture).expect("create capture dir");
+        let image = capture.join("M31_L_0007.fits");
+        std::fs::write(&image, b"fixture").expect("write fake image");
+
+        // Emulates ASTAP: writes its result files against the input file's
+        // base name, then hangs so the runner has to terminate it.
+        let script = dir.join("astap-hang.sh");
+        std::fs::write(
+            &script,
+            "#!/bin/sh\ninput=\"\"\nwhile [ \"$#\" -gt 0 ]; do\n  if [ \"$1\" = \"-f\" ]; then\n\
+             input=\"$2\"; shift 2; else shift; fi\ndone\nbase=${input%.*}\n\
+             printf 'PLTSOLVD=T\\n' > \"$base.ini\"\nprintf 'x' > \"$base.wcs\"\nsleep 3\n",
+        )
+        .expect("write hanging ASTAP fixture");
+        make_executable(&script);
+
+        let result = AstapSolver::new(PlateSolverConfig {
+            astap_path: Some(script),
+            astrometry_path: None,
+            catalog_path: None,
+            search_radius: 5.0,
+            downsample: 0,
+            timeout_secs: 1,
+            solver_choice: PlateSolverChoice::Astap,
+        })
+        .solve(&image, None, None, None);
+
+        assert!(!result.success, "the hung solver must not report success");
+        assert_eq!(
+            debris_beside(&capture, &image),
+            Vec::<String>::new(),
+            "the solver left files in the operator's capture folder"
+        );
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// SCI-48: astrometry.net's `solve-field` writes a whole product set —
+    /// `.axy`, `.corr`, `.solved`, `.new`, `.wcs` — into whatever directory
+    /// it is given. It was given the capture folder, and nothing removed any
+    /// of it, including on the successful path.
+    #[cfg(unix)]
+    #[test]
+    fn astrometry_leaves_no_debris_in_the_capture_folder() {
+        use super::{solve_with_external_config, PlateSolverChoice, PlateSolverConfig};
+        let _fixtures = lock_script_fixtures();
+
+        let nonce = format!("{}-astrometry-debris", std::process::id());
+        let dir = std::env::temp_dir().join(format!("nightshade-solver-{nonce}"));
+        let _ = std::fs::remove_dir_all(&dir);
+        let capture = dir.join("captures");
+        std::fs::create_dir_all(&capture).expect("create capture dir");
+        let image = capture.join("M31_L_0007.fits");
+        std::fs::write(&image, b"fixture").expect("write fake image");
+        let wcs_fixture = dir.join("solution.wcs");
+        std::fs::write(&wcs_fixture, solved_wcs_body()).expect("write wcs fixture");
+
+        let script = dir.join("solve-field.sh");
+        std::fs::write(
+            &script,
+            format!(
+                "#!/bin/sh\nout=.\ninput=\"\"\nwhile [ \"$#\" -gt 0 ]; do\n  case \"$1\" in\n\
+                 --dir) out=\"$2\"; shift 2;;\n    --ra|--dec|--radius) shift 2;;\n\
+                 --overwrite|--no-plots) shift;;\n    *) input=\"$1\"; shift;;\n  esac\ndone\n\
+                 stem=$(basename \"$input\"); stem=${{stem%.*}}\n\
+                 cp '{}' \"$out/$stem.wcs\"\nfor ext in axy corr rdls solved new; do\n\
+                 printf 'x' > \"$out/$stem.$ext\"\ndone\n",
+                wcs_fixture.display()
+            ),
+        )
+        .expect("write fake solve-field");
+        make_executable(&script);
+
+        let result = solve_with_external_config(
+            &image,
+            None,
+            None,
+            None,
+            PlateSolverConfig {
+                astap_path: None,
+                astrometry_path: Some(script),
+                catalog_path: None,
+                search_radius: 5.0,
+                downsample: 0,
+                timeout_secs: 10,
+                solver_choice: PlateSolverChoice::Astrometry,
+            },
+            std::time::Instant::now(),
+        );
+
+        assert!(result.success, "solve failed: {:?}", result.error);
+        assert!((result.ra - 150.123).abs() < 1e-9, "ra was {}", result.ra);
+        assert_eq!(
+            debris_beside(&capture, &image),
+            Vec::<String>::new(),
+            "solve-field left its product set in the operator's capture folder"
+        );
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// A `.wcs` the operator already had (an earlier export, a sidecar they
+    /// keep) is not ours to delete — the cleanup must only reclaim what this
+    /// solve created.
+    #[cfg(unix)]
+    #[test]
+    fn cleanup_keeps_files_that_were_there_before_the_solve() {
+        use super::{AstapSolver, PlateSolverChoice, PlateSolverConfig};
+        let _fixtures = lock_script_fixtures();
+
+        let nonce = format!("{}-preexisting", std::process::id());
+        let dir = std::env::temp_dir().join(format!("nightshade-solver-{nonce}"));
+        let _ = std::fs::remove_dir_all(&dir);
+        let capture = dir.join("captures");
+        std::fs::create_dir_all(&capture).expect("create capture dir");
+        let image = capture.join("M31_L_0007.fits");
+        std::fs::write(&image, b"fixture").expect("write fake image");
+        let keepsake = capture.join("M31_L_0007.txt");
+        std::fs::write(&keepsake, b"operator notes").expect("write operator file");
+
+        let script = dir.join("astap-noop.sh");
+        std::fs::write(&script, "#!/bin/sh\nexit 0\n").expect("write no-op ASTAP fixture");
+        make_executable(&script);
+
+        let _ = AstapSolver::new(PlateSolverConfig {
+            astap_path: Some(script),
+            astrometry_path: None,
+            catalog_path: None,
+            search_radius: 5.0,
+            downsample: 0,
+            timeout_secs: 5,
+            solver_choice: PlateSolverChoice::Astap,
+        })
+        .solve(&image, None, None, None);
+
+        assert!(
+            keepsake.exists(),
+            "the solve deleted a file it did not create"
+        );
+        assert!(image.exists(), "the solve deleted the operator's capture");
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// The in-place fallback (no private directory could be staged) reclaims
+    /// exactly what the solve created: same base name, new since the solve
+    /// started, and a file rather than a directory.
+    #[test]
+    fn in_place_fallback_reclaims_only_this_solve_s_artifacts() {
+        use super::reclaim_new_artifacts;
+
+        let dir = std::env::temp_dir().join(format!(
+            "nightshade-reclaim-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).expect("create fixture dir");
+        let image = dir.join("M31_L_0007.fits");
+        let operator_sidecar = dir.join("M31_L_0007.xisf");
+        let unrelated = dir.join("M42_L_0001.ini");
+        for path in [&image, &operator_sidecar, &unrelated] {
+            std::fs::write(path, b"pre-existing").expect("write pre-existing file");
+        }
+        let existing: Vec<std::ffi::OsString> = std::fs::read_dir(&dir)
+            .expect("snapshot fixture dir")
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.file_name())
+            .collect();
+
+        // What the solve then produced.
+        let ini = dir.join("M31_L_0007.ini");
+        let wcs = dir.join("M31_L_0007.wcs");
+        for path in [&ini, &wcs] {
+            std::fs::write(path, b"solver output").expect("write solver artifact");
+        }
+
+        reclaim_new_artifacts(&dir, "M31_L_0007", &existing);
+
+        assert!(!ini.exists(), ".ini artifact was left behind");
+        assert!(!wcs.exists(), ".wcs artifact was left behind");
+        assert!(image.exists(), "the capture itself was deleted");
+        assert!(
+            operator_sidecar.exists(),
+            "a pre-existing sidecar was deleted"
+        );
+        assert!(unrelated.exists(), "another frame's file was deleted");
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
     #[cfg(unix)]
     #[test]
     fn explicit_astrometry_choice_does_not_run_available_astap() {
         use super::{solve_with_external_config, PlateSolverChoice, PlateSolverConfig};
         use std::os::unix::fs::PermissionsExt;
+        let _fixtures = lock_script_fixtures();
 
         let nonce = format!("{}-choice", std::process::id());
         let dir = std::env::temp_dir().join(format!("nightshade-solver-{nonce}"));
@@ -2427,6 +2859,7 @@ mod tests {
     #[test]
     fn timed_out_astap_is_terminated_before_it_can_write_late_output() {
         use super::{AstapSolver, PlateSolverConfig};
+        let _fixtures = lock_script_fixtures();
         use std::os::unix::fs::PermissionsExt;
 
         let nonce = format!(

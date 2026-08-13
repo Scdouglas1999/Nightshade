@@ -49,6 +49,151 @@ fn validate_solver_timeout(timeout_secs: Option<u32>) -> Result<u32, NightshadeE
     Ok(timeout)
 }
 
+// =============================================================================
+// SOLVER HINTS
+// =============================================================================
+
+/// The field-scale facts a solve can be told up front.
+///
+/// A solver given no scale has to find one. ASTAP sweeps its field-of-view
+/// ladder downward from ~9.5°, and on a narrow field that sweep is the
+/// difference between a 0.3 s solve and five consecutive failures on the same
+/// frames, same catalogs, same sensor. Both numbers here are measured rather
+/// than assumed — the focal length is the operator's own profile entry and the
+/// pitch is what the camera reports — so a rig that reports neither contributes
+/// no card and the solver behaves exactly as it did before.
+///
+/// Gather once per solve with [`gather_solve_hints`] and hand the result to
+/// whichever writer stamps the frame the solver will read: the solver never
+/// sees these values as flags, it reads them out of the FITS header.
+#[derive(Debug, Clone)]
+pub(crate) struct SolveHints {
+    /// Telescope focal length in millimetres (FITS `FOCALLEN`).
+    pub(crate) focal_length_mm: Option<f64>,
+    /// UNBINNED sensor pixel pitch in microns, `(x, y)` (FITS `PIXSIZE1/2`).
+    pub(crate) pixel_size_um: Option<(f64, f64)>,
+    /// Binning the frame was taken at. `XPIXSZ`/`YPIXSZ` are the pitch scaled
+    /// by it, which is what a solver needs to derive the plate scale.
+    pub(crate) binning: (i32, i32),
+}
+
+impl Default for SolveHints {
+    fn default() -> Self {
+        Self {
+            focal_length_mm: None,
+            pixel_size_um: None,
+            // Unbinned, so a caller that never learned the binning still
+            // stamps a truthful pitch rather than zeroing it.
+            binning: (1, 1),
+        }
+    }
+}
+
+impl SolveHints {
+    /// Stamp the scale cards onto a FITS header, using the same keywords and
+    /// the same binning convention as a saved capture
+    /// (`api::imaging::write_fits_with_header`), so a solver cannot tell a
+    /// solve frame from a light frame.
+    pub(crate) fn apply_to_fits_header(&self, header: &mut nightshade_imaging::FitsHeader) {
+        if let Some(focal) = self.focal_length_mm {
+            header.set_float("FOCALLEN", focal);
+        }
+        if let Some((pitch_x, pitch_y)) = self.pixel_size_um {
+            header.set_float("PIXSIZE1", pitch_x);
+            header.set_float("PIXSIZE2", pitch_y);
+            header.set_float("XPIXSZ", pitch_x * f64::from(self.binning.0));
+            header.set_float("YPIXSZ", pitch_y * f64::from(self.binning.1));
+        }
+        header.set_int("XBINNING", i64::from(self.binning.0));
+        header.set_int("YBINNING", i64::from(self.binning.1));
+    }
+
+    /// A blind scale sweep is not an error and logs no warning of its own, so
+    /// without this line the fast reliable case and the slow unreliable one
+    /// look identical afterwards.
+    pub(crate) fn log_scale(&self, context: &str) {
+        match (self.focal_length_mm, self.pixel_size_um) {
+            (Some(focal), Some((pitch_x, _))) => tracing::info!(
+                "{} scale hint: focal length {:.1} mm, pixel pitch {:.2} um \
+                 ({:.2}\"/px unbinned)",
+                context,
+                focal,
+                pitch_x,
+                206.264_806 * pitch_x / focal
+            ),
+            _ => tracing::warn!(
+                "{} has no field-scale hint (focal length {}, pixel pitch {}); the \
+                 solver must search for the scale, which is slower and can fail on a field it \
+                 would otherwise solve. Set the telescope focal length on the active equipment \
+                 profile.",
+                context,
+                self.focal_length_mm
+                    .map_or_else(|| "unknown".to_string(), |v| format!("{v:.1} mm")),
+                self.pixel_size_um
+                    .map_or_else(|| "unknown".to_string(), |(x, _)| format!("{x:.2} um")),
+            ),
+        }
+    }
+}
+
+/// Read the active profile's optics and the active camera's pixel pitch so a
+/// solve can be told the field scale.
+///
+/// Shared by every production solve path — the sequencer/imaging solve in
+/// `unified_device_ops::plate_solve` and the polar-alignment frames — so none
+/// of them can quietly go back to solving blind. A camera that cannot be
+/// queried is logged and skipped, never guessed at.
+pub(crate) async fn gather_solve_hints() -> SolveHints {
+    gather_solve_hints_for_camera(None).await
+}
+
+/// As [`gather_solve_hints`], but for a caller that is imaging through a
+/// camera of its own rather than the profile's imaging camera.
+///
+/// The pitch has to come from the camera that took the frame: stamping the
+/// profile camera's pitch onto a frame from a different sensor would hand the
+/// solver a confidently wrong scale, which is worse than handing it none.
+pub(crate) async fn gather_solve_hints_for_camera(camera_id: Option<&str>) -> SolveHints {
+    let mut hints = SolveHints::default();
+
+    let Some(profile) = crate::get_state().get_profile().await else {
+        return hints;
+    };
+
+    hints.focal_length_mm =
+        Some(profile.telescope_focal_length).filter(|focal| focal.is_finite() && *focal > 0.0);
+
+    let camera_id = match camera_id {
+        Some(id) => id,
+        None => {
+            let Some(id) = profile.camera_id.as_deref() else {
+                return hints;
+            };
+            id
+        }
+    };
+
+    match crate::api::devices::camera::get_camera_status(camera_id.to_string()).await {
+        Ok(status) => {
+            // 0.0 is a driver saying "I don't know", not a pitch.
+            if status.pixel_size_x > 0.0 && status.pixel_size_y > 0.0 {
+                hints.pixel_size_um = Some((status.pixel_size_x, status.pixel_size_y));
+            }
+            if status.bin_x > 0 && status.bin_y > 0 {
+                hints.binning = (status.bin_x, status.bin_y);
+            }
+        }
+        Err(e) => tracing::debug!(
+            "Plate solve: camera '{}' status unavailable ({}); solving without a \
+             pixel-scale hint",
+            camera_id,
+            e
+        ),
+    }
+
+    hints
+}
+
 /// Plate solve result
 #[derive(Debug, Clone)]
 pub struct PlateSolveResult {
@@ -453,4 +598,44 @@ pub fn api_platesolve_set_config(config: PlateSolverConfigPayload) -> Result<(),
     crate::state::save_platesolver_preference(&pref).map_err(NightshadeError::OperationFailed)?;
     nightshade_imaging::invalidate_solver_availability_cache();
     Ok(())
+}
+
+#[cfg(test)]
+mod solve_hint_tests {
+    use super::SolveHints;
+    use nightshade_imaging::FitsHeader;
+
+    /// `XPIXSZ` is the *binned* pitch — that is the number a solver turns into
+    /// a plate scale. Stamping the unbinned pitch on a 2x2 frame would tell it
+    /// the field is twice as wide as it is.
+    #[test]
+    fn xpixsz_is_the_pitch_the_frame_was_actually_taken_at() {
+        let hints = SolveHints {
+            focal_length_mm: Some(416.0),
+            pixel_size_um: Some((3.76, 3.76)),
+            binning: (2, 2),
+        };
+        let mut header = FitsHeader::new();
+        hints.apply_to_fits_header(&mut header);
+
+        assert_eq!(header.get_float("FOCALLEN"), Some(416.0));
+        assert_eq!(header.get_float("PIXSIZE1"), Some(3.76));
+        assert_eq!(header.get_float("XPIXSZ"), Some(7.52));
+        assert_eq!(header.get_float("YPIXSZ"), Some(7.52));
+        assert_eq!(header.get_int("XBINNING"), Some(2));
+    }
+
+    /// The default must be *unbinned*, not zeroed: a derived `Default` would
+    /// give binning (0, 0) and multiply every pitch to 0.0 um, which is a
+    /// confidently wrong scale rather than an absent one.
+    #[test]
+    fn default_hints_are_unbinned_and_stamp_no_scale_cards() {
+        let hints = SolveHints::default();
+        assert_eq!(hints.binning, (1, 1));
+
+        let mut header = FitsHeader::new();
+        hints.apply_to_fits_header(&mut header);
+        assert_eq!(header.get_float("FOCALLEN"), None);
+        assert_eq!(header.get_float("XPIXSZ"), None);
+    }
 }
