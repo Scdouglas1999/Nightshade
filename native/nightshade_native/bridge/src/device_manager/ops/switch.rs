@@ -420,9 +420,9 @@ impl DeviceManager {
             DriverType::Indi => {
                 let sw = self.indi_get_switch_at(device_id, switch_id).await?;
                 // INDI switches can have associated number values (e.g., PWM duty cycle)
-                let parts: Vec<&str> = device_id.split(':').collect();
-                let server_key = format!("{}:{}", parts[1], parts[2]);
-                let device_name = parts[3..].join(":");
+                let (host, port, device_name) = Self::parse_indi_device_id(device_id)
+                    .map_err(DeviceOpError::invalid_device_id)?;
+                let server_key = format!("{host}:{port}");
                 let clients = self.indi_clients.read().await;
                 if let Some(client) = clients.get(&server_key) {
                     let switch_dev =

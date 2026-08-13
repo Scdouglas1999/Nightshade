@@ -1144,14 +1144,8 @@ impl DeviceManager {
                 // ASCOM not available on non-Windows platforms
             }
             DriverType::Indi => {
-                let parts: Vec<&str> = device_id.split(':').collect();
-                if parts.len() < 4 {
-                    return Err(format!("Invalid INDI device ID format: {}", device_id));
-                }
-                let host = parts[1];
-                let port = parts[2];
-                let device_name = parts[3..].join(":");
-                let server_key = format!("{}:{}", host, port);
+                let (host, port, device_name) = Self::parse_indi_device_id(device_id)?;
+                let server_key = format!("{host}:{port}");
 
                 let client = {
                     let clients = self.indi_clients.read().await;

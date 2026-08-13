@@ -242,12 +242,11 @@ mod guard_tests {
     /// Generated FFI glue is not hand-written capture code.
     const GENERATED: &[&str] = &["bridge/src/frb_generated.rs"];
     /// `NullDeviceOps` fabricates HFR and star positions, but it is a test
-    /// double that a release artifact cannot install: both entry points
-    /// (`sequencer_set_simulation_mode`, `api_sequencer_set_simulation_mode`)
-    /// refuse with NotSupported unless `cfg!(debug_assertions)`, and no HTTP
-    /// route exposes either. `release_gate_still_guards_null_device_ops`
-    /// below fails if that stops being true, so this exemption cannot rot
-    /// into a live path unnoticed.
+    /// double that a release artifact cannot install: its only entry point
+    /// (`api_sequencer_set_simulation_mode`) refuses with NotSupported unless
+    /// `cfg!(debug_assertions)`, and no HTTP route exposes it.
+    /// `release_gate_still_guards_null_device_ops` below fails if that stops
+    /// being true, so this exemption cannot rot into a live path unnoticed.
     const RELEASE_GATED_TEST_DOUBLE: &[&str] = &["sequencer/src/device_ops.rs"];
 
     fn workspace_root() -> PathBuf {
@@ -424,7 +423,7 @@ mod guard_tests {
     }
 
     /// The exemption granted to `NullDeviceOps` above is only sound while a
-    /// release build physically cannot install it. Both switches must keep
+    /// release build physically cannot install it. The switch must keep
     /// refusing outside `debug_assertions`; if someone drops the gate, the
     /// sequencer could fit an autofocus V-curve to `rng.gen_range(1.5..3.0)`
     /// on a real night, so this fails loudly rather than letting the allowlist
@@ -432,10 +431,7 @@ mod guard_tests {
     #[test]
     fn release_gate_still_guards_null_device_ops() {
         let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-        for (file, func) in [
-            ("sequencer_api.rs", "sequencer_set_simulation_mode"),
-            ("api/sequencer.rs", "api_sequencer_set_simulation_mode"),
-        ] {
+        for (file, func) in [("api/sequencer.rs", "api_sequencer_set_simulation_mode")] {
             let text = std::fs::read_to_string(src.join(file))
                 .unwrap_or_else(|e| panic!("read {file}: {e}"));
             let start = text

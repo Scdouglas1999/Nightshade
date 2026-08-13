@@ -77,12 +77,9 @@ impl DeviceManager {
                 ))
             }
             Some(DriverType::Indi) => {
-                let parts: Vec<&str> = device_id.split(':').collect();
-                if parts.len() < 4 {
-                    return Err(DeviceOpError::invalid_device_id("Invalid INDI device ID"));
-                }
-                let server_key = format!("{}:{}", parts[1], parts[2]);
-                let device_name = parts[3..].join(":");
+                let (host, port, device_name) = Self::parse_indi_device_id(device_id)
+                    .map_err(DeviceOpError::invalid_device_id)?;
+                let server_key = format!("{host}:{port}");
 
                 let clients = self.indi_clients.read().await;
                 let client = clients.get(&server_key).cloned();
@@ -253,9 +250,9 @@ mod tests {
     }
 
     async fn wait_for_weather_property(manager: &DeviceManager, device_id: &str) {
-        let parts: Vec<&str> = device_id.split(':').collect();
-        let server_key = format!("{}:{}", parts[1], parts[2]);
-        let device_name = parts[3..].join(":");
+        let (host, port, device_name) =
+            DeviceManager::parse_indi_device_id(&device_id).expect("test id is a valid INDI id");
+        let server_key = format!("{host}:{port}");
         let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
 
         loop {
@@ -293,8 +290,9 @@ mod tests {
         let (manager, device_id, server) = connect_fake_weather(xml, "Weather Station").await;
         wait_for_weather_property(&manager, &device_id).await;
 
-        let parts: Vec<&str> = device_id.split(':').collect();
-        let server_key = format!("{}:{}", parts[1], parts[2]);
+        let (host, port, _device_name) =
+            DeviceManager::parse_indi_device_id(&device_id).expect("test id is a valid INDI id");
+        let server_key = format!("{host}:{port}");
         let clients = manager.indi_clients.read().await;
         let client = clients.get(&server_key).cloned();
         drop(clients);

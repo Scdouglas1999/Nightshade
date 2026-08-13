@@ -1519,6 +1519,7 @@ mod tests {
 
     #[test]
     fn test_cached_parse_returns_same_result() {
+        let _guard = CACHE_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         // First call should be a cache miss
         let parsed1 = parse_device_id_cached("ascom:ASCOM.Telescope.Simulator").unwrap();
 
@@ -1529,8 +1530,15 @@ mod tests {
         assert_eq!(parsed1.driver_type, parsed2.driver_type);
     }
 
+    // These three tests mutate and assert on the process-global DEVICE_ID_CACHE.
+    // Rust runs tests concurrently in one process, so without serialization a
+    // clear_device_id_cache() from one test can land between another test's
+    // parse and its size/metrics assertion.
+    static CACHE_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     #[test]
     fn test_cache_metrics() {
+        let _guard = CACHE_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         // Reset metrics for a clean test
         reset_device_id_cache_metrics();
 
@@ -1561,6 +1569,7 @@ mod tests {
 
     #[test]
     fn test_cache_invalidation() {
+        let _guard = CACHE_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let device_id = "alpaca:http://192.168.1.50:11111:focuser:0";
 
         // Parse and cache
@@ -1585,6 +1594,7 @@ mod tests {
 
     #[test]
     fn test_cache_clear() {
+        let _guard = CACHE_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         // Parse a few device IDs
         let _ = parse_device_id_cached("native:zwo:1").unwrap();
         let _ = parse_device_id_cached("native:qhy:2").unwrap();

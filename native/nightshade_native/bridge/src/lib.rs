@@ -63,10 +63,6 @@ mod error;
 mod event;
 mod filter_matching;
 mod hotplug;
-mod imaging_ops;
-mod real_device_ops;
-mod sequencer_api;
-mod sequencer_ops;
 /// THE simulated-capture entry point: the one place a simulated frame is
 /// produced, shared by the sequencer download and the Imaging screen's manual
 /// capture so both see the same sky.
@@ -98,16 +94,12 @@ pub use device_id::*;
 pub use device_manager::*;
 pub use error::*;
 pub use event::*;
-pub use imaging_ops::*;
 // FRB-generated impl SseDecode / IntoIntoDart blocks embed unqualified
 // references to `DefectMapCorrectionRecord` (as an `Option<_>` field on
 // `FitsWriteHeaderRich`), so the type must be reachable at the crate root
 // for the generated code to compile. Sequencer exposes the source at
 // `nightshade_sequencer::scheduling::frame_context::DefectMapCorrectionRecord`.
 pub use nightshade_sequencer::scheduling::frame_context::DefectMapCorrectionRecord;
-pub use real_device_ops::*;
-pub use sequencer_api::*;
-pub use sequencer_ops::*;
 pub use stacking_api::*;
 pub use state::*;
 pub use storage::*;

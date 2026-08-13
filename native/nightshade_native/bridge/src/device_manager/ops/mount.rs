@@ -154,12 +154,8 @@ impl DeviceManager {
             }
             DriverType::Indi => {
                 // Parse INDI device ID: indi:host:port:device_name
-                let parts: Vec<&str> = device_id.split(':').collect();
-                if parts.len() >= 4 {
-                    let host = parts[1];
-                    let port = parts[2];
-                    let device_name = parts[3..].join(":");
-                    let server_key = format!("{}:{}", host, port);
+                if let Ok((host, port, device_name)) = Self::parse_indi_device_id(device_id) {
+                    let server_key = format!("{host}:{port}");
 
                     let clients = self.indi_clients.read().await;
                     if let Some(client) = clients.get(&server_key) {
@@ -300,10 +296,8 @@ impl DeviceManager {
                 ))
             }
             DriverType::Indi => {
-                let parts: Vec<&str> = device_id.split(':').collect();
-                if parts.len() >= 4 {
-                    let server_key = format!("{}:{}", parts[1], parts[2]);
-                    let device_name = parts[3..].join(":");
+                if let Ok((host, port, device_name)) = Self::parse_indi_device_id(device_id) {
+                    let server_key = format!("{host}:{port}");
                     let clients = self.indi_clients.read().await;
                     if let Some(client) = clients.get(&server_key) {
                         let mount = nightshade_indi::IndiMount::new(client.clone(), &device_name);
@@ -401,10 +395,8 @@ impl DeviceManager {
                 ))
             }
             DriverType::Indi => {
-                let parts: Vec<&str> = device_id.split(':').collect();
-                if parts.len() >= 4 {
-                    let server_key = format!("{}:{}", parts[1], parts[2]);
-                    let device_name = parts[3..].join(":");
+                if let Ok((host, port, device_name)) = Self::parse_indi_device_id(device_id) {
+                    let server_key = format!("{host}:{port}");
                     let clients = self.indi_clients.read().await;
                     if let Some(client) = clients.get(&server_key) {
                         let mount = nightshade_indi::IndiMount::new(client.clone(), &device_name);
@@ -523,10 +515,8 @@ impl DeviceManager {
                 ))
             }
             DriverType::Indi => {
-                let parts: Vec<&str> = device_id.split(':').collect();
-                if parts.len() >= 4 {
-                    let server_key = format!("{}:{}", parts[1], parts[2]);
-                    let device_name = parts[3..].join(":");
+                if let Ok((host, port, device_name)) = Self::parse_indi_device_id(device_id) {
+                    let server_key = format!("{host}:{port}");
                     let clients = self.indi_clients.read().await;
                     if let Some(client) = clients.get(&server_key) {
                         let mount = nightshade_indi::IndiMount::new(client.clone(), &device_name);
@@ -629,12 +619,8 @@ impl DeviceManager {
                 ))
             }
             DriverType::Indi => {
-                let parts: Vec<&str> = device_id.split(':').collect();
-                if parts.len() >= 4 {
-                    let host = parts[1];
-                    let port = parts[2];
-                    let device_name = parts[3..].join(":");
-                    let server_key = format!("{}:{}", host, port);
+                if let Ok((host, port, device_name)) = Self::parse_indi_device_id(device_id) {
+                    let server_key = format!("{host}:{port}");
 
                     let clients = self.indi_clients.read().await;
                     if let Some(client) = clients.get(&server_key) {
@@ -746,12 +732,8 @@ impl DeviceManager {
                 ))
             }
             DriverType::Indi => {
-                let parts: Vec<&str> = device_id.split(':').collect();
-                if parts.len() >= 4 {
-                    let host = parts[1];
-                    let port = parts[2];
-                    let device_name = parts[3..].join(":");
-                    let server_key = format!("{}:{}", host, port);
+                if let Ok((host, port, device_name)) = Self::parse_indi_device_id(device_id) {
+                    let server_key = format!("{host}:{port}");
 
                     let clients = self.indi_clients.read().await;
                     if let Some(client) = clients.get(&server_key) {
@@ -851,10 +833,8 @@ impl DeviceManager {
                 ))
             }
             DriverType::Indi => {
-                let parts: Vec<&str> = device_id.split(':').collect();
-                if parts.len() >= 4 {
-                    let server_key = format!("{}:{}", parts[1], parts[2]);
-                    let device_name = parts[3..].join(":");
+                if let Ok((host, port, device_name)) = Self::parse_indi_device_id(device_id) {
+                    let server_key = format!("{host}:{port}");
                     let clients = self.indi_clients.read().await;
                     if let Some(client) = clients.get(&server_key) {
                         let mount = nightshade_indi::IndiMount::new(client.clone(), &device_name);
@@ -920,10 +900,8 @@ impl DeviceManager {
                 ))
             }
             DriverType::Indi => {
-                let parts: Vec<&str> = device_id.split(':').collect();
-                if parts.len() >= 4 {
-                    let server_key = format!("{}:{}", parts[1], parts[2]);
-                    let device_name = parts[3..].join(":");
+                if let Ok((host, port, device_name)) = Self::parse_indi_device_id(device_id) {
+                    let server_key = format!("{host}:{port}");
                     let clients = self.indi_clients.read().await;
                     if let Some(client) = clients.get(&server_key) {
                         let mount = nightshade_indi::IndiMount::new(client.clone(), &device_name);
@@ -998,10 +976,8 @@ impl DeviceManager {
                 ))
             }
             DriverType::Indi => {
-                let parts: Vec<&str> = device_id.split(':').collect();
-                if parts.len() >= 4 {
-                    let server_key = format!("{}:{}", parts[1], parts[2]);
-                    let device_name = parts[3..].join(":");
+                if let Ok((host, port, device_name)) = Self::parse_indi_device_id(device_id) {
+                    let server_key = format!("{host}:{port}");
                     let clients = self.indi_clients.read().await;
                     if let Some(client) = clients.get(&server_key) {
                         let mount = nightshade_indi::IndiMount::new(client.clone(), &device_name);
@@ -1126,10 +1102,8 @@ impl DeviceManager {
                 ))
             }
             DriverType::Indi => {
-                let parts: Vec<&str> = device_id.split(':').collect();
-                if parts.len() >= 4 {
-                    let server_key = format!("{}:{}", parts[1], parts[2]);
-                    let device_name = parts[3..].join(":");
+                if let Ok((host, port, device_name)) = Self::parse_indi_device_id(device_id) {
+                    let server_key = format!("{host}:{port}");
                     let clients = self.indi_clients.read().await;
                     if let Some(client) = clients.get(&server_key) {
                         let mount = nightshade_indi::IndiMount::new(client.clone(), &device_name);
@@ -1252,10 +1226,8 @@ impl DeviceManager {
                 ))
             }
             DriverType::Indi => {
-                let parts: Vec<&str> = device_id.split(':').collect();
-                if parts.len() >= 4 {
-                    let server_key = format!("{}:{}", parts[1], parts[2]);
-                    let device_name = parts[3..].join(":");
+                if let Ok((host, port, device_name)) = Self::parse_indi_device_id(device_id) {
+                    let server_key = format!("{host}:{port}");
                     let clients = self.indi_clients.read().await;
                     if let Some(client) = clients.get(&server_key) {
                         let mount = nightshade_indi::IndiMount::new(client.clone(), &device_name);
@@ -1362,10 +1334,8 @@ impl DeviceManager {
                 ))
             }
             DriverType::Indi => {
-                let parts: Vec<&str> = device_id.split(':').collect();
-                if parts.len() >= 4 {
-                    let server_key = format!("{}:{}", parts[1], parts[2]);
-                    let device_name = parts[3..].join(":");
+                if let Ok((host, port, device_name)) = Self::parse_indi_device_id(device_id) {
+                    let server_key = format!("{host}:{port}");
                     let clients = self.indi_clients.read().await;
                     if let Some(client) = clients.get(&server_key) {
                         let locked = client.read().await;
@@ -2359,12 +2329,8 @@ impl DeviceManager {
             DriverType::Indi => {
                 // INDI uses directional movement (NSEW) instead of axis rates
                 // We need to map axis/rate to directional commands
-                let parts: Vec<&str> = device_id.split(':').collect();
-                if parts.len() >= 4 {
-                    let host = parts[1];
-                    let port = parts[2];
-                    let device_name = parts[3..].join(":");
-                    let server_key = format!("{}:{}", host, port);
+                if let Ok((host, port, device_name)) = Self::parse_indi_device_id(device_id) {
+                    let server_key = format!("{host}:{port}");
 
                     let clients = self.indi_clients.read().await;
                     if let Some(client) = clients.get(&server_key) {

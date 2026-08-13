@@ -1046,6 +1046,13 @@ pub(crate) async fn camera_start_exposure_configured_opt(
             .await
             .map_err(|e| classify_exposure_failure(&device_id, e))?;
 
+        // Everything from here to `store_captured_image_atomically` is pure CPU
+        // over the whole frame — debayer, stretch, statistics and star
+        // detection, which on a 24 MP sensor is seconds of work. Run it on a
+        // blocking thread: on the async runtime it starves the event bridge,
+        // the device heartbeats and the headless HTTP handlers for its whole
+        // duration.
+        let (display_result, raw_info) = tokio::task::spawn_blocking(move || {
         // Convert SeqImageData to ImageData for processing
         let image = ImageData::from_u16(seq_image.width, seq_image.height, 1, &seq_image.data);
 
@@ -1190,17 +1197,23 @@ pub(crate) async fn camera_start_exposure_configured_opt(
             );
             display_data_raw = nightshade_imaging::apply_stretch(&image, &stretch_params);
 
-            // Check display data distribution
-            let display_min = display_data_raw.iter().min().copied().unwrap_or(0);
-            let display_max = display_data_raw.iter().max().copied().unwrap_or(0);
-            let display_sum: u64 = display_data_raw.iter().map(|&v| v as u64).sum();
-            let display_mean = display_sum / display_data_raw.len() as u64;
-            tracing::info!(
-                "[DIAGNOSTIC] Display data after stretch: min={}, max={}, mean={}",
-                display_min,
-                display_max,
-                display_mean
-            );
+            // Check display data distribution.
+            //
+            // Gated, because this is a whole-frame scan run purely to build one
+            // log line — it used to be three unconditional linear passes on
+            // every exposure.
+            if tracing::enabled!(tracing::Level::DEBUG) {
+                if let Some((display_min, display_max, display_mean)) =
+                    display_data_summary(&display_data_raw)
+                {
+                    tracing::debug!(
+                        "[DIAGNOSTIC] Display data after stretch: min={}, max={}, mean={}",
+                        display_min,
+                        display_max,
+                        display_mean,
+                    );
+                }
+            }
         }
 
         // Calculate statistics
@@ -1289,14 +1302,25 @@ pub(crate) async fn camera_start_exposure_configured_opt(
             is_color,
         };
 
+        // `seq_image.data` is not read again, so the frame moves out instead of
+        // being copied — one w*h*2-byte allocation and memcpy less per light
+        // frame (48 MB on a 24 MP sensor).
         let raw_info = RawImageInfo {
             width: seq_image.width,
             height: seq_image.height,
-            data: seq_image.data.clone(),
-            sensor_type: seq_image.sensor_type.clone(),
+            data: seq_image.data,
+            sensor_type: seq_image.sensor_type,
             bayer_offset: seq_image.bayer_offset,
         };
 
+            Ok::<_, NightshadeError>((display_result, raw_info))
+        })
+        .await
+        .map_err(|e| {
+            NightshadeError::OperationFailed(format!("Image analysis task failed: {}", e))
+        })??;
+
+        let star_count = display_result.stats.star_count;
         store_captured_image_atomically(&device_id, display_result, raw_info).await;
 
         // Note: ExposureComplete event is published by UnifiedDeviceOps
@@ -4162,9 +4186,104 @@ pub async fn api_save_fits_from_last_capture(
     Ok(())
 }
 
+/// `(min, max, mean)` of a stretched display buffer in ONE pass.
+///
+/// `None` for an empty buffer — the caller logs nothing rather than dividing
+/// by a zero pixel count.
+fn display_data_summary(display_data: &[u8]) -> Option<(u8, u8, u64)> {
+    if display_data.is_empty() {
+        return None;
+    }
+    let (min, max, sum) = display_data
+        .iter()
+        .fold((u8::MAX, u8::MIN, 0u64), |(min, max, sum), &v| {
+            (min.min(v), max.max(v), sum + v as u64)
+        });
+    Some((min, max, sum / display_data.len() as u64))
+}
+
 // =============================================================================
 // Image Processing
 // =============================================================================
+
+/// Calculate image statistics
+fn image_stats(width: u32, height: u32, data: Vec<u16>) -> nightshade_imaging::ImageStats {
+    let image = ImageData::from_u16(width, height, 1, &data);
+    nightshade_imaging::calculate_stats_u16(&image)
+}
+
+/// Auto-stretch image for display. Returns RGBA (4 bytes per pixel, alpha=255).
+fn auto_stretch_image(width: u32, height: u32, data: Vec<u16>) -> Vec<u8> {
+    let image = ImageData::from_u16(width, height, 1, &data);
+    let params = nightshade_imaging::auto_stretch_stf(&image);
+    let grayscale = nightshade_imaging::apply_stretch(&image, &params);
+
+    // Convert grayscale to RGBA
+    let num_pixels = grayscale.len();
+    let mut rgba = vec![0u8; num_pixels * 4];
+    rgba.par_chunks_exact_mut(4)
+        .zip(grayscale.par_iter())
+        .for_each(|(dst, &gray)| {
+            dst[0] = gray; // R
+            dst[1] = gray; // G
+            dst[2] = gray; // B
+            dst[3] = 255; // A
+        });
+    rgba
+}
+
+/// Auto-stretch an interleaved RGB16 image for display, returning RGBA
+/// (4 bytes per pixel, alpha=255).
+///
+/// Each channel is stretched independently with its own PixInsight MAD-based
+/// Screen-Transfer-Function (the "Unlinked" mode that maximizes per-channel
+/// contrast), mirroring the colour path the native capture pipeline uses. This
+/// is the colour counterpart to [`auto_stretch_image`]; the OSC live-stacking /
+/// Stack-and-Share display delegates here rather than reimplementing the STF in
+/// Dart, so the curve is computed in exactly one place.
+///
+/// `data` must be `width * height * 3` u16 samples (interleaved R,G,B). A
+/// mismatched length yields a fully black RGBA buffer of the correct size
+/// (matching `apply_stretch_rgb_per_channel`'s defensive length guard).
+fn auto_stretch_color_image(width: u32, height: u32, data: Vec<u16>) -> Vec<u8> {
+    use nightshade_imaging::{apply_stretch_rgb_per_channel, auto_stretch_rgb};
+
+    let pixel_count = (width as usize) * (height as usize);
+    if data.len() != pixel_count * 3 {
+        return vec![0u8; pixel_count * 4];
+    }
+
+    let (r_params, g_params, b_params) = auto_stretch_rgb(&data, width, height);
+    let rgb8 = apply_stretch_rgb_per_channel(&data, width, height, &r_params, &g_params, &b_params);
+
+    // Expand interleaved RGB8 → RGBA8 (opaque alpha) so the display layer
+    // consumes the same 4-byte layout as the grayscale path.
+    let mut rgba = vec![0u8; pixel_count * 4];
+    rgba.par_chunks_exact_mut(4)
+        .zip(rgb8.par_chunks_exact(3))
+        .for_each(|(dst, src)| {
+            dst[0] = src[0];
+            dst[1] = src[1];
+            dst[2] = src[2];
+            dst[3] = 255;
+        });
+    rgba
+}
+
+/// Debayer image to RGBA8
+fn debayer_image(
+    width: u32,
+    height: u32,
+    data: Vec<u16>,
+    pattern: BayerPattern,
+    algorithm: DebayerAlgorithm,
+) -> Vec<u8> {
+    // Convert u16 vec to u8 slice (little endian)
+    let bytes: Vec<u8> = data.iter().flat_map(|&v| v.to_le_bytes()).collect();
+
+    let rgb = nightshade_imaging::debayer(&bytes, width, height, pattern, algorithm);
+    rgb.to_rgba8()
+}
 
 /// Calculate image statistics
 #[flutter_rust_bridge::frb(sync)]
@@ -4173,7 +4292,7 @@ pub fn api_get_image_stats(
     height: u32,
     data: Vec<u16>,
 ) -> Result<ImageStatsResult, NightshadeError> {
-    let stats = crate::imaging_ops::get_image_stats(width, height, data);
+    let stats = image_stats(width, height, data);
     Ok(ImageStatsResult {
         min: stats.min,
         max: stats.max,
@@ -4195,7 +4314,7 @@ pub fn api_auto_stretch_image(
     height: u32,
     data: Vec<u16>,
 ) -> Result<Vec<u8>, NightshadeError> {
-    Ok(crate::imaging_ops::auto_stretch_image(width, height, data))
+    Ok(auto_stretch_image(width, height, data))
 }
 
 /// Auto-stretch an interleaved RGB16 image for display.
@@ -4212,9 +4331,7 @@ pub fn api_auto_stretch_color_image(
     height: u32,
     data: Vec<u16>,
 ) -> Result<Vec<u8>, NightshadeError> {
-    Ok(crate::imaging_ops::auto_stretch_color_image(
-        width, height, data,
-    ))
+    Ok(auto_stretch_color_image(width, height, data))
 }
 
 /// Debayer image
@@ -4237,9 +4354,7 @@ pub fn api_debayer_image(
         _ => DebayerAlgorithm::Bilinear,
     };
 
-    Ok(crate::imaging_ops::debayer_image(
-        width, height, data, pattern, algorithm,
-    ))
+    Ok(debayer_image(width, height, data, pattern, algorithm))
 }
 
 /// Generate thumbnail from FITS file
@@ -4434,7 +4549,7 @@ pub fn api_generate_fits_thumbnail(
     }
 
     // Auto-stretch for display
-    let stretched_rgba = crate::imaging_ops::auto_stretch_image(new_width, new_height, downscaled);
+    let stretched_rgba = auto_stretch_image(new_width, new_height, downscaled);
     if stretched_rgba.len() != expected_rgba_bytes {
         return Err(NightshadeError::ImageError(format!(
             "Invalid stretched thumbnail length: expected {} bytes, got {}",
@@ -4806,10 +4921,13 @@ pub fn api_calibrate_image_file(
 
     match out_format {
         ImageFormat::Fits => {
-            // Carry over header from original light, add calibration note
+            // Carry over header from original light, add calibration note.
+            // set_value_token, not set_string: the read path flattened each
+            // value to header text, and re-quoting it would ship
+            // EXPTIME = '120.0' — a string card no stacker reads as a number.
             let mut header = FitsHeader::new();
             for (key, value) in &light_result.header {
-                header.set_string(key, value);
+                header.set_value_token(key, value);
             }
             header.set_string("CALSTAT", "calibrated by Nightshade");
             if let Some(ref path) = dark_path {
@@ -7402,5 +7520,154 @@ mod sim_exposure_tests {
             "solved centre {error_arcsec:.1}\" from the mount's pointing, over one \
              {scale:.2}\" pixel"
         );
+    }
+}
+
+#[cfg(test)]
+mod auto_stretch_color_tests {
+    use super::auto_stretch_color_image;
+
+    /// The colour stretch emits opaque-alpha RGBA8 of exactly width*height*4.
+    #[test]
+    fn emits_rgba8_with_opaque_alpha() {
+        // 2x2 interleaved RGB16 with structure in every channel.
+        let data: Vec<u16> = vec![
+            1000, 2000, 3000, //
+            4000, 5000, 6000, //
+            7000, 8000, 9000, //
+            10000, 11000, 12000, //
+        ];
+        let rgba = auto_stretch_color_image(2, 2, data);
+        assert_eq!(rgba.len(), 2 * 2 * 4, "RGBA8 length is width*height*4");
+        for px in rgba.chunks_exact(4) {
+            assert_eq!(px[3], 255, "alpha must be fully opaque");
+        }
+    }
+
+    /// Each channel is stretched against its own noise scale (Unlinked STF), so
+    /// channels with different spreads map the same pixel to different outputs.
+    #[test]
+    fn stretches_each_channel_independently() {
+        let pixel_count = 64usize;
+        let mut data = Vec::with_capacity(pixel_count * 3);
+        for i in 0..pixel_count {
+            let i = i as u16;
+            data.push(800 + i * 16); // narrow red spread
+            data.push(800 + i * 128); // medium green spread
+            data.push(800 + i * 480); // wide blue spread
+        }
+        let rgba = auto_stretch_color_image(8, 8, data);
+
+        // Brightest pixel is the last one.
+        let probe = (pixel_count - 1) * 4;
+        let (r, g, b) = (rgba[probe], rgba[probe + 1], rgba[probe + 2]);
+        // A single shared (linked) curve would force r == g == b here.
+        let distinct = [r, g, b]
+            .into_iter()
+            .collect::<std::collections::HashSet<_>>();
+        assert!(
+            distinct.len() > 1,
+            "channels must stretch independently, got r={r} g={g} b={b}"
+        );
+    }
+
+    /// A perfectly flat channel has MAD = 0; the STF must return the identity
+    /// transform for it rather than inventing a stretch. A mid-grey constant
+    /// (0x8000 ≈ 0.5) therefore maps to ~127.
+    #[test]
+    fn constant_channel_is_identity() {
+        let pixel_count = 16usize;
+        let flat = 0x8000u16;
+        let data: Vec<u16> = std::iter::repeat_n(flat, pixel_count * 3).collect();
+        let rgba = auto_stretch_color_image(4, 4, data);
+        for px in rgba.chunks_exact(4) {
+            assert_eq!(px[0], 127, "constant R → identity midtone");
+            assert_eq!(px[1], 127, "constant G → identity midtone");
+            assert_eq!(px[2], 127, "constant B → identity midtone");
+            assert_eq!(px[3], 255);
+        }
+    }
+
+    /// A length mismatch yields a black RGBA buffer of the correct size rather
+    /// than panicking (mirrors the defensive length guard in the imaging crate).
+    #[test]
+    fn length_mismatch_returns_black_buffer() {
+        let rgba = auto_stretch_color_image(2, 2, vec![1, 2, 3]); // expects 12 samples
+        assert_eq!(rgba.len(), 2 * 2 * 4);
+        for px in rgba.chunks_exact(4) {
+            assert_eq!(px, &[0, 0, 0, 0]);
+        }
+    }
+}
+
+#[cfg(test)]
+mod display_diagnostic_tests {
+    use super::display_data_summary;
+
+    /// The fused fold must agree with the three separate passes it replaced.
+    #[test]
+    fn fused_summary_matches_three_separate_passes() {
+        let data: Vec<u8> = (0..=255u8).chain(17..90u8).collect();
+
+        let expected_min = *data.iter().min().unwrap();
+        let expected_max = *data.iter().max().unwrap();
+        let expected_mean = data.iter().map(|&v| v as u64).sum::<u64>() / data.len() as u64;
+
+        assert_eq!(
+            display_data_summary(&data),
+            Some((expected_min, expected_max, expected_mean))
+        );
+    }
+
+    /// A zero-pixel buffer reports nothing instead of dividing by its length.
+    #[test]
+    fn empty_buffer_reports_nothing_rather_than_dividing_by_zero() {
+        assert_eq!(display_data_summary(&[]), None);
+    }
+
+    #[test]
+    fn single_pixel_is_its_own_min_max_and_mean() {
+        assert_eq!(display_data_summary(&[42]), Some((42, 42, 42)));
+    }
+}
+
+#[cfg(test)]
+mod calibrate_header_carry_over_tests {
+    use super::api_calibrate_image_file;
+    use nightshade_imaging::{read_fits, write_fits, FitsHeader, ImageData, PixelType};
+    use std::path::PathBuf;
+
+    fn scratch(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join("ns_calibrate_carry_over_test");
+        std::fs::create_dir_all(&dir).unwrap();
+        dir.join(name)
+    }
+
+    /// The read path flattens header values to text; carrying them back with
+    /// set_string shipped EXPTIME = '120.0' — a string card that get_float
+    /// (and every stacker) reads as nothing.
+    #[test]
+    fn calibrated_save_keeps_numeric_exptime_and_gain() {
+        let light = scratch("light.fits");
+        let out = scratch("calibrated.fits");
+
+        let mut header = FitsHeader::new();
+        header.set_float("EXPTIME", 120.0);
+        header.set_int("GAIN", 100);
+        let image = ImageData::new(4, 4, 1, PixelType::U16);
+        write_fits(&light, &image, &header).unwrap();
+
+        api_calibrate_image_file(
+            light.to_string_lossy().into_owned(),
+            None,
+            None,
+            None,
+            out.to_string_lossy().into_owned(),
+        )
+        .unwrap();
+
+        let (_, out_header) = read_fits(&out).unwrap();
+        assert_eq!(out_header.get_float("EXPTIME"), Some(120.0));
+        assert_eq!(out_header.get_int("GAIN"), Some(100));
     }
 }

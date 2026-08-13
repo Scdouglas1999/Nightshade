@@ -256,12 +256,14 @@ pub async fn api_sequencer_load(definition: SequenceDefinitionApi) -> Result<(),
 ///
 /// Fills in rather than overwrites: a location explicitly pushed for this run
 /// stays authoritative.
-fn seed_executor_site_from_settings(executor: &mut nightshade_sequencer::SequenceExecutor) {
+async fn seed_executor_site_from_settings(executor: &mut nightshade_sequencer::SequenceExecutor) {
     if executor.latitude.is_some() && executor.longitude.is_some() {
         return;
     }
     if let Ok(Some(site)) = get_state().get_observer_location() {
-        executor.update_location(Some(site.latitude), Some(site.longitude));
+        executor
+            .update_location(Some(site.latitude), Some(site.longitude))
+            .await;
     }
 }
 
@@ -270,7 +272,7 @@ pub async fn api_sequencer_start() -> Result<(), NightshadeError> {
     tracing::info!("Starting sequence execution");
 
     let mut executor = get_sequence_executor().write().await;
-    seed_executor_site_from_settings(&mut executor);
+    seed_executor_site_from_settings(&mut executor).await;
     executor.start().await.map_err(|e| {
         NightshadeError::OperationFailed(format!("Failed to start sequence: {}", e))
     })?;
@@ -1761,7 +1763,9 @@ pub async fn api_sequencer_update_dither_config(
         pixels, settle_pixels, settle_time, settle_timeout, ra_only
     );
     let mut executor = get_sequence_executor().write().await;
-    executor.update_dither_config(pixels, settle_pixels, settle_time, settle_timeout, ra_only);
+    executor
+        .update_dither_config(pixels, settle_pixels, settle_time, settle_timeout, ra_only)
+        .await;
     Ok(())
 }
 
@@ -1820,7 +1824,7 @@ pub async fn api_sequencer_update_location(
         longitude
     );
     let mut executor = get_sequence_executor().write().await;
-    executor.update_location(latitude, longitude);
+    executor.update_location(latitude, longitude).await;
     Ok(())
 }
 
@@ -1859,7 +1863,7 @@ pub async fn api_sequencer_update_filter_offsets(
         offsets.len()
     );
     let mut executor = get_sequence_executor().write().await;
-    executor.update_filter_offsets(offsets);
+    executor.update_filter_offsets(offsets).await;
     Ok(())
 }
 
@@ -3538,7 +3542,8 @@ mod executor_site_tests {
             get_sequence_executor()
                 .write()
                 .await
-                .update_location(None, None);
+                .update_location(None, None)
+                .await;
         }
         get_state()
             .set_observer_location(Some(ObserverLocation {

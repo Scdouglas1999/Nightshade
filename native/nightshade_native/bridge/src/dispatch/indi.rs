@@ -223,17 +223,8 @@ impl DeviceManager {
         use nightshade_indi::IndiClient;
 
         // Parse INDI device ID: indi:host:port:device_name
-        let parts: Vec<&str> = info.id.split(':').collect();
-        if parts.len() < 4 {
-            return Err(
-                "Invalid INDI device ID format. Expected: indi:host:port:device_name".to_string(),
-            );
-        }
-
-        let host = parts[1];
-        let port: u16 = parts[2].parse().map_err(|_| "Invalid port number")?;
-        let device_name = parts[3..].join(":");
-        let server_key = format!("{}:{}", host, port);
+        let (host, port, device_name) = Self::parse_indi_device_id(&info.id)?;
+        let server_key = format!("{host}:{port}");
 
         // Check if client exists
         let client = {
@@ -242,7 +233,7 @@ impl DeviceManager {
                 client.clone()
             } else {
                 // Create new client
-                let mut new_client = IndiClient::new(host, Some(port));
+                let mut new_client = IndiClient::new(&host, Some(port));
                 new_client.connect().await?;
                 let client_arc = Arc::new(RwLock::new(new_client));
                 clients.insert(server_key.clone(), client_arc.clone());
@@ -331,14 +322,8 @@ impl DeviceManager {
             return None;
         }
 
-        let parts: Vec<&str> = device_id.split(':').collect();
-        if parts.len() < 4 {
-            return None;
-        }
-
-        let host = parts[1];
-        let port = parts[2];
-        let server_key = format!("{}:{}", host, port);
+        let (host, port, _device_name) = Self::parse_indi_device_id(device_id).ok()?;
+        let server_key = format!("{host}:{port}");
 
         let clients = self.indi_clients.read().await;
         clients.get(&server_key).cloned()
@@ -595,12 +580,8 @@ impl DeviceManager {
         &self,
         device_id: &str,
     ) -> Result<Vec<nightshade_indi::IndiSwitchInfo>, String> {
-        let parts: Vec<&str> = device_id.split(':').collect();
-        if parts.len() < 4 {
-            return Err("Invalid INDI device ID".to_string());
-        }
-        let server_key = format!("{}:{}", parts[1], parts[2]);
-        let device_name = parts[3..].join(":");
+        let (host, port, device_name) = Self::parse_indi_device_id(device_id)?;
+        let server_key = format!("{host}:{port}");
 
         let clients = self.indi_clients.read().await;
         if let Some(client) = clients.get(&server_key) {

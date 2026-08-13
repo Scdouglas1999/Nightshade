@@ -940,8 +940,9 @@ mod tests {
     }
 
     async fn wait_for_lightbox_property(manager: &DeviceManager, device_id: &str) {
-        let parts: Vec<&str> = device_id.split(':').collect();
-        let server_key = format!("{}:{}", parts[1], parts[2]);
+        let (host, port, _device_name) =
+            DeviceManager::parse_indi_device_id(device_id).expect("test id is a valid INDI id");
+        let server_key = format!("{host}:{port}");
         let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
 
         loop {

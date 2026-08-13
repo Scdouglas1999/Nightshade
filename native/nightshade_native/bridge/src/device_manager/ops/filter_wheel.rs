@@ -128,14 +128,9 @@ impl DeviceManager {
             }
             DriverType::Indi => {
                 // Parse INDI device ID: indi:host:port:device_name
-                let parts: Vec<&str> = device_id.split(':').collect();
-                if parts.len() < 4 {
-                    return Err(DeviceOpError::invalid_device_id(
-                        "Invalid INDI device ID format",
-                    ));
-                }
-                let server_key = format!("{}:{}", parts[1], parts[2]);
-                let device_name = parts[3..].join(":");
+                let (host, port, device_name) = Self::parse_indi_device_id(device_id)
+                    .map_err(DeviceOpError::invalid_device_id)?;
+                let server_key = format!("{host}:{port}");
 
                 let clients = self.indi_clients.read().await;
                 if let Some(client) = clients.get(&server_key) {
@@ -231,14 +226,9 @@ impl DeviceManager {
             }
             DriverType::Indi => {
                 // Parse INDI device ID: indi:host:port:device_name
-                let parts: Vec<&str> = device_id.split(':').collect();
-                if parts.len() < 4 {
-                    return Err(DeviceOpError::invalid_device_id(
-                        "Invalid INDI device ID format",
-                    ));
-                }
-                let server_key = format!("{}:{}", parts[1], parts[2]);
-                let device_name = parts[3..].join(":");
+                let (host, port, device_name) = Self::parse_indi_device_id(device_id)
+                    .map_err(DeviceOpError::invalid_device_id)?;
+                let server_key = format!("{host}:{port}");
 
                 let clients = self.indi_clients.read().await;
                 if let Some(client) = clients.get(&server_key) {
@@ -334,14 +324,9 @@ impl DeviceManager {
             }
             DriverType::Indi => {
                 // Parse INDI device ID: indi:host:port:device_name
-                let parts: Vec<&str> = device_id.split(':').collect();
-                if parts.len() < 4 {
-                    return Err(DeviceOpError::invalid_device_id(
-                        "Invalid INDI device ID format",
-                    ));
-                }
-                let server_key = format!("{}:{}", parts[1], parts[2]);
-                let device_name = parts[3..].join(":");
+                let (host, port, device_name) = Self::parse_indi_device_id(device_id)
+                    .map_err(DeviceOpError::invalid_device_id)?;
+                let server_key = format!("{host}:{port}");
 
                 let clients = self.indi_clients.read().await;
                 if let Some(client) = clients.get(&server_key) {
@@ -429,14 +414,8 @@ impl DeviceManager {
             }
             DriverType::Indi => {
                 // Parse INDI device ID: indi:host:port:device_name
-                let parts: Vec<&str> = device_id.split(':').collect();
-                if parts.len() >= 4 {
-                    let host = parts[1];
-                    let port: u16 = parts[2]
-                        .parse()
-                        .map_err(|_| DeviceOpError::invalid_device_id("Invalid port"))?;
-                    let device_name = parts[3..].join(":");
-                    let server_key = format!("{}:{}", host, port);
+                if let Ok((host, port, device_name)) = Self::parse_indi_device_id(device_id) {
+                    let server_key = format!("{host}:{port}");
 
                     let clients = self.indi_clients.read().await;
                     if let Some(client) = clients.get(&server_key) {
