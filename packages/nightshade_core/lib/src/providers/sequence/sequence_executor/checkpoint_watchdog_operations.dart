@@ -111,10 +111,4 @@ extension _SequenceExecutorCheckpointWatchdogOperations on SequenceExecutor {
       // Disposed provider — ignore.
     }
   }
-
-  /// Cancel all owned timers and subscriptions.
-  ///
-  /// Wired into the owning Provider's `ref.onDispose`. Safe to call even when
-  /// no sequence is running — all cancels are null-tolerant. Distinct from
-  /// `stop()`, which also mutates execution state and ends the session.
 }

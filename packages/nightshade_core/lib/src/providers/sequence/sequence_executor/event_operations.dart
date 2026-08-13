@@ -7,18 +7,17 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
       source: 'SequenceExecutor',
     );
 
-    // Handle imaging events for image preview during sequences.
-    // This MUST be before the category filter since ExposureComplete has
-    // category=imaging.
-    if (event.category == EventCategory.imaging &&
-        event.eventType == 'ExposureComplete') {
-      _logger.debug(
-        'ExposureComplete imaging event received - fetching image for preview',
-        source: 'SequenceExecutor',
-      );
-      final durationSecs =
-          (event.data['duration_secs'] as num?)?.toDouble() ?? 2.0;
-      _fetchAndDisplaySequenceImage(durationSecs);
+    // A dither that actually settled. This is the only event emitted when the
+    // mount is dithered, and it covers both a Dither node and the far more
+    // common per-burst `dither_every` pulse, which produces no sequencer event
+    // at all. `SequenceRunStats.recordDither()` had no call site anywhere, so
+    // the Session Report's "Dithers" figure was a hard zero for every run while
+    // the guider was pulsing between subs all night. Counting the Dither NODE's
+    // own completion as well would double-count every node-driven dither, which
+    // all reach the guider through this same event.
+    if (event.category == EventCategory.guiding &&
+        event.eventType == 'DitherCompleted') {
+      _incrementRunStat((stats) => stats.recordDither());
       return;
     }
 
@@ -42,6 +41,10 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
           );
           progressNotifier.updateNodeStatus(nodeId, NodeStatus.running);
         }
+        // Frame indices restart at 1 for every node, so a verdict the previous
+        // node never had an `ExposureCompleted` for (an aborted burst) must not
+        // survive into this one's frame 1.
+        _gradedFrames.clear();
         break;
 
       case 'NodeCompleted':
@@ -131,10 +134,16 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         final total = event.data['total'] as int? ?? 1;
         final durationSecs =
             (event.data['duration_secs'] as num?)?.toDouble() ?? 0.0;
+        // The grader already ruled on this frame (it emits before the
+        // completion), so its verdict decides whether the frame counts as
+        // rejected. A frame no grader ruled on — a run with no save path emits
+        // no grader event at all — still completed, so it is recorded as
+        // accepted rather than dropped.
+        final graded = _gradedFrames.remove(frame);
         _recordRunFrame(
           exposureSecs: durationSecs,
           filter: event.data['filter'] as String?,
-          accepted: true,
+          accepted: graded?.accepted ?? true,
         );
         // Feed the ETA smoother from the event's real exposure duration plus
         // a fixed per-frame download overhead. This is robust to AF/flip
@@ -171,7 +180,9 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
           );
         }
 
-        _fetchAndDisplaySequenceImage(durationSecs);
+        _fetchAndDisplaySequenceImage(
+          _previewSettingsForFrame(graded?.capture, durationSecs),
+        );
         break;
 
       case 'Progress':
@@ -389,6 +400,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         break;
 
       case 'FrameAccepted':
+        _carryFrameVerdict(event, accepted: true);
         // The Rust grader now ships `save_path` for
         // accepted frames as well (it already did for rejected
         // frames). The thumbnail strip uses the on-disk path to load
@@ -405,6 +417,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         break;
 
       case 'FrameRejected':
+        _carryFrameVerdict(event, accepted: false);
         // Thumbnail — same as FrameAccepted, but with the
         // reject_path the Rust grader already ships so the strip can
         // surface a "REJECTED" tile that opens the actual file when
@@ -969,6 +982,56 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     return sequence?.name ?? 'Sequence';
   }
 
+  /// Hold the grader's verdict and the capture truth it carries until the
+  /// `ExposureCompleted` for the same frame arrives. See [_gradedFrames].
+  void _carryFrameVerdict(NightshadeEvent event, {required bool accepted}) {
+    final frame = (event.data['frame'] as num?)?.toInt();
+    if (frame == null) return;
+    _gradedFrames[frame] = (
+      accepted: accepted,
+      capture: FrameCapture.fromEventData(event.data),
+    );
+  }
+
+  /// The capture settings to stamp on the preview published for the frame that
+  /// just completed.
+  ///
+  /// [capture] is the truth the camera reported for THIS exposure — the same
+  /// values the FITS header and the `captured_images` row were written from —
+  /// and the producing node's configuration is the fallback for a host that
+  /// sends no capture payload. Both used to be replaced by literals
+  /// (`gain: 0, offset: 0, binningX: 1, binningY: 1`) and a `?? 2.0` exposure
+  /// time, so the Imaging tab could label a 300 s sub "2 s, gain 0, bin 1".
+  ExposureSettings _previewSettingsForFrame(
+    FrameCapture? capture,
+    double durationSecs,
+  ) {
+    final filter = _resolveActiveFilter();
+    final sequence = _ref.read(currentSequenceProvider);
+    final nodeId = _ref.read(sequenceProgressProvider).currentNodeId;
+    final attribution = (sequence == null || nodeId == null)
+        ? const FrameAttribution()
+        : resolveFrameAttribution(sequence, nodeId, currentFilter: filter);
+    return ExposureSettings(
+      exposureTime:
+          capture?.exposureSecs ?? attribution.exposureSecs ?? durationSecs,
+      gain: capture?.gain ?? attribution.gain ?? 0,
+      offset: capture?.offset ?? attribution.offset ?? 0,
+      binningX: capture?.binX ?? attribution.binX,
+      binningY: capture?.binY ?? attribution.binY,
+      filter: filter,
+      frameType: switch (capture?.frameType?.toLowerCase() ??
+          attribution.frameType) {
+        'dark' => FrameType.dark,
+        'flat' => FrameType.flat,
+        'bias' => FrameType.bias,
+        'darkflat' => FrameType.darkFlat,
+        'snapshot' => FrameType.snapshot,
+        _ => FrameType.light,
+      },
+    );
+  }
+
   void _recordRunFrame({
     required double exposureSecs,
     required bool accepted,
@@ -1136,7 +1199,22 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         .read(sequenceRunsDaoProvider)
         .updateStats(runId, stats.toJson());
     _pendingStatWrites.add(write);
-    unawaited(write.whenComplete(() => _pendingStatWrites.remove(write)));
+    // The failure has to be handled HERE, not only in [_drainPendingStatWrites]
+    // — that only covers writes still pending when finalization drains, so a
+    // write that failed earlier in the night reached the zone as an unhandled
+    // async error. `whenComplete` forwards the error to its derived future, so
+    // it is not a handler.
+    final logger = _logger;
+    unawaited(
+      write
+          .catchError((Object e) {
+            logger.warning(
+              'Failed to persist live run stats for run $runId: $e',
+              source: 'SequenceExecutor',
+            );
+          })
+          .whenComplete(() => _pendingStatWrites.remove(write)),
+    );
   }
 
   /// Finalize the current run row and fire the once-per-run session-end hooks.
@@ -1420,17 +1498,4 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
       );
     }
   }
-
-  // =========================================================================
-  // Session lifecycle hooks
-  // =========================================================================
-
-  /// Capture the optical-train baseline + register the active sequence
-  /// with the notification router at session start.
-  ///
-  /// Each step is wrapped in try/catch because failure is non-fatal:
-  /// the user wants imaging to proceed even when diagnostics or
-  /// notifications are unavailable. We surface a single info-level
-  /// log per failure so the user can still trace why their post-
-  /// session report is empty.
 }

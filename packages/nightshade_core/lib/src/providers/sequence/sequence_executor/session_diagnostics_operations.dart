@@ -372,7 +372,7 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
   ///
   ///   * Cooler temperature samples outside the setpoint band.
   ///   * Sky-brightness min / max / median from the adaptive-exposure
-  ///     tracker's calibrated mag/arcsecÂ² samples.
+  ///     tracker's calibrated mag/arcsec² samples.
   PostSessionHealthSummary _buildPostSessionHealthSummary({
     DateTime? sessionStartedAt,
   }) {
@@ -443,7 +443,13 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
 
   /// Fetch the last captured image and update the UI providers so the Imaging
   /// tab and Dashboard show sequence frames as they complete.
-  void _fetchAndDisplaySequenceImage(double durationSecs) {
+  ///
+  /// [settings] describes the exposure that produced the frame (see
+  /// [_previewSettingsForFrame]). It is a parameter rather than something built
+  /// here because only the caller holds the frame event this preview belongs
+  /// to; building it here is what left every sequence preview labelled with
+  /// literals.
+  void _fetchAndDisplaySequenceImage(ExposureSettings settings) {
     // Fire-and-forget; image display is non-critical for sequence correctness.
     Future(() async {
       try {
@@ -469,14 +475,7 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
         final imageData = capturedImageDataFromResult(
           capturedImage: capturedImage,
           capturedAt: DateTime.now(),
-          settings: ExposureSettings(
-            exposureTime: durationSecs,
-            gain: 0, // Not available from sequence event
-            offset: 0,
-            binningX: 1,
-            binningY: 1,
-            frameType: FrameType.light,
-          ),
+          settings: settings,
         );
 
         _ref

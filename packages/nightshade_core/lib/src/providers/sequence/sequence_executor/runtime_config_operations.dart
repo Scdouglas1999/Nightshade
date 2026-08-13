@@ -1,27 +1,36 @@
 part of '../sequence_executor.dart';
 
 extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
-  Future<void> _startNativeExecution(
-    Sequence sequence,
-    AppSettingsState settings,
-  ) async {
-    final backend = _backend;
+  /// Push the launch-authoritative configuration — location, simulation mode,
+  /// safety fail mode, save path, device ids and the defect-map runtime — to
+  /// the executor.
+  ///
+  /// One ordered push for both launch paths. [start] and [resumeFromCheckpoint]
+  /// used to write this sequence out twice, and the resume copy pushed the RAW
+  /// configured safety mode: on a rig with no safety-monitor device that armed
+  /// the always-on `WeatherUnsafe` trigger, so Resume parked the mount and
+  /// aborted within ~100 ms showing only "Sequence cancelled".
+  ///
+  /// [isResume] expresses the two differences that are real, both of them "the
+  /// checkpoint already knows better than an empty setting does".
+  Future<void> _pushLaunchConfig(
+    NightshadeBackend backend,
+    AppSettingsState settings, {
+    required bool isResume,
+  }) async {
+    _logger.debug(
+      'Pushing launch config (resume=$isResume): lat=${settings.latitude}, '
+      'lon=${settings.longitude}, elev=${settings.elevation}',
+      source: 'SequenceExecutor',
+    );
 
-    // Sync observer location to Rust backend before starting sequence
-    // This ensures the sequencer has access to the current location from settings
-    _logger.debug(
-      '_startNativeExecution: authoritative settings loaded',
-      source: 'SequenceExecutor',
-    );
-    _logger.debug(
-      'Location from settings: lat=${settings.latitude}, lon=${settings.longitude}, elev=${settings.elevation}',
-      source: 'SequenceExecutor',
-    );
+    // The snapshot a resume restores reflects the world at checkpoint time.
+    // Settings the user changed since — location, safety fail mode, AF cadence,
+    // dither, grading thresholds — must win: the W1 daylight gate and the
+    // meridian-flip hour-angle math both run off this location. A location of
+    // exactly (0, 0) means "not configured"; forwarding it would arm the
+    // altitude trigger against Null Island instead of leaving it disarmed.
     if (settings.latitude != 0.0 || settings.longitude != 0.0) {
-      _logger.debug(
-        'Syncing location to backend...',
-        source: 'SequenceExecutor',
-      );
       await backend.setLocation(
         ObserverLocation(
           latitude: settings.latitude,
@@ -47,7 +56,11 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
     if (savePath.isNotEmpty) {
       await backend.sequencerSetSavePath(savePath);
       _logger.debug('Save path set to: $savePath', source: 'SequenceExecutor');
-    } else {
+    } else if (!isResume) {
+      // Difference 1: a fresh run with no configured path pushes null so the
+      // executor cannot inherit a previous run's path. A resume must NOT —
+      // null means "don't save", and it would clobber a perfectly good path the
+      // snapshot restored.
       await backend.sequencerSetSavePath(null);
       _logger.warning(
         'No save path configured - images will NOT be saved to disk!',
@@ -55,65 +68,77 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
       );
     }
 
+    // Difference 2: on a resume the checkpoint restored the snapshot's device
+    // mapping, and in the crash-recovery-at-startup case (equipment not
+    // reconnected yet) those ids are the best information available —
+    // overwriting them with nulls would strand the resumed run. Only push
+    // fresher ids when a camera is actually connected.
     final cameraState = _ref.read(cameraStateProvider);
-    final mountState = _ref.read(mountStateProvider);
-    final focuserState = _ref.read(focuserStateProvider);
-    final filterwheelState = _ref.read(filterWheelStateProvider);
-    final rotatorState = _ref.read(rotatorStateProvider);
+    final cameraConnected =
+        cameraState.connectionState == DeviceConnectionState.connected;
+    if (!isResume || cameraConnected) {
+      final mountState = _ref.read(mountStateProvider);
+      final focuserState = _ref.read(focuserStateProvider);
+      final filterwheelState = _ref.read(filterWheelStateProvider);
+      final rotatorState = _ref.read(rotatorStateProvider);
 
-    final cameraId =
-        cameraState.connectionState == DeviceConnectionState.connected
-        ? cameraState.deviceId
-        : null;
-    final mountId =
-        mountState.connectionState == DeviceConnectionState.connected
-        ? mountState.deviceId
-        : null;
-    final focuserId =
-        focuserState.connectionState == DeviceConnectionState.connected
-        ? focuserState.deviceId
-        : null;
-    final filterwheelId =
-        filterwheelState.connectionState == DeviceConnectionState.connected
-        ? filterwheelState.deviceId
-        : null;
-    final rotatorId =
-        rotatorState.connectionState == DeviceConnectionState.connected
-        ? rotatorState.deviceId
-        : null;
+      final focuserId =
+          focuserState.connectionState == DeviceConnectionState.connected
+          ? focuserState.deviceId
+          : null;
 
-    await backend.sequencerSetDevices(
-      cameraId: cameraId,
-      mountId: mountId,
-      focuserId: focuserId,
-      filterwheelId: filterwheelId,
-      rotatorId: rotatorId,
-    );
-
-    // Tell the operator, in the run record, that automatic refocus is off for
-    // this run. With no focuser connected the native executor disarms every
-    // autofocus-action trigger (HFR degradation, temperature shift, focus
-    // drift, the frame-interval refocus). That is the correct behaviour — an
-    // autofocus is physically impossible — but it silently removes a
-    // protection the sequence editor still advertises, so the run report has
-    // to say so rather than look like a night with focus management running.
-    // `persist: false` — this is a start-up fact, not a running statistic. It
-    // reaches the DB via the final `finishRun` stats write like every other
-    // warning; forcing an incremental `updateStats` here would add a second DB
-    // round-trip before the first frame for a value that cannot change.
-    if (focuserId == null) {
-      _surfaceRunWarning(
-        'No focuser is connected, so automatic refocus is disabled for this '
-        'run (HFR-degradation, temperature-shift, focus-drift and '
-        'interval refocus triggers are all inert). Focus will not be '
-        'corrected automatically.',
-        persist: false,
+      await backend.sequencerSetDevices(
+        cameraId: cameraConnected ? cameraState.deviceId : null,
+        mountId: mountState.connectionState == DeviceConnectionState.connected
+            ? mountState.deviceId
+            : null,
+        focuserId: focuserId,
+        filterwheelId:
+            filterwheelState.connectionState == DeviceConnectionState.connected
+            ? filterwheelState.deviceId
+            : null,
+        rotatorId:
+            rotatorState.connectionState == DeviceConnectionState.connected
+            ? rotatorState.deviceId
+            : null,
       );
+
+      // Tell the operator, in the run record, that automatic refocus is off for
+      // this run. With no focuser connected the native executor disarms every
+      // autofocus-action trigger (HFR degradation, temperature shift, focus
+      // drift, the frame-interval refocus). That is the correct behaviour — an
+      // autofocus is physically impossible — but it silently removes a
+      // protection the sequence editor still advertises, so the run report has
+      // to say so rather than look like a night with focus management running.
+      // Start only: a resume may be running against the checkpoint's device
+      // mapping, which this Dart-side connection state says nothing about.
+      // `persist: false` — this is a start-up fact, not a running statistic. It
+      // reaches the DB via the final `finishRun` stats write like every other
+      // warning; forcing an incremental `updateStats` here would add a second
+      // DB round-trip before the first frame for a value that cannot change.
+      if (!isResume && focuserId == null) {
+        _surfaceRunWarning(
+          'No focuser is connected, so automatic refocus is disabled for this '
+          'run (HFR-degradation, temperature-shift, focus-drift and '
+          'interval refocus triggers are all inert). Focus will not be '
+          'corrected automatically.',
+          persist: false,
+        );
+      }
     }
 
     // The native defect-map runtime slot is not restored from app_settings.
     // Seed it for every run so auto-apply survives restarts and headless starts.
     await seedDefectMapRuntimeForSequence(_ref);
+  }
+
+  Future<void> _startNativeExecution(
+    Sequence sequence,
+    AppSettingsState settings,
+  ) async {
+    final backend = _backend;
+
+    await _pushLaunchConfig(backend, settings, isResume: false);
 
     // Meridian nodes that opt into global defaults are serialized from this
     // provider. Wait for the DB/remote-host snapshot so a fast start after app
@@ -154,15 +179,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
     // the spawned executor task sees the freshly-staged map.
     await _seedIntegrationCarryOverFromHandoff(backend, sequence);
 
-    // The FfiBackend eagerly initializes the event stream in its constructor,
-    // so the Rust api_event_stream() function should already be running and
-    // subscribed to the event bus. We just subscribe to the broadcast stream
-    // here.
-    _nativeEventSubscription = backend.eventStream.listen(
-      _handleSequencerEvent,
-      onError: (e) =>
-          _logger.error('Event stream error: $e', source: 'SequenceExecutor'),
-    );
+    await attachHostListenersForNativeRun();
 
     _startSettingsWatchers(backend);
 
@@ -475,78 +492,9 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
     }
 
     // Observer / equipment identification so FITS headers carry
-    // OBSERVER, TELESCOP, FOCALLEN, APTDIA, INSTRUME, SITEELEV. The
-    // observer name comes from app settings; everything else from the
-    // active equipment profile. Null / empty fields are honestly omitted
-    // from FITS rather than emitted as sentinels.
+    // OBSERVER, TELESCOP, FOCALLEN, APTDIA, INSTRUME, SITEELEV.
     try {
-      final settings = _ref.read(appSettingsProvider).valueOrNull;
-      final profile = _ref.read(activeEquipmentProfileProvider);
-
-      // Camera split: profile.cameraName is typically the user-friendly
-      // device label (e.g. "ZWO ASI2600MM Pro"). We split on first space
-      // for INSTRUME consumers; if there's no space the whole string
-      // becomes the model and make is null.
-      String? cameraMake;
-      String? cameraModel;
-      final rawCameraName = profile?.cameraName?.trim();
-      if (rawCameraName != null && rawCameraName.isNotEmpty) {
-        final spaceIdx = rawCameraName.indexOf(' ');
-        if (spaceIdx > 0) {
-          cameraMake = rawCameraName.substring(0, spaceIdx).trim();
-          cameraModel = rawCameraName.substring(spaceIdx + 1).trim();
-        } else {
-          cameraModel = rawCameraName;
-        }
-      }
-
-      // Telescope focal length / aperture: prefer the dedicated
-      // telescope_* fields; fall back to focalLength / aperture (the
-      // legacy generic fields on EquipmentProfileModel). 0.0 means
-      // "not configured" — emit null in that case.
-      double? focalLength;
-      double? aperture;
-      if (profile != null) {
-        final tfl = profile.telescopeFocalLength;
-        final fl = profile.focalLength;
-        if (tfl != null && tfl > 0) {
-          focalLength = tfl;
-        } else if (fl > 0) {
-          focalLength = fl;
-        }
-
-        // Aperture needs the SAME legacy fallback as focal length above: a
-        // profile built through the generic optics fields has
-        // telescopeAperture == 0 and the real value in `aperture`, so reading
-        // only telescopeAperture dropped it and every frame was written with
-        // FOCALLEN but no APTDIA — an aperture the operator had configured,
-        // missing from the FITS header that photometry reads.
-        final ta = profile.telescopeAperture;
-        final ap = profile.aperture;
-        if (ta != null && ta > 0) {
-          aperture = ta;
-        } else if (ap > 0) {
-          aperture = ap;
-        }
-      }
-
-      await backend.sequencerUpdateObserverProfile(
-        observerName: (settings == null || settings.observerName.isEmpty)
-            ? null
-            : settings.observerName,
-        siteElevationM: (settings != null && settings.elevation > 0)
-            ? settings.elevation
-            : null,
-        cameraMake: cameraMake,
-        cameraModel: cameraModel,
-        telescopeName: profile?.telescopeName,
-        telescopeFocalLengthMm: focalLength,
-        telescopeApertureMm: aperture,
-      );
-      _logger.debug(
-        'Seeded observer_profile: observer=${settings?.observerName}, telescope=${profile?.telescopeName}, camera=$cameraMake $cameraModel, focal=${focalLength}mm, aperture=${aperture}mm',
-        source: 'SequenceExecutor',
-      );
+      await _pushObserverProfile(backend);
     } catch (e, st) {
       firstError ??= e;
       firstStack ??= st;
@@ -576,7 +524,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
             perFilterMaxSecs: settings.adaptiveExposurePerFilterMaxSecs,
           );
           _logger.debug(
-            'Seeded default_adaptive_exposure: enabled=${settings.adaptiveExposureEnabled}, ref=${settings.adaptiveExposureReferenceMag} mag/arcsecÂ², min=${settings.adaptiveExposureMinSecs}s, max=${settings.adaptiveExposureMaxSecs}s',
+            'Seeded default_adaptive_exposure: enabled=${settings.adaptiveExposureEnabled}, ref=${settings.adaptiveExposureReferenceMag} mag/arcsec², min=${settings.adaptiveExposureMinSecs}s, max=${settings.adaptiveExposureMaxSecs}s',
             source: 'SequenceExecutor',
           );
         } else {
@@ -771,7 +719,17 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
     _startSkyBrightnessPoll(backend);
 
     _settingsSubscriptions.add(
-      _ref.listen(sequencerDefaultsProvider, (previous, next) {
+      // Every `listen` here is explicitly typed. `_settingsSubscriptions` is a
+      // `List<ProviderSubscription>` — i.e. `<dynamic>` — so without the type
+      // argument downward inference makes the callback parameters `dynamic`.
+      // `AsyncValue.valueOrNull` is an EXTENSION getter, which does not exist
+      // on a dynamic receiver, so the app-settings watcher below threw
+      // NoSuchMethodError inside the listener on every mid-run settings change
+      // and not one of its pushes ever reached the executor.
+      _ref.listen<SequencerDefaults>(sequencerDefaultsProvider, (
+        previous,
+        next,
+      ) {
         if (previous == null) return;
         if (previous.ditherPixels != next.ditherPixels ||
             previous.ditherSettlePixels != next.ditherSettlePixels ||
@@ -782,19 +740,25 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
             'Dither settings changed during execution, propagating to backend',
             source: 'SequenceExecutor',
           );
-          backend.sequencerUpdateDitherConfig(
-            pixels: next.ditherPixels,
-            settlePixels: next.ditherSettlePixels,
-            settleTime: next.ditherSettleTime,
-            settleTimeout: next.ditherSettleTimeout,
-            raOnly: next.ditherRaOnly,
+          _pushMidRun(
+            'the dither settings',
+            () => backend.sequencerUpdateDitherConfig(
+              pixels: next.ditherPixels,
+              settlePixels: next.ditherSettlePixels,
+              settleTime: next.ditherSettleTime,
+              settleTimeout: next.ditherSettleTimeout,
+              raOnly: next.ditherRaOnly,
+            ),
           );
         }
       }),
     );
 
     _settingsSubscriptions.add(
-      _ref.listen(appSettingsProvider, (previous, next) {
+      _ref.listen<AsyncValue<AppSettingsState>>(appSettingsProvider, (
+        previous,
+        next,
+      ) {
         final prevSettings = previous?.valueOrNull;
         final nextSettings = next.valueOrNull;
         if (prevSettings == null || nextSettings == null) return;
@@ -808,9 +772,12 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
               'Location changed during execution, propagating to backend',
               source: 'SequenceExecutor',
             );
-            backend.sequencerUpdateLocation(
-              latitude: nextSettings.latitude,
-              longitude: nextSettings.longitude,
+            _pushMidRun(
+              'the observing location',
+              () => backend.sequencerUpdateLocation(
+                latitude: nextSettings.latitude,
+                longitude: nextSettings.longitude,
+              ),
             );
           }
         }
@@ -823,7 +790,13 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
           // Same weather-safety guard as the start path: a mid-run switch to
           // failClosed on a rig with weather safety disabled would otherwise
           // arm the WeatherUnsafe trigger and abort the running sequence.
-          _pushEffectiveSafetyFailMode(backend, nextSettings.safetyFailMode);
+          _pushMidRun(
+            'the safety fail mode',
+            () => _pushEffectiveSafetyFailMode(
+              backend,
+              nextSettings.safetyFailMode,
+            ),
+          );
         }
 
         // Propagate image-grading changes mid-run so the next
@@ -846,15 +819,18 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
             'Image-grading settings changed during execution, propagating to backend',
             source: 'SequenceExecutor',
           );
-          backend.sequencerUpdateDefaultQualityCheck(
-            hfrThreshold: nextSettings.imageGradingHfrThresholdPx,
-            hfrBaselinePercent: nextSettings.imageGradingHfrBaselinePercent,
-            eccentricityThreshold:
-                nextSettings.imageGradingEccentricityThreshold,
-            starCountMin: nextSettings.imageGradingStarCountMin,
-            maxConsecutiveRejects:
-                nextSettings.imageGradingMaxConsecutiveRejects,
-            enabled: nextSettings.enableImageGrading,
+          _pushMidRun(
+            'the image-grading thresholds',
+            () => backend.sequencerUpdateDefaultQualityCheck(
+              hfrThreshold: nextSettings.imageGradingHfrThresholdPx,
+              hfrBaselinePercent: nextSettings.imageGradingHfrBaselinePercent,
+              eccentricityThreshold:
+                  nextSettings.imageGradingEccentricityThreshold,
+              starCountMin: nextSettings.imageGradingStarCountMin,
+              maxConsecutiveRejects:
+                  nextSettings.imageGradingMaxConsecutiveRejects,
+              enabled: nextSettings.enableImageGrading,
+            ),
           );
         }
         if (prevSettings.imageGradingRejectFolderPath !=
@@ -863,8 +839,11 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
             'Reject folder path changed during execution, propagating to backend',
             source: 'SequenceExecutor',
           );
-          backend.sequencerUpdateRejectFolderPath(
-            nextSettings.imageGradingRejectFolderPath,
+          _pushMidRun(
+            'the reject folder',
+            () => backend.sequencerUpdateRejectFolderPath(
+              nextSettings.imageGradingRejectFolderPath,
+            ),
           );
         }
 
@@ -876,7 +855,10 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
             'Observer name / elevation changed during execution, propagating to backend',
             source: 'SequenceExecutor',
           );
-          _pushObserverProfile(backend);
+          _pushMidRun(
+            'the observer profile',
+            () => _pushObserverProfile(backend),
+          );
         }
 
         // Propagate global adaptive-exposure setting
@@ -911,27 +893,34 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
             'Adaptive-exposure settings changed during execution, propagating to backend',
             source: 'SequenceExecutor',
           );
-          if (nextSettings.adaptiveExposureEnabled) {
-            backend.sequencerUpdateDefaultAdaptiveExposure(
-              enabled: nextSettings.adaptiveExposureEnabled,
-              targetSnr: nextSettings.adaptiveExposureTargetSnr,
-              referenceSkyBrightnessMag:
-                  nextSettings.adaptiveExposureReferenceMag,
-              minExposureSecs: nextSettings.adaptiveExposureMinSecs,
-              maxExposureSecs: nextSettings.adaptiveExposureMaxSecs,
-              perFilterEnabled: nextSettings.adaptiveExposurePerFilterEnabled,
-              perFilterMinSecs: nextSettings.adaptiveExposurePerFilterMinSecs,
-              perFilterMaxSecs: nextSettings.adaptiveExposurePerFilterMaxSecs,
-            );
-          } else {
-            backend.sequencerClearDefaultAdaptiveExposure();
-          }
+          _pushMidRun(
+            'the adaptive-exposure settings',
+            () => nextSettings.adaptiveExposureEnabled
+                ? backend.sequencerUpdateDefaultAdaptiveExposure(
+                    enabled: nextSettings.adaptiveExposureEnabled,
+                    targetSnr: nextSettings.adaptiveExposureTargetSnr,
+                    referenceSkyBrightnessMag:
+                        nextSettings.adaptiveExposureReferenceMag,
+                    minExposureSecs: nextSettings.adaptiveExposureMinSecs,
+                    maxExposureSecs: nextSettings.adaptiveExposureMaxSecs,
+                    perFilterEnabled:
+                        nextSettings.adaptiveExposurePerFilterEnabled,
+                    perFilterMinSecs:
+                        nextSettings.adaptiveExposurePerFilterMinSecs,
+                    perFilterMaxSecs:
+                        nextSettings.adaptiveExposurePerFilterMaxSecs,
+                  )
+                : backend.sequencerClearDefaultAdaptiveExposure(),
+          );
         }
       }),
     );
 
     _settingsSubscriptions.add(
-      _ref.listen(activeEquipmentProfileProvider, (previous, next) {
+      _ref.listen<EquipmentProfileModel?>(activeEquipmentProfileProvider, (
+        previous,
+        next,
+      ) {
         if (previous == null || next == null) return;
         // EquipmentProfileModel.filterFocusOffsets is already a
         // Map<String,int> in memory; the legacy version of this code
@@ -944,7 +933,10 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
             'Filter focus offsets changed during execution, propagating to backend',
             source: 'SequenceExecutor',
           );
-          backend.sequencerUpdateFilterOffsets(nextOffsets);
+          _pushMidRun(
+            'the filter focus offsets',
+            () => backend.sequencerUpdateFilterOffsets(nextOffsets),
+          );
         }
 
         // Propagate telescope / camera identity changes so FITS
@@ -959,80 +951,138 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
             'Equipment profile identity changed during execution, propagating to backend',
             source: 'SequenceExecutor',
           );
-          _pushObserverProfile(backend);
+          _pushMidRun(
+            'the observer profile',
+            () => _pushObserverProfile(backend),
+          );
         }
       }),
     );
   }
 
-  /// Helper that recomputes the observer profile from the
-  /// current settings + active equipment profile and pushes it to the
-  /// backend. Used by both the appSettingsProvider and
-  /// activeEquipmentProfileProvider watchers because the FITS observer
-  /// profile is a *cross-product* of both sources.
-  void _pushObserverProfile(NightshadeBackend backend) {
-    try {
-      final settings = _ref.read(appSettingsProvider).valueOrNull;
-      final profile = _ref.read(activeEquipmentProfileProvider);
+  /// Derive the FITS observer profile from the current app settings + active
+  /// equipment profile and push it to the executor.
+  ///
+  /// The observer name comes from app settings; everything else from the active
+  /// equipment profile. Null / empty fields are honestly omitted from FITS
+  /// rather than emitted as sentinels.
+  ///
+  /// One derivation for three callers — the run-start seed and the two mid-run
+  /// watchers (observer name / elevation, and equipment identity) — because the
+  /// profile is a *cross-product* of both sources. It used to be written twice,
+  /// verbatim, including the aperture-fallback comment below that records a bug
+  /// already fixed once; the next such fix would have landed in only one copy.
+  ///
+  /// Throws on a failed push. The seed folds that into the start-aborting
+  /// `firstError`; the mid-run watchers cannot abort a running sequence, so
+  /// they surface it (see [_pushMidRun]).
+  Future<void> _pushObserverProfile(NightshadeBackend backend) async {
+    final settings = _ref.read(appSettingsProvider).valueOrNull;
+    final profile = _ref.read(activeEquipmentProfileProvider);
 
-      String? cameraMake;
-      String? cameraModel;
-      final rawCameraName = profile?.cameraName?.trim();
-      if (rawCameraName != null && rawCameraName.isNotEmpty) {
-        final spaceIdx = rawCameraName.indexOf(' ');
-        if (spaceIdx > 0) {
-          cameraMake = rawCameraName.substring(0, spaceIdx).trim();
-          cameraModel = rawCameraName.substring(spaceIdx + 1).trim();
-        } else {
-          cameraModel = rawCameraName;
-        }
+    // Camera split: profile.cameraName is typically the user-friendly device
+    // label (e.g. "ZWO ASI2600MM Pro"). We split on first space for INSTRUME
+    // consumers; if there's no space the whole string becomes the model and
+    // make is null.
+    String? cameraMake;
+    String? cameraModel;
+    final rawCameraName = profile?.cameraName?.trim();
+    if (rawCameraName != null && rawCameraName.isNotEmpty) {
+      final spaceIdx = rawCameraName.indexOf(' ');
+      if (spaceIdx > 0) {
+        cameraMake = rawCameraName.substring(0, spaceIdx).trim();
+        cameraModel = rawCameraName.substring(spaceIdx + 1).trim();
+      } else {
+        cameraModel = rawCameraName;
       }
-
-      double? focalLength;
-      double? aperture;
-      if (profile != null) {
-        final tfl = profile.telescopeFocalLength;
-        final fl = profile.focalLength;
-        if (tfl != null && tfl > 0) {
-          focalLength = tfl;
-        } else if (fl > 0) {
-          focalLength = fl;
-        }
-
-        // Aperture needs the SAME legacy fallback as focal length above: a
-        // profile built through the generic optics fields has
-        // telescopeAperture == 0 and the real value in `aperture`, so reading
-        // only telescopeAperture dropped it and every frame was written with
-        // FOCALLEN but no APTDIA — an aperture the operator had configured,
-        // missing from the FITS header that photometry reads.
-        final ta = profile.telescopeAperture;
-        final ap = profile.aperture;
-        if (ta != null && ta > 0) {
-          aperture = ta;
-        } else if (ap > 0) {
-          aperture = ap;
-        }
-      }
-
-      backend.sequencerUpdateObserverProfile(
-        observerName: (settings == null || settings.observerName.isEmpty)
-            ? null
-            : settings.observerName,
-        siteElevationM: (settings != null && settings.elevation > 0)
-            ? settings.elevation
-            : null,
-        cameraMake: cameraMake,
-        cameraModel: cameraModel,
-        telescopeName: profile?.telescopeName,
-        telescopeFocalLengthMm: focalLength,
-        telescopeApertureMm: aperture,
-      );
-    } catch (e) {
-      _logger.error(
-        'Failed to propagate observer_profile mid-run: $e',
-        source: 'SequenceExecutor',
-      );
     }
+
+    // Telescope focal length / aperture: prefer the dedicated telescope_*
+    // fields; fall back to focalLength / aperture (the legacy generic fields on
+    // EquipmentProfileModel). 0.0 means "not configured" — emit null then.
+    double? focalLength;
+    double? aperture;
+    if (profile != null) {
+      final tfl = profile.telescopeFocalLength;
+      final fl = profile.focalLength;
+      if (tfl != null && tfl > 0) {
+        focalLength = tfl;
+      } else if (fl > 0) {
+        focalLength = fl;
+      }
+
+      // Aperture needs the SAME legacy fallback as focal length above: a
+      // profile built through the generic optics fields has
+      // telescopeAperture == 0 and the real value in `aperture`, so reading
+      // only telescopeAperture dropped it and every frame was written with
+      // FOCALLEN but no APTDIA — an aperture the operator had configured,
+      // missing from the FITS header that photometry reads.
+      final ta = profile.telescopeAperture;
+      final ap = profile.aperture;
+      if (ta != null && ta > 0) {
+        aperture = ta;
+      } else if (ap > 0) {
+        aperture = ap;
+      }
+    }
+
+    await backend.sequencerUpdateObserverProfile(
+      observerName: (settings == null || settings.observerName.isEmpty)
+          ? null
+          : settings.observerName,
+      siteElevationM: (settings != null && settings.elevation > 0)
+          ? settings.elevation
+          : null,
+      cameraMake: cameraMake,
+      cameraModel: cameraModel,
+      telescopeName: profile?.telescopeName,
+      telescopeFocalLengthMm: focalLength,
+      telescopeApertureMm: aperture,
+    );
+    _logger.debug(
+      'Pushed observer_profile: observer=${settings?.observerName}, '
+      'telescope=${profile?.telescopeName}, camera=$cameraMake $cameraModel, '
+      'focal=${focalLength}mm, aperture=${aperture}mm',
+      source: 'SequenceExecutor',
+    );
+  }
+
+  /// Send a mid-run configuration change to the executor and surface a failure.
+  ///
+  /// The `_ref.listen` callbacks and the sky-brightness tick are synchronous,
+  /// so every backend push inside them used to be fire-and-forget: a rejected
+  /// future had no handler (an unhandled zone error), and the operator was told
+  /// nothing — they changed the dither settings mid-run, the push failed, and
+  /// the run kept dithering on the old config. The observer-profile push even
+  /// sat inside a try/catch that could never fire, because the call it was
+  /// meant to guard was never awaited.
+  ///
+  /// The start-up seed aborts the run on a failed push; a run already imaging
+  /// cannot, so [what] is named in the log AND in the run's warnings, where it
+  /// survives into `sequence_runs.stats_json` and the post-session report.
+  ///
+  /// The logger is read HERE, before the await: it is a provider read, and this
+  /// work outlives the callback that scheduled it — reading it from inside the
+  /// catch is what made a previous incarnation of the sky-brightness guard
+  /// throw out of its own error handler.
+  void _pushMidRun(String what, Future<void> Function() push) {
+    final logger = _logger;
+    unawaited(() async {
+      try {
+        await push();
+      } catch (e, st) {
+        logger.error(
+          'Failed to propagate $what to the running sequence: $e\n$st',
+          source: 'SequenceExecutor',
+        );
+        if (!_disposed) {
+          _surfaceRunWarning(
+            'A change to $what could not be sent to the running sequence, '
+            'which is still using the previous value: $e',
+          );
+        }
+      }
+    }());
   }
 
   void _stopSettingsWatchers() {
@@ -1049,7 +1099,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
   }
 
   /// Start the periodic poll that watches the
-  /// `SkyBrightnessTracker` and pushes its mag/arcsecÂ² reading to the
+  /// `SkyBrightnessTracker` and pushes its mag/arcsec² reading to the
   /// executor whenever it changes. Suppresses redundant pushes so the
   /// runtime config event stream stays quiet under steady conditions.
   void _startSkyBrightnessPoll(NightshadeBackend backend) {
@@ -1073,7 +1123,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
       try {
         final tracker = _ref.read(skyBrightnessTrackerProvider);
         final mag = tracker.currentMagPerArcsec2();
-        // Throttle on absolute change > 0.05 mag/arcsecÂ²; smaller
+        // Throttle on absolute change > 0.05 mag/arcsec²; smaller
         // wobble is observational noise that the adapter doesn't need
         // to see on every tick.
         if (mag != _lastPushedSkyMag) {
@@ -1083,9 +1133,12 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
               (mag - (_lastPushedSkyMag ?? 0)).abs() > 0.05;
           if (changed) {
             _lastPushedSkyMag = mag;
-            backend.sequencerUpdateSkyBrightness(mag: mag);
+            _pushMidRun(
+              'the sky brightness',
+              () => backend.sequencerUpdateSkyBrightness(mag: mag),
+            );
             logger.debug(
-              'Pushed sky brightness to executor: ${mag?.toStringAsFixed(2) ?? "<none>"} mag/arcsecÂ²',
+              'Pushed sky brightness to executor: ${mag?.toStringAsFixed(2) ?? "<none>"} mag/arcsec²',
               source: 'SequenceExecutor',
             );
           }
@@ -1101,6 +1154,4 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
       }
     });
   }
-
-  /// Handle events from the backend (native or remote)
 }

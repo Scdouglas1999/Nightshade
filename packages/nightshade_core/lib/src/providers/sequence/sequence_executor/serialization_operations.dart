@@ -1070,21 +1070,4 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
         return 'SwitchTargetOrFilter';
     }
   }
-
-  /// Validate the sequence about to run using the FULL validator stack
-  /// (structural + ref-aware + async). This is the single source of truth
-  /// for "is this sequence safe to start?".
-  ///
-  /// Audit C3 — before this consolidation, `start()` only ran the pure
-  /// structural rules (`defaultSequenceValidators`), so equipment-
-  /// connection, disk-space, dark-library, and pre-flight equipment-
-  /// health rules were silently skipped for any start path that did not
-  /// route through the pre-flight dialog (notably the headless API and
-  /// the scheduler). The dialog itself called the same
-  /// `SequenceValidatorService` we now invoke here, so the rigor is
-  /// identical regardless of how the user kicked the sequence off.
-  ///
-  /// Returns the [validation.ValidationResult]. Callers decide what to
-  /// do with warnings / info; only [validation.ValidationSeverity.error]
-  /// blocks execution (enforced in [start]).
 }

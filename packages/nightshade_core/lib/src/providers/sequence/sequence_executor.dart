@@ -330,6 +330,24 @@ class SequenceExecutor {
   /// below has a defined set of stragglers it is protecting against.
   final Set<Future<void>> _inFlightFrameRegistrations = <Future<void>>{};
 
+  /// What the grader ruled — and what the camera actually reported — for
+  /// frames whose `ExposureCompleted` has not arrived yet, keyed by the frame
+  /// index all three events carry.
+  ///
+  /// `FrameAccepted` / `FrameRejected` are the only events that know whether a
+  /// frame was kept and the only ones carrying the capture truth the FITS
+  /// header was written from, and native emits them BEFORE the
+  /// `ExposureCompleted` the run stats and the preview are published from.
+  /// Without this carry the run record recorded EVERY frame as accepted —
+  /// `framesRejected` was structurally 0 for every night — and the preview was
+  /// stamped with literals instead of the exposure that produced it.
+  ///
+  /// Entries are removed as they are consumed and cleared whenever a new node
+  /// starts, so a frame whose `ExposureCompleted` never arrives cannot strand a
+  /// verdict on a later frame of a later node.
+  final Map<int, ({bool accepted, FrameCapture capture})> _gradedFrames =
+      <int, ({bool accepted, FrameCapture capture})>{};
+
   /// True once [dispose] has run. Late completions of fire-and-forget
   /// work (frame persistence, campaign credit) must not read providers
   /// through [_ref] afterwards — the container may be gone, and the read
@@ -490,13 +508,6 @@ class SequenceExecutor {
     final validator = _ref.read(validation.sequenceValidatorProvider);
     return validator.validate(sequence);
   }
-
-  /// Backwards-compatible structural-only validator. Kept because external
-  /// callers (UI badges, tests) still depend on the sync semantics. Do
-  /// NOT use from new code: this skips equipment / disk-space / dark-
-  /// library checks.
-  List<validation.ValidationIssue> validateSequence(Sequence sequence) =>
-      validation.validateSequence(sequence);
 
   Future<void> start() async {
     _ensureBackendAuthority();
@@ -734,6 +745,93 @@ class SequenceExecutor {
     return header.catalogTargetId ?? _runCatalogTargetIds[header.id];
   }
 
+  /// Open the durable records a run owns and stamp its id onto the executor.
+  ///
+  /// Shared by [start] and [resumeFromCheckpoint], which used to build this
+  /// ordered set of resources twice: a fix to one had to be remembered for the
+  /// other, which is how the resume path came to run without a target binding.
+  /// (The `imaging_sessions` row itself stays with each caller — only a fresh
+  /// start has a loaded tree to take single-target coordinates and a total
+  /// exposure count from.)
+  ///
+  /// Returns the new `sequence_runs.id`.
+  Future<int> _openRunRecords({
+    required String sequenceName,
+    int? sequenceDatabaseId,
+    String? snapshotJson,
+  }) async {
+    final runId = await _ref
+        .read(sequenceRunsDaoProvider)
+        .startRun(
+          sequenceId: sequenceDatabaseId,
+          sequenceName: sequenceName,
+          sequenceSnapshotJson: snapshotJson,
+        );
+    _ref.read(currentRunIdProvider.notifier).state = runId;
+    _ref.read(liveSequenceStatsProvider.notifier).state = SequenceRunStats();
+    _runFinalized = false;
+    // A fresh run must never inherit the previous run's live stack /
+    // reference frame. Arming happens lazily on the first accepted frame.
+    _liveStackingArmedForRun = false;
+    _liveStackingFeedChain = null;
+    _gradedFrames.clear();
+
+    // Replay Debug — stamp the active sequence_runs.id onto the
+    // Rust executor so every subsequent emitted DecisionEvent carries
+    // the FK. We push it before sequencerStart() so the first
+    // "Sequence started" lifecycle decision the executor emits already
+    // has the right run id. Failure to push is logged but does not
+    // abort the run — the replay log will simply have null run_ids
+    // for the affected rows, and our Dart-side `_persistReplayDecision`
+    // falls back to `currentRunIdProvider`.
+    try {
+      await _backend.sequencerSetActiveSequenceRunId(runId);
+    } catch (e) {
+      _logger.warning(
+        'Failed to push active sequence_run_id to Rust executor: $e',
+        source: 'SequenceExecutor',
+      );
+    }
+    return runId;
+  }
+
+  /// Start the periodic work a run owns: the 1 s elapsed/ETA ticker, the
+  /// checkpoint saver and the disk-space watchdog.
+  ///
+  /// Shared by [start] and [resumeFromCheckpoint] — the ticker closure was
+  /// byte-identical in both. The ETA EMA is reset rather than carried: a
+  /// resume's samples start from the checkpoint's mid-run cadence and must not
+  /// be biased by the original session's (different exposure length, focuser,
+  /// filter). It is fed from `ExposureCompleted` events either way, so no
+  /// frame-counter seed is needed.
+  void _startPerRunTimers() {
+    final progressNotifier = _ref.read(sequenceProgressProvider.notifier);
+    _startTime = DateTime.now();
+    _isPaused = false;
+    _resetEtaState();
+
+    // ETA computation uses an EMA over the last [kEtaWindowSize] frame
+    // durations (alpha = [kEtaEmaAlpha]) so a single slow download or
+    // fast-completing calibration frame doesn't yank the estimate around.
+    _progressTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!_isPaused && _startTime != null) {
+        final elapsed = DateTime.now()
+            .difference(_startTime!)
+            .inSeconds
+            .toDouble();
+        final progress = _ref.read(sequenceProgressProvider);
+        final eta = _computeSmoothedEta(progress);
+        progressNotifier.updateProgress(
+          elapsedSecs: elapsed,
+          estimatedRemainingSecs: eta,
+        );
+      }
+    });
+
+    _startCheckpointTimer();
+    _startDiskSpaceWatchdog();
+  }
+
   /// Acquire every run resource and hand off to the native executor as one
   /// transaction. Each line here is a resource [_rollbackStart] knows how to
   /// release — keep the two in sync. Throws on the first failure; [start]
@@ -774,37 +872,11 @@ class SequenceExecutor {
     final snapshotJson = jsonEncode(
       _ref.read(sequenceFileServiceProvider).sequenceToMap(sequence),
     );
-    final runId = await _ref
-        .read(sequenceRunsDaoProvider)
-        .startRun(
-          sequenceId: sequence.databaseId,
-          sequenceName: sequence.name,
-          sequenceSnapshotJson: snapshotJson,
-        );
-    _ref.read(currentRunIdProvider.notifier).state = runId;
-    _ref.read(liveSequenceStatsProvider.notifier).state = SequenceRunStats();
-    _runFinalized = false;
-    // A fresh run must never inherit the previous run's live stack /
-    // reference frame. Arming happens lazily on the first accepted frame.
-    _liveStackingArmedForRun = false;
-    _liveStackingFeedChain = null;
-
-    // Replay Debug — stamp the active sequence_runs.id onto the
-    // Rust executor so every subsequent emitted DecisionEvent carries
-    // the FK. We push it before sequencerStart() so the first
-    // "Sequence started" lifecycle decision the executor emits already
-    // has the right run id. Failure to push is logged but does not
-    // abort the run — the replay log will simply have null run_ids
-    // for the affected rows, and our Dart-side `_persistReplayDecision`
-    // falls back to `currentRunIdProvider`.
-    try {
-      await _backend.sequencerSetActiveSequenceRunId(runId);
-    } catch (e) {
-      _logger.warning(
-        'Failed to push active sequence_run_id to Rust executor: $e',
-        source: 'SequenceExecutor',
-      );
-    }
+    await _openRunRecords(
+      sequenceName: sequence.name,
+      sequenceDatabaseId: sequence.databaseId,
+      snapshotJson: snapshotJson,
+    );
 
     // Session-lifecycle hooks.
     //
@@ -816,31 +888,7 @@ class SequenceExecutor {
     // executor must still start even if diagnostics are unavailable.
     _captureSessionStartHooks(sequence.id);
 
-    _startTime = DateTime.now();
-    _isPaused = false;
-    _resetEtaState();
-
-    // Start progress timer. ETA computation uses an EMA over the last
-    // [kEtaWindowSize] frame durations (alpha = [kEtaEmaAlpha]) so a single
-    // slow download or fast-completing calibration frame doesn't yank the
-    // estimate around.
-    _progressTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!_isPaused && _startTime != null) {
-        final elapsed = DateTime.now()
-            .difference(_startTime!)
-            .inSeconds
-            .toDouble();
-        final progress = _ref.read(sequenceProgressProvider);
-        final eta = _computeSmoothedEta(progress);
-        progressNotifier.updateProgress(
-          elapsedSecs: elapsed,
-          estimatedRemainingSecs: eta,
-        );
-      }
-    });
-
-    _startCheckpointTimer();
-    _startDiskSpaceWatchdog();
+    _startPerRunTimers();
 
     // Always use backend/native sequencer engine to avoid divergent semantics.
     // This is the last acquisition step; it sets up the native event
@@ -2019,65 +2067,9 @@ class SequenceExecutor {
     // rollback — it just propagates.
     await backend.resumeFromCheckpoint();
 
-    // The snapshot reflects the world at checkpoint time. Settings the
-    // user changed since — observer location, safety fail mode, AF
-    // cadence, dither, grading thresholds — must win: the W1 daylight
-    // gate and meridian-flip hour-angle math run off this location.
-    if (settings.latitude != 0.0 || settings.longitude != 0.0) {
-      await backend.setLocation(
-        ObserverLocation(
-          latitude: settings.latitude,
-          longitude: settings.longitude,
-          elevation: settings.elevation,
-        ),
-      );
-    }
-    await backend.sequencerSetSimulationMode(
-      effectiveSimulationMode(settings.useSimulationMode),
-    );
-    // Through the SAME weather-safety guard the start path uses. Pushing the
-    // raw configured mode here armed the always-on `WeatherUnsafe` trigger on
-    // every rig without a safety-monitor device, so Resume parked the mount
-    // and aborted within ~100 ms with only "Sequence cancelled" shown.
-    await _pushEffectiveSafetyFailMode(backend, settings.safetyFailMode);
-    // Save path: only override the checkpoint's restored path when the
-    // user actually has one configured — pushing null here would clobber
-    // a perfectly good snapshot path with "don't save".
-    final savePath = settings.imageOutputPath;
-    if (savePath.isNotEmpty) {
-      await backend.sequencerSetSavePath(savePath);
-    }
-    // Device IDs: the checkpoint restored the snapshot's mapping. Only
-    // push fresher IDs when a camera is currently connected — in the
-    // crash-recovery-at-startup case (equipment not reconnected yet) the
-    // snapshot's IDs are the best information we have, and overwriting
-    // them with nulls would strand the resumed run.
-    final cameraState = _ref.read(cameraStateProvider);
-    if (cameraState.connectionState == DeviceConnectionState.connected) {
-      final mountState = _ref.read(mountStateProvider);
-      final focuserState = _ref.read(focuserStateProvider);
-      final filterwheelState = _ref.read(filterWheelStateProvider);
-      final rotatorState = _ref.read(rotatorStateProvider);
-      await backend.sequencerSetDevices(
-        cameraId: cameraState.deviceId,
-        mountId: mountState.connectionState == DeviceConnectionState.connected
-            ? mountState.deviceId
-            : null,
-        focuserId:
-            focuserState.connectionState == DeviceConnectionState.connected
-            ? focuserState.deviceId
-            : null,
-        filterwheelId:
-            filterwheelState.connectionState == DeviceConnectionState.connected
-            ? filterwheelState.deviceId
-            : null,
-        rotatorId:
-            rotatorState.connectionState == DeviceConnectionState.connected
-            ? rotatorState.deviceId
-            : null,
-      );
-    }
-    await seedDefectMapRuntimeForSequence(_ref);
+    // The same ordered launch push the start path makes, with the two
+    // resume-specific differences expressed inside it (see [_pushLaunchConfig]).
+    await _pushLaunchConfig(backend, settings, isResume: true);
     await _seedRuntimeConfigFromSettings(backend);
 
     // Recover the sequence TREE from the interrupted run's stored snapshot,
@@ -2142,61 +2134,15 @@ class SequenceExecutor {
         profileId: _ref.read(activeEquipmentProfileProvider)?.id,
         sequenceId: resumedSequence?.databaseId,
       );
-      final runId = await _ref
-          .read(sequenceRunsDaoProvider)
-          .startRun(
-            sequenceId: resumedSequence?.databaseId,
-            sequenceName: info.sequenceName,
-            sequenceSnapshotJson: recoveredSnapshotJson,
-          );
-      _ref.read(currentRunIdProvider.notifier).state = runId;
-      _ref.read(liveSequenceStatsProvider.notifier).state = SequenceRunStats();
-      _runFinalized = false;
-      _liveStackingArmedForRun = false;
-      _liveStackingFeedChain = null;
-      try {
-        await backend.sequencerSetActiveSequenceRunId(runId);
-      } catch (e) {
-        _logger.warning(
-          'Failed to push active sequence_run_id to Rust executor on '
-          'resume: $e',
-          source: 'SequenceExecutor',
-        );
-      }
-
-      _startTime = DateTime.now();
-      _isPaused = false;
-      // Reset the EMA so resume samples — which start from the checkpoint
-      // mid-run cadence — aren't biased by stale samples from the original
-      // session (different exposure length, focuser, etc.). The EMA is fed
-      // from ExposureCompleted events post-resume, so no frame-counter seed
-      // is needed.
-      _resetEtaState();
-
-      _progressTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (!_isPaused && _startTime != null) {
-          final elapsed = DateTime.now()
-              .difference(_startTime!)
-              .inSeconds
-              .toDouble();
-          final progress = _ref.read(sequenceProgressProvider);
-          final eta = _computeSmoothedEta(progress);
-          progressNotifier.updateProgress(
-            elapsedSecs: elapsed,
-            estimatedRemainingSecs: eta,
-          );
-        }
-      });
-
-      _startCheckpointTimer();
-      _startDiskSpaceWatchdog();
-
-      await _nativeEventSubscription?.cancel();
-      _nativeEventSubscription = backend.eventStream.listen(
-        _handleSequencerEvent,
-        onError: (e) =>
-            _logger.error('Event stream error: $e', source: 'SequenceExecutor'),
+      await _openRunRecords(
+        sequenceName: info.sequenceName,
+        sequenceDatabaseId: resumedSequence?.databaseId,
+        snapshotJson: recoveredSnapshotJson,
       );
+
+      _startPerRunTimers();
+
+      await attachHostListenersForNativeRun();
 
       _startSettingsWatchers(backend);
 
@@ -2218,15 +2164,18 @@ class SequenceExecutor {
     }
   }
 
-  /// Attach the host-side event listener to a run the NATIVE executor is about
-  /// to drive on its own, without starting a Dart-orchestrated run.
+  /// Subscribe [_handleSequencerEvent] to the backend event stream.
   ///
-  /// The headless appliance's canonical flow is
-  /// `POST /api/sequencer/load` -> `POST /api/sequencer/start`, which hands the
-  /// tree straight to Rust and never calls [start]. That skips
-  /// `_startNativeExecution`, and with it the one place that subscribes
-  /// [_handleSequencerEvent] to `backend.eventStream` — so on the appliance
-  /// nothing was listening when the frames came back.
+  /// The one subscribe site. A Dart-orchestrated [start] and a checkpoint
+  /// [resumeFromCheckpoint] both route through here as part of their launch,
+  /// and the headless appliance calls it directly for a run it hands straight
+  /// to Rust: its canonical flow is `POST /api/sequencer/load` ->
+  /// `POST /api/sequencer/start`, which never calls [start], so nothing was
+  /// listening when the frames came back. There were three copies of this
+  /// five-line block, and the one in `_startNativeExecution` was the one that
+  /// did NOT cancel first — so a start admitted after a run that ended in
+  /// `stopFailed` / `cleanupFailed` (which deliberately retains its
+  /// subscription) leaked the old listener and handled every event twice.
   ///
   /// The listener is not decoration. It is what turns a native
   /// `FrameCaptured` into a `captured_images` row, advances the session
@@ -2239,9 +2188,7 @@ class SequenceExecutor {
   ///
   /// Idempotent, and safe to call before every native start: a previous run's
   /// teardown cancels the subscription, so run two would otherwise be as blind
-  /// as run one was. Never call this for a Dart-orchestrated run; [start]
-  /// installs its own subscription alongside the timers and watchers that a
-  /// native-driven run does not have.
+  /// as run one was.
   Future<void> attachHostListenersForNativeRun() async {
     _ensureBackendAuthority();
     final backend = _backend;
