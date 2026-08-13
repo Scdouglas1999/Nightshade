@@ -6,14 +6,11 @@ class _BudgetPreview extends StatelessWidget {
 
   const _BudgetPreview({required this.colors, required this.budget});
 
-  String _formatDuration(double secs) {
-    if (secs <= 0) return '0m';
-    final h = secs ~/ 3600;
-    final m = ((secs % 3600) / 60).round();
-    if (h > 0 && m > 0) return '${h}h ${m}m';
-    if (h > 0) return '${h}h';
-    return '${m}m';
-  }
+  String _formatDuration(double secs) => DurationFormat.seconds(
+        secs,
+        style: DurationStyle.compactTrimmed,
+        roundToMinute: true,
+      );
 
   @override
   Widget build(BuildContext context) {

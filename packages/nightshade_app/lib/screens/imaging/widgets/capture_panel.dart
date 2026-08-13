@@ -256,7 +256,7 @@ class CapturePanel extends ConsumerWidget {
                             color: colors.textSecondary)),
                     Flexible(
                       child: Text(
-                        _formatDuration(integrationSecs),
+                        formatIntegrationSeconds(integrationSecs),
                         textAlign: TextAlign.end,
                         overflow: TextOverflow.ellipsis,
                         style: NightshadeTypography.labelSm
@@ -395,20 +395,6 @@ class CapturePanel extends ConsumerWidget {
     );
   }
 
-  String _formatDuration(double seconds) {
-    final hours = (seconds / 3600).floor();
-    final minutes = ((seconds % 3600) / 60).floor();
-    final secs = (seconds % 60).round();
-
-    if (hours > 0) {
-      return '${hours}h ${minutes}m ${secs}s';
-    } else if (minutes > 0) {
-      return '${minutes}m ${secs}s';
-    } else {
-      return '${secs}s';
-    }
-  }
-
   String _formatSessionDuration(Duration duration) {
     final hours = duration.inHours;
     final minutes = duration.inMinutes.remainder(60);
@@ -469,7 +455,7 @@ class CapturePanel extends ConsumerWidget {
                           Text('Total Integration:',
                               style: TextStyle(color: colors.textSecondary)),
                           Text(
-                              _formatDuration(
+                              formatIntegrationSeconds(
                                   sessionState.totalIntegrationSecs),
                               style: TextStyle(
                                   fontWeight: FontWeight.bold,

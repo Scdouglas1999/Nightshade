@@ -1056,18 +1056,14 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
     ));
   }
 
+  String _formatDuration(Duration d) =>
+      DurationFormat.of(d, style: DurationStyle.compact);
+
   String _formatDateTime(DateTime dt) {
     final local = dt.toLocal();
     return '${local.year}-${local.month.toString().padLeft(2, '0')}-'
         '${local.day.toString().padLeft(2, '0')} '
         '${local.hour.toString().padLeft(2, '0')}:'
         '${local.minute.toString().padLeft(2, '0')}';
-  }
-
-  String _formatDuration(Duration d) {
-    final h = d.inHours;
-    final m = d.inMinutes.remainder(60);
-    if (h > 0) return '${h}h ${m}m';
-    return '${m}m';
   }
 }

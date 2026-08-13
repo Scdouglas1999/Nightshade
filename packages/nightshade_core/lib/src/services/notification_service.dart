@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import '../models/backend/event_types.dart' show EventSeverity;
 import '../providers/notification_router_provider.dart';
 import '../providers/settings_provider.dart';
+import '../utils/duration_format.dart';
 import 'notification/notification_router.dart';
 
 /// Plays a short audible alert via the platform's built-in beep channel.
@@ -161,7 +162,7 @@ class NotificationService {
     required Duration totalTime,
     String? targetName,
   }) async {
-    final timeStr = _formatDuration(totalTime);
+    final timeStr = DurationFormat.of(totalTime);
     final message = targetName != null
         ? 'Target: $targetName\nImages: $imagesCapured\nTotal time: $timeStr'
         : 'Images: $imagesCapured\nTotal time: $timeStr';
@@ -421,20 +422,6 @@ class NotificationService {
       case NotificationEvent.custom:
         return 0x5B9EC4;
     }
-  }
-
-  String _formatDuration(Duration duration) {
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes.remainder(60);
-    final seconds = duration.inSeconds.remainder(60);
-
-    if (hours > 0) {
-      return '${hours}h ${minutes}m ${seconds}s';
-    }
-    if (minutes > 0) {
-      return '${minutes}m ${seconds}s';
-    }
-    return '${seconds}s';
   }
 
   /// Test Discord webhook connection

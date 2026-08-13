@@ -12,23 +12,9 @@ class SessionProgressCard extends ConsumerWidget {
 
   const SessionProgressCard({super.key, required this.colors});
 
-  String _formatDuration(Duration duration) {
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes.remainder(60);
-    final seconds = duration.inSeconds.remainder(60);
-    if (hours > 0) {
-      return '${hours}h ${minutes}m';
-    }
-    if (minutes > 0) {
-      return '${minutes}m ${seconds}s';
-    }
-    return '${seconds}s';
-  }
-
-  String _formatIntegrationTime(double seconds) {
-    final duration = Duration(seconds: seconds.toInt());
-    return _formatDuration(duration);
-  }
+  String _formatIntegrationTime(double seconds) =>
+      DurationFormat.of(Duration(seconds: seconds.toInt()),
+          style: DurationStyle.hoursMinutes);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -52,7 +38,8 @@ class SessionProgressCard extends ConsumerWidget {
 
     // Format elapsed time
     final elapsedText = sessionState.startTime != null
-        ? _formatDuration(DateTime.now().difference(sessionState.startTime!))
+        ? DurationFormat.of(DateTime.now().difference(sessionState.startTime!),
+            style: DurationStyle.hoursMinutes)
         : '---';
 
     // Calculate remaining time
@@ -67,7 +54,8 @@ class SessionProgressCard extends ConsumerWidget {
       );
       final remaining = estimatedTotal - elapsed;
       if (remaining.inMilliseconds > 0) {
-        remainingText = _formatDuration(remaining);
+        remainingText =
+            DurationFormat.of(remaining, style: DurationStyle.hoursMinutes);
       }
     }
 

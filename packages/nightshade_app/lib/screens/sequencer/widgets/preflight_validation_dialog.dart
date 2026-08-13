@@ -772,7 +772,8 @@ class _PreFlightValidationDialogState
                 _SimulationMetric(
                   colors: colors,
                   label: 'Duration',
-                  value: _formatDuration(simulation.duration),
+                  value: DurationFormat.of(simulation.duration,
+                      style: DurationStyle.compact),
                 ),
                 _SimulationMetric(
                   colors: colors,
@@ -1211,12 +1212,4 @@ class _PreFlightValidationDialogState
   String _formatClock(DateTime time) =>
       '${time.hour.toString().padLeft(2, '0')}:'
       '${time.minute.toString().padLeft(2, '0')}';
-
-  String _formatDuration(Duration duration) {
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes.remainder(60);
-    if (hours > 0) return '${hours}h ${minutes}m';
-    if (minutes > 0) return '${minutes}m';
-    return '${duration.inSeconds}s';
-  }
 }

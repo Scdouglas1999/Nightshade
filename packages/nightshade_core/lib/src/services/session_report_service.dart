@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../utils/duration_format.dart';
 import '../utils/fwhm_conversion.dart';
 import '../database/daos/science_dao.dart';
 import '../database/daos/sequence_runs_dao.dart';
@@ -512,15 +513,6 @@ class SessionReportService {
     String? formatDouble(double? value, int digits) =>
         value?.toStringAsFixed(digits);
 
-    String formatDuration(Duration d) {
-      final h = d.inHours;
-      final m = d.inMinutes.remainder(60);
-      final s = d.inSeconds.remainder(60);
-      if (h > 0) return '${h}h ${m}m ${s}s';
-      if (m > 0) return '${m}m ${s}s';
-      return '${s}s';
-    }
-
     buf.writeln('# Session Report: ${report.sessionName}');
     buf.writeln();
     buf.writeln('- Session ID: ${report.sessionId}');
@@ -529,14 +521,14 @@ class SessionReportService {
     if (report.endTime != null) {
       buf.writeln('- Ended: ${report.endTime!.toIso8601String()}');
     }
-    buf.writeln('- Wall clock: ${formatDuration(report.wallClockDuration)}');
+    buf.writeln('- Wall clock: ${DurationFormat.of(report.wallClockDuration)}');
     buf.writeln(
-      '- Total integration: ${formatDuration(report.totalIntegration)}',
+      '- Total integration: ${DurationFormat.of(report.totalIntegration)}',
     );
     buf.writeln(
       '- Effective imaging: ${(report.effectiveImagingFraction * 100).toStringAsFixed(1)}%',
     );
-    buf.writeln('- Downtime: ${formatDuration(report.downtime)}');
+    buf.writeln('- Downtime: ${DurationFormat.of(report.downtime)}');
     buf.writeln(
       '- Frames: ${report.totalFramesAccepted} accepted / ${report.totalFramesAttempted} attempted (${report.totalFramesRejected} rejected)',
     );
@@ -632,7 +624,7 @@ class SessionReportService {
               : formatDouble(f.meanSnr, 1)!;
           anyProxySnr = anyProxySnr || (f.meanSnr != null && f.snrIsProxy);
           buf.writeln(
-            '| ${f.filter} | ${f.framesAttempted} | ${f.framesAccepted} | ${f.framesRejected} | ${formatDuration(Duration(milliseconds: (f.totalIntegrationSecs * 1000).round()))} | ${formatDouble(f.meanHfr, 2) ?? '-'} | ${formatDouble(f.meanFwhm, 2) ?? '-'} | ${formatDouble(f.meanStarCount, 0) ?? '-'} | $snrCell | ${formatDouble(f.meanGuidingRmsTotal, 2) ?? '-'} |',
+            '| ${f.filter} | ${f.framesAttempted} | ${f.framesAccepted} | ${f.framesRejected} | ${DurationFormat.of(Duration(milliseconds: (f.totalIntegrationSecs * 1000).round()))} | ${formatDouble(f.meanHfr, 2) ?? '-'} | ${formatDouble(f.meanFwhm, 2) ?? '-'} | ${formatDouble(f.meanStarCount, 0) ?? '-'} | $snrCell | ${formatDouble(f.meanGuidingRmsTotal, 2) ?? '-'} |',
           );
         }
         buf.writeln();
@@ -698,15 +690,6 @@ class SessionReportService {
   /// renderer, but without Markdown syntax. Used by the "Export to .txt"
   /// action.
   String renderPlainText(SessionReport report) {
-    String formatDuration(Duration d) {
-      final h = d.inHours;
-      final m = d.inMinutes.remainder(60);
-      final s = d.inSeconds.remainder(60);
-      if (h > 0) return '${h}h ${m}m ${s}s';
-      if (m > 0) return '${m}m ${s}s';
-      return '${s}s';
-    }
-
     String? formatDouble(double? value, int digits) =>
         value?.toStringAsFixed(digits);
 
@@ -720,14 +703,14 @@ class SessionReportService {
     if (report.endTime != null) {
       buf.writeln('Ended: ${report.endTime}');
     }
-    buf.writeln('Wall clock: ${formatDuration(report.wallClockDuration)}');
+    buf.writeln('Wall clock: ${DurationFormat.of(report.wallClockDuration)}');
     buf.writeln(
-      'Total integration: ${formatDuration(report.totalIntegration)}',
+      'Total integration: ${DurationFormat.of(report.totalIntegration)}',
     );
     buf.writeln(
       'Effective imaging: ${(report.effectiveImagingFraction * 100).toStringAsFixed(1)}%',
     );
-    buf.writeln('Downtime: ${formatDuration(report.downtime)}');
+    buf.writeln('Downtime: ${DurationFormat.of(report.downtime)}');
     buf.writeln(
       'Frames: ${report.totalFramesAccepted} accepted / ${report.totalFramesAttempted} attempted (${report.totalFramesRejected} rejected)',
     );
@@ -778,7 +761,7 @@ class SessionReportService {
         for (final f in target.filters) {
           buf.writeln(
             '    [${f.filter}] ${f.framesAccepted}/${f.framesAttempted} frames, '
-            '${formatDuration(Duration(milliseconds: (f.totalIntegrationSecs * 1000).round()))} integration, '
+            '${DurationFormat.of(Duration(milliseconds: (f.totalIntegrationSecs * 1000).round()))} integration, '
             'HFR ${formatDouble(f.meanHfr, 2) ?? '-'}, '
             'FWHM ${formatDouble(f.meanFwhm, 2) ?? '-'}, '
             'stars ${formatDouble(f.meanStarCount, 0) ?? '-'}, '

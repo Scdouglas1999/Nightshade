@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 
 import '../database/database.dart' as db;
 import '../models/notes/journal_note.dart';
+import '../utils/duration_format.dart';
 
 /// Persistence + business logic for per-target /
 /// per-run notes.
@@ -373,7 +374,9 @@ String buildAutoPromptNoteBody({
   Map<String, int>? triggerBreakdown,
 }) {
   final buf = StringBuffer();
-  buf.writeln('**$sequenceName** completed in ${_formatDuration(wallClock)}.');
+  buf.writeln(
+    '**$sequenceName** completed in ${DurationFormat.of(wallClock)}.',
+  );
   buf.writeln();
   buf.writeln(
     '- Frames captured: $framesCaptured'
@@ -398,13 +401,4 @@ String buildAutoPromptNoteBody({
   buf.writeln();
   buf.writeln('_Anything to remember about this run?_');
   return buf.toString();
-}
-
-String _formatDuration(Duration d) {
-  final h = d.inHours;
-  final m = d.inMinutes.remainder(60);
-  final s = d.inSeconds.remainder(60);
-  if (h > 0) return '${h}h ${m}m ${s}s';
-  if (m > 0) return '${m}m ${s}s';
-  return '${s}s';
 }

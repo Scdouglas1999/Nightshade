@@ -103,14 +103,11 @@ class _SequenceTimeEstimate extends ConsumerWidget {
     required this.sequence,
   });
 
-  String _formatDuration(double seconds) {
-    final hours = (seconds / 3600).floor();
-    final minutes = ((seconds % 3600) / 60).floor();
-    if (hours > 0) {
-      return '${hours}h ${minutes}m';
-    }
-    return '${minutes}m';
-  }
+  String _formatDuration(double seconds) => DurationFormat.seconds(
+        seconds,
+        style: DurationStyle.compact,
+        rounding: DurationRounding.truncate,
+      );
 
   /// Natural width of [text] in [style], used to decide which segments of the
   /// pill actually fit before any of them is laid out.

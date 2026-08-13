@@ -127,13 +127,6 @@ class _TargetBlock extends StatelessWidget {
 
   const _TargetBlock({required this.target, required this.colors});
 
-  String _formatDuration(double seconds) {
-    final d = Duration(milliseconds: (seconds * 1000).round());
-    if (d.inHours > 0) return '${d.inHours}h ${d.inMinutes.remainder(60)}m';
-    if (d.inMinutes > 0) return '${d.inMinutes}m ${d.inSeconds.remainder(60)}s';
-    return '${d.inSeconds}s';
-  }
-
   String _formatDouble(double? value, int digits) =>
       value == null ? '-' : value.toStringAsFixed(digits);
 
@@ -163,7 +156,7 @@ class _TargetBlock extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Text(
-                '${target.framesAccepted}/${target.framesAttempted} frames | ${_formatDuration(target.totalIntegrationSecs)}',
+                '${target.framesAccepted}/${target.framesAttempted} frames | ${DurationFormat.seconds(target.totalIntegrationSecs, style: DurationStyle.hoursMinutes, rounding: DurationRounding.truncate)}',
                 style: TextStyle(
                     fontSize: NightshadeTypography.fontSize12,
                     color: colors.textMuted),
@@ -211,7 +204,9 @@ class _TargetBlock extends StatelessWidget {
                       '${f.framesRejected}',
                       color: f.framesRejected > 0 ? colors.warning : null,
                     ),
-                    _bodyCell(_formatDuration(f.totalIntegrationSecs)),
+                    _bodyCell(DurationFormat.seconds(f.totalIntegrationSecs,
+                        style: DurationStyle.hoursMinutes,
+                        rounding: DurationRounding.truncate)),
                     _bodyCell(_formatDouble(f.meanHfr, 2)),
                     _bodyCell(_formatDouble(f.meanFwhm, 2)),
                     _bodyCell(_formatDouble(f.meanStarCount, 0)),

@@ -5,25 +5,8 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// Formats a Duration into a human-readable string like "5m 30s", "1h 20m", etc.
-String formatDurationNice(Duration duration) {
-  if (duration.inSeconds < 60) {
-    return '${duration.inSeconds}s';
-  }
-  if (duration.inMinutes < 60) {
-    final mins = duration.inMinutes;
-    final secs = duration.inSeconds % 60;
-    if (secs == 0) {
-      return '${mins}m';
-    }
-    return '${mins}m ${secs}s';
-  }
-  final hours = duration.inHours;
-  final mins = duration.inMinutes % 60;
-  if (mins == 0) {
-    return '${hours}h';
-  }
-  return '${hours}h ${mins}m';
-}
+String formatDurationNice(Duration duration) =>
+    DurationFormat.of(duration, style: DurationStyle.hoursMinutesTrimmed);
 
 /// Checks if a node type has a meaningful duration that should be displayed.
 ///

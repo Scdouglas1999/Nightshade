@@ -2,6 +2,7 @@ import '../database/database.dart' as db;
 import '../models/optical_config.dart';
 import '../models/planning/target_suggestion.dart';
 import '../models/session_report.dart';
+import '../utils/duration_format.dart';
 import 'mosaic_service.dart';
 import 'target_suggestion_service.dart';
 import 'smart_night/exposure_calculator.dart';
@@ -624,8 +625,9 @@ class SessionOptimizerService {
       final suggestedAlt =
           (trace.minObservedAltitudeDeg ?? trace.minRecommendedAltitudeDeg) +
           thresholds.altitudeSuggestionMarginDeg;
-      final formattedDur = _formatDuration(
+      final formattedDur = DurationFormat.of(
         Duration(seconds: trace.secondsBelowMinAltitude.round()),
+        style: DurationStyle.compact,
       );
       final id =
           'altitude_window:${trace.targetId ?? trace.targetName.toLowerCase()}';
@@ -831,14 +833,5 @@ class SessionOptimizerService {
     filtered.sort((a, b) => b.confidence.compareTo(a.confidence));
 
     return filtered;
-  }
-
-  String _formatDuration(Duration d) {
-    if (d.inHours > 0) {
-      final m = d.inMinutes.remainder(60);
-      return '${d.inHours}h ${m}m';
-    }
-    if (d.inMinutes > 0) return '${d.inMinutes}m';
-    return '${d.inSeconds}s';
   }
 }

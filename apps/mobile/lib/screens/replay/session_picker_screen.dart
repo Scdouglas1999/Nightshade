@@ -354,7 +354,9 @@ class _RunRow extends StatelessWidget {
 
   String _subtitle(String? target, DateTime startedAt, Duration? duration) {
     final time = _formatStart(startedAt);
-    final dur = duration != null ? _formatDuration(duration) : 'in progress';
+    final dur = duration != null
+        ? DurationFormat.of(duration, style: DurationStyle.hoursMinutes)
+        : 'in progress';
     if (target != null && target.isNotEmpty) {
       return '$target  •  $time  •  $dur';
     }
@@ -366,15 +368,6 @@ class _RunRow extends StatelessWidget {
     String two(int n) => n.toString().padLeft(2, '0');
     return '${local.year}-${two(local.month)}-${two(local.day)} '
         '${two(local.hour)}:${two(local.minute)}';
-  }
-
-  String _formatDuration(Duration d) {
-    final h = d.inHours;
-    final m = d.inMinutes.remainder(60);
-    final s = d.inSeconds.remainder(60);
-    if (h > 0) return '${h}h ${m}m';
-    if (m > 0) return '${m}m ${s}s';
-    return '${s}s';
   }
 
   Color _statusColor(String status, NightshadeColors colors) {

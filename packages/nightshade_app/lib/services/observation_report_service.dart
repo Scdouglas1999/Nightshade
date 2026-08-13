@@ -246,8 +246,12 @@ class ObservationReportService {
               _headerRow('Date', dateFormat.format(session.startTime)),
               if (session.endTime != null)
                 _headerRow('End Time', dateFormat.format(session.endTime!)),
-              _headerRow('Duration',
-                  _formatDuration(session.startTime, session.endTime)),
+              _headerRow(
+                  'Duration',
+                  DurationFormat.of(
+                      (session.endTime ?? DateTime.now())
+                          .difference(session.startTime),
+                      style: DurationStyle.compact)),
               _headerRow('Status', session.status.toUpperCase()),
               if (locationName != null) _headerRow('Location', locationName),
               if (latitude != null && longitude != null)
@@ -935,16 +939,6 @@ class ObservationReportService {
         ),
       ),
     );
-  }
-
-  String _formatDuration(DateTime start, DateTime? end) {
-    final duration = (end ?? DateTime.now()).difference(start);
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes.remainder(60);
-    if (hours > 0) {
-      return '${hours}h ${minutes}m';
-    }
-    return '${minutes}m';
   }
 
   String _filterGroupAvgHfr(List<DbCapturedImage> images) {

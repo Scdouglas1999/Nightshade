@@ -244,7 +244,10 @@ class _RunHeader extends StatelessWidget {
               if (duration != null)
                 _HeaderChip(
                   icon: LucideIcons.hourglass,
-                  label: _formatDuration(duration),
+                  label: DurationFormat.of(
+                    duration,
+                    style: DurationStyle.hoursMinutes,
+                  ),
                 ),
               _HeaderChip(
                 icon: LucideIcons.image,
@@ -256,15 +259,6 @@ class _RunHeader extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  String _formatDuration(Duration d) {
-    final h = d.inHours;
-    final m = d.inMinutes.remainder(60);
-    final s = d.inSeconds.remainder(60);
-    if (h > 0) return '${h}h ${m}m';
-    if (m > 0) return '${m}m ${s}s';
-    return '${s}s';
   }
 }
 

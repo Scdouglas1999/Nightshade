@@ -70,20 +70,6 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
     }
   }
 
-  String _formatDuration(double seconds) {
-    final hours = (seconds / 3600).floor();
-    final minutes = ((seconds % 3600) / 60).floor();
-    final secs = (seconds % 60).floor();
-
-    if (hours > 0) {
-      return '${hours}h ${minutes}m ${secs}s';
-    }
-    if (minutes > 0) {
-      return '${minutes}m ${secs}s';
-    }
-    return '${secs}s';
-  }
-
   @override
   Widget build(BuildContext context) {
     final progress = ref.watch(sequenceProgressProvider);
@@ -370,7 +356,8 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        _formatDuration(progress.elapsedSecs),
+                        DurationFormat.seconds(progress.elapsedSecs,
+                            rounding: DurationRounding.truncate),
                         style: TextStyle(
                           fontSize: NightshadeTypography.fontSize11,
                           color: widget.colors.textSecondary,
@@ -396,7 +383,7 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            '~${_formatDuration(progress.estimatedRemainingSecs!)}'
+                            '~${DurationFormat.seconds(progress.estimatedRemainingSecs!, rounding: DurationRounding.truncate)}'
                             ' · done ~${formatTimeOfDay(DateTime.now().add(Duration(seconds: progress.estimatedRemainingSecs!.round())))}',
                             style: TextStyle(
                               fontSize: NightshadeTypography.fontSize11,

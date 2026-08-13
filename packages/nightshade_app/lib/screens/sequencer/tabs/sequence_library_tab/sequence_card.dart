@@ -64,14 +64,11 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
   String _formatDuration() {
     final totalSecs = _summary.totalIntegrationSecs;
     if (totalSecs <= 0) return 'N/A';
-
-    final hours = (totalSecs / 3600).floor();
-    final mins = ((totalSecs % 3600) / 60).floor();
-
-    if (hours > 0) {
-      return '${hours}h ${mins}m';
-    }
-    return '${mins}m';
+    return DurationFormat.seconds(
+      totalSecs,
+      style: DurationStyle.compact,
+      rounding: DurationRounding.truncate,
+    );
   }
 
   @override

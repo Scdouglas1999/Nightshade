@@ -73,7 +73,7 @@ class _SimulationTimeline extends StatelessWidget {
                 flex: segment.duration.inMilliseconds.clamp(1, totalMs),
                 child: Tooltip(
                   message:
-                      '${segment.nodeName}: ${_formatDuration(segment.duration)}',
+                      '${segment.nodeName}: ${DurationFormat.of(segment.duration, style: DurationStyle.compact)}',
                   child: Container(
                     margin: const EdgeInsets.only(right: 1),
                     color: _colorFor(segment),
@@ -100,14 +100,6 @@ class _SimulationTimeline extends StatelessWidget {
       default:
         return colors.textMuted;
     }
-  }
-
-  String _formatDuration(Duration duration) {
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes.remainder(60);
-    if (hours > 0) return '${hours}h ${minutes}m';
-    if (minutes > 0) return '${minutes}m';
-    return '${duration.inSeconds}s';
   }
 }
 

@@ -492,7 +492,8 @@ class _RunCard extends ConsumerWidget {
     final stats = this.stats;
 
     final durationStr = run.endedAt != null
-        ? _formatDuration(run.endedAt!.difference(run.startedAt))
+        ? DurationFormat.of(run.endedAt!.difference(run.startedAt),
+            style: DurationStyle.hoursMinutes)
         : 'In progress';
 
     return Material(
@@ -865,15 +866,6 @@ class _RunCard extends ConsumerWidget {
       default:
         return LucideIcons.circle;
     }
-  }
-
-  String _formatDuration(Duration d) {
-    final hours = d.inHours;
-    final mins = d.inMinutes % 60;
-    final secs = d.inSeconds % 60;
-    if (hours > 0) return '${hours}h ${mins}m';
-    if (mins > 0) return '${mins}m ${secs}s';
-    return '${secs}s';
   }
 }
 

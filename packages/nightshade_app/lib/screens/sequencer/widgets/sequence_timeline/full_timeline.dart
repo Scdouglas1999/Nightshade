@@ -655,15 +655,8 @@ class _FullTimelineState extends ConsumerState<_FullTimeline>
     );
   }
 
-  String _formatDuration(double seconds) {
-    final hours = (seconds / 3600).floor();
-    final minutes = ((seconds % 3600) / 60).floor();
-
-    if (hours > 0) {
-      return '${hours}h ${minutes}m total';
-    }
-    return '${minutes}m total';
-  }
+  String _formatDuration(double seconds) =>
+      '${DurationFormat.seconds(seconds, style: DurationStyle.compact, rounding: DurationRounding.truncate)} total';
 
   String _formatRemainingDuration(Duration duration) {
     final hours = duration.inHours;

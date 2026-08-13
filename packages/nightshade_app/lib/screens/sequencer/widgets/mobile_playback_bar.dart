@@ -155,7 +155,9 @@ class MobilePlaybackBar extends ConsumerWidget {
                 _InfoChip(
                   colors: colors,
                   icon: LucideIcons.clock,
-                  value: _formatDuration(sequence.totalIntegrationSecs),
+                  value: DurationFormat.seconds(sequence.totalIntegrationSecs,
+                      style: DurationStyle.compact,
+                      rounding: DurationRounding.truncate),
                   isCompact: isNarrow,
                 ),
                 SizedBox(width: isNarrow ? 4 : 8),
@@ -171,15 +173,6 @@ class MobilePlaybackBar extends ConsumerWidget {
         },
       ),
     );
-  }
-
-  String _formatDuration(double seconds) {
-    final hours = (seconds / 3600).floor();
-    final minutes = ((seconds % 3600) / 60).floor();
-    if (hours > 0) {
-      return '${hours}h ${minutes}m';
-    }
-    return '${minutes}m';
   }
 }
 

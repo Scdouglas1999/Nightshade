@@ -348,7 +348,8 @@ class _SessionCard extends StatelessWidget {
                 ),
                 _StatChip(
                   icon: LucideIcons.clock,
-                  label: _formatDuration(session.duration),
+                  label: DurationFormat.of(session.duration,
+                      style: DurationStyle.compact),
                 ),
                 _StatChip(
                   icon: LucideIcons.timer,
@@ -399,25 +400,6 @@ class _SessionCard extends StatelessWidget {
   String _formatDateTime(DateTime dt) {
     return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} '
         '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-  }
-
-  String _formatDuration(Duration duration) {
-    final totalSeconds = duration.inSeconds;
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes.remainder(60);
-    if (hours > 0) {
-      return '${hours}h ${minutes}m';
-    }
-    if (minutes > 0) {
-      return '${minutes}m';
-    }
-    // Session opened and closed in well under a minute; "0m" reads as
-    // "didn't run" which is wrong — there's clearly *some* runtime or we
-    // wouldn't be in the recovery dialog.
-    if (totalSeconds > 0) {
-      return '<1m';
-    }
-    return '0m';
   }
 
   String _formatIntegration(double seconds) {

@@ -7,21 +7,6 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 class SequenceProgressCard extends ConsumerWidget {
   const SequenceProgressCard({super.key});
 
-  String _formatDuration(double seconds) {
-    final duration = Duration(seconds: seconds.round());
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes.remainder(60);
-    final secs = duration.inSeconds.remainder(60);
-
-    if (hours > 0) {
-      return '${hours}h ${minutes}m';
-    } else if (minutes > 0) {
-      return '${minutes}m ${secs}s';
-    } else {
-      return '${secs}s';
-    }
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final progress = ref.watch(sequenceProgressProvider);
@@ -189,7 +174,8 @@ class SequenceProgressCard extends ConsumerWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    _formatDuration(progress.completedIntegrationSecs),
+                    DurationFormat.seconds(progress.completedIntegrationSecs,
+                        style: DurationStyle.hoursMinutes),
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -213,7 +199,8 @@ class SequenceProgressCard extends ConsumerWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      _formatDuration(estimatedRemaining),
+                      DurationFormat.seconds(estimatedRemaining,
+                          style: DurationStyle.hoursMinutes),
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,

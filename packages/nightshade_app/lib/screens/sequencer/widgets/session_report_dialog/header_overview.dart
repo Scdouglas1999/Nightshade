@@ -60,14 +60,6 @@ class _OverviewGrid extends StatelessWidget {
 
   const _OverviewGrid({required this.report, required this.colors});
 
-  String _formatDuration(Duration d) {
-    final h = d.inHours;
-    final m = d.inMinutes.remainder(60);
-    if (h > 0) return '${h}h ${m}m';
-    if (m > 0) return '${m}m ${d.inSeconds.remainder(60)}s';
-    return '${d.inSeconds}s';
-  }
-
   @override
   Widget build(BuildContext context) {
     final efficiencyPct =
@@ -78,12 +70,14 @@ class _OverviewGrid extends StatelessWidget {
       children: [
         _OverviewTile(
           label: 'Wall clock',
-          value: _formatDuration(report.wallClockDuration),
+          value: DurationFormat.of(report.wallClockDuration,
+              style: DurationStyle.hoursMinutes),
           colors: colors,
         ),
         _OverviewTile(
           label: 'Integration',
-          value: _formatDuration(report.totalIntegration),
+          value: DurationFormat.of(report.totalIntegration,
+              style: DurationStyle.hoursMinutes),
           colors: colors,
         ),
         _OverviewTile(
@@ -93,7 +87,8 @@ class _OverviewGrid extends StatelessWidget {
         ),
         _OverviewTile(
           label: 'Downtime',
-          value: _formatDuration(report.downtime),
+          value: DurationFormat.of(report.downtime,
+              style: DurationStyle.hoursMinutes),
           colors: colors,
         ),
         _OverviewTile(
