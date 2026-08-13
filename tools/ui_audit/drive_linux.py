@@ -493,6 +493,23 @@ def cmd_click_xy(args: argparse.Namespace) -> int:
     return _click_xy(args.profile, args.x, args.y)
 
 
+def cmd_wheel(args: argparse.Namespace) -> int:
+    # Flutter scrolls only the scrollable under the pointer, so the move and
+    # the wheel clicks must be one xdotool invocation.
+    if args.notches == 0:
+        print("scrolled nothing (0 notches)")
+        return 0
+    button = "4" if args.notches > 0 else "5"
+    subprocess.run(["xdotool", "mousemove", str(args.x), str(args.y),
+                    "click", "--repeat", str(abs(args.notches)),
+                    "--delay", "60", button],
+                   env=_env(args.profile), check=True)
+    time.sleep(0.5)
+    print(f"scrolled {'up' if args.notches > 0 else 'down'} "
+          f"{abs(args.notches)} at {args.x},{args.y}")
+    return 0
+
+
 def _geometry(profile: str, wid: str) -> dict[str, int]:
     r = subprocess.run(["xdotool", "getwindowgeometry", "--shell", wid],
                        env=_env(profile), capture_output=True, text=True)
@@ -591,8 +608,11 @@ def cmd_stop(args: argparse.Namespace) -> int:
 def main() -> int:
     # --profile is accepted on both sides of the subcommand. argparse would
     # otherwise reject `start --profile x`, which is the order everyone types.
+    # SUPPRESS is load-bearing: with a real default here, the subparser (which
+    # shares this parent) re-applies "main" over a value the top-level parser
+    # already stored, silently discarding a leading `--profile x`.
     common = argparse.ArgumentParser(add_help=False)
-    common.add_argument("--profile", default="main")
+    common.add_argument("--profile", default=argparse.SUPPRESS)
 
     ap = argparse.ArgumentParser(description=__doc__, parents=[common])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -630,6 +650,13 @@ def main() -> int:
     s.add_argument("y", type=int)
     s.set_defaults(fn=cmd_click_xy)
 
+    s = add("wheel")
+    s.add_argument("x", type=int)
+    s.add_argument("y", type=int)
+    s.add_argument("notches", type=int,
+                   help="positive scrolls up, negative scrolls down")
+    s.set_defaults(fn=cmd_wheel)
+
     s = add("click-img")
     s.add_argument("shot", help="the screenshot the coordinates were read from")
     s.add_argument("x", type=int)
@@ -663,6 +690,8 @@ def main() -> int:
     s.set_defaults(fn=cmd_stop)
 
     args = ap.parse_args()
+    if not hasattr(args, "profile"):
+        args.profile = "main"
     return args.fn(args)
 
 
