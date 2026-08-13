@@ -49,6 +49,19 @@ class _FakeLiveStackingService implements LiveStackingService {
   static const int _w = 16;
   static const int _h = 12;
 
+  // Not exercised by the autofeed flow; present to satisfy the interface.
+  @override
+  Uint8List autoStretchPreview({
+    required int width,
+    required int height,
+    required List<int> data,
+    int channels = 1,
+  }) => Uint8List(width * height * 4);
+
+  @override
+  Future<LiveStackingMasterSave> saveMaster({required String filePath}) =>
+      throw UnimplementedError('saveMaster is not part of the autofeed flow');
+
   List<int> _syntheticStack() {
     final out = Uint16List(_w * _h);
     for (var i = 0; i < out.length; i++) {

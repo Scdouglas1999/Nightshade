@@ -80,6 +80,49 @@ class _StatRow extends StatelessWidget {
   }
 }
 
+/// Caption + rule that separates one unit of measure from another inside the
+/// Statistics list (frame counts above, pixel counts below).
+class _StatGroupHeader extends StatelessWidget {
+  final String label;
+  final NightshadeColors colors;
+
+  /// The first group needs no separating rule above it.
+  final bool isFirst;
+
+  const _StatGroupHeader({
+    required this.label,
+    required this.colors,
+    this.isFirst = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (!isFirst) ...[
+          const SizedBox(height: 12),
+          Container(height: 1, color: colors.border),
+        ],
+        const SizedBox(height: 10),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              fontSize: NightshadeTypography.fontSize10,
+              letterSpacing: 0.6,
+              fontWeight: FontWeight.w600,
+              color: colors.textMuted,
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+}
+
 /// Inline warning shown when the sigma-clipper rejected an unusually high
 /// fraction of pixels on the most recent frame. The Rust engine accumulates
 /// rejections silently; surfacing it here lets the observer react (refocus,

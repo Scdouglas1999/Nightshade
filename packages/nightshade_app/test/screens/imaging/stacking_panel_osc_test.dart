@@ -1,12 +1,10 @@
 // Tests for the OSC / Color controls in the live-stacking panel (component
-// C14) and the channel-aware stacked-preview pixel conversion.
+// C14).
 //
 // The panel is exercised with overridden providers so it never reaches the
 // native dynamic library: `liveStackingProvider` uses a real notifier (its
 // `updateConfig` is a pure state mutation), and the camera providers are
 // overridden to control the auto-detection path.
-
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -242,59 +240,6 @@ void main() {
     });
   });
 
-  group('stacked preview pixel conversion', () {
-    test('mono buffer maps to grayscale RGBA (R==G==B per pixel)', () {
-      // 2x1 luminance ramp.
-      final mono = Uint16List.fromList([0, 65535]);
-      final rgba = stackedPreviewGrayRgba(mono, 2);
-
-      // Pixel 0 → black, pixel 1 → white, both gray (R==G==B).
-      expect(rgba[0], 0);
-      expect(rgba[1], 0);
-      expect(rgba[2], 0);
-      expect(rgba[3], 255);
-      expect(rgba[4], 255);
-      expect(rgba[5], 255);
-      expect(rgba[6], 255);
-      expect(rgba[7], 255);
-    });
-
-    test('interleaved RGB16 buffer maps to distinct per-channel RGBA', () {
-      // Three pixels. Each channel has a *different* extent and the middle pixel
-      // sits at a *different fraction* of each channel's span, so a correct
-      // per-channel stretch must yield three distinct output bytes for the
-      // middle pixel — proving it is genuine colour, not a grayscale collapse.
-      //
-      //   R channel: min 0,  max 100,  mid 25   → 25/100  = 0.25 → ~63
-      //   G channel: min 0,  max 100,  mid 50   → 50/100  = 0.50 → ~127
-      //   B channel: min 0,  max 100,  mid 75   → 75/100  = 0.75 → ~191
-      final rgb = Uint16List.fromList([
-        0, 0, 0, // pixel0: all channel minima
-        25, 50, 75, // pixel1: distinct per-channel fractions
-        100, 100, 100, // pixel2: all channel maxima
-      ]);
-      final rgba = stackedPreviewColorRgba(rgb, 3);
-
-      // Pixel 0 → each channel min → 0.
-      expect(rgba[0], 0);
-      expect(rgba[1], 0);
-      expect(rgba[2], 0);
-      expect(rgba[3], 255);
-
-      // Pixel 1 → distinct per-channel bytes (the colour signal).
-      final r1 = rgba[4], g1 = rgba[5], b1 = rgba[6];
-      expect(r1, inInclusiveRange(60, 66)); // ~0.25 * 255
-      expect(g1, inInclusiveRange(124, 130)); // ~0.50 * 255
-      expect(b1, inInclusiveRange(188, 194)); // ~0.75 * 255
-      expect(r1 != g1 && g1 != b1, isTrue,
-          reason: 'channels must differ — not a grayscale fallback');
-      expect(rgba[7], 255);
-
-      // Pixel 2 → each channel max → 255.
-      expect(rgba[8], 255);
-      expect(rgba[9], 255);
-      expect(rgba[10], 255);
-      expect(rgba[11], 255);
-    });
-  });
+  // The stacked-preview pixel conversion now delegates to the app's shared
+  // auto-stretch; it is covered by stacking_panel_preview_stretch_test.dart.
 }

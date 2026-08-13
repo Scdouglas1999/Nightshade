@@ -37,6 +37,28 @@ Future<XFile?> _pickStackingReference() {
 final stackingReferencePickerProvider =
     Provider<StackingReferencePicker>((ref) => _pickStackingReference);
 
+/// Picks the destination for a stacked master, returning null when the
+/// operator cancels.
+typedef StackingMasterDestinationPicker = Future<String?> Function(
+    String suggestedName);
+
+Future<String?> _pickStackingMasterDestination(String suggestedName) async {
+  const typeGroup = XTypeGroup(label: 'PNG image', extensions: ['png']);
+  final location = await getSaveLocation(
+    suggestedName: suggestedName,
+    acceptedTypeGroups: [typeGroup],
+  );
+  return location?.path;
+}
+
+final stackingMasterDestinationPickerProvider =
+    Provider<StackingMasterDestinationPicker>(
+        (ref) => _pickStackingMasterDestination);
+
+/// What the operator chose when asked to end a session that has stacked
+/// frames in it.
+enum _StopDecision { saveMaster, discard, cancel }
+
 class StackingPanel extends ConsumerStatefulWidget {
   final NightshadeColors colors;
 
@@ -50,6 +72,10 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
   bool _isStarting = false;
   bool _isStopping = false;
   bool _isResetting = false;
+
+  /// True from the moment Stop is pressed on a stack that has frames in it
+  /// until the save/discard decision is resolved.
+  bool _isEndingStack = false;
   int _startGeneration = 0;
   int _stopGeneration = 0;
   int _resetGeneration = 0;
@@ -154,7 +180,127 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
     }
   }
 
+  /// Ends the session. Stopping releases the native stacker and with it every
+  /// stacked pixel, so a session that has frames in it is never released
+  /// silently: the operator is asked, and can write the master out first.
   Future<void> _stopStacking() async {
+    if (_isStopping || _isEndingStack) return;
+    final frames = ref.read(liveStackingProvider).stats.stackedFrameCount;
+    if (frames <= 0) {
+      await _releaseStack();
+      return;
+    }
+
+    setState(() => _isEndingStack = true);
+    try {
+      final decision = await _askBeforeDiscardingStack(frames);
+      if (!mounted || decision != _StopDecision.saveMaster) {
+        if (decision == _StopDecision.discard) await _releaseStack();
+        return;
+      }
+      // Keep the stack running until the master is safely on disk: a cancelled
+      // picker or a failed write must not cost the operator the integration.
+      if (!await _saveStackedMaster(frames)) return;
+      if (!mounted) return;
+      await _releaseStack();
+    } finally {
+      if (mounted) setState(() => _isEndingStack = false);
+    }
+  }
+
+  /// Confirmation shown before Stop releases a stack that has frames in it.
+  Future<_StopDecision> _askBeforeDiscardingStack(int frames) async {
+    final colors = widget.colors;
+    final decision = await showDialog<_StopDecision>(
+      context: context,
+      builder: (dialogContext) => NightshadeDialog(
+        title: 'Keep this stack?',
+        icon: NightshadeIcons.layers,
+        width: 460,
+        actions: [
+          SmallButton(
+            label: 'Cancel',
+            icon: NightshadeIcons.close,
+            isOutline: true,
+            colors: colors,
+            onTap: () => Navigator.of(dialogContext).pop(_StopDecision.cancel),
+          ),
+          const SizedBox(width: 8),
+          SmallButton(
+            label: 'Discard',
+            icon: NightshadeIcons.delete,
+            isOutline: true,
+            colors: colors,
+            onTap: () => Navigator.of(dialogContext).pop(_StopDecision.discard),
+          ),
+          const SizedBox(width: 8),
+          SmallButton(
+            label: 'Save master',
+            icon: NightshadeIcons.save,
+            colors: colors,
+            onTap: () =>
+                Navigator.of(dialogContext).pop(_StopDecision.saveMaster),
+          ),
+        ],
+        child: Text(
+          'Stopping releases the stacker, and the '
+          '${frames == 1 ? '1 stacked frame' : '$frames stacked frames'} '
+          'accumulated so far cannot be recovered afterwards. Save the '
+          'stacked master first, or discard it and stop.',
+          style: TextStyle(
+            fontSize: NightshadeTypography.fontSize12,
+            color: colors.textSecondary,
+          ),
+        ),
+      ),
+    );
+    return decision ?? _StopDecision.cancel;
+  }
+
+  /// Writes the accumulated master out. Returns true only when a file was
+  /// actually written (so the caller knows it is safe to release the stack).
+  Future<bool> _saveStackedMaster(int frames) async {
+    final stamp = DateTime.now()
+        .toUtc()
+        .toIso8601String()
+        .replaceAll(':', '-')
+        .split('.')
+        .first;
+    final destination = await ref.read(
+      stackingMasterDestinationPickerProvider,
+    )('live_stack_${stamp}Z_${frames}frames.png');
+    if (!mounted || destination == null || destination.trim().isEmpty) {
+      return false;
+    }
+
+    try {
+      final saved = await ref
+          .read(liveStackingServiceProvider)
+          .saveMaster(filePath: destination);
+      if (!mounted) return true;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Stacked master (${saved.stackedFrameCount} frames) saved to '
+            '${saved.filePath}',
+          ),
+        ),
+      );
+      return true;
+    } catch (error) {
+      if (!mounted) return false;
+      await ErrorDialog.show(
+        context,
+        title: 'Could not save the stacked master',
+        message: 'The stack is still running and was not discarded. Try a '
+            'different destination, or discard the stack deliberately.',
+        technicalDetails: error.toString(),
+      );
+      return false;
+    }
+  }
+
+  Future<void> _releaseStack() async {
     if (_isStopping) return;
     final generation = ++_stopGeneration;
     final authority = ref.read(backendProvider);
@@ -312,8 +458,11 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
   Widget build(BuildContext context) {
     ref.listen<NightshadeBackend>(backendProvider, (previous, next) {
       if (previous == null || identical(previous, next)) return;
-      final hadPendingOperation =
-          _isStarting || _isStopping || _isResetting || _isOpeningStackAndShare;
+      final hadPendingOperation = _isStarting ||
+          _isStopping ||
+          _isResetting ||
+          _isEndingStack ||
+          _isOpeningStackAndShare;
       if (!hadPendingOperation) return;
       _startGeneration++;
       _stopGeneration++;
@@ -323,6 +472,7 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
         _isStarting = false;
         _isStopping = false;
         _isResetting = false;
+        _isEndingStack = false;
         _isOpeningStackAndShare = false;
       });
     });
@@ -477,7 +627,7 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                         icon: NightshadeIcons.stop,
                         isOutline: true,
                         colors: widget.colors,
-                        isEnabled: isRunning && !_isStopping,
+                        isEnabled: isRunning && !_isStopping && !_isEndingStack,
                         onTap: _stopStacking,
                       ),
                     ),
@@ -510,21 +660,26 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
             colors: widget.colors,
             child: Column(
               children: [
+                _StatGroupHeader(
+                  label: 'Frames',
+                  colors: widget.colors,
+                  isFirst: true,
+                ),
                 _StatRow(
                   label: 'Stacked Frames',
-                  value: '${stats.stackedFrameCount}',
+                  value: _frames(stats.stackedFrameCount),
                   colors: widget.colors,
                 ),
                 const SizedBox(height: 8),
                 _StatRow(
                   label: 'Total Attempted',
-                  value: '${stats.totalFramesAttempted}',
+                  value: _frames(stats.totalFramesAttempted),
                   colors: widget.colors,
                 ),
                 const SizedBox(height: 8),
                 _StatRow(
                   label: 'Rejected (Alignment)',
-                  value: '${stats.rejectedAlignmentFailures}',
+                  value: _frames(stats.rejectedAlignmentFailures),
                   valueColor: stats.rejectedAlignmentFailures > 0
                       ? widget.colors.warning
                       : null,
@@ -534,7 +689,7 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                 _StatRow(
                   label: 'Avg Matched Pairs',
                   value: hasAlignedFrames
-                      ? stats.avgMatchedPairs.toStringAsFixed(1)
+                      ? '${stats.avgMatchedPairs.toStringAsFixed(1)} stars'
                       : '—',
                   colors: widget.colors,
                 ),
@@ -546,17 +701,22 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                       : '—',
                   colors: widget.colors,
                 ),
-                const SizedBox(height: 8),
+                // The rows below count PIXELS, not frames. Without the break
+                // and the units, "Sigma-Rejected 7.3M" under "Stacked Frames
+                // 36" reads as 7.3 million discarded frames.
+                _StatGroupHeader(
+                  label: 'Pixels rejected by sigma clipping',
+                  colors: widget.colors,
+                ),
                 _StatRow(
                   label: 'Sigma-Rejected (Total)',
-                  value: _formatLargeNumber(stats.totalSigmaRejectedPixels),
+                  value: _pixels(stats.totalSigmaRejectedPixels),
                   colors: widget.colors,
                 ),
                 const SizedBox(height: 8),
                 _StatRow(
                   label: 'Sigma-Rejected (Last Frame)',
-                  value: _formatLargeNumber(
-                      stackState.lastFrameSigmaRejectedPixels),
+                  value: _pixels(stackState.lastFrameSigmaRejectedPixels),
                   valueColor: _rejectionRateColor(
                       stackState.lastFrameSigmaRejectionRate, widget.colors),
                   colors: widget.colors,
@@ -603,6 +763,7 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                 width: stackState.previewWidth,
                 height: stackState.previewHeight,
                 channels: _previewChannels(stackState),
+                stretch: ref.watch(stackedPreviewStretchProvider),
                 colors: widget.colors,
               ),
             ),
@@ -777,6 +938,12 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
     }
     return value.toString();
   }
+
+  /// A frame count, carrying its unit so it cannot be read as pixels.
+  String _frames(int value) => '$value frames';
+
+  /// A pixel count, carrying its unit so it cannot be read as frames.
+  String _pixels(int value) => '${_formatLargeNumber(value)} px';
 
   /// Resolve the value-color for a sigma-rejection rate based on the
   /// per-frame thresholds (`_rejectionWarningThreshold` /

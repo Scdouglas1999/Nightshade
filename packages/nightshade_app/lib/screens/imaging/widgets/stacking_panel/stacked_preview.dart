@@ -3,19 +3,23 @@ part of '../stacking_panel.dart';
 /// Displays the u16 stacked preview image, converting it to an 8-bit
 /// displayable format on the fly.
 ///
+/// The conversion is the app's shared auto-stretch ([stretch], normally
+/// `LiveStackingService.autoStretchPreview` → the Rust MAD-based STF), so the
+/// preview shows the same star field the viewer shows. It is deliberately NOT
+/// a linear min/max map: on a real stacked light the max is a saturated star
+/// and the min is the sky floor, which renders the whole frame black.
+///
 /// [channels] selects how [previewData] is interpreted:
-///   * `1` — a single luminance plane (`width * height` samples); rendered with
-///     a min/max linear stretch into grayscale RGBA (the historic mono path,
-///     byte-for-byte unchanged).
+///   * `1` — a single luminance plane (`width * height` samples).
 ///   * `3` — an interleaved RGB16 buffer (`width * height * 3` samples, the
-///     layout an OSC session produces); each channel is linearly stretched with
-///     its own min/max so a colour stack previews in colour rather than as a
-///     scrambled mono plane.
+///     layout an OSC session produces), stretched per channel so a colour
+///     stack previews in colour rather than as a scrambled mono plane.
 class _StackedPreview extends StatefulWidget {
   final Uint16List previewData;
   final int width;
   final int height;
   final int channels;
+  final StackedPreviewStretch stretch;
   final NightshadeColors colors;
 
   const _StackedPreview({
@@ -23,6 +27,7 @@ class _StackedPreview extends StatefulWidget {
     required this.width,
     required this.height,
     required this.channels,
+    required this.stretch,
     required this.colors,
   });
 
@@ -47,7 +52,8 @@ class _StackedPreviewState extends State<_StackedPreview> {
     if (!identical(widget.previewData, oldWidget.previewData) ||
         widget.width != oldWidget.width ||
         widget.height != oldWidget.height ||
-        widget.channels != oldWidget.channels) {
+        widget.channels != oldWidget.channels ||
+        widget.stretch != oldWidget.stretch) {
       _buildDisplayImage();
     }
   }
@@ -72,21 +78,36 @@ class _StackedPreviewState extends State<_StackedPreview> {
       return;
     }
 
+    // Sanity check: the buffer must carry the samples the channel layout
+    // claims before it is handed to the native stretch.
+    final samplesPerPixel = widget.channels == 3 ? 3 : 1;
+    if (data.length < pixelCount * samplesPerPixel) {
+      _isDecoding = false;
+      return;
+    }
+
     final Uint8List rgba;
-    if (widget.channels == 3) {
-      // Sanity check: an interleaved RGB16 buffer must carry 3 samples/pixel.
-      if (data.length < pixelCount * 3) {
-        _isDecoding = false;
-        return;
-      }
-      rgba = stackedPreviewColorRgba(data, pixelCount);
-    } else {
-      // Sanity check.
-      if (data.length < pixelCount) {
-        _isDecoding = false;
-        return;
-      }
-      rgba = stackedPreviewGrayRgba(data, pixelCount);
+    try {
+      rgba = widget.stretch(
+        width: w,
+        height: h,
+        data: data,
+        channels: samplesPerPixel,
+      );
+    } catch (e) {
+      developer.log('[StackingPanel] Error stretching preview: $e',
+          name: 'StackingPanel', level: 900, error: e);
+      _isDecoding = false;
+      return;
+    }
+    if (rgba.length < pixelCount * 4) {
+      developer.log(
+          '[StackingPanel] Stretched preview is ${rgba.length} bytes, '
+          'expected ${pixelCount * 4}',
+          name: 'StackingPanel',
+          level: 900);
+      _isDecoding = false;
+      return;
     }
 
     try {
@@ -167,74 +188,25 @@ class _StackedPreviewState extends State<_StackedPreview> {
 }
 
 // ---------------------------------------------------------------------------
-// Preview pixel conversion (channel-aware)
+// Preview pixel conversion
 // ---------------------------------------------------------------------------
 
-/// Linear min/max stretch of a single u16 luminance plane to grayscale RGBA.
-/// Byte-for-byte identical to the historic mono preview path.
+/// Renders a u16 stacked buffer to display-ready RGBA8.
 ///
-/// Exposed for testing the channel-branching contract of the stacked preview.
-@visibleForTesting
-Uint8List stackedPreviewGrayRgba(Uint16List data, int pixelCount) {
-  int minVal = 65535;
-  int maxVal = 0;
-  for (int i = 0; i < pixelCount; i++) {
-    final v = data[i];
-    if (v < minVal) minVal = v;
-    if (v > maxVal) maxVal = v;
-  }
-  final range = (maxVal - minVal).clamp(1, 65535);
+/// `channels` is `1` (luminance plane) or `3` (interleaved RGB16). The
+/// production implementation is the app's shared MAD-based STF auto-stretch
+/// (`LiveStackingService.autoStretchPreview`), which lives in Rust so exactly
+/// one stretch curve exists across the viewer, Stack-and-Share and this
+/// preview.
+typedef StackedPreviewStretch = Uint8List Function({
+  required int width,
+  required int height,
+  required List<int> data,
+  required int channels,
+});
 
-  final rgba = Uint8List(pixelCount * 4);
-  for (int i = 0; i < pixelCount; i++) {
-    final normalized = ((data[i] - minVal) * 255 ~/ range).clamp(0, 255);
-    final offset = i * 4;
-    rgba[offset] = normalized;
-    rgba[offset + 1] = normalized;
-    rgba[offset + 2] = normalized;
-    rgba[offset + 3] = 255;
-  }
-  return rgba;
-}
-
-/// Per-channel linear min/max stretch of an interleaved RGB16 buffer
-/// (`R0,G0,B0,R1,...`) to RGBA.
-///
-/// Each channel is stretched against its own min/max so the colour balance is
-/// preserved rather than being dominated by whichever channel happens to be
-/// brightest. This is a genuine colour rendering (the live EAA preview is a
-/// fast linear map; the quality-oriented STF colour stretch lives in the
-/// Stack-and-Share result viewer), never a grayscale fallback.
-///
-/// Exposed for testing the channel-branching contract of the stacked preview.
-@visibleForTesting
-Uint8List stackedPreviewColorRgba(Uint16List data, int pixelCount) {
-  var rMin = 65535, gMin = 65535, bMin = 65535;
-  var rMax = 0, gMax = 0, bMax = 0;
-  for (int i = 0; i < pixelCount; i++) {
-    final base = i * 3;
-    final r = data[base];
-    final g = data[base + 1];
-    final b = data[base + 2];
-    if (r < rMin) rMin = r;
-    if (r > rMax) rMax = r;
-    if (g < gMin) gMin = g;
-    if (g > gMax) gMax = g;
-    if (b < bMin) bMin = b;
-    if (b > bMax) bMax = b;
-  }
-  final rRange = (rMax - rMin).clamp(1, 65535);
-  final gRange = (gMax - gMin).clamp(1, 65535);
-  final bRange = (bMax - bMin).clamp(1, 65535);
-
-  final rgba = Uint8List(pixelCount * 4);
-  for (int i = 0; i < pixelCount; i++) {
-    final base = i * 3;
-    final offset = i * 4;
-    rgba[offset] = ((data[base] - rMin) * 255 ~/ rRange).clamp(0, 255);
-    rgba[offset + 1] = ((data[base + 1] - gMin) * 255 ~/ gRange).clamp(0, 255);
-    rgba[offset + 2] = ((data[base + 2] - bMin) * 255 ~/ bRange).clamp(0, 255);
-    rgba[offset + 3] = 255;
-  }
-  return rgba;
-}
+/// Injection point for [StackedPreviewStretch]; overridden in tests so the
+/// preview can be exercised without the native library.
+final stackedPreviewStretchProvider = Provider<StackedPreviewStretch>(
+  (ref) => ref.watch(liveStackingServiceProvider).autoStretchPreview,
+);

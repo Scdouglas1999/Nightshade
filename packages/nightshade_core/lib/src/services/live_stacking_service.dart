@@ -1,5 +1,8 @@
+import 'dart:typed_data';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
+import 'package:path/path.dart' as p;
 
 import '../backend/network_backend.dart';
 import '../backend/nightshade_backend.dart';
@@ -156,6 +159,31 @@ class LiveStackingResult {
     this.channels = 1,
     required this.data,
     required this.stats,
+  });
+}
+
+/// Pixel format a stacked master was written in.
+enum LiveStackingMasterFormat {
+  /// 16-bit single-channel PNG holding the linear stacked pixels verbatim —
+  /// the integration itself, re-stretchable in any processing tool.
+  linearMono16,
+
+  /// 8-bit RGBA PNG of the auto-stretched colour integration. The 16-bit
+  /// writers in the imaging pipeline are single-plane, so an OSC master is
+  /// written as the display render rather than as a scrambled mono plane.
+  stretchedColor8,
+}
+
+/// Where a stacked master was written, and in what form.
+class LiveStackingMasterSave {
+  final String filePath;
+  final int stackedFrameCount;
+  final LiveStackingMasterFormat format;
+
+  const LiveStackingMasterSave({
+    required this.filePath,
+    required this.stackedFrameCount,
+    required this.format,
   });
 }
 
@@ -336,6 +364,106 @@ class LiveStackingService {
     }
     final result = await bridge.apiStackingGetResult();
     return _convertResult(result);
+  }
+
+  /// Display-ready RGBA8 render of a stacked buffer.
+  ///
+  /// Delegates to the app's shared MAD-based Screen-Transfer-Function
+  /// auto-stretch (Rust `imaging/src/stretch.rs`) — the same curve the image
+  /// viewer and Stack-and-Share use — so the live preview shows the star field
+  /// the frames actually contain. A linear min/max map cannot: on a real light
+  /// frame the maximum is a saturated star and the minimum is the sky floor,
+  /// which crushes every background pixel and every faint star to black.
+  ///
+  /// [channels] is `1` for a luminance plane (`width * height` u16 samples) or
+  /// `3` for interleaved RGB16 (`width * height * 3`). Any other value is an
+  /// error rather than a guess: there is no display layout for it.
+  Uint8List autoStretchPreview({
+    required int width,
+    required int height,
+    required List<int> data,
+    int channels = 1,
+  }) {
+    switch (channels) {
+      case 1:
+        return bridge.apiAutoStretchImage(
+          width: width,
+          height: height,
+          data: data,
+        );
+      case 3:
+        return bridge.apiAutoStretchColorImage(
+          width: width,
+          height: height,
+          data: data,
+        );
+      default:
+        throw ArgumentError.value(
+          channels,
+          'channels',
+          'auto-stretch supports 1 (luminance) or 3 (interleaved RGB16) '
+              'channels only',
+        );
+    }
+  }
+
+  /// Write the accumulated stacked master to [filePath].
+  ///
+  /// Reads the result out of the stacker FIRST, so this is safe to call
+  /// immediately before [stop] (which releases the native accumulator and with
+  /// it every stacked pixel). Callers that stop a session with frames in it
+  /// must offer this: without it the only outcome of Stop is that the whole
+  /// integration is destroyed.
+  ///
+  /// The extension is normalised to `.png`; the returned
+  /// [LiveStackingMasterSave] carries the path actually written and whether the
+  /// master is the linear 16-bit integration (mono) or the auto-stretched
+  /// colour render (OSC).
+  Future<LiveStackingMasterSave> saveMaster({required String filePath}) async {
+    final result = await getCurrentResult();
+    if (result.stats.stackedFrameCount <= 0 ||
+        result.width <= 0 ||
+        result.height <= 0) {
+      throw StateError('There is no stacked master to save yet.');
+    }
+
+    final target = p.setExtension(p.withoutExtension(filePath.trim()), '.png');
+    _logger.info(
+      'Saving stacked master (${result.stats.stackedFrameCount} frames) to '
+      '$target',
+      source: 'LiveStackingService',
+    );
+
+    if (result.channels == 3) {
+      await bridge.apiSaveRgbaPngFile(
+        filePath: target,
+        width: result.width,
+        height: result.height,
+        rgba: autoStretchPreview(
+          width: result.width,
+          height: result.height,
+          data: result.data,
+          channels: 3,
+        ),
+      );
+      return LiveStackingMasterSave(
+        filePath: target,
+        stackedFrameCount: result.stats.stackedFrameCount,
+        format: LiveStackingMasterFormat.stretchedColor8,
+      );
+    }
+
+    await bridge.apiSavePngFile(
+      filePath: target,
+      width: result.width,
+      height: result.height,
+      data: result.data,
+    );
+    return LiveStackingMasterSave(
+      filePath: target,
+      stackedFrameCount: result.stats.stackedFrameCount,
+      format: LiveStackingMasterFormat.linearMono16,
+    );
   }
 
   /// Get the current stacking statistics.
