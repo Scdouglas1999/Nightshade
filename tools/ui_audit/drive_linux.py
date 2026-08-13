@@ -395,9 +395,21 @@ def _states(node) -> str:
         flags.append("ON")
     elif "checkable" in raw:
         flags.append("off")
-    # Only interactive roles carry `enabled`/`sensitive`; static text never does,
-    # so reporting DISABLED on a label would flood the dump with false alarms.
-    interactive = raw & {"focusable", "selectable", "checkable"}
+    # Interactivity is decided by ROLE, not by `focusable`: Flutter drops
+    # `focusable` from a disabled button entirely, so a focusable-based test
+    # can never print DISABLED on the one node class an audit most needs it
+    # for. Static roles (label, panel, image) never carry enabled/sensitive
+    # and stay exempt so the dump is not flooded with false alarms.
+    try:
+        role = node.get_role_name()
+    except Exception:
+        role = ""
+    interactive = bool(raw & {"focusable", "selectable", "checkable"}) or role in {
+        "push button", "button", "toggle button", "check box", "radio button",
+        "combo box", "menu item", "check menu item", "radio menu item",
+        "slider", "spin button", "entry", "text", "link", "page tab",
+        "list item",
+    }
     if interactive and not (raw & {"enabled", "sensitive"}):
         flags.append("DISABLED")
     if "showing" not in raw:
