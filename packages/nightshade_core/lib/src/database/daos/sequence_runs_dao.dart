@@ -201,6 +201,31 @@ class SequenceRunsDao extends DatabaseAccessor<NightshadeDatabase>
     return (runCount: row.read(countExpr) ?? 0, lastRunAt: row.read(maxExpr));
   }
 
+  /// [runSummaryForSequence] for a whole library page, as ONE grouped query.
+  ///
+  /// The sequence-library list needs a roll-up per row; asking per sequence
+  /// costs one serialized round trip per card. Sequences with no runs are
+  /// absent from the result — callers substitute `(0, null)`.
+  Future<Map<int, ({int runCount, DateTime? lastRunAt})>>
+  runSummariesForSequences(Iterable<int> sequenceIds) async {
+    final ids = sequenceIds.toSet();
+    if (ids.isEmpty) return const {};
+    final countExpr = sequenceRuns.id.count();
+    final maxExpr = sequenceRuns.startedAt.max();
+    final query = selectOnly(sequenceRuns)
+      ..addColumns([sequenceRuns.sequenceId, countExpr, maxExpr])
+      ..where(sequenceRuns.sequenceId.isIn(ids))
+      ..groupBy([sequenceRuns.sequenceId]);
+    final rows = await query.get();
+    return {
+      for (final row in rows)
+        row.read(sequenceRuns.sequenceId)!: (
+          runCount: row.read(countExpr) ?? 0,
+          lastRunAt: row.read(maxExpr),
+        ),
+    };
+  }
+
   /// Row count for the same filter set [listPaginated] uses; the
   /// handler returns this in the `total` field so the phone can render a
   /// progress indicator.

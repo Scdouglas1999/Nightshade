@@ -24,6 +24,9 @@ enum SecondsPrecision {
 
   /// One fractional digit (`toStringAsFixed(1)`).
   oneDecimal,
+
+  /// Two fractional digits, zero-padded to a fixed `SS.ss` width.
+  twoDecimal,
 }
 
 /// The glyphs that separate the three components and the units shown.
@@ -45,24 +48,22 @@ class CoordinateFormat {
   /// Format Right Ascension given in **decimal hours**.
   ///
   /// [style] selects the separators/padding; [seconds] selects the seconds
-  /// precision. Negative or >24h inputs are formatted as-is (callers that need
-  /// wrap/normalization must do it before calling).
+  /// precision. Inputs >24h are formatted as-is (callers that need wrapping
+  /// must do it before calling); a negative input is rendered as a signed
+  /// magnitude.
   static String ra(
     double raHours, {
     SexagesimalStyle style = SexagesimalStyle.paddedLetters,
     SecondsPrecision seconds = SecondsPrecision.oneDecimal,
   }) {
-    final h = raHours.floor();
-    final remainder = (raHours - h) * 60;
-    final m = remainder.floor();
-    final rawSeconds = (remainder - m) * 60;
-    final secStr = _formatSeconds(rawSeconds, seconds);
+    final sign = raHours < 0 ? '-' : '';
+    final (h, m, secStr) = _decompose(raHours.abs(), seconds);
 
     switch (style) {
       case SexagesimalStyle.paddedLetters:
-        return '${_pad2(h)}h ${_pad2(m)}m ${secStr}s';
+        return '$sign${_pad2(h)}h ${_pad2(m)}m ${secStr}s';
       case SexagesimalStyle.paddedColons:
-        return '${_pad2(h)}:${_pad2(m)}:$secStr';
+        return '$sign${_pad2(h)}:${_pad2(m)}:$secStr';
     }
   }
 
@@ -75,12 +76,7 @@ class CoordinateFormat {
     SecondsPrecision seconds = SecondsPrecision.oneDecimal,
   }) {
     final sign = decDegrees >= 0 ? '+' : '-';
-    final abs = decDegrees.abs();
-    final d = abs.floor();
-    final remainder = (abs - d) * 60;
-    final m = remainder.floor();
-    final rawSeconds = (remainder - m) * 60;
-    final secStr = _formatSeconds(rawSeconds, seconds);
+    final (d, m, secStr) = _decompose(decDegrees.abs(), seconds);
 
     switch (style) {
       case SexagesimalStyle.paddedLetters:
@@ -90,14 +86,62 @@ class CoordinateFormat {
     }
   }
 
-  static String _formatSeconds(double rawSeconds, SecondsPrecision precision) {
+  /// Split a non-negative angle into its three components, quantizing the WHOLE
+  /// angle at the rendered seconds precision first so the carry is structural.
+  ///
+  /// Rounding the seconds field on its own renders values that do not exist:
+  /// 5.6h decomposes field-by-field to minutes=35, seconds=59.999…, which
+  /// `toStringAsFixed(1)` shows as "05h 35m 60.0s" — a time this package's own
+  /// [CoordinateParser] refuses to read back. Quantizing first means seconds
+  /// can never reach 60 and minutes can never reach 60, for every precision.
+  static (int whole, int minutes, String seconds) _decompose(
+    double magnitude,
+    SecondsPrecision precision,
+  ) {
+    final unitsPerSecond = _unitsPerSecond(precision);
+    final exact = magnitude * 3600 * unitsPerSecond;
+    // Only [SecondsPrecision.integerFloored] truncates; every other precision
+    // rounds to its nearest representable value.
+    final total = precision == SecondsPrecision.integerFloored
+        ? exact.floor()
+        : exact.round();
+
+    final unitsPerMinute = 60 * unitsPerSecond;
+    final secondsUnits = total % unitsPerMinute;
+    final wholeMinutes = total ~/ unitsPerMinute;
+    return (
+      wholeMinutes ~/ 60,
+      wholeMinutes % 60,
+      _formatSeconds(secondsUnits, unitsPerSecond, precision),
+    );
+  }
+
+  /// The quantum [precision] renders at, as sub-second units per second.
+  static int _unitsPerSecond(SecondsPrecision precision) {
     switch (precision) {
       case SecondsPrecision.integerRounded:
-        return _pad2(rawSeconds.round());
       case SecondsPrecision.integerFloored:
-        return _pad2(rawSeconds.floor());
+        return 1;
       case SecondsPrecision.oneDecimal:
-        return rawSeconds.toStringAsFixed(1);
+        return 10;
+      case SecondsPrecision.twoDecimal:
+        return 100;
+    }
+  }
+
+  static String _formatSeconds(
+    int units,
+    int unitsPerSecond,
+    SecondsPrecision precision,
+  ) {
+    switch (precision) {
+      case SecondsPrecision.integerRounded:
+      case SecondsPrecision.integerFloored:
+        return _pad2(units);
+      case SecondsPrecision.oneDecimal:
+        return (units / unitsPerSecond).toStringAsFixed(1);
+      case SecondsPrecision.twoDecimal:
+        return (units / unitsPerSecond).toStringAsFixed(2).padLeft(5, '0');
     }
   }
 

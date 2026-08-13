@@ -27,9 +27,9 @@
 ///                                               `native:builtin_guider:...` id
 ///                                               became canonical)
 ///
-/// Rationale (preserved from the old `device_id_utils.dart`): the
-/// connect methods on `DeviceService` only do a cheap *structural* format
-/// check via [isValidDeviceIdFormat] before delegating to the backend. They
+/// Rationale: the connect methods on `DeviceService` only do a cheap
+/// *structural* format check via [isValidDeviceIdFormat] before delegating to
+/// the backend. They
 /// do NOT validate that the device exists or is reachable — that is the
 /// backend's job, and its failures must still surface from `connectDevice`.
 /// The format check exists purely so a malformed id fails before bothering
@@ -228,7 +228,6 @@ bool _isPhd2Token(String lower) =>
 /// Returns `true` if [deviceId] looks like a Nightshade-formatted device id.
 ///
 /// The check is purely structural — it does NOT confirm the device exists.
-/// (Preserved from the old `device_id_utils.dart`;.)
 bool isValidDeviceIdFormat(String deviceId) {
   if (deviceId.isEmpty) return false;
   if (kKnownDeviceIdSingletons.contains(deviceId)) return true;

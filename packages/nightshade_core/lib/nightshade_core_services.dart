@@ -14,7 +14,7 @@ export 'src/services/target_library_service.dart'
 // Services
 export 'src/services/device_service.dart';
 export 'src/services/device_exceptions.dart';
-export 'src/utils/device_id_utils.dart' show isValidDeviceIdFormat;
+export 'src/utils/device_id.dart' show isValidDeviceIdFormat;
 // Single source of truth for device-identity logic: parsing, canonicalization,
 // matching, and id-pattern friendly-name fallback.
 export 'src/utils/device_id.dart'
@@ -245,4 +245,3 @@ export 'src/services/safe_rig_service.dart';
 export 'src/utils/coordinate_parser.dart';
 export 'src/utils/coordinate_format.dart';
 export 'src/utils/dither_settle_presets.dart';
-export 'src/utils/plate_solver_utils.dart';

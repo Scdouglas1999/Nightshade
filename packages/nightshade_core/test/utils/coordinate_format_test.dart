@@ -122,6 +122,81 @@ void main() {
     });
   });
 
+  group('CoordinateFormat carries the seconds field', () {
+    // CoordinateFormat used to format each sexagesimal field independently, so
+    // an angle whose seconds round up to a whole minute printed a value that
+    // does not exist — and that this package's own parser rejects. The carry
+    // has to be structural (quantize the whole angle, then decompose), not a
+    // special case, or the next precision added re-opens it.
+    test('never prints 60 seconds', () {
+      expect(CoordinateFormat.ra(5.6), '05h 36m 0.0s');
+      expect(
+        CoordinateFormat.ra(5.99999, seconds: SecondsPrecision.integerRounded),
+        '06h 00m 00s',
+      );
+      expect(CoordinateFormat.dec(-5.6), "-05° 36' 0.0\"");
+      expect(
+        CoordinateFormat.dec(5.99999, seconds: SecondsPrecision.integerRounded),
+        "+06° 00' 00\"",
+      );
+    });
+
+    test('every formatted RA/Dec reads back through the strict parser', () {
+      for (var i = 0; i < 2400; i++) {
+        final ra = i * 0.01;
+        for (final precision in SecondsPrecision.values) {
+          final formatted = CoordinateFormat.ra(
+            ra,
+            style: SexagesimalStyle.paddedColons,
+            seconds: precision,
+          );
+          expect(
+            CoordinateParser.parseRa(formatted),
+            isNotNull,
+            reason: 'CoordinateFormat.ra($ra, $precision) = "$formatted"',
+          );
+        }
+      }
+      for (var i = -8900; i <= 8900; i += 7) {
+        final dec = i * 0.01;
+        for (final precision in SecondsPrecision.values) {
+          final formatted = CoordinateFormat.dec(
+            dec,
+            style: SexagesimalStyle.paddedColons,
+            seconds: precision,
+          );
+          expect(
+            CoordinateParser.parseDec(formatted),
+            isNotNull,
+            reason: 'CoordinateFormat.dec($dec, $precision) = "$formatted"',
+          );
+        }
+      }
+    });
+
+    test(
+      'twoDecimal is the zero-padded shape CoordinateParser delegates to',
+      () {
+        expect(
+          CoordinateFormat.ra(
+            5.5,
+            style: SexagesimalStyle.paddedColons,
+            seconds: SecondsPrecision.twoDecimal,
+          ),
+          '05:30:00.00',
+        );
+        expect(
+          CoordinateFormat.dec(
+            -0.5,
+            style: SexagesimalStyle.paddedColons,
+            seconds: SecondsPrecision.twoDecimal,
+          ),
+          '-00:30:00.00',
+        );
+      },
+    );
+  });
+
   group('CoordinateFormat.dec', () {
     test('positive value gets explicit + sign (default oneDecimal)', () {
       // Seconds use toStringAsFixed(1), unpadded, matching legacy formatters.

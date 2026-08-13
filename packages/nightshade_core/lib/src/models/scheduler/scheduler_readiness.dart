@@ -57,6 +57,18 @@ class SchedulerReadinessIssue {
       detail: detail,
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SchedulerReadinessIssue &&
+          other.id == id &&
+          other.severity == severity &&
+          other.title == title &&
+          other.detail == detail;
+
+  @override
+  int get hashCode => Object.hash(id, severity, title, detail);
 }
 
 class SchedulerStartReadiness {
@@ -122,4 +134,26 @@ class SchedulerStartReadiness {
       solverRequired: value['solverRequired'] as bool,
     );
   }
+
+  /// Value equality so a recomputed-but-identical assessment does not wake
+  /// every watcher. The readiness provider rebuilds on each safety evaluation
+  /// and returns a fresh instance even when nothing about the rig changed.
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! SchedulerStartReadiness) return false;
+    if (other.available != available ||
+        other.solverRequired != solverRequired ||
+        other.issues.length != issues.length) {
+      return false;
+    }
+    for (var i = 0; i < issues.length; i++) {
+      if (other.issues[i] != issues[i]) return false;
+    }
+    return true;
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(available, solverRequired, Object.hashAll(issues));
 }

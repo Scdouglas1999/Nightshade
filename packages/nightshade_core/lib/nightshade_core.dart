@@ -336,7 +336,7 @@ export 'src/models/sequencer/recovery_status.dart';
 // Services
 export 'src/services/device_service.dart';
 export 'src/services/device_exceptions.dart';
-export 'src/utils/device_id_utils.dart' show isValidDeviceIdFormat;
+export 'src/utils/device_id.dart' show isValidDeviceIdFormat;
 // Single source of truth for device-identity logic: parsing, canonicalization,
 // matching, and id-pattern friendly-name fallback.
 export 'src/utils/device_id.dart'
@@ -662,7 +662,6 @@ export 'src/utils/coordinate_parser.dart';
 export 'src/utils/coordinate_format.dart';
 export 'src/utils/resilient_poll_stream.dart';
 export 'src/utils/dither_settle_presets.dart';
-export 'src/utils/plate_solver_utils.dart';
 export 'src/utils/export_target.dart';
 export 'src/utils/duration_format.dart';
 export 'src/utils/temperature_format.dart';
