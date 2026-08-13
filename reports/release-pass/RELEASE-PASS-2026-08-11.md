@@ -344,8 +344,16 @@ Order of execution from here:
    **Stage-2 sweep RUNNING as wf_b30baa13-b93** (launched ~17:35; script:
    reports/release-pass/scripts/release-stage2-sweep.js, 7 parallel batches incl.
    phd2-crywolf; resume with script + runId after any restart). Then **C3** file splits.
-3b. **Stage-2 sweep** — COMPLETE (wf_b30baa13-b93, 7/7 batches, 17 fixed, 0 FPs, ~40 min).
-   Gates in flight. Notables: SCI-27 root cause was a linear min/max stretch (preview now
+3b. **Stage-2 sweep** — COMPLETE + COMMITTED through 45bc9d5e4 (wf_b30baa13-b93, 7/7
+   batches, 17 fixed, 0 FPs). Gate triage: placeholder audit caught 2 new silent-fallback
+   unwraps in the debris sweep (one could delete a pre-existing sidecar — sweep now skips
+   without a snapshot); one interface break in an out-of-scope fake stubbed. Final:
+   nightshade_core 5,795 green, cargo workspace green, all quick gates green.
+   **C3 splits RUNNING as wf_c7ff2598-1bf** (script:
+   reports/release-pass/scripts/release-c3-splits.js, 10 batches, re-measure before split).
+   NOTE for Wave D: some test rewrites assets/screenshots/desktop-dashboard.png and
+   docs/design/goldens/surface-run-session-progress.png on every suite run — find the
+   writer; tests must not mutate repo assets (reverted twice today). Notables: SCI-27 root cause was a linear min/max stretch (preview now
    routes through the shared Rust STF — Wave D must eyeball the live preview since no Dart
    test loads the native lib); SCI-28 Stop now offers Save-master-first; PHD2 cry-wolf fixed
    both ways (registry + disconnect route); EQP-23 last-gasp shutdown record + safing hook
@@ -358,6 +366,20 @@ Order of execution from here:
    Wave D live item). OWNER decisions flagged by agents: stacked master saves as PNG, not
    FITS (the FITS writer demands EXPTIME/DATE-OBS the live stacker lacks) — accept or extend
    the writer.
+
+3c. **C3 splits** — COMPLETE (wf_c7ff2598-1bf, 10/10 batches, **118 files split**, 51
+   correctly skipped as already under threshold). Gates in flight; placeholder baseline
+   regenerated for the moved paths (net improvement 211→184 markers). The three
+   cross-batch breaks agents reported mid-wave all self-repaired before the wave returned.
+   Design-decision residue (NOT mechanical, parked for the owner/Wave D):
+   - executor start() is one 5,271-line function; decomposing it needs the map's Step-0
+     handle-bundle refactor (RunCore/RunSignals/...) — a design change.
+   - api/imaging.rs 12-file split requires FRB regeneration (agent PROVED the map's
+     "glob re-export preserves paths" claim false) — needs a codegen-owning task that runs
+     scripts/dev.sh codegen and absorbs the Dart import moves.
+   - ascom_wrapper/camera.rs is #[cfg(windows)] — unverifiable on this host, left intact.
+   - DefaultScienceBackend / FlatWizardService / ConstellationService residuals are public
+     API that extensions cannot carry — real decomposition or accept the size.
 
 4. **Wave D** adversarial verify over C1 + B-fix + C2 + stage-2 (re-drive the GUI clusters
    against a fresh bundle + the fixed a11y dump; verify no fix merely relocated its defect;
