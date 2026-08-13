@@ -7,6 +7,27 @@ import '../celestial_object.dart';
 import '../coordinate_system.dart';
 import 'catalog.dart';
 import 'catalog_manager.dart';
+import 'constellation_names.dart';
+
+/// How the last [HygStarCatalog.loadObjects] resolved.
+///
+/// The two failing outcomes both serve the built-in bright-star list, but they
+/// need different words in front of the user: a missing file is fixed by
+/// installing the catalog, a file that will not parse is fixed by replacing a
+/// corrupt one.
+enum StarCatalogLoadOutcome {
+  /// Not loaded yet.
+  notLoaded,
+
+  /// The real catalog file was read.
+  loaded,
+
+  /// No catalog file is installed.
+  fileMissing,
+
+  /// A catalog file exists but could not be read or parsed.
+  parseFailed,
+}
 
 /// Star catalog that loads from the HYG database file
 ///
@@ -19,8 +40,9 @@ class HygStarCatalog extends Catalog<Star> {
   final double magnitudeLimit;
 
   List<Star>? _cachedStars;
-  bool _isLoading = false;
-  bool _usingFallback = false;
+  Future<List<Star>>? _inFlight;
+  StarCatalogLoadOutcome _outcome = StarCatalogLoadOutcome.notLoaded;
+  Object? _loadError;
 
   /// Create a star catalog
   ///
@@ -40,61 +62,78 @@ class HygStarCatalog extends Catalog<Star> {
   /// Get the number of loaded stars
   int get starCount => _cachedStars?.length ?? 0;
 
+  /// How the last [loadObjects] resolved.
+  StarCatalogLoadOutcome get loadOutcome => _outcome;
+
+  /// The error that made [loadOutcome] [StarCatalogLoadOutcome.parseFailed],
+  /// for surfaces that can show the user why their catalog was rejected.
+  Object? get loadError => _loadError;
+
   /// Whether the last [loadObjects] served the built-in [_fallbackBrightStars]
-  /// list because no catalog file was installed.
+  /// list instead of a real catalog.
   ///
   /// That list is a handful of naked-eye stars — enough to prove the renderer
   /// works, nowhere near a usable sky — so the UI must say so rather than let
-  /// it pass for the real catalog.
-  bool get isUsingFallback => _usingFallback;
+  /// it pass for the real catalog. True for both failing outcomes; read
+  /// [loadOutcome] to tell "not installed" from "will not parse".
+  bool get isUsingFallback =>
+      _outcome == StarCatalogLoadOutcome.fileMissing ||
+      _outcome == StarCatalogLoadOutcome.parseFailed;
 
   /// Number of stars in the built-in fallback list.
   static int get fallbackStarCount => _fallbackBrightStars.length;
 
   @override
   Future<List<Star>> loadObjects() async {
-    if (_cachedStars != null) return _cachedStars!;
-    if (_isLoading) {
-      // Wait for loading to complete
-      while (_isLoading) {
-        await Future.delayed(const Duration(milliseconds: 100));
-      }
-      return _cachedStars ?? [];
+    final cached = _cachedStars;
+    if (cached != null) return cached;
+    // One shared future rather than a poll loop: concurrent callers used to
+    // race, and whichever lost read _cachedStars at an arbitrary moment.
+    final inFlight = _inFlight;
+    if (inFlight != null) return inFlight;
+
+    final load = _load();
+    _inFlight = load;
+    try {
+      return await load;
+    } finally {
+      _inFlight = null;
+    }
+  }
+
+  Future<List<Star>> _load() async {
+    final path = catalogPath ?? CatalogManager.instance.starCatalogPath;
+    final file = File(path);
+
+    if (!await file.exists()) {
+      _outcome = StarCatalogLoadOutcome.fileMissing;
+      _loadError = null;
+      return _cachedStars = _fallbackBrightStars;
     }
 
-    _isLoading = true;
-
     try {
-      final path = catalogPath ?? CatalogManager.instance.starCatalogPath;
-      final file = File(path);
-
-      if (!await file.exists()) {
-        // Return fallback bright stars if catalog not installed
-        _usingFallback = true;
-        _cachedStars = _fallbackBrightStars;
-        return _cachedStars!;
-      }
-
-      // Use compute to load in background isolate
-      try {
-        final stars = await compute(
-          _loadStarsInIsolate,
-          _LoadStarsArgs(path, magnitudeLimit),
-        );
-        _usingFallback = false;
-        _cachedStars = stars;
-        return stars;
-      } catch (e) {
-        developer.log(
-          '[Catalog] Error loading stars in isolate: $e',
-          name: 'StarCatalog',
-          level: 1000,
-          error: e,
-        );
-        return [];
-      }
-    } finally {
-      _isLoading = false;
+      final stars = await compute(
+        _loadStarsInIsolate,
+        _LoadStarsArgs(path, magnitudeLimit),
+      );
+      _outcome = StarCatalogLoadOutcome.loaded;
+      _loadError = null;
+      return _cachedStars = stars;
+    } catch (e) {
+      // A catalog file that will not parse is a broken install, not an empty
+      // sky. Returning [] here left the chart black while isUsingFallback
+      // stayed false, so nothing on screen said anything was wrong — and
+      // because nothing was cached, every rebuild re-ran the whole parse to
+      // fail again. Serve the built-in list and record why.
+      developer.log(
+        '[Catalog] Error loading stars in isolate: $e',
+        name: 'StarCatalog',
+        level: 1000,
+        error: e,
+      );
+      _outcome = StarCatalogLoadOutcome.parseFailed;
+      _loadError = e;
+      return _cachedStars = _fallbackBrightStars;
     }
   }
 
@@ -316,7 +355,7 @@ class HygStarCatalog extends Catalog<Star> {
         flamsteedNumber != null &&
         flamsteedNumber.isNotEmpty) {
       starName =
-          '$flamsteedNumber ${_getConstellationName(constellation ?? '')}';
+          '$flamsteedNumber ${constellationFullName(constellation ?? '')}';
     }
     // Whether the name above came from a real designation. When it did not,
     // [_nameComponentStars] gets a chance to derive one from the multiple-star
@@ -407,25 +446,6 @@ class HygStarCatalog extends Catalog<Star> {
         .toList();
   }
 
-  /// Get stars by magnitude limit
-  Future<List<Star>> getStarsByMagnitude(double maxMagnitude) async {
-    final stars = await loadObjects();
-    return stars.where((s) => (s.magnitude ?? 99) <= maxMagnitude).toList();
-  }
-
-  /// Get stars in a constellation
-  Future<List<Star>> getStarsInConstellation(String constellation) async {
-    final stars = await loadObjects();
-    final conAbbr = _getConstellationAbbr(constellation);
-    return stars
-        .where(
-          (s) =>
-              s.constellation?.toLowerCase() == conAbbr.toLowerCase() ||
-              s.constellation?.toLowerCase() == constellation.toLowerCase(),
-        )
-        .toList();
-  }
-
   /// Get stars within [radiusDegrees] of [center] (cone search).
   ///
   /// [center] is a [CelestialCoordinate], so its RA is HOURS; the radius is
@@ -455,28 +475,17 @@ class HygStarCatalog extends Catalog<Star> {
     }).toList();
   }
 
-  /// Clear the cache
+  /// Clear the cache, so the next [loadObjects] re-reads the catalog file.
   void clearCache() {
     _cachedStars = null;
+    _outcome = StarCatalogLoadOutcome.notLoaded;
+    _loadError = null;
   }
 
   /// Convert constellation name to genitive form (for Bayer designations)
   static String _getConstellationGenitive(String constellation) {
     return _constellationGenitives[constellation.toUpperCase()] ??
         constellation;
-  }
-
-  /// Get full constellation name from abbreviation
-  static String _getConstellationName(String abbr) {
-    return _constellationNames[abbr.toUpperCase()] ?? abbr;
-  }
-
-  /// Get constellation abbreviation from full name
-  static String _getConstellationAbbr(String name) {
-    final entry = _constellationNames.entries
-        .where((e) => e.value.toLowerCase() == name.toLowerCase())
-        .firstOrNull;
-    return entry?.key ?? name;
   }
 
   static const Map<String, String> _constellationGenitives = {
@@ -568,97 +577,6 @@ class HygStarCatalog extends Catalog<Star> {
     'VIR': 'Virginis',
     'VOL': 'Volantis',
     'VUL': 'Vulpeculae',
-  };
-
-  static const Map<String, String> _constellationNames = {
-    'AND': 'Andromeda',
-    'ANT': 'Antlia',
-    'APS': 'Apus',
-    'AQR': 'Aquarius',
-    'AQL': 'Aquila',
-    'ARA': 'Ara',
-    'ARI': 'Aries',
-    'AUR': 'Auriga',
-    'BOO': 'Boötes',
-    'CAE': 'Caelum',
-    'CAM': 'Camelopardalis',
-    'CNC': 'Cancer',
-    'CVN': 'Canes Venatici',
-    'CMA': 'Canis Major',
-    'CMI': 'Canis Minor',
-    'CAP': 'Capricornus',
-    'CAR': 'Carina',
-    'CAS': 'Cassiopeia',
-    'CEN': 'Centaurus',
-    'CEP': 'Cepheus',
-    'CET': 'Cetus',
-    'CHA': 'Chamaeleon',
-    'CIR': 'Circinus',
-    'COL': 'Columba',
-    'COM': 'Coma Berenices',
-    'CRA': 'Corona Australis',
-    'CRB': 'Corona Borealis',
-    'CRV': 'Corvus',
-    'CRT': 'Crater',
-    'CRU': 'Crux',
-    'CYG': 'Cygnus',
-    'DEL': 'Delphinus',
-    'DOR': 'Dorado',
-    'DRA': 'Draco',
-    'EQU': 'Equuleus',
-    'ERI': 'Eridanus',
-    'FOR': 'Fornax',
-    'GEM': 'Gemini',
-    'GRU': 'Grus',
-    'HER': 'Hercules',
-    'HOR': 'Horologium',
-    'HYA': 'Hydra',
-    'HYI': 'Hydrus',
-    'IND': 'Indus',
-    'LAC': 'Lacerta',
-    'LEO': 'Leo',
-    'LMI': 'Leo Minor',
-    'LEP': 'Lepus',
-    'LIB': 'Libra',
-    'LUP': 'Lupus',
-    'LYN': 'Lynx',
-    'LYR': 'Lyra',
-    'MEN': 'Mensa',
-    'MIC': 'Microscopium',
-    'MON': 'Monoceros',
-    'MUS': 'Musca',
-    'NOR': 'Norma',
-    'OCT': 'Octans',
-    'OPH': 'Ophiuchus',
-    'ORI': 'Orion',
-    'PAV': 'Pavo',
-    'PEG': 'Pegasus',
-    'PER': 'Perseus',
-    'PHE': 'Phoenix',
-    'PIC': 'Pictor',
-    'PSC': 'Pisces',
-    'PSA': 'Piscis Austrinus',
-    'PUP': 'Puppis',
-    'PYX': 'Pyxis',
-    'RET': 'Reticulum',
-    'SGE': 'Sagitta',
-    'SGR': 'Sagittarius',
-    'SCO': 'Scorpius',
-    'SCL': 'Sculptor',
-    'SCT': 'Scutum',
-    'SER': 'Serpens',
-    'SEX': 'Sextans',
-    'TAU': 'Taurus',
-    'TEL': 'Telescopium',
-    'TRA': 'Triangulum Australe',
-    'TRI': 'Triangulum',
-    'TUC': 'Tucana',
-    'UMA': 'Ursa Major',
-    'UMI': 'Ursa Minor',
-    'VEL': 'Vela',
-    'VIR': 'Virgo',
-    'VOL': 'Volans',
-    'VUL': 'Vulpecula',
   };
 
   /// Fallback bright stars when catalog is not installed
@@ -1539,32 +1457,6 @@ class HygStarCatalog extends Catalog<Star> {
       constellation: 'PSC',
     ),
   ];
-}
-
-/// Named star lookup utility
-class NamedStars {
-  static final HygStarCatalog _catalog = HygStarCatalog(magnitudeLimit: 6.0);
-  static Map<String, Star>? _byName;
-
-  static Future<void> _loadIfNeeded() async {
-    if (_byName == null) {
-      final stars = await _catalog.loadObjects();
-      _byName = {
-        for (final star in stars)
-          if (star.name.isNotEmpty) star.name.toLowerCase(): star,
-      };
-    }
-  }
-
-  static Future<Star?> findByName(String name) async {
-    await _loadIfNeeded();
-    return _byName?[name.toLowerCase()];
-  }
-
-  static Future<List<String>> get allNames async {
-    await _loadIfNeeded();
-    return _byName?.keys.toList() ?? [];
-  }
 }
 
 class _LoadStarsArgs {

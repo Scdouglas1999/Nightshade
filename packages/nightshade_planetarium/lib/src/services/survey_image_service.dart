@@ -1,7 +1,3 @@
-import 'dart:async';
-import 'dart:typed_data';
-import 'dart:ui' as ui;
-
 /// Survey image sources
 enum SurveySource {
   dss2Red('DSS2 Red', 'POSS2/UKSTU Red'),
@@ -117,83 +113,6 @@ class SurveyImageRequest {
         return 'CDS/P/GALEX/FUV';
     }
   }
-}
-
-/// Cached survey image with metadata
-class SurveyImage {
-  final Uint8List bytes;
-  final int width;
-  final int height;
-  final double centerRa;
-  final double centerDec;
-  final double fovWidth;
-  final double fovHeight;
-  final SurveySource source;
-  final DateTime fetchedAt;
-
-  SurveyImage({
-    required this.bytes,
-    required this.width,
-    required this.height,
-    required this.centerRa,
-    required this.centerDec,
-    required this.fovWidth,
-    required this.fovHeight,
-    required this.source,
-    DateTime? fetchedAt,
-  }) : fetchedAt = fetchedAt ?? DateTime.now();
-
-  /// Decode the image bytes to a Flutter Image
-  Future<ui.Image?> decodeImage() async {
-    final completer = Completer<ui.Image?>();
-    ui.decodeImageFromList(bytes, (image) {
-      completer.complete(image);
-    });
-    return completer.future;
-  }
-}
-
-/// Survey image service for fetching sky survey images
-class SurveyImageService {
-  final Map<String, SurveyImage> _cache = {};
-  static const int _maxCacheSize = 50;
-
-  /// Generate a cache key for a request
-  String _cacheKey(SurveyImageRequest request) {
-    return '${request.source.name}_${request.raDeg.toStringAsFixed(4)}_'
-        '${request.decDeg.toStringAsFixed(4)}_${request.fovWidth.toStringAsFixed(4)}';
-  }
-
-  /// Check if an image is cached
-  bool isCached(SurveyImageRequest request) {
-    return _cache.containsKey(_cacheKey(request));
-  }
-
-  /// Get cached image
-  SurveyImage? getCached(SurveyImageRequest request) {
-    return _cache[_cacheKey(request)];
-  }
-
-  /// Cache an image
-  void cacheImage(SurveyImageRequest request, SurveyImage image) {
-    // Prune cache if needed
-    while (_cache.length >= _maxCacheSize) {
-      final oldest = _cache.entries.reduce(
-        (a, b) => a.value.fetchedAt.isBefore(b.value.fetchedAt) ? a : b,
-      );
-      _cache.remove(oldest.key);
-    }
-
-    _cache[_cacheKey(request)] = image;
-  }
-
-  /// Clear the cache
-  void clearCache() {
-    _cache.clear();
-  }
-
-  /// Get available survey sources
-  static List<SurveySource> get availableSources => SurveySource.values;
 }
 
 /// FOV Calculator for equipment

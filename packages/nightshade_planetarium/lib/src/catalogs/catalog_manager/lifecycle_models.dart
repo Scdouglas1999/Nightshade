@@ -279,6 +279,26 @@ class CatalogCancelled implements Exception {
   String toString() => 'CatalogCancelled';
 }
 
+/// Thrown when a catalog transfer stops delivering bytes.
+///
+/// A TCP connection that goes quiet produces no event at all, so nothing in a
+/// bare `await for` over the response body can notice it: the download, the
+/// progress bar and the Cancel button all wait forever. This is what the
+/// inactivity guard raises instead.
+class CatalogDownloadStalled implements Exception {
+  /// How long the transfer waited before being declared dead.
+  final Duration idleFor;
+
+  /// What it was waiting for — response headers, or the next body chunk.
+  final String waitingFor;
+
+  const CatalogDownloadStalled(this.idleFor, {this.waitingFor = 'data'});
+
+  @override
+  String toString() =>
+      'CatalogDownloadStalled: no $waitingFor for ${idleFor.inMilliseconds}ms';
+}
+
 /// Exception thrown when SHA-256 of an uploaded catalog does not match
 /// the expected value.
 class CatalogHashMismatchException implements Exception {

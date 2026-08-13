@@ -73,13 +73,16 @@ class ObjectDetailsPanel extends ConsumerWidget {
     final accent = accentColor ?? const Color(0xFF00E676);
 
     final location = ref.watch(observerLocationProvider);
-    final obsTime = ref.watch(observationTimeProvider);
+    // Minute resolution, not the 1 Hz clock: nothing this panel shows moves
+    // visibly inside a second, and the rise/set solves below are 289-sample
+    // sweeps that would otherwise be re-run on the UI isolate every tick.
+    final obsTime = ref.watch(observationMinuteProvider);
 
     // Calculate current altitude/azimuth
     final (alt, az) = AstronomyCalculations.objectAltAz(
       raDeg: object.coordinates.ra * 15, // Convert hours to degrees
       decDeg: object.coordinates.dec,
-      dt: obsTime.time,
+      dt: obsTime,
       latitudeDeg: location.latitude,
       longitudeDeg: location.longitude,
     );

@@ -325,6 +325,30 @@ class SkyCanvasPainter extends CustomPainter {
     _spriteAtlas = null;
   }
 
+  /// Release every cache the renderer holds process-wide: the baked GPU sprite
+  /// atlas, the per-pose projection cache, the label hand-off, and the cached
+  /// `TextPainter`s, shaders and blur filters.
+  ///
+  /// Everything released here is rebuilt lazily on the next paint, so the only
+  /// cost is one frame of re-warming. Called when the last sky view is disposed
+  /// and on system memory pressure — before this existed, the atlas
+  /// (a `ui.Image` from `Picture.toImageSync`) and a projection cache holding
+  /// strong references to every projected `Star`/`DeepSkyObject` outlived the
+  /// screen that created them, for the life of the process.
+  static void releaseRenderCaches() {
+    _PaintCache.clearCaches();
+    _projectionCache.clear();
+    _baseLabelRects = const [];
+  }
+
+  /// Whether the baked GPU sprite atlas is currently resident.
+  @visibleForTesting
+  static bool get spriteAtlasIsResident => _spriteAtlas != null;
+
+  /// How many objects the shared projection cache is holding a reference to.
+  @visibleForTesting
+  static int get projectionCacheEntryCount => _projectionCache.entryCount;
+
   /// The device pixel ratio the sprite atlas should bake for. Read from the
   /// platform view so the baked texels are crisp at native resolution; falls
   /// back to 2.0 when no view is available (headless tests), which still yields

@@ -213,7 +213,7 @@ extension CatalogManagerLegacyIo on CatalogManager {
     void Function(DownloadProgress)? onProgress,
     Future<bool> Function()? isCancelled,
   }) async {
-    final client = http.Client();
+    final client = CatalogManager.httpClientFactory();
     try {
       developer.log(
         '[Catalog] Sending HTTP GET request to $url',
@@ -222,7 +222,7 @@ extension CatalogManagerLegacyIo on CatalogManager {
       );
 
       final request = http.Request('GET', Uri.parse(url));
-      final streamedResponse = await client.send(request);
+      final streamedResponse = await _sendCatalogRequest(client, request);
 
       developer.log(
         '[Catalog] Response status: ${streamedResponse.statusCode}',
@@ -245,11 +245,10 @@ extension CatalogManagerLegacyIo on CatalogManager {
       var bytesReceived = 0;
       var lastEmittedBytes = 0;
       // Coalesce progress so fast connections don't fire a setState per
-      // network chunk (thousands/sec). Also the natural cadence at which we
-      // poll the cancellation token.
+      // network chunk (thousands/sec).
       const emitThresholdBytes = 512 * 1024;
 
-      Future<void> onChunk(int length) async {
+      void onChunk(int length) {
         bytesReceived += length;
         if (bytesReceived - lastEmittedBytes < emitThresholdBytes) return;
         lastEmittedBytes = bytesReceived;
@@ -265,10 +264,17 @@ extension CatalogManagerLegacyIo on CatalogManager {
           ),
           onProgress,
         );
-        if (isCancelled != null && await isCancelled()) {
-          throw const CatalogCancelled();
-        }
       }
+
+      // Cancellation and stall detection are driven by the guard, not by chunk
+      // arrival: a stalled connection produces no chunk, so a token polled from
+      // inside the loop is never read again.
+      final body = _guardCatalogTransfer(
+        streamedResponse.stream,
+        idleTimeout: CatalogManager.streamIdleTimeout,
+        cancelPollInterval: CatalogManager.cancelPollInterval,
+        isCancelled: isCancelled,
+      );
 
       if (isGzipped) {
         // Gzip needs the whole compressed payload before it can decode, so
@@ -276,9 +282,9 @@ extension CatalogManagerLegacyIo on CatalogManager {
         // the AS-DOWNLOADED hash) BEFORE decoding, then write the inflated
         // result to the temp file in one shot.
         final compressed = BytesBuilder(copy: false);
-        await for (final chunk in streamedResponse.stream) {
+        await for (final chunk in body) {
           compressed.add(chunk);
-          await onChunk(chunk.length);
+          onChunk(chunk.length);
         }
         final compressedBytes = compressed.takeBytes();
 
@@ -309,10 +315,10 @@ extension CatalogManagerLegacyIo on CatalogManager {
         final hashInput = sha256.startChunkedConversion(digestSink);
         final sink = tempFile.openWrite();
         try {
-          await for (final chunk in streamedResponse.stream) {
+          await for (final chunk in body) {
             sink.add(chunk);
             hashInput.add(chunk);
-            await onChunk(chunk.length);
+            onChunk(chunk.length);
           }
         } finally {
           await sink.close();

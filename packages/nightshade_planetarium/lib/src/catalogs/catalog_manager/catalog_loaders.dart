@@ -92,7 +92,12 @@ class HygCatalogLoader {
         }
 
         // Calculate angular distance
-        final distance = _angularDistance(ra, dec, star.ra, star.dec);
+        final distance = AstronomyCalculations.angularSeparation(
+          ra1Deg: ra,
+          dec1Deg: dec,
+          ra2Deg: star.ra,
+          dec2Deg: star.dec,
+        );
         return distance <= radiusDegrees;
       }).toList()
       // Sort by magnitude (brightest first)
@@ -221,7 +226,12 @@ class OpenNgcCatalogLoader {
         }
 
         // Calculate angular distance
-        final distance = _angularDistance(ra, dec, dso.ra, dso.dec);
+        final distance = AstronomyCalculations.angularSeparation(
+          ra1Deg: ra,
+          dec1Deg: dec,
+          ra2Deg: dso.ra,
+          dec2Deg: dso.dec,
+        );
         return distance <= radiusDegrees;
       }).toList()
       // Sort by magnitude (brightest first)

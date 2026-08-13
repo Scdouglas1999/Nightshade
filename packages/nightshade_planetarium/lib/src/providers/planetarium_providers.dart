@@ -19,6 +19,7 @@ import '../rendering/render_quality.dart';
 import '../services/survey_image_service.dart';
 import '../services/mosaic_planner.dart';
 import '../planning/tonight_ranking.dart';
+import 'catalog_providers.dart';
 import 'element_refresh_providers.dart';
 
 part 'planetarium_providers/observer_time.dart';

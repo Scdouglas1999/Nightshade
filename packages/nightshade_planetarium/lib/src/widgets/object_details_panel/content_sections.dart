@@ -451,23 +451,25 @@ extension _ObjectDetailsPanelContentSections on ObjectDetailsPanel {
 
   Widget _buildRiseTransitSetSection(WidgetRef ref, Color txtColor) {
     final location = ref.watch(observerLocationProvider);
-    final obsTime = ref.watch(observationTimeProvider);
+    final obsTime = ref.watch(observationMinuteProvider);
     // Rise/set computed against the user's effective
     // horizon (e.g. 20° to clear trees), not the mathematical 0°. The same
     // value drives the Run Dashboard time-to-set stat so the two surfaces
     // agree to the second.
     final horizonDeg = ref.watch(planetariumEffectiveHorizonDegProvider);
-    final visibility = AstronomyCalculations.calculateObjectVisibility(
-      raDeg: object.coordinates.ra * 15,
-      decDeg: object.coordinates.dec,
-      // The NIGHT containing the observation time. The scan runs local noon to
-      // noon, so handing it the raw instant described the FOLLOWING night from
-      // midnight until noon — the panel would report a rise/transit/set a whole
-      // sidereal day away from the one the user is actually observing.
-      date: AstronomyCalculations.nightDateOf(obsTime.time),
-      latitudeDeg: location.latitude,
-      longitudeDeg: location.longitude,
-      minAltitude: horizonDeg,
+    final visibility = ref.watch(
+      objectVisibilityProvider((
+        raDeg: object.coordinates.ra * 15,
+        decDeg: object.coordinates.dec,
+        // The NIGHT containing the observation time. The scan runs local noon
+        // to noon, so handing it the raw instant described the FOLLOWING night
+        // from midnight until noon — the panel would report a rise/transit/set
+        // a whole sidereal day away from the one the user is observing.
+        nightDate: AstronomyCalculations.nightDateOf(obsTime),
+        latitudeDeg: location.latitude,
+        longitudeDeg: location.longitude,
+        minAltitude: horizonDeg,
+      )),
     );
 
     var riseText = _formatTime(visibility.riseTime);
@@ -848,18 +850,21 @@ extension _ObjectDetailsPanelContentSections on ObjectDetailsPanel {
   /// Build a quick stats bar showing altitude, transit time, and moon distance
   Widget _buildQuickStats(WidgetRef ref, double altitude, Color txtColor) {
     final location = ref.watch(observerLocationProvider);
-    final obsTime = ref.watch(observationTimeProvider);
+    final obsTime = ref.watch(observationMinuteProvider);
 
     // Calculate transit time
-    final visibility = AstronomyCalculations.calculateObjectVisibility(
-      raDeg: object.coordinates.ra * 15,
-      decDeg: object.coordinates.dec,
-      // Same night anchor as the Rise/Transit/Set section above, so the quick
-      // stats bar cannot quote a different night's transit than the panel it
-      // sits in.
-      date: AstronomyCalculations.nightDateOf(obsTime.time),
-      latitudeDeg: location.latitude,
-      longitudeDeg: location.longitude,
+    final visibility = ref.watch(
+      objectVisibilityProvider((
+        raDeg: object.coordinates.ra * 15,
+        decDeg: object.coordinates.dec,
+        // Same night anchor as the Rise/Transit/Set section above, so the quick
+        // stats bar cannot quote a different night's transit than the panel it
+        // sits in.
+        nightDate: AstronomyCalculations.nightDateOf(obsTime),
+        latitudeDeg: location.latitude,
+        longitudeDeg: location.longitude,
+        minAltitude: 0,
+      )),
     );
 
     // Format transit time
@@ -871,9 +876,7 @@ extension _ObjectDetailsPanelContentSections on ObjectDetailsPanel {
     }
 
     // Calculate moon distance (angular separation from moon)
-    final (moonRa, moonDec, _) = AstronomyCalculations.moonPosition(
-      obsTime.time,
-    );
+    final (moonRa, moonDec, _) = AstronomyCalculations.moonPosition(obsTime);
     final moonDist = AstronomyCalculations.angularSeparation(
       ra1Deg: object.coordinates.ra * 15,
       dec1Deg: object.coordinates.dec,
@@ -919,7 +922,7 @@ extension _ObjectDetailsPanelContentSections on ObjectDetailsPanel {
 
   /// Calculate visibility score (0-100) based on altitude, moon phase, and twilight
   int _calculateVisibilityScore(WidgetRef ref, double altitude) {
-    final obsTime = ref.watch(observationTimeProvider);
+    final obsTime = ref.watch(observationMinuteProvider);
     final location = ref.watch(observerLocationProvider);
 
     // Start with base score of 0
@@ -933,16 +936,12 @@ extension _ObjectDetailsPanelContentSections on ObjectDetailsPanel {
 
     // Moon phase score (0-30 points)
     // New moon = 30 points, Full moon = 0 points
-    final moonIllumination = AstronomyCalculations.moonIllumination(
-      obsTime.time,
-    );
+    final moonIllumination = AstronomyCalculations.moonIllumination(obsTime);
     score += ((100 - moonIllumination) / 100) * 30;
 
     // Moon distance score (0-15 points)
     // Far from moon = 15 points, close to moon = 0 points
-    final (moonRa, moonDec, _) = AstronomyCalculations.moonPosition(
-      obsTime.time,
-    );
+    final (moonRa, moonDec, _) = AstronomyCalculations.moonPosition(obsTime);
     final moonDist = AstronomyCalculations.angularSeparation(
       ra1Deg: object.coordinates.ra * 15,
       dec1Deg: object.coordinates.dec,
@@ -954,7 +953,7 @@ extension _ObjectDetailsPanelContentSections on ObjectDetailsPanel {
     // Twilight/darkness score (0-15 points)
     // Full darkness (sun < -18°) = 15 points
     final sunAlt = AstronomyCalculations.sunAltitude(
-      dt: obsTime.time,
+      dt: obsTime,
       latitudeDeg: location.latitude,
       longitudeDeg: location.longitude,
     );

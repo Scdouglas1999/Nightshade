@@ -722,6 +722,9 @@ class _ProjectionCache {
     _valid = true;
   }
 
+  /// How many objects this cache is holding a strong reference to.
+  int get entryCount => _entries.length;
+
   bool contains(Object key) => _entries.containsKey(key);
   Offset? get(Object key) => _entries[key];
   void put(Object key, Offset? value) {

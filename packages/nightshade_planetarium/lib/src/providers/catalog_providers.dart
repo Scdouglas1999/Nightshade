@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../catalogs/catalog_manager.dart';
-import '../catalogs/catalog.dart';
 import '../catalogs/star_catalog.dart';
 import '../celestial_object.dart';
 
@@ -170,14 +169,20 @@ final catalogStateProvider =
       (ref) => CatalogStateNotifier(),
     );
 
-/// Provider for the star catalog
+/// The one HYG star catalog in the process.
+///
+/// There used to be two: this provider at magnitude 15 answering only the
+/// boolean "is this the fallback list", and a second instance at magnitude 12
+/// inside `loadedStarsProvider` that the renderer and search actually drew
+/// from. Each parsed the same ~120k-row CSV in its own isolate and retained its
+/// own `List<Star>` for the process lifetime, and the fallback banner reported
+/// on the catalog that was *not* on screen.
+///
+/// Magnitude 12 is the depth the renderer needs; the per-frame magnitude limit
+/// filters below that. Every consumer now shares this instance, so the parse
+/// happens once and what the banner describes is what the sky shows.
 final starCatalogProvider = Provider<HygStarCatalog>((ref) {
-  return HygStarCatalog();
-});
-
-/// Provider for the DSO catalog
-final dsoCatalogProvider = Provider<OpenNgcDsoCatalog>((ref) {
-  return OpenNgcDsoCatalog();
+  return HygStarCatalog(magnitudeLimit: 12.0);
 });
 
 /// Provider for loading stars
@@ -186,25 +191,29 @@ final starsProvider = FutureProvider<List<Star>>((ref) async {
   return catalog.loadObjects();
 });
 
-/// True once the star load has resolved onto the built-in fallback list
-/// because no HYG catalog is installed.
+/// True once the star load has resolved onto the built-in fallback list —
+/// either because no HYG catalog is installed or because the installed one
+/// could not be parsed.
 ///
 /// The fallback is a few dozen naked-eye stars — the sky it draws is not a
 /// usable one, so surfaces that render it must say so rather than let it pass
-/// for the real catalog.
+/// for the real catalog. Read [starCatalogLoadOutcomeProvider] to tell the two
+/// causes apart.
 final starCatalogFallbackProvider = Provider<bool>((ref) {
   final stars = ref.watch(starsProvider);
   if (!stars.hasValue) return false;
   return ref.watch(starCatalogProvider).isUsingFallback;
 });
 
+/// How the star-catalog load resolved: installed and parsed, not installed, or
+/// present but unreadable.
+final starCatalogLoadOutcomeProvider = Provider<StarCatalogLoadOutcome>((ref) {
+  final stars = ref.watch(starsProvider);
+  if (!stars.hasValue) return StarCatalogLoadOutcome.notLoaded;
+  return ref.watch(starCatalogProvider).loadOutcome;
+});
+
 /// Number of stars in the built-in fallback list.
 final fallbackStarCountProvider = Provider<int>(
   (ref) => HygStarCatalog.fallbackStarCount,
 );
-
-/// Provider for loading DSOs
-final dsosProvider = FutureProvider<List<DeepSkyObject>>((ref) async {
-  final catalog = ref.watch(dsoCatalogProvider);
-  return catalog.loadObjects();
-});

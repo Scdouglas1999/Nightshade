@@ -66,7 +66,7 @@ extension CatalogManagerAnnotationIo on CatalogManager {
         await dir.create(recursive: true);
       }
 
-      final client = http.Client();
+      final client = CatalogManager.httpClientFactory();
 
       try {
         developer.log(
@@ -76,7 +76,7 @@ extension CatalogManagerAnnotationIo on CatalogManager {
         );
 
         final request = http.Request('GET', Uri.parse(downloadUrl));
-        final streamedResponse = await client.send(request);
+        final streamedResponse = await _sendCatalogRequest(client, request);
 
         developer.log(
           '[Catalog] Response status: ${streamedResponse.statusCode}',
@@ -111,9 +111,20 @@ extension CatalogManagerAnnotationIo on CatalogManager {
         var bytesReceived = 0;
         var lastEmittedBytes = 0;
         const emitThresholdBytes = 512 * 1024;
+        // Cancellation and stall detection are driven by the guard, not by
+        // chunk arrival: a stalled connection produces no chunk, so a token
+        // polled from inside the loop is never read again. This tier can be
+        // multiple GB, so a mid-transfer stall is the likeliest failure here.
+        final body = _guardCatalogTransfer(
+          streamedResponse.stream,
+          idleTimeout: CatalogManager.streamIdleTimeout,
+          cancelPollInterval: CatalogManager.cancelPollInterval,
+          isCancelled: isCancelled,
+        );
+
         final sink = tempFile.openWrite();
         try {
-          await for (final chunk in streamedResponse.stream) {
+          await for (final chunk in body) {
             sink.add(chunk);
             bytesReceived += chunk.length;
             if (bytesReceived - lastEmittedBytes < emitThresholdBytes) {
@@ -133,9 +144,6 @@ extension CatalogManagerAnnotationIo on CatalogManager {
               ),
               onProgress,
             );
-            if (isCancelled != null && await isCancelled()) {
-              throw const CatalogCancelled();
-            }
           }
         } finally {
           await sink.close();

@@ -4,12 +4,12 @@ part of '../planetarium_providers.dart';
 // Catalog Providers
 // ============================================================================
 
+/// The star list the renderer and search draw from.
+///
+/// Delegates to [starsProvider] so there is exactly one [HygStarCatalog]
+/// instance, one CSV parse and one retained list — see [starCatalogProvider].
 final loadedStarsProvider = FutureProvider<List<Star>>((ref) async {
-  // Load stars up to magnitude 12.0 to allow deep viewing when zoomed in.
-  // The HYG catalog contains ~120,000 stars to this depth. The dynamic
-  // magnitude limit provider filters them per-frame based on FOV so only
-  // a fraction is rendered at wide zoom.
-  return HygStarCatalog(magnitudeLimit: 12.0).loadObjects();
+  return ref.watch(starsProvider.future);
 });
 
 final loadedDsosProvider = FutureProvider<List<DeepSkyObject>>((ref) async {
@@ -180,6 +180,40 @@ final _currentMinuteProvider = Provider<DateTime>((ref) {
 final observationMinuteProvider = Provider<DateTime>((ref) {
   return ref.watch(_currentMinuteProvider);
 });
+
+/// What one rise/set/transit solve depends on.
+///
+/// A record, so Riverpod's family keying gets structural equality for free.
+/// [nightDate] is the output of [AstronomyCalculations.nightDateOf], which
+/// changes only at local noon — that is what makes the memo worth having.
+typedef ObjectVisibilityKey = ({
+  double raDeg,
+  double decDeg,
+  DateTime nightDate,
+  double latitudeDeg,
+  double longitudeDeg,
+  double minAltitude,
+});
+
+/// Memoised rise/set/transit for one object on one night from one site.
+///
+/// [AstronomyCalculations.calculateObjectVisibility] samples altitude every 5
+/// minutes across a 24 h window (289 sidereal-time + alt/az chains), then
+/// bisects every horizon crossing and ternary-searches the transit. The object
+/// details panel called it twice per rebuild while sitting under a 1 Hz clock,
+/// so the same answer was recomputed roughly 86,400 times a night on the UI
+/// isolate. Nothing in the key moves faster than local noon.
+final objectVisibilityProvider = Provider.autoDispose
+    .family<ObjectVisibility, ObjectVisibilityKey>((ref, key) {
+      return AstronomyCalculations.calculateObjectVisibility(
+        raDeg: key.raDeg,
+        decDeg: key.decDeg,
+        date: key.nightDate,
+        latitudeDeg: key.latitudeDeg,
+        longitudeDeg: key.longitudeDeg,
+        minAltitude: key.minAltitude,
+      );
+    });
 
 /// The two night windows the current instant can belong to: the one that
 /// started on the PREVIOUS calendar evening and the one starting tonight.

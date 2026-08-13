@@ -55,7 +55,6 @@ export 'src/planning/weighted_score.dart';
 // Providers
 export 'src/providers/planetarium_providers.dart';
 export 'src/providers/catalog_providers.dart';
-export 'src/providers/planning_providers.dart';
 export 'src/providers/target_queue_provider.dart';
 export 'src/providers/platform_providers.dart';
 export 'src/providers/performance_providers.dart';

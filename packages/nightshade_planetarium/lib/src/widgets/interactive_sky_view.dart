@@ -109,7 +109,15 @@ class InteractiveSkyView extends ConsumerStatefulWidget {
 }
 
 class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
+  /// How many sky views are mounted.
+  ///
+  /// The renderer's caches ([SkyCanvasPainter.releaseRenderCaches]) are
+  /// process-wide, so they are released only when the last view goes away —
+  /// otherwise closing a framing view would drop the sprite atlas the
+  /// planetarium behind it is still drawing from.
+  static int _liveViews = 0;
+
   Offset? _lastFocalPoint;
   double? _lastScale;
 
@@ -245,6 +253,8 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
   @override
   void initState() {
     super.initState();
+    _liveViews++;
+    WidgetsBinding.instance.addObserver(this);
     _zoomController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
@@ -335,6 +345,7 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
   @override
   void dispose() {
     SchedulerBinding.instance.removeTimingsCallback(_handleFrameTimings);
+    WidgetsBinding.instance.removeObserver(this);
     _zoomController.dispose();
     _flyToController.dispose();
     _twinkleController?.dispose();
@@ -342,7 +353,13 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
     _momentumTicker.dispose();
     _popinController.dispose();
     _dsoPopinController.dispose();
+    if (--_liveViews == 0) SkyCanvasPainter.releaseRenderCaches();
     super.dispose();
+  }
+
+  @override
+  void didHaveMemoryPressure() {
+    SkyCanvasPainter.releaseRenderCaches();
   }
 
   void _handleFrameTimings(List<FrameTiming> timings) {
@@ -1136,7 +1153,7 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
 
     Star? nearestStar;
     for (final star in stars) {
-      final distance = _angularDistance(coord, star.coordinates);
+      final distance = coord.separationDegrees(star.coordinates);
 
       // Calculate hit radius based on magnitude
       // Brighter stars (lower magnitude) get larger hit targets
@@ -1159,7 +1176,7 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
     }
 
     for (final dso in dsos) {
-      final distance = _angularDistance(coord, dso.coordinates);
+      final distance = coord.separationDegrees(dso.coordinates);
 
       // DSOs get hitbox based on their actual angular size
       final dsoSizeDeg = (dso.sizeArcMin ?? 5.0) / 60.0;
@@ -1187,7 +1204,7 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
 
     for (final sat in satellites) {
       final satCoord = CelestialCoordinate(ra: sat.ra, dec: sat.dec);
-      final distance = _angularDistance(coord, satCoord);
+      final distance = coord.separationDegrees(satCoord);
 
       if (distance < satelliteHitRadiusDegrees && distance < nearestDistance) {
         nearestDistance = distance;
@@ -1211,7 +1228,7 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
 
     for (final planet in planets) {
       final planetCoord = CelestialCoordinate(ra: planet.ra, dec: planet.dec);
-      final distance = _angularDistance(coord, planetCoord);
+      final distance = coord.separationDegrees(planetCoord);
 
       if (distance < planetHitRadiusDegrees && distance < nearestDistance) {
         nearestDistance = distance;
@@ -1274,7 +1291,7 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
       if (identical(star, nearest)) continue;
       final mag = star.magnitude ?? 99.0;
       if (mag >= bestMag) continue;
-      if (_angularDistance(nearest.coordinates, star.coordinates) >
+      if (nearest.coordinates.separationDegrees(star.coordinates) >
           mergeDegrees) {
         continue;
       }
@@ -1307,19 +1324,6 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
           : null,
     );
     return projector.unproject(position);
-  }
-
-  double _angularDistance(CelestialCoordinate a, CelestialCoordinate b) {
-    final ra1 = a.ra * 15 * math.pi / 180;
-    final dec1 = a.dec * math.pi / 180;
-    final ra2 = b.ra * 15 * math.pi / 180;
-    final dec2 = b.dec * math.pi / 180;
-
-    final cosSep =
-        math.sin(dec1) * math.sin(dec2) +
-        math.cos(dec1) * math.cos(dec2) * math.cos(ra1 - ra2);
-
-    return math.acos(cosSep.clamp(-1.0, 1.0)) * 180 / math.pi;
   }
 }
 

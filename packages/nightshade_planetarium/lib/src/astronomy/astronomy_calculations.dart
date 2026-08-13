@@ -1611,23 +1611,33 @@ class AstronomyCalculations {
   // Angular Separation
   // ============================================================================
 
-  /// Calculate angular separation between two sky coordinates (degrees)
+  /// Calculate angular separation between two sky coordinates (degrees).
+  ///
+  /// The haversine form is used rather than the spherical law of cosines
+  /// because the app compares separations at arcsecond scale — coincident-star
+  /// merging, catalog cone search, guide-star matching. At those separations
+  /// `acos` of a cosine within ~1e-16 of 1 loses roughly half the mantissa,
+  /// which is the difference between two distinct stars and one.
   static double angularSeparation({
     required double ra1Deg,
     required double dec1Deg,
     required double ra2Deg,
     required double dec2Deg,
   }) {
-    final ra1 = ra1Deg * _deg2rad;
     final dec1 = dec1Deg * _deg2rad;
-    final ra2 = ra2Deg * _deg2rad;
     final dec2 = dec2Deg * _deg2rad;
+    final dRa = (ra2Deg - ra1Deg) * _deg2rad;
+    final dDec = dec2 - dec1;
 
-    final cosSep =
-        math.sin(dec1) * math.sin(dec2) +
-        math.cos(dec1) * math.cos(dec2) * math.cos(ra1 - ra2);
+    final sinHalfDec = math.sin(dDec / 2);
+    final sinHalfRa = math.sin(dRa / 2);
+    final a =
+        sinHalfDec * sinHalfDec +
+        math.cos(dec1) * math.cos(dec2) * sinHalfRa * sinHalfRa;
 
-    return math.acos(cosSep.clamp(-1.0, 1.0)) * _rad2deg;
+    return 2 *
+        math.atan2(math.sqrt(a), math.sqrt(math.max(0.0, 1 - a))) *
+        _rad2deg;
   }
 
   /// Position angle of the second point as seen from the first, measured at the

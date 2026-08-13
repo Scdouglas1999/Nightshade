@@ -2,12 +2,13 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
 import 'dart:developer' as developer;
-import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as path;
 
+import '../astronomy/astronomy_calculations.dart';
 import 'hyg_depth.dart';
 
 part 'catalog_manager/source_models.dart';

@@ -1,5 +1,24 @@
 import 'dart:math' as math;
 
+import 'astronomy/astronomy_calculations.dart';
+
+/// Great-circle separation between two catalog positions.
+///
+/// The one place in the package that turns a pair of [CelestialCoordinate]s
+/// into an angle. Callers used to hand-roll this, and the hand-rolled copies
+/// took RA in hours while the shared helper takes degrees — the kind of unit
+/// mismatch that reads correctly and is wrong by 15x.
+extension CelestialSeparation on CelestialCoordinate {
+  /// Angular distance to [other], in degrees.
+  double separationDegrees(CelestialCoordinate other) =>
+      AstronomyCalculations.angularSeparation(
+        ra1Deg: raDegrees,
+        dec1Deg: dec,
+        ra2Deg: other.raDegrees,
+        dec2Deg: other.dec,
+      );
+}
+
 /// Celestial coordinate in RA/Dec (J2000)
 class CelestialCoordinate {
   /// Right Ascension in hours (0-24)

@@ -514,17 +514,6 @@ class TargetScoringService {
     return scores;
   }
 
-  /// Get the best targets above a minimum score threshold
-  List<TargetScore> getBestTargets(
-    List<CelestialObject> targets, {
-    double minScore = 50,
-    int maxResults = 10,
-  }) {
-    return scoreTargets(
-      targets,
-    ).where((s) => s.totalScore >= minScore).take(maxResults).toList();
-  }
-
   /// Test-only seam exposing the private altitude piecewise so the
   /// Rust<->Dart parity test can drive the REAL production scorer (not a
   /// re-implementation that can never disagree with itself). Behaviour is
@@ -1083,25 +1072,5 @@ extension TargetCheckExtensions on TargetScoringService {
       longitudeDeg: longitude,
     );
     return alt >= _effectiveMinAltitude(minAltitude, az);
-  }
-
-  /// Get moon distance in degrees
-  double getMoonDistance(CelestialObject target) {
-    if (moonPosition == null) return 180;
-    return AstronomyCalculations.angularSeparation(
-      ra1Deg: target.coordinates.raDegrees,
-      dec1Deg: target.coordinates.dec,
-      ra2Deg: moonPosition!.$1,
-      dec2Deg: moonPosition!.$2,
-    );
-  }
-
-  /// Check if moon is too close (returns true if problematic)
-  bool isMoonTooClose(CelestialObject target, {double minDistance = 30}) {
-    if (moonIllumination < 20) return false; // New moon is fine
-    final dist = getMoonDistance(target);
-    // Adjust minimum distance based on moon brightness
-    final adjustedMin = minDistance * (moonIllumination / 100);
-    return dist < adjustedMin;
   }
 }

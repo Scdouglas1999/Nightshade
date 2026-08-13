@@ -7,6 +7,28 @@ class CatalogManager {
 
   CatalogManager._();
 
+  /// How long to wait for a server to accept the request and return response
+  /// headers before abandoning a download candidate.
+  ///
+  /// Mutable only so tests can shorten it; production never writes it.
+  @visibleForTesting
+  static Duration connectTimeout = const Duration(seconds: 30);
+
+  /// How long a transfer may go without delivering a byte before it is
+  /// declared stalled. See [_guardCatalogTransfer].
+  @visibleForTesting
+  static Duration streamIdleTimeout = const Duration(seconds: 60);
+
+  /// How often a running download polls its cancellation token, independent of
+  /// chunk arrival. See [_guardCatalogTransfer].
+  @visibleForTesting
+  static Duration cancelPollInterval = const Duration(seconds: 1);
+
+  /// The HTTP client the download paths use. A test seam: production always
+  /// gets a real client, and every download path closes what it opens.
+  @visibleForTesting
+  static http.Client Function() httpClientFactory = http.Client.new;
+
   String? _catalogDirectory;
   final _downloadController = StreamController<DownloadProgress>.broadcast();
 

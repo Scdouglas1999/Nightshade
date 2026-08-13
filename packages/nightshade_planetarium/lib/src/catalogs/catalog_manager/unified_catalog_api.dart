@@ -400,7 +400,7 @@ extension CatalogManagerUnifiedApi on CatalogManager {
     void Function(int downloaded, int total)? onProgress,
     Future<bool> Function()? isCancelled,
   }) async {
-    final client = http.Client();
+    final client = CatalogManager.httpClientFactory();
     int totalBytes = -1;
     int downloadedBytes = 0;
     DateTime lastProgressEmit = DateTime.fromMillisecondsSinceEpoch(
@@ -409,7 +409,7 @@ extension CatalogManagerUnifiedApi on CatalogManager {
     );
     try {
       final request = http.Request('GET', Uri.parse(url));
-      final response = await client.send(request);
+      final response = await _sendCatalogRequest(client, request);
       if (response.statusCode != 200) {
         throw CatalogDownloadException(
           phase: 'http_send',
@@ -434,11 +434,18 @@ extension CatalogManagerUnifiedApi on CatalogManager {
       final compressedSink = isGzipped ? null : tempFile.openWrite();
       final compressedBuffer = isGzipped ? <int>[] : null;
 
+      // Cancellation and stall detection are driven by the guard, not by chunk
+      // arrival: a stalled connection produces no chunk, so a token polled from
+      // inside the loop is never read again.
+      final body = _guardCatalogTransfer(
+        response.stream,
+        idleTimeout: CatalogManager.streamIdleTimeout,
+        cancelPollInterval: CatalogManager.cancelPollInterval,
+        isCancelled: isCancelled,
+      );
+
       try {
-        await for (final chunk in response.stream) {
-          if (isCancelled != null && await isCancelled()) {
-            throw const CatalogCancelled();
-          }
+        await for (final chunk in body) {
           if (compressedSink != null) {
             compressedSink.add(chunk);
           } else {

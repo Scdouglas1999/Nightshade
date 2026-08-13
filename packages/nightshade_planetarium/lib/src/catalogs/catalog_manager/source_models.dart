@@ -2,30 +2,111 @@ part of '../catalog_manager.dart';
 
 // For gzip decompression
 
-/// Calculate angular distance between two points on a sphere (in degrees)
-/// Uses the Haversine formula for better numerical stability
-double _angularDistance(double ra1, double dec1, double ra2, double dec2) {
-  // Convert to radians
-  final ra1Rad = ra1 * math.pi / 180.0;
-  final dec1Rad = dec1 * math.pi / 180.0;
-  final ra2Rad = ra2 * math.pi / 180.0;
-  final dec2Rad = dec2 * math.pi / 180.0;
+/// Wrap a catalog response body so a dead connection cannot hang the app.
+///
+/// Two failures a bare `await for` over the body cannot see:
+///
+/// * A stalled connection delivers no event, so there is no chunk to notice it
+///   on. [idleTimeout] bounds the gap between chunks and raises
+///   [CatalogDownloadStalled] when it is exceeded.
+/// * The cancellation token used to be read only inside the chunk handler, so
+///   on a stalled transfer the Cancel button was inert and the progress bar sat
+///   frozen forever. [cancelPollInterval] drives an independent poll.
+///
+/// Both terminate the transfer by erroring the returned stream, which unwinds
+/// the caller's existing candidate/cleanup handling unchanged.
+Stream<List<int>> _guardCatalogTransfer(
+  Stream<List<int>> body, {
+  required Duration idleTimeout,
+  required Duration cancelPollInterval,
+  Future<bool> Function()? isCancelled,
+}) {
+  final bounded = body.timeout(
+    idleTimeout,
+    onTimeout: (sink) {
+      sink.addError(CatalogDownloadStalled(idleTimeout));
+      sink.close();
+    },
+  );
+  if (isCancelled == null) return bounded;
 
-  // Haversine formula
-  final dRa = ra2Rad - ra1Rad;
-  final dDec = dec2Rad - dec1Rad;
+  final controller = StreamController<List<int>>();
+  StreamSubscription<List<int>>? subscription;
+  Timer? poll;
+  var settled = false;
+  var polling = false;
 
-  final a =
-      math.sin(dDec / 2) * math.sin(dDec / 2) +
-      math.cos(dec1Rad) *
-          math.cos(dec2Rad) *
-          math.sin(dRa / 2) *
-          math.sin(dRa / 2);
+  void settle() {
+    settled = true;
+    poll?.cancel();
+    poll = null;
+  }
 
-  final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+  controller.onListen = () {
+    subscription = bounded.listen(
+      controller.add,
+      onError: (Object error, StackTrace stack) {
+        settle();
+        controller.addError(error, stack);
+        controller.close();
+      },
+      onDone: () {
+        settle();
+        controller.close();
+      },
+    );
+    poll = Timer.periodic(cancelPollInterval, (_) async {
+      if (settled || polling) return;
+      polling = true;
+      try {
+        final cancelled = await isCancelled();
+        if (settled || !cancelled) return;
+        settle();
+        await subscription?.cancel();
+        controller.addError(const CatalogCancelled());
+        await controller.close();
+      } catch (error, stack) {
+        // A token that throws must fail the download, not become an
+        // unhandled error in a timer nobody is awaiting.
+        if (settled) return;
+        settle();
+        await subscription?.cancel();
+        controller.addError(error, stack);
+        await controller.close();
+      } finally {
+        polling = false;
+      }
+    });
+  };
+  controller.onPause = () => subscription?.pause();
+  controller.onResume = () => subscription?.resume();
+  controller.onCancel = () async {
+    settle();
+    await subscription?.cancel();
+  };
+  return controller.stream;
+}
 
-  // Return distance in degrees
-  return c * 180.0 / math.pi;
+/// Open a catalog request under a bound.
+///
+/// `Client.send` has no timeout of its own, so a host that accepts the socket
+/// and never returns response headers left the download awaiting forever —
+/// before any stream existed for [_guardCatalogTransfer] to watch. The caller's
+/// `finally { client.close(); }` aborts the abandoned request.
+Future<http.StreamedResponse> _sendCatalogRequest(
+  http.Client client,
+  http.BaseRequest request,
+) {
+  final timeout = CatalogManager.connectTimeout;
+  return client
+      .send(request)
+      .timeout(
+        timeout,
+        onTimeout: () => throw CatalogDownloadStalled(
+          timeout,
+          waitingFor: 'response headers',
+        ),
+      );
 }
 
 String _normalizeCatalogSearchText(String value) {

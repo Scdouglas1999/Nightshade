@@ -393,7 +393,7 @@ class CelestialSpatialIndex<T extends CelestialObject> {
     final results = <T>[];
     for (final obj in candidates) {
       if (maxResults != null && results.length >= maxResults) break;
-      final distance = _angularDistance(center, obj.coordinates);
+      final distance = center.separationDegrees(obj.coordinates);
       if (distance <= radiusDegrees) {
         results.add(obj);
       }
@@ -424,20 +424,6 @@ class CelestialSpatialIndex<T extends CelestialObject> {
   /// Convert Dec (degrees, -90 to +90) to cell index
   int _decToCell(double dec) {
     return ((dec + 90) / 180 * decCells).floor().clamp(0, decCells - 1);
-  }
-
-  /// Calculate angular distance between two celestial coordinates in degrees
-  double _angularDistance(CelestialCoordinate a, CelestialCoordinate b) {
-    final ra1 = a.ra * 15 * math.pi / 180; // Convert hours to radians
-    final dec1 = a.dec * math.pi / 180;
-    final ra2 = b.ra * 15 * math.pi / 180;
-    final dec2 = b.dec * math.pi / 180;
-
-    final cosSep =
-        math.sin(dec1) * math.sin(dec2) +
-        math.cos(dec1) * math.cos(dec2) * math.cos(ra1 - ra2);
-
-    return math.acos(cosSep.clamp(-1.0, 1.0)) * 180 / math.pi;
   }
 }
 
