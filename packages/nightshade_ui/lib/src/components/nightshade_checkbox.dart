@@ -49,6 +49,9 @@ class _NightshadeCheckboxState extends State<NightshadeCheckbox> {
         },
         child: GestureDetector(
           onTap: isDisabled ? null : toggle,
+          // See nightshade_switch.dart: a second tap node here reads to AT-SPI
+          // as an unnamed disabled panel beside the checkbox.
+          excludeFromSemantics: true,
           child: AnimatedContainer(
             duration: NightshadeTokens.durationQuick,
             width: 18,

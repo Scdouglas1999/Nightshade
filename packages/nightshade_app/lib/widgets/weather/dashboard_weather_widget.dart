@@ -31,62 +31,68 @@ class DashboardWeatherWidget extends ConsumerWidget {
     final hasLocation = appSettings != null &&
         !(appSettings.latitude == 0.0 && appSettings.longitude == 0.0);
 
-    return GestureDetector(
-      onTap: () => context.go('/weather'),
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: Container(
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: colors.border),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
+    // The tap lived on a bare gesture wrapper, which publishes an action
+    // and no role, so assistive tech read a live control as an inert
+    // disabled panel. The flags are only published when given.
+    return Semantics(
+        button: true,
+        enabled: true,
+        child: GestureDetector(
+          onTap: () => context.go('/weather'),
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: Container(
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: colors.border),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
-            ],
-          ),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final width = constraints.maxWidth;
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final width = constraints.maxWidth;
 
-              if (width < _compactMaxWidth) {
-                return _CompactLayout(
-                  colors: colors,
-                  weatherStatus: weatherStatus,
-                  hasLocation: hasLocation,
-                  settingsLoading: settingsAsync.isLoading,
-                  settingsError: settingsAsync.hasError,
-                );
-              } else if (width < _mediumMaxWidth) {
-                return _MediumLayout(
-                  colors: colors,
-                  weatherStatus: weatherStatus,
-                  hasLocation: hasLocation,
-                  settingsLoading: settingsAsync.isLoading,
-                  settingsError: settingsAsync.hasError,
-                  appSettings: appSettings,
-                  ref: ref,
-                );
-              } else {
-                return _ExpandedLayout(
-                  colors: colors,
-                  weatherStatus: weatherStatus,
-                  hasLocation: hasLocation,
-                  settingsLoading: settingsAsync.isLoading,
-                  settingsError: settingsAsync.hasError,
-                  appSettings: appSettings,
-                  ref: ref,
-                );
-              }
-            },
+                  if (width < _compactMaxWidth) {
+                    return _CompactLayout(
+                      colors: colors,
+                      weatherStatus: weatherStatus,
+                      hasLocation: hasLocation,
+                      settingsLoading: settingsAsync.isLoading,
+                      settingsError: settingsAsync.hasError,
+                    );
+                  } else if (width < _mediumMaxWidth) {
+                    return _MediumLayout(
+                      colors: colors,
+                      weatherStatus: weatherStatus,
+                      hasLocation: hasLocation,
+                      settingsLoading: settingsAsync.isLoading,
+                      settingsError: settingsAsync.hasError,
+                      appSettings: appSettings,
+                      ref: ref,
+                    );
+                  } else {
+                    return _ExpandedLayout(
+                      colors: colors,
+                      weatherStatus: weatherStatus,
+                      hasLocation: hasLocation,
+                      settingsLoading: settingsAsync.isLoading,
+                      settingsError: settingsAsync.hasError,
+                      appSettings: appSettings,
+                      ref: ref,
+                    );
+                  }
+                },
+              ),
+            ),
           ),
-        ),
-      ),
-    );
+        ));
   }
 }
 

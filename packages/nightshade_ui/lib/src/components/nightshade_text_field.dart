@@ -151,64 +151,76 @@ class _NightshadeTextFieldState extends State<NightshadeTextField> {
             borderRadius: NightshadeTokens.borderRadiusMd,
             boxShadow: boxShadow,
           ),
-          child: TextFormField(
-            controller: _controller,
-            focusNode: _focusNode,
-            autofocus: widget.autofocus,
-            onChanged: widget.onChanged,
-            onFieldSubmitted: widget.onSubmitted,
-            textInputAction: widget.textInputAction,
-            obscureText: widget.obscureText,
-            autocorrect: widget.autocorrect ?? !widget.obscureText,
-            enableSuggestions: widget.enableSuggestions ?? !widget.obscureText,
-            keyboardType: widget.keyboardType,
-            inputFormatters: widget.inputFormatters,
-            textAlign: widget.textAlign,
-            maxLines: widget.maxLines,
-            enabled: widget.enabled,
-            style: TextStyle(
-              fontSize: 13,
-              color: widget.enabled ? colors.textPrimary : colors.textMuted,
-            ),
-            decoration: InputDecoration(
-              hintText: widget.hint,
-              hintStyle: TextStyle(fontSize: 13, color: colors.textMuted),
-              prefixIcon: widget.prefixIcon != null
-                  ? Icon(
-                      widget.prefixIcon,
-                      size: NightshadeTokens.iconSm,
-                      color: _isFocused ? colors.primary : colors.textSecondary,
-                    )
-                  : null,
-              suffix: widget.suffixWidget,
-              suffixText: widget.suffix,
-              suffixStyle: TextStyle(fontSize: 12, color: colors.textSecondary),
-              filled: true,
-              fillColor: fillColor,
-              contentPadding: NightshadeTokens.inputPadding,
-              border: OutlineInputBorder(
-                borderRadius: NightshadeTokens.borderRadiusMd,
-                borderSide: BorderSide(color: borderColor),
+          // The caption above is a sibling of the field, so the field itself
+          // reached assistive tech as an anonymous text box — a settings leaf
+          // full of them announced fifteen identical unnamed fields.
+          child: Semantics(
+            label: widget.label,
+            child: TextFormField(
+              controller: _controller,
+              focusNode: _focusNode,
+              autofocus: widget.autofocus,
+              onChanged: widget.onChanged,
+              onFieldSubmitted: widget.onSubmitted,
+              textInputAction: widget.textInputAction,
+              obscureText: widget.obscureText,
+              autocorrect: widget.autocorrect ?? !widget.obscureText,
+              enableSuggestions:
+                  widget.enableSuggestions ?? !widget.obscureText,
+              keyboardType: widget.keyboardType,
+              inputFormatters: widget.inputFormatters,
+              textAlign: widget.textAlign,
+              maxLines: widget.maxLines,
+              enabled: widget.enabled,
+              style: TextStyle(
+                fontSize: 13,
+                color: widget.enabled ? colors.textPrimary : colors.textMuted,
               ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: NightshadeTokens.borderRadiusMd,
-                borderSide: BorderSide(color: borderColor),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: NightshadeTokens.borderRadiusMd,
-                borderSide: BorderSide(color: borderColor, width: 1.5),
-              ),
-              disabledBorder: OutlineInputBorder(
-                borderRadius: NightshadeTokens.borderRadiusMd,
-                borderSide: BorderSide(color: borderColor),
-              ),
-              errorBorder: OutlineInputBorder(
-                borderRadius: NightshadeTokens.borderRadiusMd,
-                borderSide: BorderSide(color: colors.error),
-              ),
-              focusedErrorBorder: OutlineInputBorder(
-                borderRadius: NightshadeTokens.borderRadiusMd,
-                borderSide: BorderSide(color: colors.error, width: 1.5),
+              decoration: InputDecoration(
+                hintText: widget.hint,
+                hintStyle: TextStyle(fontSize: 13, color: colors.textMuted),
+                prefixIcon: widget.prefixIcon != null
+                    ? Icon(
+                        widget.prefixIcon,
+                        size: NightshadeTokens.iconSm,
+                        color: _isFocused
+                            ? colors.primary
+                            : colors.textSecondary,
+                      )
+                    : null,
+                suffix: widget.suffixWidget,
+                suffixText: widget.suffix,
+                suffixStyle: TextStyle(
+                  fontSize: 12,
+                  color: colors.textSecondary,
+                ),
+                filled: true,
+                fillColor: fillColor,
+                contentPadding: NightshadeTokens.inputPadding,
+                border: OutlineInputBorder(
+                  borderRadius: NightshadeTokens.borderRadiusMd,
+                  borderSide: BorderSide(color: borderColor),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: NightshadeTokens.borderRadiusMd,
+                  borderSide: BorderSide(color: borderColor),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: NightshadeTokens.borderRadiusMd,
+                  borderSide: BorderSide(color: borderColor, width: 1.5),
+                ),
+                disabledBorder: OutlineInputBorder(
+                  borderRadius: NightshadeTokens.borderRadiusMd,
+                  borderSide: BorderSide(color: borderColor),
+                ),
+                errorBorder: OutlineInputBorder(
+                  borderRadius: NightshadeTokens.borderRadiusMd,
+                  borderSide: BorderSide(color: colors.error),
+                ),
+                focusedErrorBorder: OutlineInputBorder(
+                  borderRadius: NightshadeTokens.borderRadiusMd,
+                  borderSide: BorderSide(color: colors.error, width: 1.5),
+                ),
               ),
             ),
           ),

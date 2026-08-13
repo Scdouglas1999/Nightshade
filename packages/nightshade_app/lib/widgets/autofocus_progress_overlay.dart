@@ -172,57 +172,63 @@ class _AutofocusProgressOverlayState
       NightshadeColors colors, AutofocusOverlayState overlayState) {
     return Material(
       color: Colors.transparent,
-      child: InkWell(
-        onTap: () =>
-            ref.read(autofocusOverlayProvider.notifier).toggleMinimized(),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Row(
-            children: [
-              if (overlayState.isRunning)
-                AnimatedBuilder(
-                  animation: _pulseController,
-                  builder: (context, child) {
-                    return Icon(
+      // The tap lived on a bare gesture wrapper, which publishes an action
+      // and no role, so assistive tech read a live control as an inert
+      // disabled panel. The flags are only published when given.
+      child: Semantics(
+          button: true,
+          enabled: true,
+          child: InkWell(
+            onTap: () =>
+                ref.read(autofocusOverlayProvider.notifier).toggleMinimized(),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  if (overlayState.isRunning)
+                    AnimatedBuilder(
+                      animation: _pulseController,
+                      builder: (context, child) {
+                        return Icon(
+                          LucideIcons.focus,
+                          size: 16,
+                          color: Color.lerp(
+                            colors.primary,
+                            colors.primary.withValues(alpha: 0.4),
+                            _pulseController.value,
+                          ),
+                        );
+                      },
+                    )
+                  else
+                    Icon(
                       LucideIcons.focus,
                       size: 16,
-                      color: Color.lerp(
-                        colors.primary,
-                        colors.primary.withValues(alpha: 0.4),
-                        _pulseController.value,
+                      color: overlayState.result != null
+                          ? colors.success
+                          : colors.textMuted,
+                    ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      overlayState.isRunning
+                          ? 'AF: ${overlayState.currentPoint}/${overlayState.totalPoints}'
+                          : (overlayState.result != null
+                              ? 'AF: HFR ${overlayState.result!.bestHfr.toStringAsFixed(2)}'
+                              : 'AF: ${overlayState.status}'),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: colors.textPrimary,
+                        fontWeight: FontWeight.w500,
                       ),
-                    );
-                  },
-                )
-              else
-                Icon(
-                  LucideIcons.focus,
-                  size: 16,
-                  color: overlayState.result != null
-                      ? colors.success
-                      : colors.textMuted,
-                ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  overlayState.isRunning
-                      ? 'AF: ${overlayState.currentPoint}/${overlayState.totalPoints}'
-                      : (overlayState.result != null
-                          ? 'AF: HFR ${overlayState.result!.bestHfr.toStringAsFixed(2)}'
-                          : 'AF: ${overlayState.status}'),
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: colors.textPrimary,
-                    fontWeight: FontWeight.w500,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  overflow: TextOverflow.ellipsis,
-                ),
+                  _buildCloseButton(colors, overlayState),
+                ],
               ),
-              _buildCloseButton(colors, overlayState),
-            ],
-          ),
-        ),
-      ),
+            ),
+          )),
     );
   }
 
@@ -436,15 +442,22 @@ class _AutofocusProgressOverlayState
   }) {
     final button = Material(
       color: Colors.transparent,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(4),
-        child: SizedBox(
-          width: 24,
-          height: 24,
-          child: Icon(icon, size: 14, color: colors.textMuted),
-        ),
-      ),
+      // The tap lived on a bare gesture wrapper, which publishes an action
+      // and no role, so assistive tech read a live control as an inert
+      // disabled panel. The flags are only published when given.
+      child: Semantics(
+          button: true,
+          enabled: true,
+          label: tooltip,
+          child: InkWell(
+            onTap: onPressed,
+            borderRadius: BorderRadius.circular(4),
+            child: SizedBox(
+              width: 24,
+              height: 24,
+              child: Icon(icon, size: 14, color: colors.textMuted),
+            ),
+          )),
     );
     if (tooltip == null) return button;
     return Tooltip(message: tooltip, child: button);

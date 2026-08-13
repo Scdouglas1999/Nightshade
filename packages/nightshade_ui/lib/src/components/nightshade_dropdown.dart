@@ -33,9 +33,15 @@ class NightshadeDropdown extends StatelessWidget {
   /// 12 px padding each side, the 14 px chevron, and the 1 px border each side.
   static const double chromeWidth = 12 + 12 + 14 + 2;
 
+  String _labelFor(int index) =>
+      itemLabels != null && index < itemLabels!.length
+      ? itemLabels![index]
+      : items[index];
+
   @override
   Widget build(BuildContext context) {
     final colors = context.nightshadeColors;
+    final isEnabled = onChanged != null;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -48,9 +54,13 @@ class NightshadeDropdown extends StatelessWidget {
         child: DropdownButton<String>(
           value: value,
           hint: hint != null
-              ? Text(
-                  hint!,
-                  style: TextStyle(fontSize: 12, color: colors.textMuted),
+              ? Semantics(
+                  button: true,
+                  enabled: isEnabled,
+                  child: Text(
+                    hint!,
+                    style: TextStyle(fontSize: 12, color: colors.textMuted),
+                  ),
                 )
               : null,
           isExpanded: isExpanded,
@@ -65,14 +75,44 @@ class NightshadeDropdown extends StatelessWidget {
           style: labelStyle.copyWith(color: colors.textPrimary),
           items: List.generate(items.length, (index) {
             final item = items[index];
-            final label = itemLabels != null && index < itemLabels!.length
-                ? itemLabels![index]
-                : item;
             return DropdownMenuItem<String>(
               value: item,
-              child: Text(label, overflow: TextOverflow.ellipsis),
+              child: Semantics(
+                enabled: isEnabled,
+                selected: item == value,
+                child: Text(_labelFor(index), overflow: TextOverflow.ellipsis),
+              ),
             );
           }),
+          // The closed control renders the chosen item, so left to itself it
+          // inherits that item's `selected` state and announces itself as a
+          // selected menu entry. This mirrors DropdownMenuItem's own layout
+          // (48px min height, start-aligned) so nothing moves, and carries
+          // the role and enabled state Material never publishes — AT-SPI
+          // reads an absent enabled flag as "disabled", which is how a live
+          // Frame Type / Binning / Theme control came to announce itself as
+          // one the user could not operate.
+          selectedItemBuilder: (context) => List.generate(
+            items.length,
+            // Only the enabled state: the dropdown already annotates the
+            // button role on its own node, and two fragments that set the
+            // same flag are held incompatible and split into two nodes.
+            (index) => Semantics(
+              enabled: isEnabled,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  minHeight: kMinInteractiveDimension,
+                ),
+                child: Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Text(
+                    _labelFor(index),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+            ),
+          ),
           onChanged: onChanged,
         ),
       ),

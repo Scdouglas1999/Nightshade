@@ -263,40 +263,49 @@ class _TechnicalDetails extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          InkWell(
-            onTap: onToggle,
-            borderRadius: expanded
-                ? const BorderRadius.vertical(
-                    top: Radius.circular(NightshadeTokens.radiusMd),
-                  )
-                : NightshadeTokens.borderRadiusMd,
-            child: Padding(
-              padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
-              child: Row(
-                children: [
-                  Icon(
-                    LucideIcons.terminal,
-                    size: NightshadeTokens.iconSm,
-                    color: colors.textMuted,
-                  ),
-                  const SizedBox(width: NightshadeTokens.spaceSm),
-                  Expanded(
-                    child: Text(
-                      'Technical details',
-                      style: NightshadeTypography.label.copyWith(
-                        color: colors.textSecondary,
+          // The tap lived on a bare gesture wrapper, which publishes an action
+          // and no role, so assistive tech read a live control as an inert
+          // disabled panel. The flags are only published when given.
+          Semantics(
+              button: true,
+              enabled: true,
+              expanded: expanded,
+              child: InkWell(
+                onTap: onToggle,
+                borderRadius: expanded
+                    ? const BorderRadius.vertical(
+                        top: Radius.circular(NightshadeTokens.radiusMd),
+                      )
+                    : NightshadeTokens.borderRadiusMd,
+                child: Padding(
+                  padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+                  child: Row(
+                    children: [
+                      Icon(
+                        LucideIcons.terminal,
+                        size: NightshadeTokens.iconSm,
+                        color: colors.textMuted,
                       ),
-                    ),
+                      const SizedBox(width: NightshadeTokens.spaceSm),
+                      Expanded(
+                        child: Text(
+                          'Technical details',
+                          style: NightshadeTypography.label.copyWith(
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                      ),
+                      Icon(
+                        expanded
+                            ? LucideIcons.chevronUp
+                            : LucideIcons.chevronDown,
+                        size: NightshadeTokens.iconSm,
+                        color: colors.textMuted,
+                      ),
+                    ],
                   ),
-                  Icon(
-                    expanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
-                    size: NightshadeTokens.iconSm,
-                    color: colors.textMuted,
-                  ),
-                ],
-              ),
-            ),
-          ),
+                ),
+              )),
           if (expanded)
             Container(
               width: double.infinity,

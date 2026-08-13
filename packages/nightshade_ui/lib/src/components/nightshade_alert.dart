@@ -155,7 +155,11 @@ class NightshadeAlert extends StatelessWidget {
                 size: compact
                     ? NightshadeTokens.iconSm
                     : NightshadeTokens.iconMd,
+                // An icon-only control with no text of its own; without a name
+                // the only way out of the alert is a blank button.
+                semanticLabel: 'Dismiss',
               ),
+              tooltip: 'Dismiss',
               onPressed: onDismiss,
               color: textColor.withValues(alpha: 0.7),
               padding: EdgeInsets.zero,

@@ -449,55 +449,61 @@ class CalibrationPanel extends StatelessWidget {
     final isDisabled = onPressed == null;
     final onPrimary = Theme.of(context).colorScheme.onPrimary;
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(8),
-        child: ConstrainedBox(
-          // Ensure minimum 44px touch target height for accessibility
-          constraints: const BoxConstraints(minHeight: 44),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: isPrimary
-                  ? (isDisabled ? colors.surfaceAlt : color)
-                  : (isDisabled
-                        ? colors.surfaceAlt
-                        : color.withValues(alpha: 0.15)),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: isDisabled
-                    ? colors.border
-                    : (isPrimary ? color : color.withValues(alpha: 0.3)),
+    return Semantics(
+      // A hand-rolled button: the InkWell carries the tap and nothing else, so
+      // assistive tech was told a live control was an inert disabled panel.
+      button: true,
+      enabled: !isDisabled,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(8),
+          child: ConstrainedBox(
+            // Ensure minimum 44px touch target height for accessibility
+            constraints: const BoxConstraints(minHeight: 44),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: isPrimary
+                    ? (isDisabled ? colors.surfaceAlt : color)
+                    : (isDisabled
+                          ? colors.surfaceAlt
+                          : color.withValues(alpha: 0.15)),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isDisabled
+                      ? colors.border
+                      : (isPrimary ? color : color.withValues(alpha: 0.3)),
+                ),
               ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  icon,
-                  size: 16,
-                  color: isPrimary
-                      ? (isDisabled ? colors.textMuted : onPrimary)
-                      : (isDisabled ? colors.textMuted : color),
-                ),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: isPrimary
-                          ? (isDisabled ? colors.textMuted : onPrimary)
-                          : (isDisabled ? colors.textMuted : color),
-                    ),
-                    overflow: TextOverflow.ellipsis,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    icon,
+                    size: 16,
+                    color: isPrimary
+                        ? (isDisabled ? colors.textMuted : onPrimary)
+                        : (isDisabled ? colors.textMuted : color),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: isPrimary
+                            ? (isDisabled ? colors.textMuted : onPrimary)
+                            : (isDisabled ? colors.textMuted : color),
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

@@ -240,44 +240,50 @@ class _FilterChip extends StatelessWidget {
     final textColour = isReference ? colors.background : colors.textPrimary;
     final sign = offset > 0 ? '+' : '';
     final valueText = isReference ? 'reference' : '$sign$offset steps';
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: colour,
-          border: Border.all(
-            color: isReference ? colors.primary : colors.border,
-          ),
+    // The tap lived on a bare gesture wrapper, which publishes an action
+    // and no role, so assistive tech read a live control as an inert
+    // disabled panel. The flags are only published when given.
+    return Semantics(
+        button: true,
+        enabled: true,
+        child: InkWell(
+          onTap: onTap,
           borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: textColour,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: colour,
+              border: Border.all(
+                color: isReference ? colors.primary : colors.border,
               ),
+              borderRadius: BorderRadius.circular(8),
             ),
-            const SizedBox(width: 6),
-            Text(
-              valueText,
-              style: TextStyle(
-                fontSize: 11,
-                color: isReference
-                    ? colors.background.withValues(alpha: 0.8)
-                    : colors.textSecondary,
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: textColour,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  valueText,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isReference
+                        ? colors.background.withValues(alpha: 0.8)
+                        : colors.textSecondary,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
-    );
+          ),
+        ));
   }
 }
 

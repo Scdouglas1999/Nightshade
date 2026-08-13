@@ -208,7 +208,10 @@ class _StatusPillState extends State<StatusPill>
               width: 2,
             ),
           ),
-          child: pill,
+          // The pill's own GestureDetector publishes a second, role-less node
+          // carrying the same text, which AT-SPI renders as a disabled panel
+          // sitting inside the button. One control, one node.
+          child: ExcludeSemantics(child: pill),
         ),
       ),
     );

@@ -220,108 +220,123 @@ class _NotificationToastState extends State<_NotificationToast>
         padding: const EdgeInsets.only(bottom: 8),
         child: Material(
           color: Colors.transparent,
-          child: InkWell(
-            onTap: widget.onDismiss,
-            borderRadius: BorderRadius.circular(8),
-            child: Container(
-              constraints: const BoxConstraints(
-                maxWidth: 360,
-                minWidth: 280,
-              ),
-              decoration: BoxDecoration(
-                color: _getBackgroundColor(colors),
+          // The tap lived on a bare gesture wrapper, which publishes an action
+          // and no role, so assistive tech read a live control as an inert
+          // disabled panel. The flags are only published when given.
+          child: Semantics(
+              button: true,
+              enabled: true,
+              child: InkWell(
+                onTap: widget.onDismiss,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: accentColor.withValues(alpha: 0.3),
-                  width: 1,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.3),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
+                child: Container(
+                  constraints: const BoxConstraints(
+                    maxWidth: 360,
+                    minWidth: 280,
                   ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Accent bar
-                    Container(
-                      width: 4,
-                      constraints: const BoxConstraints(minHeight: 48),
-                      color: accentColor,
+                  decoration: BoxDecoration(
+                    color: _getBackgroundColor(colors),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: accentColor.withValues(alpha: 0.3),
+                      width: 1,
                     ),
-                    // Content
-                    Flexible(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.3),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Accent bar
+                        Container(
+                          width: 4,
+                          constraints: const BoxConstraints(minHeight: 48),
+                          color: accentColor,
                         ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              _getIcon(),
-                              color: accentColor,
-                              size: 18,
+                        // Content
+                        Flexible(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
                             ),
-                            const SizedBox(width: 10),
-                            Flexible(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  if (widget.notification.title != null) ...[
-                                    Text(
-                                      widget.notification.title!,
-                                      style: TextStyle(
-                                        color: colors.textPrimary,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 12,
+                            child: Row(
+                              children: [
+                                Icon(
+                                  _getIcon(),
+                                  color: accentColor,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 10),
+                                Flexible(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (widget.notification.title !=
+                                          null) ...[
+                                        Text(
+                                          widget.notification.title!,
+                                          style: TextStyle(
+                                            color: colors.textPrimary,
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                      ],
+                                      Text(
+                                        widget.notification.message,
+                                        style: TextStyle(
+                                          color: colors.textSecondary,
+                                          fontSize: 11,
+                                        ),
+                                        maxLines: 3,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                  ],
-                                  Text(
-                                    widget.notification.message,
-                                    style: TextStyle(
-                                      color: colors.textSecondary,
-                                      fontSize: 11,
-                                    ),
-                                    maxLines: 3,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            // Dismiss button
-                            MouseRegion(
-                              cursor: SystemMouseCursors.click,
-                              child: GestureDetector(
-                                onTap: widget.onDismiss,
-                                child: Padding(
-                                  padding: const EdgeInsets.all(4),
-                                  child: Icon(
-                                    LucideIcons.x,
-                                    color: colors.textMuted,
-                                    size: 14,
+                                    ],
                                   ),
                                 ),
-                              ),
+                                const SizedBox(width: 8),
+                                // Dismiss button
+                                MouseRegion(
+                                  cursor: SystemMouseCursors.click,
+                                  // The tap lived on a bare gesture wrapper, which publishes an action
+                                  // and no role, so assistive tech read a live control as an inert
+                                  // disabled panel. The flags are only published when given.
+                                  child: Semantics(
+                                      button: true,
+                                      enabled: true,
+                                      label: 'Dismiss',
+                                      child: GestureDetector(
+                                        onTap: widget.onDismiss,
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(4),
+                                          child: Icon(
+                                            LucideIcons.x,
+                                            color: colors.textMuted,
+                                            size: 14,
+                                          ),
+                                        ),
+                                      )),
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-          ),
+              )),
         ),
       ),
     );

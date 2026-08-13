@@ -261,64 +261,71 @@ class _VariableRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return InkWell(
-      onTap: () => onPick(entry),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Why Text (not SelectableText): SelectableText eats the
-                  // pointer down event to support selection, which then
-                  // suppresses the InkWell's onTap. The placeholder text
-                  // is short enough that copy-via-button is sufficient.
-                  Text(
-                    entry.placeholder,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontFamily: 'monospace',
-                      fontWeight: FontWeight.w600,
-                    ),
+    // The tap lived on a bare gesture wrapper, which publishes an action
+    // and no role, so assistive tech read a live control as an inert
+    // disabled panel. The flags are only published when given.
+    return Semantics(
+        button: true,
+        enabled: true,
+        child: InkWell(
+          onTap: () => onPick(entry),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Why Text (not SelectableText): SelectableText eats the
+                      // pointer down event to support selection, which then
+                      // suppresses the InkWell's onTap. The placeholder text
+                      // is short enough that copy-via-button is sufficient.
+                      Text(
+                        entry.placeholder,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontFamily: 'monospace',
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        entry.description,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.hintColor,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    entry.description,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.hintColor,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                entry.example,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  fontFamily: 'monospace',
-                  fontFeatures: const [FontFeature.tabularFigures()],
                 ),
-              ),
+                const SizedBox(width: 12),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    entry.example,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontFamily: 'monospace',
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  tooltip: 'Copy ${entry.placeholder}',
+                  icon: const Icon(Icons.copy_outlined, size: 14),
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: entry.placeholder));
+                  },
+                ),
+              ],
             ),
-            const SizedBox(width: 4),
-            IconButton(
-              tooltip: 'Copy ${entry.placeholder}',
-              icon: const Icon(Icons.copy_outlined, size: 14),
-              onPressed: () {
-                Clipboard.setData(ClipboardData(text: entry.placeholder));
-              },
-            ),
-          ],
-        ),
-      ),
-    );
+          ),
+        ));
   }
 }

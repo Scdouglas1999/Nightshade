@@ -119,20 +119,28 @@ class _FilterWheelSelectorState extends ConsumerState<FilterWheelSelector> {
             .entries
             .map((e) => DropdownMenuItem(
                   value: e.key,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                          color: FilterWheelSelector.getFilterColor(e.value),
-                          shape: BoxShape.circle,
+                  // Material's menu entries declare the button role but never
+                  // the enabled state, and AT-SPI reads an absent enabled flag
+                  // as disabled — so every filter in a live wheel announced
+                  // itself as unavailable, with no mark on the mounted one.
+                  child: Semantics(
+                    enabled: controlsEnabled,
+                    selected: e.key == currentPosition,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: FilterWheelSelector.getFilterColor(e.value),
+                            shape: BoxShape.circle,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(e.value),
-                    ],
+                        const SizedBox(width: 8),
+                        Text(e.value),
+                      ],
+                    ),
                   ),
                 ))
             .toList(),
@@ -178,25 +186,33 @@ class _FilterButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: isSelected ? color : color.withValues(alpha: 0.3),
-      borderRadius: BorderRadius.circular(compact ? 12 : 16),
-      child: InkWell(
-        onTap: onTap,
+    // A bare InkWell publishes a tap action and nothing else, so the filter
+    // row reached assistive tech as inert disabled panels with no indication
+    // of which filter is mounted. The flags are only published when given.
+    return Semantics(
+      button: true,
+      enabled: onTap != null,
+      selected: isSelected,
+      child: Material(
+        color: isSelected ? color : color.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(compact ? 12 : 16),
-        child: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: compact ? 8 : 12,
-            vertical: compact ? 4 : 6,
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: compact ? 12 : 14,
-              color: isSelected
-                  ? const Color(0xFFFFFFFF)
-                  : const Color(0xB3FFFFFF),
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(compact ? 12 : 16),
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: compact ? 8 : 12,
+              vertical: compact ? 4 : 6,
+            ),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: compact ? 12 : 14,
+                color: isSelected
+                    ? const Color(0xFFFFFFFF)
+                    : const Color(0xB3FFFFFF),
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
             ),
           ),
         ),

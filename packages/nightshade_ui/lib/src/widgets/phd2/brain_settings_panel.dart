@@ -502,50 +502,56 @@ class _BrainSettingsPanelState extends State<BrainSettingsPanel> {
     final isDisabled = onPressed == null;
     final onPrimary = Theme.of(context).colorScheme.onPrimary;
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(8),
-        child: ConstrainedBox(
-          // Ensure minimum 44px touch target height for accessibility
-          constraints: const BoxConstraints(minHeight: 44),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: isPrimary
-                  ? (isDisabled ? colors.surfaceHover : color)
-                  : (isOutline ? Colors.transparent : colors.surfaceHover),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: isOutline
-                    ? colors.border
-                    : (isPrimary ? color : Colors.transparent),
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  icon,
-                  size: 14,
-                  color: isPrimary
-                      ? (isDisabled ? colors.textMuted : onPrimary)
-                      : (isDisabled ? colors.textMuted : color),
+    return Semantics(
+      // A hand-rolled button: the InkWell carries the tap and nothing else, so
+      // assistive tech was told a live control was an inert disabled panel.
+      button: true,
+      enabled: !isDisabled,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(8),
+          child: ConstrainedBox(
+            // Ensure minimum 44px touch target height for accessibility
+            constraints: const BoxConstraints(minHeight: 44),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: isPrimary
+                    ? (isDisabled ? colors.surfaceHover : color)
+                    : (isOutline ? Colors.transparent : colors.surfaceHover),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isOutline
+                      ? colors.border
+                      : (isPrimary ? color : Colors.transparent),
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    icon,
+                    size: 14,
                     color: isPrimary
                         ? (isDisabled ? colors.textMuted : onPrimary)
                         : (isDisabled ? colors.textMuted : color),
                   ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+                  const SizedBox(width: 6),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: isPrimary
+                          ? (isDisabled ? colors.textMuted : onPrimary)
+                          : (isDisabled ? colors.textMuted : color),
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
           ),
         ),

@@ -101,6 +101,10 @@ class _NightshadeSwitchState extends State<NightshadeSwitch> {
               : SystemMouseCursors.basic,
           child: GestureDetector(
             onTap: isEnabled ? toggle : null,
+            // Without this the detector publishes a second, role-less node
+            // under the switch, which AT-SPI reads as an unnamed disabled
+            // panel next to every toggle.
+            excludeFromSemantics: true,
             child: Opacity(
               opacity: isEnabled ? 1.0 : NightshadeTokens.opacityDisabled,
               child: AnimatedContainer(

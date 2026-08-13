@@ -243,30 +243,38 @@ class _OperationStatusBarState extends ConsumerState<OperationStatusBar>
               cursor: isCancelling
                   ? SystemMouseCursors.basic
                   : SystemMouseCursors.click,
-              child: GestureDetector(
-                onTap: isCancelling ? null : () => _cancelOperation(operation),
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: NightshadeDecorations.tintedBadge(
-                    colors.error,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: isCancelling
-                      ? SizedBox(
-                          width: 12,
-                          height: 12,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 1.5,
-                            color: colors.error,
-                          ),
-                        )
-                      : Icon(
-                          LucideIcons.x,
-                          size: 12,
-                          color: colors.error,
-                        ),
-                ),
-              ),
+              // The tap lived on a bare gesture wrapper, which publishes an action
+              // and no role, so assistive tech read a live control as an inert
+              // disabled panel. The flags are only published when given.
+              child: Semantics(
+                  button: true,
+                  enabled: !isCancelling,
+                  label: 'Cancel',
+                  child: GestureDetector(
+                    onTap:
+                        isCancelling ? null : () => _cancelOperation(operation),
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: NightshadeDecorations.tintedBadge(
+                        colors.error,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: isCancelling
+                          ? SizedBox(
+                              width: 12,
+                              height: 12,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.5,
+                                color: colors.error,
+                              ),
+                            )
+                          : Icon(
+                              LucideIcons.x,
+                              size: 12,
+                              color: colors.error,
+                            ),
+                    ),
+                  )),
             ),
           ],
           const SizedBox(width: 8),

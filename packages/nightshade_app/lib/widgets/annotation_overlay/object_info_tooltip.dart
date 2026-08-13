@@ -139,14 +139,21 @@ class ObjectInfoTooltip extends ConsumerWidget {
                 ),
               ),
               if (onClose != null)
-                GestureDetector(
-                  onTap: onClose,
-                  child: Icon(
-                    Icons.close,
-                    size: 16,
-                    color: Colors.white.withValues(alpha: 0.6),
-                  ),
-                ),
+                // The tap lived on a bare gesture wrapper, which publishes an action
+                // and no role, so assistive tech read a live control as an inert
+                // disabled panel. The flags are only published when given.
+                Semantics(
+                    button: true,
+                    enabled: true,
+                    label: 'Close',
+                    child: GestureDetector(
+                      onTap: onClose,
+                      child: Icon(
+                        Icons.close,
+                        size: 16,
+                        color: Colors.white.withValues(alpha: 0.6),
+                      ),
+                    )),
             ],
           ),
           const SizedBox(height: 8),
@@ -295,36 +302,43 @@ class _TooltipActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 13, color: Colors.white.withValues(alpha: 0.8)),
-            const SizedBox(width: 4),
-            Flexible(
-              child: Text(
-                label,
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.8),
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
+    // The tap lived on a bare gesture wrapper, which publishes an action
+    // and no role, so assistive tech read a live control as an inert
+    // disabled panel. The flags are only published when given.
+    return Semantics(
+        button: true,
+        enabled: true,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
             ),
-          ],
-        ),
-      ),
-    );
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon,
+                    size: 13, color: Colors.white.withValues(alpha: 0.8)),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.8),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ));
   }
 }
 

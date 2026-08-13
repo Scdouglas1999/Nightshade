@@ -48,11 +48,19 @@ class NightshadeSwitchRow extends StatelessWidget {
     final colors = context.nightshadeColors;
     final labelWidget = _buildLabel(colors);
 
-    final switchWidget = NightshadeSwitch(
-      value: value,
-      onChanged: onChanged,
-      enabled: _switchEnabled,
-      compact: compact,
+    // The label is a sibling of the switch, so assistive tech announced
+    // "toggle button, on" with no idea which setting it belonged to. Naming
+    // the switch node is what ties the two together; `container: false` (the
+    // default) merges the name into the switch's own node rather than adding
+    // a second one.
+    final switchWidget = Semantics(
+      label: label,
+      child: NightshadeSwitch(
+        value: value,
+        onChanged: onChanged,
+        enabled: _switchEnabled,
+        compact: compact,
+      ),
     );
 
     if (!expanded) {

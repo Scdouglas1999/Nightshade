@@ -440,26 +440,32 @@ class _ZoomButton extends StatelessWidget {
     return Material(
       color: colors.surface.withValues(alpha: 0.9),
       borderRadius: BorderRadius.circular(8),
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            border: Border.all(
-              color: colors.border,
-              width: 1,
-            ),
+      // The tap lived on a bare gesture wrapper, which publishes an action
+      // and no role, so assistive tech read a live control as an inert
+      // disabled panel. The flags are only published when given.
+      child: Semantics(
+          button: true,
+          enabled: true,
+          child: InkWell(
+            onTap: onPressed,
             borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(
-            icon,
-            size: 20,
-            color: colors.textPrimary,
-          ),
-        ),
-      ),
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: colors.border,
+                  width: 1,
+                ),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                icon,
+                size: 20,
+                color: colors.textPrimary,
+              ),
+            ),
+          )),
     );
   }
 }

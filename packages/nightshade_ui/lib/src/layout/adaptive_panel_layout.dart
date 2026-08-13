@@ -475,44 +475,50 @@ class _SheetHandleButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.nightshadeColors;
-    return Padding(
-      padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
-      child: Material(
-        color: colors.surfaceElevated,
-        borderRadius: NightshadeTokens.borderRadiusLg,
-        elevation: 0,
-        child: InkWell(
-          onTap: onTap,
+    return Semantics(
+      // The InkWell publishes a tap and nothing else, so the only way into the
+      // phone sheet announced itself as a disabled panel.
+      button: true,
+      enabled: true,
+      child: Padding(
+        padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+        child: Material(
+          color: colors.surfaceElevated,
           borderRadius: NightshadeTokens.borderRadiusLg,
-          child: Container(
-            height: 48,
-            decoration: BoxDecoration(
-              borderRadius: NightshadeTokens.borderRadiusLg,
-              border: Border.all(color: colors.border),
-            ),
-            padding: const EdgeInsets.symmetric(
-              horizontal: NightshadeTokens.spaceLg,
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  icon ?? Icons.keyboard_arrow_up,
-                  size: 18,
-                  color: colors.primary,
-                ),
-                const SizedBox(width: NightshadeTokens.spaceSm),
-                Flexible(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: NightshadeTypography.labelLg.copyWith(
-                      color: colors.textPrimary,
+          elevation: 0,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: NightshadeTokens.borderRadiusLg,
+            child: Container(
+              height: 48,
+              decoration: BoxDecoration(
+                borderRadius: NightshadeTokens.borderRadiusLg,
+                border: Border.all(color: colors.border),
+              ),
+              padding: const EdgeInsets.symmetric(
+                horizontal: NightshadeTokens.spaceLg,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    icon ?? Icons.keyboard_arrow_up,
+                    size: 18,
+                    color: colors.primary,
+                  ),
+                  const SizedBox(width: NightshadeTokens.spaceSm),
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: NightshadeTypography.labelLg.copyWith(
+                        color: colors.textPrimary,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

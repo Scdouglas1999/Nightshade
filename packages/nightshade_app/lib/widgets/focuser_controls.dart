@@ -232,21 +232,27 @@ class _MoveButton extends StatelessWidget {
     return Material(
       color: colors.surfaceAlt,
       borderRadius: BorderRadius.circular(4),
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(4),
-        child: SizedBox(
-          width: size,
-          height: size,
-          child: Icon(
-            icon,
-            size: size * 0.5,
-            color: onPressed != null
-                ? (color ?? colors.textPrimary)
-                : colors.textMuted,
-          ),
-        ),
-      ),
+      // The tap lived on a bare gesture wrapper, which publishes an action
+      // and no role, so assistive tech read a live control as an inert
+      // disabled panel. The flags are only published when given.
+      child: Semantics(
+          button: true,
+          enabled: onPressed != null,
+          child: InkWell(
+            onTap: onPressed,
+            borderRadius: BorderRadius.circular(4),
+            child: SizedBox(
+              width: size,
+              height: size,
+              child: Icon(
+                icon,
+                size: size * 0.5,
+                color: onPressed != null
+                    ? (color ?? colors.textPrimary)
+                    : colors.textMuted,
+              ),
+            ),
+          )),
     );
   }
 }

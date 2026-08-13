@@ -33,8 +33,10 @@ void main() {
       await tester.pumpWidget(
         _wrap(const NightshadeSwitch(value: true, onChanged: _noop)),
       );
-      // Focusability lives on the detector's own semantics node rather than
-      // this one; the keyboard-traversal test below is what pins that.
+      // ONE node carries the whole control: the state, the action AND the
+      // focusability. The inner detector used to publish a second, role-less
+      // tap node, which AT-SPI rendered as an unnamed disabled panel sitting
+      // beside every switch in the app.
       expect(
         tester.getSemantics(find.byType(NightshadeSwitch)),
         matchesSemantics(
@@ -43,6 +45,8 @@ void main() {
           hasEnabledState: true,
           isEnabled: true,
           hasTapAction: true,
+          hasFocusAction: true,
+          isFocusable: true,
         ),
       );
 
@@ -57,6 +61,8 @@ void main() {
           hasEnabledState: true,
           isEnabled: true,
           hasTapAction: true,
+          hasFocusAction: true,
+          isFocusable: true,
         ),
       );
 

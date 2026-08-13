@@ -80,52 +80,60 @@ class RunningSequenceMiniBar extends ConsumerWidget {
             children: [
               // Status + target — tap to return to the sequencer screen.
               Expanded(
-                child: InkWell(
-                  onTap: () {
-                    try {
-                      context.go(kSequencerRoutePath);
-                    } catch (_) {
-                      // Router not ready — ignore.
-                    }
-                  },
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusInline8),
-                  child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                    child: Row(
-                      children: [
-                        Icon(visuals.icon, size: 16, color: visuals.color),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                visuals.label,
-                                style: NightshadeTypography.labelStrongSm
-                                    .copyWith(color: visuals.color),
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 1,
-                              ),
-                              if (targetName != null && targetName.isNotEmpty)
-                                Text(
-                                  targetName,
-                                  style: TextStyle(
-                                    fontSize: NightshadeTypography.fontSize11,
-                                    color: colors.textMuted,
+                // The tap lived on a bare gesture wrapper, which publishes an action
+                // and no role, so assistive tech read a live control as an inert
+                // disabled panel. The flags are only published when given.
+                child: Semantics(
+                    button: true,
+                    enabled: true,
+                    child: InkWell(
+                      onTap: () {
+                        try {
+                          context.go(kSequencerRoutePath);
+                        } catch (_) {
+                          // Router not ready — ignore.
+                        }
+                      },
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusInline8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 4, vertical: 4),
+                        child: Row(
+                          children: [
+                            Icon(visuals.icon, size: 16, color: visuals.color),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    visuals.label,
+                                    style: NightshadeTypography.labelStrongSm
+                                        .copyWith(color: visuals.color),
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
                                   ),
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 1,
-                                ),
-                            ],
-                          ),
+                                  if (targetName != null &&
+                                      targetName.isNotEmpty)
+                                    Text(
+                                      targetName,
+                                      style: TextStyle(
+                                        fontSize:
+                                            NightshadeTypography.fontSize11,
+                                        color: colors.textMuted,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-                ),
+                      ),
+                    )),
               ),
               // Play / Pause / Resume
               _MiniControlButton(
@@ -208,26 +216,33 @@ class _MiniControlButton extends StatelessWidget {
       message: tooltip,
       child: Material(
         color: Colors.transparent,
-        child: InkWell(
-          onTap: isEnabled ? onPressed : null,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-          child: Container(
-            width: 40,
-            height: 40,
-            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-            decoration: BoxDecoration(
-              color: isEnabled ? colors.surfaceAlt : colors.surface,
+        // The tap lived on a bare gesture wrapper, which publishes an action
+        // and no role, so assistive tech read a live control as an inert
+        // disabled panel. The flags are only published when given.
+        child: Semantics(
+            button: true,
+            enabled: isEnabled,
+            child: InkWell(
+              onTap: isEnabled ? onPressed : null,
               borderRadius:
                   BorderRadius.circular(NightshadeTokens.radiusInline8),
-              border: Border.all(color: colors.border),
-            ),
-            child: Icon(
-              icon,
-              size: 18,
-              color: isEnabled ? colors.textPrimary : colors.textMuted,
-            ),
-          ),
-        ),
+              child: Container(
+                width: 40,
+                height: 40,
+                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                decoration: BoxDecoration(
+                  color: isEnabled ? colors.surfaceAlt : colors.surface,
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline8),
+                  border: Border.all(color: colors.border),
+                ),
+                child: Icon(
+                  icon,
+                  size: 18,
+                  color: isEnabled ? colors.textPrimary : colors.textMuted,
+                ),
+              ),
+            )),
       ),
     );
   }

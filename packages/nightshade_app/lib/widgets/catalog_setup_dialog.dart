@@ -354,87 +354,94 @@ class _CatalogSetupDialogState extends ConsumerState<CatalogSetupDialog> {
   Widget _buildPackageOption(NightshadeColors colors, CatalogPackage package) {
     final isSelected = _selectedPackage == package;
 
-    return GestureDetector(
-      onTap: () {
-        if (_selectedPackage == package) return;
-        setState(() {
-          _selectedPackage = package;
-          _completedStarPackage = null;
-        });
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(12),
-        decoration: isSelected
-            ? NightshadeDecorations.tintedBadge(colors.primary).copyWith(
-                border: Border.all(color: colors.primary, width: 2),
-              )
-            : BoxDecoration(
-                color: colors.background,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: colors.border),
-              ),
-        child: Row(
-          children: [
-            Icon(
-              isSelected
-                  ? Icons.radio_button_checked
-                  : Icons.radio_button_unchecked,
-              color: isSelected ? colors.primary : colors.textSecondary,
-              size: 20,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 2,
-                    crossAxisAlignment: WrapCrossAlignment.center,
+    // The tap lived on a bare gesture wrapper, which publishes an action
+    // and no role, so assistive tech read a live control as an inert
+    // disabled panel. The flags are only published when given.
+    return Semantics(
+        button: true,
+        enabled: true,
+        selected: isSelected,
+        child: GestureDetector(
+          onTap: () {
+            if (_selectedPackage == package) return;
+            setState(() {
+              _selectedPackage = package;
+              _completedStarPackage = null;
+            });
+          },
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(12),
+            decoration: isSelected
+                ? NightshadeDecorations.tintedBadge(colors.primary).copyWith(
+                    border: Border.all(color: colors.primary, width: 2),
+                  )
+                : BoxDecoration(
+                    color: colors.background,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: colors.border),
+                  ),
+            child: Row(
+              children: [
+                Icon(
+                  isSelected
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_unchecked,
+                  color: isSelected ? colors.primary : colors.textSecondary,
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        package.displayName,
-                        style: TextStyle(
-                          color: colors.textPrimary,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 2,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            package.displayName,
+                            style: TextStyle(
+                              color: colors.textPrimary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            '~${package.approximateSizeMB} MB',
+                            style: TextStyle(
+                              color: colors.textSecondary,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
                       ),
+                      const SizedBox(height: 2),
                       Text(
-                        '~${package.approximateSizeMB} MB',
+                        package.description,
                         style: TextStyle(
                           color: colors.textSecondary,
                           fontSize: 12,
                         ),
                       ),
+                      // What the download actually contains. A megabyte figure
+                      // does not tell an imager whether their target will be in
+                      // the catalog; a star/DSO count does.
+                      Text(
+                        '~${formatCatalogCount(package.approximateStarCount)} stars · '
+                        '~${formatCatalogCount(package.approximateDsoCount)} DSOs',
+                        style: TextStyle(
+                          color: colors.textMuted,
+                          fontSize: 12,
+                        ),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    package.description,
-                    style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: 12,
-                    ),
-                  ),
-                  // What the download actually contains. A megabyte figure
-                  // does not tell an imager whether their target will be in
-                  // the catalog; a star/DSO count does.
-                  Text(
-                    '~${formatCatalogCount(package.approximateStarCount)} stars · '
-                    '~${formatCatalogCount(package.approximateDsoCount)} DSOs',
-                    style: TextStyle(
-                      color: colors.textMuted,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
-    );
+          ),
+        ));
   }
 }
 

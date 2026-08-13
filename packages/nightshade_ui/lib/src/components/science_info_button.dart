@@ -45,21 +45,30 @@ class ScienceInfoButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
 
-    return Tooltip(
-      message: 'What is this?',
-      child: InkWell(
-        onTap: () => showScienceInfoDialog(context, title, body),
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-        child: Container(
-          constraints: const BoxConstraints(
-            minWidth: NightshadeTokens.minTouchTarget,
-            minHeight: NightshadeTokens.minTouchTarget,
-          ),
-          alignment: Alignment.center,
-          child: Icon(
-            LucideIcons.info,
-            size: NightshadeTokens.iconXs,
-            color: colors.textMuted,
+    // An icon-only help control publishes no text of its own, so without an
+    // explicit role, name and enabled state it reached assistive tech as an
+    // anonymous disabled panel — the explanation of the numbers on screen was
+    // available to a mouse and to nothing else.
+    return Semantics(
+      button: true,
+      enabled: true,
+      label: 'What is this? $title',
+      child: Tooltip(
+        message: 'What is this?',
+        child: InkWell(
+          onTap: () => showScienceInfoDialog(context, title, body),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+          child: Container(
+            constraints: const BoxConstraints(
+              minWidth: NightshadeTokens.minTouchTarget,
+              minHeight: NightshadeTokens.minTouchTarget,
+            ),
+            alignment: Alignment.center,
+            child: Icon(
+              LucideIcons.info,
+              size: NightshadeTokens.iconXs,
+              color: colors.textMuted,
+            ),
           ),
         ),
       ),

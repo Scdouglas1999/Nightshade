@@ -46,6 +46,16 @@ Future<HarnessHandle> _pump(
   return handle;
 }
 
+/// The a11y pass wraps each dropdown item's child in Semantics; unwrap to the
+/// Text the item actually renders.
+String? _itemLabel(DropdownMenuItem<String> item) {
+  Widget w = item.child;
+  while (w is Semantics && w.child != null) {
+    w = w.child!;
+  }
+  return w is Text ? w.data : null;
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -54,9 +64,7 @@ void main() {
     final picker = tester.widget<DropdownButton<String>>(
       find.byType(DropdownButton<String>).first,
     );
-    final labels = [
-      for (final item in picker.items!) (item.child as Text).data,
-    ];
+    final labels = [for (final item in picker.items!) _itemLabel(item)];
     expect(
       labels.any((l) => l != null && l.contains('(beta)')),
       isTrue,

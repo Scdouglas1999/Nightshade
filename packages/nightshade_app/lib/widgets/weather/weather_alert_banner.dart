@@ -165,89 +165,95 @@ class _BannerContent extends StatelessWidget {
     final chevronColor =
         isCritical ? colors.textMuted : Colors.white.withValues(alpha: 0.7);
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: isCritical
-            ? BoxDecoration(
-                color: accentColor.withValues(alpha: 0.20),
-                border: Border(
-                  top: BorderSide(color: accentColor, width: 1.8),
-                  bottom: BorderSide(
-                    color: accentColor.withValues(alpha: 0.7),
+    // The tap lived on a bare gesture wrapper, which publishes an action
+    // and no role, so assistive tech read a live control as an inert
+    // disabled panel. The flags are only published when given.
+    return Semantics(
+        button: true,
+        enabled: true,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: isCritical
+                ? BoxDecoration(
+                    color: accentColor.withValues(alpha: 0.20),
+                    border: Border(
+                      top: BorderSide(color: accentColor, width: 1.8),
+                      bottom: BorderSide(
+                        color: accentColor.withValues(alpha: 0.7),
+                      ),
+                    ),
+                  )
+                : BoxDecoration(
+                    color: accentColor,
+                    boxShadow: [
+                      BoxShadow(
+                        color: accentColor.withValues(alpha: 0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  size: 20,
+                  color: onAccent,
+                ),
+
+                const SizedBox(width: 12),
+
+                // Title and message
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: titleColor,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        message,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: messageColor,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
                 ),
-              )
-            : BoxDecoration(
-                color: accentColor,
-                boxShadow: [
-                  BoxShadow(
-                    color: accentColor.withValues(alpha: 0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              size: 20,
-              color: onAccent,
+
+                const SizedBox(width: 12),
+
+                // Snooze button
+                _SnoozeButton(
+                  onPressed: onSnooze,
+                  inverted: isCritical,
+                ),
+
+                const SizedBox(width: 8),
+
+                // Navigate arrow
+                Icon(
+                  LucideIcons.chevronRight,
+                  size: 18,
+                  color: chevronColor,
+                ),
+              ],
             ),
-
-            const SizedBox(width: 12),
-
-            // Title and message
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: titleColor,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    message,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: messageColor,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(width: 12),
-
-            // Snooze button
-            _SnoozeButton(
-              onPressed: onSnooze,
-              inverted: isCritical,
-            ),
-
-            const SizedBox(width: 8),
-
-            // Navigate arrow
-            Icon(
-              LucideIcons.chevronRight,
-              size: 18,
-              color: chevronColor,
-            ),
-          ],
-        ),
-      ),
-    );
+          ),
+        ));
   }
 }
 
@@ -273,32 +279,38 @@ class _SnoozeButton extends StatelessWidget {
     return Material(
       color: background,
       borderRadius: BorderRadius.circular(4),
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(4),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                LucideIcons.bellOff,
-                size: 12,
-                color: foreground,
+      // The tap lived on a bare gesture wrapper, which publishes an action
+      // and no role, so assistive tech read a live control as an inert
+      // disabled panel. The flags are only published when given.
+      child: Semantics(
+          button: true,
+          enabled: true,
+          child: InkWell(
+            onTap: onPressed,
+            borderRadius: BorderRadius.circular(4),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    LucideIcons.bellOff,
+                    size: 12,
+                    color: foreground,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Snooze',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: foreground,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 4),
-              Text(
-                'Snooze',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: foreground,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+            ),
+          )),
     );
   }
 }
