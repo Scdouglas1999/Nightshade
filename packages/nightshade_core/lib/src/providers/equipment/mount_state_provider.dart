@@ -193,6 +193,7 @@ class MountStateNotifier extends StateNotifier<MountState>
     state = state.copyWith(canSetTrackingRate: canSet);
   }
 
+  @override
   void setError(Object error) {
     state = state.copyWith(
       connectionState: DeviceConnectionState.error,

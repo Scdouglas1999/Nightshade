@@ -148,6 +148,7 @@ class RotatorStateNotifier extends StateNotifier<RotatorState>
     state = state.copyWith(isReversed: reversed);
   }
 
+  @override
   void setError(Object error) {
     state = state.copyWith(
       connectionState: DeviceConnectionState.error,

@@ -155,6 +155,7 @@ class FocuserStateNotifier extends StateNotifier<FocuserState>
     state = state.copyWith(isMoving: moving);
   }
 
+  @override
   void setError(Object error) {
     state = state.copyWith(
       connectionState: DeviceConnectionState.error,

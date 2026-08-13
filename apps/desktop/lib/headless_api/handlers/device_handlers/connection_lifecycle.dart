@@ -408,63 +408,15 @@ extension DeviceConnectionHandlers on DeviceHandlers {
   /// Reads the deviceId currently held by the matching equipment
   /// StateNotifier. Used by the disconnect endpoint to verify that the
   /// caller is asking to disconnect the device that is actually connected.
-  String? _connectedDeviceIdFor(DeviceType type) {
-    switch (type) {
-      case DeviceType.camera:
-        return container.read(cameraStateProvider).deviceId;
-      case DeviceType.mount:
-        return container.read(mountStateProvider).deviceId;
-      case DeviceType.focuser:
-        return container.read(focuserStateProvider).deviceId;
-      case DeviceType.filterWheel:
-        return container.read(filterWheelStateProvider).deviceId;
-      case DeviceType.guider:
-        return container.read(guiderStateProvider).deviceId;
-      case DeviceType.rotator:
-        return container.read(rotatorStateProvider).deviceId;
-      case DeviceType.dome:
-        return container.read(domeStateProvider).deviceId;
-      case DeviceType.weather:
-        return container.read(weatherStateProvider).deviceId;
-      case DeviceType.safetyMonitor:
-        return container.read(safetyMonitorStateProvider).deviceId;
-      case DeviceType.coverCalibrator:
-        return container.read(coverCalibratorStateProvider).deviceId;
-      case DeviceType.switch_:
-        return container.read(switchStateProvider).deviceId;
-    }
-  }
+  String? _connectedDeviceIdFor(DeviceType type) =>
+      readDeviceSlot(container, type).deviceId;
 
   /// Reads the current [DeviceConnectionState] held by the matching equipment
   /// StateNotifier. Used by the connect endpoint to short-circuit a redundant
   /// connect (idempotency) when the requested device is already connected or
   /// mid-connect.
-  DeviceConnectionState _connectionStateFor(DeviceType type) {
-    switch (type) {
-      case DeviceType.camera:
-        return container.read(cameraStateProvider).connectionState;
-      case DeviceType.mount:
-        return container.read(mountStateProvider).connectionState;
-      case DeviceType.focuser:
-        return container.read(focuserStateProvider).connectionState;
-      case DeviceType.filterWheel:
-        return container.read(filterWheelStateProvider).connectionState;
-      case DeviceType.guider:
-        return container.read(guiderStateProvider).connectionState;
-      case DeviceType.rotator:
-        return container.read(rotatorStateProvider).connectionState;
-      case DeviceType.dome:
-        return container.read(domeStateProvider).connectionState;
-      case DeviceType.weather:
-        return container.read(weatherStateProvider).connectionState;
-      case DeviceType.safetyMonitor:
-        return container.read(safetyMonitorStateProvider).connectionState;
-      case DeviceType.coverCalibrator:
-        return container.read(coverCalibratorStateProvider).connectionState;
-      case DeviceType.switch_:
-        return container.read(switchStateProvider).connectionState;
-    }
-  }
+  DeviceConnectionState _connectionStateFor(DeviceType type) =>
+      readDeviceSlot(container, type).connectionState;
 
   /// Strips the leading `Exception: ` Dart prepends so the wire message
   /// reads cleanly to a remote operator. Internal type names and stacks

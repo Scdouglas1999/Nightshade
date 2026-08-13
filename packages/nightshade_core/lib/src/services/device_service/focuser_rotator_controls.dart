@@ -10,16 +10,8 @@ extension _DeviceServiceFocuserRotatorControls on DeviceService {
   /// An equipment profile is connection intent, not live command authority.
   /// Falling back to it while disconnected can send an autofocus command to a
   /// stale device on the current backend.
-  Future<String?> _getCameraDeviceId() async {
-    final cameraState = _ref.read(cameraStateProvider);
-    if (cameraState.connectionState == DeviceConnectionState.connected &&
-        cameraState.deviceId != null &&
-        cameraState.deviceId!.isNotEmpty) {
-      return cameraState.deviceId;
-    }
-
-    return null;
-  }
+  Future<String?> _getCameraDeviceId() async =>
+      _connectedDeviceIdFor(DeviceType.camera);
 
   // ===========================================================================
   // Focuser Control
@@ -27,22 +19,11 @@ extension _DeviceServiceFocuserRotatorControls on DeviceService {
 
   /// Get the connected focuser device ID. Active-profile IDs are deliberately
   /// not used here; only the connected state has authority to move hardware.
-  Future<String?> _getFocuserDeviceId() async {
-    final focuserState = _ref.read(focuserStateProvider);
-    if (focuserState.connectionState == DeviceConnectionState.connected &&
-        focuserState.deviceId != null &&
-        focuserState.deviceId!.isNotEmpty) {
-      return focuserState.deviceId;
-    }
+  Future<String?> _getFocuserDeviceId() async =>
+      _connectedDeviceIdFor(DeviceType.focuser);
 
-    return null;
-  }
-
-  bool _isStillConnectedToFocuser(String deviceId) {
-    final state = _ref.read(focuserStateProvider);
-    return state.connectionState == DeviceConnectionState.connected &&
-        state.deviceId == deviceId;
-  }
+  bool _isStillConnectedToFocuser(String deviceId) =>
+      _isStillConnectedTo(DeviceType.focuser, deviceId);
 
   void _validateFocuserMoveAdmission({bool requireAbsolute = false}) {
     final state = _ref.read(focuserStateProvider);
@@ -311,22 +292,11 @@ extension _DeviceServiceFocuserRotatorControls on DeviceService {
 
   /// Get the connected rotator device ID. Active-profile IDs are deliberately
   /// excluded because they describe intended equipment, not a live connection.
-  Future<String?> _getRotatorDeviceId() async {
-    final rotatorState = _ref.read(rotatorStateProvider);
-    if (rotatorState.connectionState == DeviceConnectionState.connected &&
-        rotatorState.deviceId != null &&
-        rotatorState.deviceId!.isNotEmpty) {
-      return rotatorState.deviceId;
-    }
+  Future<String?> _getRotatorDeviceId() async =>
+      _connectedDeviceIdFor(DeviceType.rotator);
 
-    return null;
-  }
-
-  bool _isStillConnectedToRotator(String deviceId) {
-    final state = _ref.read(rotatorStateProvider);
-    return state.connectionState == DeviceConnectionState.connected &&
-        state.deviceId == deviceId;
-  }
+  bool _isStillConnectedToRotator(String deviceId) =>
+      _isStillConnectedTo(DeviceType.rotator, deviceId);
 
   Future<RotatorCapabilities?> _getRotatorCapabilities(String deviceId) async {
     try {

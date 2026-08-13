@@ -24,7 +24,7 @@ import '../utils/utc_timestamp.dart';
 import 'database_provider.dart';
 import 'backend_provider.dart';
 import 'equipment_provider.dart';
-import 'equipment/device_connection_notifier.dart';
+import 'equipment/device_type_registry.dart';
 import 'framing_provider.dart';
 import 'imaging_provider.dart' show exposureSettingsProvider;
 import 'observing_list_provider.dart'
@@ -494,7 +494,7 @@ Future<void> _applyGuidingEvent(
 }) async {
   switch (event.eventType) {
     case 'Connected':
-      final notifier = _readDeviceNotifier(reader, DeviceType.guider);
+      final notifier = readDeviceConnectionNotifier(reader, DeviceType.guider);
       if (!_isDeviceAlreadyConnected(
         reader,
         DeviceType.guider,
@@ -505,7 +505,7 @@ Future<void> _applyGuidingEvent(
       notifier.setConnected();
       break;
     case 'Disconnected':
-      _readDeviceNotifier(reader, DeviceType.guider).setDisconnected();
+      readDeviceConnectionNotifier(reader, DeviceType.guider).setDisconnected();
       break;
     case 'GuidingStarted':
     case 'GuidingStopped':
@@ -673,20 +673,22 @@ void _applyEquipmentMutationFromHost(
   final deviceId = data['deviceId'] as String? ?? '';
   final deviceName = data['deviceName'] as String? ?? deviceId;
 
-  final parsed = deviceTypeStr == null ? null : _parseDeviceType(deviceTypeStr);
+  final parsed = deviceTypeStr == null
+      ? null
+      : deviceTypeFromWireName(deviceTypeStr);
   if (parsed == null) {
     return;
   }
 
   switch (action) {
     case HostMutationAction.connected:
-      final notifier = _readDeviceNotifier(reader, parsed);
+      final notifier = readDeviceConnectionNotifier(reader, parsed);
       if (!_isDeviceAlreadyConnected(reader, parsed, deviceId)) {
         notifier.setConnecting(deviceId, deviceName);
       }
       notifier.setConnected();
     case HostMutationAction.disconnected:
-      _readDeviceNotifier(reader, parsed).setDisconnected();
+      readDeviceConnectionNotifier(reader, parsed).setDisconnected();
     default:
       break;
   }
@@ -697,7 +699,7 @@ void _applyGuiderMutationFromHost(
   String action,
   Map<String, dynamic> data,
 ) {
-  final notifier = _readDeviceNotifier(reader, DeviceType.guider);
+  final notifier = readDeviceConnectionNotifier(reader, DeviceType.guider);
   switch (action) {
     case HostMutationAction.connected:
       if (!_isDeviceAlreadyConnected(
@@ -1090,12 +1092,12 @@ void _applyDeviceDisconnectedFromSyncPayload(
     return;
   }
 
-  final parsed = _parseDeviceType(deviceType);
+  final parsed = deviceTypeFromWireName(deviceType);
   if (parsed == null) {
     return;
   }
 
-  _readDeviceNotifier(reader, parsed).setDisconnected();
+  readDeviceConnectionNotifier(reader, parsed).setDisconnected();
 }
 
 void _applyConnectingDevice(
@@ -1108,12 +1110,12 @@ void _applyConnectingDevice(
     return;
   }
 
-  final parsed = _parseDeviceType(deviceType);
+  final parsed = deviceTypeFromWireName(deviceType);
   if (parsed == null) {
     return;
   }
 
-  final notifier = _readDeviceNotifier(reader, parsed);
+  final notifier = readDeviceConnectionNotifier(reader, parsed);
   if (!_isDeviceAlreadyConnected(reader, parsed, deviceId)) {
     notifier.setConnecting(deviceId, deviceName ?? deviceId);
   }
@@ -1129,80 +1131,16 @@ void _applyConnectedDeviceFromPayload(
     return;
   }
 
-  final parsed = _parseDeviceType(deviceType);
+  final parsed = deviceTypeFromWireName(deviceType);
   if (parsed == null) {
     return;
   }
 
-  final notifier = _readDeviceNotifier(reader, parsed);
+  final notifier = readDeviceConnectionNotifier(reader, parsed);
   if (!_isDeviceAlreadyConnected(reader, parsed, deviceId)) {
     notifier.setConnecting(deviceId, deviceName ?? deviceId);
   }
   notifier.setConnected();
-}
-
-DeviceType? _parseDeviceType(String raw) {
-  switch (raw.toLowerCase()) {
-    case 'camera':
-      return DeviceType.camera;
-    case 'mount':
-      return DeviceType.mount;
-    case 'focuser':
-      return DeviceType.focuser;
-    case 'filterwheel':
-    case 'filter wheel':
-      return DeviceType.filterWheel;
-    case 'guider':
-      return DeviceType.guider;
-    case 'rotator':
-      return DeviceType.rotator;
-    case 'dome':
-      return DeviceType.dome;
-    case 'weather':
-      return DeviceType.weather;
-    case 'safetymonitor':
-    case 'safety monitor':
-      return DeviceType.safetyMonitor;
-    case 'covercalibrator':
-    case 'cover calibrator':
-      return DeviceType.coverCalibrator;
-    case 'switch':
-    case 'switch_':
-      return DeviceType.switch_;
-    default:
-      return null;
-  }
-}
-
-DeviceConnectionNotifier _readDeviceNotifier(
-  Object reader,
-  DeviceType deviceType,
-) {
-  switch (deviceType) {
-    case DeviceType.camera:
-      return _read(reader, cameraStateProvider.notifier);
-    case DeviceType.mount:
-      return _read(reader, mountStateProvider.notifier);
-    case DeviceType.focuser:
-      return _read(reader, focuserStateProvider.notifier);
-    case DeviceType.filterWheel:
-      return _read(reader, filterWheelStateProvider.notifier);
-    case DeviceType.guider:
-      return _read(reader, guiderStateProvider.notifier);
-    case DeviceType.rotator:
-      return _read(reader, rotatorStateProvider.notifier);
-    case DeviceType.dome:
-      return _read(reader, domeStateProvider.notifier);
-    case DeviceType.weather:
-      return _read(reader, weatherStateProvider.notifier);
-    case DeviceType.safetyMonitor:
-      return _read(reader, safetyMonitorStateProvider.notifier);
-    case DeviceType.coverCalibrator:
-      return _read(reader, coverCalibratorStateProvider.notifier);
-    case DeviceType.switch_:
-      // Switch device now has a first-class connection notifier.
-      return _read(reader, switchStateProvider.notifier);
-  }
 }
 
 bool _isDeviceAlreadyConnected(
@@ -1210,7 +1148,7 @@ bool _isDeviceAlreadyConnected(
   DeviceType deviceType,
   String deviceId,
 ) {
-  final notifier = _readDeviceNotifier(reader, deviceType);
+  final notifier = readDeviceConnectionNotifier(reader, deviceType);
   return notifier.connectionState == DeviceConnectionState.connected &&
       notifier.deviceId == deviceId;
 }
@@ -1275,7 +1213,7 @@ Future<void> _hydratePhd2GuiderState(
   Object reader,
   NetworkBackend backend,
 ) async {
-  final notifier = _readDeviceNotifier(reader, DeviceType.guider);
+  final notifier = readDeviceConnectionNotifier(reader, DeviceType.guider);
   final priorState = _read(reader, guiderStateProvider);
 
   try {
@@ -1302,7 +1240,7 @@ Future<void> _hydratePhd2GuiderState(
 }
 
 void _applyConnectedDevice(Object reader, DeviceInfo device) {
-  final notifier = _readDeviceNotifier(reader, device.deviceType);
+  final notifier = readDeviceConnectionNotifier(reader, device.deviceType);
   if (!_isDeviceAlreadyConnected(reader, device.deviceType, device.id)) {
     notifier.setConnecting(device.id, device.name);
   }

@@ -26,52 +26,9 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
   int _assignGeneration = 0;
 
   bool _isDeviceConnected() {
-    switch (widget.deviceType) {
-      case DeviceType.camera:
-        final state = ref.read(cameraStateProvider);
-        return state.connectionState == DeviceConnectionState.connected &&
-            _deviceIdsMatch(state.deviceId, widget.device.activeDeviceId);
-      case DeviceType.mount:
-        final state = ref.read(mountStateProvider);
-        return state.connectionState == DeviceConnectionState.connected &&
-            _deviceIdsMatch(state.deviceId, widget.device.activeDeviceId);
-      case DeviceType.focuser:
-        final state = ref.read(focuserStateProvider);
-        return state.connectionState == DeviceConnectionState.connected &&
-            _deviceIdsMatch(state.deviceId, widget.device.activeDeviceId);
-      case DeviceType.filterWheel:
-        final state = ref.read(filterWheelStateProvider);
-        return state.connectionState == DeviceConnectionState.connected &&
-            _deviceIdsMatch(state.deviceId, widget.device.activeDeviceId);
-      case DeviceType.guider:
-        final state = ref.read(guiderStateProvider);
-        return state.connectionState == DeviceConnectionState.connected &&
-            _deviceIdsMatch(state.deviceId, widget.device.activeDeviceId);
-      case DeviceType.rotator:
-        final state = ref.read(rotatorStateProvider);
-        return state.connectionState == DeviceConnectionState.connected &&
-            _deviceIdsMatch(state.deviceId, widget.device.activeDeviceId);
-      case DeviceType.dome:
-        final state = ref.read(domeStateProvider);
-        return state.connectionState == DeviceConnectionState.connected &&
-            _deviceIdsMatch(state.deviceId, widget.device.activeDeviceId);
-      case DeviceType.weather:
-        final state = ref.read(weatherStateProvider);
-        return state.connectionState == DeviceConnectionState.connected &&
-            _deviceIdsMatch(state.deviceId, widget.device.activeDeviceId);
-      case DeviceType.safetyMonitor:
-        final state = ref.read(safetyMonitorStateProvider);
-        return state.connectionState == DeviceConnectionState.connected &&
-            _deviceIdsMatch(state.deviceId, widget.device.activeDeviceId);
-      case DeviceType.coverCalibrator:
-        final state = ref.read(coverCalibratorStateProvider);
-        return state.connectionState == DeviceConnectionState.connected &&
-            _deviceIdsMatch(state.deviceId, widget.device.activeDeviceId);
-      case DeviceType.switch_:
-        final state = ref.read(switchStateProvider);
-        return state.connectionState == DeviceConnectionState.connected &&
-            _deviceIdsMatch(state.deviceId, widget.device.activeDeviceId);
-    }
+    final slot = readDeviceSlot(ref, widget.deviceType);
+    return slot.connectionState == DeviceConnectionState.connected &&
+        _deviceIdsMatch(slot.deviceId, widget.device.activeDeviceId);
   }
 
   bool _deviceIdsMatch(String? connectedId, String discoveredId) {

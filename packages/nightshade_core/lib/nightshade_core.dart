@@ -245,6 +245,7 @@ export 'src/providers/camera_presets_provider.dart';
 export 'src/providers/weather_providers.dart';
 export 'src/providers/capability_provider.dart';
 export 'src/providers/equipment/device_capability_provider.dart';
+export 'src/providers/equipment/device_type_registry.dart';
 export 'src/providers/meridian_countdown_provider.dart';
 export 'src/providers/meridian_flip_provider.dart';
 export 'src/providers/flat_wizard_provider.dart';

@@ -424,67 +424,13 @@ extension _DeviceServiceEventHandling on DeviceService {
     // formatter rather than the bare id.
     final resolvedName =
         _discoveryNameFromId(deviceId) ?? _friendlyNameFromId(deviceId);
-    switch (deviceType.toLowerCase()) {
-      case 'camera':
-        final notifier = _ref.read(cameraStateProvider.notifier);
-        notifier.setConnecting(deviceId, resolvedName);
-        notifier.setConnected();
-        break;
-      case 'mount':
-        final notifier = _ref.read(mountStateProvider.notifier);
-        notifier.setConnecting(deviceId, resolvedName);
-        notifier.setConnected();
-        break;
-      case 'focuser':
-        final notifier = _ref.read(focuserStateProvider.notifier);
-        notifier.setConnecting(deviceId, resolvedName);
-        notifier.setConnected();
-        break;
-      case 'filterwheel':
-      case 'filter wheel':
-        final notifier = _ref.read(filterWheelStateProvider.notifier);
-        notifier.setConnecting(deviceId, resolvedName);
-        notifier.setConnected();
-        break;
-      case 'guider':
-        final notifier = _ref.read(guiderStateProvider.notifier);
-        notifier.setConnecting(deviceId, resolvedName);
-        notifier.setConnected();
-        break;
-      case 'rotator':
-        final notifier = _ref.read(rotatorStateProvider.notifier);
-        notifier.setConnecting(deviceId, resolvedName);
-        notifier.setConnected();
-        break;
-      case 'dome':
-        final notifier = _ref.read(domeStateProvider.notifier);
-        notifier.setConnecting(deviceId, resolvedName);
-        notifier.setConnected();
-        break;
-      case 'weather':
-        final notifier = _ref.read(weatherStateProvider.notifier);
-        notifier.setConnecting(deviceId, resolvedName);
-        notifier.setConnected();
-        break;
-      case 'safetymonitor':
-      case 'safety monitor':
-        final notifier = _ref.read(safetyMonitorStateProvider.notifier);
-        notifier.setConnecting(deviceId, resolvedName);
-        notifier.setConnected();
-        break;
-      case 'switch':
-      case 'switch_':
-        // Switch device now has a first-class state provider.
-        final notifier = _ref.read(switchStateProvider.notifier);
-        notifier.setConnecting(deviceId, resolvedName);
-        notifier.setConnected();
-        break;
-      case 'covercalibrator':
-      case 'cover calibrator':
-        final notifier = _ref.read(coverCalibratorStateProvider.notifier);
-        notifier.setConnecting(deviceId, resolvedName);
-        notifier.setConnected();
-        break;
+    // Unknown wire types leave every notifier untouched, exactly as the
+    // eleven-case switch this replaced did (it had no default branch).
+    final type = deviceTypeFromWireName(deviceType);
+    if (type != null) {
+      readDeviceConnectionNotifier(_ref, type)
+        ..setConnecting(deviceId, resolvedName)
+        ..setConnected();
     }
 
     // Reset the reconnect lifecycle for every device type, then drive
@@ -502,67 +448,12 @@ extension _DeviceServiceEventHandling on DeviceService {
     // id so the "Connecting…" label and card show the friendly name.
     final resolvedName =
         _discoveryNameFromId(deviceId) ?? _friendlyNameFromId(deviceId);
-    switch (deviceType.toLowerCase()) {
-      case 'camera':
-        _ref
-            .read(cameraStateProvider.notifier)
-            .setConnecting(deviceId, resolvedName);
-        break;
-      case 'mount':
-        _ref
-            .read(mountStateProvider.notifier)
-            .setConnecting(deviceId, resolvedName);
-        break;
-      case 'focuser':
-        _ref
-            .read(focuserStateProvider.notifier)
-            .setConnecting(deviceId, resolvedName);
-        break;
-      case 'filterwheel':
-      case 'filter wheel':
-        _ref
-            .read(filterWheelStateProvider.notifier)
-            .setConnecting(deviceId, resolvedName);
-        break;
-      case 'guider':
-        _ref
-            .read(guiderStateProvider.notifier)
-            .setConnecting(deviceId, resolvedName);
-        break;
-      case 'rotator':
-        _ref
-            .read(rotatorStateProvider.notifier)
-            .setConnecting(deviceId, resolvedName);
-        break;
-      case 'dome':
-        _ref
-            .read(domeStateProvider.notifier)
-            .setConnecting(deviceId, resolvedName);
-        break;
-      case 'weather':
-        _ref
-            .read(weatherStateProvider.notifier)
-            .setConnecting(deviceId, resolvedName);
-        break;
-      case 'safetymonitor':
-      case 'safety monitor':
-        _ref
-            .read(safetyMonitorStateProvider.notifier)
-            .setConnecting(deviceId, resolvedName);
-        break;
-      case 'switch':
-      case 'switch_':
-        // Switch device now has a first-class state provider.
-        _ref
-            .read(switchStateProvider.notifier)
-            .setConnecting(deviceId, resolvedName);
-        break;
-      case 'covercalibrator':
-      case 'cover calibrator':
-        _ref
-            .read(coverCalibratorStateProvider.notifier)
-            .setConnecting(deviceId, resolvedName);
-        break;
+    final type = deviceTypeFromWireName(deviceType);
+    if (type != null) {
+      readDeviceConnectionNotifier(
+        _ref,
+        type,
+      ).setConnecting(deviceId, resolvedName);
     }
   }
 
@@ -628,122 +519,53 @@ extension _DeviceServiceEventHandling on DeviceService {
       _handleCriticalDeviceDisconnect(deviceType, deviceId);
     }
 
-    // Update connection state based on device type
-    switch (deviceType.toLowerCase()) {
-      case 'camera':
-        // Only tear down camera-scoped polling state if the
-        // disconnect event is for the camera we're actually tracking.
-        // A stale event for a previously-disconnected camera must not
-        // kill polling/IDs for the CURRENT camera.
-        final trackedCameraId = _temperaturePoller.connectedCameraId;
-        if (trackedCameraId != null && trackedCameraId == deviceId) {
-          _temperaturePoller.stop();
-        } else if (trackedCameraId != null) {
-          _safeLog(
-            (logger) => logger.warning(
-              'Ignoring stale camera Disconnected for $deviceId; '
-              'currently-tracked camera is $trackedCameraId',
-              source: 'DeviceService',
-            ),
-            'camera-disconnect-guard',
-          );
-        }
-        // The notifier wipe is NOT device-id aware on its own — see
-        // [_disconnectEventOwnsSlot].
-        if (_disconnectEventOwnsSlot(DeviceType.camera, deviceId)) {
-          _ref.read(cameraStateProvider.notifier).setDisconnected();
-        }
-        // Attempt auto-reconnection for camera
-        unawaited(_attemptReconnect(DeviceType.camera, deviceId));
-        break;
+    // Update connection state based on device type. Unknown wire types fall
+    // out here having only cleared heartbeat health and logged, exactly as the
+    // eleven-case switch this replaced did (it had no default branch).
+    final type = deviceTypeFromWireName(deviceType);
+    if (type == null) return;
 
-      case 'mount':
-        if (_disconnectEventOwnsSlot(DeviceType.mount, deviceId)) {
-          _ref.read(mountStateProvider.notifier).setDisconnected();
-        }
-        unawaited(_attemptReconnect(DeviceType.mount, deviceId));
-        break;
-
-      case 'focuser':
-        if (_disconnectEventOwnsSlot(DeviceType.focuser, deviceId)) {
-          _focuserVerifyGeneration++;
-          _ref.read(focuserStateProvider.notifier).setDisconnected();
-        }
-        unawaited(_attemptReconnect(DeviceType.focuser, deviceId));
-        break;
-
-      case 'filterwheel':
-      case 'filter wheel':
-        _lastAppliedFilterOffsetByWheel.remove(deviceId);
-        if (_disconnectEventOwnsSlot(DeviceType.filterWheel, deviceId)) {
-          _filterWheelVerifyGeneration++;
-          _ref.read(filterWheelStateProvider.notifier).setDisconnected();
-        }
-        unawaited(_attemptReconnect(DeviceType.filterWheel, deviceId));
-        break;
-
-      case 'guider':
-        if (_disconnectEventOwnsSlot(DeviceType.guider, deviceId)) {
-          _ref.read(guiderStateProvider.notifier).setDisconnected();
-        }
-        unawaited(_attemptReconnect(DeviceType.guider, deviceId));
-        break;
-
-      case 'rotator':
-        if (_disconnectEventOwnsSlot(DeviceType.rotator, deviceId)) {
-          _rotatorVerifyGeneration++;
-          _ref.read(rotatorStateProvider.notifier).setDisconnected();
-        }
-        unawaited(_attemptReconnect(DeviceType.rotator, deviceId));
-        break;
-
-      case 'dome':
-        if (_disconnectEventOwnsSlot(DeviceType.dome, deviceId)) {
-          _ref.read(domeStateProvider.notifier).setDisconnected();
-        }
-        unawaited(_attemptReconnect(DeviceType.dome, deviceId));
-        break;
-
-      case 'weather':
-        if (_disconnectEventOwnsSlot(DeviceType.weather, deviceId)) {
-          _ref.read(weatherStateProvider.notifier).setDisconnected();
-        }
-        unawaited(_attemptReconnect(DeviceType.weather, deviceId));
-        break;
-
-      case 'safetymonitor':
-      case 'safety monitor':
-        if (_disconnectEventOwnsSlot(DeviceType.safetyMonitor, deviceId)) {
-          _ref.read(safetyMonitorStateProvider.notifier).setDisconnected();
-        }
-        unawaited(_attemptReconnect(DeviceType.safetyMonitor, deviceId));
-        break;
-
-      // Cover calibrator + switch cases. Previously these
-      // device types would never propagate a Disconnected event to the
-      // UI — cards stayed "connected" until app restart. Cover
-      // calibrator has a state provider; switch does not yet
-      // so we log loudly and surface a UI notification so the user
-      // knows the device is gone.
-      case 'covercalibrator':
-      case 'cover calibrator':
-        if (_disconnectEventOwnsSlot(DeviceType.coverCalibrator, deviceId)) {
-          _ref.read(coverCalibratorStateProvider.notifier).setDisconnected();
-        }
-        unawaited(_attemptReconnect(DeviceType.coverCalibrator, deviceId));
-        break;
-
-      case 'switch':
-      case 'switch_':
-        // Switch device now has a first-class state provider,
-        // so disconnects route through `setDisconnected` and the
-        // standard auto-reconnect path — same shape as safety monitor.
-        if (_disconnectEventOwnsSlot(DeviceType.switch_, deviceId)) {
-          _ref.read(switchStateProvider.notifier).setDisconnected();
-        }
-        unawaited(_attemptReconnect(DeviceType.switch_, deviceId));
-        break;
+    if (type == DeviceType.camera) {
+      // Only tear down camera-scoped polling state if the
+      // disconnect event is for the camera we're actually tracking.
+      // A stale event for a previously-disconnected camera must not
+      // kill polling/IDs for the CURRENT camera.
+      final trackedCameraId = _temperaturePoller.connectedCameraId;
+      if (trackedCameraId != null && trackedCameraId == deviceId) {
+        _temperaturePoller.stop();
+      } else if (trackedCameraId != null) {
+        _safeLog(
+          (logger) => logger.warning(
+            'Ignoring stale camera Disconnected for $deviceId; '
+            'currently-tracked camera is $trackedCameraId',
+            source: 'DeviceService',
+          ),
+          'camera-disconnect-guard',
+        );
+      }
+    } else if (type == DeviceType.filterWheel) {
+      _lastAppliedFilterOffsetByWheel.remove(deviceId);
     }
+
+    // The notifier wipe is NOT device-id aware on its own — see
+    // [_disconnectEventOwnsSlot].
+    if (_disconnectEventOwnsSlot(type, deviceId)) {
+      // The three position-verified device types run a polling loop that must
+      // not keep publishing against a device that just went away; bumping the
+      // generation retires the in-flight verify.
+      switch (type) {
+        case DeviceType.focuser:
+          _focuserVerifyGeneration++;
+        case DeviceType.filterWheel:
+          _filterWheelVerifyGeneration++;
+        case DeviceType.rotator:
+          _rotatorVerifyGeneration++;
+        default:
+          break;
+      }
+      readDeviceConnectionNotifier(_ref, type).setDisconnected();
+    }
+    unawaited(_attemptReconnect(type, deviceId));
   }
 
   /// Handle a driver/heartbeat error event published from Rust.
@@ -794,56 +616,18 @@ extension _DeviceServiceEventHandling on DeviceService {
     final exception = Exception(
       fullMessage,
     ); // setError expects Object — wrap once.
-    final typeKey = (deviceType ?? '').toLowerCase();
-    switch (typeKey) {
-      case 'camera':
-        _ref.read(cameraStateProvider.notifier).setError(exception);
-        break;
-      case 'mount':
-        _ref.read(mountStateProvider.notifier).setError(exception);
-        break;
-      case 'focuser':
-        _ref.read(focuserStateProvider.notifier).setError(exception);
-        break;
-      case 'filterwheel':
-      case 'filter wheel':
-        _ref.read(filterWheelStateProvider.notifier).setError(exception);
-        break;
-      case 'guider':
-        _ref.read(guiderStateProvider.notifier).setError(exception);
-        break;
-      case 'rotator':
-        _ref.read(rotatorStateProvider.notifier).setError(exception);
-        break;
-      case 'dome':
-        _ref.read(domeStateProvider.notifier).setError(exception);
-        break;
-      case 'weather':
-        _ref.read(weatherStateProvider.notifier).setError(exception);
-        break;
-      case 'safetymonitor':
-      case 'safety monitor':
-        _ref.read(safetyMonitorStateProvider.notifier).setError(exception);
-        break;
-      case 'covercalibrator':
-      case 'cover calibrator':
-        _ref.read(coverCalibratorStateProvider.notifier).setError(exception);
-        break;
-      case 'switch':
-      case 'switch_':
-        // Switch device now has a first-class state provider,
-        // so driver errors surface in the equipment card subtitle.
-        _ref.read(switchStateProvider.notifier).setError(exception);
-        break;
-      default:
-        _safeLog(
-          (logger) => logger.warning(
-            'Error event for unknown device type "$deviceType"; '
-            'no state notifier updated. Message: $fullMessage',
-            source: 'DeviceService',
-          ),
-          'device-error-unknown-type',
-        );
+    final type = deviceTypeFromWireName(deviceType ?? '');
+    if (type == null) {
+      _safeLog(
+        (logger) => logger.warning(
+          'Error event for unknown device type "$deviceType"; '
+          'no state notifier updated. Message: $fullMessage',
+          source: 'DeviceService',
+        ),
+        'device-error-unknown-type',
+      );
+    } else {
+      readDeviceConnectionNotifier(_ref, type).setError(exception);
     }
 
     // Rate-limit the user-facing surface so a flapping device cannot flood it.

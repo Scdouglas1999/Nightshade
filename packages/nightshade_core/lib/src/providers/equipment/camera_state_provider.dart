@@ -185,6 +185,7 @@ class CameraStateNotifier extends StateNotifier<CameraStateSnapshot>
     );
   }
 
+  @override
   void setError(Object error) {
     state = state.copyWith(
       connectionState: DeviceConnectionState.error,

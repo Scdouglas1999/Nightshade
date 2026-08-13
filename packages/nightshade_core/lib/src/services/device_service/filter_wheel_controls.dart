@@ -7,22 +7,11 @@ extension _DeviceServiceFilterWheelControls on DeviceService {
 
   /// Get the connected filter wheel device ID. An active profile is connection
   /// intent, not permission to command disconnected hardware.
-  Future<String?> _getFilterWheelDeviceId() async {
-    final filterWheelState = _ref.read(filterWheelStateProvider);
-    if (filterWheelState.connectionState == DeviceConnectionState.connected &&
-        filterWheelState.deviceId != null &&
-        filterWheelState.deviceId!.isNotEmpty) {
-      return filterWheelState.deviceId;
-    }
+  Future<String?> _getFilterWheelDeviceId() async =>
+      _connectedDeviceIdFor(DeviceType.filterWheel);
 
-    return null;
-  }
-
-  bool _isStillConnectedToFilterWheel(String deviceId) {
-    final state = _ref.read(filterWheelStateProvider);
-    return state.connectionState == DeviceConnectionState.connected &&
-        state.deviceId == deviceId;
-  }
+  bool _isStillConnectedToFilterWheel(String deviceId) =>
+      _isStillConnectedTo(DeviceType.filterWheel, deviceId);
 
   /// Set filter wheel position
   ///

@@ -10,16 +10,7 @@ extension _DeviceServiceGuidingSequencerControls on DeviceService {
   /// A profile records configuration, not connection authority. Falling back
   /// to its guider id would dispatch commands to a stale/unopened driver after
   /// a disconnect or host/profile transition.
-  String? _getGuiderDeviceId() {
-    final guiderState = _ref.read(guiderStateProvider);
-    if (guiderState.connectionState == DeviceConnectionState.connected &&
-        guiderState.deviceId != null &&
-        guiderState.deviceId!.isNotEmpty) {
-      return guiderState.deviceId;
-    }
-
-    return null;
-  }
+  String? _getGuiderDeviceId() => _connectedDeviceIdFor(DeviceType.guider);
 
   /// Start guiding
   Future<void> _startGuiding({

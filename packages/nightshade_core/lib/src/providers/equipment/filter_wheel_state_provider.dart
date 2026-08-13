@@ -279,6 +279,7 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState>
     state = state.copyWith(isMoving: moving);
   }
 
+  @override
   void setError(Object error) {
     state = state.copyWith(
       connectionState: DeviceConnectionState.error,

@@ -180,6 +180,7 @@ class GuiderStateNotifier extends StateNotifier<GuiderState>
     state = state.copyWith(rmsRa: ra, rmsDec: dec, rmsTotal: total);
   }
 
+  @override
   void setError(Object error) {
     state = state.copyWith(
       connectionState: DeviceConnectionState.error,

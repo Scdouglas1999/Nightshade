@@ -139,6 +139,7 @@ class SafetyMonitorStateNotifier extends StateNotifier<SafetyMonitorState>
     state = state.copyWith(isSafe: isSafe, lastChecked: DateTime.now());
   }
 
+  @override
   void setError(Object error) {
     state = state.copyWith(
       connectionState: DeviceConnectionState.error,

@@ -151,6 +151,7 @@ class CoverCalibratorStateNotifier extends StateNotifier<CoverCalibratorState>
     state = state.copyWith(maxBrightness: maxBrightness);
   }
 
+  @override
   void setError(Object error) {
     state = state.copyWith(
       connectionState: DeviceConnectionState.error,

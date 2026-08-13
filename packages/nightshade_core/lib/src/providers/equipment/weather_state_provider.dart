@@ -160,6 +160,7 @@ class WeatherStateNotifier extends StateNotifier<WeatherState>
     );
   }
 
+  @override
   void setError(Object error) {
     state = state.copyWith(
       connectionState: DeviceConnectionState.error,

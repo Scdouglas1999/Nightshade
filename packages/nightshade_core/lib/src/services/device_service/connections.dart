@@ -1423,31 +1423,38 @@ extension _DeviceServiceConnections on DeviceService {
   /// deviceId currently held in [type]'s notifier slot, or `null` when the
   /// slot is empty. `setDisconnected()` resets the state object, so a
   /// non-null id here means a device still owns the slot.
-  String? _slotDeviceIdFor(DeviceType type) {
-    switch (type) {
-      case DeviceType.camera:
-        return _ref.read(cameraStateProvider).deviceId;
-      case DeviceType.mount:
-        return _ref.read(mountStateProvider).deviceId;
-      case DeviceType.focuser:
-        return _ref.read(focuserStateProvider).deviceId;
-      case DeviceType.filterWheel:
-        return _ref.read(filterWheelStateProvider).deviceId;
-      case DeviceType.guider:
-        return _ref.read(guiderStateProvider).deviceId;
-      case DeviceType.rotator:
-        return _ref.read(rotatorStateProvider).deviceId;
-      case DeviceType.dome:
-        return _ref.read(domeStateProvider).deviceId;
-      case DeviceType.weather:
-        return _ref.read(weatherStateProvider).deviceId;
-      case DeviceType.safetyMonitor:
-        return _ref.read(safetyMonitorStateProvider).deviceId;
-      case DeviceType.coverCalibrator:
-        return _ref.read(coverCalibratorStateProvider).deviceId;
-      case DeviceType.switch_:
-        return _ref.read(switchStateProvider).deviceId;
+  String? _slotDeviceIdFor(DeviceType type) =>
+      readDeviceSlot(_ref, type).deviceId;
+
+  /// The id of the device of [type] that is connected RIGHT NOW, or `null`.
+  ///
+  /// An equipment profile is connection intent, not live command authority:
+  /// falling back to it while disconnected can send a command to a stale device
+  /// on the current backend. So this reads only live connection state, and an
+  /// empty id counts as no device.
+  ///
+  /// The per-type `_getCameraDeviceId` / `_getFocuserDeviceId` /
+  /// `_getRotatorDeviceId` / `_getFilterWheelDeviceId` / `_getGuiderDeviceId`
+  /// wrappers all delegate here; four of them keep a `Future` return type
+  /// purely because ~20 call sites `await` them.
+  String? _connectedDeviceIdFor(DeviceType type) {
+    final slot = readDeviceSlot(_ref, type);
+    final deviceId = slot.deviceId;
+    if (slot.connectionState == DeviceConnectionState.connected &&
+        deviceId != null &&
+        deviceId.isNotEmpty) {
+      return deviceId;
     }
+    return null;
+  }
+
+  /// Whether [deviceId] is STILL the connected device of [type] — the guard a
+  /// long-running move/verify loop re-checks between polls, so a disconnect (or
+  /// a swap to a different device in the same slot) stops it.
+  bool _isStillConnectedTo(DeviceType type, String deviceId) {
+    final slot = readDeviceSlot(_ref, type);
+    return slot.connectionState == DeviceConnectionState.connected &&
+        slot.deviceId == deviceId;
   }
 
   /// Route to the type-specific disconnect so the displaced device gets its

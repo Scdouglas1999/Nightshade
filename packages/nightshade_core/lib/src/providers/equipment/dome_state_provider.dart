@@ -183,6 +183,7 @@ class DomeStateNotifier extends StateNotifier<DomeState>
     state = state.copyWith(isSlaved: slaved);
   }
 
+  @override
   void setError(Object error) {
     state = state.copyWith(
       connectionState: DeviceConnectionState.error,

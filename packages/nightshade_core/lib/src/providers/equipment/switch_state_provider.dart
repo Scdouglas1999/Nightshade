@@ -223,6 +223,7 @@ class SwitchStateNotifier extends StateNotifier<SwitchState>
     state = state.copyWith(channelValues: values, channelStates: states);
   }
 
+  @override
   void setError(Object error) {
     state = state.copyWith(
       connectionState: DeviceConnectionState.error,
