@@ -39,103 +39,9 @@ import '../sky_atlas/sky_atlas_service.dart';
 import 'constellation_client.dart';
 import 'constellation_models.dart';
 import 'constellation_hub_key.dart';
-
-/// What a contribution puts on the wire.
-///
-/// [sums] (the default) ships only the additive `.nst` accumulator the master
-/// integration already keeps — never the raw individual subframes. [subs] is a
-/// heavier, more-revealing opt-in: it streams the user's own light FITS to the
-/// hub ([ConstellationService.contributeRawSubs]), so it is only valid against
-/// a hub that advertises `acceptsRawSubs`. Wire values mirror the app-side
-/// persisted setting (`sums` | `subs`).
-enum ConstellationPrivacy { sums, subs }
-
-/// Resolved hub credentials for one Constellation hub.
-class ConstellationCredentials {
-  final Uri hubBaseUrl;
-  final String bearerToken;
-
-  const ConstellationCredentials({
-    required this.hubBaseUrl,
-    required this.bearerToken,
-  });
-}
-
-/// Builds a [ConstellationClient] from resolved credentials. Injectable so the
-/// service can be exercised with a `package:http/testing.dart` MockClient.
-typedef ConstellationClientFactory =
-    ConstellationClient Function(ConstellationCredentials credentials);
-
-/// Looks up shared-target listings from a hub. The browse payload is not pinned
-/// field-for-field by the contract (§5 leaves it to the hub), so it is fetched
-/// through this small seam rather than baked into [ConstellationClient]; the
-/// production impl issues a `GET /v1/targets` read.
-typedef SharedTargetBrowser =
-    Future<List<SharedTarget>> Function(ConstellationClient client);
-
-/// One user-captured light frame eligible for raw-subframe sharing.
-///
-/// [contributeRawSubs] streams exactly these FITS files. The resolver MUST
-/// return only ACCEPTED LIGHT frames the user captured on this host — never a
-/// community-pulled or calibration frame — so a SUBS contribution can only ever
-/// leak the user's own pixels.
-class RawSubframe {
-  /// Absolute path to the calibrated FITS light on the host.
-  final String filePath;
-
-  /// The local captured-image row id (provenance the hub records).
-  final int capturedImageId;
-
-  /// Exposure of this frame in seconds (provenance).
-  final double exposureSeconds;
-
-  const RawSubframe({
-    required this.filePath,
-    required this.capturedImageId,
-    required this.exposureSeconds,
-  });
-}
-
-/// Resolves the user's own accepted light frames for a target into raw
-/// subframes. Injected (the production wiring reads `ImagesDao
-/// .getImagesForTarget`, filtered to accepted lights) so the service stays
-/// DB-agnostic and testable. HOST-ONLY: a slave's local images table is empty,
-/// so this returns nothing there and the SUBS path is a no-op.
-typedef RawSubframeResolver = Future<List<RawSubframe>> Function(int targetId);
-
-/// Result of contributing one target's atlas tiles to the hub.
-class ContributionOutcome {
-  /// Tiles successfully accepted by the hub (tileId -> receipt).
-  final Map<int, ContributionReceipt> accepted;
-
-  /// Tiles the hub rejected on geometry/order mismatch (tileId -> reason).
-  final Map<int, String> rejected;
-
-  /// The TRUE per-call frame delta actually pushed this contribution — the sum
-  /// of `export.framesInDelta` across every accepted tile, NOT a tile count.
-  /// Co-imaging combined accounting reports THIS so the headline depth equals
-  /// what the fusion received (never a hardcoded +1 per accepted tile).
-  final int framesPushed;
-
-  /// The TRUE per-call integration-seconds delta actually pushed this
-  /// contribution — the sum of `export.integrationSeconds` across accepted
-  /// tiles. Pairs with [framesPushed] for honest combined accounting.
-  final double integrationSecondsPushed;
-
-  const ContributionOutcome({
-    required this.accepted,
-    required this.rejected,
-    this.framesPushed = 0,
-    this.integrationSecondsPushed = 0.0,
-  });
-
-  int get acceptedCount => accepted.length;
-  int get rejectedCount => rejected.length;
-
-  /// Total frames the hub reports across the tiles we just deepened.
-  int get totalFramesContributed =>
-      accepted.values.fold(0, (s, r) => s + r.totalFramesAfter);
-}
+part 'constellation_service/constellation_types.dart';
+part 'constellation_service/internals.dart';
+part 'constellation_service/defaults.dart';
 
 /// Client-side orchestration for Pillar C.
 class ConstellationService {
@@ -207,12 +113,6 @@ class ConstellationService {
   /// a deep target cannot accidentally fire thousands of large FITS pushes.
   static const int _maxRawSubframesPerContribute = 200;
 
-  /// Default age a cached swarm `.nst`/`.fits` blob may reach before
-  /// [sweepSwarmBlobs] reclaims it. A blob older than this that is not the live
-  /// overlay for a currently-pulled tile is stale working set, safe to delete
-  /// (a later pull re-fetches it).
-  static const Duration _defaultSwarmBlobMaxAge = Duration(days: 14);
-
   static const _logSource = 'ConstellationService';
 
   /// In-memory index of community tiles pulled for blending, keyed by tile id.
@@ -220,47 +120,6 @@ class ConstellationService {
 
   /// Targets the user has joined on the hub (targetId -> hub target row).
   final Map<int, SharedTarget> _joined = {};
-
-  static ConstellationClient _defaultClientFactory(
-    ConstellationCredentials c,
-  ) =>
-      ConstellationClient(hubBaseUrl: c.hubBaseUrl, bearerToken: c.bearerToken);
-
-  /// Default browse: `GET /v1/targets` returning a `targets` array. Tolerates a
-  /// bare array body too, so a minimal hub need only return the list.
-  static Future<List<SharedTarget>> _defaultBrowser(
-    ConstellationClient client,
-  ) async {
-    final raw = await client.browseRaw();
-    final list = raw is List
-        ? raw
-        : (raw is Map<String, dynamic>
-              ? (raw['targets'] as List? ?? const [])
-              : const []);
-    return list
-        .whereType<Map<String, dynamic>>()
-        .map(SharedTarget.fromJson)
-        .toList(growable: false);
-  }
-
-  /// Open a client for the configured hub, or null when no hub is configured.
-  /// Callers that require a hub use [_requireClient].
-  Future<ConstellationClient?> _client() async {
-    final creds = await _credentialsResolver();
-    if (creds == null) return null;
-    return _clientFactory(creds);
-  }
-
-  Future<ConstellationClient> _requireClient() async {
-    final client = await _client();
-    if (client == null) {
-      throw const ConstellationException(
-        'No Constellation hub is configured. Sign in to a hub first.',
-        kind: ConstellationErrorKind.auth,
-      );
-    }
-    return client;
-  }
 
   // --- Account / sign-in --------------------------------------------------
 
@@ -437,37 +296,6 @@ class ConstellationService {
       );
     }
   }
-
-  /// Persist (or clear) the join-rehydration row for [target] on the configured
-  /// hub. Best-effort: a missing DAO / no-hub / write failure is swallowed (the
-  /// in-memory join already took effect; only restart-survival is lost).
-  Future<void> _persistJoin(SharedTarget target, {required bool joined}) async {
-    final dao = _contributions;
-    if (dao == null) return;
-    try {
-      final creds = await _credentialsResolver();
-      if (creds == null) return;
-      await dao.upsertJoined(
-        constellationHubKey(creds.hubBaseUrl),
-        _joinRowKey(target.targetId),
-        joined: joined,
-        targetName: target.name,
-        targetRaDeg: target.raDeg,
-        targetDecDeg: target.decDeg,
-      );
-    } catch (e, st) {
-      _logger.debug(
-        'persistJoin(#${target.targetId}, joined:$joined) failed '
-        '(non-fatal): $e\n$st',
-        source: _logSource,
-      );
-    }
-  }
-
-  /// Map a hub target id to the NEGATIVE `tileId` its join-rehydration row uses,
-  /// keeping join rows in a key space disjoint from real (non-negative HEALPix)
-  /// tile receipts. The `-1` offset keeps target id 0 strictly negative.
-  static int _joinRowKey(int targetId) => -targetId - 1;
 
   /// Inverse of [_joinRowKey].
   static int _targetIdFromJoinRow(int rowTileId) => -rowTileId - 1;
@@ -795,28 +623,6 @@ class ConstellationService {
     } finally {
       client.close();
     }
-  }
-
-  /// The hub tile a target's raw subframes should be attributed to: the deepest
-  /// local tile in the cone, else the joined target's advertised active tile.
-  Future<int?> _representativeTileId({
-    required double centerRaDeg,
-    required double centerDecDeg,
-    required double radiusDeg,
-    required SharedTarget? joined,
-  }) async {
-    final tiles = await _localTilesInCone(
-      centerRaDeg: centerRaDeg,
-      centerDecDeg: centerDecDeg,
-      radiusDeg: radiusDeg,
-    );
-    if (tiles.isNotEmpty) {
-      tiles.sort(
-        (a, b) => b.integrationSeconds.compareTo(a.integrationSeconds),
-      );
-      return tiles.first.tileId;
-    }
-    return joined?.activeTileId;
   }
 
   // --- Pull / blend -------------------------------------------------------
@@ -1175,66 +981,6 @@ class ConstellationService {
     }
   }
 
-  // --- Internals ----------------------------------------------------------
-
-  /// Resolve a target's sky centre from the joined hub row, falling back to the
-  /// local target table when the hub did not advertise coordinates.
-  Future<({double raDeg, double decDeg})> _targetCenter(
-    int targetId,
-    SharedTarget? joined,
-  ) async {
-    if (joined != null && (joined.raDeg != 0.0 || joined.decDeg != 0.0)) {
-      return (raDeg: joined.raDeg, decDeg: joined.decDeg);
-    }
-    final locals = await _localTargetsResolver();
-    for (final t in locals) {
-      if (t.targetId == targetId) {
-        return (raDeg: t.raDeg, decDeg: t.decDeg);
-      }
-    }
-    throw ConstellationException(
-      'Cannot resolve sky coordinates for target #$targetId — '
-      'join it or add it to the local catalog first.',
-      kind: ConstellationErrorKind.notFound,
-    );
-  }
-
-  /// Local atlas tiles whose centre falls within [radiusDeg] of the cone centre.
-  ///
-  /// Delegates to [SkyAtlasService.tilesInCone], which prefilters on the indexed
-  /// Dec band (`idx_sky_tiles_dec`) before the exact great-circle test, so a
-  /// Contribute/Pull cone read costs scale with the cone — not the whole atlas
-  /// — instead of materializing every tile ever imaged and filtering in Dart.
-  Future<List<AtlasTileCoverage>> _localTilesInCone({
-    required double centerRaDeg,
-    required double centerDecDeg,
-    required double radiusDeg,
-  }) {
-    return _atlas.tilesInCone(
-      centerRaDeg: centerRaDeg,
-      centerDecDeg: centerDecDeg,
-      radiusDeg: radiusDeg,
-    );
-  }
-
-  Future<List<int>> _localTileIdsInCone({
-    required double centerRaDeg,
-    required double centerDecDeg,
-    required double radiusDeg,
-  }) async {
-    final tiles = await _localTilesInCone(
-      centerRaDeg: centerRaDeg,
-      centerDecDeg: centerDecDeg,
-      radiusDeg: radiusDeg,
-    );
-    return tiles.map((t) => t.tileId).toList(growable: false);
-  }
-
-  Future<String> _swarmDir() async {
-    final root = await _atlas.atlasRoot();
-    return '$root/swarm/$_order';
-  }
-
   // --- Retention ----------------------------------------------------------
 
   /// Reclaim accumulated swarm `.nst`/`.fits` pull/delta blobs under the atlas
@@ -1335,20 +1081,5 @@ class ConstellationService {
       source: _logSource,
     );
     return deleted;
-  }
-
-  /// Delete one swarm blob, swallowing a race where it vanished mid-sweep so one
-  /// unlucky file cannot sink the whole pass. Returns whether it was removed.
-  Future<bool> _deleteSwarmBlob(File file) async {
-    try {
-      await file.delete();
-      return true;
-    } on FileSystemException catch (e) {
-      _logger.warning(
-        'sweepSwarmBlobs: could not delete ${file.path}: ${e.message}',
-        source: _logSource,
-      );
-      return false;
-    }
   }
 }

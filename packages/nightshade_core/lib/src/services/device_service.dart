@@ -42,7 +42,12 @@ export '../models/backend/device_info.dart' show DeviceInfo;
 
 part 'device_service/event_handling.dart';
 part 'device_service/control_helpers.dart';
-part 'device_service/connections.dart';
+part 'device_service/connections/imaging_chain.dart';
+part 'device_service/connections/guider_and_rotator.dart';
+part 'device_service/connections/environment.dart';
+part 'device_service/connections/environment_codes.dart';
+part 'device_service/connections/switch_device.dart';
+part 'device_service/device_slots.dart';
 part 'device_service/profile_connections.dart';
 part 'device_service/mount_controls.dart';
 part 'device_service/focuser_rotator_controls.dart';
