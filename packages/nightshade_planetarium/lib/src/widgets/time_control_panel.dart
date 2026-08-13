@@ -48,7 +48,15 @@ class _TimeControlPanelState extends ConsumerState<TimeControlPanel> {
     86400.0, // +1 day/sec
   ];
 
-  int _currentSpeedIndex = 3; // Start at real time (1x)
+  /// Index of the 1x entry in [_speedMultipliers] — "play" in the wall-clock
+  /// sense, as opposed to any of the accelerated rates.
+  static const int _realTimeSpeedIndex = 3;
+
+  int _currentSpeedIndex = _realTimeSpeedIndex;
+
+  /// What play should go back to. Pausing an accelerated sky and pressing play
+  /// resumes that rate; pausing a live sky resumes the wall clock.
+  bool _resumeToRealTime = true;
 
   @override
   Widget build(BuildContext context) {
@@ -128,7 +136,7 @@ class _TimeControlPanelState extends ConsumerState<TimeControlPanel> {
             _buildTimeDisplay(timeState, txtColor),
             const SizedBox(width: 8),
             // Speed indicator
-            _buildSpeedIndicator(txtColor),
+            _buildSpeedIndicator(timeState, txtColor),
           ],
         ),
         const SizedBox(height: 8),
@@ -226,7 +234,27 @@ class _TimeControlPanelState extends ConsumerState<TimeControlPanel> {
     );
   }
 
-  Widget _buildSpeedIndicator(Color txtColor) {
+  Widget _buildSpeedIndicator(ObservationTimeState timeState, Color txtColor) {
+    // A held sky says so. Reporting "1×" while nothing moves is the same lie
+    // the pause button used to tell.
+    if (timeState.isPaused) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: Colors.orange.withValues(alpha: 0.2),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: const Text(
+          'PAUSED',
+          style: TextStyle(
+            color: Colors.orange,
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      );
+    }
+
     final speed = _speedMultipliers[_currentSpeedIndex];
     String speedText;
 
@@ -268,16 +296,16 @@ class _TimeControlPanelState extends ConsumerState<TimeControlPanel> {
     Color accent, {
     bool large = false,
   }) {
-    final isRealTime = timeState.isRealTime && _currentSpeedIndex == 3;
+    final running = !timeState.isPaused;
 
     return IconButton(
       icon: Icon(
-        isRealTime ? LucideIcons.pause : LucideIcons.play,
+        running ? LucideIcons.pause : LucideIcons.play,
         color: accent,
         size: large ? 24 : 18,
       ),
       onPressed: _togglePlayPause,
-      tooltip: isRealTime ? 'Pause' : 'Play',
+      tooltip: running ? 'Pause' : 'Play',
       padding: EdgeInsets.all(large ? 12 : 8),
       constraints: const BoxConstraints(),
       style: IconButton.styleFrom(
@@ -360,13 +388,16 @@ class _TimeControlPanelState extends ConsumerState<TimeControlPanel> {
     final notifier = ref.read(observationTimeProvider.notifier);
     final currentState = ref.read(observationTimeProvider);
 
-    if (currentState.isRealTime && _currentSpeedIndex == 3) {
-      // Currently real time - pause
-      notifier.setRealTime(false);
-    } else {
-      // Currently paused or accelerated - return to real time
-      setState(() => _currentSpeedIndex = 3);
+    if (!currentState.isPaused) {
+      _resumeToRealTime = currentState.isRealTime;
+      notifier.pause();
+      return;
+    }
+    if (_resumeToRealTime) {
+      setState(() => _currentSpeedIndex = _realTimeSpeedIndex);
       notifier.setRealTime(true);
+    } else {
+      notifier.setSpeedMultiplier(_speedMultipliers[_currentSpeedIndex]);
     }
   }
 

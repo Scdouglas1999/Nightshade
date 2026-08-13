@@ -101,6 +101,15 @@ class ObservationTimeState {
     this.speedMultiplier = 1.0,
   });
 
+  /// Simulated time is being held still: neither following the wall clock nor
+  /// advancing at a speed.
+  ///
+  /// Not the same as `!isRealTime` — the tick advances the state by
+  /// [speedMultiplier] seconds whenever the wall clock is not being followed,
+  /// so a "paused" state that only cleared [isRealTime] kept running at
+  /// exactly 1x.
+  bool get isPaused => !isRealTime && speedMultiplier == 0;
+
   ObservationTimeState copyWith({
     DateTime? time,
     bool? isRealTime,
@@ -136,6 +145,11 @@ class ObservationTimeNotifier extends StateNotifier<ObservationTimeState> {
 
   void setTime(DateTime time) {
     state = state.copyWith(time: time, isRealTime: false);
+  }
+
+  /// Hold simulated time at the current instant.
+  void pause() {
+    state = state.copyWith(isRealTime: false, speedMultiplier: 0);
   }
 
   void setRealTime(bool realTime) {

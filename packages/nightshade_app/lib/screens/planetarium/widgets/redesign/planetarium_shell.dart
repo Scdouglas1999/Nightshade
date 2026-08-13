@@ -380,6 +380,8 @@ extension _PlanetariumShell on _PlanetariumScreenState {
           colors: colors,
           controller: _searchController,
           focusNode: _searchFocusNode,
+          // The Search tab below renders these results already.
+          showResultSuggestions: false,
           onSearch: (query) {
             ref.read(objectSearchProvider.notifier).search(query);
           },

@@ -2,6 +2,15 @@
 
 part of '../sky_renderer.dart';
 
+/// Major-axis size, in canvas pixels, past which a deep-sky object stops being
+/// a marker and is drawn at its real extent.
+///
+/// Below it the glyph atlas is the right answer: one batched quad, floored at a
+/// legible minimum so faint small objects are still findable. Above it the
+/// square, uniformly-scaled sprite cannot say how big the thing is or which way
+/// it lies, and that is the question the planetarium exists to answer.
+const double _extendedDsoMinPx = 24.0;
+
 extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
   void _drawStars(Canvas canvas, Size size, Offset center, double scale) {
     // Ultra-minimal mode: ALL stars as raw points, no circles, no PSF.
@@ -506,11 +515,10 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
       );
       if (offset == null || !_isInView(offset, size)) continue;
 
-      final dsoSize = (dso.sizeArcMin ?? 5) / 60 * scale;
-      // Minimum 6px radius so every DSO is visible. Brighter = bigger.
-      // Magnitude scaling: mag 0 -> 20px, mag 6 -> 14px, mag 10 -> 10px, mag 14 -> 6px
-      final magSizeBonus = ((14.0 - dsoMag) / 14.0 * 14.0).clamp(0.0, 14.0);
-      var displaySize = dsoSize.clamp(6.0 + magSizeBonus, 40.0);
+      // The catalogued extent, in canvas pixels. Zero when the catalogue does
+      // not know the size, which keeps unmeasured objects on the marker path.
+      final majorPx = (dso.sizeArcMin ?? 0) / 60 * scale;
+      final minorPx = (dso.minorAxisArcMin ?? dso.sizeArcMin ?? 0) / 60 * scale;
 
       // Surface brightness opacity scaling
       final sb = _surfaceBrightness(dso);
@@ -519,23 +527,9 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
       // Effective alpha (include pop-in if animating)
       final effectiveAlpha = animating ? popinAlpha * sbOpacity : sbOpacity;
 
-      // Apply pop-in scale animation by shrinking the glyph (the old code did a
-      // canvas.scale around the DSO center; scaling displaySize is equivalent
-      // for a centered sprite and stays inside the single batched call).
-      if (animating) {
-        displaySize *= popinScale;
-      }
-
-      // Glyph scale: the glyph art fills the cell (with a small margin), so a
-      // scale of displaySize/glyphSize makes the visible glyph ~displaySize px,
-      // matching the old per-type shapes which drew within displaySize.
-      final glyphScale = (displaySize / glyphSize).clamp(0.01, 4.0);
-
       // Position angle rotation (galaxies/nebulae). Negative because the canvas
       // Y axis is flipped, matching the old `canvas.rotate(-paRad)`.
       final paRad = -((dso.positionAngle ?? 0) * SkyCanvasPainter._deg2rad);
-      final cosR = math.cos(paRad);
-      final sinR = math.sin(paRad);
 
       // Per-DSO tint: glyph is white, so the atlas color is the DSO's body
       // color with alpha = effectiveAlpha. The old shapes filled at ~0.5*alpha
@@ -546,25 +540,59 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
       final tint = _dsoTintColor(
         dso.type,
       ).withValues(alpha: effectiveAlpha.clamp(0.0, 1.0));
-      final argb = tint.toARGB32();
 
-      final srcRect = atlas.dsoSrcRect(dso.type);
+      // `displaySize` is the object's on-screen extent along its major axis;
+      // labels and the observed/listed/sequenced markers hang off it.
+      double displaySize;
 
-      SkyCanvasPainter._ensureAtlasScratch(dsoCount + 1);
-      _writeDsoTransform(
-        SkyCanvasPainter._atlasTransforms,
-        SkyCanvasPainter._atlasRects,
-        SkyCanvasPainter._atlasColors,
-        dsoCount,
-        glyphScale,
-        cosR,
-        sinR,
-        glyphHalf,
-        offset,
-        srcRect,
-        argb,
-      );
-      dsoCount++;
+      if (majorPx >= _extendedDsoMinPx) {
+        final popin = animating ? popinScale : 1.0;
+        _drawExtendedDso(
+          canvas,
+          offset,
+          majorPx * popin,
+          (minorPx <= 0 ? majorPx : minorPx) * popin,
+          paRad,
+          tint,
+        );
+        displaySize = majorPx * popin;
+      } else {
+        // Minimum 6px radius so every DSO is visible. Brighter = bigger.
+        // Magnitude scaling: mag 0 -> 20px, mag 6 -> 14px, mag 10 -> 10px,
+        // mag 14 -> 6px. A catalogue with no size falls back to 5 arcmin.
+        final magSizeBonus = ((14.0 - dsoMag) / 14.0 * 14.0).clamp(0.0, 14.0);
+        final markerPx = (dso.sizeArcMin ?? 5) / 60 * scale;
+        displaySize = markerPx.clamp(6.0 + magSizeBonus, _extendedDsoMinPx);
+
+        // Apply pop-in scale animation by shrinking the glyph (the old code did
+        // a canvas.scale around the DSO center; scaling displaySize is
+        // equivalent for a centered sprite and stays inside the single batched
+        // call).
+        if (animating) {
+          displaySize *= popinScale;
+        }
+
+        // Glyph scale: the glyph art fills the cell (with a small margin), so a
+        // scale of displaySize/glyphSize makes the visible glyph ~displaySize
+        // px, matching the old per-type shapes which drew within displaySize.
+        final glyphScale = (displaySize / glyphSize).clamp(0.01, 4.0);
+
+        SkyCanvasPainter._ensureAtlasScratch(dsoCount + 1);
+        _writeDsoTransform(
+          SkyCanvasPainter._atlasTransforms,
+          SkyCanvasPainter._atlasRects,
+          SkyCanvasPainter._atlasColors,
+          dsoCount,
+          glyphScale,
+          math.cos(paRad),
+          math.sin(paRad),
+          glyphHalf,
+          offset,
+          atlas.dsoSrcRect(dso.type),
+          tint.toARGB32(),
+        );
+        dsoCount++;
+      }
 
       // Draw label. For bright DSOs (mag < 10), ALWAYS show the label so users
       // can find imaging targets. For fainter DSOs, show labels when zoomed in
@@ -639,6 +667,50 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
         SkyCanvasPainter._dsoAtlasPaint,
       );
     }
+  }
+
+  /// Draw an object large enough to have a shape at its catalogued extent: a
+  /// soft body inside a thin boundary, on the major/minor axes, turned to its
+  /// position angle.
+  ///
+  /// These leave the batched atlas because `drawRawAtlas` can only place a
+  /// square sprite under a uniform scale — it has no way to express a 3:1
+  /// galaxy. Only a handful of objects clear [_extendedDsoMinPx] in any one
+  /// field, so the individual draws cost far less than the answer is worth.
+  ///
+  /// Position angle is measured from north, so the major axis runs along the
+  /// canvas Y axis before [paRad] turns it; [paRad] carries the same sign
+  /// convention as the glyph path's rotation.
+  void _drawExtendedDso(
+    Canvas canvas,
+    Offset offset,
+    double majorPx,
+    double minorPx,
+    double paRad,
+    Color tint,
+  ) {
+    final rect = Rect.fromCenter(
+      center: Offset.zero,
+      width: minorPx,
+      height: majorPx,
+    );
+    final alpha = tint.a;
+
+    canvas.save();
+    canvas.translate(offset.dx, offset.dy);
+    canvas.rotate(paRad);
+    canvas.drawOval(
+      rect,
+      Paint()..color = tint.withValues(alpha: (alpha * 0.16).clamp(0.0, 1.0)),
+    );
+    canvas.drawOval(
+      rect,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = tint.withValues(alpha: (alpha * 0.7).clamp(0.0, 1.0)),
+    );
+    canvas.restore();
   }
 
   /// Encode one DSO glyph into the atlas scratch buffers at slot [i].

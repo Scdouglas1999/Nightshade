@@ -651,6 +651,8 @@ extension _PlanetariumScreenLayouts on _PlanetariumScreenState {
                         SearchHeader(
                           colors: colors,
                           controller: _searchController,
+                          // The Search tab below renders these results already.
+                          showResultSuggestions: false,
                           onSearch: (query) {
                             ref
                                 .read(objectSearchProvider.notifier)

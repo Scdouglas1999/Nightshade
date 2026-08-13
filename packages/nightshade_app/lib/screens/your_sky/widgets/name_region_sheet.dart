@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +7,16 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// Which sky source seeds the region's centre + name.
 enum _RegionSource { target, custom }
+
+/// Characters a sexagesimal or decimal coordinate can contain.
+///
+/// The field used to be labelled "RA (degrees)" and accept digits only, while
+/// Framing prints the same quantity as `05h 35m 16s`, the planetarium readout
+/// as `0h 42m 44s`, and Framing's own RA input takes sexagesimal. Copying the
+/// RA you are looking at into a degrees-only box puts the region 79° from where
+/// you meant, silently.
+final _coordinateCharacters =
+    FilteringTextInputFormatter.allow(RegExp(r"""[0-9.:+\-hmsdHMSD°'" ]"""));
 
 /// "Name a region" sheet — the explicit control that makes the entire Your Sky
 /// region UX reachable by hand (alongside the automatic on-fold attach).
@@ -165,9 +173,11 @@ class _NameRegionSheetState extends ConsumerState<NameRegionSheet> {
                     child: NightshadeButton(
                       label: 'Cancel',
                       variant: ButtonVariant.outline,
-                      onPressed: _saving
-                          ? null
-                          : () => Navigator.of(context).maybePop(false),
+                      // Live even mid-write: the write is fire-and-forget from
+                      // here on (`_create` re-checks `mounted`), and a sheet
+                      // that can only be left by killing the app takes any
+                      // running sequence with it.
+                      onPressed: () => Navigator.of(context).pop(false),
                     ),
                   ),
                   const SizedBox(width: NightshadeTokens.spaceMd),
@@ -186,7 +196,7 @@ class _NameRegionSheetState extends ConsumerState<NameRegionSheet> {
         ),
       ),
     );
-    return PopScope(canPop: !_saving, child: sheet);
+    return sheet;
   }
 
   Widget _buildTargetPicker(
@@ -263,30 +273,27 @@ class _NameRegionSheetState extends ConsumerState<NameRegionSheet> {
             Expanded(
               child: NightshadeTextField(
                 controller: _raController,
-                label: 'RA (degrees)',
-                hint: '0–360',
+                label: 'RA',
+                hint: '05h 35m 16s or 83.82°',
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.\-]')),
-                ],
+                inputFormatters: [_coordinateCharacters],
               ),
             ),
             const SizedBox(width: NightshadeTokens.spaceMd),
             Expanded(
               child: NightshadeTextField(
                 controller: _decController,
-                label: 'Dec (degrees)',
-                hint: '-90–90',
+                label: 'Dec',
+                hint: "-05° 23' 24\" or -5.39",
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.\-]')),
-                ],
+                inputFormatters: [_coordinateCharacters],
               ),
             ),
           ],
         ),
+        _buildInterpretation(colors),
         const SizedBox(height: NightshadeTokens.spaceMd),
         NightshadeTextField(
           controller: _radiusController,
@@ -298,6 +305,47 @@ class _NameRegionSheetState extends ConsumerState<NameRegionSheet> {
           ],
         ),
       ],
+    );
+  }
+
+  /// The typed centre, or null when either field does not read as a coordinate.
+  ///
+  /// [CoordinateParser] is the app's one RA/Dec reader — the same one Framing
+  /// and the mount's slew box use — so `05h 35m 16s`, `5.588`, `83.82` and
+  /// `83.82°` all mean the same place here that they mean everywhere else.
+  ({double raDeg, double decDeg})? _parsedCentre() {
+    final raHours = CoordinateParser.parseRa(_raController.text);
+    final decDeg = CoordinateParser.parseDec(_decController.text);
+    if (raHours == null || decDeg == null) return null;
+    return (raDeg: raHours * 15.0, decDeg: decDeg);
+  }
+
+  /// Echo the interpretation back. Two conventions share these boxes, so the
+  /// only honest input is one that says which it read.
+  Widget _buildInterpretation(NightshadeColors colors) {
+    return ListenableBuilder(
+      listenable: Listenable.merge([_raController, _decController]),
+      builder: (context, _) {
+        final centre = _parsedCentre();
+        final text = centre == null
+            ? 'Enter a position in either convention — sexagesimal or decimal.'
+            : 'Reads as ${CoordinateParser.formatRaHms(centre.raDeg / 15.0)} '
+                '${CoordinateParser.formatDecDms(centre.decDeg)} '
+                '(${centre.raDeg.toStringAsFixed(3)}°, '
+                '${centre.decDeg.toStringAsFixed(3)}°)';
+        return Padding(
+          padding: const EdgeInsets.only(top: NightshadeTokens.spaceXs),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              text,
+              style: NightshadeTypography.captionSm.copyWith(
+                color: centre == null ? colors.textMuted : colors.textSecondary,
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -327,30 +375,22 @@ class _NameRegionSheetState extends ConsumerState<NameRegionSheet> {
       radiusDeg = 0.5;
       kind = 'target';
     } else {
-      final ra = double.tryParse(_raController.text.trim());
-      final dec = double.tryParse(_decController.text.trim());
+      final centre = _parsedCentre();
       final radius = double.tryParse(_radiusController.text.trim());
-      if (ra == null ||
-          !ra.isFinite ||
-          ra < 0 ||
-          ra > 360 ||
-          dec == null ||
-          !dec.isFinite ||
-          dec < -90 ||
-          dec > 90 ||
+      if (centre == null ||
           radius == null ||
           !radius.isFinite ||
           radius <= 0 ||
           radius > 180) {
         setState(() {
           _saving = false;
-          _error = 'Enter RA from 0–360°, Dec from -90–90°, and a radius '
-              'greater than 0° and no more than 180°.';
+          _error = 'Enter RA as 05h 35m 16s or 83.82°, Dec from -90° to +90°, '
+              'and a radius greater than 0° and no more than 180°.';
         });
         return;
       }
-      raDeg = ra;
-      decDeg = dec;
+      raDeg = centre.raDeg;
+      decDeg = centre.decDeg;
       radiusDeg = radius;
       kind = 'custom';
     }
@@ -379,7 +419,12 @@ class _NameRegionSheetState extends ConsumerState<NameRegionSheet> {
         return;
       }
       ref.invalidate(skyAtlasRegionsProvider);
-      unawaited(Navigator.of(context).maybePop(true));
+      // `pop`, not `maybePop`: this sheet used to guard itself with
+      // `PopScope(canPop: !_saving)` and then close itself with `maybePop`,
+      // which asks that very guard for permission — so a write that took
+      // longer than one frame left the region created and the app behind a
+      // modal barrier no key, button or click could lift.
+      Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
       setState(() {

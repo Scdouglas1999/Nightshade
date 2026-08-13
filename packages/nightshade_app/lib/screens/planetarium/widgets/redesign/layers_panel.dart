@@ -362,49 +362,56 @@ class _LayerSwitch extends StatelessWidget {
     final labelColor = !isEnabled
         ? colors.textMuted
         : (value ? colors.textPrimary : colors.textSecondary);
-    return InkWell(
-      onTap: isEnabled ? () => onChanged!(!value) : null,
-      child: Padding(
-        padding: EdgeInsets.only(
-          left: indented ? 32 : 16,
-          right: 16,
-          top: 4,
-          bottom: 4,
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize13,
-                      color: labelColor,
-                    ),
-                  ),
-                  if (subtitle != null)
+    // One node per row, the way SettingRow does it. Unmerged, the label and the
+    // switch were separate nodes: a screen reader was handed twelve inert
+    // "panel: Ecliptic [DISABLED]" entries with no on/off state, sitting beside
+    // two rows that happened to report properly — fourteen sky layers, two of
+    // them operable.
+    return MergeSemantics(
+      child: InkWell(
+        onTap: isEnabled ? () => onChanged!(!value) : null,
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: indented ? 32 : 16,
+            right: 16,
+            top: 4,
+            bottom: 4,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                     Text(
-                      subtitle!,
+                      label,
                       style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
-                        color: colors.textMuted,
+                        fontSize: NightshadeTypography.fontSize13,
+                        color: labelColor,
                       ),
                     ),
-                ],
+                    if (subtitle != null)
+                      Text(
+                        subtitle!,
+                        style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize11,
+                          color: colors.textMuted,
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ),
-            if (trailing != null)
-              trailing!
-            else
-              Switch(
-                value: isEnabled && value,
-                onChanged: isEnabled ? onChanged : null,
-                activeThumbColor: colors.accent,
-              ),
-          ],
+              if (trailing != null)
+                trailing!
+              else
+                Switch(
+                  value: isEnabled && value,
+                  onChanged: isEnabled ? onChanged : null,
+                  activeThumbColor: colors.accent,
+                ),
+            ],
+          ),
         ),
       ),
     );

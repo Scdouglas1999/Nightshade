@@ -40,8 +40,8 @@ Widget _surface({List<DbTarget> targets = const []}) {
 /// The error the custom-coordinate branch raises; reachable by hand, unlike the
 /// target branch which is now blocked before it can fail.
 const _rangeError =
-    'Enter RA from 0–360°, Dec from -90–90°, and a radius greater than 0° and '
-    'no more than 180°.';
+    'Enter RA as 05h 35m 16s or 83.82°, Dec from -90° to +90°, and a radius '
+    'greater than 0° and no more than 180°.';
 
 Future<void> _raiseRangeError(WidgetTester tester) async {
   await tester.tap(find.text('Custom RA/Dec'));
@@ -50,7 +50,7 @@ Future<void> _raiseRangeError(WidgetTester tester) async {
   await tester.pumpAndSettle();
   await tester.tap(find.text('Create region'));
   await tester.pumpAndSettle();
-  expect(find.textContaining('Enter RA from'), findsOneWidget);
+  expect(find.textContaining('Enter RA as'), findsOneWidget);
 }
 
 void main() {
@@ -90,7 +90,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text(_rangeError), findsNothing);
-    expect(find.textContaining('Enter RA from'), findsNothing);
+    expect(find.textContaining('Enter RA as'), findsNothing);
   });
 
   testWidgets('editing a field clears the error', (tester) async {
@@ -102,6 +102,6 @@ void main() {
     await tester.enterText(find.byType(TextField).at(0), '283.4');
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Enter RA from'), findsNothing);
+    expect(find.textContaining('Enter RA as'), findsNothing);
   });
 }

@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -71,6 +72,29 @@ class RegionDetailScreen extends ConsumerWidget {
     final colors = NightshadeColors.of(context);
     final regionAsync = ref.watch(atlasRegionProvider(regionId));
 
+    // Escape has to leave. This is an opaque full-screen route that hides the
+    // Plan Tonight tab bar, so its only exit was the 40 px arrow in the corner
+    // — no barrier to click away, no tabs to click back to. A FocusScope (not
+    // a bare Focus) so that a text field's unfocus cannot drop primary focus
+    // out of the bindings' subtree and kill the shortcut for the rest of the
+    // visit.
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): () =>
+            Navigator.of(context).maybePop(),
+      },
+      child: FocusScope(
+        autofocus: true,
+        child: _buildScaffold(context, colors, regionAsync),
+      ),
+    );
+  }
+
+  Widget _buildScaffold(
+    BuildContext context,
+    NightshadeColors colors,
+    AsyncValue<SkyAtlasRegionRow?> regionAsync,
+  ) {
     return Scaffold(
       backgroundColor: colors.background,
       appBar: AppBar(

@@ -20,12 +20,22 @@ class SearchHeader extends ConsumerStatefulWidget {
   /// non-null; otherwise this widget creates and disposes its own.
   final FocusNode? focusNode;
 
+  /// Whether the floating result list belongs to this header.
+  ///
+  /// False when the host already renders the same results underneath it — the
+  /// plan panel's Search tab does. Both drew at once: a narrow overlay painted
+  /// over a wider list, the front one clipped mid-row and the back one's rows
+  /// showing through the edges, with both reported to accessibility. The
+  /// coordinate branch has no equivalent below and still opens.
+  final bool showResultSuggestions;
+
   const SearchHeader({
     super.key,
     required this.colors,
     required this.controller,
     required this.onSearch,
     this.focusNode,
+    this.showResultSuggestions = true,
   });
 
   @override
@@ -127,6 +137,7 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
 
     // Don't show if query is too short (unless we have parsed coordinates)
     if (widget.controller.text.length < 2 && _parsedCoordinate == null) return;
+    if (!widget.showResultSuggestions && _parsedCoordinate == null) return;
 
     final overlay = Overlay.of(context);
     _overlayEntry = OverlayEntry(
