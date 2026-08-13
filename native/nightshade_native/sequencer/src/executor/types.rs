@@ -1,0 +1,705 @@
+//! The executor's public data types: the runtime configuration it is driven
+//! by ([`RuntimeConfig`], [`ObserverProfile`], [`DefectMapApplyState`]) and
+//! the command / state / progress / event vocabulary it speaks
+//! ([`ExecutorCommand`], [`ExecutorState`], [`SequenceProgress`],
+//! [`ExecutorEvent`]). Moved verbatim out of `executor/mod.rs`.
+
+use super::*;
+
+/// pre-loaded per-frame defect-map application state.
+///
+/// The bridge loads the `.ndm` file into memory once when the user toggles
+/// "Apply defect map" on (or sets the auto-apply default + a matching map
+/// exists). It then pushes this struct in via `ExecutorCommand::UpdateDefectMap`
+/// so each frame's correction is a `correct_u16_slice` call against the
+/// pre-loaded `Arc<DefectMap>` — no per-frame disk I/O, no per-frame
+/// allocation.
+///
+/// Held behind `Arc<RwLock<Option<DefectMapApplyState>>>` inside the
+/// ExecutionContext. `None` means "do not apply". Mutating the inner
+/// Option (toggle on / toggle off) does NOT require restarting the
+/// sequence.
+#[derive(Clone)]
+pub struct DefectMapApplyState {
+    /// Camera identifier this map applies to (`native:zwo:ASI2600MC`,
+    /// `ascom:ZWO.ASICamera2`, etc.). The capture path verifies that the
+    /// connected camera id matches before applying — a mismatch logs a
+    /// warning and skips the frame's correction (rather than mis-applying
+    /// a map built for a different sensor).
+    pub camera_id: String,
+    /// Shared pointer to the loaded defect map. Arc-wrapped so the
+    /// ExecutionContext clone shares the bitmap allocation across all
+    /// parallel branches and per-frame application is lock-free.
+    pub map: Arc<nightshade_imaging::defect_map::DefectMap>,
+    /// Replacement method — median (default), mean, or Gaussian-weighted.
+    pub method: nightshade_imaging::defect_map::CorrectionMethod,
+    /// Kernel diameter (3, 5, or 7).
+    pub kernel: nightshade_imaging::defect_map::KernelSize,
+    /// When true, the original uncorrected pixels are written to a
+    /// sibling `Raw/` directory under the save folder before the
+    /// in-place correction runs. Default false (the corrected frame
+    /// replaces the raw one).
+    pub save_original: bool,
+}
+
+impl std::fmt::Debug for DefectMapApplyState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DefectMapApplyState")
+            .field("camera_id", &self.camera_id)
+            .field("defective_pixels", &self.map.defective_count())
+            .field("dimensions", &(self.map.width, self.map.height))
+            .field("method", &self.method)
+            .field("kernel_diameter", &self.kernel.diameter())
+            .field("save_original", &self.save_original)
+            .finish()
+    }
+}
+
+/// Observer / equipment-identification payload pushed from Dart at
+/// sequencer start. Drives the FITS `OBSERVER`, `SITEELEV`, `TELESCOP`,
+/// `FOCALLEN`, `APTDIA`, `INSTRUME` keywords. All fields are `Option`
+/// because in headless / no-profile runs we'd rather emit an absent
+/// keyword than a sentinel — silent fallbacks are bugs.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ObserverProfile {
+    pub observer_name: Option<String>,
+    pub site_elevation_m: Option<f64>,
+    pub camera_make: Option<String>,
+    pub camera_model: Option<String>,
+    pub telescope_name: Option<String>,
+    pub telescope_focal_length_mm: Option<f64>,
+    pub telescope_aperture_mm: Option<f64>,
+}
+
+/// Runtime-mutable configuration shared between the executor task,
+/// instruction nodes, and the trigger-action handlers. these
+/// values used to be cloned at sequence load and any in-flight
+/// `UpdateDitherConfig`/`UpdateLocation`/`UpdateFilterOffsets` commands
+/// were silently dropped (`let _ = (pixels, ...)`). Stored in
+/// `Arc<RwLock<RuntimeConfig>>` so updates take effect on the next
+/// dither/capture/autofocus invocation without requiring a sequence reload.
+#[derive(Debug, Clone, Default)]
+pub struct RuntimeConfig {
+    /// Default dither configuration used by trigger-driven dithers
+    /// (`RecoveryAction::Dither` and standalone Dither nodes that resolve
+    /// against the runtime config). Per-exposure overrides (e.g.
+    /// `ExposureConfig::dither_pixels`) take precedence — this only sets the
+    /// fallback.
+    pub dither: crate::DitherConfig,
+    /// Autofocus configuration used by trigger-driven autofocus
+    /// (`RecoveryAction::Autofocus` fired by the HFR / temperature / focus-
+    /// drift / interval triggers). Seeded at `start()` from the sequence's
+    /// first Autofocus node so trigger-fired refocus uses the operator's real
+    /// tuning (step size, exposure, backlash, method, filter) instead of
+    /// library defaults. `None` means the sequence has no Autofocus node to
+    /// copy tuning from; the trigger path then falls back to defaults AND logs
+    /// a warning (never a silent fallback — "errors are a feature").
+    pub autofocus: Option<crate::AutofocusConfig>,
+    /// Observer location (degrees). `None` means location is not configured.
+    pub latitude: Option<f64>,
+    pub longitude: Option<f64>,
+    /// Filter -> focus offset (steps). Used by autofocus on filter change so
+    /// the focuser is moved by the configured offset.
+    pub filter_focus_offsets: HashMap<String, i32>,
+    /// Runtime safety-poll fail mode. Trigger monitor reads this every poll
+    /// so operator changes take effect without a sequence restart.
+    pub safety_fail_mode: SafetyFailMode,
+    /// Runtime cadence for safety/humidity device polling. The trigger loop
+    /// still ticks every second; only expensive safety/weather driver calls
+    /// are throttled by this interval.
+    pub safety_check_interval_secs: u64,
+    /// Architecture-unification 2026-06-07 (W1 native daylight gate): the
+    /// maximum Sun altitude (degrees above the horizon) at which an on-sky
+    /// LIGHT capture is permitted. Mirrors the Dart scheduler's
+    /// `maxSunAltitudeDegrees`. The structural native daylight START gate in
+    /// `instructions::execute_slew` / `execute_exposure` blocks a
+    /// slew-to-science-target or a LIGHT-frame exposure while the Sun is above
+    /// this altitude, so a raw sequence started via `api_sequencer_start`
+    /// (including a mosaic) cannot slew + expose lights in full daylight.
+    /// Flats/darks/bias/park and a parked rig are unaffected. Seeded into both
+    /// the `ExecutionContext` and the shared `TriggerState` at `start()`.
+    ///
+    /// Remediation 2026-06-09 (finding #2): this is now `Option<f64>` so the
+    /// `#[derive(Default)]` value is `None` ("never pushed") rather than a
+    /// fabricated `0.0`. The Dart side pushes its `SchedulerConfig
+    /// .maxSunAltitudeDegrees` via
+    /// [`SequenceExecutor::update_max_sun_altitude`]
+    /// ([`ExecutorCommand::UpdateMaxSunAltitude`]); when nothing was pushed the
+    /// seed at `start()` resolves `None` (and any non-finite value) to
+    /// [`crate::instructions::DEFAULT_MAX_SUN_ALTITUDE_DEGREES`] (-12°), so the
+    /// native gate is never weaker than the Dart W1 gate it backstops.
+    pub max_sun_altitude_degrees: Option<f64>,
+    /// Architecture-unification 2026-06-05 (Subsystem 2 step 3 — stale-verdict
+    /// observability): how long (seconds) a pushed `Some(true)` (UNSAFE) Dart
+    /// weather verdict may go un-refreshed before the safety poll emits a loud
+    /// "verdict feed stale; holding paused fail-closed" warning. The unsafe
+    /// verdict is NEVER auto-cleared on staleness — this only governs WHEN the
+    /// indefinite hold stops being silent. `0` falls back to
+    /// [`DEFAULT_WEATHER_VERDICT_STALENESS_SECS`]; otherwise clamped to a sane
+    /// floor so a misconfiguration cannot make every tick warn.
+    pub weather_verdict_staleness_secs: u64,
+    /// user override for the standard `AutofocusInterval`
+    /// trigger's `every_n_frames`. The Rust default is 25 frames, which is
+    /// wildly wrong for both very-short (5 s) and very-long (5 min) subs —
+    /// the user must be able to tune this from the equipment profile or
+    /// sequence-level settings. `None` means "use the seeded default";
+    /// `Some(n)` overrides the trigger's `every_n_frames` field on the next
+    /// trigger reload.
+    pub autofocus_interval_frames: Option<u32>,
+    /// Image Grading: global default image-grading thresholds.
+    /// Applied to every TakeExposure node that does NOT carry its own
+    /// `quality_check`. `None` => grading disabled globally. The Dart UI
+    /// surfaces this via the new image-grading settings page.
+    pub default_quality_check: Option<crate::quality::ImageQualityCheck>,
+    /// Image Grading: where rejected frames go.
+    ///
+    /// `None` => use `<save_path>/Reject/` (created on first reject).
+    /// `Some(path)` => use the explicit path (resolves relative to the
+    /// run's save_path; absolute paths are honoured verbatim). When the
+    /// resolved reject folder equals the save_path, validation flags it
+    /// as a warning (mixing accepted + rejected defeats the purpose).
+    pub reject_folder_path: Option<String>,
+    /// observer / equipment identification pushed at start by Dart.
+    /// Used to populate FITS `OBSERVER`, `SITEELEV`, `TELESCOP`, `FOCALLEN`,
+    /// `APTDIA`, `INSTRUME` keywords. Default is all-None (empty profile)
+    /// so frames captured without a configured profile honestly emit no
+    /// observer / telescope keywords.
+    pub observer_profile: ObserverProfile,
+    /// Recovery Mode — user-tunable defaults consumed on every
+    /// recovery entry. Updated mid-flight via `UpdateRecoveryConfig` so
+    /// the user can tweak the cadence/duration during a long session
+    /// (e.g. shortening the interval after the first cloud cell drifts
+    /// off the rig). Defaults follow SGP: 10 min interval, 90 min total.
+    pub recovery: crate::recovery::RecoveryRuntimeConfig,
+    /// global default sky-brightness adaptive exposure
+    /// config. Applied to every TakeExposure node that does NOT carry
+    /// its own `adaptive_exposure` block. `None` => no global default;
+    /// exposures use their nominal duration unless the node explicitly
+    /// opts in.
+    pub default_adaptive_exposure: Option<crate::scheduling::AdaptiveExposureConfig>,
+    /// per-frame defect map application state. `None`
+    /// means defect correction is disabled for the current camera /
+    /// session. Mirrored into `ExecutionContext::defect_map_apply` at
+    /// start time and on every `ExecutorCommand::UpdateDefectMap`.
+    pub defect_map_apply: Option<DefectMapApplyState>,
+    /// per-target carry-over integration to seed into the
+    /// `BudgetRegistry` at the start of the next run, mapped from
+    /// `target_id` → `filter` → `seconds_already_captured`.
+    ///
+    /// Drives the "Resume / Restart / Continue New" handoff dialog:
+    ///   * `Resume`     → populate with the prior session's per-filter
+    ///     totals; the budget tracker treats those
+    ///     frames as already-captured against the
+    ///     configured budget.
+    ///   * `Restart`    → populate with an explicit empty map for the
+    ///     target so any pre-existing checkpoint state
+    ///     is overwritten with zeros.
+    ///   * `ContinueNew` → no entry for the target; default behaviour
+    ///     (no carry-over, no zeroing) applies.
+    ///
+    /// Consumed exactly once at the top of the spawned executor task
+    /// during `start()`; the map is cloned and applied, then cleared
+    /// from the runtime config so a subsequent restart without an
+    /// explicit re-seed runs without stale carry-over.
+    pub pending_integration_carry_over: HashMap<String, HashMap<String, f64>>,
+    /// Whether a human operator is present and attending the rig.
+    ///
+    /// `false` (the `Default`) means UNATTENDED — the safe assumption, because
+    /// the unattended-night path is the one that can lose optics. This gates
+    /// how a non-auto-recoverable recovery escalation (e.g. a consecutive-
+    /// reject storm that resolves to `PauseForOperator`) is handled:
+    ///   * unattended (`false`) → the escalation is a SAFE ABANDONMENT: park
+    ///     the mount, close the cover, close the dome (the same sweep the
+    ///     give-up branch runs) and KEEP safety-class triggers protecting the
+    ///     rig. A frozen, dome-open, trigger-disabled rig is never left under
+    ///     the open sky until dawn.
+    ///   * attended (`true`) → the escalation is a passive operator Pause that
+    ///     leaves the rig in place so the present operator can inspect and
+    ///     resume.
+    ///
+    /// Read live on every recovery escalation so an operator declaring
+    /// presence mid-session takes effect on the next escalation without a
+    /// restart.
+    pub operator_present: bool,
+}
+
+/// Commands that can be sent to the executor
+#[derive(Debug, Clone)]
+pub enum ExecutorCommand {
+    Pause,
+    Resume,
+    Stop,
+    Skip,
+    SkipToNode(NodeId),
+    /// Recovery Mode — operator pressed "Try Now" on the dashboard
+    /// banner. Cancels the wait timer and forces an immediate retry of the
+    /// recovery attempt. No-op if the executor is not currently in
+    /// `Recovering`.
+    RecoveryTryNow,
+    /// Recovery Mode — operator pressed "Abort" on the dashboard
+    /// banner. Exits the recovery loop and transitions the executor to
+    /// `Failed`. No-op if the executor is not currently in `Recovering`.
+    RecoveryAbort,
+    /// Recovery Mode — push the user-tunable recovery defaults
+    /// (retry interval, max duration, stop-tracking flag, …) into the
+    /// executor's runtime config so the next recovery entry honours them.
+    UpdateRecoveryConfig {
+        config: crate::recovery::RecoveryRuntimeConfig,
+    },
+    /// Update safety-poll fail behaviour while a sequence is running.
+    UpdateSafetyFailMode {
+        mode: SafetyFailMode,
+    },
+    /// Update safety/humidity poll cadence while a sequence is running.
+    UpdateSafetyCheckInterval {
+        seconds: u64,
+    },
+    /// Update dither configuration at runtime (e.g., when user changes settings mid-sequence)
+    UpdateDitherConfig {
+        pixels: f64,
+        settle_pixels: f64,
+        settle_time: f64,
+        settle_timeout: f64,
+        ra_only: bool,
+    },
+    /// Update observer location at runtime
+    UpdateLocation {
+        latitude: Option<f64>,
+        longitude: Option<f64>,
+    },
+    /// Remediation 2026-06-09 (finding #2) — push the W1 native daylight gate's
+    /// maximum Sun altitude (the Dart `SchedulerConfig.maxSunAltitudeDegrees`)
+    /// into the running executor so the native gate threshold equals the Dart
+    /// one. Writes `RuntimeConfig::max_sun_altitude_degrees` AND patches the
+    /// live trigger state so the gate (read through the trigger-state handle)
+    /// picks it up on the next slew / exposure without a sequence reload.
+    UpdateMaxSunAltitude {
+        degrees: Option<f64>,
+    },
+    /// Update filter focus offsets at runtime (e.g., when equipment profile changes)
+    UpdateFilterOffsets {
+        offsets: std::collections::HashMap<String, i32>,
+    },
+    /// update the autofocus-interval cadence at runtime.
+    /// Patches the standard `AutofocusInterval` trigger's `every_n_frames`
+    /// so the next periodic-AF tick honours the new value; mid-flight tuning
+    /// from the equipment-profile UI works without a sequence reload.
+    UpdateAutofocusInterval {
+        every_n_frames: u32,
+    },
+    /// update the global default image-grading thresholds.
+    /// `None` disables grading globally (per-node `quality_check` on
+    /// TakeExposure still wins). Mirrors the Dart-side
+    /// `enableImageGrading` toggle on app settings.
+    UpdateDefaultQualityCheck {
+        check: Option<crate::quality::ImageQualityCheck>,
+    },
+    /// update the reject-folder override. `None` => default
+    /// `<save_path>/Reject/`. Mirrors the Dart `imageGradingRejectFolderPath`
+    /// setting.
+    UpdateRejectFolderPath {
+        path: Option<String>,
+    },
+    /// push observer / equipment identification (observer name,
+    /// camera make/model, telescope name/focal length/aperture, site
+    /// elevation) to the executor so the next FITS save stamps real
+    /// keywords (OBSERVER, TELESCOP, FOCALLEN, APTDIA, INSTRUME, SITEELEV).
+    UpdateObserverProfile {
+        profile: ObserverProfile,
+    },
+    /// push the latest sky-brightness reading from the
+    /// Dart `SkyBrightnessTracker` to the executor. The next adaptive-
+    /// exposure decision reads this value. Pass `mag = None` when the
+    /// tracker has lost lock so the adapter falls back to nominal
+    /// (and emits a structured `Unavailable` reason).
+    UpdateSkyBrightness {
+        mag: Option<f64>,
+    },
+    /// push the user's global default sky-brightness
+    /// adaptive exposure config. Per-node `ExposureConfig.adaptive_exposure`
+    /// still wins; this is the runtime fallback the next TakeExposure
+    /// node consults when it has none.
+    UpdateDefaultAdaptiveExposure {
+        config: Option<crate::scheduling::AdaptiveExposureConfig>,
+    },
+    /// Dart side has finished running a plugin node and is
+    /// returning the verdict to the Rust executor. The executor finds the
+    /// pending oneshot keyed by `node_id` and resolves it; the
+    /// `PluginNodeInstruction` blocking on that oneshot returns Success or
+    /// Failure based on the verdict.
+    ///
+    /// `node_id` MUST match the `node_id` from the corresponding
+    /// `ExecutorEvent::PluginNodeRequested`. Stray finishes (no pending
+    /// oneshot) are logged at warn and dropped — they're a bug on the
+    /// Dart side but we don't want to crash the executor over a
+    /// duplicate reply.
+    PluginNodeFinished {
+        node_id: NodeId,
+        success: bool,
+        /// Optional human-readable message surfaced in logs and on the
+        /// final progress event. Empty / `None` is the success case.
+        message: Option<String>,
+        /// Optional plugin-authored JSON payload emitted as the node's
+        /// final progress event (parsed as `serde_json::Value`; invalid
+        /// JSON is replaced with `null` and a warn line is logged).
+        structured_detail_json: Option<String>,
+    },
+    /// push the active per-frame defect map (or clear it).
+    ///
+    /// Sent by `api_sequencer_update_defect_map` when the user toggles
+    /// "Apply during capture" on or off. When `state` is `Some`, every
+    /// subsequent frame whose camera id matches gets the defect map
+    /// applied between camera readout and FITS save. When `None`, defect
+    /// correction is disabled — the bridge call sends this on toggle-off
+    /// AND on camera disconnect to make sure a stale map cannot be
+    /// applied to a frame from a different sensor.
+    ///
+    /// Pre-loading happens bridge-side (the `.ndm` file is parsed into
+    /// memory) so per-frame application is just a slice operation.
+    UpdateDefectMap {
+        state: Option<DefectMapApplyState>,
+    },
+    /// push the latest cloud-motion analyzer reading into
+    /// the executor's trigger state. The Dart side
+    /// (`cloudMotionAnalyzerProvider` -> WeatherSafetyNotifier) sends this
+    /// every ~60s while a sequence is running so the cloud-aware triggers
+    /// (`CloudArrivingIn`, `CloudOpeningIn`, `CloudCoverThreshold`) have
+    /// current data. All fields are `Option` because the analyzer may not
+    /// yet have enough radar history to produce every quantity; `None`
+    /// fields disable the corresponding evaluator branch rather than
+    /// firing spuriously ("errors are a feature").
+    UpdateCloudMotion {
+        /// Current cloud cover percentage (0-100). Open-Meteo merged with
+        /// the analyzer.
+        current_cover_percent: Option<f64>,
+        /// Predicted minutes until significant clouds arrive. `None` when
+        /// no approach is predicted.
+        predicted_arrival_minutes: Option<f64>,
+        /// Predicted minutes until a clear opening reaches the user.
+        /// `None` when no opening is predicted.
+        predicted_opening_minutes: Option<f64>,
+        /// Predicted duration (seconds) of the opening referenced by
+        /// `predicted_opening_minutes`.
+        predicted_opening_duration_secs: Option<f64>,
+        /// (altitude_deg, azimuth_deg) of a clear-sky direction reported by
+        /// the analyzer. Consumed by `RecoveryAction::SlewToGapAndContinue`.
+        predicted_clear_sky_alt: Option<f64>,
+        predicted_clear_sky_az: Option<f64>,
+    },
+    /// Science — push the latest sky transparency reading from
+    /// the Dart science pipeline. Mirrored onto
+    /// `TriggerState::current_transparency` (for the
+    /// `TransparencyDropped` trigger evaluator) and
+    /// `ExecutionContext::current_transparency` (for the photometry
+    /// node's per-frame quality gates).
+    ///
+    /// Pass `transparency = None` when the science pipeline has lost
+    /// lock so the trigger evaluator falls back to "no data" (does NOT
+    /// fire on absent telemetry — "no silent fallbacks").
+    UpdateTransparency {
+        /// Live transparency reading expressed as a fraction of clear-sky
+        /// reference (0.0..=1.0; 1.0 = clear). Values outside [0.0, 1.5]
+        /// are clamped + WARN-logged by `TriggerState::update_transparency`.
+        transparency: Option<f64>,
+    },
+    /// Science — push the operator-configured backup plan that
+    /// `RecoveryAction::SwitchTargetOrFilter` consults. Pass `plan =
+    /// None` to clear the plan (e.g. the operator removed it mid-session).
+    UpdateTransparencyBackup {
+        plan: Option<crate::node::context::TransparencyBackupPlan>,
+    },
+    /// push the composite sky-conditions score that the
+    /// `TargetScheduler`'s adaptive-swap logic consults. The Dart-side
+    /// `AdaptiveSwapService` composes the score from transparency / seeing
+    /// / cloud cover / wind every ~30 seconds and sends this command. The
+    /// score is mirrored onto `ExecutionContext::current_conditions_score`
+    /// so the scheduler reads from a non-blocking slot. Pass `score =
+    /// None` when the Dart composer has insufficient data.
+    UpdateConditionsScore {
+        score: Option<crate::scheduling::ConditionsScore>,
+    },
+    /// Full-night audit 2026-06-04 (defense-in-depth) — push the Dart-side
+    /// `weatherSafetyProvider` overall verdict into the executor's trigger
+    /// state. The hardware `safety_is_safe` poll only knows what a connected
+    /// safety/weather device reports; a rig WITHOUT such a device never aborts
+    /// via the in-sequencer `WeatherUnsafe` trigger even when the Dart side
+    /// computed UNSAFE from the user's configured thresholds + API/cloud
+    /// sources. This carries that verdict so the trigger has a redundant
+    /// non-hardware unsafe source. `unsafe_override = Some(true)` => Dart
+    /// computed UNSAFE; `Some(false)` => Dart computed SAFE; `None` => Dart
+    /// abstains (provider disabled / no data) and this layer is inert. Folded
+    /// as an OR-of-unsafe into `weather_safe` evaluation — it can only make the
+    /// rig safer, never less safe than the hardware verdict.
+    UpdateWeatherVerdict {
+        unsafe_override: Option<bool>,
+    },
+}
+
+/// State of the sequence executor
+///
+/// `Recovering` was added as a first-class state so user-visible UI
+/// (Run Dashboard LED, banner, audible alert, push notification) can react
+/// to an in-flight recovery loop instead of seeing a vanilla `Running` while
+/// the sequence is actually waiting for a guide-star reacquisition. The
+/// recovery state machine itself lives in `crate::recovery` and is driven
+/// by the trigger-monitor when a recoverable failure fires.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExecutorState {
+    Idle,
+    Running,
+    Paused,
+    Stopping,
+    Cancelled,
+    Completed,
+    Failed,
+    /// the executor is currently driving a recovery loop after a
+    /// recoverable failure (guide-star lost, slew failed, plate-solve
+    /// failed, weather unsafe, etc.). Retries fire on a configured cadence;
+    /// the user can force `RecoveryTryNow` or `RecoveryAbort` via
+    /// commands.
+    Recovering,
+}
+
+/// Progress information for the sequence
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SequenceProgress {
+    pub state: ExecutorState,
+    pub current_node_id: Option<NodeId>,
+    pub current_node_name: Option<String>,
+    pub current_node_status: Option<NodeStatus>,
+    pub total_exposures: u32,
+    pub completed_exposures: u32,
+    pub total_integration_secs: f64,
+    pub completed_integration_secs: f64,
+    pub elapsed_secs: f64,
+    pub estimated_remaining_secs: Option<f64>,
+    pub current_target: Option<String>,
+    pub current_filter: Option<String>,
+    pub message: Option<String>,
+    pub node_statuses: HashMap<NodeId, NodeStatus>,
+    /// per-target / per-filter completed integration in
+    /// seconds. Outer key is the TargetHeader node id; inner key is the
+    /// filter name (`""` for no-filter cameras). Updated when the
+    /// exposure instruction emits an IntegrationBudget progress event so
+    /// the dashboard can render budget bars without re-reading the registry.
+    #[serde(default)]
+    pub integration_by_target_filter: HashMap<NodeId, HashMap<String, f64>>,
+    /// set of TargetHeader node ids whose integration
+    /// budget has fired. Surfaced so the dashboard can flip the target
+    /// tile to "complete" even while the executor is finishing the
+    /// final burst.
+    #[serde(default)]
+    pub targets_with_budget_met: std::collections::HashSet<NodeId>,
+}
+
+impl Default for SequenceProgress {
+    fn default() -> Self {
+        Self {
+            state: ExecutorState::Idle,
+            current_node_id: None,
+            current_node_name: None,
+            current_node_status: None,
+            total_exposures: 0,
+            completed_exposures: 0,
+            total_integration_secs: 0.0,
+            completed_integration_secs: 0.0,
+            elapsed_secs: 0.0,
+            estimated_remaining_secs: None,
+            current_target: None,
+            current_filter: None,
+            message: None,
+            node_statuses: HashMap::new(),
+            integration_by_target_filter: HashMap::new(),
+            targets_with_budget_met: std::collections::HashSet::new(),
+        }
+    }
+}
+
+/// Event emitted by the executor
+///
+/// `ProgressUpdated` carries a fully-populated
+/// `SequenceProgress` (~320 bytes once the budget HashMaps grew),
+/// which is far larger than every other variant on this enum. Without
+/// boxing, every `ExecutorEvent` value (including the small life-cycle
+/// variants) reserves the worst-case 320 bytes on the stack and inside
+/// the tokio broadcast channel — clippy rejects this under
+/// `clippy::large_enum_variant`. We box the heavy payload so the enum
+/// stays cache-friendly; the box dereferences automatically at every
+/// match site, so callers don't change.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ExecutorEvent {
+    StateChanged(ExecutorState),
+    /// boxed to keep the enum size down (see enum doc-comment).
+    /// Serde transparently serializes `Box<SequenceProgress>` as
+    /// `SequenceProgress`, so the FRB wire format and JSON checkpoint
+    /// payloads are byte-identical to the pre-box version.
+    ProgressUpdated(Box<SequenceProgress>),
+    NodeStarted {
+        id: NodeId,
+        name: String,
+    },
+    NodeCompleted {
+        id: NodeId,
+        status: NodeStatus,
+    },
+    NodeProgress {
+        node_id: NodeId,
+        instruction: String,
+        progress_percent: f64,
+        /// Legacy stringified detail (matches pre-Pack-H wire format so
+        /// any subscriber that still consumes `detail` as a string keeps
+        /// working). Derived from `structured_detail` via
+        /// `ProgressDetail::detail_text()`.
+        detail: String,
+        /// structured detail payload, boxed to keep the
+        /// `ExecutorEvent` variant size small. `None` for legacy
+        /// progress emissions that don't carry a structured payload
+        /// (instruction nodes pre-dating the progress refactor).
+        /// The bridge layer reads this to dispatch to the typed
+        /// `SequencerEvent` variants (`FrameAccepted`, `FrameRejected`,
+        /// `SchedulerDecision`, `IntegrationBudget`) without parsing
+        /// `detail`.
+        structured_detail: Option<Box<crate::node::ProgressDetail>>,
+    },
+    ExposureStarted {
+        frame: u32,
+        total: u32,
+        filter: Option<String>,
+        duration_secs: f64,
+    },
+    ExposureCompleted {
+        frame: u32,
+        total: u32,
+        duration_secs: f64,
+    },
+    TargetStarted {
+        name: String,
+        ra: f64,
+        dec: f64,
+    },
+    TargetCompleted {
+        name: String,
+    },
+    TriggerFired {
+        trigger_id: String,
+        trigger_name: String,
+        action: String,
+    },
+    Error {
+        message: String,
+    },
+    /// A meridian flip finished — successfully, degraded (it needed retries),
+    /// aborted, or failed outright.
+    ///
+    /// The flip used to be COMPLETELY invisible to the Dart run vitals: the
+    /// `MeridianFlipEvent` stream is log-only unless a caller wires
+    /// `with_event_channel`, and nothing on the trigger path did. A flip that
+    /// slewed the mount to the other side of the pier therefore left
+    /// `meridianFlips: 0`, and a flip that FAILED its post-flip plate-solve
+    /// recenter left `errorMessages: []` on a run reported as `completed` —
+    /// the worst failure this app can have (silent mis-framing reported as a
+    /// clean night). This event is the wire that carries the verdict.
+    MeridianFlipOutcome {
+        /// `"success"`, `"failed"`, or `"aborted"`.
+        outcome: String,
+        /// Target the flip was performed for, for operator-facing copy.
+        target_name: String,
+        /// Pier side reported after the flip (`East` / `West` / `Unknown`).
+        new_pier_side: String,
+        /// Wall-clock seconds for the whole flip, retries included.
+        duration_secs: f64,
+        /// Attempts made. `1` is a clean flip; higher means the retry ladder
+        /// ran and the flip is DEGRADED even if it ultimately succeeded.
+        attempts: u32,
+        /// One `"<step>: <error>"` per failed attempt, oldest first.
+        failed_steps: Vec<String>,
+        /// Terminal error. `None` on a clean success.
+        error: Option<String>,
+        /// Configured failure action that was executed
+        /// (`"PauseAndAlert"` / `"AbortAndPark"`). `None` unless
+        /// `outcome == "failed"`.
+        action_taken: Option<String>,
+    },
+    /// runtime configuration changed mid-sequence (dither pixels,
+    /// observer location, or filter focus offsets). Subscribers should
+    /// reload any cached values derived from these fields.
+    RuntimeConfigUpdated {
+        what: String,
+    },
+    /// Recovery Mode — the executor just entered the `Recovering`
+    /// state. Carries the full [`RecoveryContext`] so subscribers (Run
+    /// Dashboard banner, audible alert player, push-notification service)
+    /// render the cause, attempt counter, and countdown without reaching
+    /// back into the executor on every redraw. Boxed to keep the enum
+    /// variant size small per the same reasoning as `ProgressUpdated`.
+    RecoveryStarted {
+        context: Box<crate::recovery::RecoveryContext>,
+    },
+    /// Recovery Mode — periodic update of the live recovery
+    /// context (attempt counter incremented, phase changed, last_error
+    /// updated). Subscribers refresh the dashboard banner from this; the
+    /// `RecoveryStarted` / `RecoveryCompleted` / `RecoveryGaveUp` events
+    /// bookend the loop while this carries deltas inside the loop.
+    RecoveryProgress {
+        context: Box<crate::recovery::RecoveryContext>,
+    },
+    /// Recovery Mode — recovery succeeded. The executor will
+    /// transition back to `Running`; subscribers clear the dashboard
+    /// banner and log the history entry.
+    RecoveryCompleted {
+        context: Box<crate::recovery::RecoveryContext>,
+    },
+    /// Recovery Mode — recovery exhausted attempts / time / was
+    /// aborted by the user. The executor will transition to `Failed` (or
+    /// run the configured ParkAndAbort policy). Subscribers log the
+    /// history entry and emit a critical-severity event.
+    RecoveryGaveUp {
+        context: Box<crate::recovery::RecoveryContext>,
+        /// True when the loop exited because the user pressed Abort.
+        /// Distinct from exhaustion so the UI can render different copy
+        /// ("Aborted by operator" vs "Exhausted retries").
+        aborted_by_user: bool,
+    },
+    SequenceCompleted,
+    SequenceFailed {
+        error: String,
+    },
+    /// An instruction returned `Failure` and this is the reason it gave.
+    ///
+    /// The reason used to exist only in the log: a run killed by the daylight
+    /// gate carried "Daylight gate: refusing light-frame exposure — Sun
+    /// altitude 66.9° is above the maximum -12.0°" in its log while the toast,
+    /// the Session Report Errors section and the persisted
+    /// `stats_json.errorMessages` all said only "Sequence failed". The
+    /// executor consumes this to fill [`SequenceFailed::error`], and the
+    /// bridge surfaces it as a mid-run error so the operator reads the real
+    /// cause at the moment it happens.
+    InstructionFailed {
+        node_name: String,
+        message: String,
+    },
+    /// the executor has reached a `NodeType::PluginNode`
+    /// and is waiting for the Dart side to run the plugin and reply with
+    /// `ExecutorCommand::PluginNodeFinished`. Subscribers (specifically
+    /// the Dart sequence executor) route this to `PluginNodeExecutor.run`
+    /// and send back the result; non-plugin subscribers ignore this
+    /// variant.
+    ///
+    /// `node_id` is the executor-side identifier the reply MUST echo back.
+    /// `plugin_id` + `node_type_id` identify the plugin node in the
+    /// `PluginNodeRegistry`. `config_json` is the opaque JSON payload the
+    /// Rust side never inspects.
+    PluginNodeRequested {
+        node_id: NodeId,
+        plugin_id: String,
+        node_type_id: String,
+        config_json: String,
+        /// Optional human-readable label authored on the node definition.
+        /// Falls back to `node_type_id` in the UI when absent.
+        display_name: Option<String>,
+        /// Effective timeout (seconds) the Rust side will wait. The Dart
+        /// side MUST respect this — if the plugin runs longer the Rust
+        /// node fails before the Dart-side timer can react.
+        timeout_secs: u32,
+    },
+}

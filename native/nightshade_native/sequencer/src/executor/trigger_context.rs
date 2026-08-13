@@ -1,0 +1,581 @@
+//! Context the trigger-fired recovery actions run against: the device-id
+//! snapshot, the autofocus / meridian-flip context builders, the in-flight
+//! guard, camera claiming, and the small verdict helpers. Moved verbatim out
+//! of `executor/mod.rs`.
+
+use super::*;
+
+#[derive(Debug, Clone, Default)]
+pub(super) struct TriggerActionContext {
+    pub(super) camera_id: Option<String>,
+    pub(super) mount_id: Option<String>,
+    pub(super) focuser_id: Option<String>,
+    pub(super) filterwheel_id: Option<String>,
+    pub(super) rotator_id: Option<String>,
+    pub(super) dome_id: Option<String>,
+    pub(super) cover_calibrator_id: Option<String>,
+    pub(super) save_path: Option<PathBuf>,
+    pub(super) latitude: Option<f64>,
+    pub(super) longitude: Option<f64>,
+    pub(super) filter_focus_offsets: HashMap<String, i32>,
+}
+
+impl TriggerActionContext {
+    pub(super) fn connected_device_ids(&self) -> Vec<String> {
+        [
+            self.camera_id.as_ref(),
+            self.mount_id.as_ref(),
+            self.focuser_id.as_ref(),
+            self.filterwheel_id.as_ref(),
+            self.rotator_id.as_ref(),
+            self.dome_id.as_ref(),
+            self.cover_calibrator_id.as_ref(),
+        ]
+        .into_iter()
+        .flatten()
+        .cloned()
+        .collect()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct SequenceRecoveryTriggerSpec {
+    pub(super) trigger_id: String,
+    pub(super) trigger_name: String,
+    pub(super) trigger_type: TriggerType,
+    pub(super) recovery_action: RecoveryAction,
+    pub(super) custom_branch_node_id: Option<NodeId>,
+}
+
+pub(super) fn recovery_node_trigger_id(node_id: &str) -> String {
+    format!("{}{}", RECOVERY_NODE_TRIGGER_PREFIX, node_id)
+}
+
+pub(super) fn sequence_recovery_trigger_specs(
+    sequence: &SequenceDefinition,
+) -> Vec<SequenceRecoveryTriggerSpec> {
+    sequence
+        .nodes
+        .iter()
+        .filter_map(|node| {
+            let NodeType::Recovery(config) = &node.node_type else {
+                return None;
+            };
+            let trigger_type = config.trigger.clone()?;
+            Some(SequenceRecoveryTriggerSpec {
+                trigger_id: recovery_node_trigger_id(&node.id),
+                trigger_name: format!("Recovery: {}", node.name),
+                trigger_type,
+                recovery_action: config.recovery_action.clone(),
+                custom_branch_node_id: matches!(
+                    config.recovery_action,
+                    RecoveryAction::CustomBranch
+                )
+                .then(|| node.id.clone()),
+            })
+        })
+        .collect()
+}
+
+pub(super) fn build_runtime_node_from_map(
+    def: &NodeDefinition,
+    node_map: &HashMap<&str, &NodeDefinition>,
+) -> RuntimeNode {
+    let mut node = RuntimeNode::from_definition(def.clone());
+
+    tracing::debug!(
+        "Building node '{}' (id={}) with {} children defined: {:?}",
+        def.name,
+        def.id,
+        def.children.len(),
+        def.children
+    );
+
+    for child_id in &def.children {
+        if let Some(child_def) = node_map.get(child_id.as_str()) {
+            tracing::debug!(
+                "  Adding child '{}' (id={}) to '{}'",
+                child_def.name,
+                child_def.id,
+                def.name
+            );
+            let child = build_runtime_node_from_map(child_def, node_map);
+            node.add_child(Box::new(child));
+        } else {
+            tracing::warn!(
+                "  Child node '{}' not found in node_map for parent '{}'",
+                child_id,
+                def.name
+            );
+        }
+    }
+
+    node
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn build_trigger_autofocus_context(
+    trigger_context: &TriggerActionContext,
+    target_name: Option<String>,
+    target_ra: Option<f64>,
+    target_dec: Option<f64>,
+    current_filter: Option<String>,
+    cancellation_token: Arc<AtomicBool>,
+    device_ops: SharedDeviceOps,
+    trigger_state: Arc<RwLock<TriggerState>>,
+    runtime_config: &Arc<StdRwLock<RuntimeConfig>>,
+    event_tx: Option<broadcast::Sender<ExecutorEvent>>,
+) -> crate::instructions::InstructionContext {
+    // read filter_focus_offsets and location from the runtime
+    // config so a mid-flight UpdateFilterOffsets / UpdateLocation is honoured
+    // by trigger-initiated autofocus / dither / recenter actions. The
+    // trigger_context is a snapshot taken at start(); without this read the
+    // updates would only reach the executor on a sequence reload.
+    let (rc_filter_offsets, rc_lat, rc_lon) = {
+        let rc = runtime_config.read();
+        (rc.filter_focus_offsets.clone(), rc.latitude, rc.longitude)
+    };
+    let filter_focus_offsets = if rc_filter_offsets.is_empty() {
+        // Why: if the runtime config has not been seeded (no
+        // UpdateFilterOffsets has fired yet) fall back to the start-time
+        // snapshot. Empty-vs-explicit is the only way to disambiguate
+        // "user wants no offsets" from "config not yet pushed".
+        trigger_context.filter_focus_offsets.clone()
+    } else {
+        rc_filter_offsets
+    };
+    let latitude = rc_lat.or(trigger_context.latitude);
+    let longitude = rc_lon.or(trigger_context.longitude);
+
+    crate::instructions::InstructionContext {
+        // Trigger-driven recenter is not a sequence node.
+        node_id: String::new(),
+        target_ra,
+        target_dec,
+        // Trigger-initiated recenter does not move the rotator; rotation is a
+        // CenterTarget concern driven from the TargetHeader. None here keeps
+        // the trigger recenter path rotation-agnostic.
+        target_rotation: None,
+        target_name,
+        current_filter,
+        current_binning: crate::Binning::One,
+        cancellation_token,
+        camera_id: trigger_context.camera_id.clone(),
+        mount_id: trigger_context.mount_id.clone(),
+        focuser_id: trigger_context.focuser_id.clone(),
+        filterwheel_id: trigger_context.filterwheel_id.clone(),
+        rotator_id: trigger_context.rotator_id.clone(),
+        dome_id: trigger_context.dome_id.clone(),
+        cover_calibrator_id: trigger_context.cover_calibrator_id.clone(),
+        save_path: trigger_context.save_path.clone(),
+        latitude,
+        longitude,
+        device_ops,
+        trigger_state: Some(trigger_state),
+        filter_focus_offsets,
+        // callers pass `Some(event_tx_clone2.clone())` so
+        // FITS-save failures and other instruction-level errors fired from
+        // trigger-initiated work (autofocus / dither / recenter) reach the
+        // executor's event subscribers (UI, logging). Unit tests still pass
+        // `None` because they exercise the build helper in isolation.
+        event_tx,
+        recovery_request_tx: None,
+        // Trigger-initiated work is not wrapped by the node-runtime retry path,
+        // so this flag is a standalone fresh Arc here.
+        device_disconnect_recovery_pending: std::sync::Arc::new(
+            std::sync::atomic::AtomicBool::new(false),
+        ),
+        // Image Grading: trigger-initiated autofocus does not save
+        // FITS frames itself, so empty defaults are honest here. If trigger
+        // code ever calls save_fits in the future these would need to be
+        // wired through the trigger_context snapshot.
+        session_id: String::new(),
+        target_id: None,
+        mosaic_panel: None,
+        current_filter_index: None,
+        set_temp_c: None,
+        bayer_pattern: None,
+        observer_name: None,
+        site_elevation_m: None,
+        camera_make: None,
+        camera_model: None,
+        telescope_name: None,
+        telescope_focal_length_mm: None,
+        telescope_aperture_mm: None,
+        last_plate_solve: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+        hfr_baseline: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+        hfr_baseline_samples: std::sync::Arc::new(tokio::sync::RwLock::new(Vec::new())),
+        consecutive_rejects: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
+        frames_accepted: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
+        frames_rejected: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
+        default_quality_check: None,
+        reject_folder_path: None,
+        // trigger-initiated autofocus does not save
+        // FITS frames itself; the defect-map slot starts empty so a
+        // future trigger code path that does save_fits will need to
+        // wire this through the trigger_context.
+        defect_map_apply: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+        // Forensics: trigger-initiated work doesn't have the
+        // shared forensics history available; start empty Arcs so any
+        // grading reached by a future trigger path falls back gracefully.
+        forensics_history: std::sync::Arc::new(tokio::sync::RwLock::new(
+            std::collections::VecDeque::new(),
+        )),
+        current_sky_brightness_mag: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+        cloud_motion_snapshot: std::sync::Arc::new(tokio::sync::RwLock::new(
+            crate::node::context::CloudMotionSnapshot::default(),
+        )),
+        current_wind_kph: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+        current_sensor_temp_c: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+        // Replay Debug — trigger-initiated work (autofocus,
+        // dither) does not currently emit DecisionEvents (we wire
+        // recoveries + scheduler + lifecycle separately), so the
+        // sender starts None and emissions from this context are no-
+        // ops. A future caller that wants trigger-initiated work to
+        // appear in the replay feed can clone the executor's
+        // decision_tx into this helper.
+        decision_tx: None,
+        active_sequence_run_id: std::sync::Arc::new(parking_lot::RwLock::new(None)),
+        // Dual-rig — trigger-initiated dither/recenter is not coordinated with
+        // the secondary loop in v1 (the secondary only gates on the main-burst
+        // dither path); start None.
+        dither_barrier: None,
+    }
+}
+
+/// The target a trigger-initiated meridian flip is being built for.
+///
+/// Grouped into a struct rather than passed as three positional parameters:
+/// `ra_hours` and `dec_degrees` are both `Option<f64>`, so as bare positional
+/// arguments they are silently transposable at a call site, and a flip aimed at
+/// the transposed coordinates would recentre onto the wrong sky.
+pub(super) struct TriggerFlipTarget {
+    pub(super) name: String,
+    pub(super) ra_hours: Option<f64>,
+    pub(super) dec_degrees: Option<f64>,
+}
+
+pub(super) fn build_trigger_flip_context(
+    trigger_context: &TriggerActionContext,
+    target: TriggerFlipTarget,
+    cancellation_token: Option<Arc<AtomicBool>>,
+    trigger_state: Option<Arc<RwLock<TriggerState>>>,
+    autofocus_config: Option<crate::AutofocusConfig>,
+    current_filter: Option<String>,
+) -> Option<crate::meridian_flip_executor::FlipContext> {
+    Some(crate::meridian_flip_executor::FlipContext {
+        target_name: target.name,
+        target_ra_hours: target.ra_hours?,
+        target_dec_degrees: target.dec_degrees?,
+        mount_id: trigger_context.mount_id.clone()?,
+        camera_id: trigger_context.camera_id.clone(),
+        focuser_id: trigger_context.focuser_id.clone(),
+        cover_calibrator_id: trigger_context.cover_calibrator_id.clone(),
+        cancellation_token,
+        trigger_state,
+        autofocus_config: autofocus_config.map(|config| {
+            crate::meridian_flip_executor::PostFlipAutofocusConfig {
+                config,
+                current_filter,
+                filterwheel_id: trigger_context.filterwheel_id.clone(),
+                filter_focus_offsets: trigger_context.filter_focus_offsets.clone(),
+            }
+        }),
+        // Trigger-driven flips command the hardware; the dry-run path is the
+        // only caller that sets this true.
+        simulate: false,
+    })
+}
+
+/// Cancel node execution and wait until the active node has finished its
+/// cancellation cleanup. Exposure instructions use that cleanup window to
+/// abort the camera integration, so callers must not move or close hardware
+/// until this function returns.
+pub(super) async fn cancel_and_wait_for_execution(
+    is_cancelled: &Arc<AtomicBool>,
+    execution_quiesced: &mut watch::Receiver<bool>,
+) {
+    is_cancelled.store(true, Ordering::Release);
+    if execution_quiesced
+        .wait_for(|quiesced| *quiesced)
+        .await
+        .is_err()
+    {
+        tracing::warn!(
+            "Execution quiescence channel closed while preparing ParkAndAbort; \
+             continuing with safe-state shutdown"
+        );
+    }
+}
+
+/// How long the executor will wait for an in-flight trigger recovery action to
+/// finish after the node tree has already completed.
+///
+/// A meridian flip retry ladder is the worst case that has to fit inside this:
+/// the shipped default is 3 retries at 30 s / 60 s / 120 s plus four ~1-minute
+/// flip attempts, so ~10 minutes of real work. 15 minutes leaves headroom for a
+/// slow mount without letting a wedged driver hang the run forever — on expiry
+/// we give up loudly rather than waiting silently.
+pub(super) const TRIGGER_ACTION_QUIESCE_MAX_SECS: u64 = 15 * 60;
+
+/// How long a trigger-fired camera action holds the camera claim before the
+/// claim expires on its own. Long enough for a full V-curve autofocus (15
+/// points at several seconds each, plus focuser travel) and short enough that
+/// an action which dies without releasing costs one hold, not the night. The
+/// action releases explicitly when it finishes, so this only governs the
+/// abnormal path.
+pub(super) const TRIGGER_CAMERA_CLAIM_SECS: f64 = 10.0 * 60.0;
+
+/// RAII latch marking that a trigger recovery action is executing.
+///
+/// The trigger monitor is an inline `async` block inside the terminal
+/// `tokio::select!`, so when the node-tree future resolves first the monitor is
+/// DROPPED wherever it happens to be awaiting. That silently cancelled an
+/// in-progress meridian flip: observed live as
+/// `"[MERIDIAN] Retry 1/4 scheduled in 30 seconds..."` at 20:47:12 followed by
+/// the run reporting `completed` at 20:47:30 and no further meridian log lines
+/// ever — the recovery was abandoned mid-ladder with the mount left wherever
+/// the failed flip had put it.
+///
+/// The flag lets the terminal select! keep polling the monitor until the action
+/// finishes. It is a guard rather than a plain store/clear pair because the
+/// dispatch has many `return terminate_with(...)` early exits that would
+/// otherwise leak the flag set forever and stall every subsequent run.
+pub(super) struct TriggerActionInFlightGuard<'a> {
+    pub(super) flag: &'a Arc<AtomicBool>,
+}
+
+impl<'a> TriggerActionInFlightGuard<'a> {
+    pub(super) fn new(flag: &'a Arc<AtomicBool>) -> Self {
+        flag.store(true, Ordering::Release);
+        Self { flag }
+    }
+}
+
+impl Drop for TriggerActionInFlightGuard<'_> {
+    fn drop(&mut self) {
+        self.flag.store(false, Ordering::Release);
+    }
+}
+
+pub(super) fn skip_to_node_accepted_event(node_id: NodeId) -> ExecutorEvent {
+    ExecutorEvent::NodeProgress {
+        node_id: node_id.clone(),
+        instruction: "SkipToNode".to_string(),
+        progress_percent: 100.0,
+        detail: format!(
+            "SkipToNode request accepted: jumping to node '{}'. \
+             Current instruction (if any) will finish first.",
+            node_id
+        ),
+        structured_detail: None,
+    }
+}
+
+/// every exit path from the trigger-monitor closure that ends
+/// the sequence MUST set `is_cancelled` before returning the fired-triggers
+/// vector. This helper enforces the invariant in one place so future
+/// `match` arms cannot regress by forgetting the store.
+///
+/// `reason` is logged at info level so post-mortem traces can reconstruct
+/// which terminating action ran (e.g., `"ParkAndAbort"`,
+/// `"FlipFailureAction::AbortAndPark"`).
+///
+/// # Example
+/// ```ignore
+/// // Inside the trigger-monitor closure:
+/// fired_triggers.push((trigger_id.clone(), RecoveryAction::ParkAndAbort));
+/// return terminate_with(&is_cancelled_clone, fired_triggers, "ParkAndAbort");
+/// ```
+/// Hold a camera-using trigger action until the capture loop's in-flight
+/// exposure has been downloaded.
+///
+/// Two trigger actions drive the camera themselves — autofocus on its frame
+/// interval, and the meridian flip's post-flip recenter (which already runs
+/// only after the capture loop's own pre-frame gate has held the next frame).
+/// Starting one mid-frame destroys that frame: the capture loop's download
+/// finds the camera empty, the exposure node fails, and the sequential parent
+/// takes the run down with it.
+///
+/// Waiting is bounded by the claim's own deadline (see
+/// [`TriggerState::camera_busy_until_ms`]), so a hold that is never released
+/// expires rather than blocking autofocus for the rest of the night. A cancel
+/// releases immediately: an operator Stop must not wait out an exposure.
+pub(super) async fn claim_camera_for_trigger_action(
+    trigger_state: &Arc<RwLock<crate::triggers::TriggerState>>,
+    is_cancelled: &Arc<AtomicBool>,
+    action: &str,
+) {
+    let mut announced = false;
+    loop {
+        if is_cancelled.load(Ordering::Relaxed) {
+            tracing::info!(
+                "Trigger-fired {} released early: sequence cancelled",
+                action
+            );
+            return;
+        }
+
+        let remaining = {
+            let mut state = trigger_state.write().await;
+            if state.try_claim_camera_for(TRIGGER_CAMERA_CLAIM_SECS) {
+                None
+            } else {
+                state.camera_busy_remaining_secs()
+            }
+        };
+
+        let Some(remaining) = remaining else {
+            if announced {
+                tracing::info!("Camera free; running trigger-fired {} now", action);
+            }
+            return;
+        };
+
+        if !announced {
+            announced = true;
+            tracing::info!(
+                "Holding trigger-fired {} for ~{:.0}s: the capture loop is mid-exposure and \
+                 starting now would destroy the frame",
+                action,
+                remaining
+            );
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
+}
+
+/// What to do about the frames a failed autofocus would keep producing.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(super) enum AutofocusOutcome {
+    /// Soft, but inside tolerance — keep imaging.
+    KeepImaging { current_hfr: f64, limit: f64 },
+    /// Measurably worse than the tolerance allows.
+    TooSoft { current_hfr: f64, limit: f64 },
+    /// No usable measurement to judge by.
+    Unmeasurable,
+}
+
+impl AutofocusOutcome {
+    pub(super) fn describe(self) -> String {
+        match self {
+            Self::KeepImaging { current_hfr, limit } => {
+                format!("HFR {current_hfr:.2} is within the {limit:.2} limit")
+            }
+            Self::TooSoft { current_hfr, limit } => {
+                format!("HFR {current_hfr:.2} is past the {limit:.2} limit")
+            }
+            Self::Unmeasurable => "there is no HFR measurement to judge focus by".to_string(),
+        }
+    }
+}
+
+/// Decide whether frames are still worth capturing after autofocus failed.
+///
+/// `reference` is the run's good HFR (the baseline the degradation trigger
+/// watches), `current` is what the frames are measuring now, and `ratio` is
+/// how many times the reference is still acceptable.
+///
+/// Without a reference or a current measurement the answer is
+/// [`AutofocusOutcome::Unmeasurable`] — deliberately NOT "carry on". Claiming
+/// the frames are fine on the strength of no evidence is how a night fills a
+/// disk with donuts; the caller's failure action decides what to do, and it
+/// gets to make that decision knowing the focus is simply unknown.
+pub(super) fn autofocus_failure_verdict(
+    reference: Option<f64>,
+    current: Option<f64>,
+    ratio: f64,
+) -> AutofocusOutcome {
+    if !ratio.is_finite() || ratio <= 0.0 {
+        return AutofocusOutcome::Unmeasurable;
+    }
+    let (Some(reference), Some(current)) = (reference, current) else {
+        return AutofocusOutcome::Unmeasurable;
+    };
+    if !reference.is_finite() || !current.is_finite() || reference <= 0.0 || current <= 0.0 {
+        return AutofocusOutcome::Unmeasurable;
+    }
+    let limit = reference * ratio;
+    if current <= limit {
+        AutofocusOutcome::KeepImaging {
+            current_hfr: current,
+            limit,
+        }
+    } else {
+        AutofocusOutcome::TooSoft {
+            current_hfr: current,
+            limit,
+        }
+    }
+}
+
+pub(super) fn terminate_with(
+    is_cancelled: &Arc<AtomicBool>,
+    triggers: Vec<(String, RecoveryAction)>,
+    reason: &str,
+) -> Vec<(String, RecoveryAction)> {
+    is_cancelled.store(true, Ordering::Relaxed);
+    tracing::info!(
+        "[TRIGGER_MONITOR] terminating sequence ({}); fired {} trigger(s)",
+        reason,
+        triggers.len()
+    );
+    triggers
+}
+
+/// Replay Debug — emit a `SystemEvent` decision from the executor
+/// task's lifecycle hooks (sequence started / completed / failed /
+/// cancelled). Free-standing helper so the closures capturing the
+/// channel handles can call it without going through `SequenceExecutor`.
+///
+/// `phase` is the lifecycle phase tag (`"started"`, `"completed"`,
+/// `"failed"`, `"cancelled"`). The summary is auto-derived: callers
+/// don't need to handcraft strings.
+pub(super) fn emit_lifecycle_decision(
+    tx: &crate::decision::DecisionSender,
+    active_run_id: &Arc<StdRwLock<Option<i64>>>,
+    enabled: &Arc<AtomicBool>,
+    phase: &str,
+    extra: serde_json::Value,
+) {
+    if !enabled.load(Ordering::Relaxed) {
+        return;
+    }
+    let summary = match phase {
+        "started" => "Sequence started".to_string(),
+        "completed" => "Sequence completed".to_string(),
+        "failed" => "Sequence failed".to_string(),
+        "cancelled" => "Sequence cancelled".to_string(),
+        other => format!("Sequence lifecycle: {}", other),
+    };
+    let mut details = match extra {
+        serde_json::Value::Object(m) => serde_json::Value::Object(m),
+        // Why: wrap non-object payloads under a `data` key so the
+        // persisted JSON column always parses to a map — keeps the
+        // Dart deserialisation path uniform.
+        other => serde_json::json!({ "data": other, "phase": phase }),
+    };
+    if let serde_json::Value::Object(ref mut m) = details {
+        m.insert(
+            "phase".to_string(),
+            serde_json::Value::String(phase.to_string()),
+        );
+    }
+    let event = crate::decision::DecisionEvent {
+        timestamp: chrono::Utc::now(),
+        category: crate::decision::DecisionCategory::SystemEvent,
+        summary,
+        details,
+        node_id: None,
+        sequence_run_id: *active_run_id.read(),
+    };
+    let _ = tx.send(event);
+}
+
+pub(super) fn executor_state_for_result(result: NodeStatus) -> ExecutorState {
+    match result {
+        NodeStatus::Success | NodeStatus::Skipped => ExecutorState::Completed,
+        NodeStatus::Cancelled => ExecutorState::Cancelled,
+        _ => ExecutorState::Failed,
+    }
+}

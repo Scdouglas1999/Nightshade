@@ -1,0 +1,1431 @@
+use super::*;
+use crate::SequenceDefinition;
+
+mod recovery_tests;
+mod runtime_tests;
+
+/// Observed live: an unguided 12-frame dark run logged 12 identical
+/// "Trigger-initiated dither failed: No active guider configured" WARNs —
+/// one per exposure — because a failed dither never reset the interval, so
+/// the trigger stayed permanently due for a condition that cannot change
+/// mid-run.
+#[test]
+fn dither_without_a_guider_is_a_skip_not_a_failure() {
+    assert_eq!(
+        classify_dither_result(
+            NodeStatus::Failure,
+            Some("Dither failed: No active guider configured"),
+        ),
+        DitherTriggerOutcome::SkippedNoGuider,
+    );
+}
+
+#[test]
+fn a_real_dither_failure_still_fails() {
+    for message in [
+        "Dither failed: guide star lost",
+        "Dither failed: settle timed out after 120s",
+        "PHD2 connection refused",
+    ] {
+        assert_eq!(
+            classify_dither_result(NodeStatus::Failure, Some(message)),
+            DitherTriggerOutcome::Failed,
+            "{message} should keep warning and stay due for retry",
+        );
+    }
+}
+
+#[test]
+fn a_failure_with_no_message_still_fails() {
+    assert_eq!(
+        classify_dither_result(NodeStatus::Failure, None),
+        DitherTriggerOutcome::Failed,
+    );
+}
+
+#[test]
+fn a_successful_dither_is_performed() {
+    assert_eq!(
+        classify_dither_result(NodeStatus::Success, None),
+        DitherTriggerOutcome::Performed,
+    );
+}
+
+#[test]
+fn test_executor_creation() {
+    let executor = SequenceExecutor::new();
+    assert!(executor.sequence.is_none());
+    assert!(executor.root_node.is_none());
+}
+
+#[test]
+fn test_load_sequence() {
+    let mut executor = SequenceExecutor::new();
+    let mut sequence = SequenceDefinition::new("Test Sequence".to_string());
+
+    let node = crate::NodeDefinition {
+        id: "root".to_string(),
+        name: "Root".to_string(),
+        node_type: crate::NodeType::Delay(crate::DelayConfig::default()),
+        enabled: true,
+        children: vec![],
+    };
+    sequence.nodes.push(node);
+    sequence.root_node_id = Some("root".to_string());
+
+    let result = executor.load_sequence(sequence);
+    assert!(
+        result.is_ok(),
+        "Failed to load sequence: {:?}",
+        result.err()
+    );
+    assert!(executor.sequence.is_some());
+}
+
+fn single_exposure_sequence(save_to: Option<String>) -> SequenceDefinition {
+    let mut sequence = SequenceDefinition::new("Capture".to_string());
+    sequence.nodes.push(crate::NodeDefinition {
+        id: "root".to_string(),
+        name: "Root".to_string(),
+        node_type: crate::NodeType::TakeExposure(crate::ExposureConfig {
+            count: 1,
+            duration_secs: 0.01,
+            frame_type: "dark".to_string(),
+            save_to,
+            ..Default::default()
+        }),
+        enabled: true,
+        children: vec![],
+    });
+    sequence.root_node_id = Some("root".to_string());
+    sequence
+}
+
+/// Reproduce run 70's stored tree: the builder nested each newly added
+/// instruction inside the previous one while drawing them as a flat list,
+/// so `Target -> Unpark -> SlewToTarget -> TakeExposure` all sat on one
+/// spine. `Unpark` is a leaf, so the executor ran it, returned Success and
+/// never descended.
+fn nested_leaf_chain_sequence() -> SequenceDefinition {
+    let mut sequence = SequenceDefinition::new("New Sequence".to_string());
+    sequence.nodes.push(crate::NodeDefinition {
+        id: "target".to_string(),
+        name: "Target".to_string(),
+        node_type: crate::NodeType::TargetHeader(crate::TargetHeaderConfig::default()),
+        enabled: true,
+        children: vec!["unpark".to_string()],
+    });
+    sequence.nodes.push(crate::NodeDefinition {
+        id: "unpark".to_string(),
+        name: "Unpark Mount".to_string(),
+        node_type: crate::NodeType::Unpark,
+        enabled: true,
+        children: vec!["slew".to_string()],
+    });
+    sequence.nodes.push(crate::NodeDefinition {
+        id: "slew".to_string(),
+        name: "Slew to Target".to_string(),
+        node_type: crate::NodeType::SlewToTarget(crate::SlewConfig::default()),
+        enabled: true,
+        children: vec!["expose".to_string()],
+    });
+    sequence.nodes.push(crate::NodeDefinition {
+        id: "expose".to_string(),
+        name: "Take Exposures".to_string(),
+        node_type: crate::NodeType::TakeExposure(crate::ExposureConfig {
+            count: 3,
+            duration_secs: 0.01,
+            frame_type: "dark".to_string(),
+            ..Default::default()
+        }),
+        enabled: true,
+        children: vec![],
+    });
+    sequence.root_node_id = Some("target".to_string());
+    sequence
+}
+
+/// P2 regression. `ExecutorEvent::TargetStarted` had a bridge mapping and
+/// a Dart handler but no producer anywhere in this crate, so Dart's
+/// `SequenceProgress.currentTarget` was null for every run. The visible
+/// damage was in the run record: `sequence_runs.stats_json.targetBreakdown`
+/// fell through to its documented fallback and keyed a whole night under
+/// the SEQUENCE name while the frames on disk carried the target's name.
+///
+/// Pre-fix this test finds no TargetStarted event at all.
+#[tokio::test]
+async fn entering_a_target_announces_the_target_by_name() {
+    let mut sequence = SequenceDefinition::new("New Sequence".to_string());
+    sequence.nodes.push(crate::NodeDefinition {
+        id: "target".to_string(),
+        // Deliberately different from `target_name`: the wire must carry
+        // the TARGET, not the node's display label.
+        name: "Target".to_string(),
+        node_type: crate::NodeType::TargetHeader(crate::TargetHeaderConfig {
+            target_name: "M31".to_string(),
+            ra_hours: 0.712,
+            dec_degrees: 41.269,
+            ..crate::TargetHeaderConfig::default()
+        }),
+        enabled: true,
+        children: vec!["wait".to_string()],
+    });
+    sequence.nodes.push(crate::NodeDefinition {
+        id: "wait".to_string(),
+        name: "Wait".to_string(),
+        node_type: crate::NodeType::Delay(crate::DelayConfig { seconds: 0.01 }),
+        enabled: true,
+        children: vec![],
+    });
+    sequence.root_node_id = Some("target".to_string());
+
+    let mut executor = SequenceExecutor::new();
+    executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+    executor.load_sequence(sequence).expect("sequence loads");
+    let mut events = executor.subscribe();
+
+    executor.start().await.expect("run starts");
+
+    for _ in 0..200 {
+        if matches!(
+            executor.get_state().await,
+            ExecutorState::Completed | ExecutorState::Failed | ExecutorState::Cancelled
+        ) {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+    }
+    executor.stop().await.ok();
+
+    let mut started = Vec::new();
+    let mut completed = Vec::new();
+    while let Ok(event) = events.try_recv() {
+        match event {
+            ExecutorEvent::TargetStarted { name, ra, dec } => started.push((name, ra, dec)),
+            ExecutorEvent::TargetCompleted { name } => completed.push(name),
+            _ => {}
+        }
+    }
+
+    assert_eq!(
+        started,
+        vec![("M31".to_string(), 0.712, 41.269)],
+        "entering the target must announce it exactly once, with its \
+         configured coordinates"
+    );
+    assert_eq!(
+        completed,
+        vec!["M31".to_string()],
+        "a target whose subtree succeeded must be announced as completed"
+    );
+}
+
+/// A target with no name is left OFF the wire rather than announced under
+/// an invented one — the save-path resolver already labels those frames
+/// "untargeted", and a third spelling on the wire is the defect, not a fix.
+#[tokio::test]
+async fn an_unnamed_target_is_not_announced() {
+    let mut sequence = SequenceDefinition::new("New Sequence".to_string());
+    sequence.nodes.push(crate::NodeDefinition {
+        id: "target".to_string(),
+        name: "New Target".to_string(),
+        node_type: crate::NodeType::TargetHeader(crate::TargetHeaderConfig::default()),
+        enabled: true,
+        children: vec!["wait".to_string()],
+    });
+    sequence.nodes.push(crate::NodeDefinition {
+        id: "wait".to_string(),
+        name: "Wait".to_string(),
+        node_type: crate::NodeType::Delay(crate::DelayConfig { seconds: 0.01 }),
+        enabled: true,
+        children: vec![],
+    });
+    sequence.root_node_id = Some("target".to_string());
+
+    let mut executor = SequenceExecutor::new();
+    executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+    executor.load_sequence(sequence).expect("sequence loads");
+    let mut events = executor.subscribe();
+
+    executor.start().await.expect("run starts");
+    for _ in 0..200 {
+        if matches!(
+            executor.get_state().await,
+            ExecutorState::Completed | ExecutorState::Failed | ExecutorState::Cancelled
+        ) {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+    }
+    executor.stop().await.ok();
+
+    while let Ok(event) = events.try_recv() {
+        assert!(
+            !matches!(event, ExecutorEvent::TargetStarted { .. }),
+            "an unnamed target must not be announced"
+        );
+    }
+}
+
+#[test]
+fn instructions_parented_under_a_leaf_are_reported_as_unreachable() {
+    let mut executor = SequenceExecutor::new();
+    executor
+        .load_sequence(nested_leaf_chain_sequence())
+        .expect("sequence loads");
+    let mut names = Vec::new();
+    unreachable_instructions(&**executor.root_node.as_ref().expect("root"), &mut names);
+    assert_eq!(
+        names,
+        vec!["Slew to Target".to_string(), "Take Exposures".to_string()],
+        "everything below the Unpark leaf is stored, drawn and never executed"
+    );
+}
+
+/// P0 DATA LOSS regression. Run 70 walked one instruction of four and the
+/// Session Report still showed "New Sequence - completed", a green
+/// Completed badge, 0 frames and `errorMessages: []` while the header chip
+/// read "3 frames".
+///
+/// Pre-fix this test sees `ExecutorState::Completed`.
+#[tokio::test]
+async fn a_run_that_never_reaches_part_of_its_tree_does_not_report_completed() {
+    let dir = std::env::temp_dir().join(format!("ns-unreachable-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&dir).expect("temp dir");
+
+    let mut executor = SequenceExecutor::new();
+    executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+    executor.set_devices(
+        Some("camera-1".to_string()),
+        Some("mount-1".to_string()),
+        None,
+        None,
+        None,
+    );
+    executor.set_save_path(Some(dir.clone()));
+    executor
+        .load_sequence(nested_leaf_chain_sequence())
+        .expect("sequence loads");
+    let mut events = executor.subscribe();
+
+    executor.start().await.expect("run starts");
+
+    let mut final_state = None;
+    for _ in 0..200 {
+        let state = executor.get_state().await;
+        if matches!(
+            state,
+            ExecutorState::Completed | ExecutorState::Failed | ExecutorState::Cancelled
+        ) {
+            final_state = Some(state);
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+    }
+    executor.stop().await.ok();
+    let _ = std::fs::remove_dir_all(&dir);
+
+    assert_eq!(
+        final_state,
+        Some(ExecutorState::Failed),
+        "a run that skipped most of its instructions must not report completed"
+    );
+
+    let mut failure_reason = None;
+    while let Ok(event) = events.try_recv() {
+        if let ExecutorEvent::SequenceFailed { error } = event {
+            failure_reason = Some(error);
+        }
+    }
+    let reason = failure_reason.expect("the run must publish a terminal failure reason");
+    assert!(
+        reason.contains("Slew to Target") && reason.contains("Take Exposures"),
+        "the failure must name the instructions that never executed; got: {reason}"
+    );
+}
+
+/// P1 regression. `SequenceFailed` was hardcoded to "Sequence failed", so
+/// a run killed by the daylight gate carried "Daylight gate: refusing
+/// light-frame exposure — Sun altitude 66.9° is above the maximum -12.0°"
+/// in its log while the toast, the Session Report Errors section and the
+/// persisted `stats_json.errorMessages` all read only ["Sequence failed"].
+///
+/// Pre-fix this test sees exactly "Sequence failed".
+#[tokio::test]
+async fn a_failed_run_reports_the_reason_the_instruction_gave() {
+    // A misconfigured script fails immediately with a specific, quotable
+    // reason and touches no device — the point is the wire, not the
+    // instruction.
+    let mut sequence = SequenceDefinition::new("Misconfigured script".to_string());
+    sequence.nodes.push(crate::NodeDefinition {
+        id: "script".to_string(),
+        name: "Run Script".to_string(),
+        node_type: crate::NodeType::RunScript(crate::ScriptConfig {
+            script_path: "/nonexistent/nightshade-test-script".to_string(),
+            timeout_secs: Some(0),
+            ..Default::default()
+        }),
+        enabled: true,
+        children: vec![],
+    });
+    sequence.root_node_id = Some("script".to_string());
+
+    let mut executor = SequenceExecutor::new();
+    executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+    executor.load_sequence(sequence).expect("sequence loads");
+    let mut events = executor.subscribe();
+
+    executor.start().await.expect("run starts");
+
+    for _ in 0..200 {
+        if matches!(
+            executor.get_state().await,
+            ExecutorState::Completed | ExecutorState::Failed | ExecutorState::Cancelled
+        ) {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+    }
+    executor.stop().await.ok();
+
+    let mut failure_reason = None;
+    while let Ok(event) = events.try_recv() {
+        if let ExecutorEvent::SequenceFailed { error } = event {
+            failure_reason = Some(error);
+        }
+    }
+    let reason = failure_reason.expect("a failed run must publish a terminal failure reason");
+    assert!(
+        reason.contains("timeout_secs must be greater than zero"),
+        "the terminal event must carry the instruction's real reason, not a \
+         placeholder; got: {reason}"
+    );
+}
+
+#[test]
+fn last_instruction_failure_prefers_the_most_recent_reason() {
+    let (tx, mut rx) = broadcast::channel(16);
+    let _ = tx.send(ExecutorEvent::Error {
+        message: "an earlier, benign warning".to_string(),
+    });
+    let _ = tx.send(ExecutorEvent::InstructionFailed {
+        node_name: "Take Exposures".to_string(),
+        message: "Daylight gate: refusing light-frame exposure".to_string(),
+    });
+    let reason = last_instruction_failure(&mut rx).expect("a reason was published");
+    assert_eq!(
+        reason,
+        "Take Exposures: Daylight gate: refusing light-frame exposure"
+    );
+    assert_eq!(
+        last_instruction_failure(&mut rx),
+        None,
+        "a run with no instruction failure must not invent one"
+    );
+}
+
+/// D2: a run that captures frames with no save path configured used to
+/// start, report 100% complete and write nothing. Refuse it at the door.
+#[tokio::test]
+async fn start_refuses_a_capture_sequence_with_no_save_path() {
+    let mut executor = SequenceExecutor::new();
+    executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+    executor
+        .load_sequence(single_exposure_sequence(None))
+        .expect("sequence loads");
+    executor.set_save_path(None);
+
+    let error = executor
+        .start()
+        .await
+        .expect_err("a capture run with nowhere to write must be refused");
+    assert!(
+        error.contains("save"),
+        "the refusal must name the save path; got: {error}"
+    );
+    executor.stop().await.ok();
+}
+
+/// D2b's sibling at the executor: a configured-but-unwritable directory is
+/// just as fatal as no directory at all, and must be caught before the run.
+#[tokio::test]
+async fn start_refuses_a_save_path_that_cannot_be_written() {
+    let mut executor = SequenceExecutor::new();
+    executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+    executor
+        .load_sequence(single_exposure_sequence(None))
+        .expect("sequence loads");
+    executor.set_save_path(Some(std::path::PathBuf::from(
+        "/proc/nightshade-cannot-write",
+    )));
+
+    let error = executor
+        .start()
+        .await
+        .expect_err("an uncreatable save directory must be refused");
+    assert!(
+        error.contains("save"),
+        "the refusal must name the save path; got: {error}"
+    );
+    executor.stop().await.ok();
+}
+
+/// The gate must not fire when there is a real destination.
+#[tokio::test]
+async fn start_accepts_a_capture_sequence_with_a_writable_save_path() {
+    let dir = std::env::temp_dir().join(format!("ns-start-gate-{}", uuid::Uuid::new_v4()));
+    let mut executor = SequenceExecutor::new();
+    executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+    executor
+        .load_sequence(single_exposure_sequence(None))
+        .expect("sequence loads");
+    executor.set_save_path(Some(dir.clone()));
+    // A camera is now equally mandatory for a capture run; assign one so
+    // this test still isolates the SAVE-PATH gate.
+    executor.set_devices(Some("cam-1".to_string()), None, None, None, None);
+
+    let result = executor.start().await;
+    executor.stop().await.ok();
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(result.is_ok(), "unexpected refusal: {:?}", result.err());
+}
+
+/// Live-rig L6 (2026-08-09). A capture sequence started with NO camera
+/// assigned answered `{"status":"started"}` and then sat at
+/// `{"state":"recovering","message":"Recovering: Device disconnected",
+/// "progress":0.0}` writing nothing, because `TakeExposure` failed
+/// "No camera connected", the disconnect classifier promoted that to a
+/// `DeviceDisconnected` recovery, and the loop then waited for a device
+/// that was never configured.
+///
+/// Reverting either `collect_required_devices` or the
+/// `validate_required_devices` call in `start()` puts the run back on that
+/// path: this test then sees `Ok` from `start()` instead of the refusal.
+#[tokio::test]
+async fn start_refuses_a_capture_sequence_with_no_camera() {
+    let dir = std::env::temp_dir().join(format!("ns-cam-gate-{}", uuid::Uuid::new_v4()));
+    let mut executor = SequenceExecutor::new();
+    executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+    executor
+        .load_sequence(single_exposure_sequence(None))
+        .expect("sequence loads");
+    // Save path is fine — this must isolate the CAMERA gate, so the run
+    // cannot be refused for the reason the save-path preflight already
+    // covers.
+    executor.set_save_path(Some(dir.clone()));
+
+    let error = executor
+        .start()
+        .await
+        .expect_err("a capture run with no camera assigned must be refused");
+    executor.stop().await.ok();
+    let _ = std::fs::remove_dir_all(&dir);
+
+    assert!(
+        error.contains("camera"),
+        "the refusal must name the camera; got: {error}"
+    );
+    assert!(
+        !error.contains("save path"),
+        "must fail on the camera, not fall through to the save-path gate: {error}"
+    );
+}
+
+/// The same tree starts once a camera is assigned — proving the gate keys
+/// on the missing camera and nothing else. This mirrors the live-rig proof:
+/// with `POST /api/sequencer/devices` pushing the camera id (and the
+/// equipment profile still empty) the identical sequence ran to
+/// `{"state":"completed","progress":1.0}`.
+#[tokio::test]
+async fn start_accepts_a_capture_sequence_once_a_camera_is_assigned() {
+    let dir = std::env::temp_dir().join(format!("ns-cam-gate-ok-{}", uuid::Uuid::new_v4()));
+    let mut executor = SequenceExecutor::new();
+    executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+    executor
+        .load_sequence(single_exposure_sequence(None))
+        .expect("sequence loads");
+    executor.set_save_path(Some(dir.clone()));
+    executor.set_devices(
+        Some("ascom:ASCOM.ASICamera2.Camera".to_string()),
+        None,
+        None,
+        None,
+        None,
+    );
+
+    let result = executor.start().await;
+    executor.stop().await.ok();
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(result.is_ok(), "unexpected refusal: {:?}", result.err());
+}
+
+/// The gate must not over-reach: a sequence that never exposes needs no
+/// camera, and refusing one would break every park / delay / notification
+/// utility sequence on a rig with the camera intentionally left off.
+#[tokio::test]
+async fn start_allows_a_non_capturing_sequence_with_no_camera() {
+    let mut sequence = SequenceDefinition::new("No capture".to_string());
+    sequence.nodes.push(crate::NodeDefinition {
+        id: "root".to_string(),
+        name: "Wait".to_string(),
+        node_type: crate::NodeType::Delay(crate::DelayConfig { seconds: 0.01 }),
+        enabled: true,
+        children: vec![],
+    });
+    sequence.root_node_id = Some("root".to_string());
+
+    let mut executor = SequenceExecutor::new();
+    executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+    executor.load_sequence(sequence).expect("sequence loads");
+
+    let result = executor.start().await;
+    executor.stop().await.ok();
+    assert!(
+        result.is_ok(),
+        "a sequence with no exposure must not need a camera: {:?}",
+        result.err()
+    );
+}
+
+/// An absolute `save_to` exempts a `TakeExposure` from the base-save-path
+/// gate, but nothing exempts it from needing a camera. This is the exact
+/// shape used to reproduce L6 on the rig (an absolute `save_to` was what
+/// got the run past the save-path preflight and into the recovery hang).
+#[tokio::test]
+async fn start_refuses_an_absolute_save_to_capture_with_no_camera() {
+    let dir = std::env::temp_dir().join(format!("ns-cam-abs-{}", uuid::Uuid::new_v4()));
+    let mut executor = SequenceExecutor::new();
+    executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+    executor
+        .load_sequence(single_exposure_sequence(Some(
+            dir.to_string_lossy().into_owned(),
+        )))
+        .expect("sequence loads");
+    // Deliberately NO base save path: the absolute save_to is what makes
+    // the save-path gate stand down, exactly as on the rig.
+    executor.set_save_path(None);
+
+    let error = executor
+        .start()
+        .await
+        .expect_err("an absolute save_to does not remove the need for a camera");
+    executor.stop().await.ok();
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(
+        error.contains("camera"),
+        "the refusal must name the camera; got: {error}"
+    );
+}
+
+/// Unit-level companion to the two `start()` tests above: the whitespace
+/// case. An id of `"   "` is not an id, and treating it as one would send
+/// the run straight back into the disconnect-recovery loop.
+#[test]
+fn validate_required_devices_rejects_absent_and_blank_ids() {
+    let required = std::collections::BTreeMap::from([(
+        RequiredDevice::Camera,
+        DeviceRequirement {
+            node_name: "Take Exposures".to_string(),
+            captures_frames: true,
+        },
+    )]);
+    let with = |id: Option<&str>| {
+        let owned = id.map(str::to_string);
+        validate_required_devices(&required, move |_| owned.clone())
+    };
+
+    assert!(with(None).is_err());
+    assert!(with(Some("")).is_err());
+    assert!(with(Some("   ")).is_err());
+    assert!(with(Some("ascom:ASCOM.ASICamera2.Camera")).is_ok());
+}
+
+/// Build a one-instruction sequence under a named target, the shape every
+/// live-rig reproduction below used.
+fn single_instruction_sequence(name: &str, node_type: crate::NodeType) -> SequenceDefinition {
+    let mut sequence = SequenceDefinition::new(format!("{name} probe"));
+    sequence.nodes.push(crate::NodeDefinition {
+        id: "root".to_string(),
+        name: "Target".to_string(),
+        node_type: crate::NodeType::TargetHeader(crate::TargetHeaderConfig {
+            target_name: "GuardProbe".to_string(),
+            ra_hours: 5.5,
+            dec_degrees: 22.0,
+            ..Default::default()
+        }),
+        enabled: true,
+        children: vec!["step".to_string()],
+    });
+    sequence.nodes.push(crate::NodeDefinition {
+        id: "step".to_string(),
+        name: name.to_string(),
+        node_type,
+        enabled: true,
+        children: vec![],
+    });
+    sequence.root_node_id = Some("root".to_string());
+    sequence
+}
+
+async fn start_refusal_for(node_type: crate::NodeType, step_name: &str) -> String {
+    let dir = std::env::temp_dir().join(format!("ns-dev-gate-{}", uuid::Uuid::new_v4()));
+    let mut executor = SequenceExecutor::new();
+    executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+    executor
+        .load_sequence(single_instruction_sequence(step_name, node_type))
+        .expect("sequence loads");
+    // A real destination, so nothing can be refused for the reason the
+    // save-path preflight already covers.
+    executor.set_save_path(Some(dir.clone()));
+
+    let outcome = executor.start().await;
+    executor.stop().await.ok();
+    let _ = std::fs::remove_dir_all(&dir);
+    match outcome {
+        Ok(()) => panic!("{step_name} with no device assigned must be refused at start"),
+        Err(error) => error,
+    }
+}
+
+/// Live-rig L16 (2026-08-09). Pre-flight refused a missing save path and a
+/// missing plate solver, but a sequence that declared a DEVICE the executor
+/// could not resolve was allowed to start and then died mid-run.
+///
+/// Reproduced against the Linux appliance (release bundle, headless, no
+/// devices connected), each one `POST /api/sequencer/start -> 200
+/// {"status":"started"}` followed by
+/// `{"state":"failed","message":"Cancelled: Target"}`, with the real reason
+/// only in the log — `ERROR Change Filter failed: No filter wheel
+/// connected`, `ERROR Slew failed: No mount connected`, `ERROR Cool Camera
+/// failed: No camera connected`, `ERROR Autofocus failed: No camera
+/// connected`, `ERROR Center Target failed: No mount connected`,
+/// `ERROR Move Rotator failed: No rotator connected` — each immediately
+/// promoted to a futile disconnect recovery.
+///
+/// Reverting `collect_required_devices` to the old
+/// `TakeExposure | SmartExposure | FlatWizard` camera-only predicate puts
+/// every case below back on that path: `start()` then returns `Ok`.
+#[tokio::test]
+async fn start_refuses_a_filter_change_with_no_filter_wheel() {
+    let error = start_refusal_for(
+        crate::NodeType::ChangeFilter(crate::FilterConfig {
+            filter_name: "Ha".to_string(),
+            filter_index: Some(2),
+            timeout_secs: None,
+        }),
+        "Change Filter",
+    )
+    .await;
+    assert!(
+        error.contains("filter wheel") && error.contains("Change Filter"),
+        "the refusal must name the wheel and the step; got: {error}"
+    );
+}
+
+#[tokio::test]
+async fn start_refuses_an_exposure_that_requests_a_filter_with_no_filter_wheel() {
+    let dir = std::env::temp_dir().join(format!("ns-fw-gate-{}", uuid::Uuid::new_v4()));
+    let mut executor = SequenceExecutor::new();
+    executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+    executor
+        .load_sequence(single_instruction_sequence(
+            "Take Exposures",
+            crate::NodeType::TakeExposure(crate::ExposureConfig {
+                count: 1,
+                duration_secs: 0.01,
+                filter_index: Some(0),
+                ..Default::default()
+            }),
+        ))
+        .expect("sequence loads");
+    executor.set_save_path(Some(dir.clone()));
+    // A camera IS assigned — this isolates the wheel, and is the live-rig
+    // case: "an exposure on filter position 0, wheel not visible to the
+    // executor" started and failed mid-run.
+    executor.set_devices(Some("cam-1".to_string()), None, None, None, None);
+
+    let error = executor
+        .start()
+        .await
+        .expect_err("an exposure on filter position 0 with no wheel must be refused");
+    executor.stop().await.ok();
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(
+        error.contains("filter wheel"),
+        "the refusal must name the wheel; got: {error}"
+    );
+    assert!(
+        !error.contains("no camera"),
+        "a camera was assigned; the refusal must be about the wheel: {error}"
+    );
+}
+
+/// A SmartExposure plan that names NO filter still moves the wheel.
+///
+/// `smart_exposure.rs` fires its ChangeFilter whenever
+/// `current_filter != Some(plan.filter_name)`, and `current_filter` is
+/// `None` at the start of a run — so `""` differs and the change runs.
+/// Reproduced against the Linux appliance on 2026-08-09 with the sim
+/// camera / mount / focuser connected and no wheel:
+/// `POST /api/sequencer/start -> 200 {"status":"started"}`, then
+/// `ERROR Change Filter failed: No filter wheel connected` +
+/// `WARN [RECOVERY] Change Filter promoted device disconnect to recovery`,
+/// five retries, `Failure`. Requiring a wheel only for a plan that NAMES
+/// one left that path open.
+#[tokio::test]
+async fn start_refuses_a_smart_exposure_whose_plan_names_no_filter() {
+    let dir = std::env::temp_dir().join(format!("ns-se-gate-{}", uuid::Uuid::new_v4()));
+    let mut executor = SequenceExecutor::new();
+    executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+    executor
+        .load_sequence(single_instruction_sequence(
+            "Smart Exposure",
+            crate::NodeType::SmartExposure(crate::SmartExposureConfig {
+                plans: vec![crate::FilterPlan {
+                    filter_name: String::new(),
+                    count: 1,
+                    duration_secs: 0.01,
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }),
+        ))
+        .expect("sequence loads");
+    executor.set_save_path(Some(dir.clone()));
+    executor.set_devices(Some("cam-1".to_string()), None, None, None, None);
+
+    let error = executor
+        .start()
+        .await
+        .expect_err("a smart exposure with no wheel must be refused");
+    executor.stop().await.ok();
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(
+        error.contains("filter wheel"),
+        "the refusal must name the wheel; got: {error}"
+    );
+}
+
+/// An autofocus node pinned to a filter reads the wheel before it sweeps.
+///
+/// Reproduced against the Linux appliance on 2026-08-09 with the sim
+/// camera and focuser connected and no wheel: start answered 200 and the
+/// node then failed `Autofocus is configured to use filter "Ha", but no
+/// filter wheel is connected`.
+#[tokio::test]
+async fn start_refuses_autofocus_pinned_to_a_filter_with_no_filter_wheel() {
+    let dir = std::env::temp_dir().join(format!("ns-af-fw-{}", uuid::Uuid::new_v4()));
+    let mut executor = SequenceExecutor::new();
+    executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+    executor
+        .load_sequence(single_instruction_sequence(
+            "Autofocus",
+            crate::NodeType::Autofocus(crate::AutofocusConfig {
+                filter: Some("Ha".to_string()),
+                ..Default::default()
+            }),
+        ))
+        .expect("sequence loads");
+    executor.set_save_path(Some(dir.clone()));
+    executor.set_devices(
+        Some("cam-1".to_string()),
+        None,
+        Some("focuser-1".to_string()),
+        None,
+        None,
+    );
+
+    let error = executor
+        .start()
+        .await
+        .expect_err("an autofocus pinned to a filter with no wheel must be refused");
+    executor.stop().await.ok();
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(
+        error.contains("filter wheel"),
+        "the refusal must name the wheel; got: {error}"
+    );
+}
+
+/// …and an autofocus that names no filter is NOT blocked for a wheel.
+/// With no wheel the per-filter overrides simply go unapplied and the
+/// sweep still runs, so demanding one here would refuse a run that works.
+#[tokio::test]
+async fn start_allows_autofocus_without_a_filter_when_there_is_no_wheel() {
+    let dir = std::env::temp_dir().join(format!("ns-af-nofw-{}", uuid::Uuid::new_v4()));
+    let mut executor = SequenceExecutor::new();
+    executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+    executor
+        .load_sequence(single_instruction_sequence(
+            "Autofocus",
+            crate::NodeType::Autofocus(crate::AutofocusConfig::default()),
+        ))
+        .expect("sequence loads");
+    executor.set_save_path(Some(dir.clone()));
+    executor.set_devices(
+        Some("cam-1".to_string()),
+        None,
+        Some("focuser-1".to_string()),
+        None,
+        None,
+    );
+
+    let result = executor.start().await;
+    executor.stop().await.ok();
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(
+        result.is_ok(),
+        "an unfiltered autofocus needs no wheel: {:?}",
+        result.err()
+    );
+}
+
+#[tokio::test]
+async fn start_refuses_a_slew_with_no_mount() {
+    let error = start_refusal_for(
+        crate::NodeType::SlewToTarget(crate::SlewConfig::default()),
+        "Slew to Target",
+    )
+    .await;
+    assert!(
+        error.contains("mount") && error.contains("Slew to Target"),
+        "the refusal must name the mount and the step; got: {error}"
+    );
+}
+
+#[tokio::test]
+async fn start_refuses_a_park_with_no_mount() {
+    let error = start_refusal_for(crate::NodeType::Park, "Park").await;
+    assert!(
+        error.contains("mount"),
+        "the refusal must name the mount; got: {error}"
+    );
+}
+
+#[tokio::test]
+async fn start_refuses_cool_camera_with_no_camera() {
+    let error = start_refusal_for(
+        crate::NodeType::CoolCamera(crate::CoolConfig::default()),
+        "Cool Camera",
+    )
+    .await;
+    assert!(
+        error.contains("camera") && error.contains("Cool Camera"),
+        "the refusal must name the camera and the step; got: {error}"
+    );
+    assert!(
+        !error.contains("captures frames"),
+        "cooling captures nothing; the capture wording would be a lie: {error}"
+    );
+}
+
+#[tokio::test]
+async fn start_refuses_autofocus_naming_both_the_camera_and_the_focuser() {
+    let error = start_refusal_for(
+        crate::NodeType::Autofocus(crate::AutofocusConfig::default()),
+        "Autofocus",
+    )
+    .await;
+    assert!(
+        error.contains("camera"),
+        "autofocus exposes; the refusal must name the camera: {error}"
+    );
+    assert!(
+        error.contains("focuser"),
+        "autofocus moves the focuser; the refusal must name it too: {error}"
+    );
+}
+
+#[tokio::test]
+async fn start_refuses_center_target_with_no_mount_or_camera() {
+    let error = start_refusal_for(
+        crate::NodeType::CenterTarget(crate::CenterConfig::default()),
+        "Center Target",
+    )
+    .await;
+    assert!(
+        error.contains("camera") && error.contains("mount"),
+        "centering needs both; the refusal must name both: {error}"
+    );
+}
+
+#[tokio::test]
+async fn start_refuses_a_rotator_move_with_no_rotator() {
+    let error = start_refusal_for(
+        crate::NodeType::MoveRotator(crate::RotatorConfig {
+            target_angle: 90.0,
+            relative: false,
+        }),
+        "Move Rotator",
+    )
+    .await;
+    assert!(
+        error.contains("rotator") && error.contains("Move Rotator"),
+        "the refusal must name the rotator and the step; got: {error}"
+    );
+}
+
+/// The same trees start once the hardware is assigned — proving the gate
+/// keys on the missing device and nothing else.
+#[tokio::test]
+async fn start_accepts_those_same_sequences_once_the_devices_are_assigned() {
+    for (name, node_type) in [
+        (
+            "Change Filter",
+            crate::NodeType::ChangeFilter(crate::FilterConfig {
+                filter_name: "Ha".to_string(),
+                filter_index: Some(2),
+                timeout_secs: None,
+            }),
+        ),
+        (
+            "Slew to Target",
+            crate::NodeType::SlewToTarget(crate::SlewConfig::default()),
+        ),
+        (
+            "Cool Camera",
+            crate::NodeType::CoolCamera(crate::CoolConfig::default()),
+        ),
+        (
+            "Move Rotator",
+            crate::NodeType::MoveRotator(crate::RotatorConfig {
+                target_angle: 90.0,
+                relative: false,
+            }),
+        ),
+    ] {
+        let dir = std::env::temp_dir().join(format!("ns-dev-ok-{}", uuid::Uuid::new_v4()));
+        let mut executor = SequenceExecutor::new();
+        executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+        executor
+            .load_sequence(single_instruction_sequence(name, node_type))
+            .expect("sequence loads");
+        executor.set_save_path(Some(dir.clone()));
+        executor.set_devices(
+            Some("cam-1".to_string()),
+            Some("mount-1".to_string()),
+            Some("focuser-1".to_string()),
+            Some("wheel-1".to_string()),
+            Some("rotator-1".to_string()),
+        );
+
+        let result = executor.start().await;
+        executor.stop().await.ok();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(result.is_ok(), "{name} was refused: {:?}", result.err());
+    }
+}
+
+/// The gate must not over-reach. A DISABLED node is skipped before it ever
+/// reaches hardware (`RuntimeNode::execute` returns `Skipped` without
+/// descending), so it must not block a start — otherwise switching a step
+/// off, the operator's normal way of working round missing kit, would stop
+/// working.
+#[tokio::test]
+async fn start_ignores_devices_only_a_disabled_subtree_would_need() {
+    let mut sequence = single_instruction_sequence(
+        "Change Filter",
+        crate::NodeType::ChangeFilter(crate::FilterConfig {
+            filter_name: "Ha".to_string(),
+            filter_index: Some(2),
+            timeout_secs: None,
+        }),
+    );
+    sequence
+        .nodes
+        .iter_mut()
+        .find(|node| node.id == "step")
+        .expect("step node")
+        .enabled = false;
+
+    let dir = std::env::temp_dir().join(format!("ns-dev-off-{}", uuid::Uuid::new_v4()));
+    let mut executor = SequenceExecutor::new();
+    executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+    executor.load_sequence(sequence).expect("sequence loads");
+    executor.set_save_path(Some(dir.clone()));
+
+    let result = executor.start().await;
+    executor.stop().await.ok();
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(
+        result.is_ok(),
+        "a disabled filter change needs no wheel: {:?}",
+        result.err()
+    );
+}
+
+/// And the flat wizard is not blocked for a wheel it will not touch:
+/// `FlatWizardRun::do_filter_change` returns `Ok` when there is no wheel.
+#[tokio::test]
+async fn start_does_not_demand_a_filter_wheel_for_a_flat_wizard() {
+    let dir = std::env::temp_dir().join(format!("ns-flat-gate-{}", uuid::Uuid::new_v4()));
+    let mut executor = SequenceExecutor::new();
+    executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+    executor
+        .load_sequence(single_instruction_sequence(
+            "Flat Wizard",
+            crate::NodeType::FlatWizard(crate::FlatWizardConfig {
+                filter: Some("Ha".to_string()),
+                ..Default::default()
+            }),
+        ))
+        .expect("sequence loads");
+    executor.set_save_path(Some(dir.clone()));
+    executor.set_devices(Some("cam-1".to_string()), None, None, None, None);
+
+    let result = executor.start().await;
+    executor.stop().await.ok();
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(
+        result.is_ok(),
+        "the flat wizard skips its filter change without a wheel: {:?}",
+        result.err()
+    );
+}
+
+#[test]
+fn custom_branch_recovery_node_registers_trigger_spec() {
+    let mut sequence = SequenceDefinition::new("Custom Recovery".to_string());
+    sequence.nodes.push(crate::NodeDefinition {
+        id: "root".to_string(),
+        name: "Root".to_string(),
+        node_type: crate::NodeType::Delay(crate::DelayConfig { seconds: 0.0 }),
+        enabled: true,
+        children: vec!["recovery".to_string()],
+    });
+    sequence.nodes.push(crate::NodeDefinition {
+        id: "recovery".to_string(),
+        name: "Guide Recovery".to_string(),
+        node_type: crate::NodeType::Recovery(crate::RecoveryConfig {
+            trigger: Some(crate::TriggerType::GuideStarLost),
+            recovery_action: crate::RecoveryAction::CustomBranch,
+            max_retries: 1,
+        }),
+        enabled: true,
+        children: vec!["delay".to_string()],
+    });
+    sequence.nodes.push(crate::NodeDefinition {
+        id: "delay".to_string(),
+        name: "Wait".to_string(),
+        node_type: crate::NodeType::Delay(crate::DelayConfig { seconds: 0.0 }),
+        enabled: true,
+        children: vec![],
+    });
+    sequence.root_node_id = Some("root".to_string());
+
+    let specs = sequence_recovery_trigger_specs(&sequence);
+
+    assert_eq!(specs.len(), 1);
+    assert_eq!(specs[0].trigger_id, "recovery_node:recovery");
+    assert_eq!(specs[0].trigger_name, "Recovery: Guide Recovery");
+    assert!(matches!(
+        specs[0].trigger_type,
+        crate::TriggerType::GuideStarLost
+    ));
+    assert!(matches!(
+        specs[0].recovery_action,
+        crate::RecoveryAction::CustomBranch
+    ));
+    assert_eq!(specs[0].custom_branch_node_id.as_deref(), Some("recovery"));
+}
+
+use crate::device_ops::{DeviceOps, DeviceResult, GuidingStatus};
+
+/// DeviceOps that simulates a guider which is NOT guiding until
+/// `guider_start` is called, after which `guider_get_status` reports
+/// guiding. Records whether `guider_start` was invoked.
+pub(super) struct ReacquireGuiderOps {
+    inner: std::sync::Arc<crate::device_ops::NullDeviceOps>,
+    /// Shared so the test can observe whether re-acquire was issued.
+    started: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    start_should_fail: bool,
+    relock_after_start: bool,
+    /// Records the last `mount_set_tracking(enabled)` value so a test can
+    /// assert tracking was restored. `None` => never called.
+    last_tracking_set: std::sync::Arc<std::sync::Mutex<Option<bool>>>,
+    /// When true, `mount_set_tracking(true)` returns Err so a test can
+    /// exercise the loud-error-on-failure path.
+    tracking_set_should_fail: bool,
+    /// When true, `mount_is_parked` reports the mount as parked.
+    parked: bool,
+    /// When true, `mount_is_tracking` never returns — the driver that
+    /// accepts the call and then goes away, which is what R1 is about.
+    mount_is_tracking_hangs: bool,
+}
+
+impl ReacquireGuiderOps {
+    pub(super) fn new(start_should_fail: bool, relock_after_start: bool) -> Self {
+        Self {
+            inner: std::sync::Arc::new(crate::device_ops::NullDeviceOps),
+            started: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            start_should_fail,
+            relock_after_start,
+            last_tracking_set: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            tracking_set_should_fail: false,
+            parked: false,
+            mount_is_tracking_hangs: false,
+        }
+    }
+
+    pub(super) fn with_parked(mut self) -> Self {
+        self.parked = true;
+        self
+    }
+
+    pub(super) fn with_hanging_tracking_poll(mut self) -> Self {
+        self.mount_is_tracking_hangs = true;
+        self
+    }
+
+    pub(super) fn with_tracking_failure(mut self) -> Self {
+        self.tracking_set_should_fail = true;
+        self
+    }
+
+    pub(super) fn last_tracking_set(&self) -> Option<bool> {
+        *self.last_tracking_set.lock().unwrap()
+    }
+}
+
+#[async_trait::async_trait]
+impl DeviceOps for ReacquireGuiderOps {
+    async fn mount_set_tracking(&self, id: &str, enabled: bool) -> DeviceResult<()> {
+        *self.last_tracking_set.lock().unwrap() = Some(enabled);
+        if self.tracking_set_should_fail && enabled {
+            return Err(format!("simulated tracking-enable failure for {}", id));
+        }
+        Ok(())
+    }
+
+    async fn guider_get_status(&self) -> DeviceResult<GuidingStatus> {
+        // Guiding only once a (successful) re-acquire has been issued.
+        let guiding = self.started.load(Ordering::Relaxed) && self.relock_after_start;
+        Ok(GuidingStatus {
+            is_guiding: guiding,
+            rms_ra: 0.5,
+            rms_dec: 0.4,
+            rms_total: 0.64,
+        })
+    }
+
+    async fn guider_start(
+        &self,
+        _settle_pixels: f64,
+        _settle_time: f64,
+        _settle_timeout: f64,
+    ) -> DeviceResult<()> {
+        if self.start_should_fail {
+            return Err("simulated guider_start failure".to_string());
+        }
+        self.started.store(true, Ordering::Relaxed);
+        Ok(())
+    }
+
+    // === delegating methods (every other DeviceOps method) ===
+    async fn mount_slew_to_coordinates(&self, id: &str, ra: f64, dec: f64) -> DeviceResult<()> {
+        self.inner.mount_slew_to_coordinates(id, ra, dec).await
+    }
+    async fn mount_abort_slew(&self, id: &str) -> DeviceResult<()> {
+        self.inner.mount_abort_slew(id).await
+    }
+    async fn mount_get_coordinates(&self, id: &str) -> DeviceResult<(f64, f64)> {
+        self.inner.mount_get_coordinates(id).await
+    }
+    async fn mount_sync(&self, id: &str, ra: f64, dec: f64) -> DeviceResult<()> {
+        self.inner.mount_sync(id, ra, dec).await
+    }
+    async fn mount_park(&self, id: &str) -> DeviceResult<()> {
+        self.inner.mount_park(id).await
+    }
+    async fn mount_unpark(&self, id: &str) -> DeviceResult<()> {
+        self.inner.mount_unpark(id).await
+    }
+    async fn mount_is_slewing(&self, id: &str) -> DeviceResult<bool> {
+        self.inner.mount_is_slewing(id).await
+    }
+    async fn mount_is_parked(&self, id: &str) -> DeviceResult<bool> {
+        if self.parked {
+            return Ok(true);
+        }
+        self.inner.mount_is_parked(id).await
+    }
+    async fn mount_can_flip(&self, id: &str) -> DeviceResult<bool> {
+        self.inner.mount_can_flip(id).await
+    }
+    async fn mount_side_of_pier(&self, id: &str) -> DeviceResult<crate::meridian::PierSide> {
+        self.inner.mount_side_of_pier(id).await
+    }
+    async fn mount_is_tracking(&self, id: &str) -> DeviceResult<bool> {
+        if self.mount_is_tracking_hangs {
+            std::future::pending::<()>().await;
+        }
+        self.inner.mount_is_tracking(id).await
+    }
+    async fn camera_start_exposure(
+        &self,
+        id: &str,
+        d: f64,
+        g: Option<i32>,
+        o: Option<i32>,
+        bx: i32,
+        by: i32,
+    ) -> DeviceResult<crate::device_ops::ImageData> {
+        self.inner.camera_start_exposure(id, d, g, o, bx, by).await
+    }
+    async fn camera_abort_exposure(&self, id: &str) -> DeviceResult<()> {
+        self.inner.camera_abort_exposure(id).await
+    }
+    async fn camera_set_cooler(&self, id: &str, e: bool, t: f64) -> DeviceResult<()> {
+        self.inner.camera_set_cooler(id, e, t).await
+    }
+    async fn camera_get_temperature(&self, id: &str) -> DeviceResult<f64> {
+        self.inner.camera_get_temperature(id).await
+    }
+    async fn camera_get_cooler_power(&self, id: &str) -> DeviceResult<f64> {
+        self.inner.camera_get_cooler_power(id).await
+    }
+    async fn focuser_move_to(&self, id: &str, p: i32) -> DeviceResult<()> {
+        self.inner.focuser_move_to(id, p).await
+    }
+    async fn focuser_get_position(&self, id: &str) -> DeviceResult<i32> {
+        self.inner.focuser_get_position(id).await
+    }
+    async fn focuser_is_moving(&self, id: &str) -> DeviceResult<bool> {
+        self.inner.focuser_is_moving(id).await
+    }
+    async fn focuser_get_temperature(&self, id: &str) -> DeviceResult<Option<f64>> {
+        self.inner.focuser_get_temperature(id).await
+    }
+    async fn focuser_halt(&self, id: &str) -> DeviceResult<()> {
+        self.inner.focuser_halt(id).await
+    }
+    async fn filterwheel_set_position(&self, id: &str, p: i32) -> DeviceResult<()> {
+        self.inner.filterwheel_set_position(id, p).await
+    }
+    async fn filterwheel_get_position(&self, id: &str) -> DeviceResult<i32> {
+        self.inner.filterwheel_get_position(id).await
+    }
+    async fn filterwheel_get_names(&self, id: &str) -> DeviceResult<Vec<String>> {
+        self.inner.filterwheel_get_names(id).await
+    }
+    async fn filterwheel_set_filter_by_name(&self, id: &str, n: &str) -> DeviceResult<i32> {
+        self.inner.filterwheel_set_filter_by_name(id, n).await
+    }
+    async fn rotator_move_to(&self, id: &str, a: f64) -> DeviceResult<()> {
+        self.inner.rotator_move_to(id, a).await
+    }
+    async fn rotator_move_relative(&self, id: &str, d: f64) -> DeviceResult<()> {
+        self.inner.rotator_move_relative(id, d).await
+    }
+    async fn rotator_get_angle(&self, id: &str) -> DeviceResult<f64> {
+        self.inner.rotator_get_angle(id).await
+    }
+    async fn rotator_halt(&self, id: &str) -> DeviceResult<()> {
+        self.inner.rotator_halt(id).await
+    }
+    async fn guider_dither(
+        &self,
+        p: f64,
+        sp: f64,
+        st: f64,
+        sto: f64,
+        ra: bool,
+    ) -> DeviceResult<()> {
+        self.inner.guider_dither(p, sp, st, sto, ra).await
+    }
+    async fn guider_stop(&self) -> DeviceResult<()> {
+        self.inner.guider_stop().await
+    }
+    async fn plate_solve(
+        &self,
+        d: &crate::device_ops::ImageData,
+        ra: Option<f64>,
+        dec: Option<f64>,
+        s: Option<f64>,
+    ) -> DeviceResult<crate::device_ops::PlateSolveResult> {
+        self.inner.plate_solve(d, ra, dec, s).await
+    }
+    async fn save_fits(
+        &self,
+        d: &crate::device_ops::ImageData,
+        f: &str,
+        fctx: &crate::scheduling::FrameContext,
+    ) -> DeviceResult<()> {
+        self.inner.save_fits(d, f, fctx).await
+    }
+    async fn send_notification(
+        &self,
+        l: &str,
+        t: &str,
+        m: &str,
+        x: Option<&[String]>,
+    ) -> DeviceResult<()> {
+        self.inner.send_notification(l, t, m, x).await
+    }
+    fn calculate_altitude(&self, r: f64, d: f64, la: f64, lo: f64) -> f64 {
+        self.inner.calculate_altitude(r, d, la, lo)
+    }
+    fn get_observer_location(&self) -> Option<(f64, f64)> {
+        self.inner.get_observer_location()
+    }
+    async fn polar_align_update(
+        &self,
+        r: &crate::polar_align::PolarAlignResult,
+    ) -> DeviceResult<()> {
+        self.inner.polar_align_update(r).await
+    }
+    async fn dome_open(&self, id: &str) -> DeviceResult<()> {
+        self.inner.dome_open(id).await
+    }
+    async fn dome_close(&self, id: &str) -> DeviceResult<()> {
+        self.inner.dome_close(id).await
+    }
+    async fn dome_park(&self, id: &str) -> DeviceResult<()> {
+        self.inner.dome_park(id).await
+    }
+    async fn dome_get_shutter_status(&self, id: &str) -> DeviceResult<String> {
+        self.inner.dome_get_shutter_status(id).await
+    }
+    async fn safety_is_safe(&self, id: Option<&str>) -> DeviceResult<bool> {
+        self.inner.safety_is_safe(id).await
+    }
+    async fn calculate_image_hfr(
+        &self,
+        d: &crate::device_ops::ImageData,
+    ) -> DeviceResult<Option<f64>> {
+        self.inner.calculate_image_hfr(d).await
+    }
+    async fn detect_stars_in_image(
+        &self,
+        d: &crate::device_ops::ImageData,
+    ) -> DeviceResult<Vec<(f64, f64, f64)>> {
+        self.inner.detect_stars_in_image(d).await
+    }
+    async fn cover_calibrator_open_cover(&self, id: &str) -> DeviceResult<()> {
+        self.inner.cover_calibrator_open_cover(id).await
+    }
+    async fn cover_calibrator_close_cover(&self, id: &str) -> DeviceResult<()> {
+        self.inner.cover_calibrator_close_cover(id).await
+    }
+    async fn cover_calibrator_halt_cover(&self, id: &str) -> DeviceResult<()> {
+        self.inner.cover_calibrator_halt_cover(id).await
+    }
+    async fn cover_calibrator_calibrator_on(&self, id: &str, b: i32) -> DeviceResult<()> {
+        self.inner.cover_calibrator_calibrator_on(id, b).await
+    }
+    async fn cover_calibrator_calibrator_off(&self, id: &str) -> DeviceResult<()> {
+        self.inner.cover_calibrator_calibrator_off(id).await
+    }
+    async fn cover_calibrator_get_cover_state(&self, id: &str) -> DeviceResult<i32> {
+        self.inner.cover_calibrator_get_cover_state(id).await
+    }
+    async fn cover_calibrator_get_calibrator_state(&self, id: &str) -> DeviceResult<i32> {
+        self.inner.cover_calibrator_get_calibrator_state(id).await
+    }
+    async fn cover_calibrator_get_brightness(&self, id: &str) -> DeviceResult<i32> {
+        self.inner.cover_calibrator_get_brightness(id).await
+    }
+    async fn cover_calibrator_get_max_brightness(&self, id: &str) -> DeviceResult<i32> {
+        self.inner.cover_calibrator_get_max_brightness(id).await
+    }
+}
