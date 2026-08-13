@@ -1,0 +1,366 @@
+//! `guiding.rs` — moved verbatim out of the former single-file `instructions.rs`
+//! (release-pass C3 mechanical split). No logic changed; private items were
+//! widened to `pub(crate)` so the sibling modules and the tests module still
+//! see them, and `super::*` supplies the imports the original file had.
+
+use super::*;
+
+// =============================================================================
+// GUIDING START/STOP INSTRUCTIONS
+// =============================================================================
+
+pub(crate) struct GuiderStartupCleanupGuard {
+    device_ops: SharedDeviceOps,
+    armed: bool,
+}
+
+impl GuiderStartupCleanupGuard {
+    fn new(device_ops: SharedDeviceOps) -> Self {
+        Self {
+            device_ops,
+            armed: true,
+        }
+    }
+
+    fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for GuiderStartupCleanupGuard {
+    fn drop(&mut self) {
+        if !self.armed {
+            return;
+        }
+
+        let device_ops = self.device_ops.clone();
+        match tokio::runtime::Handle::try_current() {
+            Ok(handle) => {
+                let _cleanup_task = handle.spawn(async move {
+                    if let Err(error) = device_ops.guider_stop().await {
+                        tracing::error!("Failed to stop guider during startup cleanup: {}", error);
+                    }
+                });
+            }
+            Err(error) => tracing::error!(
+                "Could not schedule guider cleanup after dropped startup: {}",
+                error
+            ),
+        }
+    }
+}
+
+/// Execute start guiding - starts PHD2 guiding and waits for settle
+pub async fn execute_start_guiding(
+    config: &StartGuidingConfig,
+    ctx: &InstructionContext,
+    progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
+) -> InstructionResult {
+    tracing::info!(
+        "Starting guiding with settle threshold {} px",
+        config.settle_pixels
+    );
+
+    if let Some(cb) = progress_callback {
+        cb(0.0, "Starting guiding".to_string());
+    }
+
+    if let Some(result) = ctx.check_cancelled() {
+        return result;
+    }
+
+    if let Some(cb) = progress_callback {
+        cb(20.0, "Connecting to guider".to_string());
+    }
+
+    // Pre-flight status read serves two purposes: surface connection
+    // problems before issuing a guider_start (which has worse error
+    // diagnostics), and seed the log with the pre-state so post-start
+    // RMS readings can be compared to the baseline.
+    match ctx.device_ops.guider_get_status().await {
+        Ok(status) => {
+            tracing::debug!(
+                "Guider status: is_guiding={}, rms_total={:.2}",
+                status.is_guiding,
+                status.rms_total
+            );
+        }
+        Err(e) => {
+            // Some guiders (PHD2 in calibration) cannot answer status
+            // queries but still accept Start; treat the read failure as a
+            // soft warning rather than abort the sequence.
+            tracing::warn!("Could not get guider status: {}", e);
+        }
+    }
+
+    if let Some(result) = ctx.check_cancelled() {
+        return result;
+    }
+
+    if let Some(cb) = progress_callback {
+        cb(40.0, "Starting guide camera loop".to_string());
+    }
+
+    if let Some(cb) = progress_callback {
+        cb(60.0, "Waiting for guiding to stabilize".to_string());
+    }
+
+    match ctx
+        .device_ops
+        .guider_start(
+            config.settle_pixels,
+            config.settle_time,
+            config.settle_timeout,
+        )
+        .await
+    {
+        Ok(_) => {
+            let mut cleanup_guard = GuiderStartupCleanupGuard::new(ctx.device_ops.clone());
+            let result = async {
+                // ENG-F10: Validate that guiding actually reached "guiding" state.
+                // guider_start() may return Ok without the guider truly locking on.
+                // Poll status with a timeout to confirm guiding is active.
+                if let Some(cb) = progress_callback {
+                    cb(80.0, "Verifying guiding is active".to_string());
+                }
+
+                // Why: settle_timeout is f64 seconds (UI-bounded 0..3600 typical).
+                // f64 -> u64 saturates per Rust 1.45 spec; negatives clamp to 0
+                // which Duration::from_secs treats as "no wait" — surfaces as an
+                // immediate timeout, not a silent hang.
+                let verification_timeout = Duration::from_secs(config.settle_timeout as u64);
+                let poll_interval = Duration::from_secs(2);
+                let deadline = tokio::time::Instant::now() + verification_timeout;
+                let mut guiding_confirmed = false;
+
+                while tokio::time::Instant::now() < deadline {
+                    if let Some(result) = ctx.check_cancelled() {
+                        return result;
+                    }
+
+                    match ctx.device_ops.guider_get_status().await {
+                        Ok(status) if status.is_guiding => {
+                            tracing::info!(
+                                "Guiding confirmed active: RMS total={:.2}\"",
+                                status.rms_total
+                            );
+                            guiding_confirmed = true;
+                            break;
+                        }
+                        Ok(status) => {
+                            tracing::debug!(
+                                "Guiding not yet active (is_guiding={}), waiting...",
+                                status.is_guiding
+                            );
+                        }
+                        Err(e) => {
+                            tracing::warn!("Guider status poll failed: {}", e);
+                        }
+                    }
+
+                    sleep(poll_interval).await;
+                }
+
+                if !guiding_confirmed {
+                    return InstructionResult::failure(format!(
+                        "Guiding did not reach active state within {:.0}s timeout. \
+                     The guider may have failed to calibrate or lock onto a star.",
+                        config.settle_timeout
+                    ));
+                }
+
+                // P3-7: post-start calibration quality validation. A guider can
+                // report `is_guiding == true` and still be hopelessly miscalibrated
+                // — wrong axis directions, mirror-flipped pulses, near-singular
+                // matrix. The audit specifically flagged that bad calibrations
+                // were "slipping through" the existing is_guiding poll, so this
+                // gate is fail-closed (errors fail the StartGuiding instruction
+                // rather than letting the night drift away silently).
+                if config.validate_calibration {
+                    if let Some(cb) = progress_callback {
+                        cb(90.0, "Validating calibration quality".to_string());
+                    }
+
+                    // Step 1: axis geometry — fetch calibration data and check
+                    // that the reported axis angles are reasonably perpendicular.
+                    match ctx.device_ops.guider_get_calibration().await {
+                        Ok(calib) => {
+                            if let Err(reason) = validate_calibration_quality(&calib, config) {
+                                return InstructionResult::failure(reason);
+                            }
+                        }
+                        Err(e) => {
+                            // Driver doesn't expose calibration angles (some Alpaca
+                            // backends): warn but don't fail — the RMS check below
+                            // is the safety net.
+                            tracing::warn!(
+                                "Skipping calibration-axis validation: {} \
+                             (driver does not report calibration data)",
+                                e
+                            );
+                        }
+                    }
+
+                    // Step 2: post-settle RMS sanity — sample over a short window
+                    // to catch calibrations whose RMS only blows up after the
+                    // initial settle (drift / over-correction).
+                    let rms_samples: u32 = 3;
+                    let rms_interval = Duration::from_secs(2);
+                    let mut max_rms: f64 = 0.0;
+                    let mut sample_count: u32 = 0;
+                    for _ in 0..rms_samples {
+                        if let Some(result) = ctx.check_cancelled() {
+                            return result;
+                        }
+                        sleep(rms_interval).await;
+                        match ctx.device_ops.guider_get_status().await {
+                            Ok(status) => {
+                                max_rms = max_rms.max(status.rms_total);
+                                sample_count += 1;
+                            }
+                            Err(e) => {
+                                tracing::warn!("RMS sample failed during validation: {}", e);
+                            }
+                        }
+                    }
+                    if sample_count > 0 && max_rms > config.max_post_settle_rms_pixels {
+                        return InstructionResult::failure(format!(
+                            "Post-settle guiding RMS too high: {:.2}px peak across {} sample(s) \
+                         over {}s (limit {:.2}px). Calibration looks poor — \
+                         recalibrate the guider before continuing.",
+                            max_rms,
+                            sample_count,
+                            rms_samples as u64 * rms_interval.as_secs(),
+                            config.max_post_settle_rms_pixels
+                        ));
+                    }
+                    tracing::info!(
+                        "Calibration validation passed: peak RMS {:.2}px over {}s window",
+                        max_rms,
+                        rms_samples as u64 * rms_interval.as_secs()
+                    );
+                }
+
+                // Arm the GuideStarLost trigger now that guiding is confirmed
+                // active. Without this the trigger's `guiding_enabled` gate stays
+                // false and a lost star is never detected — the sequence would
+                // silently take unguided subs until dawn. The executor poll also
+                // latches this from live status, but setting it here closes the
+                // window between StartGuiding completing and the next poll tick.
+                if let Some(trigger_state_lock) = &ctx.trigger_state {
+                    trigger_state_lock.write().await.set_guiding_enabled(true);
+                }
+
+                if let Some(cb) = progress_callback {
+                    cb(100.0, "Guiding active".to_string());
+                }
+                InstructionResult::success_with_message("Guiding started and verified active")
+            }
+            .await;
+
+            if matches!(result.status, NodeStatus::Success) {
+                cleanup_guard.disarm();
+                result
+            } else {
+                match ctx.device_ops.guider_stop().await {
+                    Ok(()) => {
+                        cleanup_guard.disarm();
+                        if let Some(trigger_state) = &ctx.trigger_state {
+                            trigger_state.write().await.set_guiding_enabled(false);
+                        }
+                        result
+                    }
+                    Err(error) => {
+                        let mut result = result;
+                        let prior = result
+                            .message
+                            .take()
+                            .unwrap_or_else(|| "Guiding startup did not complete".to_string());
+                        result.status = NodeStatus::Failure;
+                        result.message = Some(format!(
+                            "{}; CRITICAL CLEANUP FAILURE: failed to stop guider: {}",
+                            prior, error
+                        ));
+                        result
+                    }
+                }
+            }
+        }
+        Err(e) => InstructionResult::failure(format!("Failed to start guiding: {}", e)),
+    }
+}
+
+/// P3-7: pure validation function over a `GuidingCalibration` snapshot.
+/// Extracted from `execute_start_guiding` so it can be unit-tested without
+/// spinning up a full device stack.
+///
+/// Returns `Err(reason)` with a user-facing message if calibration looks
+/// broken; `Ok(())` if it should proceed.
+pub fn validate_calibration_quality(
+    calib: &crate::GuidingCalibration,
+    config: &StartGuidingConfig,
+) -> Result<(), String> {
+    if !calib.is_calibrated {
+        return Err(
+            "Guider reports it is not calibrated after StartGuiding completed. \
+             This usually means calibration was cancelled or failed silently."
+                .to_string(),
+        );
+    }
+
+    if let (Some(ra), Some(dec)) = (calib.ra_angle_deg, calib.dec_angle_deg) {
+        // The axes should be ~90° apart (modulo 180°, since either axis
+        // could be the "positive" direction). Compute the deviation from
+        // perpendicularity in degrees in [0, 90].
+        let raw_diff = (ra - dec).abs() % 180.0;
+        let perpendicularity_error = (raw_diff - 90.0).abs();
+        if perpendicularity_error > config.max_calibration_axis_error_deg {
+            return Err(format!(
+                "Calibration axes look broken: RA angle {:.1}°, Dec angle {:.1}° \
+                 — off-perpendicular by {:.1}° (limit {:.1}°). \
+                 The guider may have miscalibrated; recalibrate before continuing.",
+                ra, dec, perpendicularity_error, config.max_calibration_axis_error_deg
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+/// Execute stop guiding - stops PHD2 guiding
+pub async fn execute_stop_guiding(
+    ctx: &InstructionContext,
+    progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
+) -> InstructionResult {
+    tracing::info!("Stopping guiding");
+
+    if let Some(cb) = progress_callback {
+        cb(0.0, "Stopping guiding".to_string());
+    }
+
+    if let Some(result) = ctx.check_cancelled() {
+        return result;
+    }
+
+    if let Some(cb) = progress_callback {
+        cb(50.0, "Sending stop command".to_string());
+    }
+
+    match ctx.device_ops.guider_stop().await {
+        Ok(_) => {
+            // Disarm the GuideStarLost trigger on an intentional stop, so the
+            // subsequent is_guiding==false does not get misread as a lost star
+            // (which would request recovery for a deliberately-stopped guider).
+            if let Some(trigger_state_lock) = &ctx.trigger_state {
+                let mut tstate = trigger_state_lock.write().await;
+                tstate.set_guiding_enabled(false);
+                tstate.set_guide_star_lost(false);
+            }
+            if let Some(cb) = progress_callback {
+                cb(100.0, "Guiding stopped".to_string());
+            }
+            InstructionResult::success_with_message("Guiding stopped")
+        }
+        Err(e) => InstructionResult::failure(format!("Failed to stop guiding: {}", e)),
+    }
+}
