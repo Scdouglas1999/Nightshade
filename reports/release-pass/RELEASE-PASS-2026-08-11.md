@@ -367,8 +367,10 @@ Order of execution from here:
    FITS (the FITS writer demands EXPTIME/DATE-OBS the live stacker lacks) — accept or extend
    the writer.
 
-3c. **C3 splits** — COMPLETE (wf_c7ff2598-1bf, 10/10 batches, **118 files split**, 51
-   correctly skipped as already under threshold). Gates in flight; placeholder baseline
+3c. **C3 splits** — COMPLETE + COMMITTED through 00ce2bf02 (wf_c7ff2598-1bf, 10/10
+   batches, **118 files split**, 51 correctly skipped as already under threshold). Gates
+   ALL GREEN (cargo 23 suites; melos all-SUCCESS after fixing one pre-existing
+   minute-boundary race in location_settings_truth_test; nightshade_app record run 3,301); placeholder baseline
    regenerated for the moved paths (net improvement 211→184 markers). The three
    cross-batch breaks agents reported mid-wave all self-repaired before the wave returned.
    Design-decision residue (NOT mechanical, parked for the owner/Wave D):
@@ -381,12 +383,49 @@ Order of execution from here:
    - DefaultScienceBackend / FlatWizardService / ConstellationService residuals are public
      API that extensions cannot carry — real decomposition or accept the size.
 
-4. **Wave D** adversarial verify over C1 + B-fix + C2 + stage-2 (re-drive the GUI clusters
+4. **Wave D — RUNNING as wf_8f351778-efa** (launched 2026-08-13 ~18:35 against the fresh
+   18:31 bundle; script: reports/release-pass/scripts/release-waveD-verify.js; resume with
+   script + runId after any restart; cluster reports land in
+   reports/release-pass/gui/waveD-*.md). Adversarial verify over C1 + B-fix + C2 + stage-2 (re-drive the GUI clusters
    against a fresh bundle + the fixed a11y dump; verify no fix merely relocated its defect;
    reproduce the JD+0.5 planetarium suspect and the phd2 generic-connect route live; eyeball
    the stacked preview); loop map→fix→verify until a wave is dry.
+## Wave D verdict (2026-08-13 evening) — adjudicated
+
+11/11 agents against the fresh 18:31 bundle. **66 verified fixed, 28 refute-claims held;
+37 still-broken, 48 new findings (1 P1, ~10 P2), 5 claims REFUTED.** Full machine-readable
+verdict: `reports/release-pass/waveD-result.json`; cluster reports:
+`reports/release-pass/gui/waveD-*.md`.
+
+Adjudication:
+- The 17 consistency CON-45..63 "still broken" items were NEVER in a fix wave's scope
+  (only CON-44/60/61 were chartered) — they are correctly-unfixed backlog, not regressions.
+  Assigned to D-fix where mechanical; the copy-register items (CON-57) stay owner-decision.
+- REFUTED (top priority, the flagship P0): both halves of SEQ-12's ownership fix — a race
+  at the tick boundary (dispatch vs no-eligible tick) and `currentTargetId != null` is not
+  a sound "this run is mine" test (stale after operator Stop / failure). Proof test saved at
+  scratchpad seq12_race_test.dart — D-fix must adopt + harden it in-repo.
+- REFUTED: C1 frame-verdict fix reaches counters but NOT the integration total beside them;
+  phd2AutoSelectStar refusal RELOCATED not removed; SCI-48 debris sparing uses string-prefix
+  not base-name matching (M31.fits spares M31_dark.ini class errors).
+- Claimed-fixed-but-still-broken to re-open: IMG-10 (pause: tooltip added, click still a
+  no-op — make it disabled-with-reason for the builtin guider), IMG-16 (bullseye now WORSE:
+  post-run says "No measurement yet" beside a 3.2" result), SEQ-13 (target RA/Dec snapshot
+  still stale in the engine; site changes ARE live), SEQ-18 (0/N after success), SEQ-19
+  (contradiction moved: "R 180s" two rows above "No Filter"), SEQ-20 (elapsed still whole-
+  minute), SCI-43 preflight string (preflight_rules.dart:246 — was recorded blocked, never
+  landed), CON-61 (title bar STILL absent from the AT-SPI tree — the B-fix claim is wrong at
+  the tree level), SET-2/12/18 residuals, SKY-4/10/16, COL2-3/13 (B-fix called these
+  already-fixed-at-HEAD; Wave D disagrees — re-examine with the live evidence).
+- IMG-4 unchanged (green "Found 0 objects" on a failed solve) and IMG-14's field-scale hint
+  is still missing (-fov never passed; position hint landed).
+- New P1: ND-1 live-stacking frame counters freeze at 1 while 68 frames stack; Stop dialog
+  then under-reports. New P2s: ND-2/3/4, WD-SEQ-N1/N2, WD-EQ-1 (heartbeats STILL 20676d for
+  5 of 6 types — the EQP-1 fix missed the non-camera path), WD-N1/N4, WD-SCI-N1, WD-COL-N1.
+- Harness traps recorded by WD-EQ-8 (AT-SPI tree lag) — fold into the harness notes.
+
 5. Owner-decision items from Wave A remain parked in their section above; IMG-9 (loop
-   frame-count label) joined them from B-fix.
+   frame-count label) joined them from B-fix, CON-57 copy-register from Wave D.
 
 ## Fix log
 
