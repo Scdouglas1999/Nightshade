@@ -32,8 +32,8 @@ import '../db/hub_database.dart';
 /// and serves it to every participant.
 class MosaicBrokerService {
   MosaicBrokerService(this._db, {ConsentService? consent})
-      : _consent = consent,
-        _random = Random.secure();
+    : _consent = consent,
+      _random = Random.secure();
 
   final HubDatabase _db;
 
@@ -143,7 +143,9 @@ class MosaicBrokerService {
       'ORDER BY panel_index ASC;',
       <Object?>[mosaicId],
     );
-    return rows.map(CollaborativeMosaicPanelRow._fromRow).toList(growable: false);
+    return rows
+        .map(CollaborativeMosaicPanelRow._fromRow)
+        .toList(growable: false);
   }
 
   // --- Claim baton -----------------------------------------------------------
@@ -393,19 +395,23 @@ class MosaicBrokerService {
   /// assembly is refused until this is true). False when the mosaic has no
   /// panels.
   bool allPanelsUploaded(String mosaicId) {
-    final total = (_db.db.select(
-              'SELECT COUNT(*) AS n FROM collaborative_mosaic_panels '
-              'WHERE mosaic_id = ?;',
-              <Object?>[mosaicId],
-            ).first['n'] as num)
-        .toInt();
+    final total =
+        (_db.db.select(
+                  'SELECT COUNT(*) AS n FROM collaborative_mosaic_panels '
+                  'WHERE mosaic_id = ?;',
+                  <Object?>[mosaicId],
+                ).first['n']
+                as num)
+            .toInt();
     if (total == 0) return false;
-    final uploaded = (_db.db.select(
-              'SELECT COUNT(*) AS n FROM collaborative_mosaic_panels '
-              "WHERE mosaic_id = ? AND status = 'uploaded';",
-              <Object?>[mosaicId],
-            ).first['n'] as num)
-        .toInt();
+    final uploaded =
+        (_db.db.select(
+                  'SELECT COUNT(*) AS n FROM collaborative_mosaic_panels '
+                  "WHERE mosaic_id = ? AND status = 'uploaded';",
+                  <Object?>[mosaicId],
+                ).first['n']
+                as num)
+            .toInt();
     return uploaded == total;
   }
 

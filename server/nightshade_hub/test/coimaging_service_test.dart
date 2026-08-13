@@ -63,21 +63,32 @@ void main() {
       expect(ps.single.membershipToken, isNotEmpty);
     });
 
-    test('join is idempotent for the same rig (renewal keeps slot + token)', () {
-      final owner = mkAccount('owner');
-      final id = coimaging.createSession(
-        ownerAccountId: owner,
-        targetName: 'M51',
-        centerRaDeg: 202.5,
-        centerDecDeg: 47.2,
-      );
-      final bob = mkAccount('bob');
-      final first = coimaging.join(sessionId: id, accountId: bob, rigId: 'rig-1');
-      final again = coimaging.join(sessionId: id, accountId: bob, rigId: 'rig-1');
-      expect(again.framingOffsetIndex, first.framingOffsetIndex);
-      expect(again.membershipToken, first.membershipToken);
-      expect(coimaging.participants(id), hasLength(2)); // owner + bob
-    });
+    test(
+      'join is idempotent for the same rig (renewal keeps slot + token)',
+      () {
+        final owner = mkAccount('owner');
+        final id = coimaging.createSession(
+          ownerAccountId: owner,
+          targetName: 'M51',
+          centerRaDeg: 202.5,
+          centerDecDeg: 47.2,
+        );
+        final bob = mkAccount('bob');
+        final first = coimaging.join(
+          sessionId: id,
+          accountId: bob,
+          rigId: 'rig-1',
+        );
+        final again = coimaging.join(
+          sessionId: id,
+          accountId: bob,
+          rigId: 'rig-1',
+        );
+        expect(again.framingOffsetIndex, first.framingOffsetIndex);
+        expect(again.membershipToken, first.membershipToken);
+        expect(coimaging.participants(id), hasLength(2)); // owner + bob
+      },
+    );
 
     test('join throws for unknown / closed sessions', () {
       final bob = mkAccount('bob');
@@ -110,7 +121,10 @@ void main() {
       final bob = mkAccount('bob');
       coimaging.join(sessionId: id, accountId: bob, rigId: 'r');
       expect(coimaging.isParticipant(id, bob), isTrue);
-      expect(coimaging.leave(sessionId: id, accountId: bob, rigId: 'r'), isTrue);
+      expect(
+        coimaging.leave(sessionId: id, accountId: bob, rigId: 'r'),
+        isTrue,
+      );
       expect(coimaging.isParticipant(id, bob), isFalse);
       // Row survives for attribution/history.
       expect(coimaging.participants(id), hasLength(2));
@@ -125,12 +139,14 @@ void main() {
         centerDecDeg: 34,
       );
       final bob = mkAccount('bob');
-      final first =
-          coimaging.join(sessionId: id, accountId: bob, rigId: 'r');
+      final first = coimaging.join(sessionId: id, accountId: bob, rigId: 'r');
       expect(first.membershipToken, isNotEmpty);
 
       // Leave clears the token; the rig is locked out of contributing.
-      expect(coimaging.leave(sessionId: id, accountId: bob, rigId: 'r'), isTrue);
+      expect(
+        coimaging.leave(sessionId: id, accountId: bob, rigId: 'r'),
+        isTrue,
+      );
       expect(coimaging.isParticipant(id, bob), isFalse);
       expect(
         coimaging.holdsMembership(sessionId: id, accountId: bob, rigId: 'r'),
@@ -185,12 +201,15 @@ void main() {
       final slots = ps.map((p) => p.framingOffsetIndex).toSet();
       expect(slots, hasLength(12)); // all slots distinct
       // All (ra, dec) offsets distinct too.
-      final offsets =
-          ps.map((p) => '${p.framingOffsetRaArcsec},${p.framingOffsetDecArcsec}');
+      final offsets = ps.map(
+        (p) => '${p.framingOffsetRaArcsec},${p.framingOffsetDecArcsec}',
+      );
       expect(offsets.toSet(), hasLength(12));
       // Anchor is the only zero offset.
-      final zeros = ps.where((p) =>
-          p.framingOffsetRaArcsec == 0.0 && p.framingOffsetDecArcsec == 0.0);
+      final zeros = ps.where(
+        (p) =>
+            p.framingOffsetRaArcsec == 0.0 && p.framingOffsetDecArcsec == 0.0,
+      );
       expect(zeros, hasLength(1));
     });
 
@@ -295,73 +314,80 @@ void main() {
   });
 
   group('live combined preview channel', () {
-    test('a subscriber gets an immediate snapshot then per-contribution events',
-        () async {
-      final owner = mkAccount('owner');
-      final id = coimaging.createSession(
-        ownerAccountId: owner,
-        targetName: 'Live',
-        centerRaDeg: 60,
-        centerDecDeg: 30,
-      );
-      final events = <CoImagingPreviewEvent>[];
-      final sub = coimaging.subscribe(id).listen(events.add);
-      await Future<void>.delayed(Duration.zero); // let onListen fire
-      expect(events, hasLength(1));
-      expect(events.first.kind, 'snapshot');
-      expect(coimaging.subscriberCount(id), 1);
+    test(
+      'a subscriber gets an immediate snapshot then per-contribution events',
+      () async {
+        final owner = mkAccount('owner');
+        final id = coimaging.createSession(
+          ownerAccountId: owner,
+          targetName: 'Live',
+          centerRaDeg: 60,
+          centerDecDeg: 30,
+        );
+        final events = <CoImagingPreviewEvent>[];
+        final sub = coimaging.subscribe(id).listen(events.add);
+        await Future<void>.delayed(Duration.zero); // let onListen fire
+        expect(events, hasLength(1));
+        expect(events.first.kind, 'snapshot');
+        expect(coimaging.subscriberCount(id), 1);
 
-      fakeNow = fakeNow.add(const Duration(hours: 1));
-      coimaging.recordContribution(
-        sessionId: id,
-        accountId: owner,
-        framesDelta: 7,
-        integrationSecondsDelta: 420,
-      );
-      await Future<void>.delayed(Duration.zero);
-      expect(events, hasLength(2));
-      expect(events.last.kind, 'combined-preview');
-      expect(events.last.combinedFrames, 7);
-      expect(events.last.activeTileId, greaterThanOrEqualTo(0));
-      // The SSE frame is well-formed.
-      final frame = events.last.toSseFrame();
-      expect(frame, startsWith('event: combined-preview\ndata: '));
-      expect(frame, endsWith('\n\n'));
+        fakeNow = fakeNow.add(const Duration(hours: 1));
+        coimaging.recordContribution(
+          sessionId: id,
+          accountId: owner,
+          framesDelta: 7,
+          integrationSecondsDelta: 420,
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(events, hasLength(2));
+        expect(events.last.kind, 'combined-preview');
+        expect(events.last.combinedFrames, 7);
+        expect(events.last.activeTileId, greaterThanOrEqualTo(0));
+        // The SSE frame is well-formed.
+        final frame = events.last.toSseFrame();
+        expect(frame, startsWith('event: combined-preview\ndata: '));
+        expect(frame, endsWith('\n\n'));
 
-      await sub.cancel();
-      expect(coimaging.subscriberCount(id), 0);
-    });
+        await sub.cancel();
+        expect(coimaging.subscriberCount(id), 0);
+      },
+    );
 
-    test('a re-join after leaving broadcasts a participant-joined event',
-        () async {
-      final owner = mkAccount('owner');
-      final id = coimaging.createSession(
-        ownerAccountId: owner,
-        targetName: 'Rejoin-live',
-        centerRaDeg: 45,
-        centerDecDeg: 15,
-      );
-      final bob = mkAccount('bob');
-      // Establish + tear down bob's membership BEFORE subscribing, so the only
-      // roster event the subscriber can observe is the re-join under test.
-      coimaging.join(sessionId: id, accountId: bob, rigId: 'r');
-      expect(coimaging.leave(sessionId: id, accountId: bob, rigId: 'r'), isTrue);
+    test(
+      'a re-join after leaving broadcasts a participant-joined event',
+      () async {
+        final owner = mkAccount('owner');
+        final id = coimaging.createSession(
+          ownerAccountId: owner,
+          targetName: 'Rejoin-live',
+          centerRaDeg: 45,
+          centerDecDeg: 15,
+        );
+        final bob = mkAccount('bob');
+        // Establish + tear down bob's membership BEFORE subscribing, so the only
+        // roster event the subscriber can observe is the re-join under test.
+        coimaging.join(sessionId: id, accountId: bob, rigId: 'r');
+        expect(
+          coimaging.leave(sessionId: id, accountId: bob, rigId: 'r'),
+          isTrue,
+        );
 
-      final events = <CoImagingPreviewEvent>[];
-      final sub = coimaging.subscribe(id).listen(events.add);
-      await Future<void>.delayed(Duration.zero); // let the snapshot fire
-      expect(events, hasLength(1));
-      expect(events.first.kind, 'snapshot');
+        final events = <CoImagingPreviewEvent>[];
+        final sub = coimaging.subscribe(id).listen(events.add);
+        await Future<void>.delayed(Duration.zero); // let the snapshot fire
+        expect(events, hasLength(1));
+        expect(events.first.kind, 'snapshot');
 
-      // Re-join re-activates the membership — subscribers must see it live, not
-      // only on bob's next contribution.
-      coimaging.join(sessionId: id, accountId: bob, rigId: 'r');
-      await Future<void>.delayed(Duration.zero);
-      expect(events, hasLength(2));
-      expect(events.last.kind, 'participant-joined');
+        // Re-join re-activates the membership — subscribers must see it live, not
+        // only on bob's next contribution.
+        coimaging.join(sessionId: id, accountId: bob, rigId: 'r');
+        await Future<void>.delayed(Duration.zero);
+        expect(events, hasLength(2));
+        expect(events.last.kind, 'participant-joined');
 
-      await sub.cancel();
-    });
+        await sub.cancel();
+      },
+    );
   });
 
   group('longitude hand-off baton', () {
@@ -446,8 +472,10 @@ void main() {
       coimaging.closeSession(id);
 
       // Membership token survives close, but the closed session is dead:
-      expect(coimaging.holdsMembership(sessionId: id, accountId: bob, rigId: 'rb'),
-          isTrue);
+      expect(
+        coimaging.holdsMembership(sessionId: id, accountId: bob, rigId: 'rb'),
+        isTrue,
+      );
       fakeNow = fakeNow.add(const Duration(hours: 1));
       expect(
         () => coimaging.recordContribution(
@@ -473,8 +501,7 @@ void main() {
   });
 
   group('WS4 consent ledger (revocable share proof)', () {
-    test(
-        'a rig streaming many subs leaves exactly one live consent row, and it '
+    test('a rig streaming many subs leaves exactly one live consent row, and it '
         'is revoked when its report is overwritten', () {
       final consent = ConsentService(db);
       final co = CoImagingService(
@@ -640,8 +667,10 @@ void main() {
         ),
         throwsA(isA<CoImagingContributionRejected>()),
       );
-      expect(coimaging.getSession(id)!.combinedIntegrationSeconds,
-          closeTo(570, 1e-9));
+      expect(
+        coimaging.getSession(id)!.combinedIntegrationSeconds,
+        closeTo(570, 1e-9),
+      );
 
       // After another hour of real imaging the same delta now fits.
       fakeNow = fakeNow.add(const Duration(hours: 1));

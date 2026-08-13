@@ -30,7 +30,12 @@ class HandoffService {
   /// Claim [targetId] for [accountId]. Succeeds if free or already held by the
   /// same account (renewal). Returns null if another account currently holds it.
   HandoffClaim? claim({required int targetId, required String accountId}) {
-    final claimed = _claimRaw('handoff_claims', 'target_id', targetId, accountId);
+    final claimed = _claimRaw(
+      'handoff_claims',
+      'target_id',
+      targetId,
+      accountId,
+    );
     if (claimed == null) return null;
     return HandoffClaim(
       targetId: targetId,
@@ -62,14 +67,10 @@ class HandoffService {
   ({String token, DateTime expiresAt})? claimSession({
     required String sessionId,
     required String accountId,
-  }) =>
-      _claimRaw('coimaging_batons', 'session_id', sessionId, accountId);
+  }) => _claimRaw('coimaging_batons', 'session_id', sessionId, accountId);
 
   /// Release the baton for co-imaging [sessionId] if held by [accountId].
-  bool releaseSession({
-    required String sessionId,
-    required String accountId,
-  }) =>
+  bool releaseSession({required String sessionId, required String accountId}) =>
       _releaseRaw('coimaging_batons', 'session_id', sessionId, accountId);
 
   // --- Generic single-holder claim core --------------------------------------
@@ -129,10 +130,7 @@ class HandoffService {
   bool _releaseRaw(String table, String col, Object key, String accountId) {
     final current = _stateRaw(table, col, key);
     if (current.holder != accountId) return false;
-    _db.db.execute(
-      'DELETE FROM $table WHERE $col = ?;',
-      <Object?>[key],
-    );
+    _db.db.execute('DELETE FROM $table WHERE $col = ?;', <Object?>[key]);
     return true;
   }
 
@@ -144,10 +142,7 @@ class HandoffService {
     if (rows.isEmpty) return;
     final exp = DateTime.tryParse(rows.first['expires_at'] as String);
     if (exp != null && !DateTime.now().toUtc().isBefore(exp)) {
-      _db.db.execute(
-        'DELETE FROM $table WHERE $col = ?;',
-        <Object?>[key],
-      );
+      _db.db.execute('DELETE FROM $table WHERE $col = ?;', <Object?>[key]);
     }
   }
 

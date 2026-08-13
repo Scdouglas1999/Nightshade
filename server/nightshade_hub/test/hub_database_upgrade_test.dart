@@ -43,12 +43,10 @@ void main() {
     });
 
     bool tableExists(HubDatabase hub, String name) {
-      return hub.db
-          .select(
-            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?;",
-            <Object?>[name],
-          )
-          .isNotEmpty;
+      return hub.db.select(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?;",
+        <Object?>[name],
+      ).isNotEmpty;
     }
 
     bool columnExists(HubDatabase hub, String table, String column) {
@@ -81,37 +79,44 @@ void main() {
       }
     });
 
-    test('adds the _ensureColumn columns to the pre-existing legacy tables', () {
-      final hub = HubDatabase.open(dbPath);
-      try {
-        // Moderation kill switch on the long-lived accounts table.
-        expect(columnExists(hub, 'accounts', 'suspended_at'), isTrue);
-        expect(columnExists(hub, 'accounts', 'suspended_reason'), isTrue);
-        // Consent/license stamps on the two contribution ledgers.
-        expect(columnExists(hub, 'contributions', 'license'), isTrue);
-        expect(columnExists(hub, 'contributions', 'consent_id'), isTrue);
-        expect(
-          columnExists(hub, 'raw_subframe_contributions', 'license'),
-          isTrue,
-        );
-        expect(
-          columnExists(hub, 'raw_subframe_contributions', 'consent_id'),
-          isTrue,
-        );
-        // The collab tables created this pass also carry their _ensureColumn
-        // additions (these columns are NOT in the base CREATE).
-        expect(
-          columnExists(hub, 'collaborative_mosaic_panels', 'attribution_consent'),
-          isTrue,
-        );
-        expect(
-          columnExists(hub, 'coimaging_participants', 'attribution_consent'),
-          isTrue,
-        );
-      } finally {
-        hub.dispose();
-      }
-    });
+    test(
+      'adds the _ensureColumn columns to the pre-existing legacy tables',
+      () {
+        final hub = HubDatabase.open(dbPath);
+        try {
+          // Moderation kill switch on the long-lived accounts table.
+          expect(columnExists(hub, 'accounts', 'suspended_at'), isTrue);
+          expect(columnExists(hub, 'accounts', 'suspended_reason'), isTrue);
+          // Consent/license stamps on the two contribution ledgers.
+          expect(columnExists(hub, 'contributions', 'license'), isTrue);
+          expect(columnExists(hub, 'contributions', 'consent_id'), isTrue);
+          expect(
+            columnExists(hub, 'raw_subframe_contributions', 'license'),
+            isTrue,
+          );
+          expect(
+            columnExists(hub, 'raw_subframe_contributions', 'consent_id'),
+            isTrue,
+          );
+          // The collab tables created this pass also carry their _ensureColumn
+          // additions (these columns are NOT in the base CREATE).
+          expect(
+            columnExists(
+              hub,
+              'collaborative_mosaic_panels',
+              'attribution_consent',
+            ),
+            isTrue,
+          );
+          expect(
+            columnExists(hub, 'coimaging_participants', 'attribution_consent'),
+            isTrue,
+          );
+        } finally {
+          hub.dispose();
+        }
+      },
+    );
 
     test('preserves the legacy rows across the upgrade', () {
       final hub = HubDatabase.open(dbPath);
@@ -195,35 +200,37 @@ void main() {
       expect(
         match,
         isNotNull,
-        reason: '$table.license must carry a CHECK (license IN (...)) constraint',
+        reason:
+            '$table.license must carry a CHECK (license IN (...)) constraint',
       );
-      return RegExp("'([^']*)'")
-          .allMatches(match!.group(1)!)
-          .map((m) => m.group(1)!)
-          .toSet();
+      return RegExp(
+        "'([^']*)'",
+      ).allMatches(match!.group(1)!).map((m) => m.group(1)!).toSet();
     }
 
-    test('shared_calibration_masters + consent_records CHECK == canonical set',
-        () {
-      final hub = HubDatabase.open(':memory:');
-      try {
-        expect(
-          licenseCheckSet(hub, 'shared_calibration_masters'),
-          equals(canonical),
-          reason:
-              'the shared_calibration_masters.license CHECK must accept exactly '
-              'the ContributionLicense wire names — a drift silently rejects '
-              'valid publishes at INSERT time',
-        );
-        expect(
-          licenseCheckSet(hub, 'consent_records'),
-          equals(canonical),
-          reason: 'the consent_records.license CHECK must match the same set',
-        );
-      } finally {
-        hub.dispose();
-      }
-    });
+    test(
+      'shared_calibration_masters + consent_records CHECK == canonical set',
+      () {
+        final hub = HubDatabase.open(':memory:');
+        try {
+          expect(
+            licenseCheckSet(hub, 'shared_calibration_masters'),
+            equals(canonical),
+            reason:
+                'the shared_calibration_masters.license CHECK must accept exactly '
+                'the ContributionLicense wire names — a drift silently rejects '
+                'valid publishes at INSERT time',
+          );
+          expect(
+            licenseCheckSet(hub, 'consent_records'),
+            equals(canonical),
+            reason: 'the consent_records.license CHECK must match the same set',
+          );
+        } finally {
+          hub.dispose();
+        }
+      },
+    );
   });
 }
 

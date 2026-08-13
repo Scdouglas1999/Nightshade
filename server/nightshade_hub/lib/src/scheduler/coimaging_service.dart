@@ -277,12 +277,7 @@ class CoImagingService {
     _db.db.execute(
       "UPDATE coimaging_participants SET membership_token = '', updated_at = ? "
       'WHERE session_id = ? AND account_id = ? AND rig_id = ?;',
-      <Object?>[
-        _now().toIso8601String(),
-        sessionId,
-        accountId,
-        normRig,
-      ],
+      <Object?>[_now().toIso8601String(), sessionId, accountId, normRig],
     );
     return true;
   }
@@ -347,8 +342,8 @@ class CoImagingService {
     final row = _participantRow(sessionId, accountId, normRig);
     if (row == null) throw CoImagingParticipantNotFound(sessionId, accountId);
     final frames = framesDelta < 0 ? 0 : framesDelta;
-    final seconds = (!integrationSecondsDelta.isFinite ||
-            integrationSecondsDelta < 0)
+    final seconds =
+        (!integrationSecondsDelta.isFinite || integrationSecondsDelta < 0)
         ? 0.0
         : integrationSecondsDelta;
     // PROVENANCE GUARD: the accounting is self-reported, so bound each report to
@@ -504,8 +499,7 @@ class CoImagingService {
   }
 
   /// Number of live preview subscribers for a session (test/diagnostic).
-  int subscriberCount(String sessionId) =>
-      _subscribers[sessionId]?.length ?? 0;
+  int subscriberCount(String sessionId) => _subscribers[sessionId]?.length ?? 0;
 
   void _broadcast(
     String sessionId, {
@@ -578,8 +572,10 @@ class CoImagingService {
     final session = getSession(sessionId);
     if (session == null) throw CoImagingSessionNotFound(sessionId);
     if (session.status != 'active') throw CoImagingSessionClosed(sessionId);
-    final claimed =
-        _handoff.claimSession(sessionId: sessionId, accountId: accountId);
+    final claimed = _handoff.claimSession(
+      sessionId: sessionId,
+      accountId: accountId,
+    );
     if (claimed == null) return null;
     return HandoffClaim(
       targetId: session.sharedTargetId ?? -1,
@@ -590,10 +586,7 @@ class CoImagingService {
 
   /// Release the baton (the target is setting at this site; hand it east). Throws
   /// [CoImagingSessionClosed] for a closed session.
-  bool releaseBaton({
-    required String sessionId,
-    required String accountId,
-  }) {
+  bool releaseBaton({required String sessionId, required String accountId}) {
     final session = getSession(sessionId);
     if (session == null) throw CoImagingSessionNotFound(sessionId);
     if (session.status != 'active') throw CoImagingSessionClosed(sessionId);
@@ -1011,8 +1004,7 @@ class CoImagingParticipantNotFound implements Exception {
   final String sessionId;
   final String accountId;
   @override
-  String toString() =>
-      'CoImagingParticipantNotFound($sessionId, $accountId)';
+  String toString() => 'CoImagingParticipantNotFound($sessionId, $accountId)';
 }
 
 /// A self-reported contribution exceeded the physically-plausible accounting

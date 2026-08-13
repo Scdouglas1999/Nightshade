@@ -625,49 +625,65 @@ void main() {
   });
 
   group('collaborative mosaics (WS2)', () {
-    Future<String> signup(String key) async => (await jsonOf(
-          await req('POST', '/v1/accounts', jsonBody: <String, Object?>{
-            'publicKey': key,
-            'displayName': key,
-          }),
-        ))['bearerToken'] as String;
+    Future<String> signup(String key) async =>
+        (await jsonOf(
+              await req(
+                'POST',
+                '/v1/accounts',
+                jsonBody: <String, Object?>{
+                  'publicKey': key,
+                  'displayName': key,
+                },
+              ),
+            ))['bearerToken']
+            as String;
 
     Future<Map<String, Object?>> publish(String token) async => jsonOf(
-          await req('POST', '/v1/mosaics', token: token, jsonBody: <String, Object?>{
-            'name': '2x1',
-            'rows': 1,
-            'cols': 2,
-            'centerRaDeg': 100.0,
-            'centerDecDeg': 20.0,
-            'panels': <Object?>[
-              <String, Object?>{
-                'panelIndex': 0,
-                'centerRaDeg': 99.5,
-                'centerDecDeg': 20.0,
-              },
-              <String, Object?>{
-                'panelIndex': 1,
-                'centerRaDeg': 100.5,
-                'centerDecDeg': 20.0,
-              },
-            ],
-          }),
-        );
+      await req(
+        'POST',
+        '/v1/mosaics',
+        token: token,
+        jsonBody: <String, Object?>{
+          'name': '2x1',
+          'rows': 1,
+          'cols': 2,
+          'centerRaDeg': 100.0,
+          'centerDecDeg': 20.0,
+          'panels': <Object?>[
+            <String, Object?>{
+              'panelIndex': 0,
+              'centerRaDeg': 99.5,
+              'centerDecDeg': 20.0,
+            },
+            <String, Object?>{
+              'panelIndex': 1,
+              'centerRaDeg': 100.5,
+              'centerDecDeg': 20.0,
+            },
+          ],
+        },
+      ),
+    );
 
     test('publish -> get -> claim 200 then 409 on contention', () async {
       final owner = await signup('m-owner');
       final bob = await signup('m-bob');
-      final pub = await req('POST', '/v1/mosaics', token: owner, jsonBody: {
-        'name': '2x1',
-        'rows': 1,
-        'cols': 2,
-        'centerRaDeg': 100.0,
-        'centerDecDeg': 20.0,
-        'panels': [
-          {'panelIndex': 0, 'centerRaDeg': 99.5, 'centerDecDeg': 20.0},
-          {'panelIndex': 1, 'centerRaDeg': 100.5, 'centerDecDeg': 20.0},
-        ],
-      });
+      final pub = await req(
+        'POST',
+        '/v1/mosaics',
+        token: owner,
+        jsonBody: {
+          'name': '2x1',
+          'rows': 1,
+          'cols': 2,
+          'centerRaDeg': 100.0,
+          'centerDecDeg': 20.0,
+          'panels': [
+            {'panelIndex': 0, 'centerRaDeg': 99.5, 'centerDecDeg': 20.0},
+            {'panelIndex': 1, 'centerRaDeg': 100.5, 'centerDecDeg': 20.0},
+          ],
+        },
+      );
       expect(pub.statusCode, 201);
       final mosaicId = (await jsonOf(pub))['mosaicId'] as String;
 
@@ -692,123 +708,138 @@ void main() {
       expect(contend.statusCode, 409);
     });
 
-    test('panel master upload requires holding the claim (403 without)',
-        () async {
-      final owner = await signup('m-owner2');
-      final bob = await signup('m-bob2');
-      final mosaicId = (await publish(owner))['mosaicId'] as String;
+    test(
+      'panel master upload requires holding the claim (403 without)',
+      () async {
+        final owner = await signup('m-owner2');
+        final bob = await signup('m-bob2');
+        final mosaicId = (await publish(owner))['mosaicId'] as String;
 
-      // Without a claim, upload is forbidden.
-      final noClaim = await req(
-        'POST',
-        '/v1/mosaics/$mosaicId/panels/0/master',
-        token: bob,
-        binaryBody: Uint8List.fromList([1, 2, 3]),
-      );
-      expect(noClaim.statusCode, 403);
+        // Without a claim, upload is forbidden.
+        final noClaim = await req(
+          'POST',
+          '/v1/mosaics/$mosaicId/panels/0/master',
+          token: bob,
+          binaryBody: Uint8List.fromList([1, 2, 3]),
+        );
+        expect(noClaim.statusCode, 403);
 
-      // Claim then upload succeeds + round-trips on download.
-      await req('POST', '/v1/mosaics/$mosaicId/panels/0/claim', token: bob);
-      final up = await req(
-        'POST',
-        '/v1/mosaics/$mosaicId/panels/0/master?rigId=rig-b&license=cc-by',
-        token: bob,
-        binaryBody: _fits([9, 8, 7, 6]),
-      );
-      expect(up.statusCode, 200);
-      expect((await jsonOf(up))['status'], 'uploaded');
+        // Claim then upload succeeds + round-trips on download.
+        await req('POST', '/v1/mosaics/$mosaicId/panels/0/claim', token: bob);
+        final up = await req(
+          'POST',
+          '/v1/mosaics/$mosaicId/panels/0/master?rigId=rig-b&license=cc-by',
+          token: bob,
+          binaryBody: _fits([9, 8, 7, 6]),
+        );
+        expect(up.statusCode, 200);
+        expect((await jsonOf(up))['status'], 'uploaded');
 
-      final dl = await req(
-        'GET',
-        '/v1/mosaics/$mosaicId/panels/0/master',
-        token: owner,
-      );
-      expect(dl.statusCode, 200);
-      expect(await _collect(dl), _fits([9, 8, 7, 6]));
-    });
-
-    test('panel master upload requires a shareable license (400, no bytes stored)',
-        () async {
-      final owner = await signup('m-owner-consent');
-      final mosaicId = (await publish(owner))['mosaicId'] as String;
-      await req('POST', '/v1/mosaics/$mosaicId/panels/0/claim', token: owner);
-      // Holding the claim, but no license — the WS4 consent gate refuses the
-      // share into the redistributable mosaic before any bytes are read/stored.
-      final noLicense = await req(
-        'POST',
-        '/v1/mosaics/$mosaicId/panels/0/master',
-        token: owner,
-        binaryBody: _fits([1, 2, 3]),
-      );
-      expect(noLicense.statusCode, 400);
-      // A non-shareable (private) license is likewise refused.
-      final priv = await req(
-        'POST',
-        '/v1/mosaics/$mosaicId/panels/0/master?license=private',
-        token: owner,
-        binaryBody: _fits([1, 2, 3]),
-      );
-      expect(priv.statusCode, 400);
-      // Nothing was stored — the panel is still uploadable.
-      final p0 = ((await jsonOf(
-        await req('GET', '/v1/mosaics/$mosaicId', token: owner),
-      ))['panels'] as List)
-          .first as Map<Object?, Object?>;
-      expect(p0['status'], isNot('uploaded'));
-    });
-
-    test('finished mosaic attribution honours each panel license + anonymity',
-        () async {
-      final owner = await signup('m-owner-attr');
-      final bob = await signup('m-bob-attr');
-      final mosaicId = (await publish(owner))['mosaicId'] as String;
-      // Owner uploads panel 0 WITHOUT named-credit consent; bob uploads panel 1
-      // WITH consent. Both under cc-by.
-      await req('POST', '/v1/mosaics/$mosaicId/panels/0/claim', token: owner);
-      await req(
-        'POST',
-        '/v1/mosaics/$mosaicId/panels/0/master'
-            '?license=cc-by&attributionConsent=false',
-        token: owner,
-        binaryBody: _fits([1]),
-      );
-      await req('POST', '/v1/mosaics/$mosaicId/panels/1/claim', token: bob);
-      await req(
-        'POST',
-        '/v1/mosaics/$mosaicId/panels/1/master'
-            '?license=cc-by&attributionConsent=true',
-        token: bob,
-        binaryBody: _fits([2]),
-      );
-      // Owner finalizes the mosaic, which materializes per-panel attribution.
-      final out = await req(
-        'POST',
-        '/v1/mosaics/$mosaicId/output',
-        token: owner,
-        binaryBody: Uint8List.fromList([7, 7]),
-      );
-      expect(out.statusCode, 200);
-      final contributors = (await jsonOf(
-        await req(
+        final dl = await req(
           'GET',
-          '/v1/attribution?artifactType=mosaic&artifactRef=$mosaicId',
+          '/v1/mosaics/$mosaicId/panels/0/master',
           token: owner,
-        ),
-      ))['contributors'] as List;
-      expect(contributors, hasLength(2));
-      // Bob credited by name under cc-by; owner credited anonymously with no raw
-      // account id leaked.
-      final byName = contributors
-          .firstWhere((c) => (c as Map)['anonymous'] == false)
-          as Map<String, Object?>;
-      expect(byName['displayName'], 'm-bob-attr');
-      expect(byName['license'], 'cc-by');
-      final anon = contributors
-          .firstWhere((c) => (c as Map)['anonymous'] == true)
-          as Map<String, Object?>;
-      expect(anon['displayName'], 'Anonymous contributor');
-      expect(anon.containsKey('accountId'), isFalse);
-    });
+        );
+        expect(dl.statusCode, 200);
+        expect(await _collect(dl), _fits([9, 8, 7, 6]));
+      },
+    );
+
+    test(
+      'panel master upload requires a shareable license (400, no bytes stored)',
+      () async {
+        final owner = await signup('m-owner-consent');
+        final mosaicId = (await publish(owner))['mosaicId'] as String;
+        await req('POST', '/v1/mosaics/$mosaicId/panels/0/claim', token: owner);
+        // Holding the claim, but no license — the WS4 consent gate refuses the
+        // share into the redistributable mosaic before any bytes are read/stored.
+        final noLicense = await req(
+          'POST',
+          '/v1/mosaics/$mosaicId/panels/0/master',
+          token: owner,
+          binaryBody: _fits([1, 2, 3]),
+        );
+        expect(noLicense.statusCode, 400);
+        // A non-shareable (private) license is likewise refused.
+        final priv = await req(
+          'POST',
+          '/v1/mosaics/$mosaicId/panels/0/master?license=private',
+          token: owner,
+          binaryBody: _fits([1, 2, 3]),
+        );
+        expect(priv.statusCode, 400);
+        // Nothing was stored — the panel is still uploadable.
+        final p0 =
+            ((await jsonOf(
+                          await req(
+                            'GET',
+                            '/v1/mosaics/$mosaicId',
+                            token: owner,
+                          ),
+                        ))['panels']
+                        as List)
+                    .first
+                as Map<Object?, Object?>;
+        expect(p0['status'], isNot('uploaded'));
+      },
+    );
+
+    test(
+      'finished mosaic attribution honours each panel license + anonymity',
+      () async {
+        final owner = await signup('m-owner-attr');
+        final bob = await signup('m-bob-attr');
+        final mosaicId = (await publish(owner))['mosaicId'] as String;
+        // Owner uploads panel 0 WITHOUT named-credit consent; bob uploads panel 1
+        // WITH consent. Both under cc-by.
+        await req('POST', '/v1/mosaics/$mosaicId/panels/0/claim', token: owner);
+        await req(
+          'POST',
+          '/v1/mosaics/$mosaicId/panels/0/master'
+              '?license=cc-by&attributionConsent=false',
+          token: owner,
+          binaryBody: _fits([1]),
+        );
+        await req('POST', '/v1/mosaics/$mosaicId/panels/1/claim', token: bob);
+        await req(
+          'POST',
+          '/v1/mosaics/$mosaicId/panels/1/master'
+              '?license=cc-by&attributionConsent=true',
+          token: bob,
+          binaryBody: _fits([2]),
+        );
+        // Owner finalizes the mosaic, which materializes per-panel attribution.
+        final out = await req(
+          'POST',
+          '/v1/mosaics/$mosaicId/output',
+          token: owner,
+          binaryBody: Uint8List.fromList([7, 7]),
+        );
+        expect(out.statusCode, 200);
+        final contributors =
+            (await jsonOf(
+                  await req(
+                    'GET',
+                    '/v1/attribution?artifactType=mosaic&artifactRef=$mosaicId',
+                    token: owner,
+                  ),
+                ))['contributors']
+                as List;
+        expect(contributors, hasLength(2));
+        // Bob credited by name under cc-by; owner credited anonymously with no raw
+        // account id leaked.
+        final byName =
+            contributors.firstWhere((c) => (c as Map)['anonymous'] == false)
+                as Map<String, Object?>;
+        expect(byName['displayName'], 'm-bob-attr');
+        expect(byName['license'], 'cc-by');
+        final anon =
+            contributors.firstWhere((c) => (c as Map)['anonymous'] == true)
+                as Map<String, Object?>;
+        expect(anon['displayName'], 'Anonymous contributor');
+        expect(anon.containsKey('accountId'), isFalse);
+      },
+    );
 
     test('panel master upload rejects non-FITS bytes (400)', () async {
       final owner = await signup('m-owner-fits');
@@ -838,13 +869,20 @@ void main() {
 
       // Partial-set gate: output not available before all panels are in.
       expect(
-        (await req('GET', '/v1/mosaics/$mosaicId/output', token: owner))
-            .statusCode,
+        (await req(
+          'GET',
+          '/v1/mosaics/$mosaicId/output',
+          token: owner,
+        )).statusCode,
         404,
       );
 
       for (var i = 0; i < 2; i++) {
-        await req('POST', '/v1/mosaics/$mosaicId/panels/$i/claim', token: owner);
+        await req(
+          'POST',
+          '/v1/mosaics/$mosaicId/panels/$i/claim',
+          token: owner,
+        );
         await req(
           'POST',
           '/v1/mosaics/$mosaicId/panels/$i/master?license=cc-by',
@@ -853,9 +891,12 @@ void main() {
         );
       }
       // All panels uploaded -> mosaic auto-flips to assembling.
-      expect((await jsonOf(
-        await req('GET', '/v1/mosaics/$mosaicId', token: owner),
-      ))['status'], 'assembling');
+      expect(
+        (await jsonOf(
+          await req('GET', '/v1/mosaics/$mosaicId', token: owner),
+        ))['status'],
+        'assembling',
+      );
 
       final out = await req(
         'POST',
@@ -876,7 +917,11 @@ void main() {
       final mallory = await signup('m-mallory');
       final mosaicId = (await publish(owner))['mosaicId'] as String;
       for (var i = 0; i < 2; i++) {
-        await req('POST', '/v1/mosaics/$mosaicId/panels/$i/claim', token: owner);
+        await req(
+          'POST',
+          '/v1/mosaics/$mosaicId/panels/$i/claim',
+          token: owner,
+        );
         await req(
           'POST',
           '/v1/mosaics/$mosaicId/panels/$i/master?license=cc-by',
@@ -893,138 +938,171 @@ void main() {
       expect(out.statusCode, 403);
     });
 
-    test('owner output upload is rejected (409) until every panel is uploaded',
-        () async {
-      final owner = await signup('m-owner-gate');
-      final mosaicId = (await publish(owner))['mosaicId'] as String;
-      // Only one of two panels uploaded -> mosaic still `open`, not assembling.
-      await req('POST', '/v1/mosaics/$mosaicId/panels/0/claim', token: owner);
-      await req(
-        'POST',
-        '/v1/mosaics/$mosaicId/panels/0/master?license=cc-by',
-        token: owner,
-        binaryBody: Uint8List.fromList([1]),
-      );
-      final premature = await req(
-        'POST',
-        '/v1/mosaics/$mosaicId/output',
-        token: owner,
-        binaryBody: Uint8List.fromList([9, 9]),
-      );
-      expect(premature.statusCode, 409);
-      // The mosaic is NOT flipped to complete; its output stays unavailable.
-      expect((await jsonOf(
-        await req('GET', '/v1/mosaics/$mosaicId', token: owner),
-      ))['status'], 'open');
-    });
-
-    test('panel-master + output downloads are owner/participant-scoped (403)',
-        () async {
-      final owner = await signup('m-owner-leak');
-      final stranger = await signup('m-stranger');
-      final mosaicId = (await publish(owner))['mosaicId'] as String;
-      for (var i = 0; i < 2; i++) {
-        await req('POST', '/v1/mosaics/$mosaicId/panels/$i/claim', token: owner);
+    test(
+      'owner output upload is rejected (409) until every panel is uploaded',
+      () async {
+        final owner = await signup('m-owner-gate');
+        final mosaicId = (await publish(owner))['mosaicId'] as String;
+        // Only one of two panels uploaded -> mosaic still `open`, not assembling.
+        await req('POST', '/v1/mosaics/$mosaicId/panels/0/claim', token: owner);
         await req(
           'POST',
-          '/v1/mosaics/$mosaicId/panels/$i/master?license=cc-by',
+          '/v1/mosaics/$mosaicId/panels/0/master?license=cc-by',
           token: owner,
-          binaryBody: _fits([i + 1]),
+          binaryBody: Uint8List.fromList([1]),
         );
-      }
-      // An unrelated account cannot pull a panel master...
-      expect(
-        (await req('GET', '/v1/mosaics/$mosaicId/panels/0/master',
-                token: stranger))
-            .statusCode,
-        403,
-      );
-      // ...nor the finished output (once complete).
-      final out = await req(
-        'POST',
-        '/v1/mosaics/$mosaicId/output',
-        token: owner,
-        binaryBody: Uint8List.fromList([42]),
-      );
-      expect(out.statusCode, 200);
-      expect(
-        (await req('GET', '/v1/mosaics/$mosaicId/output', token: stranger))
-            .statusCode,
-        403,
-      );
-      // The owner still pulls both (the legitimate assembler/serve path).
-      expect(
-        (await req('GET', '/v1/mosaics/$mosaicId/panels/0/master', token: owner))
-            .statusCode,
-        200,
-      );
-      expect(
-        (await req('GET', '/v1/mosaics/$mosaicId/output', token: owner))
-            .statusCode,
-        200,
-      );
-    });
+        final premature = await req(
+          'POST',
+          '/v1/mosaics/$mosaicId/output',
+          token: owner,
+          binaryBody: Uint8List.fromList([9, 9]),
+        );
+        expect(premature.statusCode, 409);
+        // The mosaic is NOT flipped to complete; its output stays unavailable.
+        expect(
+          (await jsonOf(
+            await req('GET', '/v1/mosaics/$mosaicId', token: owner),
+          ))['status'],
+          'open',
+        );
+      },
+    );
 
-    test('a contributor may pull only its OWN panel master, never a peer\'s',
-        () async {
-      // Regression: isParticipant returned true for ANY account holding ANY
-      // panel, which let a hostile contributor claim one throwaway panel and
-      // then exfiltrate every peer's raw panel master. The download is now
-      // scoped to the panel the caller was actually assigned.
-      final owner = await signup('m-owner-xpanel');
-      final bob = await signup('m-bob-xpanel');
-      final mosaicId = (await publish(owner))['mosaicId'] as String;
+    test(
+      'panel-master + output downloads are owner/participant-scoped (403)',
+      () async {
+        final owner = await signup('m-owner-leak');
+        final stranger = await signup('m-stranger');
+        final mosaicId = (await publish(owner))['mosaicId'] as String;
+        for (var i = 0; i < 2; i++) {
+          await req(
+            'POST',
+            '/v1/mosaics/$mosaicId/panels/$i/claim',
+            token: owner,
+          );
+          await req(
+            'POST',
+            '/v1/mosaics/$mosaicId/panels/$i/master?license=cc-by',
+            token: owner,
+            binaryBody: _fits([i + 1]),
+          );
+        }
+        // An unrelated account cannot pull a panel master...
+        expect(
+          (await req(
+            'GET',
+            '/v1/mosaics/$mosaicId/panels/0/master',
+            token: stranger,
+          )).statusCode,
+          403,
+        );
+        // ...nor the finished output (once complete).
+        final out = await req(
+          'POST',
+          '/v1/mosaics/$mosaicId/output',
+          token: owner,
+          binaryBody: Uint8List.fromList([42]),
+        );
+        expect(out.statusCode, 200);
+        expect(
+          (await req(
+            'GET',
+            '/v1/mosaics/$mosaicId/output',
+            token: stranger,
+          )).statusCode,
+          403,
+        );
+        // The owner still pulls both (the legitimate assembler/serve path).
+        expect(
+          (await req(
+            'GET',
+            '/v1/mosaics/$mosaicId/panels/0/master',
+            token: owner,
+          )).statusCode,
+          200,
+        );
+        expect(
+          (await req(
+            'GET',
+            '/v1/mosaics/$mosaicId/output',
+            token: owner,
+          )).statusCode,
+          200,
+        );
+      },
+    );
 
-      // Owner captures panel 0; bob claims + uploads panel 1.
-      await req('POST', '/v1/mosaics/$mosaicId/panels/0/claim', token: owner);
-      await req(
-        'POST',
-        '/v1/mosaics/$mosaicId/panels/0/master?license=cc-by',
-        token: owner,
-        binaryBody: _fits([10, 20]),
-      );
-      await req('POST', '/v1/mosaics/$mosaicId/panels/1/claim', token: bob);
-      await req(
-        'POST',
-        '/v1/mosaics/$mosaicId/panels/1/master?rigId=rig-b&license=cc-by',
-        token: bob,
-        binaryBody: _fits([30, 40]),
-      );
+    test(
+      'a contributor may pull only its OWN panel master, never a peer\'s',
+      () async {
+        // Regression: isParticipant returned true for ANY account holding ANY
+        // panel, which let a hostile contributor claim one throwaway panel and
+        // then exfiltrate every peer's raw panel master. The download is now
+        // scoped to the panel the caller was actually assigned.
+        final owner = await signup('m-owner-xpanel');
+        final bob = await signup('m-bob-xpanel');
+        final mosaicId = (await publish(owner))['mosaicId'] as String;
 
-      // Bob (a participant) may re-pull HIS OWN panel 1...
-      final own = await req(
-        'GET',
-        '/v1/mosaics/$mosaicId/panels/1/master',
-        token: bob,
-      );
-      expect(own.statusCode, 200);
-      expect(await _collect(own), _fits([30, 40]));
+        // Owner captures panel 0; bob claims + uploads panel 1.
+        await req('POST', '/v1/mosaics/$mosaicId/panels/0/claim', token: owner);
+        await req(
+          'POST',
+          '/v1/mosaics/$mosaicId/panels/0/master?license=cc-by',
+          token: owner,
+          binaryBody: _fits([10, 20]),
+        );
+        await req('POST', '/v1/mosaics/$mosaicId/panels/1/claim', token: bob);
+        await req(
+          'POST',
+          '/v1/mosaics/$mosaicId/panels/1/master?rigId=rig-b&license=cc-by',
+          token: bob,
+          binaryBody: _fits([30, 40]),
+        );
 
-      // ...but is FORBIDDEN from pulling the owner's panel 0 raw data.
-      expect(
-        (await req('GET', '/v1/mosaics/$mosaicId/panels/0/master', token: bob))
-            .statusCode,
-        403,
-      );
+        // Bob (a participant) may re-pull HIS OWN panel 1...
+        final own = await req(
+          'GET',
+          '/v1/mosaics/$mosaicId/panels/1/master',
+          token: bob,
+        );
+        expect(own.statusCode, 200);
+        expect(await _collect(own), _fits([30, 40]));
 
-      // The owner (assembler) still pulls every panel to stitch.
-      expect(
-        (await req('GET', '/v1/mosaics/$mosaicId/panels/1/master', token: owner))
-            .statusCode,
-        200,
-      );
-    });
+        // ...but is FORBIDDEN from pulling the owner's panel 0 raw data.
+        expect(
+          (await req(
+            'GET',
+            '/v1/mosaics/$mosaicId/panels/0/master',
+            token: bob,
+          )).statusCode,
+          403,
+        );
+
+        // The owner (assembler) still pulls every panel to stitch.
+        expect(
+          (await req(
+            'GET',
+            '/v1/mosaics/$mosaicId/panels/1/master',
+            token: owner,
+          )).statusCode,
+          200,
+        );
+      },
+    );
 
     test('read-only token cannot publish or claim (scope enforced)', () async {
       final owner = await signup('m-owner5');
       final mosaicId = (await publish(owner))['mosaicId'] as String;
       // Mint a READ-only token for a fresh account.
-      final readerToken = (await jsonOf(
-        await req('POST', '/v1/accounts', jsonBody: {
-          'publicKey': 'm-reader',
-          'displayName': 'Reader',
-        }),
-      ))['bearerToken'] as String;
+      final readerToken =
+          (await jsonOf(
+                await req(
+                  'POST',
+                  '/v1/accounts',
+                  jsonBody: {'publicKey': 'm-reader', 'displayName': 'Reader'},
+                ),
+              ))['bearerToken']
+              as String;
       final readerId = server.tokens.resolve(readerToken)!.accountId;
       final readOnly = server.tokens.issue(
         accountId: readerId,
@@ -1037,23 +1115,29 @@ void main() {
       );
       // ...but contribute-class actions are forbidden.
       expect(
-        (await req('POST', '/v1/mosaics', token: readOnly, jsonBody: {
-          'name': 'x',
-          'rows': 1,
-          'cols': 1,
-          'centerRaDeg': 0.0,
-          'centerDecDeg': 0.0,
-          'panels': [
-            {'panelIndex': 0, 'centerRaDeg': 0.0, 'centerDecDeg': 0.0},
-          ],
-        }))
-            .statusCode,
+        (await req(
+          'POST',
+          '/v1/mosaics',
+          token: readOnly,
+          jsonBody: {
+            'name': 'x',
+            'rows': 1,
+            'cols': 1,
+            'centerRaDeg': 0.0,
+            'centerDecDeg': 0.0,
+            'panels': [
+              {'panelIndex': 0, 'centerRaDeg': 0.0, 'centerDecDeg': 0.0},
+            ],
+          },
+        )).statusCode,
         403,
       );
       expect(
-        (await req('POST', '/v1/mosaics/$mosaicId/panels/0/claim',
-                token: readOnly))
-            .statusCode,
+        (await req(
+          'POST',
+          '/v1/mosaics/$mosaicId/panels/0/claim',
+          token: readOnly,
+        )).statusCode,
         403,
       );
     });
@@ -1062,143 +1146,183 @@ void main() {
       final owner = await signup('m-owner6');
       final mosaicId = (await publish(owner))['mosaicId'] as String;
       expect(
-        (await req('GET', '/v1/mosaics/does-not-exist', token: owner))
-            .statusCode,
+        (await req(
+          'GET',
+          '/v1/mosaics/does-not-exist',
+          token: owner,
+        )).statusCode,
         404,
       );
       expect(
-        (await req('POST', '/v1/mosaics/$mosaicId/panels/99/claim',
-                token: owner))
-            .statusCode,
+        (await req(
+          'POST',
+          '/v1/mosaics/$mosaicId/panels/99/claim',
+          token: owner,
+        )).statusCode,
         404,
       );
     });
 
-    test('owner can force-release a squatting claim; the squatter cannot',
-        () async {
-      final owner = await signup('m-owner-evict');
-      final squatter = await signup('m-squatter');
-      final mosaicId = (await publish(owner))['mosaicId'] as String;
+    test(
+      'owner can force-release a squatting claim; the squatter cannot',
+      () async {
+        final owner = await signup('m-owner-evict');
+        final squatter = await signup('m-squatter');
+        final mosaicId = (await publish(owner))['mosaicId'] as String;
 
-      // A contribute-scoped squatter claims panel 0 and would hold it for the
-      // full 12h TTL, blocking the legitimate rig.
-      await req('POST', '/v1/mosaics/$mosaicId/panels/0/claim', token: squatter);
-      // The squatter cannot evict (force-release is owner/admin only).
-      expect(
-        (await req('POST', '/v1/mosaics/$mosaicId/panels/0/force-release',
-                token: squatter))
-            .statusCode,
-        403,
-      );
-      // The owner evicts it back to pending.
-      final evict = await req(
-        'POST',
-        '/v1/mosaics/$mosaicId/panels/0/force-release',
-        token: owner,
-      );
-      expect(evict.statusCode, 200);
-      expect((await jsonOf(evict))['released'], true);
-      // The panel is claimable again — the owner claims it.
-      expect(
-        (await req('POST', '/v1/mosaics/$mosaicId/panels/0/claim', token: owner))
-            .statusCode,
-        200,
-      );
-    });
-
-    test('force-release re-opens a poisoned uploaded slot + reverts assembling',
-        () async {
-      final owner = await signup('m-owner-reopen');
-      final mosaicId = (await publish(owner))['mosaicId'] as String;
-      // Fill every panel so the mosaic flips to assembling.
-      for (var i = 0; i < 2; i++) {
-        await req('POST', '/v1/mosaics/$mosaicId/panels/$i/claim', token: owner);
+        // A contribute-scoped squatter claims panel 0 and would hold it for the
+        // full 12h TTL, blocking the legitimate rig.
         await req(
           'POST',
-          '/v1/mosaics/$mosaicId/panels/$i/master?license=cc-by',
-          token: owner,
-          binaryBody: _fits([i + 1]),
+          '/v1/mosaics/$mosaicId/panels/0/claim',
+          token: squatter,
         );
-      }
-      expect((await jsonOf(
-        await req('GET', '/v1/mosaics/$mosaicId', token: owner),
-      ))['status'], 'assembling');
-      // Owner decides panel 0 is garbage and re-opens it; the mosaic drops back
-      // to open so a stitch can't be published over the removed panel.
-      final reopen = await req(
-        'POST',
-        '/v1/mosaics/$mosaicId/panels/0/force-release',
-        token: owner,
-      );
-      expect(reopen.statusCode, 200);
-      final state = await jsonOf(
-        await req('GET', '/v1/mosaics/$mosaicId', token: owner),
-      );
-      expect(state['status'], 'open');
-      final p0 = (state['panels'] as List).first as Map<Object?, Object?>;
-      expect(p0['status'], 'pending');
-      expect(p0['uploaded'], false);
-    });
+        // The squatter cannot evict (force-release is owner/admin only).
+        expect(
+          (await req(
+            'POST',
+            '/v1/mosaics/$mosaicId/panels/0/force-release',
+            token: squatter,
+          )).statusCode,
+          403,
+        );
+        // The owner evicts it back to pending.
+        final evict = await req(
+          'POST',
+          '/v1/mosaics/$mosaicId/panels/0/force-release',
+          token: owner,
+        );
+        expect(evict.statusCode, 200);
+        expect((await jsonOf(evict))['released'], true);
+        // The panel is claimable again — the owner claims it.
+        expect(
+          (await req(
+            'POST',
+            '/v1/mosaics/$mosaicId/panels/0/claim',
+            token: owner,
+          )).statusCode,
+          200,
+        );
+      },
+    );
 
-    test('mosaic list/detail hide raw account ids from non-participants',
-        () async {
-      final owner = await signup('m-owner-priv');
-      final mosaicId = (await publish(owner))['mosaicId'] as String;
-      await req('POST', '/v1/mosaics/$mosaicId/panels/0/claim', token: owner);
+    test(
+      'force-release re-opens a poisoned uploaded slot + reverts assembling',
+      () async {
+        final owner = await signup('m-owner-reopen');
+        final mosaicId = (await publish(owner))['mosaicId'] as String;
+        // Fill every panel so the mosaic flips to assembling.
+        for (var i = 0; i < 2; i++) {
+          await req(
+            'POST',
+            '/v1/mosaics/$mosaicId/panels/$i/claim',
+            token: owner,
+          );
+          await req(
+            'POST',
+            '/v1/mosaics/$mosaicId/panels/$i/master?license=cc-by',
+            token: owner,
+            binaryBody: _fits([i + 1]),
+          );
+        }
+        expect(
+          (await jsonOf(
+            await req('GET', '/v1/mosaics/$mosaicId', token: owner),
+          ))['status'],
+          'assembling',
+        );
+        // Owner decides panel 0 is garbage and re-opens it; the mosaic drops back
+        // to open so a stitch can't be published over the removed panel.
+        final reopen = await req(
+          'POST',
+          '/v1/mosaics/$mosaicId/panels/0/force-release',
+          token: owner,
+        );
+        expect(reopen.statusCode, 200);
+        final state = await jsonOf(
+          await req('GET', '/v1/mosaics/$mosaicId', token: owner),
+        );
+        expect(state['status'], 'open');
+        final p0 = (state['panels'] as List).first as Map<Object?, Object?>;
+        expect(p0['status'], 'pending');
+        expect(p0['uploaded'], false);
+      },
+    );
 
-      // A read token for an unrelated, non-participant account.
-      final readerId = server.tokens
-          .resolve(await signup('m-reader-priv'))!
-          .accountId;
-      final readOnly =
-          server.tokens.issue(accountId: readerId, scope: HubScope.read);
+    test(
+      'mosaic list/detail hide raw account ids from non-participants',
+      () async {
+        final owner = await signup('m-owner-priv');
+        final mosaicId = (await publish(owner))['mosaicId'] as String;
+        await req('POST', '/v1/mosaics/$mosaicId/panels/0/claim', token: owner);
 
-      // Detail: no raw account ids leak, but a display name surfaces for credit.
-      final detail = await jsonOf(
-        await req('GET', '/v1/mosaics/$mosaicId', token: readOnly),
-      );
-      expect(detail.containsKey('ownerAccountId'), false);
-      expect(detail['ownerDisplayName'], 'm-owner-priv');
-      final panel0 = (detail['panels'] as List).first as Map<Object?, Object?>;
-      expect(panel0.containsKey('assignedAccountId'), false);
-      expect(panel0.containsKey('assignedRigId'), false);
-      expect(panel0['assignedDisplayName'], 'm-owner-priv');
+        // A read token for an unrelated, non-participant account.
+        final readerId = server.tokens
+            .resolve(await signup('m-reader-priv'))!
+            .accountId;
+        final readOnly = server.tokens.issue(
+          accountId: readerId,
+          scope: HubScope.read,
+        );
 
-      // List: same scoping.
-      final list = await jsonOf(
-        await req('GET', '/v1/mosaics', token: readOnly),
-      );
-      final m = (list['mosaics'] as List)
-          .cast<Map<Object?, Object?>>()
-          .firstWhere((e) => e['mosaicId'] == mosaicId);
-      expect(m.containsKey('ownerAccountId'), false);
-      expect(m['ownerDisplayName'], 'm-owner-priv');
+        // Detail: no raw account ids leak, but a display name surfaces for credit.
+        final detail = await jsonOf(
+          await req('GET', '/v1/mosaics/$mosaicId', token: readOnly),
+        );
+        expect(detail.containsKey('ownerAccountId'), false);
+        expect(detail['ownerDisplayName'], 'm-owner-priv');
+        final panel0 =
+            (detail['panels'] as List).first as Map<Object?, Object?>;
+        expect(panel0.containsKey('assignedAccountId'), false);
+        expect(panel0.containsKey('assignedRigId'), false);
+        expect(panel0['assignedDisplayName'], 'm-owner-priv');
 
-      // The OWNER still sees the raw account id (privileged).
-      final ownerView = await jsonOf(
-        await req('GET', '/v1/mosaics/$mosaicId', token: owner),
-      );
-      expect(ownerView['ownerAccountId'], isA<String>());
-    });
+        // List: same scoping.
+        final list = await jsonOf(
+          await req('GET', '/v1/mosaics', token: readOnly),
+        );
+        final m = (list['mosaics'] as List)
+            .cast<Map<Object?, Object?>>()
+            .firstWhere((e) => e['mosaicId'] == mosaicId);
+        expect(m.containsKey('ownerAccountId'), false);
+        expect(m['ownerDisplayName'], 'm-owner-priv');
+
+        // The OWNER still sees the raw account id (privileged).
+        final ownerView = await jsonOf(
+          await req('GET', '/v1/mosaics/$mosaicId', token: owner),
+        );
+        expect(ownerView['ownerAccountId'], isA<String>());
+      },
+    );
   });
 
   group('live co-imaging sessions (WS3)', () {
-    Future<String> signup(String key) async => (await jsonOf(
-          await req('POST', '/v1/accounts', jsonBody: <String, Object?>{
-            'publicKey': key,
-            'displayName': key,
-          }),
-        ))['bearerToken'] as String;
+    Future<String> signup(String key) async =>
+        (await jsonOf(
+              await req(
+                'POST',
+                '/v1/accounts',
+                jsonBody: <String, Object?>{
+                  'publicKey': key,
+                  'displayName': key,
+                },
+              ),
+            ))['bearerToken']
+            as String;
 
     Future<Map<String, Object?>> create(String token, {String? rigId}) async =>
         jsonOf(
-          await req('POST', '/v1/coimaging/sessions', token: token,
-              jsonBody: <String, Object?>{
-                'targetName': 'M81',
-                'centerRaDeg': 148.9,
-                'centerDecDeg': 69.1,
-                if (rigId != null) 'rigId': rigId,
-              }),
+          await req(
+            'POST',
+            '/v1/coimaging/sessions',
+            token: token,
+            jsonBody: <String, Object?>{
+              'targetName': 'M81',
+              'centerRaDeg': 148.9,
+              'centerDecDeg': 69.1,
+              if (rigId != null) 'rigId': rigId,
+            },
+          ),
         );
 
     test('create -> join -> contribute accrues combined accounting', () async {
@@ -1215,15 +1339,20 @@ void main() {
       expect(ownerP['membershipToken'], isA<String>());
 
       // Bob joins -> distinct framing offset + own membership token.
-      final join = await jsonOf(await req(
-        'POST',
-        '/v1/coimaging/sessions/$sessionId/join?rigId=bob-rig',
-        token: bob,
-      ));
+      final join = await jsonOf(
+        await req(
+          'POST',
+          '/v1/coimaging/sessions/$sessionId/join?rigId=bob-rig',
+          token: bob,
+        ),
+      );
       expect(join['framingOffsetIndex'], isNot(0));
       expect(join['membershipToken'], isA<String>());
-      expect((join['framingOffsetRaArcsec'] as num) != 0 ||
-          (join['framingOffsetDecArcsec'] as num) != 0, isTrue);
+      expect(
+        (join['framingOffsetRaArcsec'] as num) != 0 ||
+            (join['framingOffsetDecArcsec'] as num) != 0,
+        isTrue,
+      );
 
       // Both report contributions; combined == sum.
       await req(
@@ -1233,104 +1362,116 @@ void main() {
             '&license=cc-by',
         token: owner,
       );
-      final acc = await jsonOf(await req(
-        'POST',
-        '/v1/coimaging/sessions/$sessionId/contributions'
-            '?framesDelta=20&integrationSecondsDelta=1200&rigId=bob-rig'
-            '&license=cc-by',
-        token: bob,
-      ));
+      final acc = await jsonOf(
+        await req(
+          'POST',
+          '/v1/coimaging/sessions/$sessionId/contributions'
+              '?framesDelta=20&integrationSecondsDelta=1200&rigId=bob-rig'
+              '&license=cc-by',
+          token: bob,
+        ),
+      );
       expect(acc['combinedFrames'], 30);
       expect(acc['combinedIntegrationSeconds'], 1800);
       expect(acc['participantCount'], 2);
     });
 
-    test('co-imaging contribution requires a license; close honours anonymity',
-        () async {
-      final owner = await signup('ci-anon-owner');
-      final sessionId =
-          (await create(owner, rigId: 'owner-rig'))['sessionId'] as String;
-      // No license -> the WS4 consent gate refuses the contribution (400).
-      expect(
-        (await req(
-          'POST',
-          '/v1/coimaging/sessions/$sessionId/contributions'
-              '?framesDelta=5&integrationSecondsDelta=60&rigId=owner-rig',
-          token: owner,
-        ))
-            .statusCode,
-        400,
-      );
-      // Contributing WITHOUT named-credit consent records the choice...
-      expect(
-        (await req(
-          'POST',
-          '/v1/coimaging/sessions/$sessionId/contributions'
-              '?framesDelta=5&integrationSecondsDelta=60&rigId=owner-rig'
-              '&license=cc-by&attributionConsent=false',
-          token: owner,
-        ))
-            .statusCode,
-        200,
-      );
-      // ...so closing the session credits the contributor anonymously.
-      await req('POST', '/v1/coimaging/sessions/$sessionId/close', token: owner);
-      final contributors = (await jsonOf(
-        await req(
-          'GET',
-          '/v1/attribution?artifactType=coimaging&artifactRef=$sessionId',
-          token: owner,
-        ),
-      ))['contributors'] as List;
-      expect(contributors, hasLength(1));
-      final c = contributors.first as Map<String, Object?>;
-      expect(c['anonymous'], true);
-      expect(c['displayName'], 'Anonymous contributor');
-      expect(c['license'], 'cc-by');
-      expect(c.containsKey('accountId'), isFalse);
-    });
-
-    test('consent is revocable: dedup per-sub, revoked on reject + on close',
-        () async {
-      final owner = await signup('ci-consent-owner');
-      final sessionId =
-          (await create(owner, rigId: 'owner-rig'))['sessionId'] as String;
-      // Two accepted subs into the ONE session leave exactly one live consent
-      // row — each report revokes the one the previous report stored, so the
-      // ledger tracks the current share, not one orphan per sub.
-      for (var i = 0; i < 2; i++) {
+    test(
+      'co-imaging contribution requires a license; close honours anonymity',
+      () async {
+        final owner = await signup('ci-anon-owner');
+        final sessionId =
+            (await create(owner, rigId: 'owner-rig'))['sessionId'] as String;
+        // No license -> the WS4 consent gate refuses the contribution (400).
+        expect(
+          (await req(
+            'POST',
+            '/v1/coimaging/sessions/$sessionId/contributions'
+                '?framesDelta=5&integrationSecondsDelta=60&rigId=owner-rig',
+            token: owner,
+          )).statusCode,
+          400,
+        );
+        // Contributing WITHOUT named-credit consent records the choice...
         expect(
           (await req(
             'POST',
             '/v1/coimaging/sessions/$sessionId/contributions'
                 '?framesDelta=5&integrationSecondsDelta=60&rigId=owner-rig'
-                '&license=cc-by',
+                '&license=cc-by&attributionConsent=false',
             token: owner,
-          ))
-              .statusCode,
+          )).statusCode,
           200,
         );
-      }
-      expect(server.consent.liveConsentCount('coimaging', sessionId), 1);
-      // A forged report is refused (422) AND its pre-recorded consent is revoked,
-      // so the count does not creep up on a rejected share.
-      expect(
-        (await req(
+        // ...so closing the session credits the contributor anonymously.
+        await req(
           'POST',
-          '/v1/coimaging/sessions/$sessionId/contributions'
-              '?framesDelta=5&integrationSecondsDelta=1e30&rigId=owner-rig'
-              '&license=cc-by',
+          '/v1/coimaging/sessions/$sessionId/close',
           token: owner,
-        ))
-            .statusCode,
-        422,
-      );
-      expect(server.consent.liveConsentCount('coimaging', sessionId), 1);
-      // Closing the session revokes every remaining live consent for it — a
-      // closed share is no longer consented.
-      await req('POST', '/v1/coimaging/sessions/$sessionId/close', token: owner);
-      expect(server.consent.liveConsentCount('coimaging', sessionId), 0);
-    });
+        );
+        final contributors =
+            (await jsonOf(
+                  await req(
+                    'GET',
+                    '/v1/attribution?artifactType=coimaging&artifactRef=$sessionId',
+                    token: owner,
+                  ),
+                ))['contributors']
+                as List;
+        expect(contributors, hasLength(1));
+        final c = contributors.first as Map<String, Object?>;
+        expect(c['anonymous'], true);
+        expect(c['displayName'], 'Anonymous contributor');
+        expect(c['license'], 'cc-by');
+        expect(c.containsKey('accountId'), isFalse);
+      },
+    );
+
+    test(
+      'consent is revocable: dedup per-sub, revoked on reject + on close',
+      () async {
+        final owner = await signup('ci-consent-owner');
+        final sessionId =
+            (await create(owner, rigId: 'owner-rig'))['sessionId'] as String;
+        // Two accepted subs into the ONE session leave exactly one live consent
+        // row — each report revokes the one the previous report stored, so the
+        // ledger tracks the current share, not one orphan per sub.
+        for (var i = 0; i < 2; i++) {
+          expect(
+            (await req(
+              'POST',
+              '/v1/coimaging/sessions/$sessionId/contributions'
+                  '?framesDelta=5&integrationSecondsDelta=60&rigId=owner-rig'
+                  '&license=cc-by',
+              token: owner,
+            )).statusCode,
+            200,
+          );
+        }
+        expect(server.consent.liveConsentCount('coimaging', sessionId), 1);
+        // A forged report is refused (422) AND its pre-recorded consent is revoked,
+        // so the count does not creep up on a rejected share.
+        expect(
+          (await req(
+            'POST',
+            '/v1/coimaging/sessions/$sessionId/contributions'
+                '?framesDelta=5&integrationSecondsDelta=1e30&rigId=owner-rig'
+                '&license=cc-by',
+            token: owner,
+          )).statusCode,
+          422,
+        );
+        expect(server.consent.liveConsentCount('coimaging', sessionId), 1);
+        // Closing the session revokes every remaining live consent for it — a
+        // closed share is no longer consented.
+        await req(
+          'POST',
+          '/v1/coimaging/sessions/$sessionId/close',
+          token: owner,
+        );
+        expect(server.consent.liveConsentCount('coimaging', sessionId), 0);
+      },
+    );
 
     test('a non-participant is forbidden from contributing', () async {
       final owner = await signup('ci-owner2');
@@ -1367,72 +1508,105 @@ void main() {
       final siteA = await signup('ci-siteA');
       final siteB = await signup('ci-siteB');
       final sessionId = (await create(siteA))['sessionId'] as String;
-      await req('POST', '/v1/coimaging/sessions/$sessionId/join?rigId=b',
-          token: siteB);
+      await req(
+        'POST',
+        '/v1/coimaging/sessions/$sessionId/join?rigId=b',
+        token: siteB,
+      );
 
       final claimA = await req(
-          'POST', '/v1/coimaging/sessions/$sessionId/baton/claim', token: siteA);
+        'POST',
+        '/v1/coimaging/sessions/$sessionId/baton/claim',
+        token: siteA,
+      );
       expect(claimA.statusCode, 200);
       // B cannot steal it while A holds it.
       expect(
-        (await req('POST', '/v1/coimaging/sessions/$sessionId/baton/claim',
-                token: siteB))
-            .statusCode,
+        (await req(
+          'POST',
+          '/v1/coimaging/sessions/$sessionId/baton/claim',
+          token: siteB,
+        )).statusCode,
         409,
       );
       // A releases (target sets in the west); B takes over (longitude hand-off).
-      await req('POST', '/v1/coimaging/sessions/$sessionId/baton/release',
-          token: siteA);
+      await req(
+        'POST',
+        '/v1/coimaging/sessions/$sessionId/baton/release',
+        token: siteA,
+      );
       expect(
-        (await req('POST', '/v1/coimaging/sessions/$sessionId/baton/claim',
-                token: siteB))
-            .statusCode,
+        (await req(
+          'POST',
+          '/v1/coimaging/sessions/$sessionId/baton/claim',
+          token: siteB,
+        )).statusCode,
         200,
       );
     });
 
-    test('read token: create + join are forbidden, browse is allowed',
-        () async {
-      final owner = await signup('ci-owner-scope2');
-      final sessionId = (await create(owner))['sessionId'] as String;
-      final readerId =
-          server.tokens.resolve(await signup('ci-reader2'))!.accountId;
-      final readOnly =
-          server.tokens.issue(accountId: readerId, scope: HubScope.read);
-      // Browse (read) works.
-      expect(
-        (await req('GET', '/v1/coimaging/sessions', token: readOnly)).statusCode,
-        200,
-      );
-      // Create + join (contribute) are forbidden.
-      expect(
-        (await req('POST', '/v1/coimaging/sessions', token: readOnly,
-                jsonBody: {
-                  'targetName': 'x',
-                  'centerRaDeg': 0.0,
-                  'centerDecDeg': 0.0,
-                }))
-            .statusCode,
-        403,
-      );
-      expect(
-        (await req('POST', '/v1/coimaging/sessions/$sessionId/join',
-                token: readOnly))
-            .statusCode,
-        403,
-      );
-    });
+    test(
+      'read token: create + join are forbidden, browse is allowed',
+      () async {
+        final owner = await signup('ci-owner-scope2');
+        final sessionId = (await create(owner))['sessionId'] as String;
+        final readerId = server.tokens
+            .resolve(await signup('ci-reader2'))!
+            .accountId;
+        final readOnly = server.tokens.issue(
+          accountId: readerId,
+          scope: HubScope.read,
+        );
+        // Browse (read) works.
+        expect(
+          (await req(
+            'GET',
+            '/v1/coimaging/sessions',
+            token: readOnly,
+          )).statusCode,
+          200,
+        );
+        // Create + join (contribute) are forbidden.
+        expect(
+          (await req(
+            'POST',
+            '/v1/coimaging/sessions',
+            token: readOnly,
+            jsonBody: {
+              'targetName': 'x',
+              'centerRaDeg': 0.0,
+              'centerDecDeg': 0.0,
+            },
+          )).statusCode,
+          403,
+        );
+        expect(
+          (await req(
+            'POST',
+            '/v1/coimaging/sessions/$sessionId/join',
+            token: readOnly,
+          )).statusCode,
+          403,
+        );
+      },
+    );
 
     test('404 on unknown session', () async {
       final owner = await signup('ci-owner-404');
       expect(
-        (await req('GET', '/v1/coimaging/sessions/nope', token: owner))
-            .statusCode,
+        (await req(
+          'GET',
+          '/v1/coimaging/sessions/nope',
+          token: owner,
+        )).statusCode,
         404,
       );
       expect(
-        (await req('POST', '/v1/coimaging/sessions/nope/join', token: owner))
-            .statusCode,
+        (await req(
+          'POST',
+          '/v1/coimaging/sessions/nope/join',
+          token: owner,
+        )).statusCode,
         404,
       );
     });
@@ -1442,18 +1616,22 @@ void main() {
       final bob = await signup('ci-bob-roleadmin');
       final sessionId = (await create(owner))['sessionId'] as String;
       // Bob asks for admin via the query param — the hub must downgrade him.
-      final join = await jsonOf(await req(
-        'POST',
-        '/v1/coimaging/sessions/$sessionId/join?rigId=bob-rig&role=admin',
-        token: bob,
-      ));
+      final join = await jsonOf(
+        await req(
+          'POST',
+          '/v1/coimaging/sessions/$sessionId/join?rigId=bob-rig&role=admin',
+          token: bob,
+        ),
+      );
       expect(join['role'], 'contribute');
       // The owner, however, is allowed to remain admin on a re-join.
-      final ownerJoin = await jsonOf(await req(
-        'POST',
-        '/v1/coimaging/sessions/$sessionId/join?role=admin',
-        token: owner,
-      ));
+      final ownerJoin = await jsonOf(
+        await req(
+          'POST',
+          '/v1/coimaging/sessions/$sessionId/join?role=admin',
+          token: owner,
+        ),
+      );
       expect(ownerJoin['role'], 'admin');
     });
 
@@ -1463,22 +1641,28 @@ void main() {
       final sessionId = (await create(owner))['sessionId'] as String;
       // A stranger who never joined cannot seize the baton.
       expect(
-        (await req('POST', '/v1/coimaging/sessions/$sessionId/baton/claim',
-                token: stranger))
-            .statusCode,
+        (await req(
+          'POST',
+          '/v1/coimaging/sessions/$sessionId/baton/claim',
+          token: stranger,
+        )).statusCode,
         403,
       );
       expect(
-        (await req('POST', '/v1/coimaging/sessions/$sessionId/baton/release',
-                token: stranger))
-            .statusCode,
+        (await req(
+          'POST',
+          '/v1/coimaging/sessions/$sessionId/baton/release',
+          token: stranger,
+        )).statusCode,
         403,
       );
       // The owner (a participant) can.
       expect(
-        (await req('POST', '/v1/coimaging/sessions/$sessionId/baton/claim',
-                token: owner))
-            .statusCode,
+        (await req(
+          'POST',
+          '/v1/coimaging/sessions/$sessionId/baton/claim',
+          token: owner,
+        )).statusCode,
         200,
       );
     });
@@ -1487,21 +1671,28 @@ void main() {
       final owner = await signup('ci-owner-close');
       final bob = await signup('ci-bob-close');
       final sessionId = (await create(owner))['sessionId'] as String;
-      await req('POST', '/v1/coimaging/sessions/$sessionId/join?rigId=b',
-          token: bob);
+      await req(
+        'POST',
+        '/v1/coimaging/sessions/$sessionId/join?rigId=b',
+        token: bob,
+      );
       // A participant who is not the owner cannot close it.
       expect(
-        (await req('POST', '/v1/coimaging/sessions/$sessionId/close',
-                token: bob))
-            .statusCode,
+        (await req(
+          'POST',
+          '/v1/coimaging/sessions/$sessionId/close',
+          token: bob,
+        )).statusCode,
         403,
       );
       // The owner closes it.
-      final closed = await jsonOf(await req(
-        'POST',
-        '/v1/coimaging/sessions/$sessionId/close',
-        token: owner,
-      ));
+      final closed = await jsonOf(
+        await req(
+          'POST',
+          '/v1/coimaging/sessions/$sessionId/close',
+          token: owner,
+        ),
+      );
       expect(closed['status'], 'closed');
       // A closed session is gone from the active browse list and rejects joins.
       final list = await jsonOf(
@@ -1513,9 +1704,11 @@ void main() {
           .toList();
       expect(ids, isNot(contains(sessionId)));
       expect(
-        (await req('POST', '/v1/coimaging/sessions/$sessionId/join',
-                token: bob))
-            .statusCode,
+        (await req(
+          'POST',
+          '/v1/coimaging/sessions/$sessionId/join',
+          token: bob,
+        )).statusCode,
         409,
       );
       // ...and rejects further contributions + baton operations (the documented
@@ -1523,57 +1716,66 @@ void main() {
       // membership token from before the close.
       expect(
         (await req(
-                'POST',
-                '/v1/coimaging/sessions/$sessionId/contributions'
-                    '?framesDelta=1&integrationSecondsDelta=1&rigId=b'
-                    '&license=cc-by',
-                token: bob))
-            .statusCode,
+          'POST',
+          '/v1/coimaging/sessions/$sessionId/contributions'
+              '?framesDelta=1&integrationSecondsDelta=1&rigId=b'
+              '&license=cc-by',
+          token: bob,
+        )).statusCode,
         409,
       );
       expect(
-        (await req('POST', '/v1/coimaging/sessions/$sessionId/baton/claim',
-                token: bob))
-            .statusCode,
+        (await req(
+          'POST',
+          '/v1/coimaging/sessions/$sessionId/baton/claim',
+          token: bob,
+        )).statusCode,
         409,
       );
       expect(
-        (await req('POST', '/v1/coimaging/sessions/$sessionId/baton/release',
-                token: bob))
-            .statusCode,
+        (await req(
+          'POST',
+          '/v1/coimaging/sessions/$sessionId/baton/release',
+          token: bob,
+        )).statusCode,
         409,
       );
       // Closing an unknown session is a 404.
       expect(
-        (await req('POST', '/v1/coimaging/sessions/nope/close', token: owner))
-            .statusCode,
+        (await req(
+          'POST',
+          '/v1/coimaging/sessions/nope/close',
+          token: owner,
+        )).statusCode,
         404,
       );
     });
 
-    test('an implausibly forged contribution is rejected (422), not accepted',
-        () async {
-      final owner = await signup('ci-owner-forge');
-      final sessionId =
-          (await create(owner, rigId: 'owner-rig'))['sessionId'] as String;
-      // Forged depth / attribution: an absurd integration time and frame count
-      // asserted in a single report. The hub must refuse it rather than let it
-      // inflate the shared accounting + steal credit.
-      final r = await req(
-        'POST',
-        '/v1/coimaging/sessions/$sessionId/contributions'
-            '?framesDelta=2000000000&integrationSecondsDelta=1e30'
-            '&rigId=owner-rig&license=cc-by',
-        token: owner,
-      );
-      expect(r.statusCode, 422);
-      // The combined accounting did not move.
-      final detail = await jsonOf(
-        await req('GET', '/v1/coimaging/sessions/$sessionId', token: owner),
-      );
-      expect(detail['combinedFrames'], 0);
-      expect(detail['combinedIntegrationSeconds'], 0);
-    });
+    test(
+      'an implausibly forged contribution is rejected (422), not accepted',
+      () async {
+        final owner = await signup('ci-owner-forge');
+        final sessionId =
+            (await create(owner, rigId: 'owner-rig'))['sessionId'] as String;
+        // Forged depth / attribution: an absurd integration time and frame count
+        // asserted in a single report. The hub must refuse it rather than let it
+        // inflate the shared accounting + steal credit.
+        final r = await req(
+          'POST',
+          '/v1/coimaging/sessions/$sessionId/contributions'
+              '?framesDelta=2000000000&integrationSecondsDelta=1e30'
+              '&rigId=owner-rig&license=cc-by',
+          token: owner,
+        );
+        expect(r.statusCode, 422);
+        // The combined accounting did not move.
+        final detail = await jsonOf(
+          await req('GET', '/v1/coimaging/sessions/$sessionId', token: owner),
+        );
+        expect(detail['combinedFrames'], 0);
+        expect(detail['combinedIntegrationSeconds'], 0);
+      },
+    );
   });
 
   group('WS4 — trust, consent, identity', () {
@@ -1601,84 +1803,11 @@ void main() {
     }
 
     group('token minting (POST /v1/tokens)', () {
-      test('mints a narrowed, resource-bound token (subset delegation)', () async {
-        final a = await account('mint-1');
-        final r = await req(
-          'POST',
-          '/v1/tokens',
-          token: a.token,
-          jsonBody: <String, Object?>{
-            'role': 'contribute',
-            'actions': ['mosaic.upload'],
-            'resourceType': 'mosaic',
-            'resourceId': '42',
-          },
-        );
-        expect(r.statusCode, 201);
-        final body = await jsonOf(r);
-        final minted = body['bearerToken'] as String;
-        expect(minted, isA<String>());
-        expect(body['resourceId'], '42');
-        // The minted token is a real, resolvable token for the same account…
-        final identity = server.tokens.resolve(minted);
-        expect(identity, isNotNull);
-        expect(identity!.accountId, a.id);
-        // …narrowed to mosaic.upload on mosaic 42 only.
-        expect(
-          identity.permits(
-            CollabAction.mosaicUpload,
-            onResourceType: 'mosaic',
-            onResourceId: '42',
-          ),
-          isTrue,
-        );
-        expect(
-          identity.permits(
-            CollabAction.mosaicUpload,
-            onResourceType: 'mosaic',
-            onResourceId: '99',
-          ),
-          isFalse,
-        );
-        expect(identity.permits(CollabAction.retract), isFalse);
-      });
-
-      test('a narrowed token is denied the actions it does not hold (403)', () async {
-        final a = await account('mint-2');
-        final minted = (await jsonOf(
-          await req(
-            'POST',
-            '/v1/tokens',
-            token: a.token,
-            jsonBody: <String, Object?>{
-              'role': 'contribute',
-              'actions': ['mosaic.upload'],
-            },
-          ),
-        ))['bearerToken'] as String;
-        // calibration.publish is not on the allow-list — the per-action gate
-        // denies it before any body is read.
-        final r = await req(
-          'POST',
-          '/v1/calibration/masters?masterType=dark&camera=x&license=cc0',
-          token: minted,
-          binaryBody: _fits(const [1, 2, 3]),
-        );
-        expect(r.statusCode, 403);
-      });
-
       test(
-          'a resource-bound mosaic token is confined on the legacy tile-swarm '
-          'routes (403)', () async {
-        // Regression: the legacy tile/handoff handlers gated on the coarse
-        // `contribute` scope ONLY, so a token minted as "contribute to mosaic 42"
-        // kept full contribute authority on the GLOBAL co-add + handoff baton —
-        // its actions allow-list + resource binding were never consulted there.
-        // Every collaborative WRITE route now runs the fine-grained gate, so the
-        // delegated token is denied outside its mosaic-upload-on-42 grant.
-        final a = await account('confine-1');
-        final minted = (await jsonOf(
-          await req(
+        'mints a narrowed, resource-bound token (subset delegation)',
+        () async {
+          final a = await account('mint-1');
+          final r = await req(
             'POST',
             '/v1/tokens',
             token: a.token,
@@ -1688,8 +1817,90 @@ void main() {
               'resourceType': 'mosaic',
               'resourceId': '42',
             },
-          ),
-        ))['bearerToken'] as String;
+          );
+          expect(r.statusCode, 201);
+          final body = await jsonOf(r);
+          final minted = body['bearerToken'] as String;
+          expect(minted, isA<String>());
+          expect(body['resourceId'], '42');
+          // The minted token is a real, resolvable token for the same account…
+          final identity = server.tokens.resolve(minted);
+          expect(identity, isNotNull);
+          expect(identity!.accountId, a.id);
+          // …narrowed to mosaic.upload on mosaic 42 only.
+          expect(
+            identity.permits(
+              CollabAction.mosaicUpload,
+              onResourceType: 'mosaic',
+              onResourceId: '42',
+            ),
+            isTrue,
+          );
+          expect(
+            identity.permits(
+              CollabAction.mosaicUpload,
+              onResourceType: 'mosaic',
+              onResourceId: '99',
+            ),
+            isFalse,
+          );
+          expect(identity.permits(CollabAction.retract), isFalse);
+        },
+      );
+
+      test(
+        'a narrowed token is denied the actions it does not hold (403)',
+        () async {
+          final a = await account('mint-2');
+          final minted =
+              (await jsonOf(
+                    await req(
+                      'POST',
+                      '/v1/tokens',
+                      token: a.token,
+                      jsonBody: <String, Object?>{
+                        'role': 'contribute',
+                        'actions': ['mosaic.upload'],
+                      },
+                    ),
+                  ))['bearerToken']
+                  as String;
+          // calibration.publish is not on the allow-list — the per-action gate
+          // denies it before any body is read.
+          final r = await req(
+            'POST',
+            '/v1/calibration/masters?masterType=dark&camera=x&license=cc0',
+            token: minted,
+            binaryBody: _fits(const [1, 2, 3]),
+          );
+          expect(r.statusCode, 403);
+        },
+      );
+
+      test('a resource-bound mosaic token is confined on the legacy tile-swarm '
+          'routes (403)', () async {
+        // Regression: the legacy tile/handoff handlers gated on the coarse
+        // `contribute` scope ONLY, so a token minted as "contribute to mosaic 42"
+        // kept full contribute authority on the GLOBAL co-add + handoff baton —
+        // its actions allow-list + resource binding were never consulted there.
+        // Every collaborative WRITE route now runs the fine-grained gate, so the
+        // delegated token is denied outside its mosaic-upload-on-42 grant.
+        final a = await account('confine-1');
+        final minted =
+            (await jsonOf(
+                  await req(
+                    'POST',
+                    '/v1/tokens',
+                    token: a.token,
+                    jsonBody: <String, Object?>{
+                      'role': 'contribute',
+                      'actions': ['mosaic.upload'],
+                      'resourceType': 'mosaic',
+                      'resourceId': '42',
+                    },
+                  ),
+                ))['bearerToken']
+                as String;
         // The global shared-sky co-add: denied (neither tile.contribute on the
         // allow-list nor a matching resource binding).
         expect(
@@ -1699,8 +1910,7 @@ void main() {
                 'integrationSecondsDelta=1&license=cc-by',
             token: minted,
             binaryBody: _fits(const [1, 2, 3]),
-          ))
-              .statusCode,
+          )).statusCode,
           403,
         );
         // The longitude hand-off claim: denied for the same reason.
@@ -1712,8 +1922,11 @@ void main() {
         // (the confinement only bites genuinely-narrowed grants).
         final plain = await account('confine-2');
         expect(
-          (await req('POST', '/v1/handoff/7/claim', token: plain.token))
-              .statusCode,
+          (await req(
+            'POST',
+            '/v1/handoff/7/claim',
+            token: plain.token,
+          )).statusCode,
           // 404 (no such target) — it cleared the auth gate, unlike the narrowed
           // token which never reaches the target lookup.
           404,
@@ -1728,18 +1941,20 @@ void main() {
         // other users' coordinates + activity. Each WS1-3 read gate now declares
         // its own read action + resource binding, confining the bound token.
         final a = await account('read-confine-1');
-        final minted = (await jsonOf(
-          await req(
-            'POST',
-            '/v1/tokens',
-            token: a.token,
-            jsonBody: <String, Object?>{
-              'role': 'contribute',
-              'resourceType': 'mosaic',
-              'resourceId': 'm-42',
-            },
-          ),
-        ))['bearerToken'] as String;
+        final minted =
+            (await jsonOf(
+                  await req(
+                    'POST',
+                    '/v1/tokens',
+                    token: a.token,
+                    jsonBody: <String, Object?>{
+                      'role': 'contribute',
+                      'resourceType': 'mosaic',
+                      'resourceId': 'm-42',
+                    },
+                  ),
+                ))['bearerToken']
+                as String;
         // Global lists + cross-resource reads: all denied.
         for (final path in <String>[
           '/v1/targets',
@@ -1764,87 +1979,99 @@ void main() {
         );
       });
 
-      test('authorization + consent denials are recorded in the audit log',
-          () async {
-        final admin = await adminAccount('audit-admin');
-        final reader = await account('audit-reader');
-        final readTok =
-            server.tokens.issue(accountId: reader.id, scope: HubScope.read);
-        // A forbidden attempt (read token on an admin-only route) and a consent
-        // rejection (tile contribution with no license) — both previously left
-        // ZERO audit trail because denials are returned, not thrown.
-        expect(
-          (await req(
-            'POST',
-            '/v1/moderation/suspend',
-            token: readTok,
-            jsonBody: <String, Object?>{'accountId': admin.id},
-          ))
-              .statusCode,
-          403,
-        );
-        expect(
-          (await req(
-            'POST',
-            '/v1/tiles/9/contributions?order=9&framesDelta=1&'
-                'integrationSecondsDelta=1',
-            token: reader.token,
-            binaryBody: _fits(const [1, 2, 3]),
-          ))
-              .statusCode,
-          400,
-        );
-        final audit = await jsonOf(
-          await req('GET', '/v1/audit', token: admin.token),
-        );
-        final entries =
-            (audit['entries'] as List).cast<Map<String, Object?>>();
-        expect(
-          entries.any((e) =>
-              e['status'] == 403 &&
-              (e['path'] as String).contains('/v1/moderation/suspend') &&
-              e['accountId'] == reader.id),
-          isTrue,
-          reason: 'the 403 authz denial must be auditable',
-        );
-        expect(
-          entries.any((e) =>
-              e['status'] == 400 &&
-              (e['path'] as String).contains('/contributions') &&
-              e['accountId'] == reader.id),
-          isTrue,
-          reason: 'the 400 consent rejection must be auditable',
-        );
-      });
+      test(
+        'authorization + consent denials are recorded in the audit log',
+        () async {
+          final admin = await adminAccount('audit-admin');
+          final reader = await account('audit-reader');
+          final readTok = server.tokens.issue(
+            accountId: reader.id,
+            scope: HubScope.read,
+          );
+          // A forbidden attempt (read token on an admin-only route) and a consent
+          // rejection (tile contribution with no license) — both previously left
+          // ZERO audit trail because denials are returned, not thrown.
+          expect(
+            (await req(
+              'POST',
+              '/v1/moderation/suspend',
+              token: readTok,
+              jsonBody: <String, Object?>{'accountId': admin.id},
+            )).statusCode,
+            403,
+          );
+          expect(
+            (await req(
+              'POST',
+              '/v1/tiles/9/contributions?order=9&framesDelta=1&'
+                  'integrationSecondsDelta=1',
+              token: reader.token,
+              binaryBody: _fits(const [1, 2, 3]),
+            )).statusCode,
+            400,
+          );
+          final audit = await jsonOf(
+            await req('GET', '/v1/audit', token: admin.token),
+          );
+          final entries = (audit['entries'] as List)
+              .cast<Map<String, Object?>>();
+          expect(
+            entries.any(
+              (e) =>
+                  e['status'] == 403 &&
+                  (e['path'] as String).contains('/v1/moderation/suspend') &&
+                  e['accountId'] == reader.id,
+            ),
+            isTrue,
+            reason: 'the 403 authz denial must be auditable',
+          );
+          expect(
+            entries.any(
+              (e) =>
+                  e['status'] == 400 &&
+                  (e['path'] as String).contains('/contributions') &&
+                  e['accountId'] == reader.id,
+            ),
+            isTrue,
+            reason: 'the 400 consent rejection must be auditable',
+          );
+        },
+      );
 
-      test('no privilege escalation: a read token cannot mint contribute', () async {
-        final a = await account('mint-3');
-        final readToken = server.tokens.issue(
-          accountId: a.id,
-          scope: HubScope.read,
-        );
-        final r = await req(
-          'POST',
-          '/v1/tokens',
-          token: readToken,
-          jsonBody: <String, Object?>{'role': 'contribute'},
-        );
-        expect(r.statusCode, 403);
-      });
+      test(
+        'no privilege escalation: a read token cannot mint contribute',
+        () async {
+          final a = await account('mint-3');
+          final readToken = server.tokens.issue(
+            accountId: a.id,
+            scope: HubScope.read,
+          );
+          final r = await req(
+            'POST',
+            '/v1/tokens',
+            token: readToken,
+            jsonBody: <String, Object?>{'role': 'contribute'},
+          );
+          expect(r.statusCode, 403);
+        },
+      );
 
-      test('no escalation: a contribute token cannot delegate moderate', () async {
-        final a = await account('mint-4');
-        final r = await req(
-          'POST',
-          '/v1/tokens',
-          token: a.token,
-          jsonBody: <String, Object?>{
-            'role': 'contribute',
-            'actions': ['moderate'],
-          },
-        );
-        expect(r.statusCode, 403);
-      });
+      test(
+        'no escalation: a contribute token cannot delegate moderate',
+        () async {
+          final a = await account('mint-4');
+          final r = await req(
+            'POST',
+            '/v1/tokens',
+            token: a.token,
+            jsonBody: <String, Object?>{
+              'role': 'contribute',
+              'actions': ['moderate'],
+            },
+          );
+          expect(r.statusCode, 403);
+        },
+      );
     });
 
     test('DELETE /v1/sessions/current self-revokes the caller token', () async {
@@ -1858,43 +2085,49 @@ void main() {
     });
 
     group('moderation (suspend / reinstate)', () {
-      test('admin suspends an account; its tokens die; reinstate restores', () async {
-        final admin = await adminAccount('mod-admin');
-        final victim = await account('mod-victim');
-        // Victim works before suspension.
-        expect(
-          (await req('GET', '/v1/targets', token: victim.token)).statusCode,
-          200,
-        );
-        final s = await req(
-          'POST',
-          '/v1/moderation/suspend',
-          token: admin.token,
-          jsonBody: <String, Object?>{'accountId': victim.id, 'reason': 'spam'},
-        );
-        expect(s.statusCode, 200);
-        // Every token of the suspended account now fails closed.
-        expect(
-          (await req('GET', '/v1/targets', token: victim.token)).statusCode,
-          401,
-        );
-        final ri = await req(
-          'POST',
-          '/v1/moderation/reinstate',
-          token: admin.token,
-          jsonBody: <String, Object?>{'accountId': victim.id},
-        );
-        expect(ri.statusCode, 200);
-        // A fresh login mints a new working token.
-        final fresh = server.tokens.issue(
-          accountId: victim.id,
-          scope: HubScope.contribute,
-        );
-        expect(
-          (await req('GET', '/v1/targets', token: fresh)).statusCode,
-          200,
-        );
-      });
+      test(
+        'admin suspends an account; its tokens die; reinstate restores',
+        () async {
+          final admin = await adminAccount('mod-admin');
+          final victim = await account('mod-victim');
+          // Victim works before suspension.
+          expect(
+            (await req('GET', '/v1/targets', token: victim.token)).statusCode,
+            200,
+          );
+          final s = await req(
+            'POST',
+            '/v1/moderation/suspend',
+            token: admin.token,
+            jsonBody: <String, Object?>{
+              'accountId': victim.id,
+              'reason': 'spam',
+            },
+          );
+          expect(s.statusCode, 200);
+          // Every token of the suspended account now fails closed.
+          expect(
+            (await req('GET', '/v1/targets', token: victim.token)).statusCode,
+            401,
+          );
+          final ri = await req(
+            'POST',
+            '/v1/moderation/reinstate',
+            token: admin.token,
+            jsonBody: <String, Object?>{'accountId': victim.id},
+          );
+          expect(ri.statusCode, 200);
+          // A fresh login mints a new working token.
+          final fresh = server.tokens.issue(
+            accountId: victim.id,
+            scope: HubScope.contribute,
+          );
+          expect(
+            (await req('GET', '/v1/targets', token: fresh)).statusCode,
+            200,
+          );
+        },
+      );
 
       test('a non-admin cannot suspend (403)', () async {
         final a = await account('mod-nonadmin');
@@ -1934,42 +2167,45 @@ void main() {
     });
 
     group('attribution (GET /v1/attribution)', () {
-      test('an accepted contribution materializes a credited contributor', () async {
-        final a = await account('attr-1');
-        _setTrust(server, a.token, 1.0);
-        final up = await req(
-          'POST',
-          '/v1/tiles/55/contributions?order=9&framesDelta=4&'
-              'integrationSecondsDelta=120&license=cc-by',
-          token: a.token,
-          binaryBody: TileBuilder.synthetic(
-            tileId: 55,
-            order: 9,
-            value: 100.0,
-            frames: 4,
-            width: 8,
-            height: 8,
-            contributor: 'attr-1',
-          ).serialize(),
-        );
-        expect(up.statusCode, 200);
-        expect((await jsonOf(up))['accepted'], true);
+      test(
+        'an accepted contribution materializes a credited contributor',
+        () async {
+          final a = await account('attr-1');
+          _setTrust(server, a.token, 1.0);
+          final up = await req(
+            'POST',
+            '/v1/tiles/55/contributions?order=9&framesDelta=4&'
+                'integrationSecondsDelta=120&license=cc-by',
+            token: a.token,
+            binaryBody: TileBuilder.synthetic(
+              tileId: 55,
+              order: 9,
+              value: 100.0,
+              frames: 4,
+              width: 8,
+              height: 8,
+              contributor: 'attr-1',
+            ).serialize(),
+          );
+          expect(up.statusCode, 200);
+          expect((await jsonOf(up))['accepted'], true);
 
-        final r = await req(
-          'GET',
-          '/v1/attribution?artifactType=tile&artifactRef=55:9',
-          token: a.token,
-        );
-        expect(r.statusCode, 200);
-        final body = await jsonOf(r);
-        final contributors = body['contributors'] as List;
-        expect(contributors, hasLength(1));
-        final c = contributors.first as Map<String, Object?>;
-        expect(c['displayName'], 'attr-1');
-        expect(c['anonymous'], false);
-        expect(c['frames'], 4);
-        expect(c['license'], 'cc-by');
-      });
+          final r = await req(
+            'GET',
+            '/v1/attribution?artifactType=tile&artifactRef=55:9',
+            token: a.token,
+          );
+          expect(r.statusCode, 200);
+          final body = await jsonOf(r);
+          final contributors = body['contributors'] as List;
+          expect(contributors, hasLength(1));
+          final c = contributors.first as Map<String, Object?>;
+          expect(c['displayName'], 'attr-1');
+          expect(c['anonymous'], false);
+          expect(c['frames'], 4);
+          expect(c['license'], 'cc-by');
+        },
+      );
 
       test('attributionConsent=false credits an Anonymous contributor', () async {
         final a = await account('attr-anon');
@@ -2034,24 +2270,27 @@ void main() {
       },
     );
 
-    test('backward-compat: a legacy bare-role token still resolves + works', () async {
-      // A pre-6.0 token persists its scope as a bare role name. Mint one exactly
-      // that way and confirm it authenticates and contributes unchanged.
-      final a = await account('legacy-1');
-      final legacy = server.tokens.issueScoped(
-        accountId: a.id,
-        grant: const ScopedGrant.role(HubScope.contribute),
-      );
-      final identity = server.tokens.resolve(legacy);
-      expect(identity, isNotNull);
-      expect(identity!.scope, HubScope.contribute);
-      // A whole-role token permits every contribute action (no narrowing).
-      expect(identity.permits(CollabAction.mosaicUpload), isTrue);
-      expect(identity.permits(CollabAction.retract), isTrue);
-      // And it still passes the coarse + fine gates on a real route.
-      final r = await req('GET', '/v1/targets', token: legacy);
-      expect(r.statusCode, 200);
-    });
+    test(
+      'backward-compat: a legacy bare-role token still resolves + works',
+      () async {
+        // A pre-6.0 token persists its scope as a bare role name. Mint one exactly
+        // that way and confirm it authenticates and contributes unchanged.
+        final a = await account('legacy-1');
+        final legacy = server.tokens.issueScoped(
+          accountId: a.id,
+          grant: const ScopedGrant.role(HubScope.contribute),
+        );
+        final identity = server.tokens.resolve(legacy);
+        expect(identity, isNotNull);
+        expect(identity!.scope, HubScope.contribute);
+        // A whole-role token permits every contribute action (no narrowing).
+        expect(identity.permits(CollabAction.mosaicUpload), isTrue);
+        expect(identity.permits(CollabAction.retract), isTrue);
+        // And it still passes the coarse + fine gates on a real route.
+        final r = await req('GET', '/v1/targets', token: legacy);
+        expect(r.statusCode, 200);
+      },
+    );
   });
 }
 

@@ -144,7 +144,8 @@ class ModerationService {
     if (recent < threshold) return false;
     return suspend(
       targetAccountId: accountId,
-      reason: 'auto-suspended: $recent recent rejected/denied actions '
+      reason:
+          'auto-suspended: $recent recent rejected/denied actions '
           '(threshold $threshold within ${window.inHours}h)',
       auto: true,
     );

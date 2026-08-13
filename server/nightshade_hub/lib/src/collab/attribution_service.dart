@@ -134,8 +134,8 @@ class AttributionService {
             : (_accounts.getById(accountId)?.displayName ?? 'Unknown'),
         'anonymous': anonymous,
         'frames': (r['frames'] as num?)?.toInt() ?? 0,
-        'integrationSeconds': (r['integration_seconds'] as num?)?.toDouble() ??
-            0.0,
+        'integrationSeconds':
+            (r['integration_seconds'] as num?)?.toDouble() ?? 0.0,
         if (r['license'] != null) 'license': r['license'],
       });
     }

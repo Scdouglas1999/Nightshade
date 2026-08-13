@@ -252,7 +252,10 @@ void main() {
     test('a device binding denies a request from another device', () {
       const g = ScopedGrant(scope: HubScope.contribute, deviceId: 'rig-1');
       expect(g.permits(CollabAction.mosaicUpload, fromDevice: 'rig-1'), isTrue);
-      expect(g.permits(CollabAction.mosaicUpload, fromDevice: 'rig-2'), isFalse);
+      expect(
+        g.permits(CollabAction.mosaicUpload, fromDevice: 'rig-2'),
+        isFalse,
+      );
       expect(g.permits(CollabAction.mosaicUpload), isFalse);
     });
 
@@ -372,25 +375,28 @@ void main() {
       expect(tokens.resolve(fresh), isNotNull);
     });
 
-    test('checkAbuse auto-suspends past the rejected-contribution threshold', () {
-      final signup = accounts.signup(publicKey: 'pk', displayName: 'A');
-      // Seed rejected contributions directly in the ledger.
-      for (var i = 0; i < 25; i++) {
-        db.db.execute(
-          'INSERT INTO contributions (id, account_id, tile_id, healpix_order, '
-          'frames_delta, integration_seconds_delta, trust_applied, status, '
-          'delta_path, created_at) '
-          "VALUES (?, ?, 1, 9, 1, 1.0, 0.0, 'rejected', '', ?);",
-          <Object?>[
-            'c$i',
-            signup.account.id,
-            DateTime.now().toUtc().toIso8601String(),
-          ],
-        );
-      }
-      expect(moderation.checkAbuse(signup.account.id), isTrue);
-      expect(moderation.isSuspended(signup.account.id), isTrue);
-    });
+    test(
+      'checkAbuse auto-suspends past the rejected-contribution threshold',
+      () {
+        final signup = accounts.signup(publicKey: 'pk', displayName: 'A');
+        // Seed rejected contributions directly in the ledger.
+        for (var i = 0; i < 25; i++) {
+          db.db.execute(
+            'INSERT INTO contributions (id, account_id, tile_id, healpix_order, '
+            'frames_delta, integration_seconds_delta, trust_applied, status, '
+            'delta_path, created_at) '
+            "VALUES (?, ?, 1, 9, 1, 1.0, 0.0, 'rejected', '', ?);",
+            <Object?>[
+              'c$i',
+              signup.account.id,
+              DateTime.now().toUtc().toIso8601String(),
+            ],
+          );
+        }
+        expect(moderation.checkAbuse(signup.account.id), isTrue);
+        expect(moderation.isSuspended(signup.account.id), isTrue);
+      },
+    );
 
     // Seed [n] rejected contributions for [accountId] timestamped [age] ago.
     var seedSeq = 0;

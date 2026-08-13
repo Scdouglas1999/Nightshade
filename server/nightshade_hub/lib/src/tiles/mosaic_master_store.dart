@@ -31,7 +31,8 @@ class MosaicMasterStore {
   String panelPath(String mosaicId, int panelIndex, String masterId) =>
       p.join(panelDir(mosaicId, panelIndex), '$masterId.fits');
 
-  String outputDir(String mosaicId) => p.join(root, 'mosaics', mosaicId, 'output');
+  String outputDir(String mosaicId) =>
+      p.join(root, 'mosaics', mosaicId, 'output');
 
   String outputPath(String mosaicId, String masterId) =>
       p.join(outputDir(mosaicId), '$masterId.fits');

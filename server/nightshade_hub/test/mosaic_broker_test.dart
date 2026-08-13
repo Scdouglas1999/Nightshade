@@ -26,8 +26,14 @@ void main() {
     db = HubDatabase.open(':memory:');
     broker = MosaicBrokerService(db);
     final accounts = AccountService(db, TokenService(db));
-    owner = accounts.signup(publicKey: 'owner', displayName: 'Owner').account.id;
-    alice = accounts.signup(publicKey: 'alice', displayName: 'Alice').account.id;
+    owner = accounts
+        .signup(publicKey: 'owner', displayName: 'Owner')
+        .account
+        .id;
+    alice = accounts
+        .signup(publicKey: 'alice', displayName: 'Alice')
+        .account
+        .id;
     bob = accounts.signup(publicKey: 'bob', displayName: 'Bob').account.id;
   });
 
@@ -80,31 +86,50 @@ void main() {
 
   test('a second account claiming the SAME panel is refused (contention)', () {
     final id = publish4();
-    expect(broker.claimPanel(mosaicId: id, panelIndex: 0, accountId: alice),
-        isNotNull);
+    expect(
+      broker.claimPanel(mosaicId: id, panelIndex: 0, accountId: alice),
+      isNotNull,
+    );
     // Bob cannot take a panel Alice still holds — the anti-double-collect gate.
-    expect(broker.claimPanel(mosaicId: id, panelIndex: 0, accountId: bob),
-        isNull);
+    expect(
+      broker.claimPanel(mosaicId: id, panelIndex: 0, accountId: bob),
+      isNull,
+    );
   });
 
-  test('two DIFFERENT panels claim concurrently by two accounts both succeed',
-      () {
-    final id = publish4();
-    expect(broker.claimPanel(mosaicId: id, panelIndex: 0, accountId: alice),
-        isNotNull);
-    expect(broker.claimPanel(mosaicId: id, panelIndex: 1, accountId: bob),
-        isNotNull);
-  });
+  test(
+    'two DIFFERENT panels claim concurrently by two accounts both succeed',
+    () {
+      final id = publish4();
+      expect(
+        broker.claimPanel(mosaicId: id, panelIndex: 0, accountId: alice),
+        isNotNull,
+      );
+      expect(
+        broker.claimPanel(mosaicId: id, panelIndex: 1, accountId: bob),
+        isNotNull,
+      );
+    },
+  );
 
   test('same-account re-claim renews the baton', () {
     final id = publish4();
-    final first =
-        broker.claimPanel(mosaicId: id, panelIndex: 0, accountId: alice)!;
-    final renewed =
-        broker.claimPanel(mosaicId: id, panelIndex: 0, accountId: alice)!;
+    final first = broker.claimPanel(
+      mosaicId: id,
+      panelIndex: 0,
+      accountId: alice,
+    )!;
+    final renewed = broker.claimPanel(
+      mosaicId: id,
+      panelIndex: 0,
+      accountId: alice,
+    )!;
     expect(renewed.claimToken, isNot(equals(first.claimToken)));
-    expect(renewed.expiresAt.isAfter(first.expiresAt) ||
-        renewed.expiresAt.isAtSameMomentAs(first.expiresAt), isTrue);
+    expect(
+      renewed.expiresAt.isAfter(first.expiresAt) ||
+          renewed.expiresAt.isAtSameMomentAs(first.expiresAt),
+      isTrue,
+    );
   });
 
   test('an expired claim frees the panel for re-claim', () {
@@ -117,35 +142,52 @@ void main() {
       <Object?>['2000-01-01T00:00:00.000Z', id],
     );
     // Bob can now take it (Alice's claim lapsed).
-    expect(broker.claimPanel(mosaicId: id, panelIndex: 0, accountId: bob),
-        isNotNull);
+    expect(
+      broker.claimPanel(mosaicId: id, panelIndex: 0, accountId: bob),
+      isNotNull,
+    );
     final panel = broker.panelStates(id).firstWhere((p) => p.panelIndex == 0);
     expect(panel.assignedAccountId, bob);
   });
 
   test('claim throws on an unknown mosaic or panel', () {
     final id = publish4();
-    expect(() => broker.claimPanel(mosaicId: 'nope', panelIndex: 0, accountId: alice),
-        throwsA(isA<MosaicNotFound>()));
-    expect(() => broker.claimPanel(mosaicId: id, panelIndex: 99, accountId: alice),
-        throwsA(isA<MosaicPanelNotFound>()));
+    expect(
+      () =>
+          broker.claimPanel(mosaicId: 'nope', panelIndex: 0, accountId: alice),
+      throwsA(isA<MosaicNotFound>()),
+    );
+    expect(
+      () => broker.claimPanel(mosaicId: id, panelIndex: 99, accountId: alice),
+      throwsA(isA<MosaicPanelNotFound>()),
+    );
   });
 
   test('release frees a held panel; non-holder release is a no-op', () {
     final id = publish4();
     broker.claimPanel(mosaicId: id, panelIndex: 0, accountId: alice);
-    expect(broker.releasePanel(mosaicId: id, panelIndex: 0, accountId: bob),
-        isFalse);
-    expect(broker.releasePanel(mosaicId: id, panelIndex: 0, accountId: alice),
-        isTrue);
-    expect(broker.claimPanel(mosaicId: id, panelIndex: 0, accountId: bob),
-        isNotNull);
+    expect(
+      broker.releasePanel(mosaicId: id, panelIndex: 0, accountId: bob),
+      isFalse,
+    );
+    expect(
+      broker.releasePanel(mosaicId: id, panelIndex: 0, accountId: alice),
+      isTrue,
+    );
+    expect(
+      broker.claimPanel(mosaicId: id, panelIndex: 0, accountId: bob),
+      isNotNull,
+    );
   });
 
   test('recordUpload persists provenance + flips status to uploaded', () {
     final id = publish4();
     broker.claimPanel(
-        mosaicId: id, panelIndex: 0, accountId: alice, rigId: 'rig-a');
+      mosaicId: id,
+      panelIndex: 0,
+      accountId: alice,
+      rigId: 'rig-a',
+    );
     expect(
       broker.holdsClaim(mosaicId: id, panelIndex: 0, accountId: alice),
       isTrue,
@@ -164,8 +206,10 @@ void main() {
     expect(panel.uploadedMasterId, 'm-0');
     expect(broker.panelMasterPath(id, 0), '/tmp/m0.fits');
     // An uploaded panel is terminal — never re-claimable.
-    expect(broker.claimPanel(mosaicId: id, panelIndex: 0, accountId: bob),
-        isNull);
+    expect(
+      broker.claimPanel(mosaicId: id, panelIndex: 0, accountId: bob),
+      isNull,
+    );
   });
 
   test('recordUpload on an UNCLAIMED panel is refused (claim guard)', () {
@@ -187,17 +231,19 @@ void main() {
     expect(panel.uploadedMasterId, isNull);
   });
 
-  test(
-      'recordUpload is refused after a mid-upload force-release (TOCTOU '
+  test('recordUpload is refused after a mid-upload force-release (TOCTOU '
       'self-heal)', () {
     final id = publish4();
     final claim = broker.claimPanel(
-        mosaicId: id, panelIndex: 0, accountId: alice, rigId: 'rig-a')!;
+      mosaicId: id,
+      panelIndex: 0,
+      accountId: alice,
+      rigId: 'rig-a',
+    )!;
     // Simulate the owner force-releasing the stuck panel WHILE Alice's master is
     // still streaming in (the `await _readBinary` window in the handler).
     expect(
-      broker.forceReleasePanel(
-          mosaicId: id, panelIndex: 0, accountId: owner),
+      broker.forceReleasePanel(mosaicId: id, panelIndex: 0, accountId: owner),
       isTrue,
     );
     // Alice's late recordUpload (carrying the now-stale claim token) must NOT
@@ -219,20 +265,24 @@ void main() {
     expect(panel.uploadedMasterId, isNull);
   });
 
-  test(
-      'recordUpload is refused after a re-claimer takes over; the re-claimer '
+  test('recordUpload is refused after a re-claimer takes over; the re-claimer '
       'still uploads', () {
     final id = publish4();
-    final aliceClaim =
-        broker.claimPanel(mosaicId: id, panelIndex: 0, accountId: alice)!;
+    final aliceClaim = broker.claimPanel(
+      mosaicId: id,
+      panelIndex: 0,
+      accountId: alice,
+    )!;
     // Alice's claim lapses; Bob re-claims and uploads first.
     db.db.execute(
       'UPDATE collaborative_mosaic_panels SET claim_expires_at = ? '
       'WHERE mosaic_id = ? AND panel_index = 0;',
       <Object?>['2000-01-01T00:00:00.000Z', id],
     );
-    expect(broker.claimPanel(mosaicId: id, panelIndex: 0, accountId: bob),
-        isNotNull);
+    expect(
+      broker.claimPanel(mosaicId: id, panelIndex: 0, accountId: bob),
+      isNotNull,
+    );
     final bobPanel = broker.recordUpload(
       mosaicId: id,
       panelIndex: 0,
@@ -285,71 +335,78 @@ void main() {
     expect(broker.allPanelsUploaded(id), isTrue);
   });
 
-  test('assembly lifecycle: open -> assembling -> complete + output served', () {
-    final id = publish4();
-    for (var i = 0; i < 4; i++) {
-      broker.claimPanel(mosaicId: id, panelIndex: i, accountId: alice);
-      broker.recordUpload(
+  test(
+    'assembly lifecycle: open -> assembling -> complete + output served',
+    () {
+      final id = publish4();
+      for (var i = 0; i < 4; i++) {
+        broker.claimPanel(mosaicId: id, panelIndex: i, accountId: alice);
+        broker.recordUpload(
+          mosaicId: id,
+          panelIndex: i,
+          accountId: alice,
+          masterId: 'm-$i',
+          path: '/tmp/m$i.fits',
+        );
+      }
+      expect(broker.getMosaic(id)!.status, 'open');
+      broker.markAssembling(id);
+      expect(broker.getMosaic(id)!.status, 'assembling');
+      // Output is refused (404 path) until complete — the partial-set gate.
+      expect(broker.outputPathFor(id), isNull);
+
+      final tmp = Directory.systemTemp.createTempSync('nshub_mosaic_');
+      addTearDown(() => tmp.deleteSync(recursive: true));
+      final store = MosaicMasterStore('${tmp.path}/atlas');
+      final outPath = store.saveOutput(
         mosaicId: id,
-        panelIndex: i,
-        accountId: alice,
-        masterId: 'm-$i',
-        path: '/tmp/m$i.fits',
+        masterId: 'out',
+        bytes: Uint8List.fromList([1, 2, 3, 4]),
       );
-    }
-    expect(broker.getMosaic(id)!.status, 'open');
-    broker.markAssembling(id);
-    expect(broker.getMosaic(id)!.status, 'assembling');
-    // Output is refused (404 path) until complete — the partial-set gate.
-    expect(broker.outputPathFor(id), isNull);
+      expect(broker.markComplete(id, outputPath: outPath), isTrue);
+      expect(broker.getMosaic(id)!.status, 'complete');
+      expect(broker.outputPathFor(id), outPath);
+      expect(store.load(outPath), Uint8List.fromList([1, 2, 3, 4]));
+    },
+  );
 
-    final tmp = Directory.systemTemp.createTempSync('nshub_mosaic_');
-    addTearDown(() => tmp.deleteSync(recursive: true));
-    final store = MosaicMasterStore('${tmp.path}/atlas');
-    final outPath = store.saveOutput(
-      mosaicId: id,
-      masterId: 'out',
-      bytes: Uint8List.fromList([1, 2, 3, 4]),
-    );
-    expect(broker.markComplete(id, outputPath: outPath), isTrue);
-    expect(broker.getMosaic(id)!.status, 'complete');
-    expect(broker.outputPathFor(id), outPath);
-    expect(store.load(outPath), Uint8List.fromList([1, 2, 3, 4]));
-  });
+  test(
+    'markComplete is a no-op (returns false) unless the mosaic is assembling',
+    () {
+      final id = publish4();
+      // Still `open` — panels not all uploaded. A premature completion is refused.
+      expect(broker.markComplete(id, outputPath: '/tmp/early.fits'), isFalse);
+      expect(broker.getMosaic(id)!.status, 'open');
+      expect(broker.outputPathFor(id), isNull);
 
-  test('markComplete is a no-op (returns false) unless the mosaic is assembling',
-      () {
-    final id = publish4();
-    // Still `open` — panels not all uploaded. A premature completion is refused.
-    expect(broker.markComplete(id, outputPath: '/tmp/early.fits'), isFalse);
-    expect(broker.getMosaic(id)!.status, 'open');
-    expect(broker.outputPathFor(id), isNull);
+      // Drive it to `assembling`, complete once, then a repeat completion is a
+      // no-op (cannot overwrite an already-complete output).
+      for (var i = 0; i < 4; i++) {
+        broker.claimPanel(mosaicId: id, panelIndex: i, accountId: alice);
+        broker.recordUpload(
+          mosaicId: id,
+          panelIndex: i,
+          accountId: alice,
+          masterId: 'm-$i',
+          path: '/tmp/m$i.fits',
+        );
+      }
+      broker.markAssembling(id);
+      expect(broker.markComplete(id, outputPath: '/tmp/first.fits'), isTrue);
+      expect(broker.markComplete(id, outputPath: '/tmp/second.fits'), isFalse);
+      expect(broker.getMosaic(id)!.outputPath, '/tmp/first.fits');
+    },
+  );
 
-    // Drive it to `assembling`, complete once, then a repeat completion is a
-    // no-op (cannot overwrite an already-complete output).
-    for (var i = 0; i < 4; i++) {
-      broker.claimPanel(mosaicId: id, panelIndex: i, accountId: alice);
-      broker.recordUpload(
-        mosaicId: id,
-        panelIndex: i,
-        accountId: alice,
-        masterId: 'm-$i',
-        path: '/tmp/m$i.fits',
-      );
-    }
-    broker.markAssembling(id);
-    expect(broker.markComplete(id, outputPath: '/tmp/first.fits'), isTrue);
-    expect(broker.markComplete(id, outputPath: '/tmp/second.fits'), isFalse);
-    expect(broker.getMosaic(id)!.outputPath, '/tmp/first.fits');
-  });
-
-  test('isParticipant: owner + assigned rigs only, never an unrelated account',
-      () {
-    final id = publish4();
-    broker.claimPanel(mosaicId: id, panelIndex: 0, accountId: alice);
-    expect(broker.isParticipant(id, owner), isTrue, reason: 'owner');
-    expect(broker.isParticipant(id, alice), isTrue, reason: 'assigned rig');
-    expect(broker.isParticipant(id, bob), isFalse, reason: 'unrelated');
-    expect(broker.isParticipant('no-such-mosaic', owner), isFalse);
-  });
+  test(
+    'isParticipant: owner + assigned rigs only, never an unrelated account',
+    () {
+      final id = publish4();
+      broker.claimPanel(mosaicId: id, panelIndex: 0, accountId: alice);
+      expect(broker.isParticipant(id, owner), isTrue, reason: 'owner');
+      expect(broker.isParticipant(id, alice), isTrue, reason: 'assigned rig');
+      expect(broker.isParticipant(id, bob), isFalse, reason: 'unrelated');
+      expect(broker.isParticipant('no-such-mosaic', owner), isFalse);
+    },
+  );
 }

@@ -57,7 +57,8 @@ void main() {
       expect(
         open,
         greaterThanOrEqualTo(0),
-        reason: 'enum $enumName vanished from the client model — lock-step '
+        reason:
+            'enum $enumName vanished from the client model — lock-step '
             'guard is stale',
       );
       final semi = source.indexOf(';', open);
@@ -66,10 +67,7 @@ void main() {
       // Match a constant line: `identifier('wire.name'` — the FIRST quoted arg
       // is the wire name. Skip the `enum X {` header itself.
       final re = RegExp(r"([A-Za-z][A-Za-z0-9]*)\s*\(\s*'([^']+)'");
-      return re
-          .allMatches(block)
-          .map((m) => m.group(2)!)
-          .toSet();
+      return re.allMatches(block).map((m) => m.group(2)!).toSet();
     }
 
     late String clientSource;
@@ -78,7 +76,10 @@ void main() {
     });
 
     test('every client CollaborativeAction verb is understood by the hub', () {
-      final clientActions = clientWireNames(clientSource, 'CollaborativeAction');
+      final clientActions = clientWireNames(
+        clientSource,
+        'CollaborativeAction',
+      );
       // Sanity: the guard actually parsed the enum (not an empty regex match).
       expect(
         clientActions,
@@ -92,7 +93,8 @@ void main() {
       expect(
         missing,
         isEmpty,
-        reason: 'client CollaborativeAction verbs the hub does not recognize '
+        reason:
+            'client CollaborativeAction verbs the hub does not recognize '
             '(delegation would silently drop these): $missing',
       );
       // Round-trip each through fromWire to prove resolution, not just presence.
@@ -105,25 +107,32 @@ void main() {
       }
     });
 
-    test('the client ContributionLicense set equals the hub known-license set',
-        () {
-      final clientLicenses =
-          clientWireNames(clientSource, 'ContributionLicense');
-      expect(
-        clientLicenses,
-        equals(ConsentService.knownLicenses),
-        reason: 'license wire drift between nightshade_core '
-            'ContributionLicense and hub ConsentService.knownLicenses — the '
-            'consent CHECK + client license enum are out of lock-step',
-      );
-      // And the shareable subset never includes `private` (the "do not share"
-      // sentinel), which every share path rejects.
-      expect(ConsentService.shareableLicenses, isNot(contains('private')));
-      expect(
-        ConsentService.knownLicenses.difference(ConsentService.shareableLicenses),
-        equals({'private'}),
-      );
-    });
+    test(
+      'the client ContributionLicense set equals the hub known-license set',
+      () {
+        final clientLicenses = clientWireNames(
+          clientSource,
+          'ContributionLicense',
+        );
+        expect(
+          clientLicenses,
+          equals(ConsentService.knownLicenses),
+          reason:
+              'license wire drift between nightshade_core '
+              'ContributionLicense and hub ConsentService.knownLicenses — the '
+              'consent CHECK + client license enum are out of lock-step',
+        );
+        // And the shareable subset never includes `private` (the "do not share"
+        // sentinel), which every share path rejects.
+        expect(ConsentService.shareableLicenses, isNot(contains('private')));
+        expect(
+          ConsentService.knownLicenses.difference(
+            ConsentService.shareableLicenses,
+          ),
+          equals({'private'}),
+        );
+      },
+    );
 
     test('the client CollaborativeRole names match the hub HubScope names', () {
       final clientRoles = clientWireNames(clientSource, 'CollaborativeRole');
@@ -149,10 +158,8 @@ void main() {
 
     tearDown(() => db.dispose());
 
-    String makeAccount(String key) => accounts.signup(
-          publicKey: key,
-          displayName: key,
-        ).account.id;
+    String makeAccount(String key) =>
+        accounts.signup(publicKey: key, displayName: key).account.id;
 
     test('revoke stamps revoked_at exactly once (idempotent guard)', () {
       final accountId = makeAccount('consent-revoke');

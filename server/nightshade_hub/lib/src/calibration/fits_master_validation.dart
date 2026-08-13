@@ -89,8 +89,11 @@ class FitsMasterHeader {
     var sawEnd = false;
     var dataOffset = 0;
     final maxBytes = _maxBlocks * _blockSize;
-    for (var base = 0; base < bytes.length && base < maxBytes;
-        base += _blockSize) {
+    for (
+      var base = 0;
+      base < bytes.length && base < maxBytes;
+      base += _blockSize
+    ) {
       if (base + _blockSize > bytes.length) {
         throw FitsValidationError(
           'truncatedHeader',

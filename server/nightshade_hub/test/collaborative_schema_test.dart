@@ -44,79 +44,90 @@ void main() {
       expect(tableExists('shared_calibration_masters'), isTrue);
     });
 
-    test('shared_calibration_masters license CHECK rejects unknown wire names',
-        () {
-      final tokens = TokenService(db);
-      final accounts = AccountService(
-        db,
-        tokens,
-        hasher: PasswordHasher(iterations: 1000),
-      );
-      final acct = accounts
-          .signup(publicKey: 'pk-cal', displayName: 'Imager', password: 'pw')
-          .account;
-      final now = DateTime.now().toUtc().toIso8601String();
-      String insert(String license) {
+    test(
+      'shared_calibration_masters license CHECK rejects unknown wire names',
+      () {
+        final tokens = TokenService(db);
+        final accounts = AccountService(
+          db,
+          tokens,
+          hasher: PasswordHasher(iterations: 1000),
+        );
+        final acct = accounts
+            .signup(publicKey: 'pk-cal', displayName: 'Imager', password: 'pw')
+            .account;
+        final now = DateTime.now().toUtc().toIso8601String();
+        String insert(String license) {
+          db.db.execute(
+            'INSERT INTO shared_calibration_masters '
+            '(id, account_id, master_type, camera_model, license, path, '
+            'created_at) VALUES (?, ?, ?, ?, ?, ?, ?);',
+            <Object?>[
+              'm-$license',
+              acct.id,
+              'dark',
+              'ASI2600MM',
+              license,
+              '/data/$license.fit',
+              now,
+            ],
+          );
+          return license;
+        }
+
+        expect(
+          () => insert('cc-by-sa'),
+          returnsNormally,
+          reason: 'a known wire name is accepted',
+        );
+        expect(
+          () => insert('cc-by-nd'),
+          throwsA(anything),
+          reason:
+              'an unknown/forward-version license cannot widen reuse rights',
+        );
+      },
+    );
+
+    test(
+      'shared_calibration_masters.license defaults fail-closed to private',
+      () {
+        final tokens = TokenService(db);
+        final accounts = AccountService(
+          db,
+          tokens,
+          hasher: PasswordHasher(iterations: 1000),
+        );
+        final acct = accounts
+            .signup(publicKey: 'pk-def', displayName: 'Imager', password: 'pw')
+            .account;
+        // A publish path that omits the license column must NOT silently grant
+        // reuse rights — the at-rest default mirrors the decode-side private
+        // fallback.
         db.db.execute(
           'INSERT INTO shared_calibration_masters '
-          '(id, account_id, master_type, camera_model, license, path, '
-          'created_at) VALUES (?, ?, ?, ?, ?, ?, ?);',
+          '(id, account_id, master_type, camera_model, path, created_at) '
+          'VALUES (?, ?, ?, ?, ?, ?);',
           <Object?>[
-            'm-$license',
+            'm-default',
             acct.id,
             'dark',
             'ASI2600MM',
-            license,
-            '/data/$license.fit',
-            now,
+            '/data/default.fit',
+            DateTime.now().toUtc().toIso8601String(),
           ],
         );
-        return license;
-      }
-
-      expect(() => insert('cc-by-sa'), returnsNormally,
-          reason: 'a known wire name is accepted');
-      expect(
-        () => insert('cc-by-nd'),
-        throwsA(anything),
-        reason: 'an unknown/forward-version license cannot widen reuse rights',
-      );
-    });
-
-    test('shared_calibration_masters.license defaults fail-closed to private',
-        () {
-      final tokens = TokenService(db);
-      final accounts = AccountService(
-        db,
-        tokens,
-        hasher: PasswordHasher(iterations: 1000),
-      );
-      final acct = accounts
-          .signup(publicKey: 'pk-def', displayName: 'Imager', password: 'pw')
-          .account;
-      // A publish path that omits the license column must NOT silently grant
-      // reuse rights — the at-rest default mirrors the decode-side private
-      // fallback.
-      db.db.execute(
-        'INSERT INTO shared_calibration_masters '
-        '(id, account_id, master_type, camera_model, path, created_at) '
-        'VALUES (?, ?, ?, ?, ?, ?);',
-        <Object?>[
-          'm-default',
-          acct.id,
-          'dark',
-          'ASI2600MM',
-          '/data/default.fit',
-          DateTime.now().toUtc().toIso8601String(),
-        ],
-      );
-      final rows = db.db.select(
-        'SELECT license FROM shared_calibration_masters WHERE id = ?;',
-        <Object?>['m-default'],
-      );
-      expect(rows.single['license'], 'private',
-          reason: 'omitting the license must fail closed, not grant cc-by');
-    });
+        final rows = db.db.select(
+          'SELECT license FROM shared_calibration_masters WHERE id = ?;',
+          <Object?>['m-default'],
+        );
+        expect(
+          rows.single['license'],
+          'private',
+          reason: 'omitting the license must fail closed, not grant cc-by',
+        );
+      },
+    );
 
     test('a mosaic panel claim is unique per (mosaic, panel)', () {
       final tokens = TokenService(db);
@@ -179,30 +190,40 @@ void main() {
         .id;
 
     test('plain grant serializes to the bare legacy role name', () {
-      expect(const ScopedGrant.role(HubScope.contribute).toScopeString(),
-          'contribute');
+      expect(
+        const ScopedGrant.role(HubScope.contribute).toScopeString(),
+        'contribute',
+      );
       expect(ScopedGrant.tryParse('contribute')!.scope, HubScope.contribute);
       expect(ScopedGrant.tryParse('bogus'), isNull, reason: 'unknown -> deny');
     });
 
-    test('a legacy contribute token still resolves to a contribute identity',
-        () {
-      final id = accountId();
-      final raw = tokens.issue(accountId: id, scope: HubScope.contribute);
-      final identity = tokens.resolve(raw)!;
-      expect(identity.scope, HubScope.contribute);
-      expect(identity.scope.satisfies(HubScope.read), isTrue);
-      // Default (un-narrowed) grant permits all contribute-level actions.
-      expect(identity.permits(CollabAction.mosaicClaim), isTrue);
-      expect(identity.permits(CollabAction.mosaicAssemble), isFalse,
-          reason: 'assemble needs admin');
-    });
+    test(
+      'a legacy contribute token still resolves to a contribute identity',
+      () {
+        final id = accountId();
+        final raw = tokens.issue(accountId: id, scope: HubScope.contribute);
+        final identity = tokens.resolve(raw)!;
+        expect(identity.scope, HubScope.contribute);
+        expect(identity.scope.satisfies(HubScope.read), isTrue);
+        // Default (un-narrowed) grant permits all contribute-level actions.
+        expect(identity.permits(CollabAction.mosaicClaim), isTrue);
+        expect(
+          identity.permits(CollabAction.mosaicAssemble),
+          isFalse,
+          reason: 'assemble needs admin',
+        );
+      },
+    );
 
     test('tryParse fails closed (null) on type-confused JSON, never throws', () {
       // Token resolution must never throw on a corrupt/type-confused scope blob.
       // A non-string deviceId or action entry would throw _TypeError under a
       // bare cast; the guarded parser denies instead.
-      expect(ScopedGrant.tryParse('{"role":"contribute","deviceId":5}'), isNull);
+      expect(
+        ScopedGrant.tryParse('{"role":"contribute","deviceId":5}'),
+        isNull,
+      );
       expect(
         ScopedGrant.tryParse('{"role":"contribute","actions":[5]}'),
         isNull,
@@ -261,45 +282,76 @@ void main() {
         authoritativeDisplayName: 'Real Imager',
       );
       final decoded = jsonDecode(stamped) as Map<String, Object?>;
-      expect(decoded['accountId'], 'real-account',
-          reason: 'forged identity is replaced with the authenticated one');
+      expect(
+        decoded['accountId'],
+        'real-account',
+        reason: 'forged identity is replaced with the authenticated one',
+      );
       expect(decoded['displayName'], 'Real Imager');
-      expect(decoded['cameraModel'], 'ASI2600MM',
-          reason: 'non-identity provenance is preserved');
+      expect(
+        decoded['cameraModel'],
+        'ASI2600MM',
+        reason: 'non-identity provenance is preserved',
+      );
       expect(decoded['frameCount'], 50);
     });
 
-    test('null/blank/malformed blob yields the authenticated identity only', () {
-      for (final raw in <String?>[null, '', '   ', 'not json', '[1,2,3]']) {
-        final decoded = jsonDecode(
-          stampAuthoritativeProvenanceIdentity(raw, accountId: 'real-account'),
-        ) as Map<String, Object?>;
-        expect(decoded['accountId'], 'real-account');
-        expect(decoded.containsKey('displayName'), isFalse,
-            reason: 'no display name stamped when none provided');
-      }
-    });
+    test(
+      'null/blank/malformed blob yields the authenticated identity only',
+      () {
+        for (final raw in <String?>[null, '', '   ', 'not json', '[1,2,3]']) {
+          final decoded =
+              jsonDecode(
+                    stampAuthoritativeProvenanceIdentity(
+                      raw,
+                      accountId: 'real-account',
+                    ),
+                  )
+                  as Map<String, Object?>;
+          expect(decoded['accountId'], 'real-account');
+          expect(
+            decoded.containsKey('displayName'),
+            isFalse,
+            reason: 'no display name stamped when none provided',
+          );
+        }
+      },
+    );
 
-    test('strips a self-reported displayName when no authoritative name given',
-        () {
-      // The publish path stamps only accountId; a handler that does not (yet)
-      // resolve an authoritative display name must NOT let the uploader's
-      // self-reported credit string survive and spoof the attribution UI.
-      final spoofed = jsonEncode(<String, Object?>{
-        'accountId': 'victim-account',
-        'displayName': 'Famous Astrophotographer',
-        'cameraModel': 'ASI2600MM',
-      });
-      final decoded = jsonDecode(
-        stampAuthoritativeProvenanceIdentity(spoofed, accountId: 'real-account'),
-      ) as Map<String, Object?>;
-      expect(decoded['accountId'], 'real-account');
-      expect(decoded.containsKey('displayName'), isFalse,
-          reason: 'a forged credit string with no authoritative name is '
-              'dropped, not passed through');
-      expect(decoded['cameraModel'], 'ASI2600MM',
-          reason: 'non-identity provenance is still preserved');
-    });
+    test(
+      'strips a self-reported displayName when no authoritative name given',
+      () {
+        // The publish path stamps only accountId; a handler that does not (yet)
+        // resolve an authoritative display name must NOT let the uploader's
+        // self-reported credit string survive and spoof the attribution UI.
+        final spoofed = jsonEncode(<String, Object?>{
+          'accountId': 'victim-account',
+          'displayName': 'Famous Astrophotographer',
+          'cameraModel': 'ASI2600MM',
+        });
+        final decoded =
+            jsonDecode(
+                  stampAuthoritativeProvenanceIdentity(
+                    spoofed,
+                    accountId: 'real-account',
+                  ),
+                )
+                as Map<String, Object?>;
+        expect(decoded['accountId'], 'real-account');
+        expect(
+          decoded.containsKey('displayName'),
+          isFalse,
+          reason:
+              'a forged credit string with no authoritative name is '
+              'dropped, not passed through',
+        );
+        expect(
+          decoded['cameraModel'],
+          'ASI2600MM',
+          reason: 'non-identity provenance is still preserved',
+        );
+      },
+    );
 
     test('strips the unverifiable self-reported rigId', () {
       final spoofed = jsonEncode(<String, Object?>{
@@ -307,15 +359,27 @@ void main() {
         'rigId': 'victim-rig-001',
         'cameraModel': 'ASI2600MM',
       });
-      final decoded = jsonDecode(
-        stampAuthoritativeProvenanceIdentity(spoofed, accountId: 'real-account'),
-      ) as Map<String, Object?>;
+      final decoded =
+          jsonDecode(
+                stampAuthoritativeProvenanceIdentity(
+                  spoofed,
+                  accountId: 'real-account',
+                ),
+              )
+              as Map<String, Object?>;
       expect(decoded['accountId'], 'real-account');
-      expect(decoded.containsKey('rigId'), isFalse,
-          reason: 'a forgeable rig id has no authoritative column to validate '
-              'against, so it is dropped rather than passed through');
-      expect(decoded['cameraModel'], 'ASI2600MM',
-          reason: 'non-identity provenance is still preserved');
+      expect(
+        decoded.containsKey('rigId'),
+        isFalse,
+        reason:
+            'a forgeable rig id has no authoritative column to validate '
+            'against, so it is dropped rather than passed through',
+      );
+      expect(
+        decoded['cameraModel'],
+        'ASI2600MM',
+        reason: 'non-identity provenance is still preserved',
+      );
     });
   });
 }

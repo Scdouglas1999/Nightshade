@@ -118,10 +118,7 @@ class SharedCalibrationService {
       );
     }
     if (bytes.isEmpty) {
-      throw CalibrationPublishRejected(
-        'emptyMaster',
-        'empty master body',
-      );
+      throw CalibrationPublishRejected('emptyMaster', 'empty master body');
     }
     // The sensor geometry is the single hardest WS1 safety claim: it drives the
     // client matcher's "different sensor can never calibrate this frame" gate.
@@ -143,7 +140,11 @@ class SharedCalibrationService {
     try {
       header = FitsMasterHeader.parse(bytes);
     } on FitsValidationError catch (e) {
-      throw CalibrationPublishRejected(e.code, e.message, contentIntegrity: true);
+      throw CalibrationPublishRejected(
+        e.code,
+        e.message,
+        contentIntegrity: true,
+      );
     }
     if (header.naxis1 != sensorWidth || header.naxis2 != sensorHeight) {
       throw CalibrationPublishRejected(
@@ -160,7 +161,11 @@ class SharedCalibrationService {
     try {
       header.validatePixelSanity(bytes);
     } on FitsValidationError catch (e) {
-      throw CalibrationPublishRejected(e.code, e.message, contentIntegrity: true);
+      throw CalibrationPublishRejected(
+        e.code,
+        e.message,
+        contentIntegrity: true,
+      );
     }
     // NFRAMES is an UNTRUSTED hint, not authoritative — it is uploader-written
     // header text, equally forgeable to the `frameCount` query param. Prefer it
