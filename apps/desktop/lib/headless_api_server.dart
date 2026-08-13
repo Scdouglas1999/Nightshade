@@ -42,6 +42,8 @@ import 'headless_api/session_ownership.dart';
 import 'headless_api/validation.dart';
 
 part 'headless_api_server/http_middleware.dart';
+part 'headless_api_server/auth_middleware.dart';
+part 'headless_api_server/rate_limit_middleware.dart';
 part 'headless_api_server/websocket_sessions.dart';
 part 'headless_api_server/handler_initialization.dart';
 part 'headless_api_server/server_lifecycle.dart';
