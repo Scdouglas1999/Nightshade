@@ -363,12 +363,12 @@ macro_rules! load_vendor_sdk {
         $(,)?
     ) => {
         $(#[$sdk_meta])*
-        struct $sdk {
+        pub(crate) struct $sdk {
             $(
-                $field: $sig,
+                pub(crate) $field: $sig,
             )*
             $($(
-                $opt_field: Option<$opt_sig>,
+                pub(crate) $opt_field: Option<$opt_sig>,
             )*)?
             #[allow(dead_code)]
             _library: libloading::Library,
