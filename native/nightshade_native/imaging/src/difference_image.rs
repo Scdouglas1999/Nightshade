@@ -49,6 +49,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::registration::{sample_interleaved, Interpolator};
+use crate::robust_stats::{
+    median_in_place as median, percentile_nearest_rank as percentile_sorted, MAD_TO_SIGMA,
+};
 use crate::sky_atlas::{AtlasError, SkyTileAccumulator};
 use crate::stats::StarDetectionConfig;
 use crate::wcs_sip::SipWcs;
@@ -602,7 +605,7 @@ fn residual_background(plane: &[f64], overlap: &[bool]) -> (f64, f64) {
     dev.sort_unstable_by(f64::total_cmp);
     let mad = percentile_sorted(&dev, 0.5);
     // 1.4826·MAD is the Gaussian-consistent σ estimator.
-    let mut sigma = 1.4826 * mad;
+    let mut sigma = MAD_TO_SIGMA * mad;
 
     if !(sigma.is_finite() && sigma > 0.0) {
         // MAD underflowed (a near-perfect subtraction). Use the 84th-percentile
@@ -620,15 +623,6 @@ fn residual_background(plane: &[f64], overlap: &[bool]) -> (f64, f64) {
         sigma = (span * 1e-3).max(f64::MIN_POSITIVE);
     }
     (median, sigma)
-}
-
-/// The value at fractional `q` (0..1) of an already-sorted slice.
-fn percentile_sorted(sorted: &[f64], q: f64) -> f64 {
-    if sorted.is_empty() {
-        return 0.0;
-    }
-    let idx = ((sorted.len() as f64 - 1.0) * q.clamp(0.0, 1.0)).round() as usize;
-    sorted[idx.min(sorted.len() - 1)]
 }
 
 /// Flood-grow a source from a seed maximum (8-connected, pixels above threshold),
@@ -845,20 +839,6 @@ fn robust_theil_sen(pairs: &[(f64, f64)]) -> Option<(f64, f64)> {
     Some((scale, offset))
 }
 
-/// Median of a slice (sorts in place by total order; the slice is scratch).
-fn median(vals: &mut [f64]) -> f64 {
-    vals.sort_unstable_by(f64::total_cmp);
-    let n = vals.len();
-    if n == 0 {
-        return 0.0;
-    }
-    if n % 2 == 1 {
-        vals[n / 2]
-    } else {
-        0.5 * (vals[n / 2 - 1] + vals[n / 2])
-    }
-}
-
 /// Eccentricity from the second central moments of a source's flux distribution.
 /// `e = √(1 − b²/a²)` with `a`/`b` the major/minor axis lengths from the moment
 /// eigenvalues — identical to the star detector's roundness measure.
@@ -986,7 +966,7 @@ fn estimate_psf_sigma(
     let dev: Vec<f64> = vals.iter().map(|&v| (v - median).abs()).collect();
     let mut dev_sorted = dev;
     dev_sorted.sort_unstable_by(f64::total_cmp);
-    let sigma_bg = 1.4826 * percentile_sorted(&dev_sorted, 0.5);
+    let sigma_bg = MAD_TO_SIGMA * percentile_sorted(&dev_sorted, 0.5);
     let noise = if sigma_bg.is_finite() && sigma_bg > 0.0 {
         sigma_bg
     } else {

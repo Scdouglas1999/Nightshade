@@ -85,6 +85,34 @@ impl XisfProperty {
             _ => None,
         }
     }
+
+    /// This property as a FITS on-card value token, so a property flattened
+    /// into `ImageReadResult::header` alongside the FITS keywords survives
+    /// being written back out. See `FitsValue::to_header_string`.
+    pub fn to_header_string(&self) -> String {
+        match self {
+            XisfProperty::String(s) | XisfProperty::TimePoint(s) => {
+                crate::FitsValue::String(s.clone()).to_header_string()
+            }
+            XisfProperty::Int8(i) => crate::FitsValue::Integer(*i as i64).to_header_string(),
+            XisfProperty::Int16(i) => crate::FitsValue::Integer(*i as i64).to_header_string(),
+            XisfProperty::Int32(i) => crate::FitsValue::Integer(*i as i64).to_header_string(),
+            XisfProperty::Int64(i) => crate::FitsValue::Integer(*i).to_header_string(),
+            XisfProperty::UInt8(u) => crate::FitsValue::Integer(*u as i64).to_header_string(),
+            XisfProperty::UInt16(u) => crate::FitsValue::Integer(*u as i64).to_header_string(),
+            XisfProperty::UInt32(u) => crate::FitsValue::Integer(*u as i64).to_header_string(),
+            // Why: FITS integer cards are signed 64-bit, so a u64 above i64::MAX
+            // has no integer representation; emit it as a float rather than
+            // wrapping to a negative.
+            XisfProperty::UInt64(u) => match i64::try_from(*u) {
+                Ok(i) => crate::FitsValue::Integer(i).to_header_string(),
+                Err(_) => crate::FitsValue::Float(*u as f64).to_header_string(),
+            },
+            XisfProperty::Float32(f) => crate::FitsValue::Float(*f as f64).to_header_string(),
+            XisfProperty::Float64(f) => crate::FitsValue::Float(*f).to_header_string(),
+            XisfProperty::Boolean(b) => crate::FitsValue::Boolean(*b).to_header_string(),
+        }
+    }
 }
 
 /// XISF error types

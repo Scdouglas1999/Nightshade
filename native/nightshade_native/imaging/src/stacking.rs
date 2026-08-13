@@ -6,6 +6,7 @@
 //! - Running average accumulation with optional sigma-clipping rejection
 //! - Parallel pixel operations via rayon
 
+use crate::integration::{integrate_columns, Combine, IntegrationConfig, IntegrationFrame, Reject};
 use crate::{
     debayer_u16, detect_stars, BayerPattern, DebayerAlgorithm, DetectedStar, ImageData, PixelType,
     StarDetectionConfig,
@@ -1310,6 +1311,17 @@ pub struct MasterFrame {
     pub output_mean: f64,
 }
 
+/// Peak size of the decoded `f64` working set, across all frames, for one band
+/// of rows.
+///
+/// Why bands: the combiner used to decode *every* frame to `f64` up front —
+/// `frames.len() × pixels × 8` bytes, which is 5.8 GB for 30 darks off a 24 MP
+/// sensor, on top of the caller's own `u16` copies. Nothing about the
+/// per-column statistics needs more than the rows currently being combined, so
+/// the frames are decoded a band at a time and the residency becomes a
+/// constant instead of a multiple of the sensor.
+const BAND_BUDGET_BYTES: usize = 32 * 1024 * 1024;
+
 /// Combine a stack of calibration frames into a single master frame.
 ///
 /// Validation: returns `Err` for an empty input, mismatched dimensions /
@@ -1329,6 +1341,27 @@ pub fn combine_master_frames(
     kind: MasterFrameKind,
     method: CombineMethod,
     output_type: MasterOutputType,
+) -> Result<MasterFrame, String> {
+    let row_samples = frames
+        .first()
+        .map(|f| (f.width as usize) * (f.channels as usize))
+        .unwrap_or(0);
+    let bytes_per_row = row_samples.saturating_mul(frames.len()).saturating_mul(8);
+    let band_rows = BAND_BUDGET_BYTES
+        .checked_div(bytes_per_row)
+        .unwrap_or(1)
+        .max(1);
+    combine_master_frames_banded(frames, kind, method, output_type, band_rows)
+}
+
+/// [`combine_master_frames`] with an explicit band height, so the banding can
+/// be exercised at every boundary without synthesising a multi-gigabyte stack.
+fn combine_master_frames_banded(
+    frames: &[ImageData],
+    kind: MasterFrameKind,
+    method: CombineMethod,
+    output_type: MasterOutputType,
+    band_rows: usize,
 ) -> Result<MasterFrame, String> {
     // --- validation --------------------------------------------------------
     if frames.is_empty() {
@@ -1391,35 +1424,82 @@ pub fn combine_master_frames(
         }
     }
 
-    let pixel_count = (width as usize) * (height as usize) * (channels as usize);
+    let row_samples = (width as usize) * (channels as usize);
+    let pixel_count = row_samples * (height as usize);
+    let sample_bytes = pixel_type.byte_size();
+    for (i, frame) in frames.iter().enumerate() {
+        if frame.data.len() < pixel_count * sample_bytes {
+            return Err(format!(
+                "combine_master_frames: frame {} holds {} bytes but {}x{}x{} {:?} needs {}",
+                i,
+                frame.data.len(),
+                width,
+                height,
+                channels,
+                pixel_type,
+                pixel_count * sample_bytes
+            ));
+        }
+    }
 
-    // --- extract pixel data as f64 stacks ----------------------------------
-    // We materialise each frame as a Vec<f64> so the per-pixel combine can
-    // see across frames. This costs `frames.len() * pixel_count * 8` bytes,
-    // which is the same memory the Dart isolate path already pays.
-    let frame_stacks: Vec<Vec<f64>> = frames
-        .iter()
-        .map(|f| match f.pixel_type {
-            PixelType::U16 => extract_u16_as_f64(f),
-            PixelType::F32 => f
-                .data
-                .par_chunks_exact(4)
-                .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]) as f64)
-                .collect(),
-            _ => unreachable!("pixel_type validated above"),
-        })
-        .collect();
+    // --- per-pixel combine, one band of rows at a time ---------------------
+    // The statistics themselves live in `integration::integrate_columns`: it is
+    // the same population-wide rejector, row-parallel with a reused scratch
+    // column instead of a heap allocation per output pixel.
+    let (combine, reject, iteration_limit) = match method {
+        CombineMethod::Mean => (Combine::Mean, Reject::None, 0),
+        CombineMethod::Median => (Combine::Median, Reject::None, 0),
+        CombineMethod::SigmaClip { kappa, iterations } => (
+            Combine::Mean,
+            Reject::SigmaClip {
+                low: kappa,
+                high: kappa,
+            },
+            iterations as usize,
+        ),
+    };
+    let config = IntegrationConfig {
+        combine,
+        reject,
+        // `integrate_columns` hands back raw f64; the output type below is
+        // applied here, after the flat normalisation.
+        output_type: PixelType::F32,
+        generate_rejection_map: false,
+        generate_weight_map: false,
+        min_coverage: 1,
+    };
 
-    // --- per-pixel combine -------------------------------------------------
-    let combined: Vec<f64> = (0..pixel_count)
-        .into_par_iter()
-        .map(|i| {
-            // Gather this pixel across all frames.
-            // Small Vec; allocation per pixel is the cost of the offline path.
-            let mut samples: Vec<f64> = frame_stacks.iter().map(|s| s[i]).collect();
-            combine_pixel(&mut samples, method)
-        })
-        .collect();
+    let band_rows = band_rows.clamp(1, (height as usize).max(1));
+    let mut combined: Vec<f64> = Vec::with_capacity(pixel_count);
+    let mut band: Vec<Vec<f64>> = vec![Vec::new(); frames.len()];
+    let mut row = 0usize;
+    while row < height as usize {
+        let rows = band_rows.min(height as usize - row);
+        let start = row * row_samples;
+        let count = rows * row_samples;
+        for (buffer, frame) in band.iter_mut().zip(frames) {
+            decode_band_f64(frame, start, count, buffer);
+        }
+        let borrowed: Vec<IntegrationFrame<'_>> = band
+            .iter()
+            .map(|pixels| IntegrationFrame {
+                pixels,
+                weight: 1.0,
+                coverage: None,
+            })
+            .collect();
+        let columns = integrate_columns(
+            &borrowed,
+            width,
+            rows as u32,
+            channels,
+            &config,
+            iteration_limit,
+        )
+        .map_err(|e| format!("combine_master_frames: {e}"))?;
+        combined.extend_from_slice(&columns.master);
+        row += rows;
+    }
 
     // --- compute mean BEFORE normalisation --------------------------------
     let input_sum: f64 = combined.par_iter().sum();
@@ -1475,78 +1555,403 @@ pub fn combine_master_frames(
     })
 }
 
-/// Reduce a per-pixel sample slice to a single combined value via the
-/// requested method. `samples` is mutable so median / sigma-clip can sort
-/// in place rather than re-allocating.
-fn combine_pixel(samples: &mut [f64], method: CombineMethod) -> f64 {
-    // Caller guarantees `samples` is non-empty (combine_master_frames
-    // already verified `frames` is non-empty and every frame has the same
-    // pixel_count, so every per-pixel sample vec has length `frames.len()`).
-    match method {
-        CombineMethod::Mean => samples.iter().sum::<f64>() / samples.len() as f64,
-        CombineMethod::Median => median_in_place(samples),
-        CombineMethod::SigmaClip { kappa, iterations } => {
-            sigma_clip_in_place(samples, kappa, iterations)
+/// Decode `count` samples of `image`, starting at sample `start`, into `out`
+/// as `f64`. `out` is caller-owned scratch reused across bands.
+fn decode_band_f64(image: &ImageData, start: usize, count: usize, out: &mut Vec<f64>) {
+    out.clear();
+    out.reserve(count);
+    match image.pixel_type {
+        PixelType::U16 => {
+            let bytes = &image.data[start * 2..(start + count) * 2];
+            out.extend(
+                bytes
+                    .chunks_exact(2)
+                    .map(|c| u16::from_le_bytes([c[0], c[1]]) as f64),
+            );
         }
+        PixelType::F32 => {
+            let bytes = &image.data[start * 4..(start + count) * 4];
+            out.extend(
+                bytes
+                    .chunks_exact(4)
+                    .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]) as f64),
+            );
+        }
+        _ => unreachable!("pixel_type validated by combine_master_frames"),
     }
 }
 
-/// Compute the median of `samples`, mutating its order. For even-length
-/// inputs, returns the mean of the two centre elements (statistical
-/// definition of the median) so that an even cosmic-ray-vs-clean split
-/// doesn't bias toward one side.
-fn median_in_place(samples: &mut [f64]) -> f64 {
-    let n = samples.len();
-    // partial sort gets the middle element; for even n we need two.
-    samples.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    if n % 2 == 1 {
-        samples[n / 2]
-    } else {
-        (samples[n / 2 - 1] + samples[n / 2]) * 0.5
-    }
-}
+#[cfg(test)]
+mod master_parity_tests {
+    //! Golden parity for the master-frame combiner.
+    //!
+    //! [`combine_master_frames`] used to own a per-pixel combiner
+    //! (`combine_pixel` / `median_in_place` / `sigma_clip_in_place`) that
+    //! allocated a `Vec<f64>` for every output pixel. It now delegates to
+    //! [`crate::integration::integrate_columns`]. `reference_combine` below is
+    //! the deleted implementation, kept verbatim as the golden: every case
+    //! these tests exercise must come out bit-for-bit identical.
 
-/// Iteratively reject samples outside `kappa * sigma` from the running mean.
-/// Returns the mean of the surviving samples. If every sample is rejected
-/// (degenerate case — should not happen in practice because the first
-/// iteration starts from the full-population mean), falls back to the
-/// median so we always emit *something* sensible.
-fn sigma_clip_in_place(samples: &mut [f64], kappa: f64, iterations: u32) -> f64 {
-    if samples.len() <= 2 {
-        // Not enough samples to estimate stddev meaningfully; just average.
-        return samples.iter().sum::<f64>() / samples.len() as f64;
-    }
-    let mut working: Vec<f64> = samples.to_vec();
-    for _ in 0..iterations {
-        if working.len() < 3 {
-            break;
+    use super::*;
+
+    /// The pre-merge `combine_master_frames`, transcribed unchanged.
+    fn reference_combine(
+        frames: &[ImageData],
+        kind: MasterFrameKind,
+        method: CombineMethod,
+        output_type: MasterOutputType,
+    ) -> (Vec<u8>, f64, f64) {
+        fn median_in_place(samples: &mut [f64]) -> f64 {
+            let n = samples.len();
+            samples.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+            if n % 2 == 1 {
+                samples[n / 2]
+            } else {
+                (samples[n / 2 - 1] + samples[n / 2]) * 0.5
+            }
         }
-        let n = working.len() as f64;
-        let mean: f64 = working.iter().sum::<f64>() / n;
-        let var: f64 = working
+
+        fn sigma_clip_in_place(samples: &mut [f64], kappa: f64, iterations: u32) -> f64 {
+            if samples.len() <= 2 {
+                return samples.iter().sum::<f64>() / samples.len() as f64;
+            }
+            let mut working: Vec<f64> = samples.to_vec();
+            for _ in 0..iterations {
+                if working.len() < 3 {
+                    break;
+                }
+                let n = working.len() as f64;
+                let mean: f64 = working.iter().sum::<f64>() / n;
+                let var: f64 = working
+                    .iter()
+                    .map(|&v| (v - mean) * (v - mean))
+                    .sum::<f64>()
+                    / (n - 1.0);
+                let sigma = var.max(0.0).sqrt();
+                if sigma == 0.0 {
+                    break;
+                }
+                let lo = mean - kappa * sigma;
+                let hi = mean + kappa * sigma;
+                let before = working.len();
+                working.retain(|&v| v >= lo && v <= hi);
+                if working.len() == before {
+                    break;
+                }
+                if working.is_empty() {
+                    return median_in_place(samples);
+                }
+            }
+            working.iter().sum::<f64>() / working.len() as f64
+        }
+
+        let first = &frames[0];
+        let (width, height, channels) = (first.width, first.height, first.channels);
+        let pixel_count = (width as usize) * (height as usize) * (channels as usize);
+
+        let frame_stacks: Vec<Vec<f64>> = frames
             .iter()
-            .map(|&v| (v - mean) * (v - mean))
-            .sum::<f64>()
-            / (n - 1.0);
-        let sigma = var.max(0.0).sqrt();
-        if sigma == 0.0 {
-            // Population is degenerate (all equal); no clipping possible.
-            break;
-        }
-        let lo = mean - kappa * sigma;
-        let hi = mean + kappa * sigma;
-        let before = working.len();
-        working.retain(|&v| v >= lo && v <= hi);
-        if working.len() == before {
-            // Converged: no samples rejected this iteration.
-            break;
-        }
-        if working.is_empty() {
-            // Total rejection (shouldn't happen on iter 1 with k>=1); bail.
-            return median_in_place(samples);
+            .map(|f| match f.pixel_type {
+                PixelType::U16 => extract_u16_as_f64(f),
+                PixelType::F32 => f
+                    .data
+                    .chunks_exact(4)
+                    .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]) as f64)
+                    .collect(),
+                _ => unreachable!(),
+            })
+            .collect();
+
+        let combined: Vec<f64> = (0..pixel_count)
+            .map(|i| {
+                let mut samples: Vec<f64> = frame_stacks.iter().map(|s| s[i]).collect();
+                match method {
+                    CombineMethod::Mean => samples.iter().sum::<f64>() / samples.len() as f64,
+                    CombineMethod::Median => median_in_place(&mut samples),
+                    CombineMethod::SigmaClip { kappa, iterations } => {
+                        sigma_clip_in_place(&mut samples, kappa, iterations)
+                    }
+                }
+            })
+            .collect();
+
+        // `par_iter().sum()` (not a sequential sum): rayon's reduction order is
+        // an observable part of the result, and the production path uses it.
+        let input_mean = combined.par_iter().sum::<f64>() / combined.len() as f64;
+        let (final_pixels, output_mean) = match kind {
+            MasterFrameKind::Flat => {
+                let target_mean = match output_type {
+                    MasterOutputType::F32 => 1.0,
+                    MasterOutputType::U16 => 32768.0,
+                };
+                let scale = target_mean / input_mean;
+                (
+                    combined.iter().map(|&v| v * scale).collect::<Vec<f64>>(),
+                    target_mean,
+                )
+            }
+            MasterFrameKind::Bias | MasterFrameKind::Dark => (combined, input_mean),
+        };
+
+        let data = match output_type {
+            MasterOutputType::U16 => {
+                let u16_data: Vec<u16> = final_pixels
+                    .iter()
+                    .map(|&v| v.round().clamp(0.0, 65535.0) as u16)
+                    .collect();
+                ImageData::from_u16(width, height, channels, &u16_data).data
+            }
+            MasterOutputType::F32 => {
+                let f32_data: Vec<f32> = final_pixels.iter().map(|&v| v as f32).collect();
+                ImageData::from_f32(width, height, channels, &f32_data).data
+            }
+        };
+        (data, input_mean, output_mean)
+    }
+
+    /// Deterministic pseudo-random u16 frames with a few injected outliers, so
+    /// the sigma-clip and median paths actually have something to reject.
+    fn synthetic_u16_frames(
+        count: usize,
+        width: u32,
+        height: u32,
+        channels: u32,
+    ) -> Vec<ImageData> {
+        let n = (width * height * channels) as usize;
+        (0..count)
+            .map(|f| {
+                let pixels: Vec<u16> = (0..n)
+                    .map(|i| {
+                        let mix = (i as u64)
+                            .wrapping_mul(6_364_136_223_846_793_005)
+                            .wrapping_add((f as u64).wrapping_mul(1_442_695_040_888_963_407));
+                        let base = 1000 + ((mix >> 33) % 200) as u16;
+                        // Every 17th pixel of every 3rd frame is a cosmic-ray spike.
+                        if f % 3 == 0 && i % 17 == 0 {
+                            base.saturating_add(20_000)
+                        } else {
+                            base
+                        }
+                    })
+                    .collect();
+                ImageData::from_u16(width, height, channels, &pixels)
+            })
+            .collect()
+    }
+
+    fn synthetic_f32_frames(
+        count: usize,
+        width: u32,
+        height: u32,
+        channels: u32,
+    ) -> Vec<ImageData> {
+        let n = (width * height * channels) as usize;
+        (0..count)
+            .map(|f| {
+                let pixels: Vec<f32> = (0..n)
+                    .map(|i| {
+                        let mix = (i as u64)
+                            .wrapping_mul(2_862_933_555_777_941_757)
+                            .wrapping_add((f as u64).wrapping_mul(3_037_000_493));
+                        let base = 0.4 + ((mix >> 40) % 1000) as f32 / 5000.0;
+                        if f % 4 == 1 && i % 13 == 0 {
+                            base * 9.0
+                        } else {
+                            base
+                        }
+                    })
+                    .collect();
+                ImageData::from_f32(width, height, channels, &pixels)
+            })
+            .collect()
+    }
+
+    fn assert_matches_reference(
+        frames: &[ImageData],
+        kind: MasterFrameKind,
+        method: CombineMethod,
+        output_type: MasterOutputType,
+        label: &str,
+    ) {
+        let (expected_data, expected_input_mean, expected_output_mean) =
+            reference_combine(frames, kind, method, output_type);
+        let got = combine_master_frames(frames, kind, method, output_type).expect(label);
+
+        assert_eq!(
+            got.image.data, expected_data,
+            "{label}: pixel data diverged"
+        );
+        assert_eq!(
+            got.input_mean, expected_input_mean,
+            "{label}: input_mean diverged"
+        );
+        assert_eq!(
+            got.output_mean, expected_output_mean,
+            "{label}: output_mean diverged"
+        );
+        assert_eq!(got.frame_count, frames.len() as u32);
+        assert_eq!(got.method, method);
+        assert_eq!(got.output_type, output_type);
+    }
+
+    #[test]
+    fn every_method_and_kind_matches_the_pre_merge_combiner() {
+        let methods = [
+            CombineMethod::Mean,
+            CombineMethod::Median,
+            CombineMethod::SigmaClip {
+                kappa: 3.0,
+                iterations: 5,
+            },
+            // One iteration must clip exactly once: this is what pins the
+            // caller's `iterations` through to the shared rejector, whose own
+            // default limit is 8.
+            CombineMethod::SigmaClip {
+                kappa: 1.5,
+                iterations: 1,
+            },
+            CombineMethod::SigmaClip {
+                kappa: 2.0,
+                iterations: 20,
+            },
+        ];
+        let kinds = [
+            MasterFrameKind::Bias,
+            MasterFrameKind::Dark,
+            MasterFrameKind::Flat,
+        ];
+        let outputs = [MasterOutputType::U16, MasterOutputType::F32];
+
+        for &frame_count in &[1usize, 2, 3, 8, 11] {
+            for (w, h, c) in [(7u32, 5u32, 1u32), (4, 3, 3)] {
+                let u16_frames = synthetic_u16_frames(frame_count, w, h, c);
+                let f32_frames = synthetic_f32_frames(frame_count, w, h, c);
+                for &method in &methods {
+                    for &kind in &kinds {
+                        for &output in &outputs {
+                            assert_matches_reference(
+                                &u16_frames,
+                                kind,
+                                method,
+                                output,
+                                &format!("u16 {frame_count}x{w}x{h}x{c} {method:?} {kind:?}"),
+                            );
+                            assert_matches_reference(
+                                &f32_frames,
+                                kind,
+                                method,
+                                output,
+                                &format!("f32 {frame_count}x{w}x{h}x{c} {method:?} {kind:?}"),
+                            );
+                        }
+                    }
+                }
+            }
         }
     }
-    working.iter().sum::<f64>() / working.len() as f64
+
+    /// The combiner now walks the frames in row bands so the decoded `f64`
+    /// working set is bounded instead of holding every frame at once. The band
+    /// height must not be observable in the output.
+    #[test]
+    fn band_height_does_not_change_the_result() {
+        let frames = synthetic_u16_frames(9, 6, 8, 3);
+        let method = CombineMethod::SigmaClip {
+            kappa: 2.5,
+            iterations: 4,
+        };
+        let (expected, _, _) = reference_combine(
+            &frames,
+            MasterFrameKind::Flat,
+            method,
+            MasterOutputType::F32,
+        );
+
+        for band in 1..=9usize {
+            let got = combine_master_frames_banded(
+                &frames,
+                MasterFrameKind::Flat,
+                method,
+                MasterOutputType::F32,
+                band,
+            )
+            .expect("banded combine");
+            assert_eq!(got.image.data, expected, "band height {band} diverged");
+        }
+    }
+
+    /// A column that sigma clipping rejects entirely falls back to the median
+    /// of the untouched column — the pre-merge behaviour, which only a
+    /// sub-1σ kappa can reach.
+    #[test]
+    fn total_rejection_falls_back_to_the_median() {
+        // Three at 0 and three at 10 000: mean 5000, sample σ ≈ 5477, so a
+        // 0.5σ band excludes every sample.
+        let values = [0u16, 0, 0, 10_000, 10_000, 10_000];
+        let frames: Vec<ImageData> = values
+            .iter()
+            .map(|&v| ImageData::from_u16(1, 1, 1, &[v]))
+            .collect();
+        let method = CombineMethod::SigmaClip {
+            kappa: 0.5,
+            iterations: 3,
+        };
+
+        let (expected, _, _) = reference_combine(
+            &frames,
+            MasterFrameKind::Dark,
+            method,
+            MasterOutputType::F32,
+        );
+        assert_eq!(
+            f32::from_le_bytes(expected[..4].try_into().unwrap()),
+            5000.0,
+            "reference must take the median of the whole column"
+        );
+
+        assert_matches_reference(
+            &frames,
+            MasterFrameKind::Dark,
+            method,
+            MasterOutputType::F32,
+            "total rejection",
+        );
+    }
+
+    /// The one intentional divergence from the pre-merge combiner: a
+    /// non-finite sample is dropped rather than propagated. A single NaN in one
+    /// flat used to poison that pixel of the master for every light it divided.
+    #[test]
+    fn a_nan_in_one_frame_no_longer_poisons_the_master_pixel() {
+        let frames = [
+            ImageData::from_f32(1, 1, 1, &[1.0]),
+            ImageData::from_f32(1, 1, 1, &[f32::NAN]),
+            ImageData::from_f32(1, 1, 1, &[3.0]),
+        ];
+
+        let got = combine_master_frames(
+            &frames,
+            MasterFrameKind::Dark,
+            CombineMethod::Mean,
+            MasterOutputType::F32,
+        )
+        .expect("combine");
+        assert_eq!(
+            f32::from_le_bytes(got.image.data[..4].try_into().unwrap()),
+            2.0
+        );
+
+        let (reference, _, _) = reference_combine(
+            &frames,
+            MasterFrameKind::Dark,
+            CombineMethod::Mean,
+            MasterOutputType::F32,
+        );
+        assert!(
+            f32::from_le_bytes(reference[..4].try_into().unwrap()).is_nan(),
+            "the pre-merge combiner propagated the NaN"
+        );
+    }
 }
 
 #[cfg(test)]

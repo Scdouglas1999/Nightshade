@@ -39,6 +39,7 @@ mod processing; // NEW: Tiled image processing
 mod raw; // NEW: RAW file support
 mod reader; // NEW: Memory-mapped readers
 pub mod registration; // NEW: High-quality star-based registration
+mod robust_stats; // The crate's one set of order statistics (median / percentile conventions)
 pub mod sky_atlas; // NEW: HEALPix-tiled additive all-sky accumulator (the 5.0 keystone)
 pub mod stacking;
 pub mod star_reduction; // NEW: Star-size reduction (morphological + screen recombine)
@@ -830,16 +831,16 @@ pub fn read_image(path: &std::path::Path) -> Result<ImageReadResult, String> {
         ImageFormat::Fits => {
             let (image, fits_header) = read_fits(path).map_err(|e| e.to_string())?;
 
-            // Why: read the typed Bayer geometry BEFORE `fits_header.keywords` is
-            // consumed into the flattened HashMap below. The HashMap stringifies
-            // values via `format!("{:?}")` (quoting BAYERPAT), so the only reliable
-            // parse must happen against the typed header while it is still intact.
+            // Why: read the typed Bayer geometry BEFORE `fits_header.keywords`
+            // is consumed into the flattened HashMap below. The flattened form
+            // is value text with the type discarded, so the typed header is the
+            // only place the geometry can be parsed without guessing.
             let bayer = read_bayer_geometry(&fits_header);
 
             let header: std::collections::HashMap<String, String> = fits_header
                 .keywords
                 .into_iter()
-                .map(|(k, v)| (k, format!("{:?}", v)))
+                .map(|(k, v)| (k, v.to_header_string()))
                 .collect();
 
             Ok(ImageReadResult {
@@ -852,9 +853,12 @@ pub fn read_image(path: &std::path::Path) -> Result<ImageReadResult, String> {
         ImageFormat::Xisf => {
             let (image, xisf_metadata) = read_xisf(path).map_err(|e| e.to_string())?;
 
+            // `fits_keywords` already arrive as on-card value text; the XISF
+            // properties are typed, so they get the same treatment the FITS
+            // branch gives `FitsValue`.
             let mut header: std::collections::HashMap<String, String> = xisf_metadata.fits_keywords;
             for (k, v) in xisf_metadata.properties {
-                header.insert(k, format!("{:?}", v));
+                header.insert(k, v.to_header_string());
             }
 
             Ok(ImageReadResult {
@@ -926,6 +930,118 @@ pub fn read_image(path: &std::path::Path) -> Result<ImageReadResult, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A calibrated frame must inherit the light frame's science metadata as
+    /// real FITS cards.
+    ///
+    /// The calibrate-and-save path reads the light with `read_image`, carries
+    /// `ImageReadResult::header` over into a fresh `FitsHeader`, and writes it.
+    /// While the flattening used `format!("{:?}", value)` that shipped
+    /// `EXPTIME  = 'Float(120.0)'` and `GAIN = 'Integer(100)'` — every value a
+    /// string carrying its Rust variant name, so our own `get_float` and every
+    /// external tool read nothing.
+    #[test]
+    fn calibrated_frame_header_carries_numeric_exptime_and_gain() {
+        let dir = std::env::temp_dir().join(format!(
+            "nightshade-header-carry-{}-{}",
+            std::process::id(),
+            line!()
+        ));
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        let light = dir.join("light.fits");
+        let calibrated = dir.join("calibrated.fits");
+
+        let image = ImageData::from_u16(2, 2, 1, &[100, 200, 300, 400]);
+        let mut source = FitsHeader::new();
+        source.set_float("EXPTIME", 120.0);
+        source.set_int("GAIN", 100);
+        source.set_string("FILTER", "Ha");
+        source.set_bool("FOCUSED", true);
+        source.set_string("DARKFILE", "/data/darks/master_dark.fits");
+        write_fits(&light, &image, &source).expect("write light frame");
+
+        let read = read_image(&light).expect("read light frame");
+
+        // The flattened header must carry plain value text, never Rust Debug.
+        for (key, value) in &read.header {
+            assert!(
+                !value.contains("Float(")
+                    && !value.contains("Integer(")
+                    && !value.contains("String(")
+                    && !value.contains("Boolean("),
+                "{key} flattened to Rust variant syntax: {value}"
+            );
+        }
+        assert_eq!(
+            read.header.get("EXPTIME").map(String::as_str),
+            Some("120.0")
+        );
+        assert_eq!(read.header.get("GAIN").map(String::as_str), Some("100"));
+        assert_eq!(read.header.get("FILTER").map(String::as_str), Some("Ha"));
+
+        // Reproduce the calibrate-and-save carry-over.
+        let mut carried = FitsHeader::new();
+        for (key, value) in &read.header {
+            carried.set_value_token(key, value);
+        }
+        carried.set_string("CALSTAT", "calibrated by Nightshade");
+        write_fits(&calibrated, &image, &carried).expect("write calibrated frame");
+
+        let (_, round_tripped) = read_fits(&calibrated).expect("read calibrated frame");
+        assert_eq!(round_tripped.get_float("EXPTIME"), Some(120.0));
+        assert_eq!(round_tripped.get_int("GAIN"), Some(100));
+        assert_eq!(round_tripped.get_string("FILTER"), Some("Ha"));
+        assert_eq!(
+            round_tripped.get("FOCUSED").and_then(|v| v.as_bool()),
+            Some(true)
+        );
+        // A path value must survive intact: it is not a card body, so the
+        // `/ comment` split must not be applied to it.
+        assert_eq!(
+            round_tripped.get_string("DARKFILE"),
+            Some("/data/darks/master_dark.fits")
+        );
+        assert_eq!(
+            round_tripped.get_string("CALSTAT"),
+            Some("calibrated by Nightshade")
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A caller that has not migrated off `set_string` must still get a clean,
+    /// readable string card out of the flattened header — never the doubly
+    /// quoted `'''Ha'''` that quoting the flattened text would produce.
+    #[test]
+    fn flattened_header_survives_a_plain_set_string_carry_over() {
+        let dir = std::env::temp_dir().join(format!(
+            "nightshade-header-setstring-{}-{}",
+            std::process::id(),
+            line!()
+        ));
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        let light = dir.join("light.fits");
+        let copy = dir.join("copy.fits");
+
+        let image = ImageData::from_u16(2, 2, 1, &[1, 2, 3, 4]);
+        let mut source = FitsHeader::new();
+        source.set_string("FILTER", "Ha");
+        source.set_float("EXPTIME", 120.0);
+        write_fits(&light, &image, &source).expect("write light frame");
+
+        let read = read_image(&light).expect("read light frame");
+        let mut carried = FitsHeader::new();
+        for (key, value) in &read.header {
+            carried.set_string(key, value);
+        }
+        write_fits(&copy, &image, &carried).expect("write copy");
+
+        let (_, round_tripped) = read_fits(&copy).expect("read copy");
+        assert_eq!(round_tripped.get_string("FILTER"), Some("Ha"));
+        assert_eq!(round_tripped.get_string("EXPTIME"), Some("120.0"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn to_display_u8_preserves_rgb_channel_differences_for_u16_images() {

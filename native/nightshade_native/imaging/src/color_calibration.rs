@@ -64,6 +64,7 @@
 //! choice of which stars to feed in all live in Dart; this module is the
 //! deterministic, unit-tested numeric core.
 
+use crate::robust_stats::{median_in_place as median, MAD_TO_SIGMA};
 use crate::{ImageData, PixelType};
 use rayon::prelude::*;
 
@@ -75,10 +76,6 @@ use rayon::prelude::*;
 /// scale. This is a defensible sanity floor (see the module "Honest limits"),
 /// not a corpus-tuned value.
 pub const MIN_MATCHED_STARS: usize = 8;
-
-/// MAD → Gaussian-σ consistency constant (1 / Φ⁻¹(0.75)), matching the rest of
-/// the crate's robust-statistics idiom (see `frame_weighting::MAD_TO_SIGMA`).
-const MAD_TO_SIGMA: f64 = 1.4826;
 
 /// One matched catalogue star, ready for the photometric solve.
 ///
@@ -435,20 +432,6 @@ fn irls_refine(points: &[(f64, f64)], a0: f64, b0: f64) -> (f64, f64) {
         (a, b)
     } else {
         (a0, b0)
-    }
-}
-
-/// Median of a mutable slice (sorts in place). Returns `0.0` for an empty slice.
-fn median(v: &mut [f64]) -> f64 {
-    if v.is_empty() {
-        return 0.0;
-    }
-    v.sort_by(f64::total_cmp);
-    let n = v.len();
-    if n.is_multiple_of(2) {
-        (v[n / 2 - 1] + v[n / 2]) / 2.0
-    } else {
-        v[n / 2]
     }
 }
 

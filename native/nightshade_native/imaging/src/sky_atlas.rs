@@ -58,6 +58,7 @@ static STORE_TILE_NONCE: AtomicU64 = AtomicU64::new(0);
 
 use crate::master_accumulation::{AccumulationMode, NormalizationReference, PerPixelAccumulator};
 use crate::registration::{sample_interleaved, Interpolator};
+use crate::robust_stats::{percentile_nearest_rank as percentile_sorted, MAD_TO_SIGMA};
 use crate::wcs_sip::SipWcs;
 use crate::ImageData;
 
@@ -1465,7 +1466,7 @@ fn estimate_frame_norm(src: &[f64], channels: usize) -> NormalizationReference {
         let mut dev: Vec<f64> = vals.iter().map(|&v| (v - median).abs()).collect();
         dev.sort_unstable_by(f64::total_cmp);
         let mad = percentile_sorted(&dev, 0.5);
-        let s = 1.4826 * mad;
+        let s = MAD_TO_SIGMA * mad;
         background[c] = median;
         scale[c] = if s.is_finite() && s > 0.0 { s } else { 1.0 };
     }
@@ -1482,15 +1483,6 @@ fn normalize_sample(v: f64, frame_bg: f64, frame_scale: f64, ref_bg: f64, ref_sc
         return v;
     }
     (v - frame_bg) * (ref_scale / frame_scale) + ref_bg
-}
-
-/// The value at fractional `q` (0..1) of an already-sorted slice.
-fn percentile_sorted(sorted: &[f64], q: f64) -> f64 {
-    if sorted.is_empty() {
-        return 0.0;
-    }
-    let idx = ((sorted.len() as f64 - 1.0) * q.clamp(0.0, 1.0)).round() as usize;
-    sorted[idx.min(sorted.len() - 1)]
 }
 
 fn read_f64(bytes: &[u8], cursor: &mut usize, len: usize) -> Vec<f64> {

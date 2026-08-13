@@ -8,17 +8,10 @@
 //!
 //! # `as`-cast policy
 //!
-//! This module's numeric casts cluster into three safe-by-construction families:
-//! - **Pixel-buffer math** (`u16/u32/f32/f64 as u16` for monochromization): the
-//!   target is a 16-bit pixel buffer; saturation per Rust 1.45 spec matches the
-//!   "clamp out-of-range pixel" intent.
-//! - **Image-coordinate widening** (`u32 as f64`, `u32 as usize`): sensor
-//!   dimensions fit losslessly in f64 mantissa and >=32-bit usize.
-//! - **Sub-pixel star coordinates** (`f64 as i32`, `f64 as usize`): centroid
-//!   values fall within image extent (bounds-checked) so saturation is unreachable.
-//!
-//! High-risk pixel_count arithmetic uses explicit `checked_mul`. Sites with
-//! their own `Why:` comment override the module-level reasoning.
+//! This module's numeric casts are all **SIP-coefficient index widening**
+//! (`u32 as usize` over an order that `sip_layout` has already bounded), which
+//! is lossless on every >=32-bit target. Sites with their own `Why:` comment
+//! override the module-level reasoning.
 //!
 //! # `unwrap_or` policy
 //!
@@ -30,14 +23,8 @@
 //! * `crota.unwrap_or(0.0)` — `CROTA2` is optional in the FITS WCS standard;
 //!   zero rotation is the default North-Up orientation assumed when the
 //!   solver omits the keyword.
-//! * `parts.get(N).copied().unwrap_or(0.0)` (sexagesimal parse) — missing
-//!   minutes/seconds = treat as zero, the standard astronomy convention
-//!   (`12 30` is "12h 30m 0s", not an error).
 //! * `output_dir.parent().unwrap_or_else(|| Path::new("."))` — root-path
 //!   case for the temp/work directory; current-dir is the safe fallback.
-//! * `pixels.iter().max().unwrap_or(&0)` — empty pixel slice would have
-//!   already failed `validate_image()` upstream; `0` here is unreachable
-//!   but cheaper than `expect` and yields a flat-histogram render.
 
 mod platesolve_paths;
 
@@ -54,13 +41,6 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use thiserror::Error;
 use wait_timeout::ChildExt;
-
-#[cfg(test)]
-use crate::{detect_stars, read_fits, FitsHeader, ImageData, PixelType, StarDetectionConfig};
-#[cfg(test)]
-use bytemuck::{Pod, Zeroable};
-#[cfg(test)]
-use wgpu::util::DeviceExt;
 
 /// Structured errors emitted while parsing solver-produced WCS / INI files.
 ///
@@ -182,22 +162,16 @@ impl Default for PlateSolverConfig {
         // imaging auto-solve — honours whatever the user configured in Settings
         // → Plate Solving without any caller needing to pass the config
         // explicitly.
-        let (configured_astap, configured_astrometry, configured_catalog, solver_choice) = {
+        let (configured_catalog, solver_choice) = {
             let pref = ACTIVE_SOLVER_PREF.read().expect("solver-pref RwLock");
-            (
-                pref.astap_path.clone(),
-                pref.astrometry_path.clone(),
-                pref.catalog_path.clone(),
-                pref.solver_choice,
-            )
+            (pref.catalog_path.clone(), pref.solver_choice)
         };
 
-        let astap_path = find_astap_with_override(configured_astap.as_deref());
-        let astrometry_path = find_astrometry_with_override(configured_astrometry.as_deref());
+        let discovered = discovered_solvers();
 
         Self {
-            astap_path,
-            astrometry_path,
+            astap_path: discovered.astap,
+            astrometry_path: discovered.astrometry,
             catalog_path: configured_catalog,
             search_radius: 10.0,
             downsample: 2,
@@ -213,9 +187,9 @@ impl Default for PlateSolverConfig {
 /// (`blind_solve`, `solve_near`, the sequencer centering, the imaging
 /// auto-solve) lives deep in the call stack where there is no natural place to
 /// thread a config parameter. A process-global is the established pattern for
-/// this kind of cross-cutting preference (see `SOLVER_AVAILABLE_CACHE`
-/// below). The `RwLock` permits concurrent reads (the common case) and
-/// serialises the rare write.
+/// this kind of cross-cutting preference (see `DISCOVERED_SOLVERS` below, which
+/// caches what this preference resolves to). The `RwLock` permits concurrent
+/// reads (the common case) and serialises the rare write.
 #[derive(Default)]
 struct SolverPref {
     astap_path: Option<PathBuf>,
@@ -248,11 +222,17 @@ pub fn set_solver_preference(
 ) {
     let to_path =
         |s: Option<&str>| -> Option<PathBuf> { s.filter(|p| !p.is_empty()).map(PathBuf::from) };
-    let mut pref = ACTIVE_SOLVER_PREF.write().expect("solver-pref RwLock");
-    pref.astap_path = to_path(astap_path);
-    pref.astrometry_path = to_path(astrometry_path);
-    pref.catalog_path = to_path(catalog_path);
-    pref.solver_choice = PlateSolverChoice::from_stored(solver_choice);
+    {
+        let mut pref = ACTIVE_SOLVER_PREF.write().expect("solver-pref RwLock");
+        pref.astap_path = to_path(astap_path);
+        pref.astrometry_path = to_path(astrometry_path);
+        pref.catalog_path = to_path(catalog_path);
+        pref.solver_choice = PlateSolverChoice::from_stored(solver_choice);
+    }
+    // The pref write guard is released first: `discovered_solvers` takes
+    // DISCOVERED_SOLVERS then ACTIVE_SOLVER_PREF, so invalidating while still
+    // holding the pref lock would invert the order and can deadlock.
+    invalidate_solver_availability_cache();
 }
 
 /// Find ASTAP installation by probing every well-known install path *plus*
@@ -282,17 +262,6 @@ pub fn find_astap_with_override(configured: Option<&Path>) -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
-/// Find ASTAP by first consulting the process-global preference (set by
-/// `set_solver_preference`), then falling back to the standard candidate
-/// list. This is the path used by `is_solver_available()` and
-/// `get_solver_path()`.
-fn find_astap() -> Option<PathBuf> {
-    let pref = ACTIVE_SOLVER_PREF.read().expect("solver-pref RwLock");
-    let configured = pref.astap_path.clone();
-    drop(pref);
-    find_astap_with_override(configured.as_deref())
-}
-
 /// Find local astrometry.net installation. See `find_astap_with_override`
 /// for the override semantics.
 pub fn find_astrometry_with_override(configured: Option<&Path>) -> Option<PathBuf> {
@@ -309,11 +278,52 @@ pub fn find_astrometry_with_override(configured: Option<&Path>) -> Option<PathBu
     which_on_path("solve-field").map(PathBuf::from)
 }
 
-fn find_astrometry() -> Option<PathBuf> {
-    let pref = ACTIVE_SOLVER_PREF.read().expect("solver-pref RwLock");
-    let configured = pref.astrometry_path.clone();
-    drop(pref);
-    find_astrometry_with_override(configured.as_deref())
+/// The resolved solver locations for the current `ACTIVE_SOLVER_PREF`.
+#[derive(Clone)]
+struct DiscoveredSolvers {
+    astap: Option<PathBuf>,
+    astrometry: Option<PathBuf>,
+}
+
+/// Cached result of the ASTAP / astrometry.net filesystem probe.
+///
+/// Why cache: a miss stats a per-OS candidate list and, when nothing matches,
+/// shells out to `which`/`where` — up to three subprocess spawns on a machine
+/// with no solver installed. `PlateSolverConfig::default()` runs on every
+/// solve, and `is_solver_available()` / `get_solver_path()` are polled by the
+/// settings UI, the scheduler and sequencer pre-flight, so an uncached probe
+/// is paid hundreds of times a night. The answer is process-stable: an
+/// installer running while Nightshade is open is rare, and the only in-process
+/// way to change the inputs is `set_solver_preference`, which invalidates.
+/// `invalidate_solver_availability_cache()` forces a re-probe on demand.
+static DISCOVERED_SOLVERS: std::sync::Mutex<Option<DiscoveredSolvers>> =
+    std::sync::Mutex::new(None);
+
+/// Resolve both solver paths, probing the filesystem only on a cache miss.
+///
+/// The probe runs while the cache mutex is held so concurrent solves wait for
+/// one probe instead of each launching their own.
+fn discovered_solvers() -> DiscoveredSolvers {
+    // A poisoned cache holds a fully-written `Option`; the guarded region only
+    // clones `PathBuf`s, so there is no torn state to recover from and a
+    // permanent "no plate solving until restart" panic is the worse outcome.
+    let mut guard = DISCOVERED_SOLVERS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if let Some(cached) = guard.as_ref() {
+        return cached.clone();
+    }
+
+    let (configured_astap, configured_astrometry) = {
+        let pref = ACTIVE_SOLVER_PREF.read().expect("solver-pref RwLock");
+        (pref.astap_path.clone(), pref.astrometry_path.clone())
+    };
+    let discovered = DiscoveredSolvers {
+        astap: find_astap_with_override(configured_astap.as_deref()),
+        astrometry: find_astrometry_with_override(configured_astrometry.as_deref()),
+    };
+    *guard = Some(discovered.clone());
+    discovered
 }
 
 /// Resolve the user's home directory from the platform-appropriate env var.
@@ -1268,770 +1278,17 @@ fn parse_astap_ini_inner(
     })
 }
 
-#[cfg(test)]
-const GPU_DOWNSAMPLE_SHADER: &str = r#"
-struct Params {
-  width: u32,
-  height: u32,
-  factor: u32,
-  out_width: u32,
-  out_height: u32,
-  _pad0: u32,
-  _pad1: u32,
-  _pad2: u32,
-}
-
-@group(0) @binding(0) var<storage, read> input_pixels: array<u32>;
-@group(0) @binding(1) var<storage, read_write> output_pixels: array<u32>;
-@group(0) @binding(2) var<uniform> params: Params;
-
-@compute @workgroup_size(8, 8, 1)
-fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
-  if (gid.x >= params.out_width || gid.y >= params.out_height) {
-    return;
-  }
-
-  let start_x = gid.x * params.factor;
-  let start_y = gid.y * params.factor;
-  var max_value: u32 = 0u;
-
-  for (var dy: u32 = 0u; dy < params.factor; dy = dy + 1u) {
-    let src_y = start_y + dy;
-    if (src_y >= params.height) {
-      break;
-    }
-    for (var dx: u32 = 0u; dx < params.factor; dx = dx + 1u) {
-      let src_x = start_x + dx;
-      if (src_x >= params.width) {
-        break;
-      }
-      let src_index = src_y * params.width + src_x;
-      max_value = max(max_value, input_pixels[src_index]);
-    }
-  }
-
-  let dst_index = gid.y * params.out_width + gid.x;
-  output_pixels[dst_index] = max_value;
-}
-"#;
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-#[cfg(test)]
-struct DownsampleParams {
-    width: u32,
-    height: u32,
-    factor: u32,
-    out_width: u32,
-    out_height: u32,
-    _pad0: u32,
-    _pad1: u32,
-    _pad2: u32,
-}
-
-#[cfg(test)]
-fn to_monochrome_u16(image: &ImageData) -> Result<ImageData, String> {
-    if image.pixel_type == PixelType::U16 && image.channels == 1 {
-        return Ok(image.clone());
-    }
-
-    // Why: width and height are u32; usize is >=32-bit on all our targets so the
-    // promotion is lossless. checked_mul surfaces a hypothetical >2^31 x >2^31
-    // sensor as an explicit error rather than silently allocating a zero-pixel
-    // buffer.
-    let pixel_count = (image.width as usize)
-        .checked_mul(image.height as usize)
-        .ok_or_else(|| {
-            format!(
-                "to_monochrome_u16: pixel-count overflow for {}x{}",
-                image.width, image.height
-            )
-        })?;
-    if pixel_count == 0 {
-        return Ok(ImageData::from_u16(0, 0, 1, &[]));
-    }
-
-    // Why: channels is u32 (typically 1/3/4); u32 -> usize widening is lossless.
-    let channels = image.channels.max(1) as usize;
-    let values: Vec<u16> = match image.pixel_type {
-        PixelType::U8 => image
-            .data
-            .iter()
-            .step_by(channels)
-            .map(|&value| (value as u16) << 8)
-            .collect(),
-        PixelType::U16 => image
-            .data
-            .chunks_exact(2 * channels)
-            .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
-            .collect(),
-        PixelType::U32 => image
-            .data
-            .chunks_exact(4 * channels)
-            .map(|chunk| {
-                let value = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
-                value.min(u16::MAX as u32) as u16
-            })
-            .collect(),
-        PixelType::F32 => image
-            .data
-            .chunks_exact(4 * channels)
-            .map(|chunk| {
-                let value = f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
-                value.clamp(0.0, u16::MAX as f32) as u16
-            })
-            .collect(),
-        PixelType::F64 => image
-            .data
-            .chunks_exact(8 * channels)
-            .map(|chunk| {
-                let value = f64::from_le_bytes([
-                    chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6], chunk[7],
-                ]);
-                value.clamp(0.0, u16::MAX as f64) as u16
-            })
-            .collect(),
-    };
-
-    Ok(ImageData::from_u16(image.width, image.height, 1, &values))
-}
-
-#[cfg(test)]
-fn cpu_downsample_max_u16(image: &ImageData, factor: u32) -> Result<ImageData, String> {
-    let mono = to_monochrome_u16(image)?;
-    let pixels = mono
-        .as_u16()
-        .ok_or_else(|| "Failed to read monochrome u16 image data".to_string())?;
-    let out_width = mono.width.div_ceil(factor);
-    let out_height = mono.height.div_ceil(factor);
-    // Why: out_width and out_height are u32 sensor dimensions / factor; lossless
-    // to u64 for the multiply. checked_mul surfaces overflow as an error
-    // rather than allocating a too-small buffer.
-    let output_count = u64::from(out_width)
-        .checked_mul(u64::from(out_height))
-        .ok_or_else(|| {
-            format!(
-                "cpu_downsample_max_u16: pixel-count overflow for {}x{}",
-                out_width, out_height
-            )
-        })?;
-    let output_count_usize = usize::try_from(output_count).map_err(|_| {
-        format!(
-            "cpu_downsample_max_u16: pixel count {} exceeds usize::MAX",
-            output_count
-        )
-    })?;
-    let mut output = vec![0u16; output_count_usize];
-
-    for out_y in 0..out_height {
-        for out_x in 0..out_width {
-            let mut max_value = 0u16;
-            let start_x = out_x * factor;
-            let start_y = out_y * factor;
-            for dy in 0..factor {
-                let y = start_y + dy;
-                if y >= mono.height {
-                    break;
-                }
-                for dx in 0..factor {
-                    let x = start_x + dx;
-                    if x >= mono.width {
-                        break;
-                    }
-                    let idx = (y * mono.width + x) as usize;
-                    max_value = max_value.max(pixels[idx]);
-                }
-            }
-            output[(out_y * out_width + out_x) as usize] = max_value;
-        }
-    }
-
-    Ok(ImageData::from_u16(out_width, out_height, 1, &output))
-}
-
-/// How long the GPU preprocessing path gets before the CPU path takes over.
-///
-/// Adapter acquisition normally takes milliseconds. Ten seconds is not a
-/// performance budget, it is a liveness one: past this point the GPU is not
-/// slow, it is not answering.
-#[cfg(test)]
-const GPU_ATTEMPT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
-
-/// Set once a GPU attempt has timed out, and never cleared.
-///
-/// The thread blocked inside the driver cannot be cancelled — `pollster`
-/// parks it and there is no interruption point — so it is abandoned. This
-/// latch is what stops that from being a leak worth caring about: after the
-/// first timeout every later solve takes the CPU path directly, so at most one
-/// thread is ever stranded per process.
-#[cfg(test)]
-static GPU_PLATE_SOLVE_UNRESPONSIVE: std::sync::atomic::AtomicBool =
-    std::sync::atomic::AtomicBool::new(false);
-
-/// [`gpu_downsample_max_u16`] with a deadline.
-///
-/// The caller falls back to the CPU path when this returns `Err`, which was
-/// always the intent — but a hang is not an `Err`. On this machine
-/// `wgpu::Instance::request_adapter` never returned: the process sat in
-/// `futex_wait` with `/dev/nvidiactl` open, observed at 21 minutes before it
-/// was killed, taking the whole plate solve with it. A solve that hangs on an
-/// operator's machine mid-night hangs exactly the same way.
-///
-/// So the GPU attempt now runs on its own thread against a deadline and a
-/// timeout is converted into the `Err` the fallback was written for.
-#[cfg(test)]
-fn gpu_downsample_max_u16_bounded(image: &ImageData, factor: u32) -> Result<ImageData, String> {
-    use std::sync::atomic::Ordering;
-
-    // Opt out of touching the GPU at all.
-    //
-    // A timeout is not enough on its own: the abandoned thread blocks inside
-    // the driver (`nvkms_open_common`) holding the device open, and the
-    // process then cannot exit — the test passes and the binary hangs at
-    // teardown anyway. There is no interruption point to fix that from the
-    // outside, so the only reliable escape is not to make the call.
-    if std::env::var_os("NIGHTSHADE_PLATESOLVE_FORCE_CPU").is_some() {
-        return Err("GPU preprocessing disabled by NIGHTSHADE_PLATESOLVE_FORCE_CPU".to_string());
-    }
-
-    if GPU_PLATE_SOLVE_UNRESPONSIVE.load(Ordering::Relaxed) {
-        return Err(
-            "GPU preprocessing previously stopped responding; using the CPU path".to_string(),
-        );
-    }
-
-    let (tx, rx) = std::sync::mpsc::channel();
-    let owned = image.clone();
-    std::thread::Builder::new()
-        .name("plate-solve-gpu".into())
-        .spawn(move || {
-            // A send failure means the receiver already gave up on us, which
-            // is the timeout path below; nothing to do but drop the result.
-            let _ = tx.send(gpu_downsample_max_u16(&owned, factor));
-        })
-        .map_err(|e| format!("Could not start the GPU preprocessing thread: {e}"))?;
-
-    match rx.recv_timeout(GPU_ATTEMPT_TIMEOUT) {
-        Ok(result) => result,
-        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-            GPU_PLATE_SOLVE_UNRESPONSIVE.store(true, Ordering::Relaxed);
-            let message = format!(
-                "GPU preprocessing did not respond within {}s and has been abandoned for the \
-                 rest of this session; plate solving continues on the CPU. Star detection is \
-                 slower but unaffected in accuracy.",
-                GPU_ATTEMPT_TIMEOUT.as_secs()
-            );
-            tracing::warn!("{}", message);
-            Err(message)
-        }
-        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
-            Err("GPU preprocessing thread ended without a result".to_string())
-        }
-    }
-}
-
-#[cfg(test)]
-fn gpu_downsample_max_u16(image: &ImageData, factor: u32) -> Result<ImageData, String> {
-    let mono = to_monochrome_u16(image)?;
-    let pixels = mono
-        .as_u16()
-        .ok_or_else(|| "Failed to read monochrome u16 image data".to_string())?;
-    let input_u32: Vec<u32> = pixels.into_iter().map(u32::from).collect();
-    let out_width = mono.width.div_ceil(factor);
-    let out_height = mono.height.div_ceil(factor);
-    // Why: identical bounds reasoning as cpu_downsample_max_u16 above;
-    // checked_mul surfaces u32-multiply overflow explicitly.
-    let output_count = u64::from(out_width)
-        .checked_mul(u64::from(out_height))
-        .ok_or_else(|| {
-            format!(
-                "gpu_downsample_max_u16: pixel-count overflow for {}x{}",
-                out_width, out_height
-            )
-        })?;
-    let output_len = usize::try_from(output_count).map_err(|_| {
-        format!(
-            "gpu_downsample_max_u16: pixel count {} exceeds usize::MAX",
-            output_count
-        )
-    })?;
-
-    let instance = wgpu::Instance::default();
-    let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-        power_preference: wgpu::PowerPreference::HighPerformance,
-        compatible_surface: None,
-        force_fallback_adapter: false,
-    }))
-    .ok_or_else(|| "No GPU adapter available for plate solving".to_string())?;
-
-    let (device, queue) =
-        pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default(), None))
-            .map_err(|error| format!("Failed to create GPU device: {}", error))?;
-
-    let input_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("plate-solve-input"),
-        contents: bytemuck::cast_slice(&input_u32),
-        usage: wgpu::BufferUsages::STORAGE,
-    });
-    let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some("plate-solve-output"),
-        size: (output_len * std::mem::size_of::<u32>()) as u64,
-        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
-        mapped_at_creation: false,
-    });
-    let readback_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some("plate-solve-readback"),
-        size: (output_len * std::mem::size_of::<u32>()) as u64,
-        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-        mapped_at_creation: false,
-    });
-    let params = DownsampleParams {
-        width: mono.width,
-        height: mono.height,
-        factor,
-        out_width,
-        out_height,
-        _pad0: 0,
-        _pad1: 0,
-        _pad2: 0,
-    };
-    let params_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("plate-solve-params"),
-        contents: bytemuck::bytes_of(&params),
-        usage: wgpu::BufferUsages::UNIFORM,
-    });
-
-    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("plate-solve-downsample"),
-        source: wgpu::ShaderSource::Wgsl(GPU_DOWNSAMPLE_SHADER.into()),
-    });
-    let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("plate-solve-bind-group-layout"),
-        entries: &[
-            wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::COMPUTE,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Storage { read_only: true },
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 1,
-                visibility: wgpu::ShaderStages::COMPUTE,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Storage { read_only: false },
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 2,
-                visibility: wgpu::ShaderStages::COMPUTE,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            },
-        ],
-    });
-    let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        label: Some("plate-solve-pipeline-layout"),
-        bind_group_layouts: &[&bind_group_layout],
-        push_constant_ranges: &[],
-    });
-    let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-        label: Some("plate-solve-pipeline"),
-        layout: Some(&pipeline_layout),
-        module: &shader,
-        entry_point: "main",
-    });
-    let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: Some("plate-solve-bind-group"),
-        layout: &bind_group_layout,
-        entries: &[
-            wgpu::BindGroupEntry {
-                binding: 0,
-                resource: input_buffer.as_entire_binding(),
-            },
-            wgpu::BindGroupEntry {
-                binding: 1,
-                resource: output_buffer.as_entire_binding(),
-            },
-            wgpu::BindGroupEntry {
-                binding: 2,
-                resource: params_buffer.as_entire_binding(),
-            },
-        ],
-    });
-
-    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-        label: Some("plate-solve-encoder"),
-    });
-    {
-        let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-            label: Some("plate-solve-pass"),
-            timestamp_writes: None,
-        });
-        pass.set_pipeline(&pipeline);
-        pass.set_bind_group(0, &bind_group, &[]);
-        pass.dispatch_workgroups(out_width.div_ceil(8), out_height.div_ceil(8), 1);
-    }
-    encoder.copy_buffer_to_buffer(
-        &output_buffer,
-        0,
-        &readback_buffer,
-        0,
-        (output_len * std::mem::size_of::<u32>()) as u64,
-    );
-    queue.submit(Some(encoder.finish()));
-
-    let slice = readback_buffer.slice(..);
-    let (sender, receiver) = std::sync::mpsc::channel();
-    slice.map_async(wgpu::MapMode::Read, move |result| {
-        let _ = sender.send(result);
-    });
-    device.poll(wgpu::Maintain::Wait);
-    receiver
-        .recv()
-        .map_err(|error| format!("Failed waiting for GPU readback: {}", error))?
-        .map_err(|error| format!("Failed to map GPU readback buffer: {}", error))?;
-
-    let mapped = slice.get_mapped_range();
-    let output: Vec<u16> = bytemuck::cast_slice::<u8, u32>(&mapped)
-        .iter()
-        .map(|&value| value.min(u16::MAX as u32) as u16)
-        .collect();
-    drop(mapped);
-    readback_buffer.unmap();
-
-    Ok(ImageData::from_u16(out_width, out_height, 1, &output))
-}
-
-/// Sigma multiplier for the plate-solve detection threshold.
-///
-/// Why: 5σ above the robust background gives ~1 false positive in 3.5 million
-/// pixels of pure Gaussian noise — comfortably below the candidate-list size
-/// the matcher consumes. We also blend in a 25 % skew toward the dynamic
-/// range so very high-contrast frames still favour the actual stars over
-/// hot-pixel noise.
-#[cfg(test)]
-const PLATESOLVE_DETECTION_SIGMA: f64 = 5.0;
-
-/// Estimate `(median, sigma)` of a u16 image using the MAD of a stride-1
-/// sample. Robust against bright stars dominating a naive variance.
-///
-/// Why: the previous detector used a hardcoded 250-ADU floor — meaningless
-/// for a 10-bit camera or a pre-stretched JPEG. An estimator gives us a
-/// noise-aware threshold that scales with the actual sky background.
-#[cfg(test)]
-fn estimate_background_u16(pixels: &[u16]) -> (f64, f64) {
-    if pixels.is_empty() {
-        return (0.0, 1.0);
-    }
-    let mut sorted: Vec<u16> = pixels.to_vec();
-    sorted.sort_unstable();
-    let median = sorted[sorted.len() / 2] as f64;
-    // MAD → σ via the standard 1.4826 scale factor for Gaussian-distributed
-    // backgrounds. Compute on a deviations vector so we don't disturb
-    // `sorted` (callers don't depend on it but keep it readable).
-    let mut deviations: Vec<f64> = sorted.iter().map(|&v| (v as f64 - median).abs()).collect();
-    deviations.sort_by(|a, b| a.total_cmp(b));
-    let mad = deviations[deviations.len() / 2];
-    let sigma = (mad * 1.4826).max(1.0);
-    (median, sigma)
-}
-
-/// Pick a `min_separation` (in **downsampled** pixels) for the plate-solve
-/// candidate cull, scaling with image size so dense star fields aren't
-/// over-merged on small frames or under-merged on huge ones.
-///
-/// Why: the previous code hardcoded 2.0 px (= 8 px on the original 4×
-/// downsample). On a 9576×6388 frame that is ~0.0008 % of the diagonal —
-/// useless as a deduplication radius. Scale gently with the frame's longer
-/// edge so large images get a proportionally larger merge radius without
-/// blowing up dense star fields on small ones.
-#[cfg(test)]
-fn plate_solve_min_separation(width: u32, height: u32) -> f64 {
-    let longest = width.max(height) as f64;
-    // 1 unit per ~512 downsampled px, clamped to a sensible band. The lower
-    // bound preserves the historical behaviour for 1k-class frames; the
-    // upper bound stops 50-megapixel frames from aliasing distinct stars.
-    (longest / 512.0).clamp(2.0, 8.0)
-}
-
-#[cfg(test)]
-fn detect_local_maxima(
-    image: &ImageData,
-    min_separation: f64,
-) -> Result<Vec<crate::DetectedStar>, String> {
-    let pixels = image
-        .as_u16()
-        .ok_or_else(|| "Expected u16 image for local-maxima detection".to_string())?;
-    if image.width < 3 || image.height < 3 {
-        return Err("Image too small for star detection".to_string());
-    }
-
-    let (background, sigma) = estimate_background_u16(&pixels);
-    let max_value = *pixels.iter().max().unwrap_or(&0) as f64;
-    // Why: combine a noise-aware floor (Nσ above background) with a fraction
-    // of the dynamic range so that on heavily stretched frames we still
-    // ignore the long tail of background-clipped pixels. Replaces the
-    // previous absolute 250-ADU floor that was meaningless for 10-bit
-    // sensors and pre-stretched JPEGs.
-    let sigma_floor = background + PLATESOLVE_DETECTION_SIGMA * sigma;
-    let dynamic_floor = background + (max_value - background) * 0.25;
-    let threshold = sigma_floor.max(dynamic_floor);
-
-    let mut candidates = Vec::<crate::DetectedStar>::new();
-    for y in 1..(image.height - 1) {
-        for x in 1..(image.width - 1) {
-            let idx = (y * image.width + x) as usize;
-            let value = pixels[idx] as f64;
-            if value < threshold {
-                continue;
-            }
-
-            let neighbors = [
-                pixels[idx - image.width as usize - 1],
-                pixels[idx - image.width as usize],
-                pixels[idx - image.width as usize + 1],
-                pixels[idx - 1],
-                pixels[idx + 1],
-                pixels[idx + image.width as usize - 1],
-                pixels[idx + image.width as usize],
-                pixels[idx + image.width as usize + 1],
-            ];
-            if neighbors.iter().any(|&neighbor| neighbor as f64 > value) {
-                continue;
-            }
-
-            candidates.push(crate::DetectedStar {
-                x: x as f64,
-                y: y as f64,
-                flux: value,
-                hfr: 1.0,
-                fwhm: 2.0,
-                peak: value,
-                background,
-                snr: if sigma > 0.0 {
-                    (value - background) / sigma
-                } else {
-                    value
-                },
-                eccentricity: 0.0,
-                sharpness: 0.5,
-            });
-        }
-    }
-
-    candidates.sort_by(|left, right| right.flux.total_cmp(&left.flux));
-    let mut selected = Vec::<crate::DetectedStar>::new();
-    for candidate in candidates {
-        let too_close = selected.iter().any(|existing| {
-            let dx = existing.x - candidate.x;
-            let dy = existing.y - candidate.y;
-            (dx * dx + dy * dy).sqrt() < min_separation
-        });
-        if !too_close {
-            selected.push(candidate);
-        }
-        if selected.len() >= 32 {
-            break;
-        }
-    }
-    Ok(selected)
-}
-
-#[cfg(test)]
-fn extract_plate_stars(image: &ImageData) -> Result<Vec<crate::DetectedStar>, String> {
-    let factor = 4;
-    let downsampled = match gpu_downsample_max_u16_bounded(image, factor) {
-        Ok(image) => image,
-        Err(error) => {
-            tracing::warn!("GPU plate-solve preprocessing unavailable: {}", error);
-            cpu_downsample_max_u16(image, factor)?
-        }
-    };
-
-    // Why: scale the dedup radius with the downsampled frame instead of the
-    // historical hardcoded 2.0 px. See `plate_solve_min_separation` doc
-    // comment for the chosen scaling.
-    let min_separation = plate_solve_min_separation(downsampled.width, downsampled.height);
-    let mut stars = detect_local_maxima(&downsampled, min_separation)?
-        .into_iter()
-        .map(|mut star| {
-            star.x *= factor as f64;
-            star.y *= factor as f64;
-            star.hfr *= factor as f64;
-            star.fwhm *= factor as f64;
-            star.flux *= (factor * factor) as f64;
-            star
-        })
-        .collect::<Vec<_>>();
-
-    if stars.len() < 3 {
-        let config = StarDetectionConfig {
-            detection_sigma: 3.0,
-            min_area: 1,
-            max_area: 4000,
-            min_hfr: 0.5,
-            min_snr: 3.0,
-            ..StarDetectionConfig::default()
-        };
-        stars = detect_stars(image, &config);
-    }
-    stars.sort_by(|left, right| right.flux.total_cmp(&left.flux));
-    stars.truncate(32);
-    if stars.len() < 3 {
-        return Err("Insufficient stars detected for internal plate solving".to_string());
-    }
-    Ok(stars)
-}
-
-#[cfg(test)]
-fn infer_center_from_header(
-    header: &FitsHeader,
-    hint_ra: Option<f64>,
-    hint_dec: Option<f64>,
-) -> Option<(f64, f64)> {
-    if let (Some(ra), Some(dec)) = (hint_ra, hint_dec) {
-        return Some((ra, dec));
-    }
-    if let (Some(ra), Some(dec)) = (header.get_float("CRVAL1"), header.get_float("CRVAL2")) {
-        return Some((ra, dec));
-    }
-    if let (Some(ra), Some(dec)) = (header.get_float("RA"), header.get_float("DEC")) {
-        return Some((ra, dec));
-    }
-    if let (Some(ra), Some(dec)) = (
-        header.get_string("OBJCTRA").and_then(parse_ra_string),
-        header.get_string("OBJCTDEC").and_then(parse_dec_string),
-    ) {
-        return Some((ra, dec));
-    }
-    if let (Some(ra), Some(dec)) = (
-        header.get_string("OBJRA").and_then(parse_ra_string),
-        header.get_string("OBJDEC").and_then(parse_dec_string),
-    ) {
-        return Some((ra, dec));
-    }
-    None
-}
-
-#[cfg(test)]
-fn parse_ra_string(value: &str) -> Option<f64> {
-    parse_sexagesimal(value).map(|hours| hours * 15.0)
-}
-
-#[cfg(test)]
-fn parse_dec_string(value: &str) -> Option<f64> {
-    parse_sexagesimal(value)
-}
-
-#[cfg(test)]
-fn parse_sexagesimal(value: &str) -> Option<f64> {
-    let normalized = value.replace(['h', 'm', 's', ':'], " ");
-    let parts = normalized
-        .split_whitespace()
-        .filter_map(|part| part.parse::<f64>().ok())
-        .collect::<Vec<_>>();
-    if parts.is_empty() {
-        return None;
-    }
-    let sign = if value.trim_start().starts_with('-') {
-        -1.0
-    } else {
-        1.0
-    };
-    let degrees = parts[0].abs()
-        + parts.get(1).copied().unwrap_or(0.0) / 60.0
-        + parts.get(2).copied().unwrap_or(0.0) / 3600.0;
-    Some(sign * degrees)
-}
-
-#[cfg(test)]
-fn infer_pixel_scale_from_header(header: &FitsHeader) -> Option<f64> {
-    if let (Some(cd1_1), Some(cd2_1), Some(cd1_2), Some(cd2_2)) = (
-        header.get_float("CD1_1"),
-        header.get_float("CD2_1"),
-        header.get_float("CD1_2"),
-        header.get_float("CD2_2"),
-    ) {
-        return Some(
-            ((cd1_1 * cd1_1 + cd2_1 * cd2_1).sqrt() * 3600.0
-                + (cd1_2 * cd1_2 + cd2_2 * cd2_2).sqrt() * 3600.0)
-                / 2.0,
-        );
-    }
-    if let (Some(cdelt1), Some(cdelt2)) = (header.get_float("CDELT1"), header.get_float("CDELT2")) {
-        return Some((cdelt1.abs() * 3600.0 + cdelt2.abs() * 3600.0) / 2.0);
-    }
-    let focal_length_mm = header.get_float("FOCALLEN")?;
-    let pixel_size_um = header
-        .get_float("PIXSIZE1")
-        .or_else(|| header.get_float("XPIXSZ"))?;
-    Some((206.265 * pixel_size_um) / focal_length_mm)
-}
-
-#[cfg(test)]
-fn estimate_rotation(stars: &[crate::DetectedStar]) -> f64 {
-    let count = stars.len() as f64;
-    let mean_x = stars.iter().map(|star| star.x).sum::<f64>() / count;
-    let mean_y = stars.iter().map(|star| star.y).sum::<f64>() / count;
-
-    let mut xx = 0.0;
-    let mut yy = 0.0;
-    let mut xy = 0.0;
-    for star in stars {
-        let dx = star.x - mean_x;
-        let dy = star.y - mean_y;
-        xx += dx * dx;
-        yy += dy * dy;
-        xy += dx * dy;
-    }
-
-    0.5 * (2.0 * xy).atan2(xx - yy).to_degrees()
-}
-
-#[cfg(test)]
-fn solve_internal(
-    image_path: &Path,
-    hint_ra: Option<f64>,
-    hint_dec: Option<f64>,
-) -> Result<PlateSolveResult, String> {
-    let (image, header) = read_fits(image_path).map_err(|error| error.to_string())?;
-    let image = to_monochrome_u16(&image)?;
-    let center = infer_center_from_header(&header, hint_ra, hint_dec)
-        .ok_or_else(|| "Missing center coordinates in hints or FITS metadata".to_string())?;
-    let pixel_scale = infer_pixel_scale_from_header(&header).ok_or_else(|| {
-        "Missing focal length / pixel size metadata for internal solve".to_string()
-    })?;
-    let stars = extract_plate_stars(&image)?;
-    let rotation = estimate_rotation(&stars);
-
-    Ok(PlateSolveResult {
-        ra: center.0,
-        dec: center.1,
-        pixel_scale,
-        rotation,
-        field_width: image.width as f64 * pixel_scale / 3600.0,
-        field_height: image.height as f64 * pixel_scale / 3600.0,
-        success: true,
-        error: None,
-        solve_time_secs: 0.0,
-        ..Default::default()
-    })
-}
-
 /// Blind plate solve (no hint)
 pub fn blind_solve(image_path: &Path) -> PlateSolveResult {
-    blind_solve_with_timeout(image_path, PlateSolverConfig::default().timeout_secs)
+    let start = std::time::Instant::now();
+    solve_with_external_config(
+        image_path,
+        None,
+        None,
+        None,
+        PlateSolverConfig::default(),
+        start,
+    )
 }
 
 /// Blind plate solve with a caller-selected subprocess timeout.
@@ -2051,12 +1308,19 @@ pub fn solve_near(
     hint_dec: f64,
     search_radius: f64,
 ) -> PlateSolveResult {
-    solve_near_with_timeout(
-        image_path,
-        hint_ra,
-        hint_dec,
+    let start = std::time::Instant::now();
+    let config = PlateSolverConfig {
         search_radius,
-        PlateSolverConfig::default().timeout_secs,
+        ..PlateSolverConfig::default()
+    };
+
+    solve_with_external_config(
+        image_path,
+        Some(hint_ra),
+        Some(hint_dec),
+        None,
+        config,
+        start,
     )
 }
 
@@ -2354,52 +1618,37 @@ fn external_solver_unavailable(start: std::time::Instant) -> PlateSolveResult {
     }
 }
 
-/// Cached result of the `find_astap()` / `find_astrometry()` filesystem probe.
-///
-/// Why cache: `find_astap()` and `find_astrometry()` walk a fixed list of
-/// paths and (on Windows) shell out to `where.exe`. Callers (settings UI,
-/// scheduler, sequencer pre-flight) hit `is_solver_available()` repeatedly.
-/// The probe is process-stable: an installer running while Nightshade is
-/// open is rare, and users always restart after configuring a new solver
-/// path. A future settings-change hook can call
-/// `invalidate_solver_availability_cache()` to force re-probing.
-static SOLVER_AVAILABLE_CACHE: std::sync::Mutex<Option<bool>> = std::sync::Mutex::new(None);
-
 /// Check if any plate solver (ASTAP or local astrometry.net) is reachable on
 /// disk. Returns `false` if neither is found at any well-known install path
 /// or via PATH lookup. Result is cached after first call; see
-/// `SOLVER_AVAILABLE_CACHE` doc for rationale.
+/// `DISCOVERED_SOLVERS` doc for rationale.
 pub fn is_solver_available() -> bool {
-    let mut guard = SOLVER_AVAILABLE_CACHE.lock().expect("solver-cache mutex");
-    if let Some(cached) = *guard {
-        return cached;
-    }
-    let value = find_astap().is_some() || find_astrometry().is_some();
-    *guard = Some(value);
-    value
+    let discovered = discovered_solvers();
+    discovered.astap.is_some() || discovered.astrometry.is_some()
 }
 
-/// Drop the cached `is_solver_available()` answer so the next call re-probes
-/// the filesystem. Called whenever the user updates the solver path via the
+/// Drop the cached solver-discovery answer so the next call re-probes the
+/// filesystem. Called whenever the user updates the solver path via the
 /// settings UI.
 pub fn invalidate_solver_availability_cache() {
-    *SOLVER_AVAILABLE_CACHE.lock().expect("solver-cache mutex") = None;
+    *DISCOVERED_SOLVERS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner()) = None;
 }
 
 /// Get path to installed solver
 pub fn get_solver_path() -> Option<PathBuf> {
-    find_astap().or_else(find_astrometry)
+    let discovered = discovered_solvers();
+    discovered.astap.or(discovered.astrometry)
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        cpu_downsample_max_u16, external_solver_unavailable, parse_astap_ini_inner,
-        parse_wcs_file_inner, solve_internal, PlateSolveError,
+        external_solver_unavailable, parse_astap_ini_inner, parse_wcs_file_inner, PlateSolveError,
     };
-    use crate::{write_fits, FitsHeader, ImageData};
     use std::io::Write;
-    use std::path::{Path, PathBuf};
+    use std::path::PathBuf;
 
     /// Build a single FITS-style WCS card line, padded to the column layout
     /// `parse_wcs_file_inner` expects: keyword in cols 0..8, `=` at col 8,
@@ -2427,95 +1676,6 @@ mod tests {
         let mut f = std::fs::File::create(&path).expect("create temp file");
         f.write_all(contents.as_bytes()).expect("write temp file");
         path
-    }
-
-    fn synthetic_star_field(rotation_deg: f64) -> ImageData {
-        let width = 256u32;
-        let height = 256u32;
-        let mut pixels = vec![900u16; (width * height) as usize];
-        let rotation = rotation_deg.to_radians();
-        let template = [
-            (-60.0, -24.0),
-            (-28.0, -10.0),
-            (0.0, 0.0),
-            (34.0, 14.0),
-            (66.0, 28.0),
-        ];
-
-        for (dx, dy) in template {
-            let x = width as f64 / 2.0 + dx * rotation.cos() - dy * rotation.sin();
-            let y = height as f64 / 2.0 + dx * rotation.sin() + dy * rotation.cos();
-            for iy in -4..=4 {
-                for ix in -4..=4 {
-                    let px = x as i32 + ix;
-                    let py = y as i32 + iy;
-                    if px < 0 || py < 0 || px >= width as i32 || py >= height as i32 {
-                        continue;
-                    }
-                    let r2 = (ix * ix + iy * iy) as f64;
-                    let signal = (12000.0 * (-r2 / 4.5).exp()) as u16;
-                    let idx = (py as u32 * width + px as u32) as usize;
-                    pixels[idx] = pixels[idx].saturating_add(signal);
-                }
-            }
-        }
-
-        ImageData::from_u16(width, height, 1, &pixels)
-    }
-
-    fn write_test_fits(path: &Path, rotation_deg: f64) {
-        let image = synthetic_star_field(rotation_deg);
-        let mut header = FitsHeader::new();
-        header.set_float("RA", 150.0);
-        header.set_float("DEC", 20.0);
-        header.set_float("FOCALLEN", 600.0);
-        header.set_float("PIXSIZE1", 3.76);
-        write_fits(path, &image, &header).expect("failed to write synthetic FITS");
-    }
-
-    #[test]
-    fn cpu_downsample_preserves_brightest_star() {
-        let image = synthetic_star_field(18.0);
-        let downsampled = cpu_downsample_max_u16(&image, 4).expect("downsample should work");
-        let pixels = downsampled.as_u16().expect("downsampled pixels");
-        assert_eq!(downsampled.width, 64);
-        assert_eq!(downsampled.height, 64);
-        assert!(pixels.iter().copied().max().unwrap_or_default() > 5000);
-    }
-
-    #[test]
-    // Used to hang the whole suite: the process sat in `futex_wait` with
-    // `/dev/nvidiactl` open inside `gpu_downsample_max_u16`, which is written
-    // to fall back to the CPU path on `Err` — but a hang is not an `Err`.
-    // `gpu_downsample_max_u16_bounded` now converts a stalled GPU into the
-    // `Err` the fallback was written for, so this runs to completion instead
-    // of needing to be ignored.
-    fn internal_solver_test_helper_estimates_with_hint_and_blind_metadata() {
-        // This test is about the solver's metadata estimation, not about the
-        // GPU. Left to its own devices it opens the NVIDIA driver, blocks in
-        // `nvkms_open_common`, and hangs the whole binary at teardown even
-        // once the test itself has passed.
-        std::env::set_var("NIGHTSHADE_PLATESOLVE_FORCE_CPU", "1");
-        let path =
-            std::env::temp_dir().join(format!("nightshade-platesolve-{}.fits", std::process::id()));
-        write_test_fits(&path, 24.0);
-
-        let near = solve_internal(&path, Some(150.0), Some(20.0))
-            .expect("internal test helper should estimate metadata");
-        assert!(near.success);
-        assert!((near.ra - 150.0).abs() < 1e-6);
-        assert!((near.dec - 20.0).abs() < 1e-6);
-        assert!((near.pixel_scale - 1.29126).abs() < 0.1);
-        assert!(near.field_width > 0.08);
-        assert!(near.field_height > 0.08);
-
-        let blind =
-            solve_internal(&path, None, None).expect("internal test helper should read metadata");
-        assert!(blind.success);
-        assert!((blind.ra - 150.0).abs() < 1e-6);
-        assert!((blind.dec - 20.0).abs() < 1e-6);
-
-        let _ = std::fs::remove_file(path);
     }
 
     #[test]
@@ -2821,119 +1981,6 @@ mod tests {
         let _ = std::fs::remove_file(path);
     }
 
-    /// Helper for §6.15 tests: build a synthetic u16 image where every
-    /// background pixel is sampled from a small uniform-noise envelope
-    /// centred on `bg`, with a handful of point-like injected stars.
-    /// Deterministic via a tiny xorshift so the tests are reproducible.
-    fn synthetic_image_with_stars(
-        width: u32,
-        height: u32,
-        background: u16,
-        noise_amplitude: u16,
-        stars: &[(u32, u32, u16)],
-    ) -> ImageData {
-        let mut state: u32 = 0x1234_5678;
-        let mut pixels = vec![0u16; (width * height) as usize];
-        for px in pixels.iter_mut() {
-            // xorshift32
-            state ^= state << 13;
-            state ^= state >> 17;
-            state ^= state << 5;
-            let jitter = (state % (2 * noise_amplitude as u32 + 1)) as i32 - noise_amplitude as i32;
-            *px = (background as i32 + jitter).clamp(0, u16::MAX as i32) as u16;
-        }
-        for &(sx, sy, peak) in stars {
-            // 3×3 bright core to ensure local-maximum predicate holds even after
-            // the noise floor is added.
-            for dy in -1i32..=1 {
-                for dx in -1i32..=1 {
-                    let x = sx as i32 + dx;
-                    let y = sy as i32 + dy;
-                    if x < 0 || y < 0 || x >= width as i32 || y >= height as i32 {
-                        continue;
-                    }
-                    let idx = (y as u32 * width + x as u32) as usize;
-                    let attenuation = if dx == 0 && dy == 0 { 1.0 } else { 0.6 };
-                    let signal = (peak as f64 * attenuation) as u16;
-                    pixels[idx] = pixels[idx].saturating_add(signal);
-                }
-            }
-        }
-        ImageData::from_u16(width, height, 1, &pixels)
-    }
-
-    /// §6.15: even on a low-contrast image (10-bit camera, no stretch), the
-    /// detector must find injected stars instead of being blocked by the old
-    /// 250-ADU absolute floor.
-    #[test]
-    fn detect_local_maxima_finds_low_contrast_stars() {
-        // Background ≈ 100, noise σ small, peaks only ~80 ADU above background.
-        // 250-ADU floor would have rejected every candidate — sigma threshold
-        // must succeed here.
-        let stars = [(40u32, 40u32, 180u16), (90, 60, 200), (140, 110, 220)];
-        let image = synthetic_image_with_stars(192, 192, 100, 4, &stars);
-
-        let detected = super::detect_local_maxima(&image, 3.0).expect("detection should succeed");
-
-        assert!(
-            detected.len() >= stars.len(),
-            "expected at least {} stars on low-contrast frame, got {}",
-            stars.len(),
-            detected.len()
-        );
-
-        // Every injected star must show up within 2 px of its true centre.
-        for &(sx, sy, _) in &stars {
-            let hit = detected.iter().any(|s| {
-                let dx = s.x - sx as f64;
-                let dy = s.y - sy as f64;
-                (dx * dx + dy * dy).sqrt() < 2.0
-            });
-            assert!(hit, "missed injected star at ({}, {})", sx, sy);
-        }
-    }
-
-    /// §6.15: a high-contrast frame (deep stretch, very dark sky) with **no
-    /// injected stars** must not produce a flood of false positives from
-    /// background noise. The sigma-aware threshold gates this.
-    #[test]
-    fn detect_local_maxima_rejects_noise_only_image() {
-        // Deliberately exaggerated noise so the old 250-ADU floor would have
-        // gated nothing while a sigma-aware floor still gates correctly.
-        let image = synthetic_image_with_stars(192, 192, 200, 60, &[]);
-
-        let detected = super::detect_local_maxima(&image, 3.0).expect("detection should succeed");
-
-        // A handful of pixels can sit at the extreme tail of the noise
-        // distribution; a noise-aware threshold should keep this well below
-        // the 32-star cap. The previous absolute floor produced unbounded
-        // false positives on stretched frames.
-        assert!(
-            detected.len() < 8,
-            "noise-only image produced {} false positives — threshold not noise-aware",
-            detected.len()
-        );
-    }
-
-    /// §6.15: high-contrast frame with real stars must still recover them
-    /// while leaving the noise alone.
-    #[test]
-    fn detect_local_maxima_high_contrast_recovers_stars() {
-        let stars = [(50u32, 50u32, 60_000u16), (120, 80, 55_000)];
-        let image = synthetic_image_with_stars(192, 192, 200, 8, &stars);
-
-        let detected = super::detect_local_maxima(&image, 3.0).expect("detection should succeed");
-
-        for &(sx, sy, _) in &stars {
-            let hit = detected.iter().any(|s| {
-                let dx = s.x - sx as f64;
-                let dy = s.y - sy as f64;
-                (dx * dx + dy * dy).sqrt() < 2.0
-            });
-            assert!(hit, "missed bright star at ({}, {})", sx, sy);
-        }
-    }
-
     /// §6.1 follow-up: catalog detection must walk an exe-relative dir and
     /// surface the catalog flavour + magnitude limit from filename markers.
     #[test]
@@ -3004,27 +2051,19 @@ mod tests {
         }
     }
 
-    /// §6.15: `min_separation` must scale with image size so dense star
-    /// fields are not over-merged on small frames or under-merged on huge
-    /// ones.
-    #[test]
-    fn plate_solve_min_separation_scales_with_image_size() {
-        // Small frame keeps the minimum (== historical 2.0).
-        assert_eq!(super::plate_solve_min_separation(640, 480), 2.0);
-
-        // Mid-range frame produces a value strictly above the historical
-        // floor.
-        let mid = super::plate_solve_min_separation(2048, 1536);
-        assert!(mid > 2.0 && mid < 8.0, "mid frame got {mid}");
-
-        // A 50-megapixel-class frame (ZWO ASI6200, full chip) clamps to the
-        // upper bound rather than running away to absurd radii.
-        assert_eq!(super::plate_solve_min_separation(9576, 6388), 8.0);
-    }
-
     // =========================================================================
     // Bug-fix regression tests: global preference wiring + catalog -d flag
     // =========================================================================
+
+    /// `ACTIVE_SOLVER_PREF` and the discovery cache are process-global, so the
+    /// tests that mutate them must not run concurrently with each other.
+    static PREF_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn lock_solver_pref() -> std::sync::MutexGuard<'static, ()> {
+        PREF_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
 
     /// Setting the global solver preference via `set_solver_preference` must
     /// make `PlateSolverConfig::default()` resolve the configured ASTAP path
@@ -3037,6 +2076,8 @@ mod tests {
     #[test]
     fn set_solver_preference_makes_default_config_resolve_configured_path() {
         use super::{set_solver_preference, PlateSolverConfig};
+
+        let _pref_guard = lock_solver_pref();
 
         // Use a unique non-existent path so the candidate list cannot
         // accidentally match a real ASTAP install on the test machine.
@@ -3081,12 +2122,73 @@ mod tests {
         let _ = std::fs::remove_dir_all(&fake_catalog);
     }
 
+    /// Solver discovery must be probed once and then served from the cache:
+    /// every `PlateSolverConfig::default()` used to re-stat the whole candidate
+    /// list and shell out to `which`/`where`, and `blind_solve`/`solve_near`
+    /// each ran that probe twice per solve.
+    ///
+    /// Observable proof of the cache: delete the file the probe found. An
+    /// uncached resolver reports `None` on the next call; a cached one keeps
+    /// returning the path until it is invalidated.
+    #[test]
+    fn solver_discovery_is_cached_until_invalidated() {
+        use super::{
+            get_solver_path, invalidate_solver_availability_cache, is_solver_available,
+            set_solver_preference, PlateSolverConfig,
+        };
+
+        let _pref_guard = lock_solver_pref();
+
+        let fake_astap = std::env::temp_dir().join(format!(
+            "fake-astap-cache-{}-{}.exe",
+            std::process::id(),
+            "discovery-test"
+        ));
+        std::fs::write(&fake_astap, b"").expect("write fake astap");
+
+        // Setting the preference must invalidate, so this resolves the new path.
+        set_solver_preference(
+            Some(fake_astap.to_str().unwrap()),
+            None,
+            None,
+            Some("astap"),
+        );
+        assert_eq!(
+            PlateSolverConfig::default().astap_path.as_deref(),
+            Some(fake_astap.as_path()),
+            "set_solver_preference must invalidate the discovery cache"
+        );
+        assert!(is_solver_available());
+        assert_eq!(get_solver_path().as_deref(), Some(fake_astap.as_path()));
+
+        // The filesystem changes underneath us; the cached answer must stand.
+        std::fs::remove_file(&fake_astap).expect("remove fake astap");
+        assert_eq!(
+            PlateSolverConfig::default().astap_path.as_deref(),
+            Some(fake_astap.as_path()),
+            "second default() re-probed the filesystem instead of using the cache"
+        );
+        assert_eq!(get_solver_path().as_deref(), Some(fake_astap.as_path()));
+
+        // Explicit invalidation re-probes and now finds nothing at that path.
+        invalidate_solver_availability_cache();
+        assert_ne!(
+            PlateSolverConfig::default().astap_path.as_deref(),
+            Some(fake_astap.as_path()),
+            "invalidate_solver_availability_cache must force a re-probe"
+        );
+
+        set_solver_preference(None, None, None, None);
+    }
+
     /// After `set_solver_preference` is called with an empty string for all
     /// fields (Settings cleared / reset to auto), `PlateSolverConfig::default()`
     /// must not retain the old configured path.
     #[test]
     fn clear_solver_preference_reverts_to_auto_detect() {
         use super::{set_solver_preference, PlateSolverConfig};
+
+        let _pref_guard = lock_solver_pref();
 
         // Set something, then clear it.
         set_solver_preference(

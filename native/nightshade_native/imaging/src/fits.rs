@@ -30,6 +30,10 @@ use std::fs::File;
 use std::io::{BufReader, BufWriter, Read, Seek, Write};
 use std::path::Path;
 
+/// A FITS file is a whole number of 2880-byte records; header and data are each
+/// padded out to one (FITS 3.1).
+const FITS_RECORD_LEN: usize = 2880;
+
 /// FITS header containing all keywords plus separate COMMENT and HISTORY blocks.
 ///
 /// Why: COMMENT and HISTORY are not value cards — they have no `=` separator and
@@ -94,6 +98,24 @@ impl FitsValue {
             _ => None,
         }
     }
+
+    /// The value as plain header text: the string body without its FITS
+    /// quoting, the number as `write_fits` would render it, `T`/`F` for a
+    /// boolean.
+    ///
+    /// Why this and not `format!("{:?}", value)`: Debug emits the Rust variant
+    /// syntax (`Float(120.0)`), and any consumer that carries a flattened
+    /// header back into a FITS file then ships `EXPTIME = 'Float(120.0)'`.
+    /// `FitsHeader::set_value_token` reads this form back into typed cards.
+    pub fn to_header_string(&self) -> String {
+        match self {
+            FitsValue::String(s) => s.clone(),
+            FitsValue::Integer(i) => i.to_string(),
+            FitsValue::Float(f) => format_fits_float(*f),
+            FitsValue::Boolean(b) => if *b { "T" } else { "F" }.to_string(),
+            FitsValue::Comment(c) => c.clone(),
+        }
+    }
 }
 
 impl FitsHeader {
@@ -132,6 +154,44 @@ impl FitsHeader {
             self.keyword_order.push(key_upper.clone());
         }
         self.keywords.insert(key_upper, FitsValue::Boolean(value));
+    }
+
+    /// Restore a keyword from plain header text — the form
+    /// `FitsValue::to_header_string` produces and `ImageReadResult::header`
+    /// carries.
+    ///
+    /// Why not `set_string`: a header flattened to text and put back with
+    /// `set_string` becomes a quoted string card, so a calibrated frame ships
+    /// `EXPTIME = '120.0'` and `get_float("EXPTIME")` — plus PixInsight, ASTAP
+    /// and Siril — read nothing. Recovering the type restores real numeric
+    /// cards.
+    ///
+    /// Limit of the flattened form: a *string* value that reads as a number or
+    /// as `T`/`F` (`OBJECT = '61'`) comes back typed. Carrying the typed
+    /// `FitsHeader` instead of a `HashMap<String, String>` is the only way to
+    /// remove that ambiguity.
+    pub fn set_value_token(&mut self, key: &str, token: &str) {
+        // Deliberately not `parse_fits_value`: that takes a whole card body and
+        // splits a trailing `/ comment` off, which would truncate an unquoted
+        // path value such as `/data/darks/master.fits` to nothing.
+        let text = token.trim();
+        let value = if text == "T" {
+            FitsValue::Boolean(true)
+        } else if text == "F" {
+            FitsValue::Boolean(false)
+        } else if let Ok(i) = text.parse::<i64>() {
+            FitsValue::Integer(i)
+        } else if let Ok(f) = text.replace('D', "E").replace('d', "e").parse::<f64>() {
+            FitsValue::Float(f)
+        } else {
+            FitsValue::String(token.to_string())
+        };
+
+        let key_upper = key.to_uppercase();
+        if !self.keyword_order.contains(&key_upper) {
+            self.keyword_order.push(key_upper.clone());
+        }
+        self.keywords.insert(key_upper, value);
     }
 
     /// Attach an inline comment to an existing keyword. Emitted as
@@ -244,12 +304,21 @@ pub fn read_fits_from_bytes(bytes: &[u8]) -> Result<(ImageData, FitsHeader), Fit
     read_fits_from_reader(&mut reader)
 }
 
-/// Internal function to read FITS from any reader
-fn read_fits_from_reader<R: Read>(reader: &mut R) -> Result<(ImageData, FitsHeader), FitsError> {
-    // Read header
-    let mut header = read_header(reader)?;
-
-    // Get image dimensions
+/// The image geometry a FITS header describes, plus the pixel type its BITPIX
+/// selects.
+///
+/// Why one function: `read_fits_from_reader` and `MappedFitsReader::open` both
+/// derived this from the same five keywords, and the copies drifted. The mapped
+/// reader accepted the 4-D cubes `read_fits` refuses — reading only the NAXIS3
+/// planes and silently discarding the rest — and defaulted a missing NAXIS3 to
+/// one channel where `read_fits` reported the malformed header.
+///
+/// `NAXIS = 0` (header-only HDU) is an error here; `read_fits_from_reader`
+/// answers it with an empty image before asking, which is its own documented
+/// behaviour rather than a shared one.
+pub(crate) fn geometry_from_header(
+    header: &FitsHeader,
+) -> Result<(u32, u32, u32, PixelType), FitsError> {
     let bitpix = header
         .get_int("BITPIX")
         .ok_or_else(|| FitsError::MissingKeyword("BITPIX".to_string()))?;
@@ -258,8 +327,9 @@ fn read_fits_from_reader<R: Read>(reader: &mut R) -> Result<(ImageData, FitsHead
         .ok_or_else(|| FitsError::MissingKeyword("NAXIS".to_string()))?;
 
     if naxis == 0 {
-        // No data, just header
-        return Ok((ImageData::new(0, 0, 1, PixelType::U16), header));
+        return Err(FitsError::InvalidFormat(
+            "No image data in FITS file".to_string(),
+        ));
     }
 
     // Why: 4-D cubes (NAXIS > 3) cannot be represented by `ImageData` (which has a
@@ -286,6 +356,34 @@ fn read_fits_from_reader<R: Read>(reader: &mut R) -> Result<(ImageData, FitsHead
     } else {
         1
     };
+
+    let pixel_type = match bitpix as i32 {
+        8 => PixelType::U8,
+        16 => PixelType::U16,
+        32 => PixelType::U32,
+        -32 => PixelType::F32,
+        -64 => PixelType::F64,
+        other => return Err(FitsError::UnsupportedBitpix(other)),
+    };
+
+    Ok((width, height, depth, pixel_type))
+}
+
+/// Internal function to read FITS from any reader
+fn read_fits_from_reader<R: Read>(reader: &mut R) -> Result<(ImageData, FitsHeader), FitsError> {
+    // Read header
+    let mut header = read_header(reader)?;
+
+    let bitpix = header
+        .get_int("BITPIX")
+        .ok_or_else(|| FitsError::MissingKeyword("BITPIX".to_string()))?;
+
+    if header.get_int("NAXIS") == Some(0) {
+        // No data, just header
+        return Ok((ImageData::new(0, 0, 1, PixelType::U16), header));
+    }
+
+    let (width, height, depth, _) = geometry_from_header(&header)?;
 
     // Get scaling parameters. Why: per FITS 4.4.2.5, the in-memory data after applying
     // BSCALE/BZERO is the "physical" value; storing the original BSCALE/BZERO in the
@@ -770,9 +868,7 @@ pub fn write_fits(path: &Path, image: &ImageData, header: &FitsHeader) -> Result
     // Pad header to 2880-byte boundary
     let pos = writer.stream_position()? as usize;
     let padding = (2880 - (pos % 2880)) % 2880;
-    for _ in 0..padding {
-        writer.write_all(b" ")?;
-    }
+    writer.write_all(&[b' '; FITS_RECORD_LEN][..padding])?;
 
     // Write image data
     match image.pixel_type {
@@ -781,46 +877,69 @@ pub fn write_fits(path: &Path, image: &ImageData, header: &FitsHeader) -> Result
         }
         PixelType::U16 => {
             // Convert from little-endian u16 to big-endian i16 with BZERO offset
-            for chunk in image.data.chunks_exact(2) {
-                let val = u16::from_le_bytes([chunk[0], chunk[1]]);
-                let signed = (val as i32 - 32768) as i16;
-                writer.write_all(&signed.to_be_bytes())?;
-            }
+            write_be_samples::<_, 2>(&mut writer, &image.data, |raw| {
+                let signed = (u16::from_le_bytes(raw) as i32 - 32768) as i16;
+                signed.to_be_bytes()
+            })?;
         }
         PixelType::U32 => {
             // Apply the BZERO=2147483648 offset written above: physical value
             // v maps to stored signed s = v - 2^31, recovered on read as
             // s + 2^31. This keeps the full unsigned range representable.
-            for chunk in image.data.chunks_exact(4) {
-                let val = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
-                let signed = (val as i64 - 2_147_483_648) as i32;
-                writer.write_all(&signed.to_be_bytes())?;
-            }
+            write_be_samples::<_, 4>(&mut writer, &image.data, |raw| {
+                let signed = (u32::from_le_bytes(raw) as i64 - 2_147_483_648) as i32;
+                signed.to_be_bytes()
+            })?;
         }
         PixelType::F32 => {
-            for chunk in image.data.chunks_exact(4) {
-                let val = f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
-                writer.write_all(&val.to_be_bytes())?;
-            }
+            write_be_samples::<_, 4>(&mut writer, &image.data, |raw| {
+                f32::from_le_bytes(raw).to_be_bytes()
+            })?;
         }
         PixelType::F64 => {
-            for chunk in image.data.chunks_exact(8) {
-                let val = f64::from_le_bytes([
-                    chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6], chunk[7],
-                ]);
-                writer.write_all(&val.to_be_bytes())?;
-            }
+            write_be_samples::<_, 8>(&mut writer, &image.data, |raw| {
+                f64::from_le_bytes(raw).to_be_bytes()
+            })?;
         }
     }
 
     // Pad data to 2880-byte boundary
     let data_size = image.data.len();
     let padding = (2880 - (data_size % 2880)) % 2880;
-    for _ in 0..padding {
-        writer.write_all(&[0u8])?;
-    }
+    writer.write_all(&[0u8; FITS_RECORD_LEN][..padding])?;
 
     writer.flush()?;
+    Ok(())
+}
+
+/// Bytes converted per `write_all` in `write_be_samples`.
+///
+/// Why blocks: a per-sample `write_all` costs one `BufWriter` capacity check
+/// each and, at the writer's 8 KiB buffer, a `write` syscall every 4096 pixels.
+/// A 61 MP mono frame is 61 million of those on every capture. 64 KiB keeps the
+/// scratch buffer off the large-allocation path while cutting the call count by
+/// three orders of magnitude.
+const WRITE_BLOCK_BYTES: usize = 64 * 1024;
+
+/// Transcode a little-endian pixel buffer to big-endian FITS order one block at
+/// a time. Trailing bytes that do not form a whole `N`-byte sample are dropped,
+/// matching `chunks_exact`.
+fn write_be_samples<W: Write, const N: usize>(
+    writer: &mut W,
+    data: &[u8],
+    convert: impl Fn([u8; N]) -> [u8; N],
+) -> Result<(), FitsError> {
+    let block_bytes = (WRITE_BLOCK_BYTES / N) * N;
+    let mut block = Vec::with_capacity(block_bytes);
+    for span in data.chunks(block_bytes) {
+        block.clear();
+        for sample in span.chunks_exact(N) {
+            let mut raw = [0u8; N];
+            raw.copy_from_slice(sample);
+            block.extend_from_slice(&convert(raw));
+        }
+        writer.write_all(&block)?;
+    }
     Ok(())
 }
 

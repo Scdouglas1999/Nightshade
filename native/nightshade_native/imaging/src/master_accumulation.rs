@@ -67,6 +67,7 @@
 //! that is the parity the tests assert.
 
 use crate::integration::IntegrationFrame;
+use crate::robust_stats::percentile_interpolated as percentile_of_sorted;
 use crate::{ImageData, PixelType};
 use serde::{Deserialize, Serialize};
 
@@ -858,26 +859,6 @@ fn reference_baseline(
     }
 
     (background, scale)
-}
-
-/// Linear-interpolated percentile of an already-sorted, non-empty slice.
-fn percentile_of_sorted(sorted: &[f64], p: f64) -> f64 {
-    let n = sorted.len();
-    if n == 0 {
-        return 0.0;
-    }
-    if n == 1 {
-        return sorted[0];
-    }
-    let rank = p.clamp(0.0, 1.0) * (n - 1) as f64;
-    let lo = rank.floor() as usize;
-    let hi = rank.ceil() as usize;
-    if lo == hi {
-        sorted[lo]
-    } else {
-        let frac = rank - lo as f64;
-        sorted[lo] * (1.0 - frac) + sorted[hi] * frac
-    }
 }
 
 /// Read `len` little-endian f64 values from `bytes` starting at `*cursor`,

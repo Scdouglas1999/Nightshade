@@ -41,11 +41,9 @@
 //! robust noise, SNR², FWHM and roundness penalties, population normalization
 //! — is deterministic and unit-tested on synthetic frames here.
 
+use crate::robust_stats::{median_in_place_par, nearest_rank_index, MAD_TO_SIGMA};
 use crate::{calculate_stats_u16, detect_stars_with_stats, ImageData, StarDetectionConfig};
 use rayon::prelude::*;
-
-/// MAD → Gaussian-σ consistency constant (1 / Φ⁻¹(0.75)).
-const MAD_TO_SIGMA: f64 = 1.4826;
 
 /// Robust per-frame quality descriptor.
 ///
@@ -253,31 +251,22 @@ fn median_3x3(pixels: &[u16], width: usize, height: usize, x: usize, y: usize) -
     }
 }
 
-/// Median of an owned `f64` vector (consumes it; uses a fast unstable sort).
+/// Median of an owned `f64` vector (consumes it; parallel sort — these are
+/// megapixel-scale residual buffers).
 fn median_f64(mut v: Vec<f64>) -> f64 {
-    if v.is_empty() {
-        return 0.0;
-    }
-    v.par_sort_unstable_by(f64::total_cmp);
-    let n = v.len();
-    if n.is_multiple_of(2) {
-        (v[n / 2 - 1] + v[n / 2]) / 2.0
-    } else {
-        v[n / 2]
-    }
+    median_in_place_par(&mut v)
 }
 
-/// Value at the given fractional percentile (0..1) of the pixel distribution.
+/// Nearest-rank percentile (0..1) of the `u16` pixel distribution. Shares its
+/// rank convention with [`crate::robust_stats::percentile_nearest_rank`]; the
+/// samples stay `u16` so a megapixel frame is not widened to `f64` first.
 fn percentile_u16(pixels: &[u16], p: f64) -> f64 {
     if pixels.is_empty() {
         return 0.0;
     }
     let mut v: Vec<u16> = pixels.to_vec();
     v.par_sort_unstable();
-    let p = p.clamp(0.0, 1.0);
-    // Nearest-rank index, clamped to the last element.
-    let idx = ((v.len() as f64 - 1.0) * p).round() as usize;
-    v[idx.min(v.len() - 1)] as f64
+    v[nearest_rank_index(v.len(), p)] as f64
 }
 
 /// Compute the *unnormalized* integration weight of `q` relative to `ref_q`.

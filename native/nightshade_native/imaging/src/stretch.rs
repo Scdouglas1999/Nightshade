@@ -29,6 +29,7 @@
 //! See PixInsight reference documentation:
 //!   <https://pixinsight.com/doc/tools/ScreenTransferFunction/ScreenTransferFunction.html>
 
+use crate::robust_stats::{percentile_floor as percentile_sorted, MAD_TO_SIGMA as MAD_SIGMA_SCALE};
 use crate::ImageData;
 use rayon::prelude::*;
 
@@ -74,13 +75,13 @@ pub enum RgbStretchMode {
     Linked,
 }
 
-// Why: PixInsight STF constants. `MAD_SIGMA_SCALE = 1 / Φ⁻¹(0.75)` rescales
-// the median absolute deviation into a Gaussian-equivalent standard
-// deviation. `SHADOW_CLIP_SIGMA = -2.8` is the default PixInsight
-// AutoStretch shadow-clipping point (2.8σ below the median). The
-// `TARGET_BACKGROUND = 0.25` is the desired post-stretch median of the
-// sky background, a perceptually neutral value PixInsight uses by default.
-const MAD_SIGMA_SCALE: f64 = 1.4826;
+// Why: PixInsight STF constants. `MAD_SIGMA_SCALE` (the crate's
+// `MAD_TO_SIGMA`) rescales the median absolute deviation into a
+// Gaussian-equivalent standard deviation. `SHADOW_CLIP_SIGMA = -2.8` is the
+// default PixInsight AutoStretch shadow-clipping point (2.8σ below the
+// median). The `TARGET_BACKGROUND = 0.25` is the desired post-stretch median
+// of the sky background, a perceptually neutral value PixInsight uses by
+// default.
 const SHADOW_CLIP_SIGMA: f64 = -2.8;
 const TARGET_BACKGROUND: f64 = 0.25;
 
@@ -358,19 +359,6 @@ fn robust_stats(pixels: &[f64]) -> Option<RobustStats> {
     let mad = percentile_sorted(&deviations, 0.5);
 
     Some(RobustStats { median, mad })
-}
-
-/// Order-statistic helper: returns the value at the given fractional
-/// position in an already-sorted slice. Uses nearest-rank (no
-/// interpolation) which matches what PixInsight's median computation does
-/// on integer-indexed arrays.
-fn percentile_sorted(sorted: &[f64], frac: f64) -> f64 {
-    if sorted.is_empty() {
-        return 0.0;
-    }
-    let n = sorted.len();
-    let idx = ((n as f64) * frac) as usize;
-    sorted[idx.min(n - 1)]
 }
 
 /// Build STF parameters from precomputed robust stats.

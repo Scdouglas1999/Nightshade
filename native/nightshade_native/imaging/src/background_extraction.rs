@@ -63,14 +63,9 @@
 //! on the normal-equation matrix — fine for the ≤28-term systems a degree-≤6 2-D
 //! polynomial produces, and deterministic so the tests are reproducible.
 
+use crate::robust_stats::{median_in_place as median_f64, percentile_nearest_rank, MAD_TO_SIGMA};
 use crate::{detect_stars, DetectedStar, ImageData, PixelType, StarDetectionConfig};
 use rayon::prelude::*;
-
-/// MAD → Gaussian-σ consistency constant (1 / Φ⁻¹(0.75)). Shared intent with
-/// [`crate::frame_weighting`] and [`crate::integration`]: scale a
-/// median-absolute-deviation onto a standard-deviation footing for Gaussian
-/// data so the sigma-clip thresholds mean the same thing here as elsewhere.
-const MAD_TO_SIGMA: f64 = 1.4826;
 
 /// Hard cap on `poly_degree`. Beyond degree 6 the 2-D Vandermonde normal
 /// equations are ill-conditioned even after `[-1, 1]` normalisation and the
@@ -1098,30 +1093,11 @@ fn write_pixel(bytes: &mut [u8], pt: PixelType, value: f64) {
 // Small robust-statistics helpers
 // =============================================================================
 
-/// Median of a mutable slice (sorts it in place; `total_cmp` for NaN safety).
-fn median_f64(v: &mut [f64]) -> f64 {
-    if v.is_empty() {
-        return 0.0;
-    }
-    v.sort_unstable_by(f64::total_cmp);
-    let n = v.len();
-    if n.is_multiple_of(2) {
-        (v[n / 2 - 1] + v[n / 2]) / 2.0
-    } else {
-        v[n / 2]
-    }
-}
-
-/// Nearest-rank percentile (`p` in `[0, 1]`) of a mutable slice (sorts in
-/// place). Mirrors the `percentile_u16` convention in [`crate::frame_weighting`].
+/// Nearest-rank percentile (`p` in `[0, 1]`) of a mutable slice, sorting it in
+/// place. See [`crate::robust_stats`] for why the convention is named.
 fn percentile_f64(v: &mut [f64], p: f64) -> f64 {
-    if v.is_empty() {
-        return 0.0;
-    }
     v.sort_unstable_by(f64::total_cmp);
-    let p = p.clamp(0.0, 1.0);
-    let idx = ((v.len() as f64 - 1.0) * p).round() as usize;
-    v[idx.min(v.len() - 1)]
+    percentile_nearest_rank(v, p)
 }
 
 // =============================================================================

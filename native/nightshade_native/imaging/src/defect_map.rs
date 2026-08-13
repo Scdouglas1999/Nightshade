@@ -45,6 +45,7 @@
 //! Trailing footer: u32 defective pixel count for quick stat lookups
 //! without scanning the bitmap.
 
+use crate::robust_stats::median_sorted as sample_median_sorted;
 use crate::{ImageData, PixelType};
 use std::fs::File;
 use std::io::{Read, Write};
@@ -500,19 +501,6 @@ pub fn build_defect_map(
     }
 
     Ok(map)
-}
-
-#[inline]
-fn sample_median_sorted(sorted: &[f64]) -> f64 {
-    if sorted.is_empty() {
-        return 0.0;
-    }
-    let mid = sorted.len() / 2;
-    if sorted.len().is_multiple_of(2) {
-        (sorted[mid - 1] + sorted[mid]) / 2.0
-    } else {
-        sorted[mid]
-    }
 }
 
 /// Apply a defect map to a U16 light frame in place.

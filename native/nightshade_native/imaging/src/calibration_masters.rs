@@ -48,6 +48,7 @@
 //!   where no defect map is available.
 
 use crate::defect_map::{correct_u16_slice, CorrectionMethod, DefectMap, KernelSize};
+use crate::robust_stats::{median_in_place, MAD_TO_SIGMA};
 use crate::stacking::{
     combine_master_frames, CombineMethod, MasterFrame, MasterFrameKind, MasterOutputType,
 };
@@ -205,10 +206,6 @@ pub fn build_master_flat(
 /// shoulders of the dark-current distribution.
 const MASTER_DARK_SIGMA_K: f64 = 5.0;
 
-/// Scale factor converting a median-absolute-deviation into a Gaussian-σ
-/// estimate: σ ≈ 1.4826 · MAD for normally distributed data.
-const MAD_TO_SIGMA: f64 = 1.4826;
-
 /// Build a [`DefectMap`] directly from a single, already-combined **master
 /// dark** (or master bias).
 ///
@@ -253,7 +250,7 @@ pub fn build_defect_map_from_master_dark(
     // Robust statistics: median and MAD over the whole frame.
     let median = median_of(&pixels);
     let mut abs_dev: Vec<f64> = pixels.iter().map(|&v| (v as f64 - median).abs()).collect();
-    let mad = median_in_place_f64(&mut abs_dev).max(1.0e-9);
+    let mad = median_in_place(&mut abs_dev).max(1.0e-9);
     let sigma = (mad * MAD_TO_SIGMA).max(1.0e-9);
 
     let upper = median + MASTER_DARK_SIGMA_K * sigma;
@@ -438,9 +435,9 @@ pub fn cosmetic_correct_transient(
                     // a robust call; leave it clean rather than guess.
                     continue;
                 }
-                let med = median_in_place_f64(&mut nbr.clone());
+                let med = median_in_place(&mut nbr.clone());
                 let mut dev: Vec<f64> = nbr.iter().map(|&v| (v - med).abs()).collect();
-                let mad = median_in_place_f64(&mut dev).max(1.0e-9);
+                let mad = median_in_place(&mut dev).max(1.0e-9);
                 let sigma = (mad * MAD_TO_SIGMA).max(1.0e-9);
 
                 let centre = pixels[(y as usize * w + x as usize) * ch + c] as f64;
@@ -507,22 +504,7 @@ pub fn cosmetic_correct_transient(
 /// Median of a u16 slice as f64, without mutating the input.
 fn median_of(values: &[u16]) -> f64 {
     let mut v: Vec<f64> = values.iter().map(|&x| x as f64).collect();
-    median_in_place_f64(&mut v)
-}
-
-/// Median of an f64 slice, sorting it in place. Returns 0.0 for an empty slice
-/// (callers guard against this where it matters).
-fn median_in_place_f64(values: &mut [f64]) -> f64 {
-    let n = values.len();
-    if n == 0 {
-        return 0.0;
-    }
-    values.sort_unstable_by(|a, b| a.total_cmp(b));
-    if n % 2 == 1 {
-        values[n / 2]
-    } else {
-        (values[n / 2 - 1] + values[n / 2]) * 0.5
-    }
+    median_in_place(&mut v)
 }
 
 #[cfg(test)]

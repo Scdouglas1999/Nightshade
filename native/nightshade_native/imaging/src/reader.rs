@@ -8,11 +8,8 @@
 //!
 //! # `unwrap_or` policy
 //!
-//! Three FITS-standard fallbacks appear in this reader:
+//! Two FITS-standard fallbacks appear in this reader:
 //!
-//! * `NAXIS3.unwrap_or(1)` — `NAXIS3` (channel count) is only present for
-//!   3D FITS cubes; absent for 2D mono frames where the FITS spec defines
-//!   the implicit channel count as 1.
 //! * `BZERO.unwrap_or(0.0)`, `BSCALE.unwrap_or(1.0)` — these are the
 //!   FITS 4.0 spec defaults for the linear pixel-value transform when the
 //!   keywords are absent: `physical_value = BZERO + BSCALE * stored_value`
@@ -54,45 +51,7 @@ impl MappedFitsReader {
         let mut cursor = std::io::Cursor::new(&mmap[..]);
         let header = crate::fits::read_header(&mut cursor)?;
 
-        // Get image dimensions from header
-        let bitpix = header
-            .get_int("BITPIX")
-            .ok_or_else(|| FitsError::MissingKeyword("BITPIX".to_string()))?;
-        let naxis = header
-            .get_int("NAXIS")
-            .ok_or_else(|| FitsError::MissingKeyword("NAXIS".to_string()))?;
-
-        if naxis == 0 {
-            return Err(FitsError::InvalidFormat(
-                "No image data in FITS file".to_string(),
-            ));
-        }
-
-        let width = header
-            .get_int("NAXIS1")
-            .ok_or_else(|| FitsError::MissingKeyword("NAXIS1".to_string()))?
-            as u32;
-        let height = if naxis >= 2 {
-            header
-                .get_int("NAXIS2")
-                .ok_or_else(|| FitsError::MissingKeyword("NAXIS2".to_string()))? as u32
-        } else {
-            1
-        };
-        let channels = if naxis >= 3 {
-            header.get_int("NAXIS3").unwrap_or(1) as u32
-        } else {
-            1
-        };
-
-        let pixel_type = match bitpix as i32 {
-            8 => PixelType::U8,
-            16 => PixelType::U16,
-            32 => PixelType::U32,
-            -32 => PixelType::F32,
-            -64 => PixelType::F64,
-            other => return Err(FitsError::UnsupportedBitpix(other)),
-        };
+        let (width, height, channels, pixel_type) = crate::fits::geometry_from_header(&header)?;
 
         // `read_header` already consumes the full FITS header and skips the
         // required padding, so the cursor now points at the exact data start.
@@ -440,18 +399,9 @@ mod tests {
         assert_eq!(region.data, image.data);
     }
 
-    #[test]
-    fn mapped_reader_requires_naxis2_for_2d_images() {
-        let path = temp_path("missing_naxis2");
+    /// Write a single-record FITS header from raw card text, with no data.
+    fn write_header_only_fits(path: &PathBuf, cards: &[&str]) {
         let mut bytes = vec![b' '; 2880];
-        let cards = [
-            "SIMPLE  =                    T",
-            "BITPIX  =                    8",
-            "NAXIS   =                    2",
-            "NAXIS1  =                    2",
-            "END",
-        ];
-
         for (idx, card) in cards.iter().enumerate() {
             let offset = idx * 80;
             let mut card_bytes = [b' '; 80];
@@ -459,11 +409,80 @@ mod tests {
             card_bytes[..raw.len()].copy_from_slice(raw);
             bytes[offset..offset + 80].copy_from_slice(&card_bytes);
         }
+        fs::write(path, bytes).expect("failed to write FITS header");
+    }
 
-        fs::write(&path, bytes).expect("failed to write malformed FITS");
+    #[test]
+    fn mapped_reader_requires_naxis2_for_2d_images() {
+        let path = temp_path("missing_naxis2");
+        write_header_only_fits(
+            &path,
+            &[
+                "SIMPLE  =                    T",
+                "BITPIX  =                    8",
+                "NAXIS   =                    2",
+                "NAXIS1  =                    2",
+                "END",
+            ],
+        );
+
         let result = MappedFitsReader::open(&path);
         let _ = fs::remove_file(&path);
 
         assert!(matches!(result, Err(FitsError::MissingKeyword(keyword)) if keyword == "NAXIS2"));
+    }
+
+    /// The mapped reader used to read a 4-D cube as a 3-D image, silently
+    /// discarding every plane past NAXIS3 — while `read_fits` refused the same
+    /// file. Both derive geometry from `geometry_from_header` now, so a cube is
+    /// rejected on either path.
+    #[test]
+    fn mapped_reader_rejects_a_4d_cube_like_read_fits_does() {
+        let path = temp_path("naxis4");
+        write_header_only_fits(
+            &path,
+            &[
+                "SIMPLE  =                    T",
+                "BITPIX  =                   16",
+                "NAXIS   =                    4",
+                "NAXIS1  =                    1",
+                "NAXIS2  =                    1",
+                "NAXIS3  =                    1",
+                "NAXIS4  =                    1",
+                "END",
+            ],
+        );
+
+        let result = MappedFitsReader::open(&path);
+        let _ = fs::remove_file(&path);
+
+        assert!(
+            matches!(result, Err(FitsError::Unsupported4DCube { naxis: 4 })),
+            "expected Unsupported4DCube, got {:?}",
+            result.map(|_| "Ok")
+        );
+    }
+
+    /// A NAXIS=3 header with no NAXIS3 card is malformed; `read_fits` says so
+    /// and the mapped reader must not quietly assume one channel.
+    #[test]
+    fn mapped_reader_requires_naxis3_for_3d_images() {
+        let path = temp_path("missing_naxis3");
+        write_header_only_fits(
+            &path,
+            &[
+                "SIMPLE  =                    T",
+                "BITPIX  =                    8",
+                "NAXIS   =                    3",
+                "NAXIS1  =                    2",
+                "NAXIS2  =                    2",
+                "END",
+            ],
+        );
+
+        let result = MappedFitsReader::open(&path);
+        let _ = fs::remove_file(&path);
+
+        assert!(matches!(result, Err(FitsError::MissingKeyword(keyword)) if keyword == "NAXIS3"));
     }
 }

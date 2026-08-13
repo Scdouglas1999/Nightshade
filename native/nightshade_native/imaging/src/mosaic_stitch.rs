@@ -56,6 +56,7 @@ use thiserror::Error;
 
 use crate::normalization::{estimate_normalization, CoverageMask, NormalizationConfig};
 use crate::registration::Interpolator;
+use crate::robust_stats::median_in_place as median;
 use crate::{ImageData, WcsInfo};
 
 /// Hard upper bound on the output canvas in pixels (per channel-plane). At
@@ -688,20 +689,6 @@ fn build_output_wcs(
     let proj = WcsProjection::new(&out_wcs).ok_or(MosaicError::DegenerateWcs)?;
 
     Ok((out_wcs, proj, out_w as u32, out_h as u32))
-}
-
-/// Median of a slice (mutates: sorts in place). Empty → 0.0.
-fn median(values: &mut [f64]) -> f64 {
-    if values.is_empty() {
-        return 0.0;
-    }
-    values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    let n = values.len();
-    if n % 2 == 1 {
-        values[n / 2]
-    } else {
-        0.5 * (values[n / 2 - 1] + values[n / 2])
-    }
 }
 
 /// Compute and stash each panel's integer canvas bounding box.

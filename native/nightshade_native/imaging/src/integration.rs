@@ -61,13 +61,9 @@
 //! the plain weighted mean when there are too few samples to estimate scatter.
 
 use crate::normalization::CoverageMask;
+use crate::robust_stats::{median_sorted as median_of_sorted, MAD_TO_SIGMA};
 use crate::{ImageData, PixelType};
 use rayon::prelude::*;
-
-/// MAD → Gaussian-σ consistency constant (1 / Φ⁻¹(0.75)). Shared intent with
-/// [`crate::frame_weighting`]'s noise estimator: scale a median-absolute-
-/// deviation onto a standard-deviation footing for Gaussian data.
-const MAD_TO_SIGMA: f64 = 1.4826;
 
 // =============================================================================
 // Public configuration types
@@ -277,6 +273,58 @@ pub fn integrate_frames(
     channels: u32,
     config: &IntegrationConfig,
 ) -> Result<IntegrationOutput, IntegrationError> {
+    let columns = integrate_columns(
+        frames,
+        width,
+        height,
+        channels,
+        config,
+        Reject::MAX_ITERATIONS,
+    )?;
+
+    let master = finalize_master(&columns.master, width, height, channels, config.output_type);
+    let rejection_map = columns
+        .rejection
+        .map(|r| ImageData::from_f32(width, height, channels, &r));
+    let weight_map = columns
+        .weight_map
+        .map(|r| ImageData::from_f32(width, height, channels, &r));
+
+    Ok(IntegrationOutput {
+        master,
+        rejection_map,
+        weight_map,
+        stats: columns.stats,
+    })
+}
+
+/// The integration result before it is quantised into an [`ImageData`].
+///
+/// Why this exists: [`crate::stacking::combine_master_frames`] normalises a
+/// master flat by its own mean and must do that in `f64`, before any rounding.
+/// Handing it the finalised `F32`/`U16` master would make it normalise
+/// already-quantised values.
+pub(crate) struct IntegratedColumns {
+    /// Integrated pixel values, interleaved like [`ImageData`], in `f64`.
+    pub(crate) master: Vec<f64>,
+    pub(crate) rejection: Option<Vec<f32>>,
+    pub(crate) weight_map: Option<Vec<f32>>,
+    pub(crate) stats: IntegrationStats,
+}
+
+/// Integrate into raw `f64` columns.
+///
+/// `iteration_limit` bounds the iterated rejectors. [`integrate_frames`] passes
+/// [`Reject::MAX_ITERATIONS`]; `combine_master_frames` passes the iteration
+/// count its caller configured, which is part of its public contract.
+pub(crate) fn integrate_columns(
+    frames: &[IntegrationFrame<'_>],
+    width: u32,
+    height: u32,
+    channels: u32,
+    config: &IntegrationConfig,
+    iteration_limit: usize,
+) -> Result<IntegratedColumns, IntegrationError> {
     if frames.is_empty() {
         return Err(IntegrationError::NoFrames);
     }
@@ -355,6 +403,9 @@ pub fn integrate_frames(
         .enumerate()
         .for_each(|(y, row_out)| {
             let mut samples: Vec<Sample> = Vec::with_capacity(frames_integrated);
+            // Holds the pre-rejection column so a rejector that rejects
+            // *everything* can be undone; see `combine_column`.
+            let mut intact: Vec<Sample> = Vec::with_capacity(frames_integrated);
             for x in 0..w {
                 let loc = y * w + x;
                 for ch in 0..c {
@@ -374,7 +425,8 @@ pub fn integrate_frames(
                             weight: f.weight,
                         });
                     }
-                    row_out[x * c + ch] = combine_column(&mut samples, config);
+                    row_out[x * c + ch] =
+                        combine_column(&mut samples, &mut intact, config, iteration_limit);
                 }
             }
         });
@@ -419,13 +471,9 @@ pub fn integrate_frames(
         uncovered_pixels,
     };
 
-    let master_image = finalize_master(&master, width, height, channels, config.output_type);
-    let rejection_map = rejection.map(|r| ImageData::from_f32(width, height, channels, &r));
-    let weight_map = weight_map.map(|r| ImageData::from_f32(width, height, channels, &r));
-
-    Ok(IntegrationOutput {
-        master: master_image,
-        rejection_map,
+    Ok(IntegratedColumns {
+        master,
+        rejection,
         weight_map,
         stats,
     })
@@ -460,9 +508,22 @@ struct ColumnOutcome {
 
 /// Run the configured rejection + combination over one pixel's sample column.
 ///
-/// `samples` is scratch owned by the caller (reused across pixels). It is left
-/// in an unspecified order on return.
-fn combine_column(samples: &mut Vec<Sample>, config: &IntegrationConfig) -> ColumnOutcome {
+/// `samples` and `intact` are scratch owned by the caller (reused across
+/// pixels). Both are left in an unspecified order on return.
+///
+/// Total rejection: a threshold tighter than 1σ (or a percentile band that
+/// excludes the median) can reject *every* sample in a column. Combining an
+/// empty column yields 0.0 — a black pixel in the middle of the master, which
+/// is worse than any estimate the column could have given. When that happens
+/// the column is restored from `intact` and reduced with the median, the
+/// robust estimator that suits a column where everything looked like an
+/// outlier, and the pixel is reported as having rejected nothing.
+fn combine_column(
+    samples: &mut Vec<Sample>,
+    intact: &mut Vec<Sample>,
+    config: &IntegrationConfig,
+    iteration_limit: usize,
+) -> ColumnOutcome {
     let considered = samples.len() as u32;
     if samples.is_empty() || samples.len() < config.min_coverage {
         return ColumnOutcome {
@@ -474,7 +535,26 @@ fn combine_column(samples: &mut Vec<Sample>, config: &IntegrationConfig) -> Colu
         };
     }
 
-    let rejected_count = apply_rejection(samples, config.reject);
+    let rejects = !matches!(config.reject, Reject::None);
+    if rejects {
+        intact.clear();
+        intact.extend_from_slice(samples);
+    }
+
+    let mut rejected_count = apply_rejection(samples, config.reject, iteration_limit);
+    if samples.is_empty() {
+        samples.extend_from_slice(intact);
+        rejected_count = 0;
+        let value = median(samples);
+        let survived_weight: f64 = samples.iter().map(|s| s.weight).sum();
+        return ColumnOutcome {
+            value,
+            rejected: rejected_count,
+            considered,
+            survived_weight,
+            covered: true,
+        };
+    }
 
     let value = match config.combine {
         Combine::Mean => weighted_mean(samples),
@@ -493,13 +573,15 @@ fn combine_column(samples: &mut Vec<Sample>, config: &IntegrationConfig) -> Colu
 
 /// Apply the rejection algorithm in place, retaining only survivors in
 /// `samples`. Returns the number of samples rejected.
-fn apply_rejection(samples: &mut Vec<Sample>, reject: Reject) -> u32 {
+fn apply_rejection(samples: &mut Vec<Sample>, reject: Reject, iteration_limit: usize) -> u32 {
     let before = samples.len();
     match reject {
         Reject::None => {}
-        Reject::SigmaClip { low, high } => sigma_clip(samples, low, high, false),
-        Reject::WinsorizedSigmaClip { low, high } => sigma_clip(samples, low, high, true),
-        Reject::LinearFitClip { low, high } => linear_fit_clip(samples, low, high),
+        Reject::SigmaClip { low, high } => sigma_clip(samples, low, high, false, iteration_limit),
+        Reject::WinsorizedSigmaClip { low, high } => {
+            sigma_clip(samples, low, high, true, iteration_limit)
+        }
+        Reject::LinearFitClip { low, high } => linear_fit_clip(samples, low, high, iteration_limit),
         Reject::PercentileClip { low, high } => percentile_clip(samples, low, high),
         Reject::MinMax { n_low, n_high } => min_max_clip(samples, n_low, n_high),
     }
@@ -518,8 +600,14 @@ fn apply_rejection(samples: &mut Vec<Sample>, reject: Reject) -> u32 {
 /// trusted more when deciding where the population centre lies. Variance is
 /// likewise weighted (reliability-weighted unbiased variance) so the σ
 /// threshold scales with the trusted scatter.
-fn sigma_clip(samples: &mut Vec<Sample>, low: f64, high: f64, winsorize: bool) {
-    for _ in 0..Reject::MAX_ITERATIONS {
+fn sigma_clip(
+    samples: &mut Vec<Sample>,
+    low: f64,
+    high: f64,
+    winsorize: bool,
+    iteration_limit: usize,
+) {
+    for _ in 0..iteration_limit {
         if samples.len() < 3 {
             // Cannot estimate scatter meaningfully; stop clipping.
             break;
@@ -552,8 +640,8 @@ fn sigma_clip(samples: &mut Vec<Sample>, low: f64, high: f64, winsorize: bool) {
 /// outlier sits far off the line at the top rank and is rejected without
 /// dragging the threshold the way it would in a plain mean/σ. This is the batch
 /// rejector that performs best with many subs.
-fn linear_fit_clip(samples: &mut Vec<Sample>, low: f64, high: f64) {
-    for _ in 0..Reject::MAX_ITERATIONS {
+fn linear_fit_clip(samples: &mut Vec<Sample>, low: f64, high: f64, iteration_limit: usize) {
+    for _ in 0..iteration_limit {
         let n = samples.len();
         if n < 4 {
             break;
@@ -771,19 +859,6 @@ fn winsorized_mean_sigma(samples: &[Sample], low: f64, high: f64) -> (f64, f64) 
         })
         .collect();
     weighted_mean_sigma(&winsorized)
-}
-
-/// Median of an already-sorted slice. Returns 0 for empty.
-fn median_of_sorted(sorted: &[f64]) -> f64 {
-    let n = sorted.len();
-    if n == 0 {
-        return 0.0;
-    }
-    if n % 2 == 1 {
-        sorted[n / 2]
-    } else {
-        (sorted[n / 2 - 1] + sorted[n / 2]) * 0.5
-    }
 }
 
 // =============================================================================
