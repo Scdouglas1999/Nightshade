@@ -275,7 +275,7 @@ pub async fn api_connect_device(
 }
 
 pub(crate) fn is_phd2_device_id(device_id: &str) -> bool {
-    device_id == "phd2_guider"
+    device_id == crate::api::phd2::PHD2_DEVICE_ID
         || device_id == "phd2"
         || device_id.starts_with("phd2:")
         || device_id.starts_with("phd2://")

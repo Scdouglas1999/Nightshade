@@ -1,5 +1,6 @@
 import '../backend/roles/guiding_backend.dart';
 import '../models/backend/phd2_status.dart';
+import '../utils/device_id.dart';
 
 /// Status returned when the host has no active PHD2 client.
 const Phd2Status kPhd2DisconnectedStatus = Phd2Status(
@@ -43,12 +44,16 @@ bool isPhd2GuidingHeartbeatEvent(String eventType) {
   }
 }
 
+/// Whether [deviceId] is a PHD2 guider id, matched EXACTLY (no trim, no case
+/// folding) — unlike [isPhd2DeviceId], which normalizes first.
+///
+/// The difference is deliberate and preserved: this screens ids that arrived
+/// over the wire already canonical, so `'PHD2_GUIDER'` and `'  phd2  '` are
+/// correctly NOT PHD2 here while they ARE for [isPhd2DeviceId]. Only the token
+/// list is shared ([isPhd2WireToken]) so the four spellings cannot drift apart.
 bool isPhd2GuiderDeviceId(String? deviceId) {
   if (deviceId == null || deviceId.isEmpty) return false;
-  return deviceId == 'phd2_guider' ||
-      deviceId == 'phd2' ||
-      deviceId.startsWith('phd2:') ||
-      deviceId.startsWith('phd2://');
+  return isPhd2WireToken(deviceId);
 }
 
 /// Resolve PHD2 TCP host for local connections (avoids Windows localhost/IPv6).

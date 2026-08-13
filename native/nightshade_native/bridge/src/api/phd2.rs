@@ -88,6 +88,24 @@ pub fn api_is_phd2_running() -> bool {
     nightshade_imaging::is_phd2_running()
 }
 
+/// Canonical PHD2 guider device id.
+///
+/// PHD2 lives in two independent registries and this constant is the join key
+/// between them:
+///
+/// * the **client registry** (`PHD2_CLIENT` below) owns the live TCP client and
+///   answers "can I issue an RPC right now";
+/// * the **guider-state registry** (`AppState.devices`, written by
+///   `api_phd2_connect` / `api_phd2_disconnect`) answers "is a guider
+///   connected" for `get_active_guider_id_for_ops` and the storage API.
+///
+/// The two are deliberately separate — see the module note on
+/// `resolve_guider_backend` — but they must agree on the id, which is why every
+/// PHD2 site reads it from here instead of respelling the literal. The Dart
+/// side pins the same value as `kPhd2CanonicalId`
+/// (`packages/nightshade_core/lib/src/utils/device_id.dart:78`).
+pub(crate) const PHD2_DEVICE_ID: &str = "phd2_guider";
+
 /// Static PHD2 client storage
 pub(crate) static PHD2_CLIENT: OnceLock<Arc<RwLock<Option<nightshade_imaging::Phd2Client>>>> =
     OnceLock::new();
@@ -95,6 +113,53 @@ pub(crate) static PHD2_CLIENT: OnceLock<Arc<RwLock<Option<nightshade_imaging::Ph
 #[flutter_rust_bridge::frb(ignore)]
 pub fn get_phd2_storage() -> &'static Arc<RwLock<Option<nightshade_imaging::Phd2Client>>> {
     PHD2_CLIENT.get_or_init(|| Arc::new(RwLock::new(None)))
+}
+
+/// The PHD2 **client registry** accessor: take the write lock and hand back the
+/// live client, or the `NotConnected("PHD2")` error that every PHD2 entry point
+/// used to build inline (21 verbatim copies of the same four lines).
+///
+/// The returned guard holds the write lock for as long as it is alive, exactly
+/// like the `let mut storage = …write().await` it replaces; drop it early where
+/// a long wait must not stall other PHD2 calls (see `api_phd2_dither`).
+async fn phd2_client() -> Result<
+    tokio::sync::RwLockMappedWriteGuard<'static, nightshade_imaging::Phd2Client>,
+    NightshadeError,
+> {
+    let storage = get_phd2_storage().write().await;
+    tokio::sync::RwLockWriteGuard::try_map(storage, |slot| slot.as_mut())
+        .map_err(|_| NightshadeError::NotConnected("PHD2".to_string()))
+}
+
+/// Which guider backend owns a guider device id.
+///
+/// This is the **guider-state registry** half of the PHD2 split: the mapping
+/// from a device id to the backend that services it. Every `api_guider_*` entry
+/// point re-derived it with the same two-armed if-chain and the same trailing
+/// error string; they all resolve through [`resolve_guider_backend`] now, so a
+/// third backend is a single new arm rather than eleven.
+enum GuiderBackend {
+    Phd2,
+    Builtin,
+}
+
+/// Resolve a guider device id to its backend.
+///
+/// Order matters and is preserved from the retired copies: PHD2 ids are matched
+/// first (they have four spellings — see `is_phd2_device_id`), then the built-in
+/// guider's single id; anything else is the same `Unsupported guider device`
+/// error the copies produced.
+fn resolve_guider_backend(device_id: &str) -> Result<GuiderBackend, NightshadeError> {
+    if is_phd2_device_id(device_id) {
+        return Ok(GuiderBackend::Phd2);
+    }
+    if device_id == crate::builtin_guider::device_id() {
+        return Ok(GuiderBackend::Builtin);
+    }
+    Err(NightshadeError::OperationFailed(format!(
+        "Unsupported guider device: {}",
+        device_id
+    )))
 }
 
 #[flutter_rust_bridge::frb(ignore)]
@@ -109,10 +174,10 @@ pub async fn get_active_guider_id_for_ops() -> Option<String> {
         return Some(crate::builtin_guider::device_id().to_string());
     }
     if get_state()
-        .is_device_connected(DeviceType::Guider, "phd2_guider")
+        .is_device_connected(DeviceType::Guider, PHD2_DEVICE_ID)
         .await
     {
-        return Some("phd2_guider".to_string());
+        return Some(PHD2_DEVICE_ID.to_string());
     }
     get_state()
         .get_devices(DeviceType::Guider)
@@ -280,13 +345,13 @@ pub async fn api_phd2_connect(
 
     client
         .connect()
-        .map_err(|e| NightshadeError::connection_failed("phd2_guider", format!("PHD2: {}", e)))?;
+        .map_err(|e| NightshadeError::connection_failed(PHD2_DEVICE_ID, format!("PHD2: {}", e)))?;
 
     client
         .wait_until_ready(Duration::from_secs(10))
         .map_err(|e| {
             client.disconnect();
-            NightshadeError::connection_failed("phd2_guider", format!("PHD2: {}", e))
+            NightshadeError::connection_failed(PHD2_DEVICE_ID, format!("PHD2: {}", e))
         })?;
 
     // Store the client
@@ -296,7 +361,7 @@ pub async fn api_phd2_connect(
     // Register PHD2 as a connected guider device in AppState
     // This ensures api_get_connected_devices() returns the guider
     let phd2_device_info = DeviceInfo {
-        id: "phd2_guider".to_string(),
+        id: PHD2_DEVICE_ID.to_string(),
         name: "PHD2".to_string(),
         device_type: DeviceType::Guider,
         driver_type: DriverType::Native,
@@ -325,7 +390,7 @@ pub async fn api_phd2_disconnect() -> Result<(), NightshadeError> {
 
     // Remove PHD2 from connected devices in AppState
     get_state()
-        .remove_device(DeviceType::Guider, "phd2_guider")
+        .remove_device(DeviceType::Guider, PHD2_DEVICE_ID)
         .await;
 
     get_state().publish_guiding_event(GuidingEvent::Disconnected, EventSeverity::Info);
@@ -339,10 +404,7 @@ pub async fn api_phd2_start_guiding(
     settle_time: f64,
     settle_timeout: f64,
 ) -> Result<(), NightshadeError> {
-    let mut storage = get_phd2_storage().write().await;
-    let client = storage
-        .as_mut()
-        .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
+    let mut client = phd2_client().await?;
 
     client
         .guide(settle_pixels, settle_time, settle_timeout)
@@ -355,10 +417,7 @@ pub async fn api_phd2_start_guiding(
 
 /// Stop guiding in PHD2
 pub async fn api_phd2_stop_guiding() -> Result<(), NightshadeError> {
-    let mut storage = get_phd2_storage().write().await;
-    let client = storage
-        .as_mut()
-        .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
+    let mut client = phd2_client().await?;
 
     client
         .stop_capture()
@@ -377,10 +436,7 @@ pub async fn api_phd2_dither(
     settle_time: f64,
     settle_timeout: f64,
 ) -> Result<(), NightshadeError> {
-    let mut storage = get_phd2_storage().write().await;
-    let client = storage
-        .as_mut()
-        .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
+    let mut client = phd2_client().await?;
 
     let ra_only_bool = ra_only != 0;
 
@@ -399,7 +455,7 @@ pub async fn api_phd2_dither(
         .map_err(|e| NightshadeError::OperationFailed(format!("Failed to dither: {}", e)))?;
 
     // Release the storage write-lock before waiting for settle.
-    drop(storage);
+    drop(client);
 
     get_state().publish_guiding_event(
         GuidingEvent::DitherStarted { pixels: amount },
@@ -427,10 +483,7 @@ pub async fn api_phd2_dither(
 
 /// Get PHD2 status
 pub async fn api_phd2_get_status() -> Result<Phd2Status, NightshadeError> {
-    let mut storage = get_phd2_storage().write().await;
-    let client = storage
-        .as_mut()
-        .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
+    let mut client = phd2_client().await?;
 
     let state = client.get_app_state().map_err(|e| {
         NightshadeError::OperationFailed(format!("Failed to get PHD2 state: {}", e))
@@ -481,10 +534,7 @@ pub async fn api_phd2_get_status() -> Result<Phd2Status, NightshadeError> {
 
 /// Get PHD2 star image with metadata
 pub async fn api_phd2_get_star_image(size: u32) -> Result<Phd2StarImage, NightshadeError> {
-    let mut storage = get_phd2_storage().write().await;
-    let client = storage
-        .as_mut()
-        .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
+    let mut client = phd2_client().await?;
 
     let image_data = client.get_star_image_data(size).map_err(|e| {
         NightshadeError::OperationFailed(format!("Failed to get star image: {}", e))
@@ -502,10 +552,7 @@ pub async fn api_phd2_get_star_image(size: u32) -> Result<Phd2StarImage, Nightsh
 
 /// Get PHD2 algorithm parameter names for an axis
 pub async fn api_phd2_get_algo_param_names(axis: String) -> Result<Vec<String>, NightshadeError> {
-    let mut storage = get_phd2_storage().write().await;
-    let client = storage
-        .as_mut()
-        .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
+    let mut client = phd2_client().await?;
 
     client.get_algo_param_names(&axis).map_err(|e| {
         NightshadeError::OperationFailed(format!("Failed to get algo param names: {}", e))
@@ -514,10 +561,7 @@ pub async fn api_phd2_get_algo_param_names(axis: String) -> Result<Vec<String>, 
 
 /// Get PHD2 algorithm parameter value
 pub async fn api_phd2_get_algo_param(axis: String, name: String) -> Result<f64, NightshadeError> {
-    let mut storage = get_phd2_storage().write().await;
-    let client = storage
-        .as_mut()
-        .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
+    let mut client = phd2_client().await?;
 
     client
         .get_algo_param(&axis, &name)
@@ -530,10 +574,7 @@ pub async fn api_phd2_set_algo_param(
     name: String,
     value: f64,
 ) -> Result<(), NightshadeError> {
-    let mut storage = get_phd2_storage().write().await;
-    let client = storage
-        .as_mut()
-        .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
+    let mut client = phd2_client().await?;
 
     client
         .set_algo_param(&axis, &name, value)
@@ -544,10 +585,7 @@ pub async fn api_phd2_set_algo_param(
 pub async fn api_phd2_get_all_algo_params(
     axis: String,
 ) -> Result<Vec<Phd2AlgoParam>, NightshadeError> {
-    let mut storage = get_phd2_storage().write().await;
-    let client = storage
-        .as_mut()
-        .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
+    let mut client = phd2_client().await?;
 
     let params = client.get_all_algo_params(&axis).map_err(|e| {
         NightshadeError::OperationFailed(format!("Failed to get all algo params: {}", e))
@@ -564,10 +602,7 @@ pub async fn api_phd2_get_all_algo_params(
 
 /// Pause or resume PHD2 guiding
 pub async fn api_phd2_set_paused(paused: bool) -> Result<(), NightshadeError> {
-    let mut storage = get_phd2_storage().write().await;
-    let client = storage
-        .as_mut()
-        .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
+    let mut client = phd2_client().await?;
 
     client
         .set_paused(paused)
@@ -587,10 +622,7 @@ pub async fn api_phd2_set_paused(paused: bool) -> Result<(), NightshadeError> {
 
 /// Clear PHD2 calibration
 pub async fn api_phd2_clear_calibration(which: String) -> Result<(), NightshadeError> {
-    let mut storage = get_phd2_storage().write().await;
-    let client = storage
-        .as_mut()
-        .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
+    let mut client = phd2_client().await?;
 
     client.clear_calibration(&which).map_err(|e| {
         NightshadeError::OperationFailed(format!("Failed to clear calibration: {}", e))
@@ -599,10 +631,7 @@ pub async fn api_phd2_clear_calibration(which: String) -> Result<(), NightshadeE
 
 /// Flip PHD2 calibration (after meridian flip)
 pub async fn api_phd2_flip_calibration() -> Result<(), NightshadeError> {
-    let mut storage = get_phd2_storage().write().await;
-    let client = storage
-        .as_mut()
-        .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
+    let mut client = phd2_client().await?;
 
     client
         .flip_calibration()
@@ -612,10 +641,7 @@ pub async fn api_phd2_flip_calibration() -> Result<(), NightshadeError> {
 /// Get PHD2 calibration data
 /// Returns calibration info including whether calibrated and calibration parameters
 pub async fn api_phd2_get_calibration_data() -> Result<Phd2CalibrationData, NightshadeError> {
-    let mut storage = get_phd2_storage().write().await;
-    let client = storage
-        .as_mut()
-        .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
+    let mut client = phd2_client().await?;
 
     // PHD2's get_calibration_data `which` param only accepts "Mount" or "AO"
     // (default "Mount") — there is no "both", and passing it makes PHD2 reject
@@ -660,10 +686,7 @@ pub async fn api_phd2_get_calibration_data() -> Result<Phd2CalibrationData, Nigh
 
 /// Find a guide star automatically
 pub async fn api_phd2_find_star() -> Result<(f64, f64), NightshadeError> {
-    let mut storage = get_phd2_storage().write().await;
-    let client = storage
-        .as_mut()
-        .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
+    let mut client = phd2_client().await?;
 
     client
         .find_star()
@@ -676,10 +699,7 @@ pub async fn api_phd2_set_lock_position(
     y: f64,
     exact: bool,
 ) -> Result<(), NightshadeError> {
-    let mut storage = get_phd2_storage().write().await;
-    let client = storage
-        .as_mut()
-        .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
+    let mut client = phd2_client().await?;
 
     client.set_lock_position(x, y, exact).map_err(|e| {
         NightshadeError::OperationFailed(format!("Failed to set lock position: {}", e))
@@ -688,10 +708,7 @@ pub async fn api_phd2_set_lock_position(
 
 /// Get current guide star lock position
 pub async fn api_phd2_get_lock_position() -> Result<(f64, f64), NightshadeError> {
-    let mut storage = get_phd2_storage().write().await;
-    let client = storage
-        .as_mut()
-        .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
+    let mut client = phd2_client().await?;
 
     client.get_lock_position().map_err(|e| {
         NightshadeError::OperationFailed(format!("Failed to get lock position: {}", e))
@@ -700,10 +717,7 @@ pub async fn api_phd2_get_lock_position() -> Result<(f64, f64), NightshadeError>
 
 /// Start looping exposures (without guiding)
 pub async fn api_phd2_loop() -> Result<(), NightshadeError> {
-    let mut storage = get_phd2_storage().write().await;
-    let client = storage
-        .as_mut()
-        .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
+    let mut client = phd2_client().await?;
 
     client
         .loop_exposures()
@@ -712,10 +726,7 @@ pub async fn api_phd2_loop() -> Result<(), NightshadeError> {
 
 /// Deselect the current guide star
 pub async fn api_phd2_deselect_star() -> Result<(), NightshadeError> {
-    let mut storage = get_phd2_storage().write().await;
-    let client = storage
-        .as_mut()
-        .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
+    let mut client = phd2_client().await?;
 
     client
         .deselect_star()
@@ -724,10 +735,7 @@ pub async fn api_phd2_deselect_star() -> Result<(), NightshadeError> {
 
 /// Get PHD2 guide exposure time (ms)
 pub async fn api_phd2_get_exposure() -> Result<u32, NightshadeError> {
-    let mut storage = get_phd2_storage().write().await;
-    let client = storage
-        .as_mut()
-        .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
+    let mut client = phd2_client().await?;
 
     client
         .get_exposure()
@@ -736,10 +744,7 @@ pub async fn api_phd2_get_exposure() -> Result<u32, NightshadeError> {
 
 /// Set PHD2 guide exposure time (ms)
 pub async fn api_phd2_set_exposure(exposure_ms: u32) -> Result<(), NightshadeError> {
-    let mut storage = get_phd2_storage().write().await;
-    let client = storage
-        .as_mut()
-        .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
+    let mut client = phd2_client().await?;
 
     client
         .set_exposure(exposure_ms)
@@ -748,10 +753,7 @@ pub async fn api_phd2_set_exposure(exposure_ms: u32) -> Result<(), NightshadeErr
 
 /// Get current PHD2 profile name
 pub async fn api_phd2_get_profile() -> Result<String, NightshadeError> {
-    let mut storage = get_phd2_storage().write().await;
-    let client = storage
-        .as_mut()
-        .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
+    let mut client = phd2_client().await?;
 
     client
         .get_profile()
@@ -770,30 +772,21 @@ pub async fn api_guider_start_guiding(
     settle_time: f64,
     settle_timeout: f64,
 ) -> Result<(), NightshadeError> {
-    if is_phd2_device_id(&device_id) {
-        return api_phd2_start_guiding(settle_pixels, settle_time, settle_timeout).await;
+    match resolve_guider_backend(&device_id)? {
+        GuiderBackend::Phd2 => {
+            api_phd2_start_guiding(settle_pixels, settle_time, settle_timeout).await
+        }
+        GuiderBackend::Builtin => {
+            crate::builtin_guider::start_guiding(settle_pixels, settle_time, settle_timeout).await
+        }
     }
-    if device_id == crate::builtin_guider::device_id() {
-        return crate::builtin_guider::start_guiding(settle_pixels, settle_time, settle_timeout)
-            .await;
-    }
-    Err(NightshadeError::OperationFailed(format!(
-        "Unsupported guider device: {}",
-        device_id
-    )))
 }
 
 pub async fn api_guider_stop(device_id: String) -> Result<(), NightshadeError> {
-    if is_phd2_device_id(&device_id) {
-        return api_phd2_stop_guiding().await;
+    match resolve_guider_backend(&device_id)? {
+        GuiderBackend::Phd2 => api_phd2_stop_guiding().await,
+        GuiderBackend::Builtin => crate::builtin_guider::stop().await,
     }
-    if device_id == crate::builtin_guider::device_id() {
-        return crate::builtin_guider::stop().await;
-    }
-    Err(NightshadeError::OperationFailed(format!(
-        "Unsupported guider device: {}",
-        device_id
-    )))
 }
 
 pub async fn api_guider_dither(
@@ -804,49 +797,35 @@ pub async fn api_guider_dither(
     settle_time: f64,
     settle_timeout: f64,
 ) -> Result<(), NightshadeError> {
-    if is_phd2_device_id(&device_id) {
-        return api_phd2_dither(amount, ra_only, settle_pixels, settle_time, settle_timeout).await;
+    match resolve_guider_backend(&device_id)? {
+        GuiderBackend::Phd2 => {
+            api_phd2_dither(amount, ra_only, settle_pixels, settle_time, settle_timeout).await
+        }
+        GuiderBackend::Builtin => {
+            crate::builtin_guider::dither(
+                amount,
+                ra_only != 0,
+                settle_pixels,
+                settle_time,
+                settle_timeout,
+            )
+            .await
+        }
     }
-    if device_id == crate::builtin_guider::device_id() {
-        return crate::builtin_guider::dither(
-            amount,
-            ra_only != 0,
-            settle_pixels,
-            settle_time,
-            settle_timeout,
-        )
-        .await;
-    }
-    Err(NightshadeError::OperationFailed(format!(
-        "Unsupported guider device: {}",
-        device_id
-    )))
 }
 
 pub async fn api_guider_loop(device_id: String) -> Result<(), NightshadeError> {
-    if is_phd2_device_id(&device_id) {
-        return api_phd2_loop().await;
+    match resolve_guider_backend(&device_id)? {
+        GuiderBackend::Phd2 => api_phd2_loop().await,
+        GuiderBackend::Builtin => crate::builtin_guider::loop_exposures().await,
     }
-    if device_id == crate::builtin_guider::device_id() {
-        return crate::builtin_guider::loop_exposures().await;
-    }
-    Err(NightshadeError::OperationFailed(format!(
-        "Unsupported guider device: {}",
-        device_id
-    )))
 }
 
 pub async fn api_guider_find_star(device_id: String) -> Result<(f64, f64), NightshadeError> {
-    if is_phd2_device_id(&device_id) {
-        return api_phd2_find_star().await;
+    match resolve_guider_backend(&device_id)? {
+        GuiderBackend::Phd2 => api_phd2_find_star().await,
+        GuiderBackend::Builtin => crate::builtin_guider::find_star().await,
     }
-    if device_id == crate::builtin_guider::device_id() {
-        return crate::builtin_guider::find_star().await;
-    }
-    Err(NightshadeError::OperationFailed(format!(
-        "Unsupported guider device: {}",
-        device_id
-    )))
 }
 
 pub async fn api_guider_set_lock_position(
@@ -855,73 +834,43 @@ pub async fn api_guider_set_lock_position(
     y: f64,
     exact: bool,
 ) -> Result<(), NightshadeError> {
-    if is_phd2_device_id(&device_id) {
-        return api_phd2_set_lock_position(x, y, exact).await;
+    match resolve_guider_backend(&device_id)? {
+        GuiderBackend::Phd2 => api_phd2_set_lock_position(x, y, exact).await,
+        GuiderBackend::Builtin => crate::builtin_guider::set_lock_position(x, y).await,
     }
-    if device_id == crate::builtin_guider::device_id() {
-        return crate::builtin_guider::set_lock_position(x, y).await;
-    }
-    Err(NightshadeError::OperationFailed(format!(
-        "Unsupported guider device: {}",
-        device_id
-    )))
 }
 
 pub async fn api_guider_get_lock_position(
     device_id: String,
 ) -> Result<(f64, f64), NightshadeError> {
-    if is_phd2_device_id(&device_id) {
-        return api_phd2_get_lock_position().await;
+    match resolve_guider_backend(&device_id)? {
+        GuiderBackend::Phd2 => api_phd2_get_lock_position().await,
+        GuiderBackend::Builtin => crate::builtin_guider::get_lock_position().await,
     }
-    if device_id == crate::builtin_guider::device_id() {
-        return crate::builtin_guider::get_lock_position().await;
-    }
-    Err(NightshadeError::OperationFailed(format!(
-        "Unsupported guider device: {}",
-        device_id
-    )))
 }
 
 pub async fn api_guider_deselect_star(device_id: String) -> Result<(), NightshadeError> {
-    if is_phd2_device_id(&device_id) {
-        return api_phd2_deselect_star().await;
+    match resolve_guider_backend(&device_id)? {
+        GuiderBackend::Phd2 => api_phd2_deselect_star().await,
+        GuiderBackend::Builtin => crate::builtin_guider::deselect_star().await,
     }
-    if device_id == crate::builtin_guider::device_id() {
-        return crate::builtin_guider::deselect_star().await;
-    }
-    Err(NightshadeError::OperationFailed(format!(
-        "Unsupported guider device: {}",
-        device_id
-    )))
 }
 
 pub async fn api_guider_get_star_image(
     device_id: String,
     size: u32,
 ) -> Result<Phd2StarImage, NightshadeError> {
-    if is_phd2_device_id(&device_id) {
-        return api_phd2_get_star_image(size).await;
+    match resolve_guider_backend(&device_id)? {
+        GuiderBackend::Phd2 => api_phd2_get_star_image(size).await,
+        GuiderBackend::Builtin => crate::builtin_guider::get_star_image(size).await,
     }
-    if device_id == crate::builtin_guider::device_id() {
-        return crate::builtin_guider::get_star_image(size).await;
-    }
-    Err(NightshadeError::OperationFailed(format!(
-        "Unsupported guider device: {}",
-        device_id
-    )))
 }
 
 pub async fn api_guider_get_status(device_id: String) -> Result<Phd2Status, NightshadeError> {
-    if is_phd2_device_id(&device_id) {
-        return api_phd2_get_status().await;
+    match resolve_guider_backend(&device_id)? {
+        GuiderBackend::Phd2 => api_phd2_get_status().await,
+        GuiderBackend::Builtin => crate::builtin_guider::get_status().await,
     }
-    if device_id == crate::builtin_guider::device_id() {
-        return crate::builtin_guider::get_status().await;
-    }
-    Err(NightshadeError::OperationFailed(format!(
-        "Unsupported guider device: {}",
-        device_id
-    )))
 }
 
 /// Unified accessor for calibration data across all guider backends.
@@ -929,16 +878,10 @@ pub async fn api_guider_get_status(device_id: String) -> Result<Phd2Status, Nigh
 pub async fn api_guider_get_calibration(
     device_id: String,
 ) -> Result<Phd2CalibrationData, NightshadeError> {
-    if is_phd2_device_id(&device_id) {
-        return api_phd2_get_calibration_data().await;
+    match resolve_guider_backend(&device_id)? {
+        GuiderBackend::Phd2 => api_phd2_get_calibration_data().await,
+        GuiderBackend::Builtin => crate::builtin_guider::get_calibration_data().await,
     }
-    if device_id == crate::builtin_guider::device_id() {
-        return crate::builtin_guider::get_calibration_data().await;
-    }
-    Err(NightshadeError::OperationFailed(format!(
-        "Unsupported guider device: {}",
-        device_id
-    )))
 }
 
 // =============================================================================
@@ -1021,4 +964,114 @@ pub struct BuiltinGuiderConfig {
     pub settle_sleep_ms: u64,
     pub min_pulse_ms: f64,
     pub max_pulse_ms: f64,
+}
+
+// =============================================================================
+// PARITY TESTS FOR THE PHD2 REGISTRY SPLIT
+// =============================================================================
+//
+// These pin the exact outputs the retired inline copies produced, so the two
+// registries cannot drift back together:
+//
+//   * `resolve_guider_backend` replaced eleven verbatim copies of the
+//     phd2-then-builtin-then-error if-chain in the `api_guider_*` entry points.
+//   * `phd2_client` replaced twenty-one verbatim copies of
+//     `get_phd2_storage().write().await` + `.as_mut().ok_or_else(…)`.
+//   * `PHD2_DEVICE_ID` replaced the `"phd2_guider"` literal in `api/phd2.rs`
+//     (×5), `api/connection.rs` and `api/discovery.rs`.
+#[cfg(test)]
+mod registry_split_tests {
+    use super::*;
+
+    fn backend_name(device_id: &str) -> Result<&'static str, String> {
+        match resolve_guider_backend(device_id) {
+            Ok(GuiderBackend::Phd2) => Ok("phd2"),
+            Ok(GuiderBackend::Builtin) => Ok("builtin"),
+            Err(NightshadeError::OperationFailed(msg)) => Err(msg),
+            Err(other) => panic!("unexpected error variant: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn phd2_device_id_is_the_canonical_wire_id() {
+        // The Dart side hard-codes the same string as `kPhd2CanonicalId`; the
+        // guider-state registry (AppState) and the client registry join on it.
+        assert_eq!(PHD2_DEVICE_ID, "phd2_guider");
+        assert!(is_phd2_device_id(PHD2_DEVICE_ID));
+    }
+
+    #[test]
+    fn every_phd2_id_spelling_resolves_to_the_phd2_backend() {
+        // Same four spellings `is_phd2_device_id` accepts and that
+        // device_manager/tests.rs pins for the disconnect route.
+        for id in [
+            "phd2_guider",
+            "phd2",
+            "phd2:localhost:4400",
+            "phd2://host",
+            "phd2:", // degenerate prefix form — still PHD2, as before
+        ] {
+            assert_eq!(backend_name(id), Ok("phd2"), "id {id} must route to PHD2");
+        }
+    }
+
+    #[test]
+    fn builtin_guider_id_resolves_to_the_builtin_backend() {
+        assert_eq!(
+            backend_name(crate::builtin_guider::device_id()),
+            Ok("builtin")
+        );
+    }
+
+    #[test]
+    fn unknown_ids_reproduce_the_retired_error_string_verbatim() {
+        // The eleven retired copies all built this exact message. Edge cases:
+        // the empty id, a near-miss that must NOT be treated as PHD2, and an
+        // unrelated device id.
+        assert_eq!(
+            backend_name(""),
+            Err("Unsupported guider device: ".to_string())
+        );
+        assert_eq!(
+            backend_name("phd2x-not-really-phd2"),
+            Err("Unsupported guider device: phd2x-not-really-phd2".to_string())
+        );
+        assert_eq!(
+            backend_name("ascom:ASCOM.Simulator.Camera"),
+            Err("Unsupported guider device: ascom:ASCOM.Simulator.Camera".to_string())
+        );
+        // Case matters exactly as it did before: the copies compared with `==`
+        // and `starts_with`, never case-insensitively.
+        assert_eq!(
+            backend_name("PHD2_GUIDER"),
+            Err("Unsupported guider device: PHD2_GUIDER".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn client_registry_reports_not_connected_when_no_client_is_stored() {
+        // No PHD2 server exists in the test process, so the client slot is
+        // empty and the accessor must produce the identical error the twenty-one
+        // inline copies produced: NotConnected("PHD2") — not the device id.
+        assert!(get_phd2_storage().read().await.is_none());
+        match phd2_client().await {
+            Ok(_) => panic!("expected NotConnected with no PHD2 client stored"),
+            Err(NightshadeError::NotConnected(who)) => assert_eq!(who, "PHD2"),
+            Err(other) => panic!("unexpected error variant: {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn client_registry_releases_the_write_lock_on_the_error_path() {
+        // `try_map` hands the guard back inside its Err, which is dropped with
+        // the error. If it leaked, this second acquisition would deadlock.
+        let _ = phd2_client().await;
+        let guard = tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            get_phd2_storage().write(),
+        )
+        .await
+        .expect("write lock must be free after a failed phd2_client()");
+        assert!(guard.is_none());
+    }
 }

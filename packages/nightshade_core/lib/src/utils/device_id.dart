@@ -113,7 +113,7 @@ class DeviceId {
     }
 
     // PHD2 in any of its representations.
-    if (_isPhd2Token(lower)) {
+    if (isPhd2WireToken(lower)) {
       return DeviceId._(raw, DeviceDriverKind.phd2, const <String>[]);
     }
 
@@ -219,11 +219,24 @@ class DeviceId {
   String toString() => 'DeviceId(${kind.name}, $canonical)';
 }
 
-bool _isPhd2Token(String lower) =>
-    lower == 'phd2_guider' ||
-    lower == 'phd2' ||
-    lower.startsWith('phd2:') ||
-    lower.startsWith('phd2://');
+/// The four spellings a PHD2 guider id can take, checked against [token]
+/// EXACTLY as given — no trimming, no case folding.
+///
+/// This is the single source of truth for the token list itself; the Rust side
+/// pins the same four forms in `api/connection.rs:is_phd2_device_id`. Callers
+/// choose their own normalization:
+///
+/// * [isPhd2DeviceId] trims and lower-cases first (so `'  PHD2  '` matches);
+/// * `isPhd2GuiderDeviceId` (`services/phd2_status_poll.dart`) does not, because
+///   it screens ids that arrived over the wire already canonical.
+///
+/// Deliberately NOT exported from the package barrel: the normalizing wrappers
+/// are the public API, and a raw token check is easy to misuse.
+bool isPhd2WireToken(String token) =>
+    token == 'phd2_guider' ||
+    token == 'phd2' ||
+    token.startsWith('phd2:') ||
+    token.startsWith('phd2://');
 
 /// Returns `true` if [deviceId] looks like a Nightshade-formatted device id.
 ///
@@ -255,7 +268,7 @@ bool isValidDeviceIdFormat(String deviceId) {
 /// the original (untrimmed, original-case) string for non-PHD2 ids — which is
 /// exactly what the old `equipment_screen._canonicalGuiderId` did.
 String canonicalGuiderId(String id) {
-  if (_isPhd2Token(id.toLowerCase())) return kPhd2CanonicalId;
+  if (isPhd2WireToken(id.toLowerCase())) return kPhd2CanonicalId;
   return id;
 }
 
@@ -263,7 +276,7 @@ String canonicalGuiderId(String id) {
 /// `phd2:host:port`, `phd2://…`). Single source of truth for the PHD2
 /// short-circuit that previously lived inline in `DeviceService`,
 /// `profile_sidebar`, and `equipment_screen`.
-bool isPhd2DeviceId(String id) => _isPhd2Token(id.trim().toLowerCase());
+bool isPhd2DeviceId(String id) => isPhd2WireToken(id.trim().toLowerCase());
 
 /// Derive a human-readable name from a device id WITHOUT running discovery.
 ///
@@ -335,7 +348,7 @@ bool _fuzzyDeviceIdsMatch(String profileId, String connectedId) {
   // PHD2 fast path (mirrors the original inline short-circuit). Canonical
   // equality in DeviceId.matches already covers this, but a standalone fuzzy
   // matcher must remain correct on its own.
-  if (_isPhd2Token(p) && _isPhd2Token(c)) return true;
+  if (isPhd2WireToken(p) && isPhd2WireToken(c)) return true;
 
   // Direct match
   if (p == c) return true;

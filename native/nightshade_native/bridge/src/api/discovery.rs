@@ -796,7 +796,7 @@ async fn scan_native_for_type(device_type: DeviceType) -> Result<Vec<DeviceInfo>
                 is_installed
             );
             out.push(DeviceInfo {
-                id: "phd2_guider".to_string(),
+                id: crate::api::phd2::PHD2_DEVICE_ID.to_string(),
                 name: "PHD2 Guiding".to_string(),
                 device_type: DeviceType::Guider,
                 driver_type: DriverType::Native,
