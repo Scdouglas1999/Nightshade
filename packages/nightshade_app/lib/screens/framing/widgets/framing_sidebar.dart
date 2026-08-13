@@ -8,6 +8,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 
 import 'package:nightshade_app/utils/snackbar_helper.dart';
 import '../../../widgets/tutorial_keys/framing_keys.dart';
+import '../../accessible_dropdown.dart';
 import '../altitude_chart.dart';
 import '../framing_search_provider.dart';
 import 'framing_actions_panel.dart';

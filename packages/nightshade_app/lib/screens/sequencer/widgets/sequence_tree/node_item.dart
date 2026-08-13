@@ -253,7 +253,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                     border: Border.all(color: widget.colors.border),
                   ),
                   child: DropdownButtonHideUnderline(
-                    child: DropdownButton<SnippetCategory>(
+                    child: AccessibleDropdown<SnippetCategory>(
                       value: selectedCategory,
                       isExpanded: true,
                       dropdownColor: widget.colors.surfaceOverlay,

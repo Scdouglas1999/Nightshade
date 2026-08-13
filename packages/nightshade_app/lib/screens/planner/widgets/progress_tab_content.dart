@@ -4,6 +4,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../accessible_dropdown.dart';
+
 /// Sort options for the Progress tab. Persisted via [_progressSortProvider]
 /// so a user's preference survives flipping back and forth between tabs.
 enum ProgressSort {
@@ -204,7 +206,7 @@ class _SortBar extends StatelessWidget {
               border: Border.all(color: colors.border),
             ),
             child: DropdownButtonHideUnderline(
-              child: DropdownButton<ProgressSort>(
+              child: AccessibleDropdown<ProgressSort>(
                 value: sort,
                 isDense: true,
                 style: TextStyle(

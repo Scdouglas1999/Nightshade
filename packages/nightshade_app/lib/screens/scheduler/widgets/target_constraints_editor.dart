@@ -16,6 +16,8 @@ import 'package:nightshade_core/src/services/scheduler/integration_goal_service.
     show horizonProfilesSchemaSql;
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../accessible_dropdown.dart';
+
 part 'target_constraints_editor/constraint_rows.dart';
 part 'target_constraints_editor/constraint_fields.dart';
 part 'target_constraints_editor/add_constraint_wizard_dialog.dart';

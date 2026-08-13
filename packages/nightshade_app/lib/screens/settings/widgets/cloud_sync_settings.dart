@@ -20,6 +20,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../utils/confirm_dialog.dart';
 import '../../../utils/snackbar_helper.dart';
+import '../../accessible_dropdown.dart';
 
 class CloudSyncCard extends ConsumerStatefulWidget {
   const CloudSyncCard({super.key});
@@ -382,7 +383,7 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  DropdownButtonFormField<SyncProvider>(
+                  AccessibleDropdownFormField<SyncProvider>(
                     initialValue: _provider,
                     decoration: const InputDecoration(
                       labelText: 'Provider',

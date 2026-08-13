@@ -226,7 +226,7 @@ class _HorizonField extends StatelessWidget {
             fontSize: NightshadeTypography.fontSize12, color: colors.warning),
       );
     }
-    return DropdownButton<int>(
+    return AccessibleDropdown<int>(
       value: selectedId,
       isExpanded: true,
       hint: const Text('Choose horizon profile'),

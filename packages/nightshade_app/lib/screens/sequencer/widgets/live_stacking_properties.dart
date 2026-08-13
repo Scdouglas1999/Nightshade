@@ -11,6 +11,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../widgets/sequence/variable_picker.dart';
+import '../../accessible_dropdown.dart';
 
 class LiveStackingProperties extends ConsumerStatefulWidget {
   final NightshadeColors colors;
@@ -176,7 +177,7 @@ class _LiveStackingPropertiesState
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _sectionLabel(theme, 'Broadcast mode'),
-        DropdownButtonFormField<LiveStackingMode>(
+        AccessibleDropdownFormField<LiveStackingMode>(
           initialValue: node.mode,
           items: LiveStackingMode.values
               .map((m) => DropdownMenuItem(
@@ -198,7 +199,7 @@ class _LiveStackingPropertiesState
         ),
         const SizedBox(height: 16),
         _sectionLabel(theme, 'Stack combine method'),
-        DropdownButtonFormField<LiveStackingMethod>(
+        AccessibleDropdownFormField<LiveStackingMethod>(
           initialValue: node.stackMethod,
           items: LiveStackingMethod.values
               .map((m) => DropdownMenuItem(

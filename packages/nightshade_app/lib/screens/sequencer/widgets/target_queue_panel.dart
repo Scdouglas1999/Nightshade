@@ -28,6 +28,7 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../utils/add_target_header_helper.dart';
+import '../../accessible_dropdown.dart';
 import 'target_header_card.dart';
 
 /// Drag payload type carried by `Draggable<TargetQueueDragPayload>` from
@@ -580,7 +581,7 @@ class _Dropdown<T> extends StatelessWidget {
             const SizedBox(width: 6),
             Expanded(
               child: DropdownButtonHideUnderline(
-                child: DropdownButton<T>(
+                child: AccessibleDropdown<T>(
                   value: value,
                   isDense: true,
                   isExpanded: true,

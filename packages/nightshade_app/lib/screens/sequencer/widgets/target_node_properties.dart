@@ -5,6 +5,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../accessible_dropdown.dart';
 import 'framing_assistant_inline.dart';
 import 'node_property_widgets.dart';
 import 'target_coordinates.dart';

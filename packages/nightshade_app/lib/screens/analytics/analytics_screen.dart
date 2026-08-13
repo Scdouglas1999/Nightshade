@@ -24,6 +24,7 @@ import '../../localization/nightshade_localizations.dart';
 import '../../utils/snackbar_helper.dart';
 import '../../widgets/contextual_tour_prompt.dart';
 import '../../widgets/tutorial_keys/analytics_keys.dart';
+import '../accessible_dropdown.dart';
 import '../diagnostics/diagnostics_screen.dart';
 import '../science/science_screen.dart';
 import '../sequencer/widgets/session_report_dialog.dart';

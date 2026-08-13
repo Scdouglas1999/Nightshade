@@ -190,7 +190,7 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
                         border: Border.all(color: colors.border),
                       ),
                       child: DropdownButtonHideUnderline(
-                        child: DropdownButton<int>(
+                        child: AccessibleDropdown<int>(
                           value: _binning,
                           isExpanded: true,
                           padding: const EdgeInsets.symmetric(horizontal: 12),

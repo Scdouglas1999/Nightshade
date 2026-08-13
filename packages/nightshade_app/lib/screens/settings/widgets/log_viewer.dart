@@ -12,6 +12,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../../services/file_download_service.dart';
 import '../../../utils/exported_file_reveal.dart';
+import '../../accessible_dropdown.dart';
 
 /// What a log export covers.
 enum LogExportScope {
@@ -939,7 +940,7 @@ class _LogViewerState extends ConsumerState<LogViewer>
         border: Border.all(color: colors.border),
       ),
       child: DropdownButtonHideUnderline(
-        child: DropdownButton<String?>(
+        child: AccessibleDropdown<String?>(
           value: _sourceFilter,
           isDense: true,
           hint: Text(

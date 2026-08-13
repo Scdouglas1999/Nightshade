@@ -129,7 +129,7 @@ class _TriggerBuilder extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        DropdownButton<String>(
+        AccessibleDropdown<String>(
           isExpanded: true,
           value: _kindKey(trigger),
           dropdownColor: colors.surfaceAlt,

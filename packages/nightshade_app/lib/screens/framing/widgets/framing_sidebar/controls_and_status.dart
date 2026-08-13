@@ -144,7 +144,7 @@ class FramingControlsSection extends ConsumerWidget {
             borderRadius: NightshadeTokens.borderRadiusMd,
             border: Border.all(color: colors.border),
           ),
-          child: DropdownButton<SurveySource>(
+          child: AccessibleDropdown<SurveySource>(
             value: framingState.surveySource,
             isExpanded: true,
             underline: const SizedBox(),

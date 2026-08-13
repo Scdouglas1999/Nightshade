@@ -140,7 +140,7 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
               Text('Minimum severity',
                   style: TextStyle(color: c.textSecondary)),
               const SizedBox(height: 6),
-              DropdownButton<EventSeverity>(
+              AccessibleDropdown<EventSeverity>(
                 value: _minSeverity,
                 isDense: true,
                 items: EventSeverity.values

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../accessible_dropdown.dart';
 import 'adaptive_chart_container.dart';
 
 /// Lowest / highest elevation the surface can be tipped to, in radians.
@@ -290,7 +291,7 @@ class _ScienceSurfaceExplorerState extends State<ScienceSurfaceExplorer> {
                 ),
                 const Spacer(),
                 if (layerNames.isNotEmpty)
-                  DropdownButton<String>(
+                  AccessibleDropdown<String>(
                     value: _selectedLayer,
                     items: layerNames
                         .map(

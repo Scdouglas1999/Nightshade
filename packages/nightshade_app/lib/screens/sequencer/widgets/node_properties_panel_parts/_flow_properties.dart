@@ -607,7 +607,7 @@ class _SafetyMonitorPicker extends ConsumerWidget {
           border: Border.all(color: colors.border),
         ),
         child: DropdownButtonHideUnderline(
-          child: DropdownButton<String>(
+          child: AccessibleDropdown<String>(
             value: selectedKey,
             isExpanded: true,
             icon: Icon(

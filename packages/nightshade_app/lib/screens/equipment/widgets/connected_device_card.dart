@@ -11,6 +11,7 @@ import '../../../utils/cooled_camera_guard.dart';
 import '../../../utils/device_format_utils.dart';
 import '../../../utils/snackbar_helper.dart';
 import '../../../widgets/troubleshooter/connection_troubleshooter_dialog.dart';
+import '../../accessible_dropdown.dart';
 import '../utils/device_error_subtitle.dart';
 
 part 'connected_device_card/status_and_display.dart';

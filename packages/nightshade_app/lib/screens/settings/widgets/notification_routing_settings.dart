@@ -23,6 +23,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../utils/user_facing_error.dart';
+import '../../accessible_dropdown.dart';
 import 'settings_widgets.dart';
 
 part 'notification_routing_settings/category_editor_dialog.dart';

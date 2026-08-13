@@ -71,7 +71,7 @@ class _FilterDropdown extends StatelessWidget {
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: DropdownButtonHideUnderline(
-        child: DropdownButton<int>(
+        child: AccessibleDropdown<int>(
           value: currentPosition != null &&
                   currentPosition! >= 0 &&
                   currentPosition! < filterNames.length

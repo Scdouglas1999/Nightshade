@@ -4,6 +4,7 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../utils/snackbar_helper.dart';
+import '../../accessible_dropdown.dart';
 
 /// Settings card for **live MPC orbital-element refresh** — fetching fresh
 /// minor-planet (MPCORB) and comet (CometEls) elements on a schedule.
@@ -189,7 +190,7 @@ class _ElementRefreshCardState extends ConsumerState<ElementRefreshCard> {
               ),
             ),
             const SizedBox(width: 12),
-            DropdownButton<ElementRefreshSchedule>(
+            AccessibleDropdown<ElementRefreshSchedule>(
               value: config.schedule,
               dropdownColor: colors.surface,
               style: TextStyle(

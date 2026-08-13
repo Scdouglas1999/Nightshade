@@ -14,6 +14,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../accessible_dropdown.dart';
 import 'node_property_widgets.dart';
 
 class SmartExposureProperties extends ConsumerWidget {
@@ -637,7 +638,7 @@ class _PlanRow extends StatelessWidget {
         border: Border.all(color: colors.border),
       ),
       child: DropdownButtonHideUnderline(
-        child: DropdownButton<int>(
+        child: AccessibleDropdown<int>(
           value: effectiveIndex,
           isExpanded: true,
           icon:

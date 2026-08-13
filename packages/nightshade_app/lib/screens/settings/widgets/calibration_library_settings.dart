@@ -6,6 +6,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../accessible_dropdown.dart';
 import 'settings_widgets.dart';
 
 /// Calibration Library Manager — the unified browse / tag / auto-match
@@ -173,7 +174,7 @@ class _CalibrationLibrarySettingsState
     return Row(
       children: [
         Expanded(
-          child: DropdownButtonFormField<CalibrationMasterType?>(
+          child: AccessibleDropdownFormField<CalibrationMasterType?>(
             initialValue: _typeFilter,
             decoration: const InputDecoration(
               labelText: 'Type',
@@ -542,7 +543,7 @@ class _CalibrationLibrarySettingsState
               const Text('Choose a reuse license. Anyone on your hub with a '
                   'matching sensor can then pull this master.'),
               const SizedBox(height: 12),
-              DropdownButtonFormField<ContributionLicense>(
+              AccessibleDropdownFormField<ContributionLicense>(
                 initialValue: license,
                 decoration: const InputDecoration(
                   labelText: 'License',

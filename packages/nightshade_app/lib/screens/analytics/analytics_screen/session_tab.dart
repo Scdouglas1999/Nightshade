@@ -720,7 +720,7 @@ class _SessionReviewBar extends StatelessWidget {
           const SizedBox(width: NightshadeTokens.spaceSm),
           Expanded(
             child: DropdownButtonHideUnderline(
-              child: DropdownButton<int>(
+              child: AccessibleDropdown<int>(
                 value: hasSelection ? selectedId : null,
                 isExpanded: true,
                 isDense: true,

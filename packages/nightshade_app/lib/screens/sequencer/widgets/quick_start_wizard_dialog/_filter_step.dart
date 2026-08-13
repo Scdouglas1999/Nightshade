@@ -256,7 +256,7 @@ extension _FilterStep on _QuickStartWizardDialogState {
             flex: 2,
             child: SizedBox(
               height: 32,
-              child: DropdownButtonFormField<BinningMode>(
+              child: AccessibleDropdownFormField<BinningMode>(
                 initialValue: config.binning,
                 dropdownColor: colors.surfaceAlt,
                 style: TextStyle(

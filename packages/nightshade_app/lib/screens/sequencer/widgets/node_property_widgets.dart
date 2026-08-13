@@ -8,6 +8,7 @@ import 'package:nightshade_core/nightshade_core.dart'
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../widgets/sequence/variable_picker.dart';
+import '../../accessible_dropdown.dart';
 
 /// Finite upper/lower fallback used when only one of `min`/`max` is supplied to
 /// a numeric field. Clamping against `double.infinity` let pathological values
@@ -678,7 +679,7 @@ class NodeDropdown<T> extends StatelessWidget {
         border: Border.all(color: colors.border),
       ),
       child: DropdownButtonHideUnderline(
-        child: DropdownButton<T>(
+        child: AccessibleDropdown<T>(
           value: value,
           isExpanded: true,
           icon: Icon(

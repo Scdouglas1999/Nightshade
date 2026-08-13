@@ -13,6 +13,7 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
 import '../../../utils/exported_file_reveal.dart';
+import '../../accessible_dropdown.dart';
 import '../analytics_screen.dart'
     show dbSessionImagesProvider, standaloneImagesProvider;
 import 'mpc_export_panel.dart';
@@ -207,7 +208,7 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
           const SizedBox(width: NightshadeTokens.spaceSm),
           Expanded(
             child: DropdownButtonHideUnderline(
-              child: DropdownButton<int>(
+              child: AccessibleDropdown<int>(
                 value: active?.id,
                 isExpanded: true,
                 isDense: true,

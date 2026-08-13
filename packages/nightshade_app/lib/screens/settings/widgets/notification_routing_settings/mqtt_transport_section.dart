@@ -130,7 +130,7 @@ class _MqttTransportSectionState extends ConsumerState<_MqttTransportSection> {
             SettingRow(
               icon: LucideIcons.shield,
               title: 'QoS',
-              trailing: DropdownButton<int>(
+              trailing: AccessibleDropdown<int>(
                 value: _qos,
                 items: const [
                   DropdownMenuItem(value: 0, child: Text('0 (at most once)')),

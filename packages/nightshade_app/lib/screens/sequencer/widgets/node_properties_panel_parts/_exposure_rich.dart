@@ -566,7 +566,7 @@ class _ExposureRichState extends ConsumerState<_ExposureProperties> {
                     border: Border.all(color: colors.border),
                   ),
                   child: DropdownButtonHideUnderline(
-                    child: DropdownButton<({int index, String name})>(
+                    child: AccessibleDropdown<({int index, String name})>(
                       value: currentFilter,
                       isExpanded: true,
                       icon: Icon(

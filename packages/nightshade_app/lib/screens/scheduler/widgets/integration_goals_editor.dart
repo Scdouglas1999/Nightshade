@@ -4,6 +4,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../accessible_dropdown.dart';
+
 /// Per-target integration-goals editor.
 ///
 /// One row per existing goal (filter, exposure seconds, frame count,
@@ -634,7 +636,7 @@ class _AddGoalRowState extends State<_AddGoalRow> {
         children: [
           SizedBox(
             width: 110,
-            child: DropdownButton<String>(
+            child: AccessibleDropdown<String>(
               isExpanded: true,
               value: _selectedFilter,
               hint: const Text('Filter'),

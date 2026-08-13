@@ -11,6 +11,7 @@ import '../../../utils/snackbar_helper.dart';
 import '../../../widgets/hardware/hardware_preset_picker_dialog.dart';
 import '../../../widgets/help/field_help_label.dart';
 import '../utils/profile_save_errors.dart';
+import '../../accessible_dropdown.dart';
 import '../../../utils/count_label.dart';
 
 part 'profile_editor_dialog/profile_data_operations.dart';

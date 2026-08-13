@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
+import '../../accessible_dropdown.dart';
+
 /// Provides descriptions for each stretch method, used in tooltips.
 const Map<AutoStretchMethod, String> _methodDescriptions = {
   AutoStretchMethod.stf:
@@ -503,7 +505,7 @@ class _MethodDropdown extends StatelessWidget {
           border: Border.all(color: colors.border),
         ),
         child: DropdownButtonHideUnderline(
-          child: DropdownButton<AutoStretchMethod>(
+          child: AccessibleDropdown<AutoStretchMethod>(
             value: value,
             isExpanded: isExpanded,
             isDense: true,

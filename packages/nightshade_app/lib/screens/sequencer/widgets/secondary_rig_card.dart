@@ -15,6 +15,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../accessible_dropdown.dart';
+
 class SecondaryRigCard extends ConsumerWidget {
   const SecondaryRigCard({super.key});
 
@@ -89,7 +91,7 @@ class SecondaryRigCard extends ConsumerWidget {
                         : config.cameraId != null && selectedId == null
                             ? 'The previously selected camera is unavailable.'
                             : null;
-                return DropdownButtonFormField<String>(
+                return AccessibleDropdownFormField<String>(
                   initialValue: selectedId,
                   isExpanded: true,
                   decoration: InputDecoration(
@@ -159,7 +161,7 @@ class SecondaryRigCard extends ConsumerWidget {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: DropdownButtonFormField<SecondaryDitherPolicy>(
+                  child: AccessibleDropdownFormField<SecondaryDitherPolicy>(
                     initialValue: config.ditherPolicy,
                     isExpanded: true,
                     decoration: const InputDecoration(

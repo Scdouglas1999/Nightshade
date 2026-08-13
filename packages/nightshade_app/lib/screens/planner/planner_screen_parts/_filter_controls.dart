@@ -781,7 +781,7 @@ class _SortDropdown extends ConsumerWidget {
         border: Border.all(color: colors.border),
       ),
       child: DropdownButtonHideUnderline(
-        child: DropdownButton<PlannerSortMode>(
+        child: AccessibleDropdown<PlannerSortMode>(
           value: value,
           items: [
             for (final m in PlannerSortMode.values)

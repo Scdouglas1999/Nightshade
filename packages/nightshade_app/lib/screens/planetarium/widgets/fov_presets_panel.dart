@@ -4,6 +4,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
+import '../../accessible_dropdown.dart';
 import 'sidebar_shared_widgets.dart';
 
 /// Schematic colors offered for FOV framing overlays. High-contrast hues that
@@ -397,7 +398,7 @@ class _AddRigDialogState extends State<_AddRigDialog> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _label('Telescope', colors),
-              DropdownButton<TelescopeSpecs>(
+              AccessibleDropdown<TelescopeSpecs>(
                 isExpanded: true,
                 value: _telescope,
                 dropdownColor: colors.surfaceAlt,
@@ -418,7 +419,7 @@ class _AddRigDialogState extends State<_AddRigDialog> {
               ),
               const SizedBox(height: 8),
               _label('Camera', colors),
-              DropdownButton<CameraSensorSpecs>(
+              AccessibleDropdown<CameraSensorSpecs>(
                 isExpanded: true,
                 value: _camera,
                 dropdownColor: colors.surfaceAlt,
@@ -439,7 +440,7 @@ class _AddRigDialogState extends State<_AddRigDialog> {
               ),
               const SizedBox(height: 8),
               _label('Reducer / Barlow', colors),
-              DropdownButton<double>(
+              AccessibleDropdown<double>(
                 isExpanded: true,
                 value: _multiplier,
                 dropdownColor: colors.surfaceAlt,

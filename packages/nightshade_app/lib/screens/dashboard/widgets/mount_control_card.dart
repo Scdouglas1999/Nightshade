@@ -9,6 +9,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import '../../../localization/nightshade_localizations.dart';
 import '../../../services/mount_command_service.dart';
 import '../../../utils/snackbar_helper.dart';
+import '../../accessible_dropdown.dart';
 import 'glass_card.dart';
 import 'mount_jog.dart';
 
@@ -205,7 +206,7 @@ class MountControlCard extends ConsumerWidget {
                               color: colors.border.withValues(alpha: 0.5)),
                         ),
                         child: DropdownButtonHideUnderline(
-                          child: DropdownButton<TrackingRate>(
+                          child: AccessibleDropdown<TrackingRate>(
                             value: mountState.trackingRate,
                             isDense: true,
                             isExpanded: true,
@@ -505,7 +506,7 @@ class _MountJogControlsState extends ConsumerState<MountJogControls> {
                 border: Border.all(color: colors.border.withValues(alpha: 0.5)),
               ),
               child: DropdownButtonHideUnderline(
-                child: DropdownButton<MountJogRate>(
+                child: AccessibleDropdown<MountJogRate>(
                   value: _selectedRate,
                   isDense: true,
                   isExpanded: true,

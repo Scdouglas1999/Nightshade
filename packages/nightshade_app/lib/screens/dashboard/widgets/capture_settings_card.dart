@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
+import '../../accessible_dropdown.dart';
 import 'glass_card.dart';
 
 class CaptureSettingsCard extends ConsumerStatefulWidget {
@@ -704,7 +705,7 @@ class _CompactDropdown extends StatelessWidget {
             child: DropdownButtonHideUnderline(
               child: IgnorePointer(
                 ignoring: !isEnabled,
-                child: DropdownButton<String>(
+                child: AccessibleDropdown<String>(
                   value: value,
                   isDense: true,
                   style: TextStyle(

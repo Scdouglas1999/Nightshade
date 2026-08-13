@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../accessible_dropdown.dart';
+
 enum TriggerConditionType { guidingRms, hfr, drift }
 
 enum TriggerActionType { pauseAndRecalibrate, autofocus, abort }
@@ -562,7 +564,7 @@ class _TriggerEditDialogState extends State<_TriggerEditDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          DropdownButtonFormField<TriggerConditionType>(
+          AccessibleDropdownFormField<TriggerConditionType>(
             key: const ValueKey('trigger_condition_dropdown'),
             initialValue: _condition,
             decoration: const InputDecoration(labelText: 'Condition'),
@@ -637,7 +639,7 @@ class _TriggerEditDialogState extends State<_TriggerEditDialog> {
             ),
           ],
           const SizedBox(height: 16),
-          DropdownButtonFormField<TriggerActionType>(
+          AccessibleDropdownFormField<TriggerActionType>(
             initialValue: _action,
             decoration: const InputDecoration(labelText: 'Action'),
             items: TriggerActionType.values.map((a) {
