@@ -64,6 +64,7 @@ part 'settings_sections/protocol.dart';
 part 'settings_sections/remote_access.dart';
 part 'settings_sections/sequencer.dart';
 part 'settings_sections/app_settings_state.dart';
+part 'settings_sections/app_settings_state_copy_with.dart';
 part 'settings_sections/app_settings_remote_mapping.dart';
 part 'settings_sections/app_settings_stored_snapshot_mapping.dart';
 part 'settings_sections/app_settings_partial_persistence_mapping.dart';

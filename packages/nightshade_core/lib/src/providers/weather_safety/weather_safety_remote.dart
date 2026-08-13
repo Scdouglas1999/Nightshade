@@ -1,0 +1,125 @@
+// ignore_for_file: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
+
+part of '../weather_safety_provider.dart';
+
+/// Remote (companion) safety-status polling for [WeatherSafetyNotifier].
+extension _WeatherSafetyRemote on WeatherSafetyNotifier {
+  void _startRemoteStatusPolling() {
+    unawaited(_refreshRemoteStatus());
+    _remoteStatusTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      unawaited(_refreshRemoteStatus());
+    });
+  }
+
+  Future<void> _refreshRemoteStatus() async {
+    if (_remoteFetchInFlight || !mounted) return;
+    final backend = _ref.read(backendProvider);
+    if (backend is! NetworkBackend) return;
+    _remoteFetchInFlight = true;
+    try {
+      final response = await backend.getSafetyStatus();
+      if (!mounted) return;
+      final rawStatus = response['safetyStatus'];
+      final status = WeatherSafetyStatus.values.firstWhere(
+        (candidate) => candidate.name == rawStatus,
+        orElse: () => WeatherSafetyStatus.unsafe,
+      );
+      final rawSource = response['dataSource'];
+      final dataSource = SafetyDataSource.values.firstWhere(
+        (candidate) => candidate.name == rawSource,
+        orElse: () => SafetyDataSource.unavailable,
+      );
+      final isSafe = status == WeatherSafetyStatus.safe;
+      final failModeWarning = response['failModeWarning'] is String
+          ? response['failModeWarning'] as String
+          : null;
+      final rawActions = response['actions'];
+      bool actionFlag(String key, bool fallback) {
+        if (rawActions is! Map) return fallback;
+        final value = rawActions[key];
+        return value is bool ? value : fallback;
+      }
+
+      String? actionText(String key) {
+        if (rawActions is! Map) return null;
+        final value = rawActions[key];
+        return value is String ? value : null;
+      }
+
+      DateTime? wireDate(Object? value) =>
+          value is String ? DateTime.tryParse(value) : null;
+
+      final rawAlertLevel = response['currentAlertLevel'];
+      final alertLevel = AlertLevel.values.firstWhere(
+        (candidate) => candidate.name == rawAlertLevel,
+        // Compatibility with pre-parity hosts: their aggregate response did
+        // not carry severity, so retain the old conservative unsafe=warning
+        // projection rather than treating an unknown value as clear.
+        orElse: () => isSafe ? AlertLevel.clear : AlertLevel.warning,
+      );
+      final lastEvaluationRaw = response['lastEvaluation'];
+      final snoozeUntilRaw = response['snoozeUntil'];
+      final hardwareWeatherSafe =
+          response['hardwareWeatherSafe'] as bool? ?? isSafe;
+      final safetyMonitorSafe =
+          response['safetyMonitorSafe'] as bool? ?? isSafe;
+      state = WeatherSafetyState(
+        status: status,
+        actions: WeatherSafetyActions(
+          shouldPause: actionFlag(
+            'shouldPause',
+            status == WeatherSafetyStatus.unsafe,
+          ),
+          shouldPark: actionFlag('shouldPark', false),
+          shouldCloseDome: actionFlag('shouldCloseDome', false),
+          reason:
+              actionText('reason') ??
+              (status == WeatherSafetyStatus.unsafe ? failModeWarning : null),
+          resumeCheckTime: wireDate(actionText('resumeCheckTime')),
+        ),
+        snoozeUntil: wireDate(snoozeUntilRaw),
+        currentAlertLevel: alertLevel,
+        dataSource: dataSource,
+        hardwareWeatherSafe: hardwareWeatherSafe,
+        safetyMonitorSafe: safetyMonitorSafe,
+        apiWeatherSafe: response['apiWeatherSafe'] as bool? ?? isSafe,
+        hardwareWeatherReading: _readingFromWire(
+          response['hardwareWeatherReading'],
+          hardwareWeatherSafe,
+        ),
+        safetyMonitorReading: _readingFromWire(
+          response['safetyMonitorReading'],
+          safetyMonitorSafe,
+        ),
+        failModeWarning: failModeWarning,
+        lastEvaluation: wireDate(lastEvaluationRaw),
+        // Pre-parity hosts do not report whether monitoring is on or whether
+        // the park/resume policies are armed. Assume the host IS monitoring
+        // (claiming "not monitoring" about a host that is would be its own
+        // lie) but never claim protection we have not been told about.
+        monitoringEnabled: response['monitoringEnabled'] as bool? ?? true,
+        autoParkArmed: response['autoParkArmed'] as bool? ?? false,
+        autoResumeArmed: response['autoResumeArmed'] as bool? ?? false,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      state = WeatherSafetyState.initial().copyWith(
+        failModeWarning: 'Imaging host safety status unavailable: $error',
+        lastEvaluation: DateTime.now(),
+      );
+    } finally {
+      _remoteFetchInFlight = false;
+    }
+  }
+}
+
+/// Pre-parity hosts do not send the per-source reading, so fall back to the
+/// boolean they do send.
+SafetySourceReading _readingFromWire(Object? raw, bool sourceSafe) {
+  if (raw is String) {
+    for (final candidate in SafetySourceReading.values) {
+      if (candidate.name == raw) return candidate;
+    }
+  }
+  return sourceSafe ? SafetySourceReading.safe : SafetySourceReading.unsafe;
+}
