@@ -45,7 +45,9 @@ final deviceHealthSnapshotsProvider = Provider<List<DeviceHealthSnapshot>>((
   // disconnected mount mid-session correctly raises a critical health
   // insight.
   final camera = ref.watch(cameraStateProvider);
-  if (camera.deviceId != null && camera.deviceId!.isNotEmpty) {
+  if (camera.deviceId != null &&
+      camera.deviceId!.isNotEmpty &&
+      camera.connectionState == DeviceConnectionState.connected) {
     descriptors.add(
       DeviceConnectionDescriptor(
         deviceId: camera.deviceId!,
@@ -56,6 +58,14 @@ final deviceHealthSnapshotsProvider = Provider<List<DeviceHealthSnapshot>>((
     );
   }
 
+  // Only devices we are actually talking to belong in the heartbeat list. A
+  // device id survives a refused connection — clicking Connect on the built-in
+  // guider without a focal length left its id in the notifier — and admitting
+  // that as an unhealthy heartbeat dropped System Health to "75 - Good / 1
+  // issue" for a device that was never reached and still showed "Connect" with
+  // a grey dot. The same held for a device the user deliberately disconnected.
+  // Genuine mid-session drops are not lost: they arrive as `Disconnected`
+  // events in the USB disconnect log, which `buildSnapshots` folds in.
   void addBasic(
     String? deviceId,
     String? deviceLabel,
@@ -63,13 +73,12 @@ final deviceHealthSnapshotsProvider = Provider<List<DeviceHealthSnapshot>>((
     bool hasError,
   ) {
     if (deviceId == null || deviceId.isEmpty) return;
-    final isHealthy =
-        connectionState == DeviceConnectionState.connected && !hasError;
+    if (connectionState != DeviceConnectionState.connected) return;
     descriptors.add(
       DeviceConnectionDescriptor(
         deviceId: deviceId,
         deviceLabel: deviceLabel,
-        isHealthy: isHealthy,
+        isHealthy: !hasError,
       ),
     );
   }

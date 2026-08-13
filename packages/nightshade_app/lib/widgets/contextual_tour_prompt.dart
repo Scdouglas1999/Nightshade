@@ -45,13 +45,17 @@ class ContextualTourPrompt extends ConsumerStatefulWidget {
 
   /// Whether to hold a band of the child's height clear for the card.
   ///
-  /// Right for a page of cards, where a floating nudge lands on top of live
-  /// content. Wrong for a full-bleed canvas: the planetarium's sky is one
-  /// continuous map with nothing in its bottom-right corner, and reserving the
-  /// band there cut a constant ~150px strip of flat page background across the
-  /// bottom of the star field — about 25% of the viewport on a 1366x768 laptop,
-  /// which snapped back the instant the card was dismissed. Such a screen sets
-  /// this false and lets the card float over the corner it already occupies.
+  /// Off, because a coach mark is transient chrome and every other overlay in
+  /// this app floats. Reserving the band instead cost each of the seven nudged
+  /// screens ~16% of its height on a fresh install: the Sequencer workspace
+  /// stopped 147px short with the node palette cut through a card, the
+  /// planetarium's sky lost a ~150px strip of flat background, and in Settings
+  /// the whole ADVANCED group sat off-screen until a coach mark that never
+  /// mentions settings was dismissed. The band snapped back the instant the
+  /// card went away, which is what proved it was the cause.
+  ///
+  /// A host whose bottom-right corner carries live, non-scrollable controls can
+  /// still opt in — the trade it makes is losing that band while the nudge is up.
   final bool reserveSpaceForCard;
 
   const ContextualTourPrompt({
@@ -63,7 +67,7 @@ class ContextualTourPrompt extends ConsumerStatefulWidget {
     this.durationMinutes = 3,
     this.alignment = Alignment.bottomRight,
     this.offset = const Offset(-16, -16),
-    this.reserveSpaceForCard = true,
+    this.reserveSpaceForCard = false,
     required this.child,
   });
 
@@ -265,13 +269,9 @@ class _ContextualTourPromptState extends ConsumerState<ContextualTourPrompt>
         key: _overlayKey,
         clipBehavior: Clip.none,
         children: [
-          // The card is INSET out of the child rather than floated over it. As a
-          // free-floating overlay it sat on top of live dashboard content — at
-          // 800x600 it covered the right half of the "Last run" card and clipped
-          // the Readiness chips — so the first thing a new user saw was a nudge
-          // obscuring the very panels it was describing. Reserving the band keeps
-          // the card exactly where it was while the content underneath reflows
-          // clear of it, and costs nothing once dismissed.
+          // The card floats over the child unless the host opted into the band;
+          // see [ContextualTourPrompt.reserveSpaceForCard] for why holding the
+          // band was worse than the overlap it prevented.
           Padding(
             padding: _reservedInset(constraints.maxHeight),
             child: widget.child,

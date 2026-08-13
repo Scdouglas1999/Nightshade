@@ -276,7 +276,7 @@ class EquipmentHealthService {
         EquipmentHealthInsight(
           title: 'Device heartbeat failures',
           message:
-              'Unhealthy devices detected: ${unhealthyDevices.map((snapshot) => snapshot.deviceId).join(', ')}.',
+              'Unhealthy devices detected: ${unhealthyDevices.map((snapshot) => snapshot.displayName).join(', ')}.',
           severity: EquipmentHealthSeverity.critical,
         ),
       );

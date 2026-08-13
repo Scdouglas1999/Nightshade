@@ -68,18 +68,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     // leaking listeners into every consumer of pulseController.
     final sessionCapturing =
         ref.watch(sessionStateProvider.select((s) => s.isCapturing));
-    final cameraConnected =
-        ref.watch(cameraStateProvider.select((s) => s.connectionState)) ==
-            DeviceConnectionState.connected;
-    final mountConnected =
-        ref.watch(mountStateProvider.select((s) => s.connectionState)) ==
-            DeviceConnectionState.connected;
-    final guiderConnected =
-        ref.watch(guiderStateProvider.select((s) => s.connectionState)) ==
-            DeviceConnectionState.connected;
-    final focuserConnected =
-        ref.watch(focuserStateProvider.select((s) => s.connectionState)) ==
-            DeviceConnectionState.connected;
     // Pulse only on genuine ACTIVITY (an exposure in progress), not on mere
     // connection. Gating on "any device connected" kept the controller — and
     // the 60Hz repaint it drives in the capture-status indicator — running
@@ -97,28 +85,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     // rather than sitting on a generic standby. The standby hero only takes
     // over when there's genuinely nothing connected and nothing loaded. A
     // running / capturing session, and edit mode (so the cockpit stays
-    // arrangeable anytime), always show the tiles too.
-    final executionState = ref.watch(sequenceExecutionStateProvider);
-    final anyDeviceConnected = cameraConnected ||
-        mountConnected ||
-        guiderConnected ||
-        focuserConnected;
-    final loadedSequence = ref.watch(currentSequenceProvider);
-    final hasLoadedSequence = loadedSequence != null &&
-        (loadedSequence.targetHeaders.isNotEmpty ||
-            loadedSequence.totalExposures > 0);
-    // Terminal states count as inactive here: after a completed or failed run
-    // the executor never returns to `idle` on its own, and requiring exactly
-    // `idle` would strand a user who has since unloaded the sequence and
-    // disconnected on a dead cockpit instead of the briefing.
-    final executionInactive = executionState == SequenceExecutionState.idle ||
-        executionState == SequenceExecutionState.completed ||
-        executionState == SequenceExecutionState.failed;
-    final showStandby = executionInactive &&
-        !sessionCapturing &&
-        !_isEditing &&
-        !anyDeviceConnected &&
-        !hasLoadedSequence;
+    // arrangeable anytime), always show the tiles too. Edit mode does NOT
+    // override this — the briefing has no arrangeable tiles, so swapping the
+    // page on Edit meant editing a layout the user could not see (the header
+    // disables the control instead, naming the reason).
+    final showStandby = ref.watch(dashboardStandbyProvider);
     if (shouldPulse) {
       if (!_pulseController.isAnimating) {
         _pulseController.repeat(reverse: true);

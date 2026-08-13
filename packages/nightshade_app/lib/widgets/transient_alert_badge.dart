@@ -135,53 +135,67 @@ class _TransientAlertBadgeState extends ConsumerState<TransientAlertBadge>
       _handleCountChange(unacknowledgedCount);
     });
 
+    // A bell in the window chrome promises the app's notification centre. This
+    // is a transient-alert feed — supernovae and other targets of opportunity —
+    // and it read "No active alerts" while the Equipment screen was showing an
+    // unresolved device-health issue. Same glyph as the popup it opens, and a
+    // name that says which alerts it means.
     return Material(
       color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          if (widget.showDropdown) {
-            _showDropdownMenu(context);
-          } else {
-            widget.onTap?.call();
-          }
-        },
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              // Base icon
-              alertsAsync.when(
-                data: (_) => Icon(
-                  LucideIcons.bell,
-                  size: 20,
-                  color: colors.textSecondary,
-                ),
-                loading: () => _LoadingIcon(colors: colors),
-                error: (_, __) => _ErrorIcon(colors: colors),
-              ),
-
-              // Badge overlay
-              if (unacknowledgedCount > 0)
-                Positioned(
-                  right: -6,
-                  top: -6,
-                  child: AnimatedBuilder(
-                    animation: _pulseAnimation,
-                    builder: (context, child) {
-                      return Transform.scale(
-                        scale: _pulseAnimation.value,
-                        child: child,
-                      );
-                    },
-                    child: _CountBadge(
-                      count: unacknowledgedCount,
-                      colors: colors,
+      child: Tooltip(
+        message: 'Transient alerts — targets of opportunity',
+        child: Semantics(
+          button: true,
+          label: unacknowledgedCount > 0
+              ? 'Transient alerts, $unacknowledgedCount new'
+              : 'Transient alerts',
+          child: InkWell(
+            onTap: () {
+              if (widget.showDropdown) {
+                _showDropdownMenu(context);
+              } else {
+                widget.onTap?.call();
+              }
+            },
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  // Base icon
+                  alertsAsync.when(
+                    data: (_) => Icon(
+                      LucideIcons.radio,
+                      size: 20,
+                      color: colors.textSecondary,
                     ),
+                    loading: () => _LoadingIcon(colors: colors),
+                    error: (_, __) => _ErrorIcon(colors: colors),
                   ),
-                ),
-            ],
+
+                  // Badge overlay
+                  if (unacknowledgedCount > 0)
+                    Positioned(
+                      right: -6,
+                      top: -6,
+                      child: AnimatedBuilder(
+                        animation: _pulseAnimation,
+                        builder: (context, child) {
+                          return Transform.scale(
+                            scale: _pulseAnimation.value,
+                            child: child,
+                          );
+                        },
+                        child: _CountBadge(
+                          count: unacknowledgedCount,
+                          colors: colors,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -200,7 +214,7 @@ class _LoadingIcon extends StatelessWidget {
     return Stack(
       children: [
         Icon(
-          LucideIcons.bell,
+          LucideIcons.radio,
           size: 20,
           color: colors.textMuted,
         ),
@@ -232,7 +246,7 @@ class _ErrorIcon extends StatelessWidget {
     return Stack(
       children: [
         Icon(
-          LucideIcons.bell,
+          LucideIcons.radio,
           size: 20,
           color: colors.textSecondary,
         ),
@@ -373,31 +387,38 @@ class _TransientAlertDropdownContent extends ConsumerWidget {
 
           // Footer
           Divider(height: 1, color: colors.border),
-          InkWell(
-            onTap: onViewAll,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'View all alerts',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: colors.primary,
-                    ),
+          // The tap lived on a bare gesture wrapper, which publishes an action
+          // and no role, so assistive tech read a live control as an inert
+          // disabled panel. The flags are only published when given.
+          Semantics(
+              button: true,
+              enabled: true,
+              child: InkWell(
+                onTap: onViewAll,
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'View all alerts',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: colors.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        LucideIcons.arrowRight,
+                        size: 14,
+                        color: colors.primary,
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 4),
-                  Icon(
-                    LucideIcons.arrowRight,
-                    size: 14,
-                    color: colors.primary,
-                  ),
-                ],
-              ),
-            ),
-          ),
+                ),
+              )),
         ],
       ),
     );

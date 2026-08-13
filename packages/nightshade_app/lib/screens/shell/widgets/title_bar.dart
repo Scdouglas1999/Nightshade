@@ -179,15 +179,24 @@ class _TitleBarButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
 
-    final button = InkWell(
-      onTap: onPressed,
-      borderRadius: NightshadeTokens.borderRadiusInline4,
-      child: Padding(
-        padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
-        child: Icon(
-          icon,
-          size: NightshadeTokens.iconSm,
-          color: colors.textSecondary,
+    // Named and typed for assistive tech. An InkWell contributes a tap ACTION
+    // but no role and no name, and a Tooltip contributes a tooltip rather than
+    // a label — so the whole icon group, the Settings gear included, was absent
+    // from the accessibility tree, which made Settings unreachable without
+    // sight of the four unlabelled glyphs.
+    final button = Semantics(
+      button: true,
+      label: tooltip,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: NightshadeTokens.borderRadiusInline4,
+        child: Padding(
+          padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
+          child: Icon(
+            icon,
+            size: NightshadeTokens.iconSm,
+            color: colors.textSecondary,
+          ),
         ),
       ),
     );
@@ -217,16 +226,19 @@ class WindowControls extends StatelessWidget {
       children: [
         _WindowButton(
           icon: NightshadeIcons.remove,
+          label: 'Minimize',
           onPressed: window_impl.minimizeWindow,
           hoverColor: colors.surfaceHover,
         ),
         _WindowButton(
           icon: NightshadeIcons.stop,
+          label: 'Maximize',
           onPressed: window_impl.toggleMaximizeWindow,
           hoverColor: colors.surfaceHover,
         ),
         _WindowButton(
           icon: NightshadeIcons.close,
+          label: 'Close window',
           onPressed: window_impl.closeWindow,
           hoverColor: colors.error,
           isClose: true,
@@ -238,12 +250,14 @@ class WindowControls extends StatelessWidget {
 
 class _WindowButton extends StatefulWidget {
   final IconData icon;
+  final String label;
   final VoidCallback onPressed;
   final Color hoverColor;
   final bool isClose;
 
   const _WindowButton({
     required this.icon,
+    required this.label,
     required this.onPressed,
     required this.hoverColor,
     this.isClose = false,
@@ -264,17 +278,21 @@ class _WindowButtonState extends State<_WindowButton> {
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
-        onTap: widget.onPressed,
-        child: Container(
-          width: ShellChromeMetrics.windowControlWidth,
-          height: ShellChromeMetrics.windowControlHeight,
-          color: _isHovered ? widget.hoverColor : Colors.transparent,
-          child: Icon(
-            widget.icon,
-            size: 14,
-            color:
-                _isHovered && widget.isClose ? onError : colors.textSecondary,
+      child: Semantics(
+        button: true,
+        label: widget.label,
+        child: GestureDetector(
+          onTap: widget.onPressed,
+          child: Container(
+            width: ShellChromeMetrics.windowControlWidth,
+            height: ShellChromeMetrics.windowControlHeight,
+            color: _isHovered ? widget.hoverColor : Colors.transparent,
+            child: Icon(
+              widget.icon,
+              size: 14,
+              color:
+                  _isHovered && widget.isClose ? onError : colors.textSecondary,
+            ),
           ),
         ),
       ),

@@ -395,6 +395,10 @@ void main() {
         dashboardLayoutProvider.overrideWith(
           _AllDisabledDashboardLayoutNotifier.new,
         ),
+        // Edit arranges the COCKPIT tiles, so it is refused while the standby
+        // briefing is on screen (it has no arrangeable tiles). This test is
+        // about the toggle itself.
+        dashboardStandbyProvider.overrideWithValue(false),
       ],
     );
     await _drainAsyncFrames(tester);

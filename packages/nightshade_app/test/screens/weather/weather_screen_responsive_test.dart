@@ -25,11 +25,16 @@ const _phonePortraitSizes = <Size>[
 
 /// Pump [WeatherScreen] at [size], drain a few frames, and assert no overflow.
 Future<void> _pumpAndCheck(WidgetTester tester, Size size) async {
-  await pumpAppScreen(
+  final handle = await pumpAppScreen(
     tester,
     const WeatherScreen(),
     size: size,
     settle: false,
+    // The screen owns the teardown here: the weather-safety evaluator it shows
+    // runs a 5-minute periodic timer that is cancelled when its provider is
+    // disposed, and the harness's own tearDown runs AFTER the binding's
+    // pending-timer check.
+    registerTearDown: false,
   );
   // Drain the fade-in + initial post-frame fetch without waiting on the
   // 5-minute periodic refresh timer.
@@ -45,6 +50,12 @@ Future<void> _pumpAndCheck(WidgetTester tester, Size size) async {
   expect(find.text('Weather Radar'), findsOneWidget,
       reason: 'Weather header identity must be present at '
           '${size.width}x${size.height}');
+
+  await tester.pumpWidget(const SizedBox.shrink());
+  handle.container.dispose();
+  // Drift schedules a zero-duration close timer when its query streams go; one
+  // more frame lets it run before the binding checks for pending timers.
+  await tester.pump(Duration.zero);
 }
 
 void main() {

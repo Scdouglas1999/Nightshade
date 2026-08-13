@@ -8,6 +8,16 @@ import 'package:nightshade_app/screens/equipment/utils/equipment_disconnect.dart
 import 'package:nightshade_app/utils/cooled_camera_guard.dart';
 import 'package:nightshade_app/utils/snackbar_helper.dart';
 
+/// One device slot as the shell chip sees it: what it is called, whether it is
+/// attached, and whether the active profile claims it.
+typedef _DeviceSlot = ({
+  IconData icon,
+  String name,
+  DeviceConnectionState connectionState,
+  String? profileDeviceId,
+  String status,
+});
+
 /// A compact equipment status indicator for the global status bar.
 ///
 /// Shows the active profile name and a count of connected devices.
@@ -22,28 +32,13 @@ class EquipmentStatusIndicator extends ConsumerWidget {
     // Watch active profile
     final activeProfile = ref.watch(activeEquipmentProfileProvider);
 
-    // Watch device states
-    final cameraState = ref.watch(cameraStateProvider);
-    final mountState = ref.watch(mountStateProvider);
-    final focuserState = ref.watch(focuserStateProvider);
-    final filterWheelState = ref.watch(filterWheelStateProvider);
-    final guiderState = ref.watch(guiderStateProvider);
-    final rotatorState = ref.watch(rotatorStateProvider);
-
     // Don't show if no profile
     if (activeProfile == null) {
       return const SizedBox.shrink();
     }
 
-    final counts = _countDevices(
-      activeProfile,
-      cameraState,
-      mountState,
-      focuserState,
-      filterWheelState,
-      guiderState,
-      rotatorState,
-    );
+    final devices = _devices(ref, activeProfile);
+    final counts = _countDevices(devices);
 
     return PopupMenuButton<String>(
       tooltip: counts.tooltip,
@@ -63,17 +58,125 @@ class EquipmentStatusIndicator extends ConsumerWidget {
         context,
         ref,
         activeProfile,
-        cameraState,
-        mountState,
-        focuserState,
-        filterWheelState,
-        guiderState,
-        rotatorState,
+        devices,
         counts,
         colors,
       ),
       onSelected: (value) => _handleMenuSelection(context, ref, value),
     );
+  }
+
+  /// Every device slot the app tracks a connection for, in dropdown order.
+  ///
+  /// One list feeds both the count and the rows, so the chip can never report a
+  /// number the dropdown cannot account for. It covers all eleven slots, not
+  /// the six the profile editor shows first: with a camera, mount, focuser,
+  /// filter wheel, dome and weather station attached, a six-slot tally read
+  /// "4 connected" in the status bar while the Equipment header read "6
+  /// connected · 6 unsaved" — the bar a user glances at before starting a run
+  /// was under-reporting live hardware by a third.
+  List<_DeviceSlot> _devices(WidgetRef ref, EquipmentProfileModel profile) {
+    final camera = ref.watch(cameraStateProvider);
+    final mount = ref.watch(mountStateProvider);
+    final focuser = ref.watch(focuserStateProvider);
+    final filterWheel = ref.watch(filterWheelStateProvider);
+    final guider = ref.watch(guiderStateProvider);
+    final rotator = ref.watch(rotatorStateProvider);
+    final dome = ref.watch(domeStateProvider);
+    final weather = ref.watch(weatherStateProvider);
+    final safetyMonitor = ref.watch(safetyMonitorStateProvider);
+    final switchDevice = ref.watch(switchStateProvider);
+    final coverCalibrator = ref.watch(coverCalibratorStateProvider);
+
+    return [
+      (
+        icon: LucideIcons.camera,
+        name: _getDeviceDisplayName(
+            camera.deviceName, profile.cameraName, 'Camera'),
+        connectionState: camera.connectionState,
+        profileDeviceId: profile.cameraId,
+        status: _getCameraStatus(camera),
+      ),
+      (
+        icon: LucideIcons.compass,
+        name:
+            _getDeviceDisplayName(mount.deviceName, profile.mountName, 'Mount'),
+        connectionState: mount.connectionState,
+        profileDeviceId: profile.mountId,
+        status: _getMountStatus(mount),
+      ),
+      (
+        icon: LucideIcons.focus,
+        name: _getDeviceDisplayName(
+            focuser.deviceName, profile.focuserName, 'Focuser'),
+        connectionState: focuser.connectionState,
+        profileDeviceId: profile.focuserId,
+        status: _getFocuserStatus(focuser),
+      ),
+      (
+        icon: LucideIcons.circle,
+        name: _getDeviceDisplayName(
+            filterWheel.deviceName, profile.filterWheelName, 'Filter Wheel'),
+        connectionState: filterWheel.connectionState,
+        profileDeviceId: profile.filterWheelId,
+        status: _getFilterWheelStatus(filterWheel),
+      ),
+      (
+        icon: LucideIcons.crosshair,
+        name: _getDeviceDisplayName(
+            guider.deviceName, profile.guiderName, 'Guider'),
+        connectionState: guider.connectionState,
+        profileDeviceId: profile.guiderId,
+        status: _getGuiderStatus(guider),
+      ),
+      (
+        icon: LucideIcons.rotateCw,
+        name: _getDeviceDisplayName(
+            rotator.deviceName, profile.rotatorName, 'Rotator'),
+        connectionState: rotator.connectionState,
+        profileDeviceId: profile.rotatorId,
+        status: _getRotatorStatus(rotator),
+      ),
+      (
+        icon: LucideIcons.warehouse,
+        name: _getDeviceDisplayName(dome.deviceName, null, 'Dome'),
+        connectionState: dome.connectionState,
+        profileDeviceId: profile.domeId,
+        status: _readyStatus(dome.connectionState),
+      ),
+      (
+        icon: LucideIcons.cloudSun,
+        name:
+            _getDeviceDisplayName(weather.deviceName, null, 'Weather Station'),
+        connectionState: weather.connectionState,
+        profileDeviceId: profile.weatherId,
+        status: _readyStatus(weather.connectionState),
+      ),
+      (
+        icon: LucideIcons.shieldCheck,
+        name: _getDeviceDisplayName(safetyMonitor.deviceName,
+            profile.safetyMonitorName, 'Safety Monitor'),
+        connectionState: safetyMonitor.connectionState,
+        profileDeviceId: profile.safetyMonitorId,
+        status: _readyStatus(safetyMonitor.connectionState),
+      ),
+      (
+        icon: LucideIcons.toggleLeft,
+        name: _getDeviceDisplayName(
+            switchDevice.deviceName, profile.switchName, 'Switch'),
+        connectionState: switchDevice.connectionState,
+        profileDeviceId: profile.switchId,
+        status: _readyStatus(switchDevice.connectionState),
+      ),
+      (
+        icon: LucideIcons.panelTop,
+        name: _getDeviceDisplayName(
+            coverCalibrator.deviceName, null, 'Cover Calibrator'),
+        connectionState: coverCalibrator.connectionState,
+        profileDeviceId: profile.coverCalibratorId,
+        status: _readyStatus(coverCalibrator.connectionState),
+      ),
+    ];
   }
 
   /// Split the live device states into "what the profile expects" and "what is
@@ -89,35 +192,21 @@ class EquipmentStatusIndicator extends ConsumerWidget {
   /// left the shell reading "0/0 — No devices configured" while they streamed.
   /// So session-only connections are counted separately and reported, never
   /// folded into the ratio and never dropped.
-  _EquipmentCounts _countDevices(
-    EquipmentProfileModel profile,
-    CameraStateSnapshot camera,
-    MountState mount,
-    FocuserState focuser,
-    FilterWheelState filterWheel,
-    GuiderState guider,
-    RotatorState rotator,
-  ) {
+  _EquipmentCounts _countDevices(List<_DeviceSlot> devices) {
     var assignedConnected = 0;
     var assignedTotal = 0;
     var sessionOnlyConnected = 0;
 
-    void tally(String? profileDeviceId, DeviceConnectionState state) {
-      final isConnected = state == DeviceConnectionState.connected;
-      if (profileDeviceId != null) {
+    for (final device in devices) {
+      final isConnected =
+          device.connectionState == DeviceConnectionState.connected;
+      if (device.profileDeviceId != null) {
         assignedTotal++;
         if (isConnected) assignedConnected++;
       } else if (isConnected) {
         sessionOnlyConnected++;
       }
     }
-
-    tally(profile.cameraId, camera.connectionState);
-    tally(profile.mountId, mount.connectionState);
-    tally(profile.focuserId, focuser.connectionState);
-    tally(profile.filterWheelId, filterWheel.connectionState);
-    tally(profile.guiderId, guider.connectionState);
-    tally(profile.rotatorId, rotator.connectionState);
 
     return _EquipmentCounts(
       assignedConnected: assignedConnected,
@@ -126,16 +215,14 @@ class EquipmentStatusIndicator extends ConsumerWidget {
     );
   }
 
+  static String _readyStatus(DeviceConnectionState state) =>
+      state == DeviceConnectionState.connected ? 'Ready' : '---';
+
   List<PopupMenuEntry<String>> _buildDropdownItems(
     BuildContext context,
     WidgetRef ref,
     EquipmentProfileModel activeProfile,
-    CameraStateSnapshot cameraState,
-    MountState mountState,
-    FocuserState focuserState,
-    FilterWheelState filterWheelState,
-    GuiderState guiderState,
-    RotatorState rotatorState,
+    List<_DeviceSlot> devices,
     _EquipmentCounts counts,
     NightshadeColors colors,
   ) {
@@ -176,138 +263,21 @@ class EquipmentStatusIndicator extends ConsumerWidget {
         ),
       );
     } else {
-      // Camera
-      if (cameraState.connectionState == DeviceConnectionState.connected ||
-          activeProfile.cameraId != null) {
+      for (final device in devices) {
+        if (device.connectionState != DeviceConnectionState.connected &&
+            device.profileDeviceId == null) {
+          continue;
+        }
         items.add(
           PopupMenuItem<String>(
             enabled: false,
             height: 36,
             child: _DeviceRow(
-              icon: LucideIcons.camera,
-              name: _getDeviceDisplayName(
-                cameraState.deviceName,
-                activeProfile.cameraName,
-                'Camera',
-              ),
-              isConnected: cameraState.connectionState ==
-                  DeviceConnectionState.connected,
-              status: _getCameraStatus(cameraState),
-              colors: colors,
-            ),
-          ),
-        );
-      }
-
-      // Mount
-      if (mountState.connectionState == DeviceConnectionState.connected ||
-          activeProfile.mountId != null) {
-        items.add(
-          PopupMenuItem<String>(
-            enabled: false,
-            height: 36,
-            child: _DeviceRow(
-              icon: LucideIcons.compass,
-              name: _getDeviceDisplayName(
-                mountState.deviceName,
-                activeProfile.mountName,
-                'Mount',
-              ),
+              icon: device.icon,
+              name: device.name,
               isConnected:
-                  mountState.connectionState == DeviceConnectionState.connected,
-              status: _getMountStatus(mountState),
-              colors: colors,
-            ),
-          ),
-        );
-      }
-
-      // Focuser
-      if (focuserState.connectionState == DeviceConnectionState.connected ||
-          activeProfile.focuserId != null) {
-        items.add(
-          PopupMenuItem<String>(
-            enabled: false,
-            height: 36,
-            child: _DeviceRow(
-              icon: LucideIcons.focus,
-              name: _getDeviceDisplayName(
-                focuserState.deviceName,
-                activeProfile.focuserName,
-                'Focuser',
-              ),
-              isConnected: focuserState.connectionState ==
-                  DeviceConnectionState.connected,
-              status: _getFocuserStatus(focuserState),
-              colors: colors,
-            ),
-          ),
-        );
-      }
-
-      // Filter Wheel
-      if (filterWheelState.connectionState == DeviceConnectionState.connected ||
-          activeProfile.filterWheelId != null) {
-        items.add(
-          PopupMenuItem<String>(
-            enabled: false,
-            height: 36,
-            child: _DeviceRow(
-              icon: LucideIcons.circle,
-              name: _getDeviceDisplayName(
-                filterWheelState.deviceName,
-                activeProfile.filterWheelName,
-                'Filter Wheel',
-              ),
-              isConnected: filterWheelState.connectionState ==
-                  DeviceConnectionState.connected,
-              status: _getFilterWheelStatus(filterWheelState),
-              colors: colors,
-            ),
-          ),
-        );
-      }
-
-      // Guider
-      if (guiderState.connectionState == DeviceConnectionState.connected ||
-          activeProfile.guiderId != null) {
-        items.add(
-          PopupMenuItem<String>(
-            enabled: false,
-            height: 36,
-            child: _DeviceRow(
-              icon: LucideIcons.crosshair,
-              name: _getDeviceDisplayName(
-                guiderState.deviceName,
-                activeProfile.guiderName,
-                'Guider',
-              ),
-              isConnected: guiderState.connectionState ==
-                  DeviceConnectionState.connected,
-              status: _getGuiderStatus(guiderState),
-              colors: colors,
-            ),
-          ),
-        );
-      }
-
-      // Rotator
-      if (rotatorState.connectionState == DeviceConnectionState.connected ||
-          activeProfile.rotatorId != null) {
-        items.add(
-          PopupMenuItem<String>(
-            enabled: false,
-            height: 36,
-            child: _DeviceRow(
-              icon: LucideIcons.rotateCw,
-              name: _getDeviceDisplayName(
-                rotatorState.deviceName,
-                activeProfile.rotatorName,
-                'Rotator',
-              ),
-              isConnected: rotatorState.connectionState ==
-                  DeviceConnectionState.connected,
-              status: _getRotatorStatus(rotatorState),
+                  device.connectionState == DeviceConnectionState.connected,
+              status: device.status,
               colors: colors,
             ),
           ),
@@ -320,10 +290,9 @@ class EquipmentStatusIndicator extends ConsumerWidget {
     // Action buttons
     //
     // Enablement is read off the SAME target list the sweep walks, not off
-    // `counts`: the chip only tallies the six slots the profile can assign,
-    // while runEquipmentDisconnectAll also covers dome, weather, safety
-    // monitor, switch and cover calibrator. Gating on the chip counts would
-    // grey the item out while a connected dome still needed disconnecting.
+    // `counts`: a device mid-connect is not connected but still has a handle to
+    // release, so gating on the chip counts would grey the item out while there
+    // was work to do.
     final canDisconnect = equipmentDisconnectTargets(ref).any(
       (target) => !equipmentDisconnectShouldSkip(target.connectionState),
     );

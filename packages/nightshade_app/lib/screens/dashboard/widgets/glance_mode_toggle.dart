@@ -36,6 +36,22 @@ class _GlanceModeToggleState extends ConsumerState<GlanceModeToggle> {
     setState(() => _saving = true);
     try {
       await ref.read(glanceModeProvider.notifier).toggle();
+      // Glance mode only re-sizes the LIVE session readouts, so pressing it on
+      // an idle dashboard changed nothing on screen — the button lit up, the
+      // page did not, and it read as a dead control. Say what it did.
+      if (mounted) {
+        final enabled = ref.read(glanceModeProvider);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              enabled
+                  ? 'Glance mode on — session readouts use the large type.'
+                  : 'Glance mode off — session readouts use the normal type.',
+            ),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -56,7 +72,9 @@ class _GlanceModeToggleState extends ConsumerState<GlanceModeToggle> {
     final color = enabled ? widget.colors.primary : widget.colors.textSecondary;
 
     return Tooltip(
-      message: enabled ? 'Glance mode: on' : 'Glance mode: off',
+      message: enabled
+          ? 'Glance mode is on — session readouts use the large type'
+          : 'Glance mode — enlarge the session readouts to read across a room',
       child: Semantics(
         button: true,
         // `toggled` alone publishes CHECKABLE but never ENABLED, so the working

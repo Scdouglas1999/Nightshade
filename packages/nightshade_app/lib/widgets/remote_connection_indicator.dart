@@ -150,14 +150,20 @@ class _RemoteConnectionIndicatorState
     RemoteConnectionStatus status, {
     required NetworkBackend? backend,
   }) {
-    return GestureDetector(
-      onTap: () => _showDetails(context),
-      child: widget.dot
-          ? _buildDot(context, status)
-          : widget.compact
-              ? _buildCompact(context, status)
-              : _buildFull(context, status, backend),
-    );
+    // The tap lived on a bare gesture wrapper, which publishes an action
+    // and no role, so assistive tech read a live control as an inert
+    // disabled panel. The flags are only published when given.
+    return Semantics(
+        button: true,
+        enabled: true,
+        child: GestureDetector(
+          onTap: () => _showDetails(context),
+          child: widget.dot
+              ? _buildDot(context, status)
+              : widget.compact
+                  ? _buildCompact(context, status)
+                  : _buildFull(context, status, backend),
+        ));
   }
 
   Widget _buildDot(BuildContext context, RemoteConnectionStatus status) {
@@ -242,18 +248,21 @@ class _RemoteConnectionIndicatorState
     );
   }
 
+  /// Opens the connection details.
+  ///
+  /// [showAdaptiveModal], not a bare bottom sheet: on the desktop this is
+  /// opened from the title bar at the top of the window, and a sheet welded to
+  /// the opposite edge came up clipped by it — at 1600x900 only its top ~75px
+  /// were on screen, so "Not connected to a server" was visible and every
+  /// control under it was not. Every other modal in the build centres; this one
+  /// now does too, and still presents as a sheet on a phone.
   void _showDetails(BuildContext context) {
-    final colors = NightshadeColors.of(context);
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      barrierColor: colors.background.withValues(alpha: 0.72),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(NightshadeTokens.radiusLg),
-        ),
+    unawaited(
+      showAdaptiveModal<void>(
+        context: context,
+        designWidth: 460,
+        builder: (_) => const _RemoteConnectionSheet(),
       ),
-      builder: (_) => const _RemoteConnectionSheet(),
     );
   }
 
@@ -445,15 +454,7 @@ class _RemoteConnectionSheetState
         : _statusForConnectionState(backend.connectionState);
     final latency = backend?.lastLatency;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surfaceElevated,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(NightshadeTokens.radiusLg),
-        ),
-        border: Border(top: BorderSide(color: colors.border)),
-        boxShadow: NightshadeTokens.shadowLg,
-      ),
+    return Padding(
       padding: NightshadeTokens.dialogPadding,
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -541,6 +542,20 @@ class _RemoteConnectionSheetState
                 fullWidth: true,
               ),
             ),
+          // A local desktop reaches none of the branches above, and the sheet
+          // then held no control at all — an operator who opened it had to
+          // guess that Escape or the barrier was the way out.
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: NightshadeButton(
+                onPressed: () => Navigator.of(context).pop(),
+                label: 'Close',
+                variant: ButtonVariant.ghost,
+              ),
+            ),
+          ),
         ],
       ),
     );

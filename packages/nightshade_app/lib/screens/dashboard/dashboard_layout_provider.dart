@@ -210,3 +210,40 @@ final dashboardLayoutProvider =
     AsyncNotifierProvider<DashboardLayoutNotifier, DashboardLayout>(() {
   return DashboardLayoutNotifier();
 });
+
+/// True while the dashboard is showing the standby briefing instead of the
+/// arrangeable cockpit tiles: nothing connected, nothing loaded, nothing
+/// running.
+///
+/// Shared with the header actions so the two cannot disagree. They did: entering
+/// edit mode also flipped the page out of standby, so on a rig with no equipment
+/// "Edit Dashboard" replaced the briefing the user was looking at with six
+/// cockpit tiles that were not on it, and offered to arrange those instead —
+/// leaving no way at all to configure what the dashboard was actually showing.
+final dashboardStandbyProvider = Provider<bool>((ref) {
+  final executionState = ref.watch(sequenceExecutionStateProvider);
+  // Terminal states count as inactive: after a completed or failed run the
+  // executor never returns to `idle` on its own, and requiring exactly `idle`
+  // would strand a user who has since unloaded and disconnected on a dead
+  // cockpit instead of the briefing.
+  final executionInactive = executionState == SequenceExecutionState.idle ||
+      executionState == SequenceExecutionState.completed ||
+      executionState == SequenceExecutionState.failed;
+  if (!executionInactive) return false;
+  if (ref.watch(sessionStateProvider.select((s) => s.isCapturing)))
+    return false;
+
+  bool connected(ProviderListenable<DeviceConnectionState> state) =>
+      ref.watch(state) == DeviceConnectionState.connected;
+  if (connected(cameraStateProvider.select((s) => s.connectionState)) ||
+      connected(mountStateProvider.select((s) => s.connectionState)) ||
+      connected(guiderStateProvider.select((s) => s.connectionState)) ||
+      connected(focuserStateProvider.select((s) => s.connectionState))) {
+    return false;
+  }
+
+  final sequence = ref.watch(currentSequenceProvider);
+  final hasLoadedSequence = sequence != null &&
+      (sequence.targetHeaders.isNotEmpty || sequence.totalExposures > 0);
+  return !hasLoadedSequence;
+});

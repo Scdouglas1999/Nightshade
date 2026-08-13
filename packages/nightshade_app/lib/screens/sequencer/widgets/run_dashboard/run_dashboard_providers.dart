@@ -562,6 +562,30 @@ RunDashboardEvent _toDashboardEvent(ns_events.NightshadeEvent event) {
   );
 }
 
+/// Whether [event] is something a user reads their night from.
+///
+/// The feed is meant to summarise the night, and on a fresh profile its only
+/// entry was `System EventStreamReady — Event stream subscription is active
+/// (debug)`. One connect then filled it with `Heartbeat started · Heartbeat
+/// stopped · Heartbeat started · Heartbeat stopped · Connected`: five rows for
+/// one action, four of them monitor plumbing that means nothing to an
+/// astrophotographer and that evicted the events that do. Both still reach the
+/// diagnostics log, which is where they belong.
+bool isUserFacingRunEvent(ns_events.NightshadeEvent event) {
+  final payload = event.payload;
+  if (payload is ns_events.EventPayload_Equipment) {
+    final equipment = payload.field0;
+    return equipment is! ns_events.EquipmentEvent_HeartbeatStarted &&
+        equipment is! ns_events.EquipmentEvent_HeartbeatStopped;
+  }
+  if (payload is ns_events.EventPayload_System) {
+    final system = payload.field0;
+    return !(system is ns_events.SystemEvent_Notification &&
+        system.level.toLowerCase() == 'debug');
+  }
+  return true;
+}
+
 /// Last N events (default 5) classified for the trigger feed.
 ///
 /// Built off the existing `eventHistoryProvider` so we don't run a second
@@ -572,9 +596,9 @@ final runDashboardRecentEventsProvider =
   // Collapse BEFORE taking `limit`, so squashing a repeated condition actually
   // frees slots for the different events behind it. Taking first would leave
   // the panel showing one collapsed row and four blanks' worth of lost history.
-  return collapseRepeatedEvents(history.map(_toDashboardEvent))
-      .take(limit)
-      .toList(growable: false);
+  return collapseRepeatedEvents(
+    history.where(isUserFacingRunEvent).map(_toDashboardEvent),
+  ).take(limit).toList(growable: false);
 });
 
 // ============================================================================

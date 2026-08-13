@@ -468,9 +468,6 @@ class _DeviceHeartbeatChip extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
     final statusColor = snapshot.isHealthy ? colors.success : colors.error;
-    final lastSeen =
-        DateTime.fromMillisecondsSinceEpoch(snapshot.lastSuccessfulTimestampMs);
-    final age = DateTime.now().difference(lastSeen);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -498,15 +495,13 @@ class _DeviceHeartbeatChip extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  _resolveDeviceName(ref, snapshot.deviceId),
+                  _resolveDeviceName(ref, snapshot),
                   overflow: TextOverflow.ellipsis,
                   style: NightshadeTypography.labelStrongSm
                       .copyWith(color: colors.textPrimary),
                 ),
                 Text(
-                  snapshot.isHealthy
-                      ? 'OK - ${_formatAge(age)} ago'
-                      : 'Unhealthy - last seen ${_formatAge(age)} ago',
+                  _statusLine(snapshot),
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: NightshadeTypography.fontSize9,
@@ -521,11 +516,13 @@ class _DeviceHeartbeatChip extends ConsumerWidget {
     );
   }
 
-  /// The friendly model name for [deviceId] (e.g. "ZWO ASI1600MM-Cool"),
-  /// resolved from the discovery cache so System Health matches the model names
-  /// shown everywhere else instead of a raw driver-id segment. Falls back to the
-  /// id-pattern name when discovery hasn't seen the device.
-  String _resolveDeviceName(WidgetRef ref, String deviceId) {
+  /// The friendly model name for the snapshot's device (e.g. "ZWO
+  /// ASI1600MM-Cool"), resolved from the discovery cache so System Health
+  /// matches the model names shown everywhere else instead of a raw driver-id
+  /// segment. Falls back to the name the connected device reported, then to the
+  /// id-pattern name.
+  String _resolveDeviceName(WidgetRef ref, DeviceHealthSnapshot snapshot) {
+    final deviceId = snapshot.deviceId;
     final discovered = ref.watch(unifiedDiscoveryProvider).rawDevices;
     for (final device in discovered) {
       if (device.id == deviceId &&
@@ -534,7 +531,30 @@ class _DeviceHeartbeatChip extends ConsumerWidget {
         return device.name;
       }
     }
+    final label = snapshot.deviceLabel;
+    if (label != null && label.isNotEmpty && label != deviceId) return label;
     return friendlyNameFromDeviceId(deviceId);
+  }
+
+  /// What the chip says under the device name.
+  ///
+  /// Only the camera notifier records a successful-communication timestamp, so
+  /// every other device arrives here with zero. Rendering that as an age gave
+  /// each of them a green "OK - 20676d ago" — 56 years, i.e. the epoch — on a
+  /// rig that had been connected for seconds. An absent timestamp is unknown,
+  /// and the panel whose whole job is to notice a device going quiet has to say
+  /// so rather than print the worst staleness value there is and call it OK.
+  static String _statusLine(DeviceHealthSnapshot snapshot) {
+    final health = snapshot.isHealthy ? 'OK' : 'Unhealthy';
+    if (snapshot.lastSuccessfulTimestampMs <= 0) {
+      return '$health - last contact unknown';
+    }
+    final age = DateTime.now().difference(
+      DateTime.fromMillisecondsSinceEpoch(snapshot.lastSuccessfulTimestampMs),
+    );
+    return snapshot.isHealthy
+        ? 'OK - ${_formatAge(age)} ago'
+        : 'Unhealthy - last seen ${_formatAge(age)} ago';
   }
 
   static String _formatAge(Duration age) {

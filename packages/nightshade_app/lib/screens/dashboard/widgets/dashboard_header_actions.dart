@@ -7,8 +7,9 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../localization/nightshade_localizations.dart';
 import '../../../widgets/tutorial_keys/dashboard_keys.dart';
+import '../dashboard_layout_provider.dart';
 
-class DashboardHeaderActions extends StatelessWidget {
+class DashboardHeaderActions extends ConsumerWidget {
   final bool isEditing;
   final VoidCallback onToggleEdit;
   final VoidCallback onManageWidgets;
@@ -25,21 +26,33 @@ class DashboardHeaderActions extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final buttonSize = compact ? ButtonSize.small : ButtonSize.medium;
+    // The standby briefing is not made of arrangeable tiles. Offering to edit
+    // it swapped the page for six cockpit tiles the user had never seen and
+    // arranged those instead, which left the visible dashboard unconfigurable
+    // and the editor describing a layout that was not on screen.
+    final canEdit = !ref.watch(dashboardStandbyProvider);
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        NightshadeButton(
-          key: DashboardTutorialKeys.editButton,
-          label: l10n.text(
-              isEditing ? 'dbDone' : (compact ? 'dbEdit' : 'dbEditDashboard')),
-          icon: isEditing ? LucideIcons.check : LucideIcons.layoutDashboard,
-          variant: isEditing ? ButtonVariant.primary : ButtonVariant.outline,
-          size: buttonSize,
-          onPressed: onToggleEdit,
+        Tooltip(
+          message: canEdit
+              ? ''
+              : 'Nothing to arrange yet — the briefing has no tiles. Connect a '
+                  'device or load a sequence to arrange the session dashboard.',
+          child: NightshadeButton(
+            key: DashboardTutorialKeys.editButton,
+            label: l10n.text(isEditing
+                ? 'dbDone'
+                : (compact ? 'dbEdit' : 'dbEditDashboard')),
+            icon: isEditing ? LucideIcons.check : LucideIcons.layoutDashboard,
+            variant: isEditing ? ButtonVariant.primary : ButtonVariant.outline,
+            size: buttonSize,
+            onPressed: canEdit ? onToggleEdit : null,
+          ),
         ),
         if (isEditing) ...[
           SizedBox(width: compact ? 4 : 8),

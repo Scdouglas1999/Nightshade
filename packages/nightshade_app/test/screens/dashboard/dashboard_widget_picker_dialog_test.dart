@@ -39,6 +39,9 @@ void main() {
         overrides: [
           dashboardLayoutProvider
               .overrideWith(() => _TestDashboardLayoutNotifier()),
+          // Edit arranges the cockpit tiles and is refused while the standby
+          // briefing (which has none) is on screen.
+          dashboardStandbyProvider.overrideWithValue(false),
         ],
         child: MaterialApp(
           theme: NightshadeTheme.dark,

@@ -89,6 +89,12 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
 
   Future<void> _handleConnect() async {
     if (_isConnecting) return;
+    // A click that lands after the connect completes but before the row
+    // repaints as "Disconnect" issued a SECOND connect to a device that was
+    // already connected — two `Connecting to Camera device: sim_camera_1`
+    // 190 ms apart with no disconnect between them, each starting its own
+    // heartbeat monitor.
+    if (_isDeviceConnected()) return;
 
     setState(() => _isConnecting = true);
     try {

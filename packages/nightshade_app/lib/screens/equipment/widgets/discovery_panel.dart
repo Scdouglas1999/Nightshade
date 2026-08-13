@@ -717,7 +717,7 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
                   device: device,
                   deviceType: deviceType,
                   onConnect: () => _connectDevice(device),
-                  onDisconnect: () => _disconnectDevice(device.type),
+                  onDisconnect: () => _disconnectDevice(device),
                   onAssignDevice: widget.onAssignDevice,
                 )),
         ],
@@ -833,10 +833,22 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
       connectFn: (id) => _dispatchConnect(deviceService, device.type, id),
       onConnected: () async {
         if (mounted) {
-          context.showSuccessSnackBar('Connected to ${device.displayName}');
+          _announce('Connected to ${device.displayName}');
         }
       },
     );
+  }
+
+  /// Shows a device-state toast, dropping any earlier one still on screen.
+  ///
+  /// Snackbars queue, and this row's buttons can be pressed far faster than a
+  /// snackbar's dwell time: hammering Connect/Disconnect left the bar replaying
+  /// stale messages for eight seconds after the last click, so the window read
+  /// "Disconnected camera" while the same frame showed the camera connected at
+  /// 20.0 degrees. Only the newest statement about a device can be true.
+  void _announce(String message) {
+    ScaffoldMessenger.of(context).clearSnackBars();
+    context.showSuccessSnackBar(message);
   }
 
   /// Per-device-type connect dispatch shared by the discovery connect path.
@@ -873,8 +885,9 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
     }
   }
 
-  Future<void> _disconnectDevice(DeviceType deviceType) async {
+  Future<void> _disconnectDevice(UnifiedDevice device) async {
     final deviceService = ref.read(deviceServiceProvider);
+    final deviceType = device.type;
 
     try {
       switch (deviceType) {
@@ -913,12 +926,12 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
           break;
       }
       if (mounted) {
-        context.showSuccessSnackBar(
-            'Disconnected ${deviceType.displayName.toLowerCase()}');
+        _announce('Disconnected ${device.displayName}');
       }
     } catch (e) {
       if (mounted) {
-        context.showErrorSnackBar('Failed to disconnect: $e');
+        context.showErrorSnackBar(
+            'Failed to disconnect ${device.displayName}: $e');
       }
     }
   }

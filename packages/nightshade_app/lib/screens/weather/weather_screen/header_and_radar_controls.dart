@@ -234,60 +234,82 @@ class _NoLocationContent extends StatelessWidget {
       // Scrollable so the centered card never overflows when a phone is held
       // in landscape and the viewport is short.
       padding: const EdgeInsets.all(16),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: dialogMaxWidth(context, 400),
-          ),
-          child: NightshadeCard(
-            variant: CardVariant.subtle,
-            borderRadius: NightshadeTokens.radiusInline8,
-            padding: EdgeInsets.all(cardPad),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: EdgeInsets.all(iconPad),
-                  decoration: BoxDecoration(
-                    color: colors.warning.withValues(alpha: 0.12),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    NightshadeIcons.location,
-                    size: 48,
-                    color: colors.warning,
-                  ),
+      child: Column(
+        children: [
+          Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: dialogMaxWidth(context, 400),
+              ),
+              child: NightshadeCard(
+                variant: CardVariant.subtle,
+                borderRadius: NightshadeTokens.radiusInline8,
+                padding: EdgeInsets.all(cardPad),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(iconPad),
+                      decoration: BoxDecoration(
+                        color: colors.warning.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        NightshadeIcons.location,
+                        size: 48,
+                        color: colors.warning,
+                      ),
+                    ),
+                    SizedBox(height: gapLg),
+                    Text(
+                      'Location Not Configured',
+                      style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize20,
+                        fontWeight: FontWeight.w600,
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    SizedBox(height: gapSm),
+                    Text(
+                      'Weather radar requires your observation location to display relevant data. Please configure your location in Settings.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize14,
+                        color: colors.textSecondary,
+                        height: 1.5,
+                      ),
+                    ),
+                    SizedBox(height: gapLg),
+                    NightshadeButton(
+                      label: 'Open Location Settings',
+                      icon: NightshadeIcons.location,
+                      variant: ButtonVariant.primary,
+                      onPressed: () => context.go('/settings?section=location'),
+                    ),
+                  ],
                 ),
-                SizedBox(height: gapLg),
-                Text(
-                  'Location Not Configured',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize20,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
-                ),
-                SizedBox(height: gapSm),
-                Text(
-                  'Weather radar requires your observation location to display relevant data. Please configure your location in Settings.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize14,
-                    color: colors.textSecondary,
-                    height: 1.5,
-                  ),
-                ),
-                SizedBox(height: gapLg),
-                NightshadeButton(
-                  label: 'Open Location Settings',
-                  icon: NightshadeIcons.location,
-                  variant: ButtonVariant.primary,
-                  onPressed: () => context.go('/settings?section=location'),
-                ),
-              ],
+              ),
             ),
           ),
-        ),
+          // Only the radar needs a location. The sensors on the rig and the
+          // safety verdict do not, and gating the whole screen hid a connected
+          // weather station's live readings behind a setting they have nothing
+          // to do with.
+          SizedBox(height: gapLg),
+          Center(
+            child: ConstrainedBox(
+              constraints:
+                  BoxConstraints(maxWidth: dialogMaxWidth(context, 560)),
+              child: Column(
+                children: [
+                  _HardwareSensorsCard(colors: colors),
+                  SizedBox(height: gapSm),
+                  _WeatherSafetyCard(colors: colors),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
