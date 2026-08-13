@@ -1,0 +1,326 @@
+use super::*;
+use crate::api::get_device_manager;
+use crate::device::{DeviceInfo, DeviceType, DriverType};
+use crate::device_manager::DeviceManager;
+use nightshade_native::{
+    CameraCapabilities, CameraState, CameraStatus, ExposureParams, ImageData, ImageMetadata,
+    NativeCamera, NativeDevice, NativeError, NativeVendor, ReadoutMode, SensorInfo, SubFrame,
+    VendorFeatures,
+};
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
+};
+
+#[derive(Debug)]
+struct InstantCompleteCamera {
+    id: String,
+    name: String,
+    vendor: NativeVendor,
+    exposure_checked: Arc<AtomicUsize>,
+    connected: bool,
+}
+
+impl InstantCompleteCamera {
+    fn new(id: String, exposure_checked: Arc<AtomicUsize>) -> Self {
+        Self {
+            id: id.clone(),
+            name: "Instant Complete Camera".to_string(),
+            vendor: NativeVendor::Other("Test".to_string()),
+            exposure_checked,
+            connected: true,
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl NativeDevice for InstantCompleteCamera {
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn vendor(&self) -> NativeVendor {
+        self.vendor.clone()
+    }
+
+    fn is_connected(&self) -> bool {
+        self.connected
+    }
+
+    async fn connect(&mut self) -> Result<(), NativeError> {
+        self.connected = true;
+        Ok(())
+    }
+
+    async fn disconnect(&mut self) -> Result<(), NativeError> {
+        self.connected = false;
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl NativeCamera for InstantCompleteCamera {
+    fn capabilities(&self) -> CameraCapabilities {
+        CameraCapabilities::default()
+    }
+
+    async fn get_status(&self) -> Result<CameraStatus, NativeError> {
+        Ok(CameraStatus {
+            state: CameraState::Idle,
+            sensor_temp: None,
+            cooler_power: None,
+            target_temp: None,
+            cooler_on: false,
+            gain: 0,
+            offset: 0,
+            bin_x: 1,
+            bin_y: 1,
+            exposure_remaining: None,
+        })
+    }
+
+    async fn start_exposure(&mut self, _params: ExposureParams) -> Result<(), NativeError> {
+        Ok(())
+    }
+
+    async fn abort_exposure(&mut self) -> Result<(), NativeError> {
+        Ok(())
+    }
+
+    async fn is_exposure_complete(&self) -> Result<bool, NativeError> {
+        self.exposure_checked.fetch_add(1, Ordering::SeqCst);
+        Ok(true)
+    }
+
+    async fn download_image(&mut self) -> Result<ImageData, NativeError> {
+        Ok(ImageData {
+            width: 2,
+            height: 2,
+            data: vec![100, 200, 300, 400],
+            bits_per_pixel: 16,
+            bayer_pattern: None,
+            metadata: ImageMetadata {
+                exposure_time: 0.5,
+                gain: 0,
+                offset: 0,
+                bin_x: 1,
+                bin_y: 1,
+                temperature: None,
+                timestamp: chrono::Utc::now(),
+                subframe: None,
+                readout_mode: None,
+                vendor_data: VendorFeatures::default(),
+            },
+        })
+    }
+
+    async fn set_cooler(
+        &mut self,
+        _enabled: bool,
+        _target_temp: Option<f64>,
+    ) -> Result<(), NativeError> {
+        Ok(())
+    }
+
+    async fn get_temperature(&self) -> Result<f64, NativeError> {
+        Ok(0.0)
+    }
+
+    async fn get_cooler_power(&self) -> Result<f64, NativeError> {
+        Ok(0.0)
+    }
+
+    async fn set_gain(&mut self, _gain: i32) -> Result<(), NativeError> {
+        Ok(())
+    }
+
+    async fn get_gain(&self) -> Result<i32, NativeError> {
+        Ok(0)
+    }
+
+    async fn set_offset(&mut self, _offset: i32) -> Result<(), NativeError> {
+        Ok(())
+    }
+
+    async fn get_offset(&self) -> Result<i32, NativeError> {
+        Ok(0)
+    }
+
+    async fn set_binning(&mut self, _bin_x: i32, _bin_y: i32) -> Result<(), NativeError> {
+        Ok(())
+    }
+
+    async fn get_binning(&self) -> Result<(i32, i32), NativeError> {
+        Ok((1, 1))
+    }
+
+    async fn set_subframe(&mut self, _subframe: Option<SubFrame>) -> Result<(), NativeError> {
+        Ok(())
+    }
+
+    fn get_sensor_info(&self) -> SensorInfo {
+        SensorInfo {
+            width: 2,
+            height: 2,
+            pixel_size_x: 1.0,
+            pixel_size_y: 1.0,
+            max_adu: 65535,
+            bit_depth: 16,
+            color: false,
+            bayer_pattern: None,
+        }
+    }
+
+    async fn get_readout_modes(&self) -> Result<Vec<ReadoutMode>, NativeError> {
+        Ok(Vec::new())
+    }
+
+    async fn set_readout_mode(&mut self, _mode: &ReadoutMode) -> Result<(), NativeError> {
+        Ok(())
+    }
+
+    async fn get_vendor_features(&self) -> Result<VendorFeatures, NativeError> {
+        Ok(VendorFeatures::default())
+    }
+
+    async fn get_gain_range(&self) -> Result<(i32, i32), NativeError> {
+        Err(NativeError::NotSupported)
+    }
+
+    async fn get_offset_range(&self) -> Result<(i32, i32), NativeError> {
+        Err(NativeError::NotSupported)
+    }
+}
+
+async fn cleanup_test_camera(mgr: &Arc<DeviceManager>, device_id: &str) {
+    mgr.unregister_device(device_id).await;
+    let mut native_cameras = mgr.native_cameras.write().await;
+    native_cameras.remove(device_id);
+}
+
+#[tokio::test]
+async fn exposure_polling_short_circuits_when_complete() {
+    let mgr = get_device_manager();
+    let device_id = "native:test_camera_polling".to_string();
+    let exposure_checked = Arc::new(AtomicUsize::new(0));
+
+    let info = DeviceInfo {
+        id: device_id.clone(),
+        name: "Test Camera".to_string(),
+        device_type: DeviceType::Camera,
+        driver_type: DriverType::Native,
+        description: "Test camera".to_string(),
+        driver_version: "test".to_string(),
+        serial_number: None,
+        unique_id: None,
+        display_name: "Test Camera".to_string(),
+    };
+
+    mgr.register_device(info, false).await;
+    {
+        let mut native_cameras = mgr.native_cameras.write().await;
+        native_cameras.insert(
+            device_id.clone(),
+            Box::new(InstantCompleteCamera::new(
+                device_id.clone(),
+                Arc::clone(&exposure_checked),
+            )),
+        );
+    }
+
+    let ops = UnifiedDeviceOps::new(crate::api::get_state().clone());
+    let device_id_for_exposure = device_id.clone();
+    let timed_result = tokio::time::timeout(std::time::Duration::from_millis(100), async move {
+        ops.camera_start_exposure(&device_id_for_exposure, 0.5, None, None, 1, 1)
+            .await
+    })
+    .await;
+    cleanup_test_camera(mgr, &device_id).await;
+
+    let result = match timed_result {
+        Ok(result) => result,
+        Err(_) => {
+            panic!("Expected exposure to complete without waiting when already complete");
+        }
+    };
+
+    assert!(
+        result.is_ok(),
+        "Exposure should succeed when complete immediately"
+    );
+    assert!(
+        exposure_checked.load(Ordering::SeqCst) > 0,
+        "Exposure status should be checked at least once"
+    );
+}
+
+#[tokio::test]
+async fn exposure_polling_times_out_when_driver_never_completes() {
+    let poll_count = Arc::new(AtomicUsize::new(0));
+    let result = wait_for_camera_exposure_complete(
+        "native:test_hung_camera",
+        300.0,
+        std::time::Duration::from_millis(20),
+        exposure_abort_generation("native:test_hung_camera").await,
+        crate::api::get_state(),
+        || {
+            let poll_count = Arc::clone(&poll_count);
+            async move {
+                poll_count.fetch_add(1, Ordering::SeqCst);
+                Ok(false)
+            }
+        },
+    )
+    .await;
+
+    let err = result.expect_err("hung exposure polling should time out");
+    assert!(
+        err.contains("did not complete within"),
+        "unexpected timeout error: {err}"
+    );
+    assert!(
+        poll_count.load(Ordering::SeqCst) > 0,
+        "exposure status should be polled before timing out"
+    );
+}
+
+/// regression: the live `UnifiedDeviceOps` must OVERRIDE
+/// `device_is_connected` / `connect_device`. The `DeviceOps` trait
+/// defaults return `Err("… not supported by this driver")`, which made
+/// every device-disconnect recovery attempt fail instantly on the live
+/// path (the single most common unattended-night failure mode was
+/// unrecoverable). This asserts the overrides delegate to the
+/// `DeviceManager` rather than inheriting the defaults.
+#[tokio::test]
+async fn reconnect_overrides_are_wired_not_trait_default() {
+    let ops = UnifiedDeviceOps::new(crate::api::get_state().clone());
+
+    // Unknown device: the override consults the DeviceManager and reports
+    // Ok(false). The trait default would instead return Err("not
+    // supported"), so Ok(false) proves the override is in place.
+    let connected = ops.device_is_connected("native:does_not_exist").await;
+    assert_eq!(
+        connected,
+        Ok(false),
+        "device_is_connected must be overridden (Ok(false) for an unknown \
+         device), not the trait-default Err"
+    );
+
+    // connect_device on an unknown id errors, but it must be a real
+    // DeviceManager "not found" error — NOT the trait-default
+    // "connect_device not supported by this driver".
+    let connect = ops.connect_device("native:does_not_exist").await;
+    assert!(
+        connect.is_err(),
+        "connecting an unknown device should error"
+    );
+    let msg = connect.unwrap_err();
+    assert!(
+        !msg.contains("not supported by this driver"),
+        "connect_device must be overridden; got the trait-default error: {msg}"
+    );
+}

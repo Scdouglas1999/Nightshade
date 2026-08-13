@@ -1,0 +1,199 @@
+use super::{
+    get_polar_align_cancel, get_polar_align_flag, plate_solve_ra_degrees, polar_generation,
+    polar_loop_control, pole_region_target, release_polar_run_if_current, try_admit_polar_run,
+    PolarLoopControl, PolarOrdering, POLE_REGION_OFFSET_DEG,
+};
+
+#[test]
+fn plate_solve_ra_is_already_degrees_for_polar_geometry() {
+    assert_eq!(plate_solve_ra_degrees(10.0), 10.0);
+}
+
+/// IMG-14: the frame polar alignment hands the solver must carry the field
+/// scale the operator already told us about. Without `FOCALLEN` and the
+/// binned pixel pitch, ASTAP has no scale to work from and sweeps its
+/// field-of-view ladder — the slow path that fails on fields it would
+/// otherwise solve, three times per alignment run.
+#[test]
+fn polar_solve_frame_carries_the_field_scale_hints() {
+    use super::{write_temp_fits_for_solve, SolveHints};
+    use crate::api::imaging::{CapturedImageResult, ImageStatsResult};
+
+    let width = 8u32;
+    let height = 6u32;
+    let image = CapturedImageResult {
+        width,
+        height,
+        display_data: vec![32u8; (width * height * 4) as usize],
+        histogram: vec![0; 256],
+        stats: ImageStatsResult {
+            min: 0.0,
+            max: 1.0,
+            mean: 0.5,
+            median: 0.5,
+            std_dev: 0.1,
+            hfr: None,
+            eccentricity: None,
+            fwhm: None,
+            star_count: 0,
+        },
+        exposure_time: 2.0,
+        timestamp: "2026-08-13T00:00:00Z".to_string(),
+        is_color: false,
+    };
+
+    let path = crate::api::create_unique_temp_fits_path("polar_hint_test");
+    let path_str = path.to_string_lossy().to_string();
+    // A 416 mm scope and a 3.76 um sensor binned 2x2 — the operator's own
+    // profile entry and what the camera reports.
+    let hints = SolveHints {
+        focal_length_mm: Some(416.0),
+        pixel_size_um: Some((3.76, 3.76)),
+        binning: (2, 2),
+    };
+    write_temp_fits_for_solve(&image, &path_str, &hints).expect("temp FITS write");
+
+    let (_data, header) = nightshade_imaging::read_fits(&path).expect("read back temp FITS");
+    assert_eq!(header.get_float("FOCALLEN"), Some(416.0));
+    let xpixsz = header.get_float("XPIXSZ").expect("XPIXSZ card");
+    let ypixsz = header.get_float("YPIXSZ").expect("YPIXSZ card");
+    assert!(
+        (xpixsz - 7.52).abs() < 1e-6 && (ypixsz - 7.52).abs() < 1e-6,
+        "a 3.76 um sensor binned 2x2 has 7.52 um effective pixels, got {xpixsz} x {ypixsz}"
+    );
+
+    let _ = std::fs::remove_file(&path);
+}
+
+/// A rig that reports neither optic nor pitch contributes no card, and the
+/// solver behaves exactly as it did before — no invented numbers.
+#[test]
+fn polar_solve_frame_omits_scale_cards_when_nothing_is_known() {
+    use super::{write_temp_fits_for_solve, SolveHints};
+    use crate::api::imaging::{CapturedImageResult, ImageStatsResult};
+
+    let image = CapturedImageResult {
+        width: 4,
+        height: 4,
+        display_data: vec![0u8; 4 * 4 * 4],
+        histogram: vec![0; 256],
+        stats: ImageStatsResult {
+            min: 0.0,
+            max: 0.0,
+            mean: 0.0,
+            median: 0.0,
+            std_dev: 0.0,
+            hfr: None,
+            eccentricity: None,
+            fwhm: None,
+            star_count: 0,
+        },
+        exposure_time: 1.0,
+        timestamp: "2026-08-13T00:00:00Z".to_string(),
+        is_color: false,
+    };
+
+    let path = crate::api::create_unique_temp_fits_path("polar_hint_absent_test");
+    let path_str = path.to_string_lossy().to_string();
+    write_temp_fits_for_solve(&image, &path_str, &SolveHints::default()).expect("write");
+
+    let (_data, header) = nightshade_imaging::read_fits(&path).expect("read back temp FITS");
+    assert_eq!(header.get_float("FOCALLEN"), None);
+    assert_eq!(header.get_float("XPIXSZ"), None);
+
+    let _ = std::fs::remove_file(&path);
+}
+
+/// The pole-region slew target sits on the meridian (RA == LST, wrapped into
+/// [0,24)) and `POLE_REGION_OFFSET_DEG` from the pole toward the equator,
+/// with the correct sign per hemisphere.
+#[test]
+fn pole_region_target_on_meridian_and_offset_from_pole() {
+    let (ra, dec) = pole_region_target(6.5, true);
+    assert!((ra - 6.5).abs() < 1e-9, "north RA should equal LST");
+    assert!(
+        (dec - (90.0 - POLE_REGION_OFFSET_DEG)).abs() < 1e-9,
+        "north dec should be 90 - offset, got {dec}"
+    );
+
+    let (_, dec_s) = pole_region_target(6.5, false);
+    assert!(
+        (dec_s - (-90.0 + POLE_REGION_OFFSET_DEG)).abs() < 1e-9,
+        "south dec should be -90 + offset, got {dec_s}"
+    );
+
+    // LST wraps into [0, 24) both above 24 and below 0.
+    assert!((pole_region_target(25.0, true).0 - 1.0).abs() < 1e-9);
+    assert!((pole_region_target(-1.0, true).0 - 23.0).abs() < 1e-9);
+
+    // The offset keeps the target within the ≈30° pole region but off the
+    // degenerate pole itself.
+    let (_, dec_n) = pole_region_target(0.0, true);
+    assert!(
+        (60.0..90.0).contains(&dec_n),
+        "north dec in pole region: {dec_n}"
+    );
+}
+
+/// The generation + owned-run primitives that back the no-overlap guarantee:
+/// admitting a run bumps the generation and sets the flag; a superseding run
+/// makes the old generation stale; and a *stale* release must never clear a
+/// newer run's flag (which would let a third Start overlap the live run).
+///
+/// All the global-state assertions live in ONE test so they can't race with
+/// each other over the process-wide statics.
+#[test]
+fn generation_admission_and_release_no_overlap() {
+    // Clean baseline.
+    get_polar_align_flag().store(false, PolarOrdering::Relaxed);
+    get_polar_align_cancel().store(false, PolarOrdering::Relaxed);
+
+    // Admitting a run flips the flag and clears cancel.
+    let g1 = try_admit_polar_run().expect("first run admitted");
+    assert!(get_polar_align_flag().load(PolarOrdering::Relaxed));
+    assert!(!get_polar_align_cancel().load(PolarOrdering::Relaxed));
+    assert!(matches!(polar_loop_control(g1), PolarLoopControl::Continue));
+
+    // Atomic admission rejects a concurrent second owner.
+    assert!(try_admit_polar_run().is_none());
+
+    // Once the first run releases, a new generation can be admitted.
+    release_polar_run_if_current(g1);
+    let g2 = try_admit_polar_run().expect("second run admitted after release");
+    assert!(g2 > g1, "generation must be monotonic: {g1} -> {g2}");
+    assert!(matches!(
+        polar_loop_control(g1),
+        PolarLoopControl::Superseded
+    ));
+    assert!(matches!(polar_loop_control(g2), PolarLoopControl::Continue));
+
+    // Cancellation only cancels the *current* generation; a stale gen still
+    // reports Superseded (generation is checked before cancel).
+    get_polar_align_cancel().store(true, PolarOrdering::Relaxed);
+    assert!(matches!(
+        polar_loop_control(g2),
+        PolarLoopControl::Cancelled
+    ));
+    assert!(matches!(
+        polar_loop_control(g1),
+        PolarLoopControl::Superseded
+    ));
+
+    // A stale-generation release must NOT clear the live run's flag —
+    // otherwise a superseded/aborted task could unblock a third Start while
+    // the current run still owns the hardware.
+    release_polar_run_if_current(g1);
+    assert!(
+        get_polar_align_flag().load(PolarOrdering::Relaxed),
+        "stale release cleared the live run's flag"
+    );
+
+    // The current generation's release clears the flag.
+    release_polar_run_if_current(g2);
+    assert!(!get_polar_align_flag().load(PolarOrdering::Relaxed));
+
+    // Leave globals clean for any other test.
+    get_polar_align_cancel().store(false, PolarOrdering::Relaxed);
+    // Nudge the generation so a later admission is still strictly greater.
+    let _ = polar_generation().load(PolarOrdering::Relaxed);
+}

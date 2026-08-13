@@ -235,7 +235,7 @@ mod guard_tests {
     /// The renderer and its catalogue/index code are allowed randomness:
     /// `sim_frame` draws seeded shot/read noise, `sim_sky` is the star source.
     const SANCTIONED: &[&str] = &[
-        "bridge/src/sim_frame.rs",
+        "bridge/src/sim_frame/mod.rs",
         "bridge/src/sim_sky.rs",
         "bridge/src/sim_capture.rs",
     ];
@@ -431,7 +431,10 @@ mod guard_tests {
     #[test]
     fn release_gate_still_guards_null_device_ops() {
         let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-        for (file, func) in [("api/sequencer.rs", "api_sequencer_set_simulation_mode")] {
+        for (file, func) in [(
+            "api/sequencer/runtime_config.rs",
+            "api_sequencer_set_simulation_mode",
+        )] {
             let text = std::fs::read_to_string(src.join(file))
                 .unwrap_or_else(|e| panic!("read {file}: {e}"));
             let start = text
