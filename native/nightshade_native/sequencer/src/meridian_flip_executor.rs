@@ -184,8 +184,68 @@ impl MeridianFlipExecutor {
         self.abort_requested.clone()
     }
 
-    /// Execute the meridian flip
+    /// Execute the meridian flip.
+    ///
+    /// The verdict is announced on the executor event stream here rather than
+    /// at the call sites. `MeridianFlipOutcome` is what feeds the run vitals'
+    /// `meridianFlips` count and the session report's error list, and only the
+    /// trigger call site used to emit it — so a sequence that flipped via an
+    /// explicit MeridianFlip node reported no flip at all, and a node-driven
+    /// flip that failed its post-flip recenter left an empty error list on a
+    /// run reported as completed. The executor owns the flip, so it owns the
+    /// verdict; both call sites now inherit it.
     pub async fn execute(&mut self, ctx: &FlipContext) -> FlipResult {
+        let result = self.execute_flip(ctx).await;
+        self.announce_outcome(ctx, &result);
+        result
+    }
+
+    fn announce_outcome(&self, ctx: &FlipContext, result: &FlipResult) {
+        let Some(tx) = &self.executor_event_tx else {
+            return;
+        };
+        let event = match result {
+            FlipResult::Success {
+                new_pier_side,
+                duration_secs,
+            } => ExecutorEvent::MeridianFlipOutcome {
+                outcome: "success".to_string(),
+                target_name: ctx.target_name.clone(),
+                new_pier_side: format!("{:?}", new_pier_side),
+                duration_secs: *duration_secs,
+                attempts: self.attempts_made,
+                failed_steps: self.failed_attempts.clone(),
+                error: None,
+                action_taken: None,
+            },
+            FlipResult::Failed {
+                error,
+                action_taken,
+            } => ExecutorEvent::MeridianFlipOutcome {
+                outcome: "failed".to_string(),
+                target_name: ctx.target_name.clone(),
+                new_pier_side: "Unknown".to_string(),
+                duration_secs: 0.0,
+                attempts: self.attempts_made,
+                failed_steps: self.failed_attempts.clone(),
+                error: Some(error.clone()),
+                action_taken: Some(format!("{:?}", action_taken)),
+            },
+            FlipResult::Aborted { reason } => ExecutorEvent::MeridianFlipOutcome {
+                outcome: "aborted".to_string(),
+                target_name: ctx.target_name.clone(),
+                new_pier_side: "Unknown".to_string(),
+                duration_secs: 0.0,
+                attempts: self.attempts_made,
+                failed_steps: self.failed_attempts.clone(),
+                error: Some(reason.clone()),
+                action_taken: None,
+            },
+        };
+        let _ = tx.send(event);
+    }
+
+    async fn execute_flip(&mut self, ctx: &FlipContext) -> FlipResult {
         let start_time = Instant::now();
 
         // Reset the per-run attempt telemetry. An executor is normally
@@ -2424,6 +2484,133 @@ mod tests {
             "The recorded failure must name the failing step, got {:?}",
             executor.failed_attempts()
         );
+    }
+
+    /// Drain the executor event stream and return every flip outcome on it.
+    fn flip_outcomes(rx: &mut broadcast::Receiver<ExecutorEvent>) -> Vec<ExecutorEvent> {
+        let mut outcomes = Vec::new();
+        while let Ok(event) = rx.try_recv() {
+            if matches!(event, ExecutorEvent::MeridianFlipOutcome { .. }) {
+                outcomes.push(event);
+            }
+        }
+        outcomes
+    }
+
+    /// D4/R4: `MeridianFlipOutcome` is the only wire that carries a flip to the
+    /// run vitals (`meridianFlips`) and the session report. It used to be
+    /// emitted by the TRIGGER call site alone, so a sequence that flipped via
+    /// an explicit MeridianFlip node reported no flip at all. The executor owns
+    /// the flip, so the executor announces it — both call sites inherit it.
+    #[tokio::test]
+    async fn a_successful_flip_announces_its_outcome_on_the_event_stream() {
+        let state = Arc::new(MockDeviceOpsState::default());
+        state.pier_sides.lock().unwrap().extend([
+            crate::meridian::PierSide::East,
+            crate::meridian::PierSide::West,
+        ]);
+        let ops: SharedDeviceOps = Arc::new(MockDeviceOps::new(state.clone()));
+
+        let config = MeridianFlipConfig {
+            pause_guiding: false,
+            auto_center: true,
+            refocus_after: false,
+            resume_guiding: false,
+            settle_time: 0.0,
+            max_retries: 0,
+            ..Default::default()
+        };
+
+        let (event_tx, mut event_rx) = broadcast::channel(64);
+        let mut executor = MeridianFlipExecutor::new(config, ops).with_executor_event_tx(event_tx);
+        let ctx = make_ctx(&state);
+
+        match executor.execute(&ctx).await {
+            FlipResult::Success { .. } => {}
+            other => panic!("Expected a clean flip to succeed, got {:?}", other),
+        }
+
+        let outcomes = flip_outcomes(&mut event_rx);
+        assert_eq!(
+            outcomes.len(),
+            1,
+            "a flip must announce its verdict exactly once, got {outcomes:?}"
+        );
+        let ExecutorEvent::MeridianFlipOutcome {
+            outcome,
+            target_name,
+            new_pier_side,
+            attempts,
+            failed_steps,
+            error,
+            ..
+        } = &outcomes[0]
+        else {
+            unreachable!("filtered above")
+        };
+        assert_eq!(outcome, "success");
+        assert_eq!(target_name, "M42");
+        assert_eq!(new_pier_side, "West");
+        assert_eq!(*attempts, 1);
+        assert!(failed_steps.is_empty());
+        assert!(error.is_none());
+    }
+
+    /// The failure case is the one that costs a night: a node-driven flip that
+    /// failed its post-flip recenter left `errorMessages: []` on a run reported
+    /// as completed.
+    #[tokio::test]
+    async fn a_failed_flip_announces_its_verdict_with_every_failed_attempt() {
+        let state = Arc::new(MockDeviceOpsState::default());
+        state.pier_sides.lock().unwrap().extend([
+            crate::meridian::PierSide::East,
+            crate::meridian::PierSide::West,
+            crate::meridian::PierSide::West,
+        ]);
+        state
+            .plate_solve_failures_remaining
+            .store(10, Ordering::Relaxed);
+        let ops: SharedDeviceOps = Arc::new(MockDeviceOps::new(state.clone()));
+
+        let config = MeridianFlipConfig {
+            pause_guiding: false,
+            auto_center: true,
+            refocus_after: false,
+            resume_guiding: false,
+            settle_time: 0.0,
+            max_retries: 1,
+            retry_delays_secs: vec![0.0],
+            failure_action: FlipFailureAction::PauseAndAlert,
+            ..Default::default()
+        };
+
+        let (event_tx, mut event_rx) = broadcast::channel(64);
+        let mut executor = MeridianFlipExecutor::new(config, ops).with_executor_event_tx(event_tx);
+        let ctx = make_ctx(&state);
+
+        match executor.execute(&ctx).await {
+            FlipResult::Failed { .. } => {}
+            other => panic!("Expected the exhausted ladder to fail, got {:?}", other),
+        }
+
+        let outcomes = flip_outcomes(&mut event_rx);
+        assert_eq!(outcomes.len(), 1, "got {outcomes:?}");
+        let ExecutorEvent::MeridianFlipOutcome {
+            outcome,
+            attempts,
+            failed_steps,
+            error,
+            action_taken,
+            ..
+        } = &outcomes[0]
+        else {
+            unreachable!("filtered above")
+        };
+        assert_eq!(outcome, "failed");
+        assert_eq!(*attempts, 2);
+        assert_eq!(failed_steps.len(), 2, "got {failed_steps:?}");
+        assert!(error.as_ref().is_some_and(|e| e.contains("Plate solve")));
+        assert_eq!(action_taken.as_deref(), Some("PauseAndAlert"));
     }
 
     /// Regression: when the ladder is exhausted the telemetry must still carry

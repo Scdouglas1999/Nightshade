@@ -81,6 +81,83 @@ fn effective_weather_verdict_staleness_secs(value: u64) -> u64 {
     }
 }
 
+/// How long any one trigger-monitor device poll may take before it is treated
+/// as failed.
+///
+/// The monitor is the only thing enforcing weather, altitude, drift,
+/// tracking-loss, dome and meridian protection while the execution branch
+/// exposes. A driver call that never returns — a documented hazard on this
+/// project's ASCOM path — parks the monitor's loop forever: it never reaches
+/// its next tick, and the `select!` that joins it only handles the monitor
+/// *exiting*, not hanging. Every poll is therefore bounded, and a poll that
+/// runs out of time is reported as the poll *failure* it is, which the
+/// `SafetyFailMode` ladder and each caller's `Err` arm already know how to
+/// handle. Ten seconds is far longer than any healthy driver round-trip and
+/// far shorter than an exposure.
+const TRIGGER_POLL_TIMEOUT_SECS: u64 = 10;
+
+/// How long the monitor may go without completing a loop iteration before the
+/// watchdog declares it dead.
+///
+/// A pathological iteration in which every bounded poll times out still
+/// finishes well inside this window, so only a stall the per-call timeouts
+/// cannot see (a blocking driver call that never yields to the runtime, a
+/// deadlocked lock) reaches it.
+const TRIGGER_MONITOR_STALL_TIMEOUT_SECS: u64 = 180;
+
+/// How often the mount is polled for tracking / slewing / parked / pier side /
+/// coordinates.
+///
+/// These five calls used to run on the monitor's 1 Hz tick, which is five
+/// serial round-trips per second: meaningful on ASCOM (single-threaded
+/// apartment, per-call COM marshalling) and on INDI. Nothing downstream needs
+/// second-resolution — tracking loss is edge-detected and then waits minutes
+/// before acting, and the meridian hour angle moves 15° per hour.
+const MOUNT_POLL_INTERVAL_SECS: u64 = 5;
+
+/// Bound one trigger-monitor device poll. See [`TRIGGER_POLL_TIMEOUT_SECS`].
+async fn bounded_poll<T>(
+    what: &str,
+    poll: impl std::future::Future<Output = crate::device_ops::DeviceResult<T>>,
+) -> crate::device_ops::DeviceResult<T> {
+    let limit = std::time::Duration::from_secs(TRIGGER_POLL_TIMEOUT_SECS);
+    match tokio::time::timeout(limit, poll).await {
+        Ok(result) => result,
+        Err(_) => Err(format!(
+            "{what} did not answer within {TRIGGER_POLL_TIMEOUT_SECS}s (treated as a poll failure)"
+        )),
+    }
+}
+
+/// Resolves once the trigger monitor has gone `stall_after` without completing
+/// a loop iteration.
+///
+/// The `select!` that joins the monitor handles it exiting; it cannot see it
+/// hanging, and a hung monitor looks exactly like a healthy one from the
+/// outside while every protection it enforces is silently gone. This is the
+/// detector for that case.
+///
+/// A trigger recovery action legitimately holds the loop for minutes (a
+/// meridian-flip retry ladder sleeps between attempts), so the watchdog holds
+/// off while one is in flight — it watches the poll phase, not the action.
+async fn trigger_monitor_stall_watchdog(
+    mut heartbeat: watch::Receiver<u64>,
+    action_in_flight: Arc<AtomicBool>,
+    stall_after: std::time::Duration,
+) {
+    loop {
+        match tokio::time::timeout(stall_after, heartbeat.changed()).await {
+            // A fresh beat: the monitor completed another iteration.
+            Ok(Ok(())) => {}
+            // The monitor future was dropped, so it is already resolved and
+            // whoever dropped it owns the outcome. Never win the join.
+            Ok(Err(_)) => std::future::pending::<()>().await,
+            Err(_) if action_in_flight.load(Ordering::Acquire) => {}
+            Err(_) => return,
+        }
+    }
+}
+
 /// Decide whether a mount tracking poll represents a genuine *loss* of tracking
 /// (an ON → OFF transition) rather than tracking simply not having started yet.
 ///
@@ -1167,7 +1244,6 @@ fn validate_capture_save_path(save_path: Option<&std::path::Path>) -> Result<(),
 /// Commands that can be sent to the executor
 #[derive(Debug, Clone)]
 pub enum ExecutorCommand {
-    Start,
     Pause,
     Resume,
     Stop,
@@ -4028,12 +4104,6 @@ impl SequenceExecutor {
                                 tracing::info!("Skip requested - advancing to next target");
                                 skip_to_next_target_cmd.store(true, Ordering::Relaxed);
                             }
-                            ExecutorCommand::Start => {
-                                let _ = event_tx.send(ExecutorEvent::Error {
-                                    message: "Start ignored: executor is already running"
-                                        .to_string(),
-                                });
-                            }
                             ExecutorCommand::SkipToNode(node_id) => {
                                 // Trust-patch §7: implement SkipToNode for
                                 // real. Post the target id into the shared
@@ -4103,8 +4173,7 @@ impl SequenceExecutor {
                                     let manager = trigger_manager.read().await;
                                     let state_lock = manager.state();
                                     let mut state = state_lock.write().await;
-                                    state.observer_latitude = latitude;
-                                    state.observer_longitude = longitude;
+                                    state.set_observer_location(latitude, longitude);
                                 }
                                 tracing::info!(
                                     "Runtime location updated: lat={:?}, lon={:?}",
@@ -4710,6 +4779,11 @@ impl SequenceExecutor {
                 // silently orphaning an in-progress flip retry ladder.
                 let trigger_action_in_flight = Arc::new(AtomicBool::new(false));
                 let trigger_action_in_flight_for_triggers = trigger_action_in_flight.clone();
+                let trigger_action_in_flight_for_watchdog = trigger_action_in_flight.clone();
+                // One beat per completed monitor iteration. See
+                // `trigger_monitor_stall_watchdog`.
+                let (heartbeat_tx, heartbeat_rx) = watch::channel(0_u64);
+                let event_tx_for_watchdog = event_tx.clone();
                 // Latched when a meridian flip failed outright, so the run's
                 // terminal verdict is a Failure rather than a silent success.
                 let meridian_flip_failed = Arc::new(AtomicBool::new(false));
@@ -5391,7 +5465,7 @@ impl SequenceExecutor {
                 let sequence_for_custom_recovery_triggers = sequence_for_custom_recovery.clone();
                 let custom_recovery_context_for_triggers = custom_recovery_context.clone();
 
-                let trigger_monitor = async {
+                let trigger_monitor_poll_loop = async {
                     if !triggers_enabled {
                         // Hold this task open so the `try_join!` below still waits on the
                         // other branches; an immediate return would short-circuit them.
@@ -5409,6 +5483,10 @@ impl SequenceExecutor {
                     // dispatch below.
                     let mut safety_poll_last_was_error = false;
                     let mut last_safety_poll_at: Option<std::time::Instant> = None;
+                    let mount_poll_interval =
+                        std::time::Duration::from_secs(MOUNT_POLL_INTERVAL_SECS);
+                    let mut last_mount_poll_at: Option<std::time::Instant> = None;
+                    let mut heartbeat: u64 = 0;
 
                     // Subsystem 2 step 3 (stale-verdict observability): rate-limit
                     // latch for the "weather verdict feed stale; holding paused
@@ -5442,6 +5520,11 @@ impl SequenceExecutor {
 
                     loop {
                         check_interval.tick().await;
+
+                        // Proof of life for the stall watchdog. Beat before the
+                        // state gate so a paused run still reports a live monitor.
+                        heartbeat = heartbeat.wrapping_add(1);
+                        let _ = heartbeat_tx.send(heartbeat);
 
                         // Pause/Stop must not fire triggers — paused sequences are explicitly
                         // "user is intervening" and Stopping is racing to terminate, so any
@@ -5493,7 +5576,12 @@ impl SequenceExecutor {
                         //   preserved.
                         let is_safe = if should_poll_safety {
                             last_safety_poll_at = Some(std::time::Instant::now());
-                            match device_ops_for_triggers.safety_is_safe(None).await {
+                            match bounded_poll(
+                                "safety_is_safe",
+                                device_ops_for_triggers.safety_is_safe(None),
+                            )
+                            .await
+                            {
                                 Ok(safe) => {
                                     if safety_poll_last_was_error {
                                         tracing::info!(
@@ -5562,11 +5650,20 @@ impl SequenceExecutor {
                             None
                         };
 
-                        let guiding_rms = device_ops_for_triggers
-                            .guider_get_status()
-                            .await
-                            .ok()
-                            .map(|status| status.rms_total);
+                        // One guider poll per tick serves both consumers: the RMS
+                        // the GuidingFailed trigger evaluates, and the is_guiding
+                        // latch GuideStarLost keys off. They used to be two
+                        // separate round-trips to the same driver in the same tick
+                        // — and, worse, two contradictory error policies for the
+                        // same failure: one swallowed it, the other read it as a
+                        // lost star. One poll means one policy, and the fail-closed
+                        // one wins (see the guide-star block below).
+                        let guide_status = bounded_poll(
+                            "guider_get_status",
+                            device_ops_for_triggers.guider_get_status(),
+                        )
+                        .await;
+                        let guiding_rms = guide_status.as_ref().ok().map(|status| status.rms_total);
 
                         // Trust-patch §2: poll humidity from the weather/safety
                         // device on the same cadence as safety_is_safe. The
@@ -5576,7 +5673,13 @@ impl SequenceExecutor {
                         // (which is correct: HumidityThreshold can't evaluate
                         // without data).
                         let humidity_result = if should_poll_safety {
-                            Some(device_ops_for_triggers.weather_get_humidity(None).await)
+                            Some(
+                                bounded_poll(
+                                    "weather_get_humidity",
+                                    device_ops_for_triggers.weather_get_humidity(None),
+                                )
+                                .await,
+                            )
                         } else {
                             None
                         };
@@ -5782,18 +5885,39 @@ impl SequenceExecutor {
                             let _ = event_tx_clone2.send(ExecutorEvent::Error { message: msg });
                         }
 
-                        if let Some(mount_id) = &trigger_action_context.mount_id {
-                            let tracking_result =
-                                device_ops_for_triggers.mount_is_tracking(mount_id).await;
-                            let slewing_result =
-                                device_ops_for_triggers.mount_is_slewing(mount_id).await;
-                            let parked_result =
-                                device_ops_for_triggers.mount_is_parked(mount_id).await;
-                            let pier_side_result =
-                                device_ops_for_triggers.mount_side_of_pier(mount_id).await;
-                            let coords_result = device_ops_for_triggers
-                                .mount_get_coordinates(mount_id)
-                                .await;
+                        let should_poll_mount = last_mount_poll_at
+                            .map(|last| last.elapsed() >= mount_poll_interval)
+                            .unwrap_or(true);
+
+                        if let (Some(mount_id), true) =
+                            (&trigger_action_context.mount_id, should_poll_mount)
+                        {
+                            last_mount_poll_at = Some(std::time::Instant::now());
+                            let tracking_result = bounded_poll(
+                                "mount_is_tracking",
+                                device_ops_for_triggers.mount_is_tracking(mount_id),
+                            )
+                            .await;
+                            let slewing_result = bounded_poll(
+                                "mount_is_slewing",
+                                device_ops_for_triggers.mount_is_slewing(mount_id),
+                            )
+                            .await;
+                            let parked_result = bounded_poll(
+                                "mount_is_parked",
+                                device_ops_for_triggers.mount_is_parked(mount_id),
+                            )
+                            .await;
+                            let pier_side_result = bounded_poll(
+                                "mount_side_of_pier",
+                                device_ops_for_triggers.mount_side_of_pier(mount_id),
+                            )
+                            .await;
+                            let coords_result = bounded_poll(
+                                "mount_get_coordinates",
+                                device_ops_for_triggers.mount_get_coordinates(mount_id),
+                            )
+                            .await;
 
                             let manager = trigger_manager.read().await;
                             let trigger_state = manager.state();
@@ -5907,10 +6031,20 @@ impl SequenceExecutor {
                         // resurrect the silent no-fire bug); the trigger simply
                         // stays inert, which is the honest "no temperature source
                         // available" outcome.
-                        if let Some(focuser_id) = &trigger_action_context.focuser_id {
-                            match device_ops_for_triggers
-                                .focuser_get_temperature(focuser_id)
-                                .await
+                        //
+                        // Polled on the safety cadence rather than every tick: the
+                        // optical train's temperature moves on minute timescales and
+                        // the TemperatureShift threshold is in whole degrees, so a
+                        // 1 Hz probe read bought nothing and cost a driver round-trip
+                        // a second.
+                        if let (Some(focuser_id), true) =
+                            (&trigger_action_context.focuser_id, should_poll_safety)
+                        {
+                            match bounded_poll(
+                                "focuser_get_temperature",
+                                device_ops_for_triggers.focuser_get_temperature(focuser_id),
+                            )
+                            .await
                             {
                                 Ok(Some(temp)) => {
                                     let manager = trigger_manager.read().await;
@@ -5937,10 +6071,17 @@ impl SequenceExecutor {
                             }
                         }
 
-                        if let Some(dome_id) = &trigger_action_context.dome_id {
-                            if let Ok(status) = device_ops_for_triggers
-                                .dome_get_shutter_status(dome_id)
-                                .await
+                        // The shutter shares the safety cadence, which is the cadence
+                        // every other "is the rig still safe to expose" question is
+                        // asked on.
+                        if let (Some(dome_id), true) =
+                            (&trigger_action_context.dome_id, should_poll_safety)
+                        {
+                            if let Ok(status) = bounded_poll(
+                                "dome_get_shutter_status",
+                                device_ops_for_triggers.dome_get_shutter_status(dome_id),
+                            )
+                            .await
                             {
                                 let manager = trigger_manager.read().await;
                                 let trigger_state = manager.state();
@@ -5956,11 +6097,10 @@ impl SequenceExecutor {
                         }
 
                         // GuideStarLost cannot be derived from RMS alone (a settled guider
-                        // can report low RMS for one cycle before noticing the star is gone).
-                        // Polling guider status here gives the trigger a definitive signal
-                        // independent of the RMS path above.
+                        // can report low RMS for one cycle before noticing the star is gone),
+                        // so the same poll's `is_guiding` gives the trigger a definitive
+                        // signal independent of the RMS path above.
                         {
-                            let guide_status = device_ops_for_triggers.guider_get_status().await;
                             let manager = trigger_manager.read().await;
                             let trigger_state = manager.state();
                             let mut tstate = trigger_state.write().await;
@@ -6747,16 +6887,18 @@ impl SequenceExecutor {
                                         crate::meridian_flip_executor::MeridianFlipExecutor::new(
                                             config.clone(),
                                             device_ops_for_triggers.clone(),
-                                        );
+                                        )
+                                        // The executor emits the
+                                        // MeridianFlipOutcome verdict itself, so
+                                        // it needs the run's event stream.
+                                        .with_executor_event_tx(event_tx_clone2.clone());
 
                                         let flip_result = flip_executor.execute(&flip_ctx).await;
-                                        // Snapshot the attempt telemetry before
-                                        // the match consumes the result — a flip
-                                        // that only succeeded on retry #3 is
-                                        // DEGRADED and the operator must be told.
+                                        // Snapshot the attempt count before the
+                                        // match consumes the result — a flip that
+                                        // only succeeded on retry #3 is DEGRADED
+                                        // and the operator must be told.
                                         let flip_attempts = flip_executor.attempts_made();
-                                        let flip_failed_steps: Vec<String> =
-                                            flip_executor.failed_attempts().to_vec();
                                         match flip_result {
                                         crate::meridian_flip_executor::FlipResult::Success {
                                             new_pier_side,
@@ -6767,24 +6909,10 @@ impl SequenceExecutor {
                                                 new_pier_side, duration_secs
                                             );
 
-                                            // Carry the verdict to the Dart run
-                                            // vitals. Without this the flip is
-                                            // invisible: `meridianFlips` stays 0
-                                            // however many times the mount swaps
-                                            // sides.
-                                            let _ = event_tx_clone2.send(
-                                                ExecutorEvent::MeridianFlipOutcome {
-                                                    outcome: "success".to_string(),
-                                                    target_name: target_name.clone(),
-                                                    new_pier_side: format!("{:?}", new_pier_side),
-                                                    duration_secs,
-                                                    attempts: flip_attempts,
-                                                    failed_steps: flip_failed_steps.clone(),
-                                                    error: None,
-                                                    action_taken: None,
-                                                },
-                                            );
-
+                                            // The verdict that reaches the Dart run
+                                            // vitals is emitted by
+                                            // MeridianFlipExecutor::execute, so the
+                                            // node-driven path reports flips too.
                                             let mut ts = trigger_state_for_actions.write().await;
                                             ts.mark_flip_performed();
                                         }
@@ -6805,22 +6933,6 @@ impl SequenceExecutor {
                                             // result to Failure).
                                             meridian_flip_failed_for_triggers
                                                 .store(true, Ordering::Release);
-
-                                            let _ = event_tx_clone2.send(
-                                                ExecutorEvent::MeridianFlipOutcome {
-                                                    outcome: "failed".to_string(),
-                                                    target_name: target_name.clone(),
-                                                    new_pier_side: "Unknown".to_string(),
-                                                    duration_secs: 0.0,
-                                                    attempts: flip_attempts,
-                                                    failed_steps: flip_failed_steps.clone(),
-                                                    error: Some(error.clone()),
-                                                    action_taken: Some(format!(
-                                                        "{:?}",
-                                                        action_taken
-                                                    )),
-                                                },
-                                            );
 
                                             match action_taken {
                                                 crate::FlipFailureAction::PauseAndAlert => {
@@ -6951,19 +7063,9 @@ impl SequenceExecutor {
                                         crate::meridian_flip_executor::FlipResult::Aborted {
                                             reason,
                                         } => {
+                                            // The verdict itself comes from
+                                            // MeridianFlipExecutor::execute.
                                             tracing::warn!("[MERIDIAN] Flip aborted: {}", reason);
-                                            let _ = event_tx_clone2.send(
-                                                ExecutorEvent::MeridianFlipOutcome {
-                                                    outcome: "aborted".to_string(),
-                                                    target_name: target_name.clone(),
-                                                    new_pier_side: "Unknown".to_string(),
-                                                    duration_secs: 0.0,
-                                                    attempts: flip_attempts,
-                                                    failed_steps: flip_failed_steps.clone(),
-                                                    error: Some(reason),
-                                                    action_taken: None,
-                                                },
-                                            );
                                         }
                                     }
                                     } else {
@@ -7686,6 +7788,32 @@ impl SequenceExecutor {
                     }
 
                     fired_triggers
+                };
+
+                // A hung poll is indistinguishable from a healthy monitor to the
+                // join below, so the watchdog turns "stalled" into "exited" — the
+                // one shape the fail-closed handler downstream can act on.
+                let trigger_monitor = async {
+                    tokio::pin!(trigger_monitor_poll_loop);
+                    tokio::select! {
+                        fired = &mut trigger_monitor_poll_loop => fired,
+                        () = trigger_monitor_stall_watchdog(
+                            heartbeat_rx,
+                            trigger_action_in_flight_for_watchdog,
+                            std::time::Duration::from_secs(TRIGGER_MONITOR_STALL_TIMEOUT_SECS),
+                        ) => {
+                            let message = format!(
+                                "Safety monitoring stalled: the trigger monitor has not \
+                                 completed a poll cycle in {TRIGGER_MONITOR_STALL_TIMEOUT_SECS}s, \
+                                 so weather, altitude, drift, tracking-loss, dome and meridian \
+                                 protection are no longer being enforced. A device driver is \
+                                 most likely not returning."
+                            );
+                            tracing::error!("{}", message);
+                            let _ = event_tx_for_watchdog.send(ExecutorEvent::Error { message });
+                            Vec::new()
+                        }
+                    }
                 };
 
                 // Fail-closed safety: an unattended sequence depends on the trigger
@@ -9955,10 +10083,12 @@ mod tests {
     /// `runtime_config` Arc so the next dither uses the new pixel count.
     /// This was the original audit-flagged silent-fallback site (the
     /// previous implementation `let _`'d the parameters).
-    #[test]
-    fn update_dither_config_writes_through_runtime_config() {
+    #[tokio::test]
+    async fn update_dither_config_writes_through_runtime_config() {
         let mut executor = SequenceExecutor::new();
-        executor.update_dither_config(7.5, 0.5, 8.0, 60.0, true);
+        executor
+            .update_dither_config(7.5, 0.5, 8.0, 60.0, true)
+            .await;
         let handle = executor.runtime_config_handle();
         let rc = handle.read();
         assert!((rc.dither.pixels - 7.5).abs() < f64::EPSILON);
@@ -9968,19 +10098,270 @@ mod tests {
         assert!(rc.dither.ra_only);
     }
 
-    /// `update_location` must update both the executor's own
-    /// fields (used by next-start seeding) and the runtime_config Arc (used
-    /// mid-flight by trigger actions).
-    #[test]
-    fn update_location_writes_through_runtime_config() {
+    /// `update_location` must update the executor's own fields (used by
+    /// next-start seeding), the runtime_config Arc, and — for an idle
+    /// executor, which has no task to send a command to — the trigger state
+    /// the altitude/dawn/meridian evaluators read.
+    #[tokio::test]
+    async fn update_location_writes_through_runtime_config() {
         let mut executor = SequenceExecutor::new();
-        executor.update_location(Some(40.7), Some(-74.0));
+        executor.update_location(Some(40.7), Some(-74.0)).await;
         assert_eq!(executor.latitude, Some(40.7));
         assert_eq!(executor.longitude, Some(-74.0));
-        let handle = executor.runtime_config_handle();
-        let rc = handle.read();
-        assert_eq!(rc.latitude, Some(40.7));
-        assert_eq!(rc.longitude, Some(-74.0));
+        {
+            let handle = executor.runtime_config_handle();
+            let rc = handle.read();
+            assert_eq!(rc.latitude, Some(40.7));
+            assert_eq!(rc.longitude, Some(-74.0));
+        }
+        let manager = executor.trigger_manager.read().await;
+        let state = manager.state();
+        let guard = state.read().await;
+        assert_eq!(guard.observer_latitude, Some(40.7));
+        assert_eq!(guard.observer_longitude, Some(-74.0));
+    }
+
+    /// R2: `update_location` wrote `runtime_config` and the executor's own
+    /// fields and stopped there. The live `TriggerState` — the only place
+    /// `AltitudeLimit`, `DawnApproaching` and the meridian hour-angle read the
+    /// observer's position from — was written by exactly one code path, the
+    /// `ExecutorCommand::UpdateLocation` arm, which had no sender anywhere in
+    /// the workspace. So a mid-run location change reached nothing, and the
+    /// method's own doc comment claimed it did.
+    #[tokio::test]
+    async fn a_mid_run_location_change_reaches_the_altitude_dawn_and_meridian_inputs() {
+        const NEW_YORK: (f64, f64) = (40.71, -74.01);
+        const SYDNEY: (f64, f64) = (-33.87, 151.21);
+
+        let mut sequence = SequenceDefinition::new("New Sequence".to_string());
+        sequence.nodes.push(crate::NodeDefinition {
+            id: "target".to_string(),
+            name: "Target".to_string(),
+            node_type: crate::NodeType::TargetHeader(crate::TargetHeaderConfig {
+                target_name: "M31".to_string(),
+                ra_hours: 0.712,
+                dec_degrees: 41.269,
+                ..crate::TargetHeaderConfig::default()
+            }),
+            enabled: true,
+            children: vec!["wait".to_string()],
+        });
+        sequence.nodes.push(crate::NodeDefinition {
+            id: "wait".to_string(),
+            name: "Wait".to_string(),
+            // Long enough that the 1 Hz trigger monitor gets many ticks; the
+            // test stops the run as soon as it has its evidence.
+            node_type: crate::NodeType::Delay(crate::DelayConfig { seconds: 30.0 }),
+            enabled: true,
+            children: vec![],
+        });
+        sequence.root_node_id = Some("target".to_string());
+
+        let mut executor = SequenceExecutor::new();
+        executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+        // The poll phase (what this test is about) runs before trigger
+        // dispatch, so dropping the action triggers keeps the run from being
+        // steered by an AltitudeLimit/MeridianFlip firing mid-assertion.
+        {
+            let mut manager = executor.trigger_manager.write().await;
+            for id in ["altitude_limit", "meridian_flip", "hfr_degraded"] {
+                manager.remove_trigger(id);
+            }
+        }
+        executor.load_sequence(sequence).expect("sequence loads");
+        executor.start().await.expect("run starts");
+
+        async fn wait_for(
+            executor: &SequenceExecutor,
+            what: &str,
+            predicate: impl Fn(&TriggerState) -> bool,
+        ) -> TriggerState {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+            loop {
+                let snapshot = {
+                    let manager = executor.trigger_manager.read().await;
+                    let state = manager.state();
+                    let guard = state.read().await;
+                    guard.clone()
+                };
+                if predicate(&snapshot) {
+                    return snapshot;
+                }
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "timed out waiting for {what}"
+                );
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            }
+        }
+
+        executor
+            .update_location(Some(NEW_YORK.0), Some(NEW_YORK.1))
+            .await;
+        let first = wait_for(&executor, "the pushed New York location", |s| {
+            s.observer_latitude == Some(NEW_YORK.0)
+                && s.dawn_time.is_some()
+                && s.current_altitude.is_some()
+        })
+        .await;
+
+        executor
+            .update_location(Some(SYDNEY.0), Some(SYDNEY.1))
+            .await;
+        // `dawn_time.is_some()` matters: the push invalidates the cache, and it
+        // is the monitor's NEXT tick that recomputes it for the new site.
+        // Waiting only for "different" would accept the transient `None`.
+        let second = wait_for(&executor, "dawn recomputed for Sydney", |s| {
+            s.observer_latitude == Some(SYDNEY.0)
+                && s.dawn_time.is_some()
+                && s.dawn_time != first.dawn_time
+        })
+        .await;
+
+        executor.stop().await.ok();
+
+        assert_eq!(
+            second.observer_longitude,
+            Some(SYDNEY.1),
+            "the meridian hour-angle is computed from TriggerState::observer_longitude, \
+             so a location change that never lands there flips on the old site"
+        );
+        assert_ne!(
+            second.dawn_time, first.dawn_time,
+            "DawnApproaching reads TriggerState::dawn_time; a cached dawn from the \
+             previous site would stop the run at the wrong hour"
+        );
+        assert!(
+            second
+                .current_altitude
+                .zip(first.current_altitude)
+                .is_some_and(|(now, before)| (now - before).abs() > 1.0),
+            "AltitudeLimit reads TriggerState::current_altitude, which is recomputed \
+             from the observer location: {:?} -> {:?}",
+            first.current_altitude,
+            second.current_altitude,
+        );
+    }
+
+    /// R1: no production device call in the trigger monitor was bounded. A
+    /// driver that accepts a call and never answers — a documented hazard on
+    /// this project's ASCOM path — parked the monitor's loop forever. That is
+    /// not an exit, so the `select!` that joins the monitor never saw it: the
+    /// execution branch kept exposing with weather, altitude, drift,
+    /// tracking-loss, dome and meridian protection all silently gone.
+    ///
+    /// A stalled poll is a poll FAILURE, which is a verdict the trigger state
+    /// already has a field for and the evaluators already know how to read.
+    #[tokio::test]
+    async fn a_hung_device_poll_is_reported_as_a_failure_instead_of_parking_the_monitor() {
+        let mut sequence = SequenceDefinition::new("New Sequence".to_string());
+        sequence.nodes.push(crate::NodeDefinition {
+            id: "wait".to_string(),
+            name: "Wait".to_string(),
+            node_type: crate::NodeType::Delay(crate::DelayConfig { seconds: 120.0 }),
+            enabled: true,
+            children: vec![],
+        });
+        sequence.root_node_id = Some("wait".to_string());
+
+        let mut executor = SequenceExecutor::new();
+        executor.set_device_ops(Arc::new(
+            ReacquireGuiderOps::new(false, false).with_hanging_tracking_poll(),
+        ));
+        executor.set_devices(None, Some("mount-1".to_string()), None, None, None);
+        executor.load_sequence(sequence).expect("sequence loads");
+        executor.start().await.expect("run starts");
+
+        // Generous next to the 10 s poll bound, tight next to "never".
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(40);
+        let mut query_failed = false;
+        while std::time::Instant::now() < deadline {
+            {
+                let manager = executor.trigger_manager.read().await;
+                let state = manager.state();
+                if state.read().await.mount_status_query_failed {
+                    query_failed = true;
+                    break;
+                }
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+        executor.stop().await.ok();
+
+        assert!(
+            query_failed,
+            "the monitor never got past the hung mount poll, so every protection it \
+             enforces was off and nothing said so"
+        );
+    }
+
+    /// The bound itself, stated once so the message a stalled poll produces is
+    /// pinned: it must name the call, because "some poll timed out" is not
+    /// something an operator can act on at 3am.
+    #[tokio::test(start_paused = true)]
+    async fn a_device_poll_that_never_answers_is_reported_as_a_poll_failure() {
+        let error = bounded_poll(
+            "mount_side_of_pier",
+            std::future::pending::<crate::device_ops::DeviceResult<bool>>(),
+        )
+        .await
+        .expect_err("a hung driver call must never be reported as a reading");
+        assert!(error.contains("mount_side_of_pier"), "got: {error}");
+        assert!(error.contains("poll failure"), "got: {error}");
+    }
+
+    /// The per-call bounds cannot see a stall they are not wrapping — a
+    /// blocking call that never yields, a deadlocked lock. The watchdog is the
+    /// backstop that turns "hung" into "exited", the one shape the fail-closed
+    /// handler downstream can act on.
+    #[tokio::test(start_paused = true)]
+    async fn the_stall_watchdog_fires_only_once_the_monitor_stops_beating() {
+        let stall = std::time::Duration::from_secs(60);
+        let (heartbeat_tx, heartbeat_rx) = watch::channel(0_u64);
+        let watchdog =
+            trigger_monitor_stall_watchdog(heartbeat_rx, Arc::new(AtomicBool::new(false)), stall);
+        tokio::pin!(watchdog);
+
+        for beat in 1..=5_u64 {
+            tokio::time::sleep(stall / 2).await;
+            heartbeat_tx.send(beat).expect("watchdog still listening");
+            assert!(
+                tokio::time::timeout(std::time::Duration::from_millis(1), &mut watchdog)
+                    .await
+                    .is_err(),
+                "a monitor completing iterations is alive"
+            );
+        }
+
+        tokio::time::timeout(stall * 2, &mut watchdog)
+            .await
+            .expect("a monitor that stopped beating is a stall");
+    }
+
+    /// A meridian-flip retry ladder holds the monitor's loop for minutes by
+    /// design. Mistaking that for a dead monitor would abort the run at the
+    /// exact moment the flip needed to finish, so the watchdog watches the
+    /// poll phase and holds off while an action is in flight.
+    #[tokio::test(start_paused = true)]
+    async fn the_stall_watchdog_holds_off_while_a_trigger_action_is_in_flight() {
+        let stall = std::time::Duration::from_secs(60);
+        let (_heartbeat_tx, heartbeat_rx) = watch::channel(0_u64);
+        let action_in_flight = Arc::new(AtomicBool::new(true));
+        let watchdog =
+            trigger_monitor_stall_watchdog(heartbeat_rx, action_in_flight.clone(), stall);
+        tokio::pin!(watchdog);
+
+        assert!(
+            tokio::time::timeout(stall * 10, &mut watchdog)
+                .await
+                .is_err(),
+            "a long-running recovery action is not a dead monitor"
+        );
+
+        action_in_flight.store(false, Ordering::Release);
+        tokio::time::timeout(stall * 2, &mut watchdog)
+            .await
+            .expect("once the action is done, a monitor that still never beats is dead");
     }
 
     /// Remediation 2026-06-09 (finding #2): the W1 daylight gate's max Sun
@@ -10052,13 +10433,13 @@ mod tests {
 
     /// `update_filter_offsets` must propagate to runtime_config
     /// so the next filter change reads the updated map.
-    #[test]
-    fn update_filter_offsets_writes_through_runtime_config() {
+    #[tokio::test]
+    async fn update_filter_offsets_writes_through_runtime_config() {
         let mut executor = SequenceExecutor::new();
         let mut offsets = std::collections::HashMap::new();
         offsets.insert("Ha".to_string(), 250);
         offsets.insert("OIII".to_string(), -120);
-        executor.update_filter_offsets(offsets.clone());
+        executor.update_filter_offsets(offsets.clone()).await;
         let handle = executor.runtime_config_handle();
         let rc = handle.read();
         assert_eq!(rc.filter_focus_offsets.get("Ha"), Some(&250));
@@ -10871,6 +11252,9 @@ mod tests {
         tracking_set_should_fail: bool,
         /// When true, `mount_is_parked` reports the mount as parked.
         parked: bool,
+        /// When true, `mount_is_tracking` never returns — the driver that
+        /// accepts the call and then goes away, which is what R1 is about.
+        mount_is_tracking_hangs: bool,
     }
 
     impl ReacquireGuiderOps {
@@ -10883,11 +11267,17 @@ mod tests {
                 last_tracking_set: std::sync::Arc::new(std::sync::Mutex::new(None)),
                 tracking_set_should_fail: false,
                 parked: false,
+                mount_is_tracking_hangs: false,
             }
         }
 
         fn with_parked(mut self) -> Self {
             self.parked = true;
+            self
+        }
+
+        fn with_hanging_tracking_poll(mut self) -> Self {
+            self.mount_is_tracking_hangs = true;
             self
         }
 
@@ -10970,6 +11360,9 @@ mod tests {
             self.inner.mount_side_of_pier(id).await
         }
         async fn mount_is_tracking(&self, id: &str) -> DeviceResult<bool> {
+            if self.mount_is_tracking_hangs {
+                std::future::pending::<()>().await;
+            }
             self.inner.mount_is_tracking(id).await
         }
         async fn camera_start_exposure(

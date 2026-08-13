@@ -5,7 +5,6 @@
 
 use crate::device_ops::{ImageData, SharedDeviceOps};
 use crate::*;
-use chrono::NaiveDate;
 use std::path::PathBuf;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -776,6 +775,42 @@ impl InstructionContext {
         } else {
             None
         }
+    }
+
+    /// The [`ExecutionContext`] a save-path template resolves against, rebuilt
+    /// from this context.
+    ///
+    /// `interpolate` reads the run's identity (target, observer, optics,
+    /// session) off an `ExecutionContext`, which the node path already has.
+    /// Callers that own only an `InstructionContext` — the Flat Wizard — need
+    /// the same variables to resolve to the same values, so the fields the
+    /// resolver reads are copied across; everything else keeps the
+    /// [`ExecutionContext::new`] default because no template variable can see it.
+    ///
+    /// [`ExecutionContext`]: crate::node::context::ExecutionContext
+    pub(crate) fn to_template_context(&self) -> crate::node::context::ExecutionContext {
+        let mut ctx = crate::node::context::ExecutionContext::new(self.node_id.clone());
+        ctx.target_name = self.target_name.clone();
+        ctx.target_id = self.target_id.clone();
+        ctx.target_ra = self.target_ra;
+        ctx.target_dec = self.target_dec;
+        ctx.target_rotation = self.target_rotation;
+        ctx.current_filter = self.current_filter.clone();
+        ctx.current_filter_index = self.current_filter_index;
+        ctx.current_binning = self.current_binning;
+        ctx.save_path = self.save_path.clone();
+        ctx.latitude = self.latitude;
+        ctx.longitude = self.longitude;
+        ctx.session_id = self.session_id.clone();
+        ctx.set_temp_c = self.set_temp_c;
+        ctx.observer_name = self.observer_name.clone();
+        ctx.site_elevation_m = self.site_elevation_m;
+        ctx.camera_make = self.camera_make.clone();
+        ctx.camera_model = self.camera_model.clone();
+        ctx.telescope_name = self.telescope_name.clone();
+        ctx.telescope_focal_length_mm = self.telescope_focal_length_mm;
+        ctx.telescope_aperture_mm = self.telescope_aperture_mm;
+        ctx
     }
 
     /// Get camera ID or error
@@ -2199,13 +2234,14 @@ impl Drop for CameraExposureAbortGuard {
     }
 }
 
-/// Execute an exposure instruction.
+/// Execute an exposure instruction with no save-path renderer, so frames land
+/// under the pre-template `<target>_<filter>_<NNNN>.fits` layout.
 ///
-/// `path_renderer` is `Some` when a Wave-4-aware caller (the `ExposeInstruction`
-/// node wrapper) has built a save-path renderer from the active
-/// ExecutionContext. When `None`, the function falls back to the legacy
-/// hardcoded `<target>_<filter>_<NNNN>.fits` layout — keeping pre-Wave-4
-/// call sites (tests, direct invocations) working without modification.
+/// Nothing in production calls this: every capture path builds a renderer so
+/// the user's naming template applies (the Flat Wizard was the last holdout —
+/// see [`crate::flat_wizard::capture_converged_flats`]). It survives as the
+/// short form for tests that are about the burst itself and not about where
+/// its files land.
 pub async fn execute_exposure(
     config: &ExposureConfig,
     ctx: &InstructionContext,
@@ -6744,7 +6780,7 @@ pub async fn execute_wait_time(
         let twilight_time = calculate_twilight_time(lat, lon, twilight);
 
         let now = chrono::Utc::now().timestamp();
-        if twilight_time == i64::MAX {
+        if twilight_time == crate::solar::SUN_ALTITUDE_NEVER_REACHED {
             return InstructionResult::failure(format!(
                 "{:?} twilight does not occur at latitude {:.3} and longitude {:.3} for the current date. \
 Sequence cannot wait for an unreachable twilight state.",
@@ -6806,132 +6842,23 @@ Sequence cannot wait for an unreachable twilight state.",
     )
 }
 
-/// Calculate twilight time for a given location using proper solar position algorithms
+/// Timestamp of the next EVENING crossing of the twilight type's Sun altitude.
+///
+/// The math lives in [`crate::solar`] so this and the `DawnApproaching`
+/// trigger are calibrated against the same Sun; they used to run separate
+/// implementations that disagreed by the equation of time.
 fn calculate_twilight_time(latitude: f64, longitude: f64, twilight_type: &TwilightType) -> i64 {
-    // Sun altitude threshold for each twilight type (degrees below horizon)
     let altitude_threshold: f64 = match twilight_type {
         TwilightType::Civil => -6.0,
         TwilightType::Nautical => -12.0,
         TwilightType::Astronomical => -18.0,
     };
-
-    let now = chrono::Utc::now();
-    let today = now.date_naive();
-
-    // Calculate Julian Day. reuse `crate::meridian::julian_day`
-    // instead of the previous local duplicate.
-    let jd = crate::meridian::julian_day(&now);
-
-    // Calculate solar position
-    let (solar_dec, equation_of_time) = calculate_solar_position(jd);
-
-    // Convert to radians
-    let lat_rad = latitude.to_radians();
-    let dec_rad = solar_dec.to_radians();
-    let alt_rad = altitude_threshold.to_radians();
-
-    // Calculate hour angle when sun is at the given altitude
-    // cos(H) = (sin(alt) - sin(lat) * sin(dec)) / (cos(lat) * cos(dec))
-    let cos_h = (alt_rad.sin() - lat_rad.sin() * dec_rad.sin()) / (lat_rad.cos() * dec_rad.cos());
-
-    // Polar handling: avoid fabricated fallback times.
-    if cos_h > 1.0 {
-        // Sun never reaches this altitude threshold today (e.g. polar day).
-        return i64::MAX;
-    }
-    if cos_h < -1.0 {
-        // Sun is already below this threshold all day (e.g. polar night).
-        return now.timestamp();
-    }
-
-    let hour_angle = cos_h.acos().to_degrees();
-
-    // Calculate local solar noon
-    let solar_noon_utc = 12.0 - longitude / 15.0 - equation_of_time / 60.0;
-
-    // Evening twilight occurs when sun sets past the altitude threshold
-    // Time after solar noon when sun reaches threshold
-    let hours_after_noon = hour_angle / 15.0;
-    let twilight_hour_utc = solar_noon_utc + hours_after_noon;
-
-    // Convert to timestamp
-    let twilight_hour = twilight_hour_utc.rem_euclid(24.0);
-    // Why: twilight_hour is bounded by rem_euclid(24.0) above; .fract()*60.0 is
-    // in [0, 60). f64 -> u32 saturates per Rust 1.45 spec.
-    let twilight_minutes = (twilight_hour.fract() * 60.0) as u32;
-    let twilight_hour = twilight_hour as u32;
-
-    let twilight_datetime =
-        build_utc_naive_time_or_fallback(today, twilight_hour, twilight_minutes, (23, 59, 0));
-
-    let twilight_timestamp =
-        chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(twilight_datetime, chrono::Utc)
-            .timestamp();
-
-    // If the calculated twilight is in the past, it's tomorrow's twilight
-    if twilight_timestamp < now.timestamp() {
-        return twilight_timestamp + 86400; // Add 24 hours
-    }
-
-    twilight_timestamp
-}
-
-// the local `calculate_julian_day` was deleted; use
-// `crate::meridian::julian_day(&dt)` — same formula, single source of truth.
-
-fn build_utc_naive_time_or_fallback(
-    date: NaiveDate,
-    hour: u32,
-    minute: u32,
-    fallback: (u32, u32, u32),
-) -> chrono::NaiveDateTime {
-    // Why: `and_hms_opt` only returns None for invalid (h,m,s) tuples
-    // (h>=24, m>=60, s>=60). The caller passes solar-calculation results that may
-    // saturate at exactly 24:00:00 in edge equation-of-time cases — `fallback` is the
-    // tuple from the documented sunset-convention default. If both fail (impossible
-    // unless `fallback` itself is invalid), midnight is the safe last-resort
-    // representable time for the same calendar date.
-    date.and_hms_opt(hour, minute, 0)
-        .or_else(|| date.and_hms_opt(fallback.0, fallback.1, fallback.2))
-        .unwrap_or_else(|| date.and_time(chrono::NaiveTime::MIN))
-}
-
-/// Calculate solar declination and equation of time
-/// Returns (declination in degrees, equation of time in minutes)
-fn calculate_solar_position(jd: f64) -> (f64, f64) {
-    // Days since J2000.0
-    let n = jd - 2451545.0;
-
-    // Mean longitude of the sun (degrees)
-    let l = (280.460 + 0.9856474 * n) % 360.0;
-
-    // Mean anomaly of the sun (degrees)
-    let g = (357.528 + 0.9856003 * n) % 360.0;
-    let g_rad = g.to_radians();
-
-    // Ecliptic longitude of the sun (degrees)
-    let lambda = l + 1.915 * g_rad.sin() + 0.020 * (2.0 * g_rad).sin();
-    let lambda_rad = lambda.to_radians();
-
-    // Obliquity of the ecliptic (degrees)
-    let epsilon = 23.439 - 0.0000004 * n;
-    let epsilon_rad = epsilon.to_radians();
-
-    // Solar declination
-    let declination = (epsilon_rad.sin() * lambda_rad.sin()).asin().to_degrees();
-
-    // Equation of time (minutes)
-    // Simplified formula
-    let y = (epsilon_rad / 2.0).tan().powi(2);
-    let l_rad = l.to_radians();
-    let eot = 4.0
-        * (y * (2.0 * l_rad).sin() - 2.0 * 0.0167 * g_rad.sin()
-            + 4.0 * 0.0167 * y * g_rad.sin() * (2.0 * l_rad).cos()
-            - 0.5 * y * y * (4.0 * l_rad).sin()
-            - 1.25 * 0.0167 * 0.0167 * (2.0 * g_rad).sin())
-        .to_degrees();
-
-    (declination, eot)
+    crate::solar::time_of_sun_altitude(
+        latitude,
+        longitude,
+        altitude_threshold,
+        crate::solar::SunCrossing::Setting,
+    )
 }
 
 // =============================================================================
@@ -8632,6 +8559,8 @@ mod tests {
         /// Unbinned pixel pitch the camera reports, in microns. `None` stands
         /// in for a driver that will not answer.
         scripted_pixel_size_um: Option<(f64, f64)>,
+        /// `None` stands in for a rig whose site has not been configured.
+        scripted_observer_location: Option<(f64, f64)>,
     }
 
     impl ScriptedDomeRotatorOps {
@@ -8682,7 +8611,13 @@ mod tests {
                 scripted_offset: None,
                 scripted_sensor_temp_c: None,
                 scripted_pixel_size_um: None,
+                scripted_observer_location: None,
             }
+        }
+
+        fn with_observer_location(mut self, latitude: f64, longitude: f64) -> Self {
+            self.scripted_observer_location = Some((latitude, longitude));
+            self
         }
 
         /// Stand in for a fully-instrumented rig: every per-frame telemetry
@@ -9071,7 +9006,7 @@ mod tests {
             self.inner.calculate_altitude(r, d, la, lo)
         }
         fn get_observer_location(&self) -> Option<(f64, f64)> {
-            self.inner.get_observer_location()
+            self.scripted_observer_location
         }
         async fn polar_align_update(
             &self,
@@ -10785,6 +10720,106 @@ mod tests {
             paths[0].contains("_R_"),
             "the filename must agree with the header, got {}",
             paths[0]
+        );
+    }
+
+    /// D4/R4: `MeridianFlipOutcome` is the only wire a flip travels to reach
+    /// the run vitals' `meridianFlips` count and the session report. It was
+    /// emitted by the TRIGGER call site alone, so a sequence that flipped via
+    /// an explicit MeridianFlip node reported no flip at all — and a
+    /// node-driven flip that FAILED left an empty error list on a run the
+    /// operator saw reported as completed.
+    #[tokio::test]
+    async fn a_node_driven_meridian_flip_reports_its_outcome_to_the_run() {
+        let scratch = scratch_dir("node-flip-outcome");
+        let ops =
+            Arc::new(ScriptedDomeRotatorOps::new().with_observer_location(TEST_LAT, TEST_LON));
+        let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(64);
+        let mut ctx = direct_capture_ctx(ops.clone(), scratch.0.clone()).await;
+        ctx.event_tx = Some(event_tx);
+        ctx.mount_id = Some("mount-1".to_string());
+        ctx.target_name = Some("M42".to_string());
+        ctx.target_ra = Some(5.59);
+        ctx.target_dec = Some(-5.39);
+
+        let config = crate::MeridianFlipConfig {
+            // Below every possible hour angle, so the flip is always due and
+            // the test never depends on when it runs.
+            minutes_past_meridian: -720.0,
+            pause_guiding: false,
+            auto_center: false,
+            refocus_after: false,
+            resume_guiding: false,
+            settle_time: 0.0,
+            max_retries: 0,
+            retry_delays_secs: Vec::new(),
+            ..crate::MeridianFlipConfig::default()
+        };
+
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(30),
+            execute_meridian_flip(&config, &ctx, None),
+        )
+        .await
+        .expect("the flip node should resolve");
+
+        let mut outcomes = Vec::new();
+        while let Ok(event) = event_rx.try_recv() {
+            if let crate::executor::ExecutorEvent::MeridianFlipOutcome { outcome, .. } = event {
+                outcomes.push(outcome);
+            }
+        }
+        assert_eq!(
+            outcomes.len(),
+            1,
+            "the node path announced nothing; the run's flip count and error list \
+             both come from this event. Node returned {:?}",
+            result.status
+        );
+    }
+
+    /// D7/R7: the Flat Wizard's final burst went through `execute_exposure`,
+    /// whose renderer-less branch is the pre-template
+    /// `<target>_<filter>_<NNNN>.fits` layout. Flats therefore ignored the
+    /// user's save-path template, and — because flats are not shot at
+    /// anything, so the run has no target — every file was filed under the
+    /// synthetic label `untargeted`, next to lights named after their target.
+    #[tokio::test]
+    async fn flat_wizard_flats_are_named_by_the_save_path_renderer() {
+        let scratch = scratch_dir("flat-wizard-naming");
+        let ops = Arc::new(ScriptedDomeRotatorOps::new());
+        let ctx = direct_capture_ctx(ops.clone(), scratch.0.clone()).await;
+        assert!(
+            ctx.target_name.is_none(),
+            "the case under test is a flat run with no target"
+        );
+
+        let config = crate::FlatWizardConfig {
+            flat_count: 1,
+            filter: None,
+            filter_index: None,
+            ..crate::FlatWizardConfig::default()
+        };
+        let result =
+            crate::flat_wizard::capture_converged_flats(&config, &ctx, 0.01, |_, _| {}).await;
+        assert_eq!(
+            result.status,
+            NodeStatus::Success,
+            "the flat burst should complete: {:?}",
+            result.message
+        );
+
+        let paths = ops.saved_frame_paths();
+        assert_eq!(paths.len(), 1, "one flat should have reached the writer");
+        let filename = std::path::Path::new(&paths[0])
+            .file_name()
+            .expect("a saved frame has a filename")
+            .to_string_lossy()
+            .into_owned();
+        assert_eq!(
+            filename, "Flat_R_0001.fits",
+            "a target-less calibration frame is named for its frame type, the way \
+             every other renderer-rendered calibration frame in the session is"
         );
     }
 

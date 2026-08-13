@@ -26,7 +26,11 @@
 
 mod panel;
 
-use crate::instructions::{execute_exposure, InstructionContext, InstructionResult};
+use crate::instructions::{
+    execute_exposure_with_renderer, resolve_frame_filter, BurstControl, InstructionContext,
+    InstructionResult,
+};
+use crate::node::instructions::expose::build_save_path_renderer;
 use crate::wizard::{
     BorrowedProgressReporter, Wizard, WizardExecutor, WizardProgressReporter, WizardRunStatus,
     WizardStepOutcome,
@@ -320,23 +324,22 @@ impl<'a> FlatWizardRun<'a> {
                 tolerance,
                 self.current_brightness
             );
-            let capture_config =
-                final_flat_exposure_config(self.config, ctx.current_binning, test_exposure);
-            let capture_result = execute_exposure(&capture_config, ctx, |frame, total| {
-                let capture_fraction = if total == 0 {
-                    1.0
-                } else {
-                    f64::from(frame) / f64::from(total)
-                };
-                progress.report(
-                    0.85 + capture_fraction * 0.05,
-                    format!(
-                        "Capturing final flat frame {}/{} at {:.3}s",
-                        frame, total, test_exposure
-                    ),
-                );
-            })
-            .await;
+            let capture_result =
+                capture_converged_flats(self.config, ctx, test_exposure, |frame, total| {
+                    let capture_fraction = if total == 0 {
+                        1.0
+                    } else {
+                        f64::from(frame) / f64::from(total)
+                    };
+                    progress.report(
+                        0.85 + capture_fraction * 0.05,
+                        format!(
+                            "Capturing final flat frame {}/{} at {:.3}s",
+                            frame, total, test_exposure
+                        ),
+                    );
+                })
+                .await;
 
             match capture_result.status {
                 NodeStatus::Success => {
@@ -449,6 +452,55 @@ fn final_flat_exposure_config(
         frame_type: "Flat".to_string(),
         ..ExposureConfig::default()
     }
+}
+
+/// Capture the requested flats at the converged exposure.
+///
+/// Flats go through the same save-path renderer as every other frame in the
+/// session. The wizard used to call [`execute_exposure`], whose renderer-less
+/// branch falls back to the pre-template `<target>_<filter>_<NNNN>.fits`
+/// layout — so the user's configured naming template did not apply to flats,
+/// and a flat run with no target (the normal shape, since flats are not shot
+/// at anything) filed every frame under the synthetic label `untargeted`
+/// instead of `Flat`.
+///
+/// The filter identity comes from [`resolve_frame_filter`], the same answer the
+/// FITS FILTER card and the `captured_images` row are built from, so the
+/// filename cannot disagree with the header.
+pub(crate) async fn capture_converged_flats(
+    config: &FlatWizardConfig,
+    ctx: &InstructionContext,
+    exposure_secs: f64,
+    progress_callback: impl Fn(u32, u32),
+) -> InstructionResult {
+    let capture_config = final_flat_exposure_config(config, ctx.current_binning, exposure_secs);
+
+    let (filter_name, filter_index) = resolve_frame_filter(&capture_config, ctx).await;
+    let mut template_ctx = ctx.to_template_context();
+    template_ctx.current_filter = filter_name;
+    template_ctx.current_filter_index = filter_index;
+
+    let renderer = match build_save_path_renderer(&template_ctx, &capture_config, exposure_secs) {
+        Ok(renderer) => renderer,
+        Err(message) => {
+            tracing::error!("{}", message);
+            if let Some(event_tx) = &ctx.event_tx {
+                let _ = event_tx.send(crate::executor::ExecutorEvent::Error {
+                    message: message.clone(),
+                });
+            }
+            return InstructionResult::failure(message);
+        }
+    };
+
+    execute_exposure_with_renderer(
+        &capture_config,
+        ctx,
+        Some(renderer),
+        &BurstControl::default(),
+        progress_callback,
+    )
+    .await
 }
 
 fn surface_cleanup_failure(result: &mut InstructionResult, cleanup_error: String) {

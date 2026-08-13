@@ -1283,70 +1283,20 @@ impl ExecutionContext {
 /// Sun's current altitude (degrees above the horizon) for an observer at
 /// `latitude` / `longitude` (degrees). Positive = Sun above the horizon.
 ///
-/// This is the SAME low-precision solar-position math already used by
-/// [`ExecutionContext::is_dark`] (`approximate_sun_equatorial_coords` +
-/// `meridian::local_sidereal_time`); `is_dark` answers the binary
-/// astronomical-twilight question, whereas the native daylight START gate
-/// (`instructions::execute_slew` / `instructions::execute_exposure`) needs the
-/// continuous altitude so it can compare against a configurable
-/// `max_sun_altitude_degrees` that mirrors the Dart scheduler's
-/// `maxSunAltitudeDegrees`. Extracted as a free `pub(crate)` fn (rather than a
-/// method) so the instruction layer can call it without an `ExecutionContext`.
+/// `is_dark` answers the binary astronomical-twilight question, whereas the
+/// native daylight START gate (`instructions::execute_slew` /
+/// `instructions::execute_exposure`) needs the continuous altitude so it can
+/// compare against a configurable `max_sun_altitude_degrees` that mirrors the
+/// Dart scheduler's `maxSunAltitudeDegrees`. Extracted as a free `pub(crate)`
+/// fn (rather than a method) so the instruction layer can call it without an
+/// `ExecutionContext`.
 pub(crate) fn current_sun_altitude_degrees(latitude: f64, longitude: f64) -> f64 {
-    let now = chrono::Utc::now();
-    let jd = crate::meridian::julian_day(&now);
-
-    let days_since_j2000 = jd - 2451545.0;
-    let (sun_ra, sun_dec) = approximate_sun_equatorial_coords(days_since_j2000);
-
-    let lst = crate::meridian::local_sidereal_time(jd, longitude);
-    let ha = lst - sun_ra;
-    let ha_rad = (ha * 15.0).to_radians();
-    let dec_rad = sun_dec.to_radians();
-    let lat_rad = latitude.to_radians();
-
-    (lat_rad.sin() * dec_rad.sin() + lat_rad.cos() * dec_rad.cos() * ha_rad.cos())
-        .asin()
-        .to_degrees()
-}
-
-fn approximate_sun_equatorial_coords(days_since_j2000: f64) -> (f64, f64) {
-    let mean_longitude = (280.46 + 0.9856474 * days_since_j2000).rem_euclid(360.0);
-    let mean_anomaly = (357.528 + 0.9856003 * days_since_j2000).rem_euclid(360.0);
-
-    let ecliptic_longitude = mean_longitude
-        + 1.915 * mean_anomaly.to_radians().sin()
-        + 0.020 * (2.0 * mean_anomaly.to_radians()).sin();
-
-    let obliquity = 23.439 - 0.0000004 * days_since_j2000;
-    let ecliptic_longitude_rad = ecliptic_longitude.to_radians();
-    let obliquity_rad = obliquity.to_radians();
-    let sun_dec = (obliquity_rad.sin() * ecliptic_longitude_rad.sin())
-        .asin()
-        .to_degrees();
-    let sun_ra = (ecliptic_longitude_rad.sin() * obliquity_rad.cos())
-        .atan2(ecliptic_longitude_rad.cos())
-        .to_degrees()
-        .rem_euclid(360.0)
-        / 15.0;
-
-    (sun_ra, sun_dec)
+    crate::solar::sun_altitude_degrees(latitude, longitude, &chrono::Utc::now())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn sun_ra_helper_stays_finite_and_normalized() {
-        for days_since_j2000 in (-3650..=3650).step_by(137) {
-            // days_since_j2000 is i32 in (-3650, 3650), lossless to f64.
-            let (sun_ra, sun_dec) = approximate_sun_equatorial_coords(f64::from(days_since_j2000));
-            assert!(sun_ra.is_finite());
-            assert!(sun_dec.is_finite());
-            assert!((0.0..24.0).contains(&sun_ra));
-        }
-    }
 
     /// Regression: the instruction context must carry the producing node id.
     ///

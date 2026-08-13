@@ -188,11 +188,10 @@ impl SequenceExecutor {
 
     /// Update dither configuration at runtime.
     ///
-    /// writes through `runtime_config` so a running sequence
-    /// picks up the new values on its next dither (no sequence reload
-    /// required). The trigger-action context reads these on every
-    /// dither so a mid-burst change takes effect at the next gap.
-    pub fn update_dither_config(
+    /// Writes through `runtime_config` so a running sequence picks up the new
+    /// values on its next dither (no sequence reload required), then forwards
+    /// `UpdateDitherConfig` to a live task per this file's two-step contract.
+    pub async fn update_dither_config(
         &mut self,
         pixels: f64,
         settle_pixels: f64,
@@ -212,6 +211,17 @@ impl SequenceExecutor {
             rc.dither.settle_timeout = settle_timeout;
             rc.dither.ra_only = ra_only;
         }
+        if let Some(tx) = &self.command_tx {
+            let _ = tx
+                .send(ExecutorCommand::UpdateDitherConfig {
+                    pixels,
+                    settle_pixels,
+                    settle_time,
+                    settle_timeout,
+                    ra_only,
+                })
+                .await;
+        }
         let _ = self.event_tx.send(ExecutorEvent::RuntimeConfigUpdated {
             what: "dither".to_string(),
         });
@@ -219,14 +229,16 @@ impl SequenceExecutor {
 
     /// Update observer location at runtime.
     ///
-    /// writes through `runtime_config` AND updates the
-    /// executor's own fields so a fresh `start()` and an in-flight
-    /// sequence both see the new values. The trigger-monitor task
-    /// reads location from the trigger state, which is populated from
-    /// `runtime_config` on each iteration — that is the channel
-    /// through which the change reaches altitude-aware triggers
-    /// (AltitudeLimit, MeridianFlip hour-angle).
-    pub fn update_location(&mut self, lat: Option<f64>, lon: Option<f64>) {
+    /// Writes through `runtime_config` and the executor's own fields so a
+    /// fresh `start()` sees the new site, then puts the location where the
+    /// live consumers actually read it: `TriggerState`. `AltitudeLimit`,
+    /// `DawnApproaching` and the meridian hour-angle all read the trigger
+    /// state and nothing else — the per-tick `runtime_config` read in the
+    /// trigger monitor only carries safety-poll settings — so a write that
+    /// stops at `runtime_config` reaches none of them. A running task is
+    /// updated through `ExecutorCommand::UpdateLocation`; an idle one is
+    /// patched directly, since it has no task to send to.
+    pub async fn update_location(&mut self, lat: Option<f64>, lon: Option<f64>) {
         tracing::info!("Updating executor location: lat={:?}, lon={:?}", lat, lon);
         self.latitude = lat;
         self.longitude = lon;
@@ -234,6 +246,19 @@ impl SequenceExecutor {
             let mut rc = self.runtime_config.write();
             rc.latitude = lat;
             rc.longitude = lon;
+        }
+        if let Some(tx) = &self.command_tx {
+            let _ = tx
+                .send(ExecutorCommand::UpdateLocation {
+                    latitude: lat,
+                    longitude: lon,
+                })
+                .await;
+        } else {
+            let manager = self.trigger_manager.read().await;
+            let state_lock = manager.state();
+            let mut state = state_lock.write().await;
+            state.set_observer_location(lat, lon);
         }
         let _ = self.event_tx.send(ExecutorEvent::RuntimeConfigUpdated {
             what: "location".to_string(),
@@ -374,16 +399,21 @@ impl SequenceExecutor {
 
     /// Update filter focus offsets at runtime.
     ///
-    /// writes through `runtime_config` so the next filter
-    /// change reads the updated offsets. Also updates the executor's
-    /// own `filter_focus_offsets` field so a fresh start sees the new
-    /// values too.
-    pub fn update_filter_offsets(&mut self, offsets: std::collections::HashMap<String, i32>) {
+    /// Writes through `runtime_config` so the next filter change reads the
+    /// updated offsets, updates the executor's own `filter_focus_offsets` so a
+    /// fresh start sees them too, and forwards `UpdateFilterOffsets` to a live
+    /// task per this file's two-step contract.
+    pub async fn update_filter_offsets(&mut self, offsets: std::collections::HashMap<String, i32>) {
         tracing::info!("Updating filter focus offsets: {} entries", offsets.len());
         self.filter_focus_offsets = offsets.clone();
         {
             let mut rc = self.runtime_config.write();
-            rc.filter_focus_offsets = offsets;
+            rc.filter_focus_offsets = offsets.clone();
+        }
+        if let Some(tx) = &self.command_tx {
+            let _ = tx
+                .send(ExecutorCommand::UpdateFilterOffsets { offsets })
+                .await;
         }
         let _ = self.event_tx.send(ExecutorEvent::RuntimeConfigUpdated {
             what: "filter_offsets".to_string(),

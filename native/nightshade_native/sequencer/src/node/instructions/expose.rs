@@ -389,7 +389,7 @@ fn calibration_target_label(frame_type: &str) -> Option<String> {
 /// Returns `Err` when the burst has no resolvable destination — no base
 /// `save_path` and no absolute `save_to`. The caller turns that into a node
 /// failure so the frames are never captured-then-dropped.
-fn build_save_path_renderer(
+pub(crate) fn build_save_path_renderer(
     context: &ExecutionContext,
     config: &ExposureConfig,
     duration_secs: f64,

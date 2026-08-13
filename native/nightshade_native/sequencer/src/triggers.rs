@@ -1,7 +1,7 @@
 //! Trigger system for the sequencer
 
 use crate::{PierSide, RecoveryAction, TriggerType};
-use chrono::{NaiveDate, Utc};
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -64,20 +64,6 @@ fn clamp_focus_drift_window(
         }
     }
     (trigger_type, None)
-}
-
-fn build_utc_naive_time_or_fallback(
-    date: NaiveDate,
-    hour: u32,
-    minute: u32,
-    fallback: (u32, u32, u32),
-) -> chrono::NaiveDateTime {
-    // Why: same pattern as instructions.rs equivalent — invalid (h,m,s)
-    // tuple falls through to the documented `fallback`; if `fallback` itself is invalid,
-    // midnight is the safe last-resort representable time for the same calendar date.
-    date.and_hms_opt(hour, minute, 0)
-        .or_else(|| date.and_hms_opt(fallback.0, fallback.1, fallback.2))
-        .unwrap_or_else(|| date.and_time(chrono::NaiveTime::MIN))
 }
 
 fn looks_like_tracking_limit_hit(state: &TriggerState) -> bool {
@@ -856,70 +842,20 @@ impl Trigger {
     }
 }
 
-/// Calculate dawn (morning astronomical twilight) time for a given location
-/// Returns Unix timestamp of next dawn
+/// Unix timestamp of the next dawn (morning astronomical twilight) for a
+/// given location.
+///
+/// The math lives in [`crate::solar`] so this and the `WaitTime` twilight
+/// instruction are calibrated against the same Sun. This used to run Cooper's
+/// declination equation with no equation-of-time term, which put dawn up to
+/// ~16 minutes away from where the twilight instruction put dusk.
 pub fn calculate_dawn_time(latitude: f64, longitude: f64) -> i64 {
-    use chrono::Datelike;
-
-    let now = Utc::now();
-    let today = now.date_naive();
-
-    // Sun altitude threshold for astronomical twilight (18 degrees below horizon)
-    let altitude_threshold: f64 = -18.0;
-
-    // Approximate solar declination using Cooper's equation
-    // Why: ordinal() returns u32 day-of-year (1..=366); trivially lossless to f64.
-    let day_of_year = f64::from(today.ordinal());
-    let declination: f64 = 23.45
-        * (360.0_f64 * (284.0 + day_of_year) / 365.0)
-            .to_radians()
-            .sin();
-    let dec_rad = declination.to_radians();
-    let lat_rad = latitude.to_radians();
-    let alt_rad = altitude_threshold.to_radians();
-
-    // Calculate hour angle at astronomical twilight
-    let cos_h = (alt_rad.sin() - lat_rad.sin() * dec_rad.sin()) / (lat_rad.cos() * dec_rad.cos());
-
-    // Handle polar day/night explicitly to avoid silently fabricating a time.
-    if cos_h > 1.0 {
-        // Sun never reaches this altitude threshold today (e.g., polar day).
-        // Return a far-future timestamp so dawn trigger remains inactive.
-        return i64::MAX;
-    }
-    if cos_h < -1.0 {
-        // Sun is always below this altitude threshold today (e.g., polar night).
-        // Dawn is effectively "already reached" for scheduling logic.
-        return now.timestamp();
-    }
-
-    let hour_angle = cos_h.acos().to_degrees();
-
-    // Solar noon in UTC (approximately 12:00 - longitude/15 hours)
-    let solar_noon_utc = 12.0 - longitude / 15.0;
-
-    // Morning twilight occurs before solar noon
-    let hours_before_noon = hour_angle / 15.0;
-    let dawn_hour_utc = solar_noon_utc - hours_before_noon;
-
-    // Normalize to 0-24 range
-    let dawn_hour = dawn_hour_utc.rem_euclid(24.0);
-    // Why: dawn_hour is bounded by rem_euclid(24.0) above; .fract()*60.0 is in
-    // [0, 60). f64 -> u32 saturates per Rust 1.45 spec.
-    let dawn_minutes = (dawn_hour.fract() * 60.0) as u32;
-    let dawn_hour = dawn_hour as u32;
-
-    let dawn_datetime = build_utc_naive_time_or_fallback(today, dawn_hour, dawn_minutes, (6, 0, 0));
-
-    let dawn_timestamp =
-        chrono::DateTime::<Utc>::from_naive_utc_and_offset(dawn_datetime, Utc).timestamp();
-
-    // If the calculated dawn is in the past, it's tomorrow's dawn
-    if dawn_timestamp < now.timestamp() {
-        dawn_timestamp + 86400 // Add 24 hours
-    } else {
-        dawn_timestamp
-    }
+    crate::solar::time_of_sun_altitude(
+        latitude,
+        longitude,
+        -18.0,
+        crate::solar::SunCrossing::Rising,
+    )
 }
 
 /// State information used by triggers
@@ -1566,6 +1502,18 @@ impl TriggerState {
     /// the shared trigger state. A non-finite value is rejected (stored as
     /// `None`) so the gate falls back to its default rather than silently
     /// disabling itself on a NaN/inf config push ("fail closed").
+    /// Move the observer to a new site.
+    ///
+    /// Clearing `dawn_time` is the point of having a setter at all: the
+    /// trigger monitor only recomputes dawn when the cached value is missing
+    /// or already past, so a site change that left the cache in place would
+    /// keep `DawnApproaching` stopping the run at the OLD site's dawn.
+    pub fn set_observer_location(&mut self, latitude: Option<f64>, longitude: Option<f64>) {
+        self.observer_latitude = latitude;
+        self.observer_longitude = longitude;
+        self.dawn_time = None;
+    }
+
     pub fn set_max_sun_altitude_degrees(&mut self, degrees: f64) {
         self.max_sun_altitude_degrees = if degrees.is_finite() {
             Some(degrees)
