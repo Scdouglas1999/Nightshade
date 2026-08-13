@@ -639,39 +639,6 @@ final currentScienceSnapshotProvider =
       );
     });
 
-final currentScienceFrameProductsProvider =
-    Provider.family<
-      (ScienceFrameQualityMetricsRow?, List<ScienceTileMetricRow>),
-      (int sessionId, int? capturedImageId)
-    >((ref, args) {
-      final frameMetrics =
-          ref.watch(sessionFrameQualityMetricsProvider(args.$1)).valueOrNull ??
-          const <ScienceFrameQualityMetricsRow>[];
-      final tileMetrics =
-          ref.watch(sessionTileMetricsProvider(args.$1)).valueOrNull ??
-          const <ScienceTileMetricRow>[];
-
-      ScienceFrameQualityMetricsRow? selectedMetric;
-      if (args.$2 != null) {
-        for (final metric in frameMetrics.reversed) {
-          if (metric.capturedImageId == args.$2) {
-            selectedMetric = metric;
-            break;
-          }
-        }
-      }
-      selectedMetric ??= frameMetrics.isEmpty ? null : frameMetrics.last;
-
-      final targetImageId = args.$2 ?? selectedMetric?.capturedImageId;
-      final selectedTiles = targetImageId == null
-          ? const <ScienceTileMetricRow>[]
-          : tileMetrics
-                .where((tile) => tile.capturedImageId == targetImageId)
-                .toList(growable: false);
-
-      return (selectedMetric, selectedTiles);
-    });
-
 Future<Map<String, String>> _loadScienceSettingsMap(Ref ref) async {
   final backend = ref.watch(backendProvider);
   if (backend is NetworkBackend) {

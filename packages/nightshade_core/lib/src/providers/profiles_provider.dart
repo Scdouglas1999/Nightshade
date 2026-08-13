@@ -586,12 +586,6 @@ class EquipmentProfileModel {
     return ratio;
   }
 
-  /// Get image scale in arcsec/pixel for a given pixel size
-  double getImageScale(double pixelSizeMicrons) {
-    if (focalLength <= 0) return 0;
-    return (pixelSizeMicrons / focalLength) * 206.265;
-  }
-
   /// Get field of view for given sensor dimensions
   (double width, double height) getFieldOfView({
     required double sensorWidthMm,
@@ -1120,12 +1114,6 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
     final ids = await service.importAllProfilesFromJson(json);
     ref.invalidateSelf();
     return ids;
-  }
-
-  /// Export all profiles to JSON
-  Future<String> exportAllProfiles() async {
-    final service = ref.read(profileServiceProvider);
-    return await service.exportAllProfilesToJson();
   }
 
   /// Export a single profile to JSON

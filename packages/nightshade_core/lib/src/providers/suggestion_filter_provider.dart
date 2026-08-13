@@ -320,11 +320,6 @@ final availableSizeRangeProvider = Provider.autoDispose<(double, double)?>((
   );
 });
 
-/// Count of active UI filters (for badge display).
-final activeFilterCountProvider = Provider.autoDispose<int>((ref) {
-  return ref.watch(suggestionFilterProvider).activeCount;
-});
-
 // ============================================================================
 // Planner workspace providers
 // ============================================================================

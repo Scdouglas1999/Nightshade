@@ -206,14 +206,6 @@ final firstNightWizardProvider =
 /// tour offers suppressed forever.
 final guidedFlowActiveProvider = StateProvider<bool>((ref) => false);
 
-/// True if the first-night wizard should be auto-opened on this launch.
-/// Resolves asynchronously because it has to read the `tutorial_progress`
-/// table. Bootstrap code in `app.dart` watches this and triggers the
-/// wizard once the result is `true`.
-final shouldShowFirstNightProvider = FutureProvider<bool>((ref) {
-  return ref.watch(tutorialDaoProvider).shouldShowFirstNightOnLaunch();
-});
-
 /// Stable category name for the first-launch onboarding tour persisted in
 /// the `tutorial_progress` table. The OnboardingOverlay reads and writes
 /// this row to decide whether to auto-fire on app launch.
@@ -468,11 +460,6 @@ final tutorialProvider =
       notifier._loadPersistedProgress();
       return notifier;
     });
-
-/// Registry for tutorial target keys
-final tutorialKeyRegistry = Provider<TutorialKeyRegistry>((ref) {
-  return TutorialKeyRegistry();
-});
 
 /// Provider for dismissed tour prompts with database persistence.
 /// Tracks which screen IDs have had their contextual tour prompts dismissed.

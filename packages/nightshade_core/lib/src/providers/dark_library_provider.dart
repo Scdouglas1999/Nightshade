@@ -46,28 +46,6 @@ final darkLibraryEntriesProvider = StreamProvider<List<DarkLibraryEntry>>((
   return ref.watch(darkLibraryDaoProvider).watchAllEntries();
 });
 
-/// Reactive stream of dark-only entries.
-final darkFrameEntriesProvider = StreamProvider<List<DarkLibraryEntry>>((ref) {
-  final backend = ref.watch(backendProvider);
-  if (backend is NetworkBackend) {
-    return _pollRemoteDarkEntries(
-      backend,
-    ).map((entries) => entries.where((e) => e.frameType == 'dark').toList());
-  }
-  return ref.watch(darkLibraryDaoProvider).watchEntriesByFrameType('dark');
-});
-
-/// Reactive stream of bias-only entries.
-final biasFrameEntriesProvider = StreamProvider<List<DarkLibraryEntry>>((ref) {
-  final backend = ref.watch(backendProvider);
-  if (backend is NetworkBackend) {
-    return _pollRemoteDarkEntries(
-      backend,
-    ).map((entries) => entries.where((e) => e.frameType == 'bias').toList());
-  }
-  return ref.watch(darkLibraryDaoProvider).watchEntriesByFrameType('bias');
-});
-
 /// Library statistics (refreshes when entries change).
 ///
 /// On a remote client the local DAO `getStats()` reads the empty slave DB, so
@@ -268,15 +246,6 @@ final darkLibraryMatchTolerancesProvider = Provider<DarkLibraryMatchTolerances>(
     );
   },
 );
-
-/// Legacy convenience accessor for the temperature tolerance value alone.
-///
-/// Retained so the existing Settings UI (`dark_library_settings.dart`)
-/// continues to compile without modification. New code should consume
-/// [darkLibraryMatchTolerancesProvider] directly.
-final darkTempToleranceProvider = Provider<double>((ref) {
-  return ref.watch(darkLibraryMatchTolerancesProvider).temperatureC;
-});
 
 class DarkLibrarySettingsSnapshot {
   final bool autoCalibrate;

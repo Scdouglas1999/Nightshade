@@ -207,12 +207,3 @@ final pushNotificationServiceProvider = Provider<PushNotificationService>((
 
   return service;
 });
-
-/// Stream provider that exposes push notifications for consumption by the web server.
-///
-/// The web server should listen to this stream and broadcast each notification
-/// to all connected WebSocket clients.
-final pushNotificationStreamProvider = StreamProvider<PushNotification>((ref) {
-  final service = ref.watch(pushNotificationServiceProvider);
-  return service.notifications;
-});

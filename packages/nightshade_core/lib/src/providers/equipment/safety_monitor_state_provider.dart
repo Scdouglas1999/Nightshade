@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/equipment/equipment_models.dart';
+import 'device_connection_notifier.dart';
 import '../../services/device_service.dart';
 import 'equipment_retry_defaults.dart';
 
@@ -15,7 +16,14 @@ final safetyMonitorStateProvider =
       return SafetyMonitorStateNotifier(ref);
     });
 
-class SafetyMonitorStateNotifier extends StateNotifier<SafetyMonitorState> {
+class SafetyMonitorStateNotifier extends StateNotifier<SafetyMonitorState>
+    implements DeviceConnectionNotifier {
+  @override
+  DeviceConnectionState get connectionState => state.connectionState;
+
+  @override
+  String? get deviceId => state.deviceId;
+
   final Ref _ref;
   int _retryAttempts = 0;
   int _connectionRevision = 0;
@@ -85,6 +93,7 @@ class SafetyMonitorStateNotifier extends StateNotifier<SafetyMonitorState> {
     if (mounted && revision == _connectionRevision) setDisconnected();
   }
 
+  @override
   void setConnecting(String deviceId, [String? deviceName]) {
     _setConnectingState(deviceId, deviceName);
   }
@@ -99,6 +108,7 @@ class SafetyMonitorStateNotifier extends StateNotifier<SafetyMonitorState> {
     );
   }
 
+  @override
   void setConnected() {
     state = state.copyWith(
       connectionState: DeviceConnectionState.connected,
@@ -106,6 +116,7 @@ class SafetyMonitorStateNotifier extends StateNotifier<SafetyMonitorState> {
     );
   }
 
+  @override
   void setDisconnected() {
     final preservedAutoReconnect = state.autoReconnectEnabled;
     state = SafetyMonitorState(autoReconnectEnabled: preservedAutoReconnect);

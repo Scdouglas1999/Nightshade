@@ -414,6 +414,9 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
   static const _evaluationInterval = Duration(minutes: 5);
   static const _parkBeforeDawnLeadTime = Duration(minutes: 30);
 
+  /// Ceiling on how long [evaluateNow] waits for an evaluation to settle.
+  static const _evaluateNowTimeout = Duration(seconds: 10);
+
   /// How old a hardware source's last successful read may be before it stops
   /// counting as data. Device telemetry is polled every 5 seconds, so this is
   /// generous; it exists to catch a source that has frozen while still
@@ -475,10 +478,27 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     // verdict promptly. Previously only alert changes and the five-minute
     // timer triggered evaluation, so a newly connected weather/safety device
     // could remain labelled "unavailable" for minutes.
-    _ref.listen<WeatherState>(weatherStateProvider, (_, __) {
+    // The environment poll re-reports these every 5 seconds, refreshing only
+    // `lastUpdated`/`lastChecked`. Evaluating on a bare freshness bump would
+    // re-run the whole safety assessment and re-push the verdict over FFI all
+    // night on a rig whose weather is simply not changing; any OTHER field
+    // difference still evaluates immediately. Freshness itself is a function of
+    // wall-clock, and the periodic evaluation timer owns the stale transition.
+    _ref.listen<WeatherState>(weatherStateProvider, (previous, next) {
+      if (previous != null &&
+          previous.copyWith(lastUpdated: next.lastUpdated) == next) {
+        return;
+      }
       _scheduleSourceChangeEvaluation();
     });
-    _ref.listen<SafetyMonitorState>(safetyMonitorStateProvider, (_, __) {
+    _ref.listen<SafetyMonitorState>(safetyMonitorStateProvider, (
+      previous,
+      next,
+    ) {
+      if (previous != null &&
+          previous.copyWith(lastChecked: next.lastChecked) == next) {
+        return;
+      }
       _scheduleSourceChangeEvaluation();
     });
     // Configuration changes are safety inputs too. Persisting
@@ -1654,14 +1674,21 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
 
   /// Force a safety evaluation and wait until it and any coalesced follow-up
   /// evaluation have completed.
-  Future<void> evaluateNow() async {
+  ///
+  /// Bounded by [timeout]: an evaluation waits on the settings and app-settings
+  /// futures, which a stalled backend may never resolve. The headless settings
+  /// route awaits this before answering, so an unbounded wait would hang the
+  /// request rather than merely delaying it.
+  Future<void> evaluateNow({Duration timeout = _evaluateNowTimeout}) async {
     if (_ref.read(backendProvider) is NetworkBackend) {
       await _refreshRemoteStatus();
       return;
     }
     _evaluateAllSources();
+    final deadline = DateTime.now().add(timeout);
     while (mounted && (_evaluationInFlight || _evaluationPending)) {
-      await Future<void>.delayed(const Duration(milliseconds: 5));
+      if (!DateTime.now().isBefore(deadline)) return;
+      await Future<void>.delayed(const Duration(milliseconds: 25));
     }
   }
 
@@ -1685,12 +1712,6 @@ final weatherSafetyProvider =
       ref.watch(backendProvider);
       return WeatherSafetyNotifier(ref);
     });
-
-/// Convenience provider for quick safety check
-final isWeatherSafeProvider = Provider<bool>((ref) {
-  final safety = ref.watch(weatherSafetyProvider);
-  return safety.isSafe;
-});
 
 /// The single read/write path for the consolidated [SafetyConfig].
 ///

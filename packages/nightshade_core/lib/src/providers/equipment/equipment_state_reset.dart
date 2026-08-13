@@ -1,6 +1,5 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import '../device_heartbeat_health_provider.dart';
+import '../provider_reader.dart';
 import 'camera_state_provider.dart';
 import 'cover_calibrator_state_provider.dart';
 import 'dome_state_provider.dart';
@@ -15,24 +14,36 @@ import 'weather_state_provider.dart';
 
 /// Reset every equipment-state notifier to disconnected baseline.
 ///
-/// Called when the active [NightshadeBackend] is swapped so UI does not
-/// continue showing devices as connected against a backend that never
-/// opened them.
-void resetAllEquipmentStateNotifiers(Ref ref) {
-  ref.read(cameraStateProvider.notifier).setDisconnected();
-  ref.read(mountStateProvider.notifier).setDisconnected();
-  ref.read(focuserStateProvider.notifier).setDisconnected();
-  ref.read(filterWheelStateProvider.notifier).setDisconnected();
-  ref.read(guiderStateProvider.notifier).setDisconnected();
-  ref.read(rotatorStateProvider.notifier).setDisconnected();
-  ref.read(domeStateProvider.notifier).setDisconnected();
-  ref.read(weatherStateProvider.notifier).setDisconnected();
-  ref.read(safetyMonitorStateProvider.notifier).setDisconnected();
-  ref.read(switchStateProvider.notifier).setDisconnected();
-  ref.read(coverCalibratorStateProvider.notifier).setDisconnected();
+/// Called when the active [NightshadeBackend] is swapped, and on a remote
+/// companion before re-hydrating the host's device list, so the UI does not
+/// keep showing devices as connected against a backend that never opened them.
+///
+/// [reader] is a `Ref` in the app and a `ProviderContainer` on the headless
+/// server. Pass `includeGuider: false` when the guider is re-hydrated from a
+/// separate source (PHD2 is not always in the host's device list, and clearing
+/// it here would blank the chip before that poll lands).
+void resetAllEquipmentStateNotifiers(
+  Object reader, {
+  bool includeGuider = true,
+  bool clearHeartbeatHealth = true,
+}) {
+  readProvider(reader, cameraStateProvider.notifier).setDisconnected();
+  readProvider(reader, mountStateProvider.notifier).setDisconnected();
+  readProvider(reader, focuserStateProvider.notifier).setDisconnected();
+  readProvider(reader, filterWheelStateProvider.notifier).setDisconnected();
+  if (includeGuider) {
+    readProvider(reader, guiderStateProvider.notifier).setDisconnected();
+  }
+  readProvider(reader, rotatorStateProvider.notifier).setDisconnected();
+  readProvider(reader, domeStateProvider.notifier).setDisconnected();
+  readProvider(reader, weatherStateProvider.notifier).setDisconnected();
+  readProvider(reader, safetyMonitorStateProvider.notifier).setDisconnected();
+  readProvider(reader, switchStateProvider.notifier).setDisconnected();
+  readProvider(reader, coverCalibratorStateProvider.notifier).setDisconnected();
 
+  if (!clearHeartbeatHealth) return;
   try {
-    ref.read(deviceHeartbeatHealthProvider.notifier).clearAll();
+    readProvider(reader, deviceHeartbeatHealthProvider.notifier).clearAll();
   } on Object {
     // Heartbeat provider may be unavailable mid-disposal during shutdown.
   }

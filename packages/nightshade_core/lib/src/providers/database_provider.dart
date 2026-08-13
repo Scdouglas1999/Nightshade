@@ -398,8 +398,8 @@ db.Sequence _sequenceRowFromRemoteJson(Map<String, dynamic> json) {
     description: json['description'] as String?,
     rootNodeId: json['rootNodeId'] as String?,
     estimatedDurationMins: json['estimatedDurationMins'] as int? ?? 0,
-    createdAt: _dateTimeFromJsonValue(json['createdAt']),
-    updatedAt: _dateTimeFromJsonValue(json['updatedAt']),
+    createdAt: wireTimestamp(json['createdAt']),
+    updatedAt: wireTimestamp(json['updatedAt']),
     isTemplate: json['isTemplate'] as bool? ?? false,
     tagsJson: json['tagsJson'] as String? ?? '[]',
     isFavorite: json['isFavorite'] as bool? ?? false,
@@ -410,7 +410,7 @@ Future<List<db.ImagingSession>> _fetchRemoteSessions(
   NetworkBackend backend,
 ) async {
   final sessions = await backend.getAllSessions();
-  final mapped = sessions.map(_sessionFromJson).toList();
+  final mapped = sessions.map(imagingSessionFromWireJson).toList();
   // Match SessionsDao.watchAllSessions: newest session first. Several
   // consumers intentionally use `.first` as the most recent session.
   mapped.sort((a, b) => b.startTime.compareTo(a.startTime));
@@ -449,50 +449,12 @@ db.Target _targetFromJson(Map<String, dynamic> json) {
         (json['goalIntegrationSecs'] as num?)?.toDouble() ?? 0.0,
     filterProgress: json['filterProgress'] as String?,
     notes: json['notes'] as String?,
-    createdAt: _dateTimeFromJsonValue(json['createdAt']),
-    updatedAt: _dateTimeFromJsonValue(json['updatedAt']),
+    createdAt: wireTimestamp(json['createdAt']),
+    updatedAt: wireTimestamp(json['updatedAt']),
     isFavorite: json['isFavorite'] as bool? ?? false,
-  );
-}
-
-db.ImagingSession _sessionFromJson(Map<String, dynamic> json) {
-  return db.ImagingSession(
-    id: json['id'] as int,
-    name: json['name'] as String?,
-    profileId: json['profileId'] as int?,
-    targetId: json['targetId'] as int?,
-    startTime: _dateTimeFromJsonValue(json['startTime']),
-    endTime: json['endTime'] == null
-        ? null
-        : _dateTimeFromJsonValue(json['endTime']),
-    totalExposures: json['totalExposures'] as int? ?? 0,
-    successfulExposures: json['successfulExposures'] as int? ?? 0,
-    failedExposures: json['failedExposures'] as int? ?? 0,
-    totalIntegrationSecs:
-        (json['totalIntegrationSecs'] as num?)?.toDouble() ?? 0.0,
-    avgTemperature: (json['avgTemperature'] as num?)?.toDouble(),
-    avgHumidity: (json['avgHumidity'] as num?)?.toDouble(),
-    avgSeeing: (json['avgSeeing'] as num?)?.toDouble(),
-    avgHfr: (json['avgHfr'] as num?)?.toDouble(),
-    avgGuidingRms: (json['avgGuidingRms'] as num?)?.toDouble(),
-    autofocusCount: json['autofocusCount'] as int? ?? 0,
-    notes: json['notes'] as String?,
-    status: json['status'] as String? ?? 'completed',
-    sequenceId: json['sequenceId'] as int?,
-    equipmentSnapshot: json['equipmentSnapshot'] as String?,
   );
 }
 
 db.CapturedImage _imageFromJson(Map<String, dynamic> json) {
   return db.CapturedImage.fromJson(json);
-}
-
-DateTime _dateTimeFromJsonValue(Object? value) {
-  if (value is int) {
-    return DateTime.fromMillisecondsSinceEpoch(value);
-  }
-  if (value is String) {
-    return DateTime.tryParse(value) ?? DateTime.fromMillisecondsSinceEpoch(0);
-  }
-  return DateTime.fromMillisecondsSinceEpoch(0);
 }

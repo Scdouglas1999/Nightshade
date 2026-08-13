@@ -111,23 +111,6 @@ Stream<NightshadeEvent> _mergeEventStreams(
   return controller.stream;
 }
 
-/// Provider to track the last received event
-///
-/// Useful for displaying the most recent event in the UI
-/// or for debugging purposes.
-final lastEventProvider =
-    StateNotifierProvider<LastEventNotifier, NightshadeEvent?>((ref) {
-      final notifier = LastEventNotifier();
-
-      ref.listen(nightshadeEventsProvider, (previous, next) {
-        next.whenData((event) {
-          notifier.updateEvent(event);
-        });
-      });
-
-      return notifier;
-    });
-
 // Note: All async callbacks and stream listeners check `mounted`
 // before updating state to prevent updates after disposal.
 

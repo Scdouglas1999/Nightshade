@@ -711,11 +711,6 @@ final liveStackingProvider =
       return LiveStackingNotifier(ref);
     });
 
-/// Convenience provider for just the frame count.
-final liveStackingFrameCountProvider = Provider<int>((ref) {
-  return ref.watch(liveStackingProvider).stats.stackedFrameCount;
-});
-
 /// Convenience provider for whether stacking is active.
 final liveStackingIsActiveProvider = Provider<bool>((ref) {
   return ref.watch(liveStackingProvider).status == LiveStackingStatus.running;

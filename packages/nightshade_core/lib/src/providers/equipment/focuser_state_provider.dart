@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/backend/autofocus_result.dart';
 import '../../models/equipment/equipment_models.dart';
+import 'device_connection_notifier.dart';
 import '../../services/device_service.dart';
 import 'equipment_retry_defaults.dart';
 
@@ -14,7 +15,14 @@ final focuserStateProvider =
       return FocuserStateNotifier(ref);
     });
 
-class FocuserStateNotifier extends StateNotifier<FocuserState> {
+class FocuserStateNotifier extends StateNotifier<FocuserState>
+    implements DeviceConnectionNotifier {
+  @override
+  DeviceConnectionState get connectionState => state.connectionState;
+
+  @override
+  String? get deviceId => state.deviceId;
+
   final Ref _ref;
   int _retryAttempts = 0;
   int _connectionRevision = 0;
@@ -84,6 +92,7 @@ class FocuserStateNotifier extends StateNotifier<FocuserState> {
     if (mounted && revision == _connectionRevision) setDisconnected();
   }
 
+  @override
   void setConnecting(String deviceId, [String? deviceName]) {
     _setConnectingState(deviceId, deviceName);
   }
@@ -98,6 +107,7 @@ class FocuserStateNotifier extends StateNotifier<FocuserState> {
     );
   }
 
+  @override
   void setConnected({
     int? maxPosition,
     double? stepSize,
@@ -114,6 +124,7 @@ class FocuserStateNotifier extends StateNotifier<FocuserState> {
     );
   }
 
+  @override
   void setDisconnected() {
     final preservedAutoReconnect = state.autoReconnectEnabled;
     state = FocuserState(autoReconnectEnabled: preservedAutoReconnect);

@@ -24,11 +24,13 @@ import '../utils/utc_timestamp.dart';
 import 'database_provider.dart';
 import 'backend_provider.dart';
 import 'equipment_provider.dart';
+import 'equipment/device_connection_notifier.dart';
 import 'framing_provider.dart';
 import 'imaging_provider.dart' show exposureSettingsProvider;
 import 'observing_list_provider.dart'
     show listedCatalogIdsProvider, observingListsProvider;
 import 'profiles_provider.dart';
+import 'provider_reader.dart';
 import 'remote_sync_events.dart';
 import 'planning_provider.dart' show projectListProvider;
 import 'scheduler_provider.dart'
@@ -1009,7 +1011,7 @@ Future<void> _publishRemoteCurrentFrame(
     // Mirror the operator's current exposure controls, but let the host's
     // reported exposure time win so the frame badge matches the real frame.
     final baseSettings = _read(reader, exposureSettingsProvider);
-    final filterState = _readDeviceState(reader, DeviceType.filterWheel);
+    final filterState = _read(reader, filterWheelStateProvider);
     final settings = ExposureSettings(
       exposureTime: result.exposureTime,
       gain: baseSettings.gain,
@@ -1088,41 +1090,12 @@ void _applyDeviceDisconnectedFromSyncPayload(
     return;
   }
 
-  switch (deviceType.toLowerCase()) {
-    case 'camera':
-      _readDeviceNotifier(reader, DeviceType.camera).setDisconnected();
-      break;
-    case 'mount':
-      _readDeviceNotifier(reader, DeviceType.mount).setDisconnected();
-      break;
-    case 'focuser':
-      _readDeviceNotifier(reader, DeviceType.focuser).setDisconnected();
-      break;
-    case 'filterwheel':
-    case 'filter wheel':
-      _readDeviceNotifier(reader, DeviceType.filterWheel).setDisconnected();
-      break;
-    case 'guider':
-      _readDeviceNotifier(reader, DeviceType.guider).setDisconnected();
-      break;
-    case 'rotator':
-      _readDeviceNotifier(reader, DeviceType.rotator).setDisconnected();
-      break;
-    case 'dome':
-      _readDeviceNotifier(reader, DeviceType.dome).setDisconnected();
-      break;
-    case 'weather':
-      _readDeviceNotifier(reader, DeviceType.weather).setDisconnected();
-      break;
-    case 'safetymonitor':
-    case 'safety monitor':
-      _readDeviceNotifier(reader, DeviceType.safetyMonitor).setDisconnected();
-      break;
-    case 'covercalibrator':
-    case 'cover calibrator':
-      _readDeviceNotifier(reader, DeviceType.coverCalibrator).setDisconnected();
-      break;
+  final parsed = _parseDeviceType(deviceType);
+  if (parsed == null) {
+    return;
   }
+
+  _readDeviceNotifier(reader, parsed).setDisconnected();
 }
 
 void _applyConnectingDevice(
@@ -1201,7 +1174,10 @@ DeviceType? _parseDeviceType(String raw) {
   }
 }
 
-dynamic _readDeviceNotifier(Object reader, DeviceType deviceType) {
+DeviceConnectionNotifier _readDeviceNotifier(
+  Object reader,
+  DeviceType deviceType,
+) {
   switch (deviceType) {
     case DeviceType.camera:
       return _read(reader, cameraStateProvider.notifier);
@@ -1229,56 +1205,18 @@ dynamic _readDeviceNotifier(Object reader, DeviceType deviceType) {
   }
 }
 
-dynamic _readDeviceState(Object reader, DeviceType deviceType) {
-  switch (deviceType) {
-    case DeviceType.camera:
-      return _read(reader, cameraStateProvider);
-    case DeviceType.mount:
-      return _read(reader, mountStateProvider);
-    case DeviceType.focuser:
-      return _read(reader, focuserStateProvider);
-    case DeviceType.filterWheel:
-      return _read(reader, filterWheelStateProvider);
-    case DeviceType.guider:
-      return _read(reader, guiderStateProvider);
-    case DeviceType.rotator:
-      return _read(reader, rotatorStateProvider);
-    case DeviceType.dome:
-      return _read(reader, domeStateProvider);
-    case DeviceType.weather:
-      return _read(reader, weatherStateProvider);
-    case DeviceType.safetyMonitor:
-      return _read(reader, safetyMonitorStateProvider);
-    case DeviceType.coverCalibrator:
-      return _read(reader, coverCalibratorStateProvider);
-    case DeviceType.switch_:
-      return _read(reader, switchStateProvider);
-  }
-}
-
 bool _isDeviceAlreadyConnected(
   Object reader,
   DeviceType deviceType,
   String deviceId,
 ) {
-  final state = _readDeviceState(reader, deviceType);
-  return state.connectionState == DeviceConnectionState.connected &&
-      state.deviceId == deviceId;
+  final notifier = _readDeviceNotifier(reader, deviceType);
+  return notifier.connectionState == DeviceConnectionState.connected &&
+      notifier.deviceId == deviceId;
 }
 
-T _read<T>(Object reader, ProviderListenable<T> provider) {
-  if (reader is Ref) {
-    return reader.read(provider);
-  }
-  if (reader is ProviderContainer) {
-    return reader.read(provider);
-  }
-  throw ArgumentError.value(
-    reader,
-    'reader',
-    'Expected Ref or ProviderContainer',
-  );
-}
+T _read<T>(Object reader, ProviderListenable<T> provider) =>
+    readProvider(reader, provider);
 
 bool _isCurrentRemoteBackend(Object reader, NetworkBackend backend) {
   try {
@@ -1288,21 +1226,8 @@ bool _isCurrentRemoteBackend(Object reader, NetworkBackend backend) {
   }
 }
 
-void _invalidate(Object reader, ProviderOrFamily provider) {
-  if (reader is Ref) {
-    reader.invalidate(provider);
-    return;
-  }
-  if (reader is ProviderContainer) {
-    reader.invalidate(provider);
-    return;
-  }
-  throw ArgumentError.value(
-    reader,
-    'reader',
-    'Expected Ref or ProviderContainer',
-  );
-}
+void _invalidate(Object reader, ProviderOrFamily provider) =>
+    invalidateProvider(reader, provider);
 
 void _applySequencerStatus(Object reader, SequencerStatus status) {
   final mapped = _mapSequencerState(status.state);
@@ -1344,21 +1269,6 @@ SequenceExecutionState _mapSequencerState(String rawState) {
     default:
       return SequenceExecutionState.idle;
   }
-}
-
-void _clearLocalDeviceState(Object reader, {bool includeGuider = false}) {
-  _readDeviceNotifier(reader, DeviceType.camera).setDisconnected();
-  _readDeviceNotifier(reader, DeviceType.mount).setDisconnected();
-  _readDeviceNotifier(reader, DeviceType.focuser).setDisconnected();
-  _readDeviceNotifier(reader, DeviceType.filterWheel).setDisconnected();
-  if (includeGuider) {
-    _readDeviceNotifier(reader, DeviceType.guider).setDisconnected();
-  }
-  _readDeviceNotifier(reader, DeviceType.rotator).setDisconnected();
-  _readDeviceNotifier(reader, DeviceType.dome).setDisconnected();
-  _readDeviceNotifier(reader, DeviceType.weather).setDisconnected();
-  _readDeviceNotifier(reader, DeviceType.safetyMonitor).setDisconnected();
-  _readDeviceNotifier(reader, DeviceType.coverCalibrator).setDisconnected();
 }
 
 Future<void> _hydratePhd2GuiderState(
@@ -1422,7 +1332,7 @@ Future<void> hydrateRemoteSessionState(
   if (!_isCurrentRemoteBackend(reader, backend)) return;
   // PHD2 is not always listed in getConnectedDevices(); avoid clearing the
   // guider chip before we re-hydrate from phd2/status.
-  _clearLocalDeviceState(reader);
+  resetAllEquipmentStateNotifiers(reader, includeGuider: false);
   for (final device in devices) {
     _applyConnectedDevice(reader, device);
   }

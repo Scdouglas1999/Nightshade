@@ -829,15 +829,6 @@ class TransientAlertStatesNotifier
     _logger.debug('Alert $id queued', source: 'TransientAlertStatesNotifier');
   }
 
-  /// Mark an alert as observed
-  Future<void> markObserved(String id) async {
-    await _setAlertState(id, TransientAlertState.observed);
-    _logger.debug(
-      'Alert $id marked as observed',
-      source: 'TransientAlertStatesNotifier',
-    );
-  }
-
   /// Dismiss an alert
   Future<void> dismiss(String id) async {
     await _setAlertState(id, TransientAlertState.dismissed);

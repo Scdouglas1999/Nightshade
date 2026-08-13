@@ -85,14 +85,6 @@ final recoveryHistoryProvider =
       (ref) => RecoveryHistoryNotifier(),
     );
 
-/// Convenience: whether the executor is currently in `Recovering`. Reads
-/// `sequenceProgressProvider` so it never gets out of sync with the rest
-/// of the dashboard's state machine.
-final isRecoveringProvider = Provider<bool>((ref) {
-  final progress = ref.watch(sequenceProgressProvider);
-  return progress.state == SequenceExecutionState.recovering;
-});
-
 /// Operator command surface for the recovery banner. Delegates to the
 /// backend so both FFI and network backends honour the same control path.
 class RecoveryControl {

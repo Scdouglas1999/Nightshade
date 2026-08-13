@@ -57,20 +57,6 @@ final annotationMarkerStyleProvider =
 /// Provider for tracking if mouse is hovering over image
 final annotationHoverStateProvider = StateProvider<bool>((ref) => false);
 
-/// Provider for current annotation opacity (animated)
-final annotationOpacityProvider = Provider<double>((ref) {
-  final settingsAsync = ref.watch(annotationSettingsProvider);
-  final settings = settingsAsync.valueOrNull;
-  if (settings == null) return 0.0;
-  final isHovering = ref.watch(annotationHoverStateProvider);
-
-  if (!settings.fadeWhenNotHovering) {
-    return settings.hoverOpacity;
-  }
-
-  return isHovering ? settings.hoverOpacity : settings.idleOpacity;
-});
-
 /// Notifier for annotation settings with database persistence
 class AnnotationSettingsNotifier extends AsyncNotifier<AnnotationSettings> {
   static const _settingsKey = 'annotation_settings';

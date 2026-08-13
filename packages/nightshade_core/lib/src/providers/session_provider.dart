@@ -479,22 +479,11 @@ final sessionServiceProvider = Provider<SessionService>((ref) {
   return service;
 });
 
-/// Provider for session service status stream
-final sessionServiceStatusProvider = StreamProvider<String>((ref) {
-  final service = ref.watch(sessionServiceProvider);
-  return service.statusStream;
-});
-
 /// Session state provider for tracking active imaging sessions
 final sessionStateProvider =
     StateNotifierProvider<SessionStateNotifier, SessionState>((ref) {
       return SessionStateNotifier(ref);
     });
-
-/// Convenience provider for checking if a session is active
-final isSessionActiveProvider = Provider<bool>((ref) {
-  return ref.watch(sessionStateProvider).isActive;
-});
 
 /// Provider for session progress (0.0 - 1.0)
 final sessionProgressProvider = Provider<double>((ref) {

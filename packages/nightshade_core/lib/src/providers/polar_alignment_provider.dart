@@ -1079,13 +1079,6 @@ class PolarAlignmentConfigNotifier extends StateNotifier<PolarAlignmentConfig> {
 
   /// Reset to defaults
   Future<void> resetToDefaults() => _edit(const PolarAlignmentConfig());
-
-  /// Apply quick start preset
-  Future<void> applyQuickStart() => _edit(PolarAlignmentConfig.quickStart());
-
-  /// Apply high precision preset
-  Future<void> applyHighPrecision() =>
-      _edit(PolarAlignmentConfig.highPrecision());
 }
 
 // =============================================================================
@@ -1405,11 +1398,6 @@ class PolarAlignmentController {
   /// Start polar alignment with current configuration
   Future<void> start() async {
     final config = ref.read(polarAlignmentConfigProvider);
-    await ref.read(polarAlignmentStateProvider.notifier).startAlignment(config);
-  }
-
-  /// Start polar alignment with a specific configuration
-  Future<void> startWithConfig(PolarAlignmentConfig config) async {
     await ref.read(polarAlignmentStateProvider.notifier).startAlignment(config);
   }
 

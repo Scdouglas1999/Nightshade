@@ -56,24 +56,6 @@ final llmAssistantSettingsProvider = StreamProvider<LlmAssistantSettings>((
   }
 });
 
-/// Convenience boolean: is the *currently active* provider fully
-/// configured (so the dialog can open and run a build)? The dialog
-/// flips between "Configure provider" and "Build sequence" based on
-/// this.
-final llmAssistantConfiguredProvider = FutureProvider<bool>((ref) async {
-  final settings = ref.watch(llmSettingsServiceProvider);
-  final assistantAsync = ref.watch(llmAssistantSettingsProvider);
-  final assistant = assistantAsync.valueOrNull;
-  if (assistant == null) return false;
-  final factory = ref.read(llmProviderFactoryProvider);
-  final provider = await settings.buildActiveProvider(factory: factory);
-  if (provider == null) return false;
-  // We only needed the isConfigured check — close the freshly-built
-  // provider so we don't leak http resources.
-  provider.close();
-  return true;
-});
-
 /// History service singleton.
 final conversationalHistoryServiceProvider =
     Provider<ConversationalHistoryService>((ref) {

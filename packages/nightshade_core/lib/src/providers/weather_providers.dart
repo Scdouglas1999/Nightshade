@@ -54,17 +54,6 @@ final weatherAlertServiceProvider = Provider<WeatherAlertService>((ref) {
 // Settings Providers
 // ============================================================================
 
-/// Stream provider for weather settings from database
-///
-/// Watches the weather settings row in the database and emits updates
-/// whenever settings change. Returns null if no settings row exists yet.
-final weatherSettingsStreamProvider = StreamProvider<db.WeatherSettingRow?>((
-  ref,
-) {
-  final database = ref.watch(databaseProvider);
-  return database.weatherSettingsDao.watchSettings();
-});
-
 /// Synchronous provider for weather settings
 ///
 /// Returns the current weather settings model, converting from the database
@@ -503,15 +492,6 @@ final radarSourceInfoProvider = Provider<RadarSourceInfo>((ref) {
 final weatherAlertStreamProvider = StreamProvider<WeatherAlert>((ref) {
   final alertService = ref.watch(weatherAlertServiceProvider);
   return alertService.alertStream;
-});
-
-/// Current alert level provider
-///
-/// Provides quick synchronous access to the current alert level without
-/// needing to handle async state. Returns AlertLevel.clear if no alert exists.
-final currentAlertLevelProvider = Provider<AlertLevel>((ref) {
-  final alertAsync = ref.watch(weatherAlertStreamProvider);
-  return alertAsync.valueOrNull?.level ?? AlertLevel.clear;
 });
 
 // ============================================================================

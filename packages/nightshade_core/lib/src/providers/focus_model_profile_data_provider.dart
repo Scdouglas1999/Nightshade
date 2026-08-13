@@ -29,20 +29,6 @@ final focusProfileDataProvider = FutureProvider.autoDispose
       return service.getProfileData(profileId);
     });
 
-/// Compatibility view of the active remote imaging host's focus history.
-/// New profile-aware callers should use [focusProfileDataProvider].
-final remoteFocusProfileDataProvider =
-    FutureProvider.autoDispose<ProfileFocusData?>((ref) async {
-      final backend = ref.watch(backendProvider);
-      if (backend is! NetworkBackend) return null;
-
-      final responses = await Future.wait<Map<String, dynamic>>([
-        backend.getFocusModelData(),
-        backend.getFocusModel(),
-      ]);
-      return parseRemoteFocusProfileData(responses[0], responses[1]);
-    });
-
 /// Combines the host's split focus-history and fitted-model response shapes
 /// into the same value object local UI already consumes.
 ProfileFocusData parseRemoteFocusProfileData(

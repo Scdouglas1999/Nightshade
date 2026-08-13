@@ -484,16 +484,6 @@ class FlatWizardNotifier extends StateNotifier<FlatWizardState> {
     state = state.copyWith(filterSettings: updated);
   }
 
-  /// Reorder filters. No-op while capturing so the run's stable indices stay
-  /// valid (reordering mid-run would repoint them at the wrong rows).
-  void reorderFilters(int oldIndex, int newIndex) {
-    if (_running) return;
-    final updated = [...state.filterSettings];
-    final item = updated.removeAt(oldIndex);
-    updated.insert(newIndex < oldIndex ? newIndex : newIndex - 1, item);
-    state = state.copyWith(filterSettings: updated);
-  }
-
   /// Auto-order filters for twilight. No-op while capturing (reorder guard).
   void autoOrderForTwilight() {
     if (_running) return;
@@ -556,20 +546,8 @@ class FlatWizardNotifier extends StateNotifier<FlatWizardState> {
     state = state.copyWith(showAduGraph: show);
   }
 
-  void toggleExposureTimeline(bool show) {
-    state = state.copyWith(showExposureTimeline: show);
-  }
-
-  void toggleSkyBrightness(bool show) {
-    state = state.copyWith(showSkyBrightness: show);
-  }
-
   void toggleFilterCards(bool show) {
     state = state.copyWith(showFilterCards: show);
-  }
-
-  void toggleHistogramOverlay(bool show) {
-    state = state.copyWith(showHistogramOverlay: show);
   }
 
   // --- Capture Control ---
@@ -603,10 +581,6 @@ class FlatWizardNotifier extends StateNotifier<FlatWizardState> {
   }
 
   bool get cancelRequested => _cancelToken?.isCancelled ?? false;
-
-  void clearCancelRequest() {
-    if (!_running) _cancelToken = null;
-  }
 
   void clearError() {
     state = state.copyWith(errorMessage: null);
@@ -757,16 +731,20 @@ class FlatWizardNotifier extends StateNotifier<FlatWizardState> {
     _cancelToken = cancelToken;
 
     try {
+      // Snapshot the global settings ONCE. The settings panel stays editable
+      // mid-run (as does the tab bar, see runMode below), so reading
+      // `state.globalSettings` live inside the per-filter loop let an edit
+      // change the frame target, the target ADU and the output layout of the
+      // filters still to come — and misrecord in flat history the target the
+      // frames were actually shot at.
+      final runSettings = state.globalSettings;
       final backend = ref.read(backendProvider);
       final cameraState = ref.read(cameraStateProvider);
       // Build the service inline from the current backend + settings rather
       // than `ref.read(flatWizardServiceProvider)`: that provider `ref.watch`es
       // THIS provider's state, so reading it from our own notifier would form a
       // circular provider dependency.
-      final flatService = FlatWizardService.fromSettings(
-        backend,
-        state.globalSettings,
-      );
+      final flatService = FlatWizardService.fromSettings(backend, runSettings);
       final db = ref.read(databaseProvider);
       final activeProfile = ref.read(activeEquipmentProfileProvider);
       final profileId = activeProfile?.id;
@@ -788,7 +766,7 @@ class FlatWizardNotifier extends StateNotifier<FlatWizardState> {
         return;
       }
 
-      var savePath = state.globalSettings.savePath;
+      var savePath = runSettings.savePath;
       if (savePath == null || savePath.isEmpty) {
         setErrorMessage('No save path set');
         return;
@@ -832,8 +810,8 @@ class FlatWizardNotifier extends StateNotifier<FlatWizardState> {
       final config = await ref
           .read(flatCameraConfigProvider.notifier)
           .resolve(
-            fallbackBinX: state.globalSettings.binning,
-            fallbackBinY: state.globalSettings.binning,
+            fallbackBinX: runSettings.binning,
+            fallbackBinY: runSettings.binning,
             failIfStale: true,
           );
       if (!config.rangeKnown) {
@@ -872,7 +850,7 @@ class FlatWizardNotifier extends StateNotifier<FlatWizardState> {
 
       // Base save path with optional date subfolder.
       var baseSavePath = savePath;
-      if (state.globalSettings.createDateSubfolder) {
+      if (runSettings.createDateSubfolder) {
         baseSavePath = p.join(baseSavePath, _fmtDate(DateTime.now()));
       }
       final createOutputLocally = backend is! NetworkBackend;
@@ -931,19 +909,15 @@ class FlatWizardNotifier extends StateNotifier<FlatWizardState> {
         // 12/14-bit camera targets e.g. 50% of 4095/16383 — never an impossible
         // 32768.
         final targetAdu = FlatExposureCalculator.histogramPercentToAdu(
-          filterSetting.histogramTargetOverride ??
-              state.globalSettings.histogramTarget,
+          filterSetting.histogramTargetOverride ?? runSettings.histogramTarget,
           maxAdu: config.maxAdu,
         ).toDouble();
         final tolerance =
-            filterSetting.toleranceOverride ??
-            state.globalSettings.tolerancePercent;
+            filterSetting.toleranceOverride ?? runSettings.tolerancePercent;
         final minExp =
-            filterSetting.minExposureOverride ??
-            state.globalSettings.minExposure;
+            filterSetting.minExposureOverride ?? runSettings.minExposure;
         final maxExp =
-            filterSetting.maxExposureOverride ??
-            state.globalSettings.maxExposure;
+            filterSetting.maxExposureOverride ?? runSettings.maxExposure;
 
         final FlatResult calibration;
         if (runMode == FlatWizardMode.skyFlats) {
@@ -1029,7 +1003,7 @@ class FlatWizardNotifier extends StateNotifier<FlatWizardState> {
 
         // ---- Frame capture ----
         var filterSavePath = baseSavePath;
-        if (state.globalSettings.createFilterSubfolders) {
+        if (runSettings.createFilterSubfolders) {
           filterSavePath = p.join(
             baseSavePath,
             _sanitizeComponent(filterSetting.filterName),
@@ -1041,7 +1015,7 @@ class FlatWizardNotifier extends StateNotifier<FlatWizardState> {
         }
 
         final frameCount =
-            filterSetting.frameCountOverride ?? state.globalSettings.frameCount;
+            filterSetting.frameCountOverride ?? runSettings.frameCount;
         var savedCount = 0;
         var frameCancelled = false;
         var frameHalted = false;
@@ -1183,6 +1157,7 @@ class FlatWizardNotifier extends StateNotifier<FlatWizardState> {
             brightnessTracker: brightnessTracker,
             runMode: runMode,
             runTwilightMode: runTwilightMode,
+            histogramTarget: runSettings.histogramTarget,
           );
         }
 
@@ -1464,6 +1439,7 @@ class FlatWizardNotifier extends StateNotifier<FlatWizardState> {
     required SkyBrightnessTracker brightnessTracker,
     required FlatWizardMode runMode,
     required TwilightMode runTwilightMode,
+    required double histogramTarget,
   }) async {
     try {
       // Use the run's snapshotted mode/twilight, not `state.mode`/
@@ -1481,7 +1457,7 @@ class FlatWizardNotifier extends StateNotifier<FlatWizardState> {
           filter: filterName,
           exposureDuration: exposure,
           adu: adu.toInt(),
-          histogramTarget: state.globalSettings.histogramTarget,
+          histogramTarget: histogramTarget,
           gain: gain,
           skyAduRate: skyAduRate,
           twilightPhase: twilightPhase,
@@ -1491,7 +1467,7 @@ class FlatWizardNotifier extends StateNotifier<FlatWizardState> {
         await db.flatHistoryDao.recordCalibration(
           filterName: filterName,
           exposureTime: exposure,
-          histogramTarget: state.globalSettings.histogramTarget,
+          histogramTarget: histogramTarget,
           actualAdu: adu.toInt(),
           equipmentProfileId: profileId,
           skyAduRate: skyAduRate,

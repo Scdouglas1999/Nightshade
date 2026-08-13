@@ -5,7 +5,6 @@ import '../backend/network_backend.dart';
 import '../services/focus_model_service.dart';
 import 'backend_provider.dart';
 import 'profiles_provider.dart';
-import 'equipment_provider.dart';
 
 /// Filter offset state for the current profile
 class FilterOffsetState {
@@ -347,18 +346,3 @@ final filterOffsetProvider =
     StateNotifierProvider<FilterOffsetNotifier, FilterOffsetState>((ref) {
       return FilterOffsetNotifier(ref);
     });
-
-/// Helper provider to get offset for a specific filter
-final filterOffsetForFilterProvider = Provider.family<int, String>((
-  ref,
-  filterName,
-) {
-  final state = ref.watch(filterOffsetProvider);
-  return state.offsets[filterName] ?? 0;
-});
-
-/// Provider to get available filter names from connected filter wheel
-final availableFiltersProvider = Provider<List<String>>((ref) {
-  final filterWheelState = ref.watch(filterWheelStateProvider);
-  return filterWheelState.filterNames;
-});

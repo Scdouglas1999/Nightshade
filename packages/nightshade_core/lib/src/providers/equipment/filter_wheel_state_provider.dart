@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/equipment/equipment_models.dart';
+import 'device_connection_notifier.dart';
 import '../../services/device_service.dart';
 import '../profiles_provider.dart';
 import 'equipment_retry_defaults.dart';
@@ -15,7 +16,14 @@ final filterWheelStateProvider =
       return FilterWheelStateNotifier(ref);
     });
 
-class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
+class FilterWheelStateNotifier extends StateNotifier<FilterWheelState>
+    implements DeviceConnectionNotifier {
+  @override
+  DeviceConnectionState get connectionState => state.connectionState;
+
+  @override
+  String? get deviceId => state.deviceId;
+
   final Ref _ref;
   int _retryAttempts = 0;
   int _connectionRevision = 0;
@@ -216,6 +224,7 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
     if (mounted && revision == _connectionRevision) setDisconnected();
   }
 
+  @override
   void setConnecting(String deviceId, [String? deviceName]) {
     _setConnectingState(deviceId, deviceName);
   }
@@ -230,6 +239,7 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
     );
   }
 
+  @override
   void setConnected({List<String>? filterNames}) {
     state = state.copyWith(
       connectionState: DeviceConnectionState.connected,
@@ -242,6 +252,7 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
     state = state.copyWith(deviceName: deviceName);
   }
 
+  @override
   void setDisconnected() {
     final preservedAutoReconnect = state.autoReconnectEnabled;
     state = FilterWheelState(autoReconnectEnabled: preservedAutoReconnect);

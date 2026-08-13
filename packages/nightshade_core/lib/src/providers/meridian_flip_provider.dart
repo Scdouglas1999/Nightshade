@@ -4,7 +4,6 @@ import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../backend/network_backend.dart';
 import '../database/database.dart';
-import '../models/backend/event_types.dart';
 import '../models/backend/host_mutation_event.dart';
 import '../models/equipment/equipment_models.dart'
     show DeviceConnectionState, MountState;
@@ -359,31 +358,6 @@ final effectiveMeridianFlipSettingsProvider = Provider<MeridianFlipSettings>((
     );
     return global;
   }
-});
-
-/// Stream of meridian flip events during flip execution.
-///
-/// Listens to the backend event stream for equipment events with
-/// meridian-flip-related event types and maps them to [MeridianFlipEvent].
-final meridianFlipEventStreamProvider = StreamProvider<MeridianFlipEvent?>((
-  ref,
-) {
-  final backend = ref.watch(diagnosticsBackendProvider);
-
-  return backend.eventStream
-      .where(
-        (event) =>
-            event.category == EventCategory.equipment &&
-            event.eventType.startsWith('MeridianFlip'),
-      )
-      .map((event) {
-        try {
-          return MeridianFlipEvent.fromJson(event.data);
-        } catch (e) {
-          // If parsing fails, emit null rather than crashing the stream
-          return null;
-        }
-      });
 });
 
 /// Current flip state for UI

@@ -325,11 +325,6 @@ class ThemeSettingsNotifier extends AsyncNotifier<String> {
   }
 }
 
-final themeSettingsProvider =
-    AsyncNotifierProvider<ThemeSettingsNotifier, String>(() {
-      return ThemeSettingsNotifier();
-    });
-
 // ============================================================================
 // Auto Connect Settings
 // ============================================================================

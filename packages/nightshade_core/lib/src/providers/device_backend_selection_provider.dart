@@ -63,12 +63,3 @@ final selectedBackendForDeviceProvider = Provider.family<DriverType?, String>((
   final selections = ref.watch(deviceBackendSelectionProvider);
   return selections[canonicalName];
 });
-
-/// Provider to check if a device has an explicit backend selection
-final hasExplicitBackendSelectionProvider = Provider.family<bool, String>((
-  ref,
-  canonicalName,
-) {
-  final selections = ref.watch(deviceBackendSelectionProvider);
-  return selections.containsKey(canonicalName);
-});

@@ -1215,18 +1215,6 @@ final schedulerRemoteSnapshotProvider =
       );
     });
 
-/// Read-only ranked candidate list (best-first, eligible only) the autopilot
-/// would consider right now — the headline ordering for the Planner. Shares
-/// the preview decision's inputs and side-effect-free guarantee; the first
-/// entry equals [schedulerPreviewDecisionProvider]'s chosen target.
-final schedulerPreviewRankingProvider =
-    FutureProvider.autoDispose<List<TargetScore>>((ref) async {
-      final engine = await ref.watch(schedulerEngineReadyProvider.future);
-      final clock = ref.watch(clockProvider);
-      ref.watch(currentSchedulerDecisionProvider);
-      return engine.previewRanking(clock.nowUtc());
-    });
-
 /// Quick-access provider for the list of all integration goals (refreshes
 /// when the operator edits them).
 final allIntegrationGoalsProvider = FutureProvider<List<IntegrationGoal>>((
