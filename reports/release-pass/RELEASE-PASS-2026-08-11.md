@@ -319,13 +319,33 @@ The wave left 5 test casualties in nightshade_app; all closed:
 
 Order of execution from here:
 
-1. **C1** (running) → full gates → commit per batch scope.
-2. **Wave B-fix**: P0 pair first (SEQ-12, SKY-2), then the 18 P1s, then the cross-cutting
-   classes above (A11Y-STATE and CON-44 are the highest-leverage single fixes), then
-   remaining P2s per cluster report. Failing-test-first for every behavior item.
-3. **C2** cross-package consolidations, then **C3** file splits.
-4. **Wave D** adversarial verify over C1 + B-fix; loop map→fix→verify until a wave is dry.
-5. Owner-decision items from Wave A remain parked in their section above.
+1. ~~C1~~ DONE — committed 3e1be6cdc..7aadcacce, full gates green.
+2. ~~Wave B-fix stage 1~~ DONE — committed e1f10a24b..b17655239 (8 batch commits + closer
+   fixes + harness + docs), gates green (melos: every package SUCCESS except the five
+   nightshade_app casualties, all five closed and re-proven; final clean nightshade_app run
+   recorded in the session log).
+3. **C2** cross-package consolidations — COMPLETE (wf_99035b9c-9c5, 6/6 topics, ~3.6h).
+   ~100 call sites consolidated onto canonical implementations with exact-== parity tests
+   (24k-point sweeps per formatter site; deliberate non-merges recorded with measured proof,
+   e.g. two JD algorithms shown non-bit-identical over 50k instants). Impl logs:
+   reports/release-pass/impl/c2-*.md. Notable outputs feeding later waves:
+   - **JD+0.5 suspect**: planetarium coordinate_system.dart:_julianDate returns JD + half a
+     day (~12 sidereal hours of LST error in toHorizontal, 4 live callers in sky_view.dart);
+     its own test asserts the wrong value. Render path demonstrably correct (GUI-wave
+     astrometry spot-checks passed), so this is a dormant secondary path — Wave D must
+     reproduce in the running app before anyone fixes it.
+   - **PHD2 cry-wolf**: AppState.devices vs DeviceManager.devices split means the
+     connected-devices API cannot see a connected PHD2 guider — a real bug fix, now in the
+     stage-2 sweep (failing-test-first).
+   - **Rotation-sign divergence** between Dart/Rust WCS parsers needs a real ASTAP .wcs from
+     the rig — Wave D / live-rig item.
+   Next: **stage-2 sweep** (script: reports/release-pass/scripts/release-stage2-sweep.js,
+   7 batches incl. phd2-crywolf), then **C3** file splits.
+4. **Wave D** adversarial verify over C1 + B-fix (re-drive the GUI clusters against a fresh
+   bundle + the fixed a11y dump; verify no fix merely relocated its defect); loop
+   map→fix→verify until a wave is dry.
+5. Owner-decision items from Wave A remain parked in their section above; IMG-9 (loop
+   frame-count label) joined them from B-fix.
 
 ## Fix log
 
