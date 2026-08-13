@@ -2486,3 +2486,10 @@ mod tests {
         let _ = std::fs::remove_dir_all(dir);
     }
 }
+
+/// Shared `.wcs` conformance fixture, consumed by this crate AND by the Dart
+/// `PlateSolveService` tests. Declared here (not under `tests/`) because the
+/// parsers it pins are private to this module.
+#[cfg(test)]
+#[path = "platesolve_wcs_conformance_tests.rs"]
+mod wcs_conformance;

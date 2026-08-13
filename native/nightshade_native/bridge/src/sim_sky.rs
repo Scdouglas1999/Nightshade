@@ -813,6 +813,19 @@ pub(crate) mod astap_integration {
     /// `CRVAL1`, which reads as "no solve" while ASTAP is printing "Solution
     /// found" — the Python probe reported four focal lengths as failures on
     /// exactly this bug before it split on 80 bytes instead.
+    ///
+    /// This is the THIRD `.wcs` card reader in the repo, and it is deliberately
+    /// not folded into the other two. The shared conformance fixture at
+    /// `test_fixtures/wcs_conformance/` pins the production pair
+    /// (`platesolve::fits_header_cards` and the Dart `_fitsHeaderCards`), which
+    /// honour line terminators before card-splitting; this one chunks the raw
+    /// bytes by 80 unconditionally and would therefore misread a
+    /// newline-delimited header. That is correct for its one and only input —
+    /// live `astap_cli -wcs` output, which never has terminators — and this
+    /// module is `#[cfg(test)]` behind `#[ignore]`d hardware tests, so it is
+    /// left alone rather than made to depend on a function private to another
+    /// crate. If it ever reads a header from anywhere else, point it at the
+    /// canonical splitter first.
     pub(crate) fn read_crval(base: &Path) -> Option<(f64, f64)> {
         let blob = std::fs::read(base.with_extension("wcs")).ok()?;
         let mut crval1 = None;

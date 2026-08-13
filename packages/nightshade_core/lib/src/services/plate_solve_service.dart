@@ -48,6 +48,15 @@ List<String> _fitsHeaderCards(String content) {
   return cards;
 }
 
+/// Test seam over [_fitsHeaderCards]. The card split is the half of the `.wcs`
+/// contract that is genuinely identical in both languages, so it is pinned
+/// against the Rust `fits_header_cards` by the shared golden fixture in
+/// `test_fixtures/wcs_conformance/` (see
+/// `packages/nightshade_core/test/services/wcs_conformance_test.dart`).
+@visibleForTesting
+List<String> fitsHeaderCardsForTest(String content) =>
+    _fitsHeaderCards(content);
+
 /// Thrown by `PlateSolveService.solveWithFallback()` when no plate solver
 /// is reachable on disk. The settings UI catches this to render the
 /// `PlateSolverRequiredBanner` rather than treating it as a generic error.
