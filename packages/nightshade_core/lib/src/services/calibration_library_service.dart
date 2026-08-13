@@ -193,7 +193,7 @@ class CalibrationLibraryService {
     }
 
     if (enrichFromHeaders && remote == null) {
-      records = [for (final r in records) await _enrich(r)];
+      records = await _enrichAll(records);
       _ensureAuthority();
     }
 
@@ -280,7 +280,12 @@ class CalibrationLibraryService {
       _ensureAuthority();
       return result;
     }
-    final all = await _loadAll();
+    // Enrich exactly as [listMasters] does. A master flat whose filter lives
+    // only in its FITS header has a null `filter` column, so without this it is
+    // visible and correctly labelled in the Calibration Library while this
+    // matcher reports "No matching master flat for filter X" about the very
+    // record on screen — and silently drops flat-field correction.
+    final all = await _enrichAll(await _loadAll());
     String? remoteWarning;
     if (includeRemote && _remoteLibrary != null) {
       // Signed out is a NORMAL state, not a failure: no exception, no error log
@@ -979,6 +984,13 @@ class CalibrationLibraryService {
 
     return records;
   }
+
+  /// [_enrich] over a whole set. The single answer to "what metadata does this
+  /// master really carry", shared by [listMasters] and [match] so the library
+  /// list and the matcher can never describe the same record differently.
+  Future<List<CalibrationMasterRecord>> _enrichAll(
+    List<CalibrationMasterRecord> records,
+  ) async => [for (final record in records) await _enrich(record)];
 
   /// Fill missing camera id / temperature / filter from the FITS primary
   /// header, caching the camera id in `calibration_tags`. Best-effort:

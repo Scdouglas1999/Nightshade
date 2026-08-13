@@ -284,6 +284,7 @@ class ImagingService {
       final eventSubscription = backend.eventStream.listen((event) {
         if (!_hasBackendAuthority(backend)) return;
         if (event.category == EventCategory.imaging) {
+          if (!_eventNamesCamera(event, deviceId)) return;
           if (event.eventType == 'ExposureProgress') {
             final progress = event.data['progress'] as double? ?? 0.0;
             final remainingSecs = event.data['remainingSecs'] as double? ?? 0.0;
@@ -1163,6 +1164,35 @@ class ImagingService {
 
   bool _hasBackendAuthority(NightshadeBackend backend) =>
       !_retired && _backendOwner.isCurrentBackend(backend);
+
+  /// Keys under which an imaging event may carry the originating camera id.
+  /// Mirrors `FlatWizardService._deviceIdKeys` — the two services listen to the
+  /// same stream and must agree on how a frame is attributed to a camera.
+  static const List<String> _cameraIdKeys = [
+    'deviceId',
+    'device_id',
+    'cameraId',
+    'camera_id',
+  ];
+
+  /// Whether [event] belongs to the exposure we started on [deviceId].
+  ///
+  /// FFI-originated events do NOT carry a camera id (the native side drives a
+  /// single active camera), so absence means "accept" — the event is scoped to
+  /// the operation. When an id IS present it must be ours: on a dual-camera rig
+  /// the guide camera publishes onto this same stream, and its completion used
+  /// to settle the main camera's wait, sending the download in mid-exposure.
+  static bool _eventNamesCamera(NightshadeEvent event, String deviceId) {
+    for (final key in _cameraIdKeys) {
+      final raw = event.data[key];
+      if (raw != null &&
+          raw.toString().isNotEmpty &&
+          raw.toString() != deviceId) {
+        return false;
+      }
+    }
+    return true;
+  }
 
   Future<void> _abortActiveExposure() {
     final existing = _activeAbortFuture;

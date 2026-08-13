@@ -566,35 +566,6 @@ extension _DeviceServiceEventHandling on DeviceService {
     }
   }
 
-  /// Device id currently tracked by the equipment notifier for [type], or
-  /// `null` when that slot is empty.
-  String? _trackedDeviceIdFor(DeviceType type) {
-    switch (type) {
-      case DeviceType.camera:
-        return _ref.read(cameraStateProvider).deviceId;
-      case DeviceType.mount:
-        return _ref.read(mountStateProvider).deviceId;
-      case DeviceType.focuser:
-        return _ref.read(focuserStateProvider).deviceId;
-      case DeviceType.filterWheel:
-        return _ref.read(filterWheelStateProvider).deviceId;
-      case DeviceType.guider:
-        return _ref.read(guiderStateProvider).deviceId;
-      case DeviceType.rotator:
-        return _ref.read(rotatorStateProvider).deviceId;
-      case DeviceType.dome:
-        return _ref.read(domeStateProvider).deviceId;
-      case DeviceType.weather:
-        return _ref.read(weatherStateProvider).deviceId;
-      case DeviceType.safetyMonitor:
-        return _ref.read(safetyMonitorStateProvider).deviceId;
-      case DeviceType.coverCalibrator:
-        return _ref.read(coverCalibratorStateProvider).deviceId;
-      case DeviceType.switch_:
-        return _ref.read(switchStateProvider).deviceId;
-    }
-  }
-
   /// Whether a `Disconnected` event for [eventDeviceId] may tear down the
   /// equipment notifier for [type].
   ///
@@ -612,7 +583,7 @@ extension _DeviceServiceEventHandling on DeviceService {
   /// An empty slot is allowed through (idempotent no-op) so genuine teardown
   /// ordering is unaffected.
   bool _disconnectEventOwnsSlot(DeviceType type, String eventDeviceId) {
-    final tracked = _trackedDeviceIdFor(type);
+    final tracked = _slotDeviceIdFor(type);
     if (tracked == null || tracked.isEmpty || tracked == eventDeviceId) {
       return true;
     }

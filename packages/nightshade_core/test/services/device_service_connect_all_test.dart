@@ -26,7 +26,7 @@ import 'package:nightshade_core/src/providers/equipment_provider.dart';
 import 'package:nightshade_core/src/providers/profiles_provider.dart';
 import 'package:nightshade_core/src/services/device_exceptions.dart';
 import 'package:nightshade_core/src/services/device_service.dart';
-import 'package:nightshade_core/src/utils/device_id_utils.dart';
+import 'package:nightshade_core/src/utils/device_id.dart';
 
 import '../mocks/mock_backend.dart';
 

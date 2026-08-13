@@ -119,14 +119,14 @@ void main() {
 
       final service = FlatWizardService(backend);
 
-      final adu = await service.captureTestFrame(
+      final adu = (await service.captureTestFrame(
         deviceId: cameraId,
         exposureTime: 0.5,
         gain: 100,
         offset: 50,
         filterName: 'L',
         filterWheelDeviceId: wheelId,
-      );
+      )).adu;
 
       expect(adu, isNotNull);
       expect(adu, closeTo(25000.0, 0.01));

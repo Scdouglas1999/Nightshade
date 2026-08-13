@@ -905,7 +905,7 @@ class SkyAtlasService {
       if (entity is! File) continue;
       final ext = p.extension(entity.path).toLowerCase();
       if (ext != '.png' && ext != '.fits' && ext != '.nst') continue;
-      final stat = entity.statSync();
+      final stat = await entity.stat();
       entries.add((file: entity, modified: stat.modified, size: stat.size));
     }
 

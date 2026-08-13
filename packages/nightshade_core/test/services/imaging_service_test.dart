@@ -854,6 +854,71 @@ void main() {
       ).called(1);
     });
 
+    test(
+      'a second camera on the shared stream cannot settle our exposure',
+      () async {
+        // On a dual-camera rig (main + guide) both cameras publish onto the
+        // same imaging event stream. A completion tagged with another camera's
+        // id used to satisfy this capture's wait, so the download ran mid
+        // exposure and returned the previous frame.
+        const settings = ExposureSettings(
+          exposureTime: 5.0,
+          gain: 100,
+          offset: 50,
+          binningX: 1,
+          binningY: 1,
+          frameType: FrameType.light,
+        );
+
+        final exposureStarted = Completer<void>();
+        when(
+          () => mockBackend.cameraStartExposure(
+            deviceId: any(named: 'deviceId'),
+            exposureTime: any(named: 'exposureTime'),
+            frameType: any(named: 'frameType'),
+            gain: any(named: 'gain'),
+            offset: any(named: 'offset'),
+            binX: any(named: 'binX'),
+            binY: any(named: 'binY'),
+          ),
+        ).thenAnswer((_) async => exposureStarted.complete());
+
+        when(
+          () => mockBackend.cameraGetLastImage(any()),
+        ).thenAnswer((_) async => makeCapturedImageResult(exposureTime: 5.0));
+        when(
+          () => mockBackend.saveFitsFromLastCapture(
+            deviceId: any(named: 'deviceId'),
+            filePath: any(named: 'filePath'),
+            headerData: any(named: 'headerData'),
+          ),
+        ).thenAnswer((_) async {});
+
+        NightshadeEvent completionFrom(String deviceId) => NightshadeEvent(
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          severity: EventSeverity.info,
+          category: EventCategory.imaging,
+          eventType: 'ExposureComplete',
+          data: {'deviceId': deviceId},
+        );
+
+        final service = container.read(imagingServiceProvider);
+        final capture = service.captureImage(settings: settings);
+        await exposureStarted.future;
+
+        eventStreamController.add(completionFrom('guide-camera-2'));
+        await pumpEventQueue();
+
+        verifyNever(() => mockBackend.cameraGetLastImage(any()));
+
+        eventStreamController.add(completionFrom('test-camera-1'));
+        final result = await capture;
+
+        expect(result, isNotNull);
+        verify(() => mockBackend.cameraGetLastImage(any())).called(1);
+      },
+    );
+
     test('captureImage returns CapturedImageData on success', () async {
       const settings = ExposureSettings(
         exposureTime: 5.0,

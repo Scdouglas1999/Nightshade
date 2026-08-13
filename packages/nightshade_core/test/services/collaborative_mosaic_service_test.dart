@@ -129,8 +129,13 @@ void main() {
       mastersDao: mastersDao,
       integrationService: PostSessionIntegrationService(
         mastersDao: mastersDao,
-        darkLibrary: DarkLibraryService(DarkLibraryDao(db)),
-        flatLibrary: FlatLibraryService(dao: FlatLibraryDao(db), seam: seam),
+        calibrationLibrary: CalibrationLibraryService(
+          db: db,
+
+          flatLibraryDao: FlatLibraryDao(db),
+
+          tagsDao: CalibrationTagsDao(db),
+        ),
         seam: seam,
       ),
       seam: seam,

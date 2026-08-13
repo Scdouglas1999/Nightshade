@@ -17,7 +17,7 @@
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io' show File, SocketException;
+import 'dart:io' show File, FileSystemException, IOSink, SocketException;
 
 import 'package:http/http.dart' as http;
 
@@ -182,9 +182,19 @@ class ConstellationClient {
       await out.parent.create(recursive: true);
       final sink = out.openWrite();
       try {
-        await sink.addStream(streamed.stream);
-      } finally {
+        // Bound body collection too: `.timeout` on send() only covers receiving
+        // the response headers, so a hub that sends headers then stalls
+        // mid-body would hang here forever. These artifacts run to gigabytes,
+        // so the bound is on the IDLE gap between chunks — a deadline on the
+        // whole transfer would abort healthy slow links.
+        await sink.addStream(streamed.stream.timeout(_timeout));
         await sink.close();
+      } on Object {
+        await _closeQuietly(sink);
+        // Never leave a truncated artifact behind: neither a retry nor the
+        // reader that opens it can tell a partial file from a complete one.
+        await _deleteQuietly(out);
+        rethrow;
       }
       return outPath;
     } on ConstellationException {
@@ -204,6 +214,25 @@ class ConstellationClient {
         'Request to ${uri.host} timed out',
         kind: ConstellationErrorKind.network,
       );
+    }
+  }
+
+  /// Close [sink] while already unwinding a download failure: the stream
+  /// consumer has usually torn the file handle down itself, and a secondary
+  /// close error must not mask the real cause.
+  static Future<void> _closeQuietly(IOSink sink) async {
+    try {
+      await sink.close();
+    } on Object {
+      // Already failing; the original error is the one worth reporting.
+    }
+  }
+
+  static Future<void> _deleteQuietly(File file) async {
+    try {
+      if (await file.exists()) await file.delete();
+    } on FileSystemException {
+      // Best-effort cleanup; the caller's error still propagates.
     }
   }
 

@@ -1,6 +1,7 @@
 // ignore_for_file: unused_local_variable
 
 import 'dart:async';
+import 'dart:convert' show LineSplitter;
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +16,38 @@ import 'logging_service.dart';
 
 final _kEmptyCoeffs = Float64List(0);
 
+/// Length of one FITS header card, fixed by the standard.
+const int _fitsCardLength = 80;
+
+/// Split a FITS header into its 80-character cards.
+///
+/// A `.wcs` file is a raw FITS header: fixed-width cards packed end to end
+/// with **no line terminators at all**. Iterating it by line therefore yields
+/// the whole header as one enormous "line", so only the very first card
+/// (`SIMPLE`) is ever inspected and every keyword after it — `CRVAL1`,
+/// `CDELT1/2`, `CROTA2` — is invisible. ASTAP would solve, the parse would then
+/// report the solution as missing `CRVAL1`, and the caller counted a successful
+/// solve as a failed one.
+///
+/// Newlines are still honoured first, because some solvers (and this repo's own
+/// fixtures) do write one card per line; only segments longer than a single card
+/// are split further. This mirrors `fits_header_cards` in
+/// `native/nightshade_native/imaging/src/platesolve.rs`.
+List<String> _fitsHeaderCards(String content) {
+  final cards = <String>[];
+  for (final segment in const LineSplitter().convert(content)) {
+    if (segment.length <= _fitsCardLength) {
+      cards.add(segment);
+      continue;
+    }
+    for (var start = 0; start < segment.length; start += _fitsCardLength) {
+      final end = (start + _fitsCardLength).clamp(0, segment.length);
+      cards.add(segment.substring(start, end));
+    }
+  }
+  return cards;
+}
+
 /// Thrown by `PlateSolveService.solveWithFallback()` when no plate solver
 /// is reachable on disk. The settings UI catches this to render the
 /// `PlateSolverRequiredBanner` rather than treating it as a generic error.
@@ -27,7 +60,7 @@ class SolverNotAvailableError implements Exception {
 }
 
 /// Plate solver type
-enum PlateSolverType { astap, astrometryNet, plateSolve2 }
+enum PlateSolverType { astap, astrometryNet }
 
 /// Plate solver configuration
 class PlateSolverConfig {
@@ -86,12 +119,6 @@ class PlateSolveService {
   @visibleForTesting
   PlateSolveResult parseAstrometryOutputForTest(String output) =>
       _parseAstrometryOutput(output);
-
-  /// Test seam: parse a PlateSolve2 `.apm` output file. Pins the unit
-  /// contract (RA in degrees).
-  @visibleForTesting
-  Future<PlateSolveResult> parsePlateSolve2OutputForTest(String outputPath) =>
-      _parsePlateSolve2Output(outputPath);
 
   /// Solve an image using the backend (works for both local and remote).
   ///
@@ -177,34 +204,17 @@ class PlateSolveService {
         return fallbackResult;
       }
 
-      return PlateSolveResult(
-        success: false,
-        ra: 0,
-        dec: 0,
-        pixelScale: 0,
-        rotation: 0,
-        fieldWidth: 0,
-        fieldHeight: 0,
-        solveTimeSecs: 0,
-        error:
-            'Backend solve failed: $e. Local fallback failed: '
-            '${fallbackResult.error ?? 'unknown error'}',
-        cd11: 0,
-        cd12: 0,
-        cd21: 0,
-        cd22: 0,
-        sipAOrder: 0,
-        sipBOrder: 0,
-        sipACoeffs: _kEmptyCoeffs,
-        sipBCoeffs: _kEmptyCoeffs,
-        sipApOrder: 0,
-        sipBpOrder: 0,
-        sipApCoeffs: _kEmptyCoeffs,
-        sipBpCoeffs: _kEmptyCoeffs,
+      return _failureResult(
+        'Backend solve failed: $e. Local fallback failed: '
+        '${fallbackResult.error ?? 'unknown error'}',
       );
     }
   }
 
+  /// Every failed solve returns the same shape: zeroed astrometry, empty SIP
+  /// coefficients, and the reason in [error]. Building it here keeps the 25
+  /// fields in one place, so a new field on `PlateSolveResult` cannot be
+  /// half-populated on some failure paths and not others.
   PlateSolveResult _failureResult(String error) {
     return PlateSolveResult(
       success: false,
@@ -216,6 +226,39 @@ class PlateSolveService {
       fieldHeight: 0,
       solveTimeSecs: 0,
       error: error,
+      cd11: 0,
+      cd12: 0,
+      cd21: 0,
+      cd22: 0,
+      sipAOrder: 0,
+      sipBOrder: 0,
+      sipACoeffs: _kEmptyCoeffs,
+      sipBCoeffs: _kEmptyCoeffs,
+      sipApOrder: 0,
+      sipBpOrder: 0,
+      sipApCoeffs: _kEmptyCoeffs,
+      sipBpCoeffs: _kEmptyCoeffs,
+    );
+  }
+
+  /// The success counterpart of [_failureResult]. The local fallback parsers
+  /// recover position and (for ASTAP) scale/rotation only; the CD matrix and
+  /// SIP terms come from the native solver, so they stay zeroed here.
+  PlateSolveResult _successResult({
+    required double ra,
+    required double dec,
+    double pixelScale = 0,
+    double rotation = 0,
+  }) {
+    return PlateSolveResult(
+      success: true,
+      ra: ra,
+      dec: dec,
+      pixelScale: pixelScale,
+      rotation: rotation,
+      fieldWidth: 0,
+      fieldHeight: 0,
+      solveTimeSecs: 0,
       cd11: 0,
       cd12: 0,
       cd21: 0,
@@ -321,8 +364,6 @@ class PlateSolveService {
         return _solveWithAstap(imagePath, config);
       case PlateSolverType.astrometryNet:
         return _solveWithAstrometryNet(imagePath, config);
-      case PlateSolverType.plateSolve2:
-        return _solveWithPlateSolve2(imagePath, config);
     }
   }
 
@@ -394,28 +435,8 @@ class PlateSolveService {
       );
 
       if (result.exitCode != 0) {
-        return PlateSolveResult(
-          success: false,
-          ra: 0,
-          dec: 0,
-          pixelScale: 0,
-          rotation: 0,
-          fieldWidth: 0,
-          fieldHeight: 0,
-          solveTimeSecs: 0,
-          error: 'ASTAP failed (exit ${result.exitCode}): ${result.stderr}',
-          cd11: 0,
-          cd12: 0,
-          cd21: 0,
-          cd22: 0,
-          sipAOrder: 0,
-          sipBOrder: 0,
-          sipACoeffs: _kEmptyCoeffs,
-          sipBCoeffs: _kEmptyCoeffs,
-          sipApOrder: 0,
-          sipBpOrder: 0,
-          sipApCoeffs: _kEmptyCoeffs,
-          sipBpCoeffs: _kEmptyCoeffs,
+        return _failureResult(
+          'ASTAP failed (exit ${result.exitCode}): ${result.stderr}',
         );
       }
 
@@ -424,80 +445,15 @@ class PlateSolveService {
         return _parseWcsFile(wcsPath);
       }
 
-      return PlateSolveResult(
-        success: false,
-        ra: 0,
-        dec: 0,
-        pixelScale: 0,
-        rotation: 0,
-        fieldWidth: 0,
-        fieldHeight: 0,
-        solveTimeSecs: 0,
-        error:
-            'ASTAP exited 0 but wrote no WCS file '
-            '(no star match within search radius). stdout: '
-            '${result.stdout.toString().trim()}',
-        cd11: 0,
-        cd12: 0,
-        cd21: 0,
-        cd22: 0,
-        sipAOrder: 0,
-        sipBOrder: 0,
-        sipACoeffs: _kEmptyCoeffs,
-        sipBCoeffs: _kEmptyCoeffs,
-        sipApOrder: 0,
-        sipBpOrder: 0,
-        sipApCoeffs: _kEmptyCoeffs,
-        sipBpCoeffs: _kEmptyCoeffs,
+      return _failureResult(
+        'ASTAP exited 0 but wrote no WCS file '
+        '(no star match within search radius). stdout: '
+        '${result.stdout.toString().trim()}',
       );
     } on TimeoutException {
-      return PlateSolveResult(
-        success: false,
-        ra: 0,
-        dec: 0,
-        pixelScale: 0,
-        rotation: 0,
-        fieldWidth: 0,
-        fieldHeight: 0,
-        solveTimeSecs: 0,
-        error: 'Plate solve timed out',
-        cd11: 0,
-        cd12: 0,
-        cd21: 0,
-        cd22: 0,
-        sipAOrder: 0,
-        sipBOrder: 0,
-        sipACoeffs: _kEmptyCoeffs,
-        sipBCoeffs: _kEmptyCoeffs,
-        sipApOrder: 0,
-        sipBpOrder: 0,
-        sipApCoeffs: _kEmptyCoeffs,
-        sipBpCoeffs: _kEmptyCoeffs,
-      );
+      return _failureResult('Plate solve timed out');
     } catch (e) {
-      return PlateSolveResult(
-        success: false,
-        ra: 0,
-        dec: 0,
-        pixelScale: 0,
-        rotation: 0,
-        fieldWidth: 0,
-        fieldHeight: 0,
-        solveTimeSecs: 0,
-        error: 'Error: $e',
-        cd11: 0,
-        cd12: 0,
-        cd21: 0,
-        cd22: 0,
-        sipAOrder: 0,
-        sipBOrder: 0,
-        sipACoeffs: _kEmptyCoeffs,
-        sipBCoeffs: _kEmptyCoeffs,
-        sipApOrder: 0,
-        sipBpOrder: 0,
-        sipApCoeffs: _kEmptyCoeffs,
-        sipBpCoeffs: _kEmptyCoeffs,
-      );
+      return _failureResult('Error: $e');
     }
   }
 
@@ -529,210 +485,26 @@ class PlateSolveService {
       );
 
       if (result.exitCode != 0) {
-        return PlateSolveResult(
-          success: false,
-          ra: 0,
-          dec: 0,
-          pixelScale: 0,
-          rotation: 0,
-          fieldWidth: 0,
-          fieldHeight: 0,
-          solveTimeSecs: 0,
-          error: 'Astrometry.net failed: ${result.stderr}',
-          cd11: 0,
-          cd12: 0,
-          cd21: 0,
-          cd22: 0,
-          sipAOrder: 0,
-          sipBOrder: 0,
-          sipACoeffs: _kEmptyCoeffs,
-          sipBCoeffs: _kEmptyCoeffs,
-          sipApOrder: 0,
-          sipBpOrder: 0,
-          sipApCoeffs: _kEmptyCoeffs,
-          sipBpCoeffs: _kEmptyCoeffs,
-        );
+        return _failureResult('Astrometry.net failed: ${result.stderr}');
       }
 
       // Parse the output
       final output = result.stdout.toString();
       return _parseAstrometryOutput(output);
     } on TimeoutException {
-      return PlateSolveResult(
-        success: false,
-        ra: 0,
-        dec: 0,
-        pixelScale: 0,
-        rotation: 0,
-        fieldWidth: 0,
-        fieldHeight: 0,
-        solveTimeSecs: 0,
-        error: 'Plate solve timed out',
-        cd11: 0,
-        cd12: 0,
-        cd21: 0,
-        cd22: 0,
-        sipAOrder: 0,
-        sipBOrder: 0,
-        sipACoeffs: _kEmptyCoeffs,
-        sipBCoeffs: _kEmptyCoeffs,
-        sipApOrder: 0,
-        sipBpOrder: 0,
-        sipApCoeffs: _kEmptyCoeffs,
-        sipBpCoeffs: _kEmptyCoeffs,
-      );
+      return _failureResult('Plate solve timed out');
     } catch (e) {
-      return PlateSolveResult(
-        success: false,
-        ra: 0,
-        dec: 0,
-        pixelScale: 0,
-        rotation: 0,
-        fieldWidth: 0,
-        fieldHeight: 0,
-        solveTimeSecs: 0,
-        error: 'Error: $e',
-        cd11: 0,
-        cd12: 0,
-        cd21: 0,
-        cd22: 0,
-        sipAOrder: 0,
-        sipBOrder: 0,
-        sipACoeffs: _kEmptyCoeffs,
-        sipBCoeffs: _kEmptyCoeffs,
-        sipApOrder: 0,
-        sipBpOrder: 0,
-        sipApCoeffs: _kEmptyCoeffs,
-        sipBpCoeffs: _kEmptyCoeffs,
-      );
-    }
-  }
-
-  /// Solve with PlateSolve2
-  Future<PlateSolveResult> _solveWithPlateSolve2(
-    String imagePath,
-    PlateSolverConfig config,
-  ) async {
-    try {
-      final outputPath = '$imagePath.apm';
-      final outputFile = File(outputPath);
-      if (await outputFile.exists()) {
-        await outputFile.delete();
-      }
-
-      // PlateSolve2 uses a different command line interface
-      final args = <String>[
-        imagePath,
-        '0', // wait for result
-      ];
-
-      if (config.hintRa != null && config.hintDec != null) {
-        args.addAll([
-          (config.hintRa! * 15).toString(),
-          config.hintDec.toString(),
-          (config.searchRadius ?? 30).toString(),
-        ]);
-      }
-
-      final result = await _runSolverProcess(
-        config.executablePath,
-        args,
-        timeout: Duration(seconds: config.timeoutSeconds),
-      );
-
-      if (result.exitCode != 0) {
-        return _failureResult(
-          'PlateSolve2 failed (exit ${result.exitCode}): ${result.stderr}',
-        );
-      }
-
-      // Parse PlateSolve2 output file
-      if (await outputFile.exists()) {
-        return _parsePlateSolve2Output(outputPath);
-      }
-
-      return PlateSolveResult(
-        success: false,
-        ra: 0,
-        dec: 0,
-        pixelScale: 0,
-        rotation: 0,
-        fieldWidth: 0,
-        fieldHeight: 0,
-        solveTimeSecs: 0,
-        error: 'No solution found',
-        cd11: 0,
-        cd12: 0,
-        cd21: 0,
-        cd22: 0,
-        sipAOrder: 0,
-        sipBOrder: 0,
-        sipACoeffs: _kEmptyCoeffs,
-        sipBCoeffs: _kEmptyCoeffs,
-        sipApOrder: 0,
-        sipBpOrder: 0,
-        sipApCoeffs: _kEmptyCoeffs,
-        sipBpCoeffs: _kEmptyCoeffs,
-      );
-    } on TimeoutException {
-      return PlateSolveResult(
-        success: false,
-        ra: 0,
-        dec: 0,
-        pixelScale: 0,
-        rotation: 0,
-        fieldWidth: 0,
-        fieldHeight: 0,
-        solveTimeSecs: 0,
-        error: 'Plate solve timed out',
-        cd11: 0,
-        cd12: 0,
-        cd21: 0,
-        cd22: 0,
-        sipAOrder: 0,
-        sipBOrder: 0,
-        sipACoeffs: _kEmptyCoeffs,
-        sipBCoeffs: _kEmptyCoeffs,
-        sipApOrder: 0,
-        sipBpOrder: 0,
-        sipApCoeffs: _kEmptyCoeffs,
-        sipBpCoeffs: _kEmptyCoeffs,
-      );
-    } catch (e) {
-      return PlateSolveResult(
-        success: false,
-        ra: 0,
-        dec: 0,
-        pixelScale: 0,
-        rotation: 0,
-        fieldWidth: 0,
-        fieldHeight: 0,
-        solveTimeSecs: 0,
-        error: 'Error: $e',
-        cd11: 0,
-        cd12: 0,
-        cd21: 0,
-        cd22: 0,
-        sipAOrder: 0,
-        sipBOrder: 0,
-        sipACoeffs: _kEmptyCoeffs,
-        sipBCoeffs: _kEmptyCoeffs,
-        sipApOrder: 0,
-        sipBpOrder: 0,
-        sipApCoeffs: _kEmptyCoeffs,
-        sipBpCoeffs: _kEmptyCoeffs,
-      );
+      return _failureResult('Error: $e');
     }
   }
 
   Future<PlateSolveResult> _parseWcsFile(String wcsPath) async {
     try {
       final content = await File(wcsPath).readAsString();
-      final lines = content.split('\n');
 
       double? crval1, crval2, cdelt1, cdelt2, crota2;
 
-      for (final line in lines) {
+      for (final line in _fitsHeaderCards(content)) {
         if (line.startsWith('CRVAL1')) {
           crval1 = _parseWcsValue(line);
         } else if (line.startsWith('CRVAL2')) {
@@ -747,82 +519,22 @@ class PlateSolveService {
       }
 
       if (crval1 != null && crval2 != null) {
-        return PlateSolveResult(
-          success: true,
-          // RA stays in DEGREES to match `PlateSolveResult.ra` from the
-          // dominant FFI/network host path (Rust `PlateSolveResult.ra` reads
-          // FITS `CRVAL1` verbatim — degrees). Downstream consumers
-          // (CenteringService) normalise degrees→hours themselves; emitting
-          // hours here would feed them a 15x-wrong RA.
-          ra: crval1, // CRVAL1 is already in degrees
+        // RA stays in DEGREES to match `PlateSolveResult.ra` from the
+        // dominant FFI/network host path (Rust `PlateSolveResult.ra` reads
+        // FITS `CRVAL1` verbatim — degrees). Downstream consumers
+        // (CenteringService) normalise degrees→hours themselves; emitting
+        // hours here would feed them a 15x-wrong RA.
+        return _successResult(
+          ra: crval1,
           dec: crval2,
           rotation: crota2 ?? 0,
           pixelScale: cdelt1 != null ? cdelt1.abs() * 3600 : 0,
-          fieldWidth: 0,
-          fieldHeight: 0,
-          solveTimeSecs: 0,
-          cd11: 0,
-          cd12: 0,
-          cd21: 0,
-          cd22: 0,
-          sipAOrder: 0,
-          sipBOrder: 0,
-          sipACoeffs: _kEmptyCoeffs,
-          sipBCoeffs: _kEmptyCoeffs,
-          sipApOrder: 0,
-          sipBpOrder: 0,
-          sipApCoeffs: _kEmptyCoeffs,
-          sipBpCoeffs: _kEmptyCoeffs,
         );
       }
 
-      return PlateSolveResult(
-        success: false,
-        ra: 0,
-        dec: 0,
-        pixelScale: 0,
-        rotation: 0,
-        fieldWidth: 0,
-        fieldHeight: 0,
-        solveTimeSecs: 0,
-        error: 'Could not parse WCS file',
-        cd11: 0,
-        cd12: 0,
-        cd21: 0,
-        cd22: 0,
-        sipAOrder: 0,
-        sipBOrder: 0,
-        sipACoeffs: _kEmptyCoeffs,
-        sipBCoeffs: _kEmptyCoeffs,
-        sipApOrder: 0,
-        sipBpOrder: 0,
-        sipApCoeffs: _kEmptyCoeffs,
-        sipBpCoeffs: _kEmptyCoeffs,
-      );
+      return _failureResult('Could not parse WCS file');
     } catch (e) {
-      return PlateSolveResult(
-        success: false,
-        ra: 0,
-        dec: 0,
-        pixelScale: 0,
-        rotation: 0,
-        fieldWidth: 0,
-        fieldHeight: 0,
-        solveTimeSecs: 0,
-        error: 'Error parsing WCS: $e',
-        cd11: 0,
-        cd12: 0,
-        cd21: 0,
-        cd22: 0,
-        sipAOrder: 0,
-        sipBOrder: 0,
-        sipACoeffs: _kEmptyCoeffs,
-        sipBCoeffs: _kEmptyCoeffs,
-        sipApOrder: 0,
-        sipBpOrder: 0,
-        sipApCoeffs: _kEmptyCoeffs,
-        sipBpCoeffs: _kEmptyCoeffs,
-      );
+      return _failureResult('Error parsing WCS: $e');
     }
   }
 
@@ -843,56 +555,13 @@ class PlateSolveService {
       final dec = double.tryParse(raMatch.group(2)!);
 
       if (ra != null && dec != null) {
-        return PlateSolveResult(
-          success: true,
-          // astrometry.net's `RA,Dec = (...)` line is in DEGREES; keep it in
-          // degrees to match the canonical `PlateSolveResult.ra` contract.
-          ra: ra, // RA,Dec line is already in degrees
-          dec: dec,
-          pixelScale: 0,
-          rotation: 0,
-          fieldWidth: 0,
-          fieldHeight: 0,
-          solveTimeSecs: 0,
-          cd11: 0,
-          cd12: 0,
-          cd21: 0,
-          cd22: 0,
-          sipAOrder: 0,
-          sipBOrder: 0,
-          sipACoeffs: _kEmptyCoeffs,
-          sipBCoeffs: _kEmptyCoeffs,
-          sipApOrder: 0,
-          sipBpOrder: 0,
-          sipApCoeffs: _kEmptyCoeffs,
-          sipBpCoeffs: _kEmptyCoeffs,
-        );
+        // astrometry.net's `RA,Dec = (...)` line is in DEGREES; keep it in
+        // degrees to match the canonical `PlateSolveResult.ra` contract.
+        return _successResult(ra: ra, dec: dec);
       }
     }
 
-    return PlateSolveResult(
-      success: false,
-      ra: 0,
-      dec: 0,
-      pixelScale: 0,
-      rotation: 0,
-      fieldWidth: 0,
-      fieldHeight: 0,
-      solveTimeSecs: 0,
-      error: 'Could not parse solution',
-      cd11: 0,
-      cd12: 0,
-      cd21: 0,
-      cd22: 0,
-      sipAOrder: 0,
-      sipBOrder: 0,
-      sipACoeffs: _kEmptyCoeffs,
-      sipBCoeffs: _kEmptyCoeffs,
-      sipApOrder: 0,
-      sipBpOrder: 0,
-      sipApCoeffs: _kEmptyCoeffs,
-      sipBpCoeffs: _kEmptyCoeffs,
-    );
+    return _failureResult('Could not parse solution');
   }
 
   /// Probe disk for installed solvers + ASTAP catalog. Returns a snapshot
@@ -1086,54 +755,10 @@ class PlateSolveService {
 
     Future<PlateSolveResult> runAstap() async {
       if (detection.astapPath == null) {
-        return PlateSolveResult(
-          success: false,
-          ra: 0,
-          dec: 0,
-          pixelScale: 0,
-          rotation: 0,
-          fieldWidth: 0,
-          fieldHeight: 0,
-          solveTimeSecs: 0,
-          error: 'ASTAP not installed at any known location.',
-          cd11: 0,
-          cd12: 0,
-          cd21: 0,
-          cd22: 0,
-          sipAOrder: 0,
-          sipBOrder: 0,
-          sipACoeffs: _kEmptyCoeffs,
-          sipBCoeffs: _kEmptyCoeffs,
-          sipApOrder: 0,
-          sipBpOrder: 0,
-          sipApCoeffs: _kEmptyCoeffs,
-          sipBpCoeffs: _kEmptyCoeffs,
-        );
+        return _failureResult('ASTAP not installed at any known location.');
       }
       if (!detection.astapReady) {
-        return PlateSolveResult(
-          success: false,
-          ra: 0,
-          dec: 0,
-          pixelScale: 0,
-          rotation: 0,
-          fieldWidth: 0,
-          fieldHeight: 0,
-          solveTimeSecs: 0,
-          error: 'ASTAP star catalog not configured.',
-          cd11: 0,
-          cd12: 0,
-          cd21: 0,
-          cd22: 0,
-          sipAOrder: 0,
-          sipBOrder: 0,
-          sipACoeffs: _kEmptyCoeffs,
-          sipBCoeffs: _kEmptyCoeffs,
-          sipApOrder: 0,
-          sipBpOrder: 0,
-          sipApCoeffs: _kEmptyCoeffs,
-          sipBpCoeffs: _kEmptyCoeffs,
-        );
+        return _failureResult('ASTAP star catalog not configured.');
       }
       final config = PlateSolverConfig(
         type: PlateSolverType.astap,
@@ -1149,29 +774,7 @@ class PlateSolveService {
 
     Future<PlateSolveResult> runAstrometry() async {
       if (detection.astrometryPath == null) {
-        return PlateSolveResult(
-          success: false,
-          ra: 0,
-          dec: 0,
-          pixelScale: 0,
-          rotation: 0,
-          fieldWidth: 0,
-          fieldHeight: 0,
-          solveTimeSecs: 0,
-          error: 'Astrometry.net (solve-field) not installed.',
-          cd11: 0,
-          cd12: 0,
-          cd21: 0,
-          cd22: 0,
-          sipAOrder: 0,
-          sipBOrder: 0,
-          sipACoeffs: _kEmptyCoeffs,
-          sipBCoeffs: _kEmptyCoeffs,
-          sipApOrder: 0,
-          sipBpOrder: 0,
-          sipApCoeffs: _kEmptyCoeffs,
-          sipBpCoeffs: _kEmptyCoeffs,
-        );
+        return _failureResult('Astrometry.net (solve-field) not installed.');
       }
       final config = PlateSolverConfig(
         type: PlateSolverType.astrometryNet,
@@ -1204,148 +807,6 @@ class PlateSolveService {
           return astapResult;
         }
         return runAstrometry();
-    }
-  }
-
-  Future<PlateSolveResult> _parsePlateSolve2Output(String outputPath) async {
-    try {
-      final content = await File(outputPath).readAsString();
-      final lines = content.split('\n');
-
-      if (lines.isEmpty) {
-        return PlateSolveResult(
-          success: false,
-          ra: 0,
-          dec: 0,
-          pixelScale: 0,
-          rotation: 0,
-          fieldWidth: 0,
-          fieldHeight: 0,
-          solveTimeSecs: 0,
-          error: 'Plate solver output file is empty',
-          cd11: 0,
-          cd12: 0,
-          cd21: 0,
-          cd22: 0,
-          sipAOrder: 0,
-          sipBOrder: 0,
-          sipACoeffs: _kEmptyCoeffs,
-          sipBCoeffs: _kEmptyCoeffs,
-          sipApOrder: 0,
-          sipBpOrder: 0,
-          sipApCoeffs: _kEmptyCoeffs,
-          sipBpCoeffs: _kEmptyCoeffs,
-        );
-      }
-
-      final parts = lines[0].split(',');
-      if (parts.length < 2) {
-        return PlateSolveResult(
-          success: false,
-          ra: 0,
-          dec: 0,
-          pixelScale: 0,
-          rotation: 0,
-          fieldWidth: 0,
-          fieldHeight: 0,
-          solveTimeSecs: 0,
-          error:
-              'Plate solver output has unexpected format: expected "RA,Dec" '
-              'but got "${lines[0].length > 80 ? '${lines[0].substring(0, 80)}...' : lines[0]}"',
-          cd11: 0,
-          cd12: 0,
-          cd21: 0,
-          cd22: 0,
-          sipAOrder: 0,
-          sipBOrder: 0,
-          sipACoeffs: _kEmptyCoeffs,
-          sipBCoeffs: _kEmptyCoeffs,
-          sipApOrder: 0,
-          sipBpOrder: 0,
-          sipApCoeffs: _kEmptyCoeffs,
-          sipBpCoeffs: _kEmptyCoeffs,
-        );
-      }
-
-      final ra = double.tryParse(parts[0]);
-      final dec = double.tryParse(parts[1]);
-
-      if (ra == null || dec == null) {
-        return PlateSolveResult(
-          success: false,
-          ra: 0,
-          dec: 0,
-          pixelScale: 0,
-          rotation: 0,
-          fieldWidth: 0,
-          fieldHeight: 0,
-          solveTimeSecs: 0,
-          error:
-              'Plate solver output contains non-numeric coordinates: '
-              'RA="${parts[0]}", Dec="${parts[1]}"',
-          cd11: 0,
-          cd12: 0,
-          cd21: 0,
-          cd22: 0,
-          sipAOrder: 0,
-          sipBOrder: 0,
-          sipACoeffs: _kEmptyCoeffs,
-          sipBCoeffs: _kEmptyCoeffs,
-          sipApOrder: 0,
-          sipBpOrder: 0,
-          sipApCoeffs: _kEmptyCoeffs,
-          sipBpCoeffs: _kEmptyCoeffs,
-        );
-      }
-
-      return PlateSolveResult(
-        success: true,
-        // Keep RA in DEGREES to match the canonical
-        // `PlateSolveResult.ra` contract shared with the FFI/network path.
-        ra: ra,
-        dec: dec,
-        pixelScale: 0,
-        rotation: 0,
-        fieldWidth: 0,
-        fieldHeight: 0,
-        solveTimeSecs: 0,
-        cd11: 0,
-        cd12: 0,
-        cd21: 0,
-        cd22: 0,
-        sipAOrder: 0,
-        sipBOrder: 0,
-        sipACoeffs: _kEmptyCoeffs,
-        sipBCoeffs: _kEmptyCoeffs,
-        sipApOrder: 0,
-        sipBpOrder: 0,
-        sipApCoeffs: _kEmptyCoeffs,
-        sipBpCoeffs: _kEmptyCoeffs,
-      );
-    } catch (e) {
-      return PlateSolveResult(
-        success: false,
-        ra: 0,
-        dec: 0,
-        pixelScale: 0,
-        rotation: 0,
-        fieldWidth: 0,
-        fieldHeight: 0,
-        solveTimeSecs: 0,
-        error: 'Error parsing output: $e',
-        cd11: 0,
-        cd12: 0,
-        cd21: 0,
-        cd22: 0,
-        sipAOrder: 0,
-        sipBOrder: 0,
-        sipACoeffs: _kEmptyCoeffs,
-        sipBCoeffs: _kEmptyCoeffs,
-        sipApOrder: 0,
-        sipBpOrder: 0,
-        sipApCoeffs: _kEmptyCoeffs,
-        sipBpCoeffs: _kEmptyCoeffs,
-      );
     }
   }
 }

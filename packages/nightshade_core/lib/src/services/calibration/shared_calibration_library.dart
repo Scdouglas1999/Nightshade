@@ -14,6 +14,7 @@ import '../constellation/constellation_models.dart';
 import '../constellation/constellation_service.dart'
     show ConstellationCredentials;
 import 'shared_calibration_client.dart';
+import '../constellation/constellation_hub_key.dart';
 
 /// The remote shared-calibration-library seam the local matcher folds in.
 abstract class RemoteCalibrationLibrary {
@@ -85,13 +86,6 @@ class HubCalibrationLibrary implements RemoteCalibrationLibrary {
     bearerToken: c.bearerToken,
   );
 
-  /// Normalize a hub base URL to the stable `scheme://host[:port]` key recorded
-  /// on a folded record's `sourceHubKey` (matches [ConstellationService]).
-  static String hubKey(Uri hubBaseUrl) {
-    final port = hubBaseUrl.hasPort ? ':${hubBaseUrl.port}' : '';
-    return '${hubBaseUrl.scheme}://${hubBaseUrl.host}$port';
-  }
-
   @override
   Future<bool> isConfigured() async => await _credentialsResolver() != null;
 
@@ -102,7 +96,7 @@ class HubCalibrationLibrary implements RemoteCalibrationLibrary {
     final creds = await _credentialsResolver();
     if (creds == null) return const [];
     final client = _clientFactory(creds);
-    final key = hubKey(creds.hubBaseUrl);
+    final key = constellationHubKey(creds.hubBaseUrl);
     try {
       final masters = await client.queryMasters(context);
       final records = <CalibrationMasterRecord>[];

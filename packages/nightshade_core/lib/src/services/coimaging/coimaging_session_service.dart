@@ -22,6 +22,7 @@ import '../constellation/constellation_client.dart';
 import '../constellation/constellation_models.dart';
 import '../constellation/constellation_service.dart';
 import '../logging_service.dart';
+import '../constellation/constellation_hub_key.dart';
 
 /// The session context a [CoImagingTileFuser] needs to fold this rig's freshly
 /// completed sub into the shared-target tile the session is deepening — resolved
@@ -236,13 +237,6 @@ class CoImagingSessionService {
     return _clientFactory(creds);
   }
 
-  /// Normalize a hub base URL to a stable receipt key (`scheme://host[:port]`),
-  /// matching [ConstellationService] so the co-imaging + tile receipts join.
-  static String _hubKey(Uri hubBaseUrl) {
-    final port = hubBaseUrl.hasPort ? ':${hubBaseUrl.port}' : '';
-    return '${hubBaseUrl.scheme}://${hubBaseUrl.host}$port';
-  }
-
   // --- Create / join / leave ----------------------------------------------
 
   /// Open a live co-imaging session on a target and persist this rig's owner
@@ -322,7 +316,7 @@ class CoImagingSessionService {
       }
       if (creds != null) {
         await _sessions.upsertMembership(
-          _hubKey(creds.hubBaseUrl),
+          constellationHubKey(creds.hubBaseUrl),
           sessionId,
           targetName: name,
           targetRaDeg: raDeg,
@@ -353,7 +347,10 @@ class CoImagingSessionService {
     try {
       final left = await client.leaveCoImagingSession(sessionId, rigId: rigId);
       if (creds != null) {
-        await _sessions.markInactive(_hubKey(creds.hubBaseUrl), sessionId);
+        await _sessions.markInactive(
+          constellationHubKey(creds.hubBaseUrl),
+          sessionId,
+        );
       }
       return left;
     } finally {
@@ -370,7 +367,10 @@ class CoImagingSessionService {
     try {
       final session = await client.closeCoImagingSession(sessionId);
       if (creds != null) {
-        await _sessions.markInactive(_hubKey(creds.hubBaseUrl), sessionId);
+        await _sessions.markInactive(
+          constellationHubKey(creds.hubBaseUrl),
+          sessionId,
+        );
       }
       _logger.info('Closed co-imaging session $sessionId.', source: _logSource);
       return session;
@@ -417,7 +417,7 @@ class CoImagingSessionService {
     final effectiveLicense = resolved.license;
     final effectiveAttribution = resolved.attributionConsent;
     final creds = await _credentialsResolver();
-    final hubKey = creds == null ? null : _hubKey(creds.hubBaseUrl);
+    final hubKey = creds == null ? null : constellationHubKey(creds.hubBaseUrl);
     // Resolve the stored membership token so the hub's per-rig gate accepts us.
     String? membershipToken;
     int priorFrames = 0;
@@ -498,7 +498,7 @@ class CoImagingSessionService {
     final creds = await _credentialsResolver();
     if (creds == null) return;
     await dao.upsertContribution(
-      _hubKey(creds.hubBaseUrl),
+      constellationHubKey(creds.hubBaseUrl),
       tileId,
       healpixOrder: _order,
       sessionId: sessionId,
@@ -525,7 +525,7 @@ class CoImagingSessionService {
   ) async {
     final creds = await _credentialsResolver();
     if (creds == null) return null;
-    final hubKey = _hubKey(creds.hubBaseUrl);
+    final hubKey = constellationHubKey(creds.hubBaseUrl);
     final row = await _sessions.getSession(hubKey, sessionId);
     if (row == null || !row.active) return null;
     final raArcsec = row.framingOffsetRaArcsec;
@@ -923,7 +923,7 @@ class CoImagingSessionService {
     String sessionId,
   ) async {
     final creds = await _credentialsResolver();
-    final hubKey = creds == null ? null : _hubKey(creds.hubBaseUrl);
+    final hubKey = creds == null ? null : constellationHubKey(creds.hubBaseUrl);
     if (hubKey != null) {
       final row = await _sessions.getSession(hubKey, sessionId);
       if (row?.targetRaDeg != null && row?.targetDecDeg != null) {
@@ -1021,7 +1021,7 @@ class CoImagingSessionService {
       }
     }
     await _sessions.upsertMembership(
-      _hubKey(creds.hubBaseUrl),
+      constellationHubKey(creds.hubBaseUrl),
       session.sessionId,
       targetName: session.targetName,
       targetRaDeg: session.centerRaDeg,

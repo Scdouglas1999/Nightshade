@@ -73,7 +73,7 @@ class _TestFlatWizardService extends FlatWizardService {
   _TestFlatWizardService(this._samples) : super(MockBackend());
 
   @override
-  Future<double?> captureTestFrame({
+  Future<({double? adu, FlatFrameCapture? outcome})> captureTestFrame({
     required String deviceId,
     required double exposureTime,
     int? gain,
@@ -89,7 +89,7 @@ class _TestFlatWizardService extends FlatWizardService {
   }) async {
     final sample = _samples[_index];
     _index = (_index + 1).clamp(0, _samples.length - 1);
-    return sample;
+    return (adu: sample, outcome: null);
   }
 }
 
@@ -299,7 +299,7 @@ void main() {
         addTearDown(backend.close);
 
         final service = FlatWizardService(backend);
-        final adu = await service.captureTestFrame(
+        final frame = await service.captureTestFrame(
           deviceId: 'camera-1',
           exposureTime: 1.5,
           gain: 137,
@@ -308,7 +308,7 @@ void main() {
           binY: 2,
         );
 
-        expect(adu, 1234);
+        expect(frame.adu, 1234);
         expect(backend.gain, 137);
         expect(backend.offset, 42);
         expect(backend.binX, 2);

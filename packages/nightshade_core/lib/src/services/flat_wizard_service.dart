@@ -700,26 +700,22 @@ class FlatWizardService {
     }
   }
 
-  /// Full outcome of the most recent [captureTestFrame] call on the REAL
-  /// capture path. The calibration solvers read this AFTER awaiting
-  /// [captureTestFrame] so they can distinguish a timeout (halt the run) or a
-  /// cancel from an ordinary off-target measurement — WITHOUT widening
-  /// [captureTestFrame]'s `double?` contract, which stays deliberately simple so
-  /// tests can inject ADU samples by overriding it. A [captureTestFrame]
-  /// override that does not touch this field (a test double) leaves it null, and
-  /// the solver then treats a non-null ADU as an ordinary completed measurement.
-  FlatFrameCapture? _lastTestFrameOutcome;
-
-  /// Capture a single test frame and return its mean ADU.
+  /// Capture a single test frame; returns its mean ADU and the full outcome.
   ///
-  /// Thin compatibility wrapper over [exposeAndAwait]: returns the mean ADU on
-  /// a completed capture, or null on any non-completed outcome (failure,
-  /// cancellation, timeout). Waits for the authoritative completion event
-  /// rather than a fixed delay. The FULL outcome (needed to tell a timeout from
-  /// a plain failure) is recorded in [_lastTestFrameOutcome]. This is the single
-  /// overridable capture seam the calibration solvers route through, so a test
-  /// double can inject ADU samples without reimplementing the event plumbing.
-  Future<double?> captureTestFrame({
+  /// Thin wrapper over [exposeAndAwait]: `adu` is the mean ADU on a completed
+  /// capture and null on any non-completed outcome (failure, cancellation,
+  /// timeout). Waits for the authoritative completion event rather than a fixed
+  /// delay. `outcome` carries what the bare ADU cannot — a timeout (halt the
+  /// run) is distinguishable from a plain capture failure — and it is returned
+  /// rather than stashed on the service because two callers share one instance
+  /// (the GUI wizard and the headless API) with nothing serialising them; a
+  /// field here would let one solver read the other's frame.
+  ///
+  /// This is the single overridable capture seam the calibration solvers route
+  /// through, so a test double can inject ADU samples without reimplementing
+  /// the event plumbing. A double that returns a null `outcome` is treated as
+  /// an ordinary completed measurement whenever `adu` is non-null.
+  Future<({double? adu, FlatFrameCapture? outcome})> captureTestFrame({
     required String deviceId,
     required double exposureTime,
     int? gain,
@@ -747,8 +743,7 @@ class FlatWizardService {
       abortSettleTimeout: abortSettleTimeout,
       overallTimeout: overallTimeout,
     );
-    _lastTestFrameOutcome = capture;
-    return capture.adu;
+    return (adu: capture.adu, outcome: capture);
   }
 
   /// Run iterative calibration to find optimal exposure for target ADU
@@ -815,10 +810,10 @@ class FlatWizardService {
       );
 
       // Measure through the overridable [captureTestFrame] seam (so tests can
-      // inject ADU samples) then read the FULL outcome, so a cancel that lands
-      // mid-exposure aborts the hardware and a timeout is distinguishable from a
-      // plain capture failure.
-      final adu = await captureTestFrame(
+      // inject ADU samples). The FULL outcome comes back with the measurement,
+      // so a cancel that lands mid-exposure aborts the hardware and a timeout is
+      // distinguishable from a plain capture failure.
+      final (:adu, :outcome) = await captureTestFrame(
         deviceId: deviceId,
         exposureTime: exposure,
         gain: gain,
@@ -830,8 +825,6 @@ class FlatWizardService {
         abortSettleTimeout: abortSettleTimeout,
         overallTimeout: overallTimeout,
       );
-      final outcome = _lastTestFrameOutcome;
-      _lastTestFrameOutcome = null;
 
       if (outcome != null && outcome.isCancelled) {
         return FlatResult(
@@ -1007,9 +1000,10 @@ class FlatWizardService {
 
       onProgress?.call(iteration, exposure, lastAdu ?? 0, 'Testing exposure');
 
-      // Measure through the overridable [captureTestFrame] seam, then read the
-      // FULL outcome (cancel-aware; a timeout halts the whole run fail-safe).
-      final adu = await captureTestFrame(
+      // Measure through the overridable [captureTestFrame] seam; the FULL
+      // outcome comes back with it (cancel-aware; a timeout halts the whole run
+      // fail-safe).
+      final (:adu, :outcome) = await captureTestFrame(
         deviceId: deviceId,
         exposureTime: exposure,
         gain: gain,
@@ -1021,8 +1015,6 @@ class FlatWizardService {
         abortSettleTimeout: abortSettleTimeout,
         overallTimeout: overallTimeout,
       );
-      final outcome = _lastTestFrameOutcome;
-      _lastTestFrameOutcome = null;
 
       if (outcome != null && outcome.isCancelled) {
         return FlatResult(

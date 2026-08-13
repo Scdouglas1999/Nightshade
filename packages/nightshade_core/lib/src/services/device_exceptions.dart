@@ -49,7 +49,7 @@ class DeviceNotConnectedException implements Exception {
 
 /// Thrown when a `DeviceService.connect<Type>()` is called with a device id
 /// that does not match any of Nightshade's known driver-prefix conventions
-/// (see `kKnownDeviceIdPrefixes` in `utils/device_id_utils.dart`).
+/// (see `kKnownDeviceIdPrefixes` in `utils/device_id.dart`).
 ///
 /// This replaces the old "Camera not found: $id" string that the
 /// connect methods used to throw after running a full `discoverDevices`

@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:drift/drift.dart' show Value, Variable;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nightshade_core/src/database/daos/calibration_tags_dao.dart';
 import 'package:nightshade_core/src/database/daos/dark_library_dao.dart';
 import 'package:nightshade_core/src/database/daos/flat_library_dao.dart';
 import 'package:nightshade_core/src/database/daos/images_dao.dart';
@@ -15,8 +16,8 @@ import 'package:nightshade_core/src/models/imaging/integration_curve.dart';
 import 'package:nightshade_core/src/models/imaging/integration_settings.dart';
 import 'package:nightshade_core/src/models/imaging/mosaic_stitch_result.dart';
 import 'package:nightshade_core/src/models/imaging/star_photometry.dart';
+import 'package:nightshade_core/src/services/calibration_library_service.dart';
 import 'package:nightshade_core/src/services/dark_library_service.dart';
-import 'package:nightshade_core/src/services/flat_library_service.dart';
 import 'package:nightshade_core/src/services/post_session_integration_service.dart';
 import 'package:nightshade_core/src/services/post_session_seam.dart';
 import 'package:nightshade_core/src/services/wcs_overlay.dart';
@@ -383,7 +384,7 @@ void main() {
   late IntegratedMastersDao mastersDao;
   late FlatLibraryDao flatDao;
   late DarkLibraryService darkLibrary;
-  late FlatLibraryService flatLibrary;
+  late CalibrationLibraryService calibrationLibrary;
   late FakePostSessionSeam seam;
   late PostSessionIntegrationService service;
 
@@ -394,11 +395,14 @@ void main() {
     flatDao = FlatLibraryDao(db);
     darkLibrary = DarkLibraryService(DarkLibraryDao(db));
     seam = FakePostSessionSeam();
-    flatLibrary = FlatLibraryService(dao: flatDao, seam: seam);
+    calibrationLibrary = CalibrationLibraryService(
+      db: db,
+      flatLibraryDao: flatDao,
+      tagsDao: CalibrationTagsDao(db),
+    );
     service = PostSessionIntegrationService(
       mastersDao: mastersDao,
-      darkLibrary: darkLibrary,
-      flatLibrary: flatLibrary,
+      calibrationLibrary: calibrationLibrary,
       seam: seam,
     );
   });
@@ -534,6 +538,30 @@ void main() {
       expect(calibration['flat'], '/cal/master_flat_L.fits');
       expect(calibration['dark'], '/cal/master_dark.fits');
       expect(calibration['cosmeticCorrection'], isTrue);
+    },
+  );
+
+  test(
+    'an unmatched master surfaces the library matcher warning on the outcome '
+    '(no unwarned calibration path exists)',
+    () async {
+      // No masters registered at all: both types miss.
+      final subs = [await insertSub(path: '/l/a.fits', filter: 'L')];
+      final outcomes = await service.integrate(
+        subs: subs,
+        settings: IntegrationSettings.defaults,
+        outputFitsPathBuilder: (bucket) => '/out/$bucket.fits',
+      );
+
+      final warnings = outcomes.single.calibrationWarnings;
+      expect(warnings, hasLength(2));
+      expect(warnings.first, contains('No matching master dark'));
+      expect(warnings.last, contains('No matching master flat for filter L'));
+
+      final calibration =
+          seam.integrateCalls.single['calibration'] as Map<String, dynamic>;
+      expect(calibration.containsKey('dark'), isFalse);
+      expect(calibration.containsKey('flat'), isFalse);
     },
   );
 
@@ -1152,8 +1180,7 @@ void main() {
       final calls = <Map<String, dynamic>>[];
       final solvingService = PostSessionIntegrationService(
         mastersDao: mastersDao,
-        darkLibrary: darkLibrary,
-        flatLibrary: flatLibrary,
+        calibrationLibrary: calibrationLibrary,
         seam: seam,
         plateSolver:
             ({
@@ -1217,8 +1244,7 @@ void main() {
   test('a null-returning solver leaves WCS unpersisted (fail-soft)', () async {
     final solvingService = PostSessionIntegrationService(
       mastersDao: mastersDao,
-      darkLibrary: darkLibrary,
-      flatLibrary: flatLibrary,
+      calibrationLibrary: calibrationLibrary,
       seam: seam,
       // No solver installed / solve failed -> closure returns null.
       plateSolver:
@@ -1285,8 +1311,7 @@ void main() {
     final calls = <Map<String, dynamic>>[];
     final calibratingService = PostSessionIntegrationService(
       mastersDao: mastersDao,
-      darkLibrary: darkLibrary,
-      flatLibrary: flatLibrary,
+      calibrationLibrary: calibrationLibrary,
       seam: seam,
       plateSolver: fixedSolver(),
       colorCalibrator:
@@ -1341,8 +1366,7 @@ void main() {
       var called = false;
       final calibratingService = PostSessionIntegrationService(
         mastersDao: mastersDao,
-        darkLibrary: darkLibrary,
-        flatLibrary: flatLibrary,
+        calibrationLibrary: calibrationLibrary,
         seam: seam,
         // No plate-solver -> no WCS -> the colour gate has nothing to project.
         colorCalibrator:
@@ -1375,8 +1399,7 @@ void main() {
     () async {
       final calibratingService = PostSessionIntegrationService(
         mastersDao: mastersDao,
-        darkLibrary: darkLibrary,
-        flatLibrary: flatLibrary,
+        calibrationLibrary: calibrationLibrary,
         seam: seam,
         plateSolver: fixedSolver(),
         // The field cross-matched too few catalog stars -> skipped (null).

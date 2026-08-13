@@ -26,6 +26,7 @@ import '../services/sky_atlas/sky_atlas_models.dart';
 import '../services/sky_atlas/sky_atlas_service.dart' show SkyAtlasService;
 import '../services/transients/transient_candidate.dart';
 import '../utils/coordinate_format.dart';
+import '../utils/utc_timestamp.dart';
 import '../utils/resilient_poll_stream.dart';
 import '../services/wcs/gnomonic_projection.dart' show SolvedWcs;
 import '../services/wcs/wcs_sip_codec.dart';
@@ -96,7 +97,7 @@ class ImagingRecordsRepository {
   Future<List<db.ImagingSession>> getAllSessions() async {
     if (_remote != null) {
       final rows = await _remote.getAllSessions();
-      return rows.map(_sessionFromJson).toList();
+      return rows.map(imagingSessionFromWireJson).toList();
     }
     return _sessionsDao!.getAllSessions();
   }
@@ -104,7 +105,7 @@ class ImagingRecordsRepository {
   Future<db.ImagingSession?> getSessionById(int id) async {
     if (_remote != null) {
       final row = await _remote.getSessionById(id);
-      return row == null ? null : _sessionFromJson(row);
+      return row == null ? null : imagingSessionFromWireJson(row);
     }
     return _sessionsDao!.getSessionById(id);
   }
@@ -112,7 +113,7 @@ class ImagingRecordsRepository {
   Future<List<db.ImagingSession>> getSessionsForTarget(int targetId) async {
     if (_remote != null) {
       final rows = await _remote.getSessionsForTarget(targetId);
-      return rows.map(_sessionFromJson).toList();
+      return rows.map(imagingSessionFromWireJson).toList();
     }
     return _sessionsDao!.getSessionsForTarget(targetId);
   }
@@ -523,44 +524,6 @@ class ImagingRecordsRepository {
     );
   }
 
-  static db.ImagingSession _sessionFromJson(Map<String, dynamic> json) {
-    return db.ImagingSession(
-      id: json['id'] as int,
-      name: json['name'] as String?,
-      profileId: json['profileId'] as int?,
-      targetId: json['targetId'] as int?,
-      startTime: _dateTimeFromJson(json['startTime']),
-      endTime: json['endTime'] == null
-          ? null
-          : _dateTimeFromJson(json['endTime']),
-      totalExposures: json['totalExposures'] as int? ?? 0,
-      successfulExposures: json['successfulExposures'] as int? ?? 0,
-      failedExposures: json['failedExposures'] as int? ?? 0,
-      totalIntegrationSecs:
-          (json['totalIntegrationSecs'] as num?)?.toDouble() ?? 0.0,
-      avgTemperature: (json['avgTemperature'] as num?)?.toDouble(),
-      avgHumidity: (json['avgHumidity'] as num?)?.toDouble(),
-      avgSeeing: (json['avgSeeing'] as num?)?.toDouble(),
-      avgHfr: (json['avgHfr'] as num?)?.toDouble(),
-      avgGuidingRms: (json['avgGuidingRms'] as num?)?.toDouble(),
-      autofocusCount: json['autofocusCount'] as int? ?? 0,
-      notes: json['notes'] as String?,
-      status: json['status'] as String? ?? 'completed',
-      sequenceId: json['sequenceId'] as int?,
-      equipmentSnapshot: json['equipmentSnapshot'] as String?,
-    );
-  }
-
-  static DateTime _dateTimeFromJson(Object? value) {
-    if (value is int) {
-      return DateTime.fromMillisecondsSinceEpoch(value);
-    }
-    if (value is String) {
-      return DateTime.tryParse(value) ?? DateTime.fromMillisecondsSinceEpoch(0);
-    }
-    return DateTime.fromMillisecondsSinceEpoch(0);
-  }
-
   static Map<String, dynamic> _companionToCreateJson(
     db.CapturedImagesCompanion companion,
   ) {
@@ -687,6 +650,56 @@ class ImagingRecordsRepository {
       );
     },
   );
+}
+
+/// Decode a `/api/sessions` wire row into the Drift [db.ImagingSession] shape.
+///
+/// One copy on purpose: this repository and the remote `databaseProvider`
+/// streams hydrate the same endpoint into the same row, and two hand-maintained
+/// copies of one wire contract drift apart silently.
+db.ImagingSession imagingSessionFromWireJson(Map<String, dynamic> json) {
+  return db.ImagingSession(
+    id: json['id'] as int,
+    name: json['name'] as String?,
+    profileId: json['profileId'] as int?,
+    targetId: json['targetId'] as int?,
+    startTime: wireTimestamp(json['startTime']),
+    endTime: json['endTime'] == null ? null : wireTimestamp(json['endTime']),
+    totalExposures: json['totalExposures'] as int? ?? 0,
+    successfulExposures: json['successfulExposures'] as int? ?? 0,
+    failedExposures: json['failedExposures'] as int? ?? 0,
+    totalIntegrationSecs:
+        (json['totalIntegrationSecs'] as num?)?.toDouble() ?? 0.0,
+    avgTemperature: (json['avgTemperature'] as num?)?.toDouble(),
+    avgHumidity: (json['avgHumidity'] as num?)?.toDouble(),
+    avgSeeing: (json['avgSeeing'] as num?)?.toDouble(),
+    avgHfr: (json['avgHfr'] as num?)?.toDouble(),
+    avgGuidingRms: (json['avgGuidingRms'] as num?)?.toDouble(),
+    autofocusCount: json['autofocusCount'] as int? ?? 0,
+    notes: json['notes'] as String?,
+    status: json['status'] as String? ?? 'completed',
+    sequenceId: json['sequenceId'] as int?,
+    equipmentSnapshot: json['equipmentSnapshot'] as String?,
+  );
+}
+
+/// Coerce a wire timestamp — epoch milliseconds or ISO-8601 — into a
+/// [DateTime], falling back to the epoch for anything else.
+///
+/// The string form routes through [tryParseUtcTimestamp] because
+/// `DateTime.tryParse` reads an offset-less ISO string as *local* time: a phone
+/// in a different timezone than the appliance would otherwise render every
+/// session start/end shifted by the offset delta, with no error. The host emits
+/// both shapes across its endpoints, so the coercion has to be safe for both.
+DateTime wireTimestamp(Object? value) {
+  if (value is int) {
+    return DateTime.fromMillisecondsSinceEpoch(value);
+  }
+  if (value is String) {
+    return tryParseUtcTimestamp(value) ??
+        DateTime.fromMillisecondsSinceEpoch(0);
+  }
+  return DateTime.fromMillisecondsSinceEpoch(0);
 }
 
 bool _thumbnailListsEqual(
@@ -938,6 +951,46 @@ Future<void> _driveCoImagingAutoContribute({
   }
 }
 
+/// The WCS the Pillar B ("First Light") difference scan runs a solved frame
+/// against.
+///
+/// `captured_images.solvedRa` is app-canonical **hours** on both the write side
+/// (the science pipeline persists `SolvedResult.raHours`) and every other read
+/// side, so the centre is carried across unconverted — it must land on the same
+/// sky tiles [SkyAtlasService.autoFoldCapturedImage] folds the frame into, and
+/// that builds its own centre from the identical column.
+///
+/// Callers guard `solvedRa`/`solvedDec`/`solvedPixelScale` before calling.
+@visibleForTesting
+SolvedWcs firstLightScanWcs({
+  required db.CapturedImage image,
+  required int imageWidth,
+  required int imageHeight,
+  required SolvedWcsDistortion distortion,
+  DecodedSip? sip,
+}) {
+  return SolvedWcs(
+    raHours: image.solvedRa!,
+    decDegrees: image.solvedDec!,
+    rotationDeg: image.solvedRotation ?? 0.0,
+    pixelScaleArcsec: image.solvedPixelScale!,
+    imageWidth: imageWidth,
+    imageHeight: imageHeight,
+    cd1_1: distortion.cd1_1,
+    cd1_2: distortion.cd1_2,
+    cd2_1: distortion.cd2_1,
+    cd2_2: distortion.cd2_2,
+    aOrder: sip?.aOrder ?? 0,
+    bOrder: sip?.bOrder ?? 0,
+    aCoeffs: sip?.aCoeffs ?? const [],
+    bCoeffs: sip?.bCoeffs ?? const [],
+    apOrder: sip?.apOrder ?? 0,
+    bpOrder: sip?.bpOrder ?? 0,
+    apCoeffs: sip?.apCoeffs ?? const [],
+    bpCoeffs: sip?.bpCoeffs ?? const [],
+  );
+}
+
 /// Run the Pillar B difference scan for a freshly-solved light frame, persist any
 /// transients, and feed the survivors to the active-session Narrator so its
 /// First Light detectors can announce them. Best-effort and self-contained: any
@@ -963,25 +1016,12 @@ Future<void> _runFirstLightScan({
         .getStoredWcsDistortion(image.id)
         .then((w) => w?.sip),
   );
-  final wcs = SolvedWcs(
-    raHours: ra / 15.0,
-    decDegrees: dec,
-    rotationDeg: image.solvedRotation ?? 0.0,
-    pixelScaleArcsec: scale,
+  final wcs = firstLightScanWcs(
+    image: image,
     imageWidth: imageWidth,
     imageHeight: imageHeight,
-    cd1_1: distortion.cd1_1,
-    cd1_2: distortion.cd1_2,
-    cd2_1: distortion.cd2_1,
-    cd2_2: distortion.cd2_2,
-    aOrder: sip?.aOrder ?? 0,
-    bOrder: sip?.bOrder ?? 0,
-    aCoeffs: sip?.aCoeffs ?? const [],
-    bCoeffs: sip?.bCoeffs ?? const [],
-    apOrder: sip?.apOrder ?? 0,
-    bpOrder: sip?.bpOrder ?? 0,
-    apCoeffs: sip?.apCoeffs ?? const [],
-    bpCoeffs: sip?.bpCoeffs ?? const [],
+    distortion: distortion,
+    sip: sip,
   );
   if (!wcs.isValid) return;
 

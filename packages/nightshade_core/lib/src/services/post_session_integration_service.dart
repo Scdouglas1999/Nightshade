@@ -13,12 +13,8 @@ import '../models/imaging/integrated_master.dart';
 import '../models/imaging/integration_curve.dart';
 import '../models/imaging/integration_settings.dart';
 import '../models/calibration/calibration_library_models.dart';
-import '../models/calibration/dark_library_match_tolerances.dart';
-import '../providers/dark_library_provider.dart';
 import 'calibration_library_service.dart';
 import 'color_calibration_service.dart';
-import 'dark_library_service.dart';
-import 'flat_library_service.dart';
 import 'plate_solve_service.dart';
 import 'post_session_seam.dart';
 import 'wcs_overlay.dart';
@@ -33,8 +29,8 @@ class ResolvedCalibration {
 
   /// Operator-facing warnings produced by the Calibration Library matcher
   /// while selecting these masters (temperature mismatch, exposure scaling,
-  /// stale flats, …). Empty for pinned/legacy selections. Not part of the
-  /// native bridge JSON — surfaced on [PostSessionIntegrationOutcome].
+  /// stale flats, …). Empty for pinned selections. Not part of the native
+  /// bridge JSON — surfaced on [PostSessionIntegrationOutcome].
   final List<String> warnings;
 
   const ResolvedCalibration({
@@ -128,8 +124,7 @@ class PostSessionIntegrationOutcome {
   final IntegrateSessionResult result;
 
   /// Warnings from the calibration auto-match for this group (see
-  /// [ResolvedCalibration.warnings]). Empty when masters were pinned or no
-  /// matcher is wired.
+  /// [ResolvedCalibration.warnings]). Empty when masters were pinned.
   final List<String> calibrationWarnings;
 
   const PostSessionIntegrationOutcome({
@@ -152,9 +147,9 @@ class PostSessionIntegrationOutcome {
 /// Pipeline per filter group:
 ///  1. **Select** accepted light subs (the caller passes pre-selected
 ///     [CapturedImage]s — typically from `StackLightSelector`).
-///  2. **Resolve calibration** masters: dark via [DarkLibraryService], flat via
-///     [FlatLibraryService], bias via the supplied [ResolvedCalibration]
-///     override.
+///  2. **Resolve calibration** masters: dark and flat via
+///     [CalibrationLibraryService.match], bias via the supplied
+///     [ResolvedCalibration] override.
 ///  3. **Build the native args** (sub paths + calibration + settings + output
 ///     paths) and invoke the seam.
 ///  4. **Persist** an `integrated_masters` row (status `finalized`, mode
@@ -165,42 +160,23 @@ class PostSessionIntegrationOutcome {
 class PostSessionIntegrationService {
   PostSessionIntegrationService({
     required IntegratedMastersDao mastersDao,
-    required DarkLibraryService darkLibrary,
-    required FlatLibraryService flatLibrary,
+    required CalibrationLibraryService calibrationLibrary,
     required PostSessionSeam seam,
-    CalibrationLibraryService? calibrationLibrary,
     MasterPlateSolver? plateSolver,
     MasterColorCalibrator? colorCalibrator,
-    DarkLibraryMatchTolerances darkTolerances =
-        DarkLibraryMatchTolerances.defaults,
   }) : _mastersDao = mastersDao,
-       _darkLibrary = darkLibrary,
-       _flatLibrary = flatLibrary,
-       _seam = seam,
        _calibrationLibrary = calibrationLibrary,
+       _seam = seam,
        _plateSolver = plateSolver,
-       _colorCalibrator = colorCalibrator,
-       _darkTolerances = darkTolerances;
+       _colorCalibrator = colorCalibrator;
 
   final IntegratedMastersDao _mastersDao;
-  final DarkLibraryService _darkLibrary;
-  final FlatLibraryService _flatLibrary;
   final PostSessionSeam _seam;
 
-  /// Dark-frame match tolerances, resolved from
-  /// [darkLibraryMatchTolerancesProvider] at the provider boundary so the
-  /// post-session integration matcher agrees with the coverage UI and the live
-  /// calibration path. Previously the legacy [DarkLibraryService] fallback used
-  /// the code defaults (±1.0°C), which could silently disagree with the ±2.0°C
-  /// the rest of the app applies — a dark used during the session might then be
-  /// skipped when integrating the same subs afterward.
-  final DarkLibraryMatchTolerances _darkTolerances;
-
-  /// Optional Calibration Library matcher. When wired, un-pinned master
-  /// selection routes through [CalibrationLibraryService.match] so the
-  /// transparent scoring + warnings drive the auto-pick; when null the legacy
-  /// per-DAO matching ([DarkLibraryService] / [FlatLibraryService]) is used.
-  final CalibrationLibraryService? _calibrationLibrary;
+  /// The single matcher for un-pinned masters: its transparent scoring drives
+  /// the auto-pick and its warnings are propagated into the outcome, so what
+  /// the operator reads about a calibration decision is what actually happened.
+  final CalibrationLibraryService _calibrationLibrary;
 
   /// Optional fail-soft plate-solver for the finished master FITS, injected at
   /// the provider boundary (where the `PlateSolveService` Riverpod `_ref`
@@ -929,6 +905,10 @@ class PostSessionIntegrationService {
   /// library to hold a compatible master dark, and a flat match requires a
   /// registered master flat for the filter — both return null when absent
   /// (calibration is then skipped for that master type, never faked).
+  ///
+  /// Selection routes through [CalibrationLibraryService.match] so its scored
+  /// picks and operator-facing warnings reach the outcome and the morning
+  /// report — the one calibration answer, not a second unwarned one.
   Future<ResolvedCalibration> _resolveCalibration({
     required List<CapturedImage> subs,
     String? biasPath,
@@ -941,73 +921,39 @@ class PostSessionIntegrationService {
     final binY = anchor.binY;
     final temperature = anchor.sensorTemp;
 
-    // Preferred path: the Calibration Library's transparent matcher (scored
-    // picks + operator-facing warnings). The legacy DAO path below remains
-    // for callers constructed without the library service.
-    final library = _calibrationLibrary;
-    if (library != null) {
-      final matchSet = await library.match(
-        LightFrameContext(
-          gain: gain,
-          offset: offset,
-          exposureSeconds: anchor.exposureDuration,
-          temperature: temperature,
-          filter: anchor.filter,
-          binX: binX,
-          binY: binY,
-        ),
-        // The automated post-session pipeline can only apply a master that is
-        // already on local disk: a REMOTE candidate's `filePath` is null until
-        // it is downloaded, and pulling a shared master is a consent-gated,
-        // explicit user action (`acceptRemoteMaster`), never a silent
-        // auto-download. Folding remote candidates here would let a remote pick
-        // with a null path win the ranking and then silently disable dark/flat
-        // calibration (its path resolves to null). So match LOCAL-only.
-        includeRemote: false,
-      );
-      final explicitBias = (biasPath != null && biasPath.trim().isNotEmpty)
-          ? biasPath
-          : null;
-      return ResolvedCalibration(
-        darkPath: matchSet.dark?.record.filePath,
-        flatPath: matchSet.flat?.record.filePath,
-        // An explicit bias override wins; otherwise only auto-fill the bias
-        // when no dark matched (a matched dark already carries the bias
-        // signal — supplying both would double-subtract the pedestal).
-        biasPath:
-            explicitBias ??
-            (matchSet.dark == null ? matchSet.bias?.record.filePath : null),
-        cosmeticCorrection: cosmeticCorrection,
-        warnings: matchSet.allWarnings,
-      );
-    }
-
-    final dark = await _darkLibrary.findMatchingDark(
-      exposureTime: anchor.exposureDuration,
-      gain: gain,
-      offset: offset,
-      binX: binX,
-      binY: binY,
-      temperature: temperature,
-      tolerances: _darkTolerances,
+    final matchSet = await _calibrationLibrary.match(
+      LightFrameContext(
+        gain: gain,
+        offset: offset,
+        exposureSeconds: anchor.exposureDuration,
+        temperature: temperature,
+        filter: anchor.filter,
+        binX: binX,
+        binY: binY,
+      ),
+      // The automated post-session pipeline can only apply a master that is
+      // already on local disk: a REMOTE candidate's `filePath` is null until
+      // it is downloaded, and pulling a shared master is a consent-gated,
+      // explicit user action (`acceptRemoteMaster`), never a silent
+      // auto-download. Folding remote candidates here would let a remote pick
+      // with a null path win the ranking and then silently disable dark/flat
+      // calibration (its path resolves to null). So match LOCAL-only.
+      includeRemote: false,
     );
-
-    final flat = await _flatLibrary.findBestMatch(
-      filter: anchor.filter,
-      gain: gain,
-      offset: offset,
-      binX: binX,
-      binY: binY,
-      temperature: temperature,
-    );
-
+    final explicitBias = (biasPath != null && biasPath.trim().isNotEmpty)
+        ? biasPath
+        : null;
     return ResolvedCalibration(
-      darkPath: dark?.masterDarkPath ?? dark?.filePath,
-      flatPath: flat?.filePath,
-      biasPath: (biasPath != null && biasPath.trim().isNotEmpty)
-          ? biasPath
-          : null,
+      darkPath: matchSet.dark?.record.filePath,
+      flatPath: matchSet.flat?.record.filePath,
+      // An explicit bias override wins; otherwise only auto-fill the bias
+      // when no dark matched (a matched dark already carries the bias
+      // signal — supplying both would double-subtract the pedestal).
+      biasPath:
+          explicitBias ??
+          (matchSet.dark == null ? matchSet.bias?.record.filePath : null),
       cosmeticCorrection: cosmeticCorrection,
+      warnings: matchSet.allWarnings,
     );
   }
 
@@ -1117,10 +1063,7 @@ final postSessionIntegrationServiceProvider = Provider<PostSessionIntegrationSer
 ) {
   return PostSessionIntegrationService(
     mastersDao: ref.watch(integratedMastersDaoProvider),
-    darkLibrary: ref.watch(darkLibraryServiceProvider),
-    flatLibrary: ref.watch(flatLibraryServiceProvider),
     seam: ref.watch(postSessionSeamProvider),
-    darkTolerances: ref.watch(darkLibraryMatchTolerancesProvider),
     // Calibration Library Manager: routes un-pinned master selection through
     // the transparent scored matcher so its warnings reach the outcome /
     // morning report.

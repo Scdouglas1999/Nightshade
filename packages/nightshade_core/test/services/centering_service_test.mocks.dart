@@ -213,21 +213,6 @@ class MockPlateSolveService extends _i1.Mock implements _i7.PlateSolveService {
           as _i3.PlateSolveResult);
 
   @override
-  _i6.Future<_i3.PlateSolveResult> parsePlateSolve2OutputForTest(
-    String? outputPath,
-  ) =>
-      (super.noSuchMethod(
-            Invocation.method(#parsePlateSolve2OutputForTest, [outputPath]),
-            returnValue: _i6.Future<_i3.PlateSolveResult>.value(
-              _FakePlateSolveResult_1(
-                this,
-                Invocation.method(#parsePlateSolve2OutputForTest, [outputPath]),
-              ),
-            ),
-          )
-          as _i6.Future<_i3.PlateSolveResult>);
-
-  @override
   _i6.Future<_i3.PlateSolveResult> solve(
     String? imagePath,
     _i7.PlateSolverConfig? config,

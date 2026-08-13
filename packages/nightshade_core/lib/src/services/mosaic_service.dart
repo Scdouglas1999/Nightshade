@@ -2,7 +2,7 @@ import '../models/sequence/sequence_models.dart';
 import '../models/imaging/imaging_models.dart' show FrameType;
 import 'package:uuid/uuid.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart'
-    show AstronomyCalculations, mosaicPanelCenters;
+    show mosaicPanelCenters;
 
 /// Result of mosaic panel generation
 class MosaicPanel {
@@ -642,96 +642,5 @@ class MosaicService {
     }
 
     return result;
-  }
-
-  /// Calculate altitude for a given RA/Dec at a specific time and location
-  ///
-  /// Uses proper astronomical formulas via AstronomyCalculations:
-  /// - Converts RA/Dec to Alt/Az using observer location and time
-  /// - Accounts for local sidereal time
-  /// - Returns altitude in degrees
-  double calculateAltitude({
-    required double raHours,
-    required double decDegrees,
-    required DateTime time,
-    required double observerLatitude,
-    required double observerLongitude,
-  }) {
-    // Convert RA from hours to degrees for the astronomy calculations
-    final raDeg = raHours * 15.0;
-
-    // Calculate local sidereal time at the observer's location
-    final lst = AstronomyCalculations.localSiderealTime(
-      time,
-      observerLongitude,
-    );
-
-    // Convert equatorial coordinates (RA/Dec) to horizontal coordinates (Alt/Az)
-    final (altitude, _) = AstronomyCalculations.equatorialToHorizontal(
-      raDeg: raDeg,
-      decDeg: decDegrees,
-      latitudeDeg: observerLatitude,
-      lstHours: lst,
-    );
-
-    return altitude;
-  }
-
-  /// Check visibility window for mosaic panels
-  ///
-  /// Returns warnings if any panels will be below minimum altitude
-  List<String> checkVisibilityConstraints({
-    required MosaicConfig config,
-    required DateTime startTime,
-    required double observerLatitude,
-    required double observerLongitude,
-    double? minAltitude,
-  }) {
-    final warnings = <String>[];
-
-    if (minAltitude != null) {
-      // Generate panels to check
-      final panels = generatePanels(config);
-
-      // Check altitude for each panel
-      final belowMinPanels = <int>[];
-      for (final panel in panels) {
-        final altitude = calculateAltitude(
-          raHours: panel.raHours,
-          decDegrees: panel.decDegrees,
-          time: startTime,
-          observerLatitude: observerLatitude,
-          observerLongitude: observerLongitude,
-        );
-
-        if (altitude < minAltitude) {
-          belowMinPanels.add(panel.panelIndex + 1); // 1-indexed for display
-        }
-      }
-
-      // Add warning if any panels are below minimum
-      if (belowMinPanels.isNotEmpty) {
-        if (belowMinPanels.length == panels.length) {
-          warnings.add(
-            'All panels will be below minimum altitude '
-            '($minAltitude°) at start time',
-          );
-        } else if (belowMinPanels.length > panels.length ~/ 2) {
-          warnings.add(
-            'Most panels (${belowMinPanels.length}/${panels.length}) will be '
-            'below minimum altitude ($minAltitude°) at start time',
-          );
-        } else {
-          warnings.add(
-            'Some panels (${belowMinPanels.length}/${panels.length}) will be '
-            'below minimum altitude ($minAltitude°) at start time: '
-            'Panels ${belowMinPanels.take(5).join(", ")}'
-            '${belowMinPanels.length > 5 ? "..." : ""}',
-          );
-        }
-      }
-    }
-
-    return warnings;
   }
 }

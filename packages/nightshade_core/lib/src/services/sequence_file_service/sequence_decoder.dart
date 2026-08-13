@@ -719,124 +719,50 @@ extension _SequenceFileDecoder on SequenceFileService {
     return null;
   }
 
-  FrameType _parseFrameType(dynamic value) {
-    final raw = value is String ? value : null;
-    if (raw == null) return FrameType.light;
-    return FrameType.values.firstWhere(
-      (type) => type.name.toLowerCase() == raw.toLowerCase(),
-      orElse: () => FrameType.light,
-    );
-  }
+  // Enum wire conversion for the sequence FILE format. The tokens live in
+  // `sequence_wire_codec.dart`, shared with the DB codec, so a document
+  // written by either side reads back the same on both.
 
-  BinningMode _parseBinningMode(dynamic value) {
-    final raw = value is String ? value : null;
-    if (raw == null) return BinningMode.one;
-    return BinningMode.values.firstWhere(
-      (mode) => mode.name.toLowerCase() == raw.toLowerCase(),
-      orElse: () => BinningMode.one,
-    );
-  }
+  FrameType _parseFrameType(dynamic value) =>
+      enumFromWireOr(FrameType.values, value, FrameType.light);
 
-  AutofocusMethod _parseAutofocusMethod(dynamic value) {
-    final raw = value is String ? value : null;
-    if (raw == null) return AutofocusMethod.vCurve;
-    // Handle legacy 'parabolic' name from old files
-    final normalized = raw.toLowerCase() == 'parabolic' ? 'quadratic' : raw;
-    return AutofocusMethod.values.firstWhere(
-      (method) => method.name.toLowerCase() == normalized.toLowerCase(),
-      orElse: () => AutofocusMethod.vCurve,
-    );
-  }
+  BinningMode _parseBinningMode(dynamic value) =>
+      enumFromWireOr(BinningMode.values, value, BinningMode.one);
 
-  LoopConditionType _parseLoopConditionType(dynamic value) {
-    final raw = value is String ? value : null;
-    if (raw == null) return LoopConditionType.count;
-    return LoopConditionType.values.firstWhere(
-      (type) => type.name.toLowerCase() == raw.toLowerCase(),
-      orElse: () => LoopConditionType.count,
-    );
-  }
+  AutofocusMethod _parseAutofocusMethod(dynamic value) =>
+      autofocusMethodFromWire(value);
 
-  NotificationLevel _parseNotificationLevel(dynamic value) {
-    final raw = value is String ? value : null;
-    if (raw == null) return NotificationLevel.info;
-    return NotificationLevel.values.firstWhere(
-      (level) => level.name.toLowerCase() == raw.toLowerCase(),
-      orElse: () => NotificationLevel.info,
-    );
-  }
+  LoopConditionType _parseLoopConditionType(dynamic value) =>
+      enumFromWireOr(LoopConditionType.values, value, LoopConditionType.count);
 
-  /// Parse per-NotificationNode explicit-transport
-  /// override. Absent or empty list → null (inherit matrix `custom`).
-  /// Unknown transport keys are silently dropped (forward-compat: a
-  /// future version may add a transport this build doesn't ship).
-  List<NotificationTransportKind>? _parseExplicitTransports(dynamic raw) {
-    if (raw is! List) return null;
-    final out = <NotificationTransportKind>[];
-    for (final entry in raw) {
-      if (entry is String) {
-        final t = NotificationTransportKind.fromStorageKey(entry);
-        if (t != null) out.add(t);
-      }
-    }
-    return out.isEmpty ? null : out;
-  }
+  NotificationLevel _parseNotificationLevel(dynamic value) =>
+      enumFromWireOr(NotificationLevel.values, value, NotificationLevel.info);
 
-  ConditionalType _parseConditionalType(dynamic value) {
-    final raw = value is String ? value : null;
-    if (raw == null) return ConditionalType.always;
-    return ConditionalType.values.firstWhere(
-      (type) => type.name.toLowerCase() == raw.toLowerCase(),
-      orElse: () => ConditionalType.always,
-    );
-  }
+  List<NotificationTransportKind>? _parseExplicitTransports(dynamic raw) =>
+      explicitTransportsFromWire(raw);
 
-  RecoveryActionType _parseRecoveryActionType(dynamic value) {
-    final raw = value is String ? value : null;
-    if (raw == null) return RecoveryActionType.retry;
-    return RecoveryActionType.values.firstWhere(
-      (type) => type.name.toLowerCase() == raw.toLowerCase(),
-      orElse: () => RecoveryActionType.retry,
-    );
-  }
+  ConditionalType _parseConditionalType(dynamic value) =>
+      enumFromWireOr(ConditionalType.values, value, ConditionalType.always);
 
-  TriggerType? _parseTriggerType(dynamic value) {
-    final raw = value is String ? value : null;
-    if (raw == null) return null;
-    for (final type in TriggerType.values) {
-      if (type.name.toLowerCase() == raw.toLowerCase()) {
-        return type;
-      }
-    }
-    return null;
-  }
+  RecoveryActionType _parseRecoveryActionType(dynamic value) =>
+      recoveryActionFromWire(value, fallback: RecoveryActionType.retry);
 
-  TwilightType? _parseTwilightType(dynamic value) {
-    final raw = value is String ? value : null;
-    if (raw == null) return null;
-    for (final type in TwilightType.values) {
-      if (type.name.toLowerCase() == raw.toLowerCase()) {
-        return type;
-      }
-    }
-    return null;
-  }
+  TriggerType? _parseTriggerType(dynamic value) =>
+      enumFromWire(TriggerType.values, value);
 
-  MeridianTriggerMethod _parseMeridianTriggerMethod(dynamic value) {
-    final raw = value is String ? value : null;
-    if (raw == null) return MeridianTriggerMethod.minutesPastMeridian;
-    return MeridianTriggerMethod.values.firstWhere(
-      (type) => type.name.toLowerCase() == raw.toLowerCase(),
-      orElse: () => MeridianTriggerMethod.minutesPastMeridian,
-    );
-  }
+  TwilightType? _parseTwilightType(dynamic value) =>
+      enumFromWire(TwilightType.values, value);
 
-  FlipFailureAction _parseFlipFailureAction(dynamic value) {
-    final raw = value is String ? value : null;
-    if (raw == null) return FlipFailureAction.pauseAndAlert;
-    return FlipFailureAction.values.firstWhere(
-      (type) => type.name.toLowerCase() == raw.toLowerCase(),
-      orElse: () => FlipFailureAction.pauseAndAlert,
-    );
-  }
+  MeridianTriggerMethod _parseMeridianTriggerMethod(dynamic value) =>
+      enumFromWireOr(
+        MeridianTriggerMethod.values,
+        value,
+        MeridianTriggerMethod.minutesPastMeridian,
+      );
+
+  FlipFailureAction _parseFlipFailureAction(dynamic value) => enumFromWireOr(
+    FlipFailureAction.values,
+    value,
+    FlipFailureAction.pauseAndAlert,
+  );
 }

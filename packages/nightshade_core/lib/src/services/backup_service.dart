@@ -201,7 +201,10 @@ class BackupService {
   /// - Targets
   ///
   /// Returns [BackupResult] with backup file path if successful
-  Future<BackupResult> createBackup({String? customPath}) async {
+  Future<BackupResult> createBackup({
+    String? customPath,
+    bool humanReadable = true,
+  }) async {
     try {
       _logger.debug('Starting full backup...', source: 'BackupService');
 
@@ -268,7 +271,6 @@ class BackupService {
       // truncated backup.
       final file = File(filePath);
       await file.parent.create(recursive: true);
-      final jsonString = const JsonEncoder.withIndent('  ').convert(backup);
       final tempFile = File(
         path.join(
           file.parent.path,
@@ -277,7 +279,11 @@ class BackupService {
         ),
       );
       try {
-        await tempFile.writeAsString(jsonString, flush: true);
+        await _writeJsonArchive(
+          tempFile,
+          backup,
+          indent: humanReadable ? '  ' : null,
+        );
         try {
           await tempFile.rename(file.path);
         } on FileSystemException {
@@ -741,7 +747,10 @@ class BackupService {
       'nightshade_autosave_$timestamp.nsbackup',
     );
 
-    return createBackup(customPath: filePath);
+    // Unattended archive: nobody reads it in an editor, and the indentation
+    // roughly doubles both the bytes written and the peak encode cost on a
+    // host that may be mid-session.
+    return createBackup(customPath: filePath, humanReadable: false);
   }
 
   // =========================================================================
@@ -869,18 +878,61 @@ class BackupService {
   /// table-agnostic without threading a typed generic through every
   /// call site (which trips Dart's `couldn't infer T` due to the
   /// drift-generated multi-level inheritance).
+  ///
+  /// Rows are read in [_dumpPageSize] pages ordered by `rowid`. The per-frame
+  /// science tables (`photometry_measurements`, `guide_rms_history`) run to
+  /// hundreds of thousands of rows over a season; an unpaged `SELECT *` holds
+  /// the whole driver result set alive at the same time as the whole JSON
+  /// projection. The caller reads inside one transaction, so paging observes a
+  /// single consistent snapshot.
   Future<List<Map<String, dynamic>>> _dumpTable(TableInfo table) async {
-    final rows = await database
-        .customSelect('SELECT * FROM ${table.actualTableName}')
-        .get();
     final out = <Map<String, dynamic>>[];
-    for (final row in rows) {
-      // ignore: avoid_dynamic_calls
-      final dataClass = (table as dynamic).map(row.data);
-      // ignore: avoid_dynamic_calls
-      out.add((dataClass as dynamic).toJson() as Map<String, dynamic>);
+    var offset = 0;
+    while (true) {
+      final rows = await database
+          .customSelect(
+            'SELECT * FROM ${table.actualTableName} '
+            'ORDER BY rowid LIMIT $_dumpPageSize OFFSET $offset',
+          )
+          .get();
+      for (final row in rows) {
+        // ignore: avoid_dynamic_calls
+        final dataClass = (table as dynamic).map(row.data);
+        // ignore: avoid_dynamic_calls
+        out.add((dataClass as dynamic).toJson() as Map<String, dynamic>);
+      }
+      if (rows.length < _dumpPageSize) return out;
+      offset += rows.length;
     }
-    return out;
+  }
+
+  /// Rows read per `_dumpTable` page.
+  static const int _dumpPageSize = 2000;
+
+  /// Encode [archive] straight into [file] in chunks.
+  ///
+  /// The archive holds every row of every table; building it as one indented
+  /// `String` (and then again as one byte list) stalled the calling isolate for
+  /// seconds and was a plausible OOM on an appliance, and this runs unattended
+  /// off the auto-backup timer mid-session.
+  static Future<void> _writeJsonArchive(
+    File file,
+    Object? archive, {
+    String? indent,
+  }) async {
+    final sink = file.openWrite();
+    try {
+      final encoder = JsonUtf8Encoder(
+        indent,
+        null,
+        64 * 1024,
+      ).startChunkedConversion(_IOSinkBytes(sink));
+      encoder.add(archive);
+      encoder.close();
+      await sink.flush();
+    } finally {
+      await sink.close();
+    }
   }
 
   /// Importer signature used by [_extendedTableImporters]. Returns the
@@ -1202,3 +1254,18 @@ final backupServiceProvider = Provider<BackupService>((ref) {
     appVersion: appVersion,
   );
 });
+
+/// Adapts an [IOSink] to the `Sink<List<int>>` that
+/// [JsonUtf8Encoder.startChunkedConversion] writes its blocks into. Closing is
+/// the archive writer's job (it must flush first), so `close` is a no-op here.
+class _IOSinkBytes implements Sink<List<int>> {
+  _IOSinkBytes(this._sink);
+
+  final IOSink _sink;
+
+  @override
+  void add(List<int> data) => _sink.add(data);
+
+  @override
+  void close() {}
+}

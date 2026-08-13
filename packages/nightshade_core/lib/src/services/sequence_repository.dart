@@ -19,6 +19,7 @@ import '../providers/sequence_stats_provider.dart'
 import '../utils/json_validation.dart';
 import 'scheduler/horizon_profile.dart';
 import 'sequence_file_service.dart';
+import 'sequence_wire_codec.dart';
 import 'sequence_summary.dart';
 
 export 'sequence_summary.dart';
@@ -218,116 +219,123 @@ class SequenceRepository {
     return sequenceId;
   }
 
+  /// Apply an edited [sequence] over its persisted rows.
+  ///
+  /// The metadata update and the whole node diff run as ONE transaction, and
+  /// the diff itself as one batch. Applying it statement-by-statement meant a
+  /// failure (or an app kill) part-way through a 200-node save left the library
+  /// row updated and the node set half-migrated — some nodes updated, some
+  /// inserted, some of the to-delete set still present — and the next load
+  /// rebuilt a corrupted tree from whatever survived, with no recovery path.
   Future<void> _updateSequence(
     int sequenceId,
     Sequence sequence,
     bool isTemplate,
   ) async {
-    // Get existing sequence
-    final existing = await _dao!.getSequenceById(sequenceId);
+    final dao = _dao!;
+    final existing = await dao.getSequenceById(sequenceId);
     if (existing == null) {
       throw Exception('Sequence $sequenceId not found');
     }
 
-    // Update sequence metadata
-    await _dao.updateSequence(
-      db.Sequence(
-        id: sequenceId,
-        name: sequence.name,
-        description: sequence.description,
-        rootNodeId: sequence.rootNodeId,
-        estimatedDurationMins: (sequence.totalIntegrationSecs / 60).ceil(),
-        createdAt: existing.createdAt,
-        updatedAt: DateTime.now(),
-        isTemplate: isTemplate,
-        tagsJson: existing.tagsJson,
-        isFavorite: existing.isFavorite,
-      ),
-    );
-
-    // Get existing nodes to diff against incoming nodes
-    final existingNodes = await _dao.getNodesForSequence(sequenceId);
-    final existingNodeIds = existingNodes.map((n) => n.nodeId).toSet();
-    final incomingNodeIds = sequence.nodes.keys.toSet();
-
-    // Determine which nodes to update, insert, or delete
-    final toUpdate = existingNodeIds.intersection(incomingNodeIds);
-    final toInsert = incomingNodeIds.difference(existingNodeIds);
-    final toDelete = existingNodeIds.difference(incomingNodeIds);
-
-    // Build a lookup from nodeId to database row for existing nodes
+    final existingNodes = await dao.getNodesForSequence(sequenceId);
     final existingNodeMap = {for (final n in existingNodes) n.nodeId: n};
 
-    // Update existing nodes in place (preserves database row IDs)
-    for (final nodeId in toUpdate) {
-      final node = sequence.nodes[nodeId]!;
-      final dbNode = existingNodeMap[nodeId]!;
-      await _dao.updateNode(
-        db.SequenceNode(
-          id: dbNode.id,
-          nodeId: node.id,
-          sequenceId: sequenceId,
-          targetId: dbNode.targetId,
-          nodeType: _getNodeCategory(node),
-          specificType: node.nodeType,
-          name: node.name,
-          properties: jsonEncode(_nodeToPropertiesWithComment(node)),
-          // `recoveryConfig` is a legacy persistence field that is no longer
-          // surfaced in the runtime model. Clearing it on save prevents stale
-          // node-id references from surviving deletes and subsequent edits.
-          recoveryConfig: null,
-          parentNodeId: node.parentId,
-          orderIndex: node.orderIndex,
-          isEnabled: node.isEnabled,
+    // Update in place where the node survives (preserves database row IDs),
+    // insert what is new, delete what the edit dropped.
+    final updates = <db.SequenceNode>[];
+    final deletedRowIds = <int>[];
+    for (final dbNode in existingNodes) {
+      final node = sequence.nodes[dbNode.nodeId];
+      if (node == null) {
+        deletedRowIds.add(dbNode.id);
+      } else {
+        updates.add(_nodeUpdateRow(sequenceId, node, dbNode));
+      }
+    }
+    final inserts = [
+      for (final node in sequence.nodes.values)
+        if (!existingNodeMap.containsKey(node.id))
+          _nodeInsertCompanion(sequenceId, node),
+    ];
+
+    await dao.transaction(() async {
+      await dao.updateSequence(
+        db.Sequence(
+          id: sequenceId,
+          name: sequence.name,
+          description: sequence.description,
+          rootNodeId: sequence.rootNodeId,
+          estimatedDurationMins: (sequence.totalIntegrationSecs / 60).ceil(),
+          createdAt: existing.createdAt,
+          updatedAt: DateTime.now(),
+          isTemplate: isTemplate,
+          tagsJson: existing.tagsJson,
+          isFavorite: existing.isFavorite,
         ),
       );
-    }
-
-    // Insert new nodes
-    for (final nodeId in toInsert) {
-      final node = sequence.nodes[nodeId]!;
-      await _dao.createNode(
-        db.SequenceNodesCompanion.insert(
-          nodeId: node.id,
-          sequenceId: sequenceId,
-          nodeType: _getNodeCategory(node),
-          specificType: node.nodeType,
-          name: node.name,
-          properties: Value(jsonEncode(_nodeToPropertiesWithComment(node))),
-          parentNodeId: Value(node.parentId),
-          orderIndex: Value(node.orderIndex),
-          isEnabled: Value(node.isEnabled),
-        ),
-      );
-    }
-
-    // Delete removed nodes
-    for (final nodeId in toDelete) {
-      final dbNode = existingNodeMap[nodeId]!;
-      await _dao.deleteNode(dbNode.id);
-    }
+      await dao.batch((batch) {
+        for (final node in updates) {
+          batch.replace(dao.sequenceNodes, node);
+        }
+        batch.insertAll(dao.sequenceNodes, inserts);
+        if (deletedRowIds.isNotEmpty) {
+          batch.deleteWhere(dao.sequenceNodes, (n) => n.id.isIn(deletedRowIds));
+        }
+      });
+    });
   }
 
   Future<void> _saveNodes(
     int sequenceId,
     Map<String, SequenceNode> nodes,
   ) async {
-    for (final node in nodes.values) {
-      await _dao!.createNode(
-        db.SequenceNodesCompanion.insert(
-          nodeId: node.id,
-          sequenceId: sequenceId,
-          nodeType: _getNodeCategory(node),
-          specificType: node.nodeType,
-          name: node.name,
-          properties: Value(jsonEncode(_nodeToPropertiesWithComment(node))),
-          parentNodeId: Value(node.parentId),
-          orderIndex: Value(node.orderIndex),
-          isEnabled: Value(node.isEnabled),
-        ),
-      );
-    }
+    final dao = _dao!;
+    await dao.batch((batch) {
+      batch.insertAll(dao.sequenceNodes, [
+        for (final node in nodes.values) _nodeInsertCompanion(sequenceId, node),
+      ]);
+    });
   }
+
+  /// The persisted row for a node that already exists, carrying the database
+  /// row id (and the target link, which lives only on the row) forward.
+  db.SequenceNode _nodeUpdateRow(
+    int sequenceId,
+    SequenceNode node,
+    db.SequenceNode existing,
+  ) => db.SequenceNode(
+    id: existing.id,
+    nodeId: node.id,
+    sequenceId: sequenceId,
+    targetId: existing.targetId,
+    nodeType: _getNodeCategory(node),
+    specificType: node.nodeType,
+    name: node.name,
+    properties: jsonEncode(_nodeToPropertiesWithComment(node)),
+    // `recoveryConfig` is a legacy persistence field that is no longer
+    // surfaced in the runtime model. Clearing it on save prevents stale
+    // node-id references from surviving deletes and subsequent edits.
+    recoveryConfig: null,
+    parentNodeId: node.parentId,
+    orderIndex: node.orderIndex,
+    isEnabled: node.isEnabled,
+  );
+
+  db.SequenceNodesCompanion _nodeInsertCompanion(
+    int sequenceId,
+    SequenceNode node,
+  ) => db.SequenceNodesCompanion.insert(
+    nodeId: node.id,
+    sequenceId: sequenceId,
+    nodeType: _getNodeCategory(node),
+    specificType: node.nodeType,
+    name: node.name,
+    properties: Value(jsonEncode(_nodeToPropertiesWithComment(node))),
+    parentNodeId: Value(node.parentId),
+    orderIndex: Value(node.orderIndex),
+    isEnabled: Value(node.isEnabled),
+  );
 
   /// Serialize a node's coarse category for the persisted
   /// `sequence_nodes.node_type` column.
@@ -451,9 +459,10 @@ class SequenceRepository {
 
   /// Load lightweight summaries for every saved (non-template) sequence.
   ///
-  /// Backed by a single grouped DAO query plus a batched run-history roll-up,
-  /// so the library list renders without hydrating any node tree — the N+1 that
-  /// [loadAllSequences] incurs (one full load per row). Newest-modified first.
+  /// Two grouped DAO queries — the summary rows, then one run-history roll-up
+  /// covering every id on the page — so the library list renders without
+  /// hydrating any node tree (the N+1 that [loadAllSequences] incurs, one full
+  /// load per row) and without a round trip per card. Newest-modified first.
   ///
   /// Remote repositories use the host's dedicated summary endpoint so tags,
   /// favorites and run roll-ups stay authoritative without transferring every
@@ -483,28 +492,26 @@ class SequenceRepository {
 
     final rows = await _dao!.getSequenceSummaryRows();
     final runsDao = _runsDao;
+    final rollups = runsDao == null
+        ? const <int, ({int runCount, DateTime? lastRunAt})>{}
+        : await runsDao.runSummariesForSequences(rows.map((r) => r.id));
     return [
       for (final row in rows)
-        await () async {
-          final runRollup = runsDao == null
-              ? (runCount: 0, lastRunAt: null)
-              : await runsDao.runSummaryForSequence(row.id);
-          return SequenceSummary(
-            id: row.id,
-            name: row.name,
-            nodeCount: row.nodeCount,
-            targetCount: row.targetCount,
-            exposureCount: row.exposureCount,
-            totalIntegrationSecs: row.estimatedDurationMins * 60,
-            primaryTargetName: row.primaryTargetName,
-            lastRunAt: runRollup.lastRunAt,
-            runCount: runRollup.runCount,
-            tags: SequenceSummary.decodeTags(row.tagsJson),
-            isFavorite: row.isFavorite,
-            createdAt: row.createdAt,
-            modifiedAt: row.updatedAt,
-          );
-        }(),
+        SequenceSummary(
+          id: row.id,
+          name: row.name,
+          nodeCount: row.nodeCount,
+          targetCount: row.targetCount,
+          exposureCount: row.exposureCount,
+          totalIntegrationSecs: row.estimatedDurationMins * 60,
+          primaryTargetName: row.primaryTargetName,
+          lastRunAt: rollups[row.id]?.lastRunAt,
+          runCount: rollups[row.id]?.runCount ?? 0,
+          tags: SequenceSummary.decodeTags(row.tagsJson),
+          isFavorite: row.isFavorite,
+          createdAt: row.createdAt,
+          modifiedAt: row.updatedAt,
+        ),
     ];
   }
 
@@ -782,301 +789,74 @@ class SequenceRepository {
     return loadSequence(newDbId);
   }
 
-  // Helper methods for enum conversion
-  String _binningToString(BinningMode mode) {
-    switch (mode) {
-      case BinningMode.one:
-        return 'one';
-      case BinningMode.two:
-        return 'two';
-      case BinningMode.three:
-        return 'three';
-      case BinningMode.four:
-        return 'four';
-    }
-  }
+  // ---------------------------------------------------------------------------
+  // Enum wire conversion for the DB `sequence_nodes.properties` blob.
+  //
+  // The tokens themselves live in `sequence_wire_codec.dart`, shared with the
+  // sequence FILE codec: these are the DB codec's bindings to that vocabulary,
+  // kept as members because the encoder/decoder parts call them unqualified.
+  // ---------------------------------------------------------------------------
 
-  BinningMode _stringToBinning(String? s) {
-    switch (s) {
-      case 'two':
-        return BinningMode.two;
-      case 'three':
-        return BinningMode.three;
-      case 'four':
-        return BinningMode.four;
-      default:
-        return BinningMode.one;
-    }
-  }
+  String _binningToString(BinningMode mode) => mode.name;
 
-  FrameType _stringToFrameType(String? value) {
-    if (value == null) return FrameType.light;
-    return FrameType.values.firstWhere(
-      (type) => type.name.toLowerCase() == value.toLowerCase(),
-      orElse: () => FrameType.light,
-    );
-  }
+  BinningMode _stringToBinning(String? s) =>
+      enumFromWireOr(BinningMode.values, s, BinningMode.one);
 
-  String _autofocusMethodToString(AutofocusMethod method) {
-    switch (method) {
-      case AutofocusMethod.vCurve:
-        return 'vCurve';
-      case AutofocusMethod.hyperbolic:
-        return 'hyperbolic';
-      case AutofocusMethod.quadratic:
-        return 'quadratic';
-    }
-  }
+  FrameType _stringToFrameType(String? value) =>
+      enumFromWireOr(FrameType.values, value, FrameType.light);
 
-  AutofocusMethod _stringToAutofocusMethod(String? s) {
-    switch (s) {
-      case 'hyperbolic':
-        return AutofocusMethod.hyperbolic;
-      case 'quadratic':
-      case 'parabolic': // Legacy DB entries
-        return AutofocusMethod.quadratic;
-      default:
-        return AutofocusMethod.vCurve;
-    }
-  }
+  String _autofocusMethodToString(AutofocusMethod method) => method.name;
 
-  String _twilightToString(TwilightType type) {
-    switch (type) {
-      case TwilightType.civil:
-        return 'civil';
-      case TwilightType.nautical:
-        return 'nautical';
-      case TwilightType.astronomical:
-        return 'astronomical';
-    }
-  }
+  AutofocusMethod _stringToAutofocusMethod(String? s) =>
+      autofocusMethodFromWire(s);
 
-  TwilightType? _stringToTwilight(String? s) {
-    switch (s) {
-      case 'civil':
-        return TwilightType.civil;
-      case 'nautical':
-        return TwilightType.nautical;
-      case 'astronomical':
-        return TwilightType.astronomical;
-      default:
-        return null;
-    }
-  }
+  String _twilightToString(TwilightType type) => type.name;
 
-  String _notificationLevelToString(NotificationLevel level) {
-    switch (level) {
-      case NotificationLevel.info:
-        return 'info';
-      case NotificationLevel.warning:
-        return 'warning';
-      case NotificationLevel.error:
-        return 'error';
-      case NotificationLevel.success:
-        return 'success';
-    }
-  }
+  TwilightType? _stringToTwilight(String? s) =>
+      enumFromWire(TwilightType.values, s);
 
-  NotificationLevel _stringToNotificationLevel(String? s) {
-    switch (s) {
-      case 'warning':
-        return NotificationLevel.warning;
-      case 'error':
-        return NotificationLevel.error;
-      case 'success':
-        return NotificationLevel.success;
-      default:
-        return NotificationLevel.info;
-    }
-  }
+  String _notificationLevelToString(NotificationLevel level) => level.name;
 
-  /// DB-side round-trip of NotificationNode's explicit
-  /// transports override. See [SequenceFileService._parseExplicitTransports]
-  /// for the equivalent file-side parser.
-  List<NotificationTransportKind>? _parseExplicitTransports(dynamic raw) {
-    if (raw is! List) return null;
-    final out = <NotificationTransportKind>[];
-    for (final entry in raw) {
-      if (entry is String) {
-        final t = NotificationTransportKind.fromStorageKey(entry);
-        if (t != null) out.add(t);
-      }
-    }
-    return out.isEmpty ? null : out;
-  }
+  NotificationLevel _stringToNotificationLevel(String? s) =>
+      enumFromWireOr(NotificationLevel.values, s, NotificationLevel.info);
 
-  String _loopConditionToString(LoopConditionType type) {
-    switch (type) {
-      case LoopConditionType.count:
-        return 'count';
-      case LoopConditionType.untilTime:
-        return 'untilTime';
-      case LoopConditionType.untilAltitude:
-        return 'untilAltitude';
-      case LoopConditionType.altitudeAbove:
-        return 'altitudeAbove';
-      case LoopConditionType.integrationTime:
-        return 'integrationTime';
-      case LoopConditionType.forever:
-        return 'forever';
-      case LoopConditionType.whileDark:
-        return 'whileDark';
-    }
-  }
+  List<NotificationTransportKind>? _parseExplicitTransports(dynamic raw) =>
+      explicitTransportsFromWire(raw);
 
-  LoopConditionType _stringToLoopCondition(String? s) {
-    switch (s) {
-      case 'untilTime':
-        return LoopConditionType.untilTime;
-      case 'untilAltitude':
-        return LoopConditionType.untilAltitude;
-      case 'altitudeAbove':
-        return LoopConditionType.altitudeAbove;
-      case 'integrationTime':
-        return LoopConditionType.integrationTime;
-      case 'forever':
-        return LoopConditionType.forever;
-      case 'whileDark':
-        return LoopConditionType.whileDark;
-      default:
-        return LoopConditionType.count;
-    }
-  }
+  String _loopConditionToString(LoopConditionType type) => type.name;
 
-  String _conditionalTypeToString(ConditionalType type) {
-    switch (type) {
-      case ConditionalType.always:
-        return 'always';
-      case ConditionalType.altitudeAbove:
-        return 'altitudeAbove';
-      case ConditionalType.timeAfter:
-        return 'timeAfter';
-      case ConditionalType.guidingRmsBelow:
-        return 'guidingRmsBelow';
-      case ConditionalType.hfrBelow:
-        return 'hfrBelow';
-      case ConditionalType.weatherSafe:
-        return 'weatherSafe';
-      case ConditionalType.moonSeparationAbove:
-        return 'moonSeparationAbove';
-      case ConditionalType.safetyMonitorSafe:
-        return 'safetyMonitorSafe';
-    }
-  }
+  LoopConditionType _stringToLoopCondition(String? s) =>
+      enumFromWireOr(LoopConditionType.values, s, LoopConditionType.count);
 
-  ConditionalType _stringToConditionalType(String? s) {
-    switch (s) {
-      case 'altitudeAbove':
-        return ConditionalType.altitudeAbove;
-      case 'timeAfter':
-        return ConditionalType.timeAfter;
-      case 'guidingRmsBelow':
-        return ConditionalType.guidingRmsBelow;
-      case 'hfrBelow':
-        return ConditionalType.hfrBelow;
-      case 'weatherSafe':
-        return ConditionalType.weatherSafe;
-      case 'moonSeparationAbove':
-        return ConditionalType.moonSeparationAbove;
-      case 'safetyMonitorSafe':
-        return ConditionalType.safetyMonitorSafe;
-      default:
-        return ConditionalType.always;
-    }
-  }
+  String _conditionalTypeToString(ConditionalType type) => type.name;
 
-  String _recoveryActionToString(RecoveryActionType action) {
-    switch (action) {
-      case RecoveryActionType.continueExecution:
-        return 'continue';
-      case RecoveryActionType.pause:
-        return 'pause';
-      case RecoveryActionType.autofocus:
-        return 'autofocus';
-      case RecoveryActionType.nextTarget:
-        return 'nextTarget';
-      case RecoveryActionType.retry:
-        return 'retry';
-      case RecoveryActionType.parkAndAbort:
-        return 'parkAndAbort';
-      case RecoveryActionType.customBranch:
-        return 'customBranch';
-      // Cloud-motion-aware actions stored as
-      // camelCase identifiers so they round-trip through the SQLite
-      // sequence repository the same way every other recovery action does.
-      case RecoveryActionType.pauseAndWaitForClear:
-        return 'pauseAndWaitForClear';
-      case RecoveryActionType.slewToGapAndContinue:
-        return 'slewToGapAndContinue';
-      // Science — transparency-adaptive recovery.
-      case RecoveryActionType.switchTargetOrFilter:
-        return 'switchTargetOrFilter';
-    }
-  }
+  ConditionalType _stringToConditionalType(String? s) =>
+      enumFromWireOr(ConditionalType.values, s, ConditionalType.always);
 
-  RecoveryActionType _stringToRecoveryAction(String? s) {
-    switch (s) {
-      case 'pause':
-        return RecoveryActionType.pause;
-      case 'autofocus':
-        return RecoveryActionType.autofocus;
-      case 'nextTarget':
-        return RecoveryActionType.nextTarget;
-      case 'retry':
-        return RecoveryActionType.retry;
-      case 'parkAndAbort':
-        return RecoveryActionType.parkAndAbort;
-      case 'customBranch':
-        return RecoveryActionType.customBranch;
-      // Cloud-motion-aware actions.
-      case 'pauseAndWaitForClear':
-        return RecoveryActionType.pauseAndWaitForClear;
-      case 'slewToGapAndContinue':
-        return RecoveryActionType.slewToGapAndContinue;
-      // Science — transparency-adaptive recovery.
-      case 'switchTargetOrFilter':
-        return RecoveryActionType.switchTargetOrFilter;
-      default:
-        return RecoveryActionType.continueExecution;
-    }
-  }
+  String _recoveryActionToString(RecoveryActionType action) =>
+      recoveryActionToDbWire(action);
 
-  MeridianTriggerMethod _stringToMeridianTriggerMethod(String? s) {
-    switch (s) {
-      case 'minutesBeforeLimit':
-        return MeridianTriggerMethod.minutesBeforeLimit;
-      case 'hourAngleThreshold':
-        return MeridianTriggerMethod.hourAngleThreshold;
-      default:
-        return MeridianTriggerMethod.minutesPastMeridian;
-    }
-  }
+  RecoveryActionType _stringToRecoveryAction(String? s) =>
+      recoveryActionFromWire(s, fallback: RecoveryActionType.continueExecution);
 
-  FlipFailureAction _stringToFlipFailureAction(String? s) {
-    switch (s) {
-      case 'abortAndPark':
-        return FlipFailureAction.abortAndPark;
-      default:
-        return FlipFailureAction.pauseAndAlert;
-    }
-  }
+  MeridianTriggerMethod _stringToMeridianTriggerMethod(String? s) =>
+      enumFromWireOr(
+        MeridianTriggerMethod.values,
+        s,
+        MeridianTriggerMethod.minutesPastMeridian,
+      );
 
-  TriggerType? _stringToTriggerType(String? s) {
-    if (s == null) return null;
-    for (final value in TriggerType.values) {
-      if (value.name == s) return value;
-    }
-    return null;
-  }
+  FlipFailureAction _stringToFlipFailureAction(String? s) => enumFromWireOr(
+    FlipFailureAction.values,
+    s,
+    FlipFailureAction.pauseAndAlert,
+  );
 
-  DitherPattern _parseDitherPattern(Object? raw) {
-    if (raw is String) {
-      final v = raw.toLowerCase();
-      if (v == 'grid') return DitherPattern.grid;
-      if (v == 'random') return DitherPattern.random;
-    }
-    return DitherPattern.random;
-  }
+  TriggerType? _stringToTriggerType(String? s) =>
+      enumFromWire(TriggerType.values, s);
+
+  DitherPattern _parseDitherPattern(Object? raw) =>
+      enumFromWireOr(DitherPattern.values, raw, DitherPattern.random);
 }
 
 BrightnessTierPreferences _parseBrightnessTierPreferences(Object? value) {

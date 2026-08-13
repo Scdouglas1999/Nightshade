@@ -22,7 +22,7 @@ import 'dart:io';
 import 'package:drift/drift.dart' show Value, Variable;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nightshade_core/src/database/daos/dark_library_dao.dart';
+import 'package:nightshade_core/src/database/daos/calibration_tags_dao.dart';
 import 'package:nightshade_core/src/database/daos/flat_library_dao.dart';
 import 'package:nightshade_core/src/database/daos/images_dao.dart';
 import 'package:nightshade_core/src/database/daos/integrated_masters_dao.dart';
@@ -33,8 +33,7 @@ import 'package:nightshade_core/src/database/database.dart';
 import 'package:nightshade_core/src/models/imaging/integration_settings.dart';
 import 'package:nightshade_core/src/models/imaging/mosaic_project.dart';
 import 'package:nightshade_core/src/models/imaging/mosaic_stitch_result.dart';
-import 'package:nightshade_core/src/services/dark_library_service.dart';
-import 'package:nightshade_core/src/services/flat_library_service.dart';
+import 'package:nightshade_core/src/services/calibration_library_service.dart';
 import 'package:nightshade_core/src/services/mosaic_project_service.dart';
 import 'package:nightshade_core/src/services/post_session_integration_service.dart';
 import 'package:nightshade_core/src/services/post_session_seam.dart';
@@ -150,8 +149,13 @@ void main() {
     seam = _FakeSeam();
     integration = PostSessionIntegrationService(
       mastersDao: mastersDao,
-      darkLibrary: DarkLibraryService(DarkLibraryDao(db)),
-      flatLibrary: FlatLibraryService(dao: FlatLibraryDao(db), seam: seam),
+      calibrationLibrary: CalibrationLibraryService(
+        db: db,
+
+        flatLibraryDao: FlatLibraryDao(db),
+
+        tagsDao: CalibrationTagsDao(db),
+      ),
       seam: seam,
     );
     service = MosaicProjectService(

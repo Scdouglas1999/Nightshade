@@ -93,7 +93,7 @@ extension _SequenceFileEncoder on SequenceFileService {
         'safetyMonitorId': node.safetyMonitorId,
       },
       RecoveryNode() => <String, dynamic>{
-        'recoveryAction': node.recoveryAction.name,
+        'recoveryAction': recoveryActionToFileWire(node.recoveryAction),
         'maxRetries': node.maxRetries,
         'triggerType': node.triggerType?.name,
         'triggerThreshold': node.triggerThreshold,

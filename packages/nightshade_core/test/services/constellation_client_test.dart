@@ -6,6 +6,7 @@
 // geometryMismatch), and the handoff 404 -> null contract. No network access:
 // every request is served by `package:http/testing.dart`'s MockClient.
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -173,6 +174,73 @@ void main() {
       expect(await File(out).readAsBytes(), [1, 2, 3, 4, 5]);
 
       await dir.delete(recursive: true);
+    });
+  });
+
+  // `_download` streams panel masters and stitched mosaic output straight to
+  // disk — the largest artifacts in the system, and the ones an unattended
+  // assembler pulls with nobody watching.
+  group('large-artifact downloads', () {
+    test('a hub that sends headers then stalls mid-body times out instead of '
+        'hanging forever, and leaves no partial artifact behind', () async {
+      final dir = await Directory.systemTemp.createTemp('nst_stall');
+      final out = '${dir.path}/community_7.fits';
+      final body = StreamController<List<int>>();
+      addTearDown(() async {
+        await body.close();
+        await dir.delete(recursive: true);
+      });
+
+      // Headers arrive, one chunk arrives, then the hub goes silent.
+      final mock = MockClient.streaming((request, _) async {
+        body.add([1, 2, 3]);
+        return http.StreamedResponse(body.stream, 200);
+      });
+      final client = ConstellationClient(
+        hubBaseUrl: hub,
+        bearerToken: 'tok-123',
+        client: mock,
+        timeout: const Duration(milliseconds: 150),
+      );
+
+      await expectLater(
+        client.pullPanelMaster('m-7', 3, out),
+        throwsA(
+          isA<ConstellationException>().having(
+            (e) => e.kind,
+            'kind',
+            ConstellationErrorKind.network,
+          ),
+        ),
+      );
+      expect(File(out).existsSync(), isFalse);
+    }, timeout: const Timeout(Duration(seconds: 15)));
+
+    test('a body that fails mid-stream deletes the truncated file', () async {
+      final dir = await Directory.systemTemp.createTemp('nst_reset');
+      final out = '${dir.path}/community_8.fits';
+      addTearDown(() => dir.delete(recursive: true));
+
+      Stream<List<int>> resetMidBody() async* {
+        yield [1, 2, 3];
+        throw const SocketException('connection reset by peer');
+      }
+
+      final mock = MockClient.streaming(
+        (request, _) async => http.StreamedResponse(resetMidBody(), 200),
+      );
+
+      await expectLater(
+        clientWith(mock).pullMosaicOutput('m-8', out),
+        throwsA(
+          isA<ConstellationException>().having(
+            (e) => e.kind,
+            'kind',
+            ConstellationErrorKind.network,
+          ),
+        ),
+      );
+      expect(File(out).existsSync(), isFalse);
     });
   });
 

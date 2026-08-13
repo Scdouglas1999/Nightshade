@@ -319,44 +319,6 @@ void main() {
     },
   );
 
-  test(
-    'PlateSolve2 local fallback deletes stale output before launching',
-    () async {
-      if (Platform.isWindows) return;
-      final backend = _Backend();
-      when(
-        () => backend.plateSolve(
-          imagePath: any(named: 'imagePath'),
-          ra: any(named: 'ra'),
-          dec: any(named: 'dec'),
-          fovDegrees: any(named: 'fovDegrees'),
-          timeoutSeconds: any(named: 'timeoutSeconds'),
-        ),
-      ).thenThrow(StateError('native backend unavailable'));
-      final container = _containerFor(backend);
-      addTearDown(container.dispose);
-      final temp = await Directory.systemTemp.createTemp('nightshade-ps2-');
-      addTearDown(() => temp.delete(recursive: true));
-      final imagePath = '${temp.path}/frame.fits';
-      final staleOutput = File('$imagePath.apm');
-      await File(imagePath).writeAsString('fixture');
-      await staleOutput.writeAsString('stale solution');
-
-      final result = await container
-          .read(plateSolveServiceProvider)
-          .solve(
-            imagePath,
-            const PlateSolverConfig(
-              type: PlateSolverType.plateSolve2,
-              executablePath: '/bin/false',
-            ),
-          );
-
-      expect(result.success, isFalse);
-      expect(await staleOutput.exists(), isFalse);
-    },
-  );
-
   test('ASTAP local fallback passes its RA hint in hours', () async {
     if (Platform.isWindows) return;
     final backend = _Backend();

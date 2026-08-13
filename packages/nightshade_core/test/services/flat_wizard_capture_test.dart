@@ -211,6 +211,48 @@ void main() {
       },
     );
   });
+
+  group('captureTestFrame — outcome travels with the call', () {
+    test('two overlapping captures each get their own outcome', () async {
+      // `flatWizardServiceProvider` is a plain Provider, so the GUI wizard and
+      // the headless API drive ONE instance with nothing serialising them. The
+      // outcome therefore has to come back from the call; a field on the
+      // service would let the second capture's result answer the first's read.
+      const other = 'native:asi:1';
+      final backend = _ManualBackend();
+      addTearDown(backend.dispose);
+      final service = FlatWizardService(backend);
+
+      final first = service.captureTestFrame(
+        deviceId: cam,
+        exposureTime: 0.1,
+        gain: 0,
+        offset: 0,
+      );
+      final second = service.captureTestFrame(
+        deviceId: other,
+        exposureTime: 0.1,
+        gain: 0,
+        offset: 0,
+      );
+      await _pump();
+      expect(backend.startCalls, equals([cam, other]));
+
+      // Settle them in the opposite order to the one they were started in:
+      // the second capture fails, the first completes.
+      backend.emitFailed(other);
+      await _pump();
+      backend.emitCompleted(cam);
+
+      final firstFrame = await first;
+      final secondFrame = await second;
+
+      expect(firstFrame.outcome!.isCompleted, isTrue);
+      expect(firstFrame.adu, isNotNull);
+      expect(secondFrame.outcome!.outcome, FlatFrameOutcome.failed);
+      expect(secondFrame.adu, isNull);
+    });
+  });
 }
 
 /// Hand-driven camera double. Exposures do NOT auto-complete — the test emits
@@ -251,6 +293,11 @@ class _ManualBackend extends Mock implements NightshadeBackend {
     if (_events.isClosed) return;
     _lastMean = mean ?? imageMean;
     _events.add(_event('ExposureCompleted', deviceId));
+  }
+
+  void emitFailed(String deviceId) {
+    if (_events.isClosed) return;
+    _events.add(_event('ExposureFailed', deviceId));
   }
 
   double? _lastMean;

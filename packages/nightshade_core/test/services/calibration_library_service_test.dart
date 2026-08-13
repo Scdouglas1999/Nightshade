@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -311,6 +313,57 @@ void main() {
       expect(match.flat, isNull);
       expect(match.warnings.any((w) => w.contains('Ha')), isTrue);
     });
+
+    test('a flat whose filter lives only in its FITS header is matched, not '
+        'reported missing while the library list shows it', () async {
+      final dir = await Directory.systemTemp.createTemp('cal_flat_header');
+      addTearDown(() => dir.delete(recursive: true));
+      final flatPath = '${dir.path}/master_flat.fits';
+      await File(flatPath).writeAsBytes(const [0]);
+
+      // The DB row carries no filter — only the header names it.
+      await flatDao.addEntry(
+        filePath: flatPath,
+        gain: 100,
+        offset: 50,
+        binX: 1,
+        binY: 1,
+        createdAt: now.subtract(const Duration(days: 1)),
+      );
+
+      final enriching = CalibrationLibraryService(
+        db: db,
+        flatLibraryDao: flatDao,
+        tagsDao: tagsDao,
+        headerReader: _FixedHeaderReader({
+          flatPath: {'FILTER': "'Ha'", 'CCD-TEMP': '-10.0'},
+        }),
+        now: () => now,
+      );
+
+      final listed = await enriching.listMasters(
+        filter: const CalibrationLibraryFilter(
+          type: CalibrationMasterType.flat,
+        ),
+      );
+      expect(listed.single.filter, 'Ha');
+
+      final match = await enriching.match(
+        const LightFrameContext(
+          gain: 100,
+          offset: 50,
+          exposureSeconds: 300,
+          filter: 'Ha',
+        ),
+      );
+      expect(match.flat, isNotNull);
+      expect(match.flat!.record.filePath, flatPath);
+      expect(
+        match.warnings.any((w) => w.contains('No matching master flat')),
+        isFalse,
+        reason: 'the matcher must not contradict the library list',
+      );
+    });
   });
 
   group('tags + listing', () {
@@ -369,4 +422,16 @@ void main() {
       );
     });
   });
+}
+
+/// A [FitsHeaderReader] that serves canned primary headers by path, so the
+/// enrichment pass can be exercised without writing real FITS files.
+class _FixedHeaderReader implements FitsHeaderReader {
+  const _FixedHeaderReader(this._byPath);
+
+  final Map<String, Map<String, String>> _byPath;
+
+  @override
+  Future<Map<String, String>> readPrimaryHeader(String path) async =>
+      _byPath[path] ?? const {};
 }

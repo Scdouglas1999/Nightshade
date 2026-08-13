@@ -5,7 +5,9 @@ import '../models/sequence/sequence_models.dart';
 import '../models/sequence/active_plan_owner.dart';
 import '../database/daos/settings_dao.dart';
 import '../providers/backend_provider.dart';
+import '../providers/constellation_provider.dart';
 import '../providers/replay_debug_provider.dart';
+import '../providers/sky_atlas_provider.dart';
 import '../providers/database_provider.dart';
 import '../providers/sequence_provider.dart';
 import 'sequence_repository.dart';
@@ -95,6 +97,14 @@ class AutoSaveService {
   /// existing daily backup scheduler instead of owning a second timer.
   /// Errors are swallowed here; the hook records its own failures.
   final Future<void> Function()? postBackupHook;
+
+  /// Derived-artifact retention sweep, run on start and then daily. The Sky
+  /// Atlas cutout/delta cache and the pulled swarm blobs are both rebuildable
+  /// on demand and both grow without bound on a host that runs for months, so
+  /// they ride this maintenance schedule instead of owning a second timer.
+  /// Failures are logged, never fatal — reclaiming disk is best-effort.
+  final Future<void> Function()? livingSkyRetentionSweep;
+
   final Future<void> Function(AutoSaveConfig config)? persistConfig;
   final Future<void> Function(DateTime timestamp)? persistLastBackup;
   final void Function(Sequence sequence, int databaseId)? onSequenceSaved;
@@ -103,8 +113,10 @@ class AutoSaveService {
   Timer? _sequenceTimer;
   Timer? _backupTimer;
   Timer? _replayPruneTimer;
+  Timer? _retentionSweepTimer;
   Timer? _initialBackupCheckTimer;
   bool _isReplayPruning = false;
+  bool _isSweepingRetention = false;
   bool _started = false;
   bool _disposed = false;
   Future<BackupResult>? _backupInFlight;
@@ -124,6 +136,7 @@ class AutoSaveService {
     this.replayDebugService,
     this.replayRetentionDays,
     this.postBackupHook,
+    this.livingSkyRetentionSweep,
     this.persistConfig,
     this.persistLastBackup,
     this.onSequenceSaved,
@@ -209,6 +222,7 @@ class AutoSaveService {
     }
 
     _startReplayRetentionPruning();
+    _startLivingSkyRetentionSweeps();
 
     developer.log(
       'AutoSaveService: Started successfully',
@@ -237,6 +251,8 @@ class AutoSaveService {
 
     _replayPruneTimer?.cancel();
     _replayPruneTimer = null;
+    _retentionSweepTimer?.cancel();
+    _retentionSweepTimer = null;
     _initialBackupCheckTimer?.cancel();
     _initialBackupCheckTimer = null;
     _started = false;
@@ -549,6 +565,37 @@ class AutoSaveService {
     });
   }
 
+  void _startLivingSkyRetentionSweeps() {
+    _retentionSweepTimer?.cancel();
+    if (livingSkyRetentionSweep == null) return;
+
+    // Once now (a host that is restarted daily would otherwise never sweep),
+    // then on the same daily cadence as the replay-debug prune.
+    Future.microtask(_runLivingSkyRetentionSweep);
+    _retentionSweepTimer = Timer.periodic(const Duration(days: 1), (_) {
+      _runLivingSkyRetentionSweep();
+    });
+  }
+
+  Future<void> _runLivingSkyRetentionSweep() async {
+    final sweep = livingSkyRetentionSweep;
+    if (sweep == null || _isSweepingRetention) return;
+
+    _isSweepingRetention = true;
+    try {
+      await sweep();
+    } catch (e) {
+      developer.log(
+        'AutoSaveService: Living Sky retention sweep failed: $e',
+        name: 'AutoSaveService',
+        level: 900,
+        error: e,
+      );
+    } finally {
+      _isSweepingRetention = false;
+    }
+  }
+
   Future<int> _pruneReplayDebugRetention({bool rethrowErrors = false}) async {
     final service = replayDebugService;
     final readRetentionDays = replayRetentionDays;
@@ -675,6 +722,8 @@ class AutoSaveService {
     _replayPruneTimer = null;
     _initialBackupCheckTimer?.cancel();
     _initialBackupCheckTimer = null;
+    _retentionSweepTimer?.cancel();
+    _retentionSweepTimer = null;
     _started = false;
 
     _statusController.close();
@@ -702,6 +751,13 @@ final autoSaveServiceProvider = Provider<AutoSaveService>((ref) {
     // Cloud sync — opt-in auto-push rides the daily backup cycle.
     postBackupHook: () =>
         ref.read(syncServiceProvider).maybeAutoPush(reason: 'daily backup'),
+    // Living Sky derived-artifact retention rides the same schedule: both the
+    // atlas cutout/delta cache and the pulled swarm blobs are regenerable and
+    // would otherwise grow without bound on an appliance that runs for months.
+    livingSkyRetentionSweep: () async {
+      await ref.read(skyAtlasServiceProvider).sweepCache();
+      await ref.read(constellationServiceProvider).sweepSwarmBlobs();
+    },
     persistConfig: (config) =>
         _persistAutoSaveConfig(ref.read(settingsDaoProvider), config),
     persistLastBackup: (timestamp) => ref

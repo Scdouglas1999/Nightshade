@@ -38,6 +38,7 @@ import '../sky_atlas/sky_atlas_models.dart';
 import '../sky_atlas/sky_atlas_service.dart';
 import 'constellation_client.dart';
 import 'constellation_models.dart';
+import 'constellation_hub_key.dart';
 
 /// What a contribution puts on the wire.
 ///
@@ -411,7 +412,9 @@ class ConstellationService {
     final creds = await _credentialsResolver();
     if (creds == null) return;
     try {
-      final rows = await dao.getAllForHub(_hubKey(creds.hubBaseUrl));
+      final rows = await dao.getAllForHub(
+        constellationHubKey(creds.hubBaseUrl),
+      );
       for (final row in rows) {
         if (!row.joined) continue;
         if (row.tileId >= 0) continue; // not a join row
@@ -445,7 +448,7 @@ class ConstellationService {
       final creds = await _credentialsResolver();
       if (creds == null) return;
       await dao.upsertJoined(
-        _hubKey(creds.hubBaseUrl),
+        constellationHubKey(creds.hubBaseUrl),
         _joinRowKey(target.targetId),
         joined: joined,
         targetName: target.name,
@@ -507,7 +510,7 @@ class ConstellationService {
     }
     final joined = _joined[targetId];
     final creds = await _credentialsResolver();
-    final hubKey = creds == null ? null : _hubKey(creds.hubBaseUrl);
+    final hubKey = creds == null ? null : constellationHubKey(creds.hubBaseUrl);
     final client = await _requireClient();
     final accepted = <int, ContributionReceipt>{};
     final rejected = <int, String>{};
@@ -831,7 +834,7 @@ class ConstellationService {
   }) async {
     final joined = _joined[targetId];
     final creds = await _credentialsResolver();
-    final hubKey = creds == null ? null : _hubKey(creds.hubBaseUrl);
+    final hubKey = creds == null ? null : constellationHubKey(creds.hubBaseUrl);
     final client = await _requireClient();
     try {
       final center = await _targetCenter(targetId, joined);
@@ -983,7 +986,7 @@ class ConstellationService {
     if (_contributions == null) return const [];
     final creds = await _credentialsResolver();
     if (creds == null) return const [];
-    final hubKey = _hubKey(creds.hubBaseUrl);
+    final hubKey = constellationHubKey(creds.hubBaseUrl);
     final rows = await _contributions.getContributedTilesForHub(hubKey);
     return rows
         .map(
@@ -1019,7 +1022,7 @@ class ConstellationService {
         kind: ConstellationErrorKind.auth,
       );
     }
-    final hubKey = _hubKey(creds.hubBaseUrl);
+    final hubKey = constellationHubKey(creds.hubBaseUrl);
     final row = await _contributions.getContribution(
       hubKey,
       tileId,
@@ -1174,14 +1177,6 @@ class ConstellationService {
 
   // --- Internals ----------------------------------------------------------
 
-  /// Normalize a hub base URL to a stable receipt key (`scheme://host[:port]`),
-  /// so http-vs-https, a trailing slash, or a path suffix do not orphan a hub's
-  /// receipts and re-ship a whole tile.
-  static String _hubKey(Uri hubBaseUrl) {
-    final port = hubBaseUrl.hasPort ? ':${hubBaseUrl.port}' : '';
-    return '${hubBaseUrl.scheme}://${hubBaseUrl.host}$port';
-  }
-
   /// Resolve a target's sky centre from the joined hub row, falling back to the
   /// local target table when the hub did not advertise coordinates.
   Future<({double raDeg, double decDeg})> _targetCenter(
@@ -1247,8 +1242,9 @@ class ConstellationService {
   ///
   /// Pull caches one community blob per tile and never reclaimed them, so a
   /// season of follow-the-night browsing slowly fills the same disk as capture
-  /// storage on a constrained appliance. This sweep, run off the existing
-  /// maintenance schedule, deletes blobs older than [maxAge] (default
+  /// storage on a constrained appliance. This sweep, scheduled by
+  /// `AutoSaveService` (`livingSkyRetentionSweep`) once on host start and then
+  /// daily, deletes blobs older than [maxAge] (default
   /// [_defaultSwarmBlobMaxAge]); when [maxBytes] is set and the directory still
   /// exceeds it, the oldest remaining blobs are evicted (LRU by mtime) until it
   /// fits.
@@ -1287,7 +1283,7 @@ class ConstellationService {
       final ext = p.extension(entity.path).toLowerCase();
       if (ext != '.nst' && ext != '.fits') continue;
       if (live.contains(p.normalize(entity.path))) continue;
-      final stat = entity.statSync();
+      final stat = await entity.stat();
       blobs.add((file: entity, modified: stat.modified, size: stat.size));
     }
 

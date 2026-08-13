@@ -1033,26 +1033,6 @@ class PredictiveAfService {
     );
   }
 
-  /// Update the per-filter retention cap. Trimming, if needed, happens on
-  /// the next `recordAutofocusOutcome` call.
-  Future<void> setMaxSamples({
-    required int? equipmentProfileId,
-    required String filterName,
-    required int maxSamples,
-  }) async {
-    final clamped = maxSamples.clamp(5, 200);
-    await _db.customStatement(
-      'UPDATE focus_models SET max_training_samples = ?, updated_at = ? '
-      'WHERE equipment_profile_id IS ? AND filter_name = ?',
-      <Object?>[
-        clamped,
-        DateTime.now().millisecondsSinceEpoch ~/ 1000,
-        equipmentProfileId,
-        filterName,
-      ],
-    );
-  }
-
   // ── Internals ─────────────────────────────────────────────────────────
 
   Future<void> _touchLastUsed(
@@ -1191,7 +1171,6 @@ class PredictiveAfService {
       intercept: interceptAtRef,
       referenceTemp: refTemp,
       rSquared: rSquared,
-      sampleCount: best.length,
     );
   }
 
@@ -1215,14 +1194,12 @@ class _RegressionFit {
   final double intercept;
   final double referenceTemp;
   final double rSquared;
-  final int sampleCount;
 
   const _RegressionFit({
     required this.slope,
     required this.intercept,
     required this.referenceTemp,
     required this.rSquared,
-    required this.sampleCount,
   });
 }
 
