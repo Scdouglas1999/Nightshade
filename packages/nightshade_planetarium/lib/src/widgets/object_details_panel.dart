@@ -7,7 +7,10 @@ import '../astronomy/astronomy_calculations.dart';
 import '../services/survey_image_service.dart';
 import '../providers/planetarium_providers.dart';
 
-part 'object_details_panel/content_sections.dart';
+part 'object_details_panel/header_sections.dart';
+part 'object_details_panel/catalog_sections.dart';
+part 'object_details_panel/visibility_sections.dart';
+part 'object_details_panel/action_sections.dart';
 part 'object_details_panel/chart_painters.dart';
 
 /// Enhanced object details panel showing comprehensive information
