@@ -366,13 +366,19 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
   ///   * Total focuser moves recorded across the run (sourced from
   ///     `liveSequenceStatsProvider.autofocusRuns` — an autofocus run
   ///     equals N moves of the focuser).
-  ///   * Verbatim warning messages collected by `SequenceRunStats`
-  ///     during the run, including filter-lookup fallbacks and any
-  ///     other "noticed but did not fire" concerns the executor saw.
-  ///
   ///   * Cooler temperature samples outside the setpoint band.
   ///   * Sky-brightness min / max / median from the adaptive-exposure
   ///     tracker's calibrated mag/arcsec² samples.
+  ///
+  /// It deliberately does NOT carry the run's warning messages.
+  /// `SequenceRunStats.warningMessages` is persisted with the run and the
+  /// Session Report prints every entry verbatim in its own "Warnings"
+  /// section; copying the same list into [PostSessionHealthSummary.noticedConcerns]
+  /// made `postSessionEquipmentHealthSummary` re-render each one as a
+  /// "Noticed but Did Not Fire" diagnostic further down the SAME dialog, so a
+  /// single "no focuser connected" warning was printed to the operator twice.
+  /// `noticedConcerns` is reserved for concerns the report does not already
+  /// state — anything added here must not exist in `warningMessages`.
   PostSessionHealthSummary _buildPostSessionHealthSummary({
     DateTime? sessionStartedAt,
   }) {
@@ -385,14 +391,6 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
 
     final focuserMoves = stats?.autofocusRuns ?? 0;
 
-    final noticedConcerns = <String>[];
-    if (stats != null) {
-      // Warnings collected via SequenceRunStats.recordWarning are
-      // already deduplicated against consecutive identical messages,
-      // so we surface them as-is.
-      noticedConcerns.addAll(stats.warningMessages);
-    }
-
     final skyStats = _skyBrightnessSummarySince(sessionStartedAt);
 
     return PostSessionHealthSummary(
@@ -402,7 +400,6 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
       skyBrightnessMin: skyStats?.min,
       skyBrightnessMax: skyStats?.max,
       skyBrightnessMedian: skyStats?.median,
-      noticedConcerns: noticedConcerns,
     );
   }
 

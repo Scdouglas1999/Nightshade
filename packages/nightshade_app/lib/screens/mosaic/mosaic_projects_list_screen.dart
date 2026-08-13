@@ -158,29 +158,36 @@ class _BackBar extends StatelessWidget {
       // reads as the control — did nothing and only the chevron popped.
       child: Tooltip(
         message: 'Back',
-        child: InkWell(
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
-          onTap: () => _leave(context),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: NightshadeTokens.spaceSm,
-              vertical: NightshadeTokens.spaceSm,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  NightshadeIcons.chevronLeft,
-                  size: NightshadeTokens.iconMd,
-                  color: colors.textSecondary,
-                ),
-                const SizedBox(width: NightshadeTokens.spaceXs),
-                Text(
-                  'Back',
-                  style: NightshadeTypography.bodySm
-                      .copyWith(color: colors.textMuted),
-                ),
-              ],
+        // A bare InkWell publishes a tap action but no role, so a screen
+        // reader read "Back" as static text. The button role is what tells
+        // the operator the row can be activated.
+        child: Semantics(
+          button: true,
+          enabled: true,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
+            onTap: () => _leave(context),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: NightshadeTokens.spaceSm,
+                vertical: NightshadeTokens.spaceSm,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    NightshadeIcons.chevronLeft,
+                    size: NightshadeTokens.iconMd,
+                    color: colors.textSecondary,
+                  ),
+                  const SizedBox(width: NightshadeTokens.spaceXs),
+                  Text(
+                    'Back',
+                    style: NightshadeTypography.bodySm
+                        .copyWith(color: colors.textMuted),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

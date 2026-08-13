@@ -7,28 +7,34 @@ class _DocsInfoChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-      onTap: () => _showGuide(context),
-      child: Tooltip(
-        message: 'Open optical diagnostics guide',
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(LucideIcons.info, size: 14, color: colors.accent),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text(
-                  'Learn more about optical diagnostics',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: NightshadeTypography.labelSm
-                      .copyWith(color: colors.accent),
+    // A bare InkWell publishes a tap action but no role, so a screen reader
+    // read the chip as static text with no hint that it opens the guide.
+    return Semantics(
+      button: true,
+      enabled: true,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+        onTap: () => _showGuide(context),
+        child: Tooltip(
+          message: 'Open optical diagnostics guide',
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(LucideIcons.info, size: 14, color: colors.accent),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    'Learn more about optical diagnostics',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: NightshadeTypography.labelSm
+                        .copyWith(color: colors.accent),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -270,19 +276,27 @@ class _ThresholdPill extends StatelessWidget {
 class _SessionSelector extends StatelessWidget {
   final List<ImagingSession> sessions;
   final int? selectedSessionId;
+
+  /// Whether to offer the quick-capture bucket ([_kQuickCaptureSessionId]) —
+  /// true when sessionless PSF tiles / residuals exist. Quick captures are
+  /// the one night that has diagnostics but no `imaging_sessions` row.
+  final bool offerQuickCaptures;
   final ValueChanged<int?> onChanged;
   final NightshadeColors colors;
+
+  static const String quickCaptureLabel = 'Quick captures (no session)';
 
   const _SessionSelector({
     required this.sessions,
     required this.selectedSessionId,
+    required this.offerQuickCaptures,
     required this.onChanged,
     required this.colors,
   });
 
   @override
   Widget build(BuildContext context) {
-    if (sessions.isEmpty) {
+    if (sessions.isEmpty && !offerQuickCaptures) {
       return Text(
         context.l10n.text('diagnosticsNoSessions'),
         style: TextStyle(
@@ -306,10 +320,14 @@ class _SessionSelector extends StatelessWidget {
       visibleSessions.insert(0, selectedSession);
     }
 
-    final dropdownValue = selectedSessionId != null &&
-            visibleSessions.any((session) => session.id == selectedSessionId)
-        ? selectedSessionId
-        : null;
+    final dropdownValue = selectedSessionId == _kQuickCaptureSessionId
+        ? (offerQuickCaptures ? _kQuickCaptureSessionId : null)
+        : (selectedSessionId != null &&
+                visibleSessions.any(
+                  (session) => session.id == selectedSessionId,
+                )
+            ? selectedSessionId
+            : null);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -319,7 +337,7 @@ class _SessionSelector extends StatelessWidget {
         border: Border.all(color: colors.border),
       ),
       child: DropdownButtonHideUnderline(
-        child: DropdownButton<int>(
+        child: AccessibleDropdown<int>(
           value: dropdownValue,
           // isExpanded lets the button shrink to its bounded parent and
           // ellipsize the selected label instead of sizing to the widest
@@ -337,18 +355,31 @@ class _SessionSelector extends StatelessWidget {
               fontSize: NightshadeTypography.fontSize13),
           icon:
               Icon(LucideIcons.chevronDown, size: 14, color: colors.textMuted),
-          items: visibleSessions.map((session) {
-            final label = session.name != null && session.name!.isNotEmpty
-                ? '${session.name} (${dateFormat.format(session.startTime)})'
-                : dateFormat.format(session.startTime);
-            return DropdownMenuItem(
-              value: session.id,
-              child: Text(
-                label,
-                overflow: TextOverflow.ellipsis,
+          items: [
+            // Listed first: it is the most recent work by definition (the
+            // sessionless queries return recent rows) and the operator who
+            // needs it has no session row to look for.
+            if (offerQuickCaptures)
+              const DropdownMenuItem(
+                value: _kQuickCaptureSessionId,
+                child: Text(
+                  quickCaptureLabel,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-            );
-          }).toList(),
+            ...visibleSessions.map((session) {
+              final label = session.name != null && session.name!.isNotEmpty
+                  ? '${session.name} (${dateFormat.format(session.startTime)})'
+                  : dateFormat.format(session.startTime);
+              return DropdownMenuItem(
+                value: session.id,
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              );
+            }),
+          ],
           onChanged: onChanged,
         ),
       ),

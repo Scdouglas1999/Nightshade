@@ -8,6 +8,7 @@
 // Planetarium while "New mosaic" sat in this screen's own header.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/mosaic/mosaic_project_controller.dart';
@@ -40,6 +41,28 @@ Widget _pushedList({List<MosaicProject> projects = const []}) => ProviderScope(
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  // The row is a bare InkWell: it publishes a tap action but no button role, so
+  // a screen reader announced "Back" as static text with nothing to say it can
+  // be activated.
+  testWidgets('the "< Back" row announces itself as a button', (tester) async {
+    final semantics = tester.ensureSemantics();
+
+    await tester.pumpWidget(_pushedList());
+    await tester.tap(find.text('open list'));
+    await tester.pumpAndSettle();
+
+    final data = tester.getSemantics(find.text('Back')).getSemanticsData();
+    expect(
+      data.hasFlag(SemanticsFlag.isButton),
+      isTrue,
+      reason: 'the back affordance must carry the button role',
+    );
+    expect(data.hasAction(SemanticsAction.tap), isTrue);
+    expect(data.hasFlag(SemanticsFlag.isEnabled), isTrue);
+
+    semantics.dispose();
+  });
 
   testWidgets('tapping the word "Back" leaves the screen', (tester) async {
     await tester.pumpWidget(_pushedList());

@@ -223,6 +223,41 @@ void main() {
       );
     });
 
+    // The Session Report already prints every `SequenceRunStats.warningMessages`
+    // entry verbatim under "Warnings". Copying the same list into
+    // `noticedConcerns` made `postSessionEquipmentHealthSummary` re-render each
+    // one as a "Noticed but Did Not Fire" diagnostic in the SAME dialog, so a
+    // one-off warning ("no focuser connected") was printed to the operator
+    // twice.
+    test('post-session summary does not restate the run warnings', () async {
+      final container = buildContainer(dbSessionId: 12);
+      final executor = container.read(sequenceExecutorProvider);
+      executor.captureSessionStartHooksForTest('seq-warning-dupe');
+
+      final stats = SequenceRunStats()
+        ..recordWarning('No focuser connected — autofocus was skipped.')
+        ..recordWarning('Filter "Ha" could not be matched.');
+      container.read(liveSequenceStatsProvider.notifier).state = stats;
+
+      executor.captureSessionEndHooksForTest();
+
+      final summary = container.read(postSessionHealthSummaryProvider(12));
+      expect(
+        summary.noticedConcerns,
+        isEmpty,
+        reason:
+            'the report renders warningMessages itself; re-publishing them as '
+            'noticed concerns prints every warning twice in one dialog',
+      );
+      expect(
+        postSessionEquipmentHealthSummary(
+          summary,
+        ).any((issue) => issue.title == 'Noticed but Did Not Fire'),
+        isFalse,
+        reason: 'no run warning may reappear as a post-session diagnostic',
+      );
+    });
+
     test('post-session summary counts cooler setpoint-band excursions', () async {
       final container = buildContainer(dbSessionId: 8);
       final executor = container.read(sequenceExecutorProvider);

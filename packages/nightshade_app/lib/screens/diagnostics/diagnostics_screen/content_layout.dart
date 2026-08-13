@@ -9,14 +9,26 @@ class _DiagnosticsContent extends ConsumerWidget {
     required this.isMobile,
   });
 
+  /// True when this is the quick-capture bucket rather than a real session
+  /// row — its science products carry a NULL session_id and are read through
+  /// the `sessionless*` providers.
+  bool get _isQuickCapture => sessionId == _kQuickCaptureSessionId;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
-    final diagnosticsAsync =
-        ref.watch(opticalTrainDiagnosticsProvider(sessionId));
-    final psfAsync = ref.watch(psfTilesForSessionProvider(sessionId));
-    final residualsAsync =
-        ref.watch(residualVectorsForSessionProvider(sessionId));
+    final psfAsync = _isQuickCapture
+        ? ref.watch(sessionlessPsfTilesProvider)
+        : ref.watch(psfTilesForSessionProvider(sessionId));
+    final residualsAsync = _isQuickCapture
+        ? ref.watch(sessionlessResidualVectorsProvider)
+        : ref.watch(residualVectorsForSessionProvider(sessionId));
+    // The per-session provider memoizes `analyze()`; the quick-capture bucket
+    // has no session key to memoize on, so it runs the same service over the
+    // sessionless rows with the same loading/error precedence.
+    final diagnosticsAsync = _isQuickCapture
+        ? _analyzeQuickCapture(ref, psfAsync, residualsAsync)
+        : ref.watch(opticalTrainDiagnosticsProvider(sessionId));
 
     return diagnosticsAsync.when(
       data: (diagnostics) {
@@ -74,6 +86,11 @@ class _DiagnosticsContent extends ConsumerWidget {
               icon: LucideIcons.refreshCw,
               size: ButtonSize.small,
               onPressed: () {
+                if (_isQuickCapture) {
+                  ref.invalidate(sessionlessPsfTilesProvider);
+                  ref.invalidate(sessionlessResidualVectorsProvider);
+                  return;
+                }
                 ref.invalidate(opticalTrainDiagnosticsProvider(sessionId));
                 ref.invalidate(psfTilesForSessionProvider(sessionId));
                 ref.invalidate(residualVectorsForSessionProvider(sessionId));
@@ -82,6 +99,37 @@ class _DiagnosticsContent extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+
+  /// Mirrors `opticalTrainDiagnosticsProvider`'s precedence — an error on
+  /// either source wins, then loading, then the analysis — for the bucket of
+  /// science products that belongs to no session.
+  AsyncValue<OpticalTrainDiagnostics> _analyzeQuickCapture(
+    WidgetRef ref,
+    AsyncValue<List<PsfFieldTileRow>> psfAsync,
+    AsyncValue<List<AstrometryResidualVectorRow>> residualsAsync,
+  ) {
+    if (psfAsync.hasError) {
+      return AsyncValue.error(
+        psfAsync.error!,
+        psfAsync.stackTrace ?? StackTrace.current,
+      );
+    }
+    if (residualsAsync.hasError) {
+      return AsyncValue.error(
+        residualsAsync.error!,
+        residualsAsync.stackTrace ?? StackTrace.current,
+      );
+    }
+    if (psfAsync.isLoading || residualsAsync.isLoading) {
+      return const AsyncValue.loading();
+    }
+    return AsyncValue.data(
+      ref.watch(opticalTrainDiagnosticsServiceProvider).analyze(
+            psfTiles: psfAsync.value ?? const [],
+            residualVectors: residualsAsync.value ?? const [],
+          ),
     );
   }
 }

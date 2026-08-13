@@ -40,6 +40,7 @@
 // diagnostics_responsive_test.dart for the phone-size/orientation coverage.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/diagnostics/diagnostic_dump_screen.dart';
@@ -131,6 +132,35 @@ void main() {
         reason:
             'No-session EmptyState must surface the "select a session" prompt '
             'when allSessionsProvider is empty and no session is active.');
+  });
+
+  // The chip was a bare InkWell: it published a tap action but no role, so a
+  // screen reader announced the sentence as static text with no hint that it
+  // opens the guide.
+  testWidgets('learn-more chip announces itself as a button', (tester) async {
+    final semantics = tester.ensureSemantics();
+
+    await pumpAppScreen(
+      tester,
+      const DiagnosticsScreen(),
+      size: const Size(1280, 800),
+      settle: false,
+      extraOverrides: _diagnosticsOverrides(),
+    );
+    await _drainAsyncFrames(tester);
+
+    final data = tester
+        .getSemantics(find.text('Learn more about optical diagnostics'))
+        .getSemanticsData();
+    expect(
+      data.hasFlag(SemanticsFlag.isButton),
+      isTrue,
+      reason: 'the learn-more chip must carry the button role',
+    );
+    expect(data.hasAction(SemanticsAction.tap), isTrue);
+    expect(data.hasFlag(SemanticsFlag.isEnabled), isTrue);
+
+    semantics.dispose();
   });
 
   testWidgets('learn-more chip opens the in-app interpretation guide',

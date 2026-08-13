@@ -7,6 +7,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 
 import '../../localization/nightshade_localizations.dart';
+import '../accessible_dropdown.dart';
 import 'diagnostics_screen/psf_field_map_view.dart';
 part 'diagnostics_screen/header_widgets.dart';
 part 'diagnostics_screen/content_layout.dart';
@@ -15,6 +16,18 @@ part 'diagnostics_screen/optical_alignment_cards.dart';
 part 'diagnostics_screen/psf_field_map.dart';
 part 'diagnostics_screen/residual_vector.dart';
 part 'diagnostics_screen/issues_and_skeleton.dart';
+
+/// Session id standing for "the frames that belong to no session".
+///
+/// Loop / quick captures never open an `imaging_sessions` row, so the science
+/// pipeline writes their PSF tiles and astrometry residuals with a NULL
+/// session_id. Those measurements are real optical-train data and used to be
+/// unreachable here: the picker listed sessions only, so a night of quick
+/// captures could not be diagnosed at all. This sentinel gives that bucket a
+/// selectable identity; the content switches to the `sessionless*` providers
+/// when it is chosen. It is negative so it can never collide with a real
+/// auto-increment session id.
+const int _kQuickCaptureSessionId = -1;
 
 /// Thin shell that hosts [DiagnosticsTabContent].
 ///
@@ -57,6 +70,23 @@ class _DiagnosticsTabContentState extends ConsumerState<DiagnosticsTabContent> {
       _selectedSessionId = sessionState.dbSessionId;
     }
 
+    // Quick captures own no session row, so they are offered as their own
+    // bucket — but only when the science pipeline actually produced something
+    // to analyze for them.
+    final hasQuickCaptureDiagnostics =
+        (ref.watch(sessionlessPsfTilesProvider).valueOrNull?.isNotEmpty ??
+                false) ||
+            (ref
+                    .watch(sessionlessResidualVectorsProvider)
+                    .valueOrNull
+                    ?.isNotEmpty ??
+                false);
+    // A bucket that just went empty (frames cleared) must not stay selected.
+    if (_selectedSessionId == _kQuickCaptureSessionId &&
+        !hasQuickCaptureDiagnostics) {
+      _selectedSessionId = null;
+    }
+
     // Phone tier reflows the header: the session selector drops to its own
     // line under the title so the wide dropdown can't push the title into a
     // RenderFlex overflow on a narrow phone.
@@ -87,6 +117,7 @@ class _DiagnosticsTabContentState extends ConsumerState<DiagnosticsTabContent> {
       data: (sessions) => _SessionSelector(
         sessions: sessions,
         selectedSessionId: _selectedSessionId,
+        offerQuickCaptures: hasQuickCaptureDiagnostics,
         onChanged: (id) => setState(() => _selectedSessionId = id),
         colors: colors,
       ),
