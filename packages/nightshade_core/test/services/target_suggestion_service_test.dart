@@ -73,6 +73,101 @@ void main() {
     }
 
     group('getSuggestionsForTonight', () {
+      // COL2-7: tonight's #1 imaging pick was "gam Cyg / IC1318", typed Star at
+      // mag 2.2 — a naked-eye point source ranked above every nebula in the
+      // list, with the exposure suggestion and the magnitude sort inheriting
+      // its stellar magnitude.
+      test('does not offer a sizeless star as an imaging target', () async {
+        final suggestions = await service.getSuggestionsForTonight(
+          config: const TargetSuggestionConfig(minAltitude: 0.0, minScore: 0.0),
+          latitude: 40.0,
+          longitude: -105.0,
+          targets: [
+            createTarget(
+              id: 1,
+              name: 'gam Cyg',
+              catalogId: 'IC1318',
+              ra: 20.37,
+              dec: 40.26,
+              objectType: 'Star',
+              magnitude: 2.2,
+            ),
+            createTarget(
+              id: 2,
+              name: 'M39',
+              catalogId: 'NGC7092',
+              ra: 21.53,
+              dec: 48.43,
+              objectType: 'Open Cluster',
+              magnitude: 4.6,
+              sizeArcmin: 29.0,
+            ),
+          ],
+          sessions: [],
+          observationTime: DateTime(2024, 7, 15, 22),
+        );
+
+        expect(
+          suggestions.map((s) => s.targetName),
+          isNot(contains('gam Cyg')),
+        );
+        expect(suggestions.map((s) => s.targetName), contains('M39'));
+      });
+
+      // A star the user explicitly asked for is still theirs to image, and a
+      // star-typed row with a real angular size (an extended emission region
+      // carrying a stellar type) is a legitimate subject.
+      test(
+        'keeps star-typed rows when they have a size or were asked for',
+        () async {
+          final extended = await service.getSuggestionsForTonight(
+            config: const TargetSuggestionConfig(
+              minAltitude: 0.0,
+              minScore: 0.0,
+            ),
+            latitude: 40.0,
+            longitude: -105.0,
+            targets: [
+              createTarget(
+                id: 1,
+                name: 'Extended star field',
+                ra: 20.37,
+                dec: 40.26,
+                objectType: 'Star cloud',
+                magnitude: 4.0,
+                sizeArcmin: 45.0,
+              ),
+            ],
+            sessions: [],
+            observationTime: DateTime(2024, 7, 15, 22),
+          );
+          expect(extended, hasLength(1));
+
+          final requested = await service.getSuggestionsForTonight(
+            config: const TargetSuggestionConfig(
+              minAltitude: 0.0,
+              minScore: 0.0,
+              preferredObjectTypes: ['Star'],
+            ),
+            latitude: 40.0,
+            longitude: -105.0,
+            targets: [
+              createTarget(
+                id: 1,
+                name: 'gam Cyg',
+                ra: 20.37,
+                dec: 40.26,
+                objectType: 'Star',
+                magnitude: 2.2,
+              ),
+            ],
+            sessions: [],
+            observationTime: DateTime(2024, 7, 15, 22),
+          );
+          expect(requested, hasLength(1));
+        },
+      );
+
       test('returns empty list for empty targets', () async {
         final suggestions = await service.getSuggestionsForTonight(
           config: const TargetSuggestionConfig(),

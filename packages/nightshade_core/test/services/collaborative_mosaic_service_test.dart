@@ -220,6 +220,54 @@ void main() {
     expect(project.collabStatus, 'published');
   });
 
+  // Wave-1 COL-7: a mosaic straddling RA 0h was published with a centre 144
+  // degrees away, because the centre was the arithmetic mean of panel RAs that
+  // wrap (358.595 / 359.298 / 0 / 0.702 / 1.405 averages to 144.0). The centre
+  // must be the circular mean, i.e. inside the grid the panels describe.
+  test('publishProject centres a mosaic that straddles RA 0h', () async {
+    final projectId = await projectsDao.create(name: 'Seam', rows: 1, cols: 5);
+    // Panel RAs in HOURS: 23.9063, 23.9532, 0.0, 0.0468, 0.0937
+    // (= 358.595 / 359.298 / 0 / 0.702 / 1.405 degrees).
+    const raHours = [23.90633, 23.95320, 0.0, 0.04680, 0.09367];
+    for (var i = 0; i < raHours.length; i++) {
+      await panelsDao.upsert(
+        projectId: projectId,
+        panelIndex: i,
+        centerRa: raHours[i],
+        centerDec: 30.0,
+      );
+    }
+
+    Map<String, dynamic>? body;
+    final mock = MockClient((request) async {
+      body = jsonDecode(request.body) as Map<String, dynamic>;
+      return http.Response(
+        jsonEncode({
+          'mosaicId': 'mos-seam',
+          'ownerAccountId': 'acct-1',
+          'name': 'Seam',
+          'rows': 1,
+          'cols': 5,
+          'overlapPct': 15.0,
+          'positionAngleDeg': 0.0,
+          'centerRaDeg': 0.0,
+          'centerDecDeg': 30.0,
+          'status': 'open',
+          'outputPresent': false,
+          'panels': [],
+        }),
+        201,
+      );
+    });
+
+    await serviceWith(mock).publishProject(projectId);
+
+    final centerRaDeg = (body!['centerRaDeg'] as num).toDouble();
+    // The true centre is 0 degrees; accept either side of the seam.
+    final offset = (centerRaDeg + 180.0) % 360.0 - 180.0;
+    expect(offset.abs(), lessThan(0.01), reason: 'published $centerRaDeg');
+  });
+
   test('claimPanels persists claim_token + assigned account/rig', () async {
     final projectId = await seedProject();
     await projectsDao.setHubMosaic(projectId, 'mos-1', 'participant');

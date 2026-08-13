@@ -71,10 +71,17 @@ class _ElementRefreshCardState extends ConsumerState<ElementRefreshCard> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Downloads fresh asteroid (MPCORB) and comet (CometEls) elements '
-            'from the Minor Planet Center. New bodies appear in the planetarium '
-            'overlay and search. Satellite TLEs (CelesTrak) refresh on their '
-            'own 24-hour cache when the satellite layer is on.',
+            // Names the file actually fetched. The card used to say "MPCORB",
+            // which is the 1.4-million-object master file; the default source is
+            // the Minor Planet Center's Bright Minor Planets ephemeris — a few
+            // hundred bodies — so an observer who could not find their asteroid
+            // concluded the search was broken rather than out of range.
+            'Downloads the Minor Planet Center\'s current bright-asteroid '
+            'elements (Soft00Bright — the few hundred asteroids bright enough '
+            'to observe, not the full MPCORB) and its comet elements '
+            '(CometEls). Refreshed bodies appear in the planetarium overlay '
+            'and search. Satellite TLEs (CelesTrak) refresh on their own '
+            '24-hour cache when the satellite layer is on.',
             style: TextStyle(
               color: colors.textSecondary,
               fontSize: NightshadeTypography.fontSize13,
@@ -96,7 +103,7 @@ class _ElementRefreshCardState extends ConsumerState<ElementRefreshCard> {
                 child: Text(
                   status.lastUpdated != null
                       ? 'Oldest source updated ${_fmt(status.lastUpdated!)} • '
-                          '${status.asteroidCount} asteroids, '
+                          '${status.asteroidCount} bright asteroids, '
                           '${status.cometCount} comets'
                       : 'Using bundled elements — never refreshed',
                   style: TextStyle(
@@ -131,10 +138,20 @@ class _ElementRefreshCardState extends ConsumerState<ElementRefreshCard> {
                   ? null
                   : () async {
                       await controller.refresh();
-                      if (context.mounted &&
-                          ref.read(elementRefreshControllerProvider).error ==
-                              null) {
-                        context.showSuccessSnackBar('Elements refreshed');
+                      if (!context.mounted) return;
+                      // Always acknowledge the press. A refresh that ends in a
+                      // partial or total failure used to say nothing here and
+                      // leave only a small status line to notice.
+                      final result = ref.read(elementRefreshControllerProvider);
+                      if (result.error case final failure?) {
+                        context.showErrorSnackBar(
+                          'Element refresh failed: $failure',
+                        );
+                      } else {
+                        context.showSuccessSnackBar(
+                          'Elements refreshed — ${result.asteroidCount} bright '
+                          'asteroids, ${result.cometCount} comets',
+                        );
                       }
                     },
             ),

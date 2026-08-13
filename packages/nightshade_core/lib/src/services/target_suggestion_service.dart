@@ -178,6 +178,23 @@ class TargetSuggestionService {
         continue;
       }
 
+      // A bare star with no angular size is not a deep-sky imaging subject.
+      // Live, tonight's #1 pick (score 96) was "gam Cyg / IC1318" carrying
+      // gamma Cygni's stellar type and mag 2.2 — a naked-eye point source
+      // recommended over every nebula and galaxy in the list, with the
+      // exposure suggestion and the magnitude sort inheriting the error. Rows
+      // typed as a star are only offered when the user asked for them.
+      if (config.preferredObjectTypes.isEmpty &&
+          _parseDsoType(target.objectType) == DsoType.star &&
+          (target.sizeArcmin == null || target.sizeArcmin! <= 0)) {
+        _logging.debug(
+          'Skipping ${target.name}: typed "${target.objectType}" with no '
+          'angular size — a point source, not an imaging target',
+          source: _source,
+        );
+        continue;
+      }
+
       // Filter by preferred object types if specified
       if (config.preferredObjectTypes.isNotEmpty) {
         final objectType = target.objectType?.toLowerCase() ?? '';

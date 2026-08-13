@@ -607,6 +607,28 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
     }
   }
 
+  /// Why "Create mosaic project" is unavailable right now, in the operator's
+  /// terms, or null when it can run. Shown in the footer beside the button.
+  String? _actionBlockedReason({
+    required bool isRemote,
+    required bool isDisconnected,
+  }) {
+    if (_isBusy) return null;
+    if (isRemote) {
+      return 'Durable mosaic projects are created on the imaging host, not '
+          'from a remote client. "Load into Sequencer" still works from here.';
+    }
+    if (isDisconnected) {
+      return 'Connect to an imaging host before creating a durable project.';
+    }
+    if (!_panelSizeKnown) {
+      return 'Panel size unknown, so there is nothing to lay a grid out from. '
+          'Set a focal length in Settings and connect the camera, or type the '
+          'panel width and height under Advanced (numerical).';
+    }
+    return null;
+  }
+
   void _showMosaicProjectHostOnlyMessage() {
     context.showInfoSnackBar(
       'Create durable mosaic projects on the imaging host. You can still load '
@@ -781,6 +803,36 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
       scrollableBody: false,
       bodyPadding: EdgeInsets.zero,
       actions: [
+        // The reason the primary action cannot run, next to the action itself.
+        // A disabled button whose only explanation is a hover tooltip is
+        // indistinguishable from a broken one — the operator clicks, nothing
+        // happens, and the wizard says nothing.
+        if (_actionBlockedReason(
+          isRemote: isRemote,
+          isDisconnected: isDisconnected,
+        )
+            case final reason?)
+          ConstrainedBox(
+            key: const ValueKey('mosaic_action_blocked_reason'),
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(NightshadeIcons.warning, size: 14, color: colors.warning),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    reason,
+                    style: TextStyle(
+                      color: colors.textSecondary,
+                      fontSize: NightshadeTypography.fontSize12,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+              ],
+            ),
+          ),
         NightshadeButton(
           onPressed: _isBusy ? null : () => Navigator.of(context).pop(),
           label: 'Cancel',
@@ -844,12 +896,16 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (!_panelSizeKnown) ...[
-                    _buildUnknownPanelSizeBanner(colors),
-                    const SizedBox(height: 20),
-                  ],
+                  // The resume banner outranks the panel-size warning: an
+                  // interrupted mosaic is the one thing the operator must see
+                  // before doing anything else, and the dialog's fixed height
+                  // puts whatever is second below the fold.
                   if (_resumableMosaicCheckpoint != null) ...[
                     _buildResumeBanner(_resumableMosaicCheckpoint!, colors),
+                    const SizedBox(height: 20),
+                  ],
+                  if (!_panelSizeKnown) ...[
+                    _buildUnknownPanelSizeBanner(colors),
                     const SizedBox(height: 20),
                   ],
                   _GridSizer(
@@ -929,6 +985,7 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
                     centerDec: _centerDec,
                     panelWidthArcmin: _panelWidthArcmin,
                     panelHeightArcmin: _panelHeightArcmin,
+                    panelSizeKnown: _panelSizeKnown,
                     onToggle: () =>
                         setState(() => _advancedExpanded = !_advancedExpanded),
                     onChanged: ({
@@ -1013,10 +1070,9 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
     final reason = config == null ||
             config.focalLength == null ||
             config.focalLength! <= 0
-        ? 'No equipment profile with a focal length — set one in Settings to '
-            'size a panel.'
-        : 'No camera connected, so the sensor size is unknown. Connect the '
-            'camera, or enter the panel size under Advanced.';
+        ? 'No equipment profile with a focal length, so the panel field cannot '
+            'be measured.'
+        : 'No camera connected, so the sensor size is unknown.';
     return Container(
       key: const ValueKey('mosaic_unknown_panel_size_banner'),
       padding: const EdgeInsets.all(16),
@@ -1043,8 +1099,10 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '$reason A mosaic cannot be planned until one panel\'s field '
-                  'is known.',
+                  '$reason Set a focal length in Settings and connect the '
+                  'camera, or enter the panel width and height yourself under '
+                  'Advanced (numerical) below — either one lets the grid be '
+                  'laid out.',
                   style: TextStyle(
                     color: colors.textSecondary,
                     fontSize: NightshadeTypography.fontSize13,

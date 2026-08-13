@@ -60,6 +60,7 @@ class _TransientAlertsPanelState extends ConsumerState<TransientAlertsPanel> {
     final alertStates = ref.watch(transientAlertStatesProvider);
     final settings = ref.watch(transientAlertSettingsProvider);
     final credentials = ref.watch(transientPanelTnsCredentialsReadyProvider);
+    final feedCheck = ref.watch(transientFeedCheckProvider);
     final tnsNeedsSetup =
         settings.enabledSources.contains(TransientSource.tns) &&
             credentials.valueOrNull == false;
@@ -72,7 +73,10 @@ class _TransientAlertsPanelState extends ConsumerState<TransientAlertsPanel> {
         if (tnsNeedsSetup) {
           return ('Setup needed for live TNS alerts', colors.warning);
         }
-        if (alerts.isEmpty) return ('No active alerts', colors.textMuted);
+        if (alerts.isEmpty) {
+          final (label, unchecked) = _emptyFeedSummary(feedCheck);
+          return (label, unchecked ? colors.warning : colors.textMuted);
+        }
         final sorted = _sortForDisplay(alerts, alertStates);
         final top = sorted.first;
         final magnitude = top.magnitude == null
@@ -111,6 +115,17 @@ class _TransientAlertsPanelState extends ConsumerState<TransientAlertsPanel> {
                 // Unacknowledged badge
                 _UnacknowledgedBadge(colors: colors),
                 const SizedBox(width: 4),
+                // Checking is otherwise on a 15-minute timer with no way to ask
+                // now — and no way to tell "nothing is happening" from "nothing
+                // was asked".
+                IconButton(
+                  key: const ValueKey('transient_check_now'),
+                  icon: Icon(LucideIcons.refreshCw,
+                      size: 16, color: colors.textSecondary),
+                  tooltip: 'Check for alerts now',
+                  onPressed: () => refreshTransientAlerts(ref),
+                  visualDensity: VisualDensity.compact,
+                ),
                 IconButton(
                   icon: Icon(
                       _expanded
@@ -175,25 +190,36 @@ class _TransientAlertsPanelState extends ConsumerState<TransientAlertsPanel> {
                       ),
                     );
                   }
+                  final (headline, unchecked) = _emptyFeedSummary(feedCheck);
                   return Padding(
                     padding: const EdgeInsets.all(16),
                     child: Center(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(LucideIcons.bellOff,
-                              size: 32, color: colors.textMuted),
+                          Icon(
+                            unchecked
+                                ? LucideIcons.alertTriangle
+                                : LucideIcons.bellOff,
+                            size: 32,
+                            color:
+                                unchecked ? colors.warning : colors.textMuted,
+                          ),
                           const SizedBox(height: 8),
                           Text(
-                            'No transient alerts',
+                            headline,
+                            textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: NightshadeTypography.fontSize13,
-                              color: colors.textSecondary,
+                              color: unchecked
+                                  ? colors.warning
+                                  : colors.textSecondary,
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Check back later or adjust filter settings.',
+                            _emptyFeedDetail(feedCheck),
+                            textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: NightshadeTypography.fontSize11,
                               color: colors.textMuted,
@@ -292,6 +318,46 @@ class _TransientAlertsPanelState extends ConsumerState<TransientAlertsPanel> {
         ],
       ),
     );
+  }
+
+  /// The headline for an empty feed, and whether that emptiness is untrustworthy
+  /// because nothing was actually polled.
+  ///
+  /// "No active alerts" and "we never asked anyone" look identical from the
+  /// alert list, and on the app's only channel for time-critical events that is
+  /// exactly the wrong ambiguity: enabling AAVSO alone (which no build fetches)
+  /// produced a confident empty state.
+  (String, bool) _emptyFeedSummary(TransientFeedCheck? check) {
+    if (check == null) return ('Not checked yet', true);
+    if (!check.contactedAnySource) {
+      return ('No alert source is being checked', true);
+    }
+    return ('No active alerts · checked ${_ago(check.checkedAt)}', false);
+  }
+
+  String _emptyFeedDetail(TransientFeedCheck? check) {
+    if (check == null) {
+      return 'The first check runs when this screen opens.';
+    }
+    if (check.skippedSources.isNotEmpty) {
+      final reasons = check.skippedSources.entries
+          .map((entry) => '${_transientSourceLabel(entry.key)}: ${entry.value}')
+          .join('; ');
+      return check.contactedAnySource
+          ? 'Not polled — $reasons.'
+          : 'Nothing was polled — $reasons.';
+    }
+    return check.contactedAnySource
+        ? 'Adjust the magnitude threshold or monitored types to widen the net.'
+        : 'Enable an alert source in the settings above.';
+  }
+
+  String _ago(DateTime when) {
+    final delta = DateTime.now().difference(when);
+    if (delta.inMinutes < 1) return 'just now';
+    if (delta.inMinutes < 60) return '${delta.inMinutes} min ago';
+    if (delta.inHours < 24) return '${delta.inHours} h ago';
+    return DateFormat.yMMMd().add_Hm().format(when.toLocal());
   }
 
   List<TransientAlert> _sortForDisplay(
@@ -701,21 +767,34 @@ class _TransientSettingsDialogState
               ...TransientSource.values.map((source) {
                 return CheckboxListTile(
                   title: Text(
-                    _sourceLabel(source),
+                    _transientSourceLabel(source),
                     style: TextStyle(
                       fontSize: NightshadeTypography.fontSize13,
                       color: colors.textPrimary,
                     ),
                   ),
-                  subtitle: source == TransientSource.tns
-                      ? Text(
-                          'Requires TNS bot credentials in Science settings',
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize11,
-                            color: colors.textMuted,
-                          ),
-                        )
-                      : null,
+                  subtitle: switch (source) {
+                    TransientSource.tns => Text(
+                        'Requires TNS bot credentials in Science settings',
+                        style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize11,
+                          color: colors.textMuted,
+                        ),
+                      ),
+                    TransientSource.manual => null,
+                    // Ticking a source this build cannot poll used to look
+                    // exactly like subscribing to it, and then reported "No
+                    // active alerts" from a feed nobody ever asked.
+                    _ when !kFetchableTransientSources.contains(source) => Text(
+                        'Not polled — this build has no live feed for it; '
+                        'alerts from it can still be entered by hand',
+                        style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize11,
+                          color: colors.warning,
+                        ),
+                      ),
+                    _ => null,
+                  },
                   dense: true,
                   value: settings.enabledSources.contains(source),
                   onChanged: (_) => _run(() => notifier.toggleSource(source)),
@@ -790,18 +869,29 @@ class _TransientSettingsDialogState
                 runSpacing: 4,
                 children: TransientType.values.map((type) {
                   final isEnabled = settings.typesToMonitor.contains(type);
-                  return FilterChip(
-                    label: Text(
-                      TransientTypeStyle.shortLabel(type),
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
-                        color:
-                            isEnabled ? colors.primary : colors.textSecondary,
+                  // The chips are a subscription list, so they must announce
+                  // on/off the way the checkboxes above them already do —
+                  // assistive tech saw eight plain buttons and no way to tell,
+                  // or verify after toggling, which types were monitored.
+                  return MergeSemantics(
+                    child: Semantics(
+                      checked: isEnabled,
+                      child: FilterChip(
+                        label: Text(
+                          TransientTypeStyle.shortLabel(type),
+                          style: TextStyle(
+                            fontSize: NightshadeTypography.fontSize11,
+                            color: isEnabled
+                                ? colors.primary
+                                : colors.textSecondary,
+                          ),
+                        ),
+                        selected: isEnabled,
+                        onSelected: (_) =>
+                            _run(() => notifier.toggleType(type)),
+                        visualDensity: VisualDensity.compact,
                       ),
                     ),
-                    selected: isEnabled,
-                    onSelected: (_) => _run(() => notifier.toggleType(type)),
-                    visualDensity: VisualDensity.compact,
                   );
                 }).toList(),
               ),
@@ -913,19 +1003,19 @@ class _TransientSettingsDialogState
       ],
     );
   }
+}
 
-  String _sourceLabel(TransientSource source) {
-    switch (source) {
-      case TransientSource.aavso:
-        return 'AAVSO (Variable Stars)';
-      case TransientSource.tns:
-        return 'TNS (Transient Name Server)';
-      case TransientSource.mpec:
-        return 'MPEC (Minor Planets)';
-      case TransientSource.cbat:
-        return 'CBAT (Astronomical Telegrams)';
-      case TransientSource.manual:
-        return 'Manual Entries';
-    }
+String _transientSourceLabel(TransientSource source) {
+  switch (source) {
+    case TransientSource.aavso:
+      return 'AAVSO (Variable Stars)';
+    case TransientSource.tns:
+      return 'TNS (Transient Name Server)';
+    case TransientSource.mpec:
+      return 'MPEC (Minor Planets)';
+    case TransientSource.cbat:
+      return 'CBAT (Astronomical Telegrams)';
+    case TransientSource.manual:
+      return 'Manual Entries';
   }
 }

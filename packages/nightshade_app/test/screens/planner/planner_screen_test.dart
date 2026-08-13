@@ -6,6 +6,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mocktail/mocktail.dart';
@@ -1172,6 +1173,101 @@ void main() {
       reason: 'Each card should now be about half the list width.',
     );
 
+    await settleProviderTeardown(tester);
+  });
+
+  // COL2-8: after switching the sort, the accessibility tree still reported the
+  // first candidate as the previously-first target while every button in that
+  // row acted on the new one.
+  testWidgets(
+      'a re-sort moves the candidate cards and their semantics together',
+      (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1600, 1400);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    const brightest = TargetSuggestion(
+      targetId: 91,
+      targetName: 'gam Cyg',
+      raHours: 20.37,
+      decDegrees: 40.26,
+      totalScore: 96,
+      magnitude: 2.2,
+      visibility: TargetVisibilityInfo(
+        currentAltitude: 70,
+        currentAzimuth: 90,
+        airmass: 1.1,
+        moonDistance: 122,
+        peakAltitude: 89,
+        hoursAboveMinAlt: 7,
+      ),
+    );
+    const topScorer = TargetSuggestion(
+      targetId: 92,
+      targetName: 'M39',
+      raHours: 21.53,
+      decDegrees: 48.43,
+      totalScore: 98,
+      magnitude: 4.6,
+      visibility: TargetVisibilityInfo(
+        currentAltitude: 65,
+        currentAzimuth: 95,
+        airmass: 1.2,
+        moonDistance: 118,
+        peakAltitude: 81,
+        hoursAboveMinAlt: 6,
+      ),
+    );
+
+    final semantics = tester.ensureSemantics();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          inMemoryDatabaseOverride(),
+          ..._commonOverrides(),
+          tonightSuggestionsProvider
+              .overrideWith((ref) async => [topScorer, brightest]),
+        ],
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(body: PlannerScreen()),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    Finder card(int id) => find.byKey(ValueKey('candidate-$id'));
+
+    /// The name the card's own semantics subtree reports.
+    String reportedName(int id) => tester
+        .getSemantics(
+          find.descendant(of: card(id), matching: find.byType(Text)).first,
+        )
+        .label;
+
+    expect(tester.getRect(card(92)).top, lessThan(tester.getRect(card(91)).top),
+        reason: 'sorted by score, M39 (98) leads');
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(PlannerScreen)),
+    );
+    container.read(suggestionFilterProvider.notifier).state =
+        const SuggestionFilterState(plannerSort: PlannerSortMode.magnitude);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(tester.getRect(card(91)).top, lessThan(tester.getRect(card(92)).top),
+        reason: 'sorted by magnitude, gam Cyg (2.2) leads');
+    // The tree kept a stale copy of the previously-first card, so the reported
+    // leading candidate was not the one the row's buttons acted on.
+    expect(reportedName(91), contains('gam Cyg'));
+    expect(reportedName(92), contains('M39'));
+
+    semantics.dispose();
     await settleProviderTeardown(tester);
   });
 

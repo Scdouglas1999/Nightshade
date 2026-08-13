@@ -393,6 +393,37 @@ final transientAlertSettingsProvider =
 /// Polling interval for fetching alerts (15 minutes)
 const Duration _alertPollingInterval = Duration(minutes: 15);
 
+/// What the last completed poll of the transient feed actually did.
+///
+/// An empty alert list means two very different things — "we asked and there is
+/// nothing" and "we asked nobody" — and the alert card cannot tell them apart
+/// from the list alone. Today only TNS is fetchable
+/// ([kFetchableTransientSources]), so a user who enables AAVSO alone gets an
+/// authoritative-looking empty feed that was never polled.
+class TransientFeedCheck {
+  /// When the poll completed.
+  final DateTime checkedAt;
+
+  /// Sources that were really queried. Empty means nothing was asked.
+  final Set<TransientSource> queriedSources;
+
+  /// Sources the user enabled that this build never queries, with why.
+  final Map<TransientSource, String> skippedSources;
+
+  const TransientFeedCheck({
+    required this.checkedAt,
+    required this.queriedSources,
+    this.skippedSources = const {},
+  });
+
+  bool get contactedAnySource => queriedSources.isNotEmpty;
+}
+
+/// The last [TransientFeedCheck], or null before the first poll completes.
+final transientFeedCheckProvider = StateProvider<TransientFeedCheck?>(
+  (ref) => null,
+);
+
 /// Provider that streams active transient alerts with periodic polling.
 ///
 /// Fetches alerts immediately on subscription, then polls every 15 minutes.
@@ -424,6 +455,19 @@ final activeTransientAlertsProvider =
             .where((d) => !d.dismissed)
             .map(transientAlertFromDetection)
             .toList(growable: false);
+      }
+
+      void recordCheck({
+        required Set<TransientSource> queried,
+        Map<TransientSource, String> skipped = const {},
+      }) {
+        ref
+            .read(transientFeedCheckProvider.notifier)
+            .state = TransientFeedCheck(
+          checkedAt: DateTime.now(),
+          queriedSources: queried,
+          skippedSources: skipped,
+        );
       }
 
       // A single fetch round-trip. Wrapped by [fetchAlerts] below so that
@@ -464,6 +508,9 @@ final activeTransientAlertsProvider =
               'Fetched ${alerts.length} transient alerts from remote server',
               source: 'activeTransientAlertsProvider',
             );
+            // The imaging host owns source selection in remote mode; the round
+            // trip itself is the evidence that something was asked.
+            recordCheck(queried: {TransientSource.tns});
           } else {
             // Fetch directly from AAVSO/TNS APIs
             var tnsApiKey = '';
@@ -494,6 +541,21 @@ final activeTransientAlertsProvider =
               'Fetched ${alerts.length} transient alerts from local service',
               source: 'activeTransientAlertsProvider',
             );
+            final queried = <TransientSource>{};
+            final skipped = <TransientSource, String>{};
+            for (final source in settings.enabledSources) {
+              if (source == TransientSource.manual) continue;
+              if (!kFetchableTransientSources.contains(source)) {
+                skipped[source] =
+                    'this build has no ${source.name.toUpperCase()} feed';
+              } else if (source == TransientSource.tns && tnsApiKey.isEmpty) {
+                skipped[source] =
+                    'TNS bot credentials are not set in Science settings';
+              } else {
+                queried.add(source);
+              }
+            }
+            recordCheck(queried: queried, skipped: skipped);
           }
 
           // Merge local First Light discoveries ahead of the external feed.

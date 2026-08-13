@@ -238,6 +238,14 @@ class _ZoomControls extends StatelessWidget {
   }
 }
 
+/// The shortest signed separation for a circular angle, in (-180, 180].
+double _wrapDegreesSigned(double degrees) {
+  final wrapped = degrees % 360.0;
+  if (wrapped > 180.0) return wrapped - 360.0;
+  if (wrapped <= -180.0) return wrapped + 360.0;
+  return wrapped;
+}
+
 class _PanelLayer extends StatelessWidget {
   final NightshadeColors colors;
   final double centerRa;
@@ -330,7 +338,12 @@ class _PanelLayer extends StatelessWidget {
     _PanelPosition p,
     Offset centerPx,
   ) {
-    final dRaDeg = (p.ra - centerRa) * 15;
+    // RA is circular: a mosaic centred at 0.0h puts its western column near
+    // 23.9h, and a plain subtraction reads that as +358.5 degrees instead of
+    // -1.5, positioning the whole column a sky away and off the canvas. Wrap
+    // the separation into (-180, 180] so panels either side of the 0h seam land
+    // where the operator is looking — and can therefore be tapped off.
+    final dRaDeg = _wrapDegreesSigned((p.ra - centerRa) * 15);
     final dDecDeg = p.dec - centerDec;
     final decRad = centerDec * math.pi / 180.0;
     final cosDec = math.cos(decRad);

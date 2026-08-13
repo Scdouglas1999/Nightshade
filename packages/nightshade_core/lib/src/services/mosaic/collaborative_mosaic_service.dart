@@ -24,6 +24,7 @@
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import '../../database/daos/integrated_masters_dao.dart';
 import '../../database/daos/mosaic_panels_dao.dart';
@@ -125,14 +126,18 @@ class CollaborativeMosaicService {
     }
     // Panel centres are stored in RA HOURS / Dec degrees; the hub works in
     // degrees, so convert RA at the boundary. The mosaic centre is the mean of
-    // the panel centres (the same point the grid was generated about).
-    var raDegSum = 0.0;
+    // the panel centres (the same point the grid was generated about) — a
+    // CIRCULAR mean in RA, because a grid straddling the 0h seam has panels at
+    // both 358.6 and 1.4 degrees, whose arithmetic mean is 180 degrees away
+    // from the mosaic (a 5-panel row at 358.595/359.298/0/0.702/1.405 averages
+    // to 144.0).
+    final raDegs = <double>[];
     var decSum = 0.0;
     final panelSpecs =
         <({int panelIndex, double centerRaDeg, double centerDecDeg})>[];
     for (final panel in panels) {
       final raDeg = panel.centerRa * 15.0;
-      raDegSum += raDeg;
+      raDegs.add(raDeg);
       decSum += panel.centerDec;
       panelSpecs.add((
         panelIndex: panel.panelIndex,
@@ -146,7 +151,7 @@ class CollaborativeMosaicService {
         name: project.name,
         rows: project.rows,
         cols: project.cols,
-        centerRaDeg: raDegSum / panels.length,
+        centerRaDeg: _circularMeanDegrees(raDegs),
         centerDecDeg: decSum / panels.length,
         overlapPct: project.overlapPct,
         positionAngleDeg: project.positionAngleDeg,
@@ -830,4 +835,21 @@ class CollaborativeMosaicService {
       return (0, 0);
     }
   }
+}
+
+/// Mean of a set of angles on a circle, in degrees, normalised to [0, 360).
+///
+/// Averaging the raw numbers is wrong for RA: values either side of the 0h seam
+/// (359.3 and 0.7) average to the antipode. Summing unit vectors and taking the
+/// argument gives the direction the panels actually surround.
+double _circularMeanDegrees(List<double> degrees) {
+  var x = 0.0;
+  var y = 0.0;
+  for (final d in degrees) {
+    final rad = d * math.pi / 180.0;
+    x += math.cos(rad);
+    y += math.sin(rad);
+  }
+  final mean = math.atan2(y, x) * 180.0 / math.pi;
+  return (mean % 360.0 + 360.0) % 360.0;
 }

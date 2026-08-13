@@ -101,6 +101,22 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  // COL2-3: with an empty tileset URL, "Download" looked like every other
+  // enabled button and did nothing at all when pressed — no snackbar, no
+  // validation, no log line.
+  testWidgets('Download is unavailable, with a reason, while the URL is empty',
+      (tester) async {
+    final manager = _FakeManager()..baseUrl = '';
+    await _pumpCard(tester, manager);
+
+    final download = tester.widget<NightshadeButton>(
+      find.widgetWithText(NightshadeButton, 'Download'),
+    );
+    expect(download.onPressed, isNull);
+    expect(find.textContaining('point this at a tileset you host'),
+        findsOneWidget);
+  });
+
   testWidgets('verification failure is visible and unlocks the action',
       (tester) async {
     final manager = _FakeManager(

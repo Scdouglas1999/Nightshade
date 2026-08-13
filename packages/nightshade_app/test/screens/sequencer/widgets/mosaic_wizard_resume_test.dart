@@ -69,14 +69,20 @@ Future<void> _pumpMosaicWizard(
   // test framework to mark the test as failed when any RenderFlex
   // overflows. Filter ONLY that specific overflow message so genuine
   // exceptions (state errors, mock-stub misses, etc.) still surface.
+  // Delegate non-filtered errors to the binding's own handler: calling
+  // presentError from inside an override bypasses the test binding's
+  // pending-exception bookkeeping and turns any real failure into the
+  // opaque "_pendingExceptionDetails != null" assertion.
+  final originalOnError = FlutterError.onError;
   FlutterError.onError = (FlutterErrorDetails details) {
     final msg = details.exceptionAsString();
     if (msg.contains('A RenderFlex overflowed by')) {
       // Pre-existing dialog layout overflow — not under test here.
       return;
     }
-    FlutterError.presentError(details);
+    originalOnError?.call(details);
   };
+  addTearDown(() => FlutterError.onError = originalOnError);
   addTearDown(() {
     FlutterError.onError = FlutterError.presentError;
   });

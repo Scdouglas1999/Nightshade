@@ -348,6 +348,12 @@ class _AdvancedPanel extends StatelessWidget {
   final double centerDec;
   final double panelWidthArcmin;
   final double panelHeightArcmin;
+
+  /// False while neither the rig nor the user has supplied a panel field. The
+  /// size fields then start EMPTY: pre-filling them with the state's
+  /// placeholder printed a concrete "60.0 × 40.0" two inches below the banner
+  /// saying the panel size was unknown, so the dialog contradicted itself.
+  final bool panelSizeKnown;
   final VoidCallback onToggle;
   final void Function({
     double? centerRa,
@@ -363,6 +369,7 @@ class _AdvancedPanel extends StatelessWidget {
     required this.centerDec,
     required this.panelWidthArcmin,
     required this.panelHeightArcmin,
+    required this.panelSizeKnown,
     required this.onToggle,
     required this.onChanged,
   });
@@ -429,7 +436,8 @@ class _AdvancedPanel extends StatelessWidget {
                   _NumberField(
                     colors: colors,
                     label: 'Panel width (arcmin)',
-                    value: panelWidthArcmin,
+                    value: panelSizeKnown ? panelWidthArcmin : null,
+                    hintText: 'one camera field, e.g. 60.0',
                     min: 1,
                     max: 360,
                     decimals: 1,
@@ -439,7 +447,8 @@ class _AdvancedPanel extends StatelessWidget {
                   _NumberField(
                     colors: colors,
                     label: 'Panel height (arcmin)',
-                    value: panelHeightArcmin,
+                    value: panelSizeKnown ? panelHeightArcmin : null,
+                    hintText: 'one camera field, e.g. 40.0',
                     min: 1,
                     max: 360,
                     decimals: 1,
@@ -457,7 +466,12 @@ class _AdvancedPanel extends StatelessWidget {
 class _NumberField extends StatefulWidget {
   final NightshadeColors colors;
   final String label;
-  final double value;
+
+  /// The current value, or null when the wizard has no value to show — the
+  /// field then starts empty behind [hintText] rather than presenting a
+  /// placeholder as fact.
+  final double? value;
+  final String? hintText;
   final double min;
   final double max;
   final int decimals;
@@ -471,6 +485,7 @@ class _NumberField extends StatefulWidget {
     required this.max,
     required this.decimals,
     required this.onChanged,
+    this.hintText,
   });
 
   @override
@@ -484,16 +499,18 @@ class _NumberFieldState extends State<_NumberField> {
   void initState() {
     super.initState();
     _ctl = TextEditingController(
-        text: widget.value.toStringAsFixed(widget.decimals));
+      text: widget.value?.toStringAsFixed(widget.decimals) ?? '',
+    );
   }
 
   @override
   void didUpdateWidget(_NumberField old) {
     super.didUpdateWidget(old);
-    final external = widget.value.toStringAsFixed(widget.decimals);
+    final value = widget.value;
+    if (value == null) return;
     final current = double.tryParse(_ctl.text);
-    if (current == null || (current - widget.value).abs() > 1e-3) {
-      _ctl.text = external;
+    if (current == null || (current - value).abs() > 1e-3) {
+      _ctl.text = value.toStringAsFixed(widget.decimals);
     }
   }
 
@@ -509,6 +526,7 @@ class _NumberFieldState extends State<_NumberField> {
       controller: _ctl,
       decoration: InputDecoration(
         labelText: widget.label,
+        hintText: widget.hintText,
         isDense: true,
         border: OutlineInputBorder(
             borderSide: BorderSide(color: widget.colors.border)),
