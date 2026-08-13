@@ -230,22 +230,13 @@ class ObjectInfoTooltip extends ConsumerWidget {
     }
   }
 
-  String _formatRA(double ra) {
-    final raHours = ra / 15.0;
-    final hours = ((raHours.floor() % 24) + 24) % 24;
-    final mins = ((raHours - hours) * 60).floor();
-    final secs = ((((raHours - hours) * 60) - mins) * 60).abs();
-    return '${hours.toString().padLeft(2, '0')}h ${mins.toString().padLeft(2, '0')}m ${secs.toStringAsFixed(1).padLeft(4, '0')}s';
-  }
+  String _formatRA(double ra) => CoordinateFormat.raFromDegrees(
+        ra,
+        seconds: SecondsPrecision.oneDecimalPadded,
+      );
 
-  String _formatDec(double dec) {
-    final sign = dec >= 0 ? '+' : '-';
-    final absDec = dec.abs();
-    final degs = absDec.toInt();
-    final mins = ((absDec - degs) * 60).toInt();
-    final secs = (((absDec - degs) * 60 - mins) * 60);
-    return '$sign${degs.toString().padLeft(2, '0')}\u00B0 ${mins.toString().padLeft(2, '0')}\' ${secs.toStringAsFixed(1).padLeft(4, '0')}"';
-  }
+  String _formatDec(double dec) =>
+      CoordinateFormat.dec(dec, seconds: SecondsPrecision.oneDecimalPadded);
 }
 
 class _ObjectTypeIcon extends StatelessWidget {

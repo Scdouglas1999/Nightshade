@@ -3,6 +3,8 @@
 
 import 'dart:math' as math;
 
+import 'package:nightshade_core/nightshade_core.dart';
+
 /// Format an integration duration (seconds) as a compact human string:
 /// `45s`, `12m`, `3.2h`, `41h`. Negative / non-finite inputs clamp to `0s`.
 String formatIntegration(double seconds) {
@@ -16,26 +18,18 @@ String formatIntegration(double seconds) {
 }
 
 /// Format an RA in degrees as `HHh MMm` (sexagesimal hours).
-String formatRaDeg(double raDeg) {
-  var deg = raDeg % 360.0;
-  if (deg < 0) deg += 360.0;
-  final hoursTotal = deg / 15.0;
-  final h = hoursTotal.floor();
-  final m = ((hoursTotal - h) * 60).round();
-  // Carry a 60-minute rounding into the next hour.
-  if (m == 60) return '${(h + 1) % 24}h 00m';
-  return '${h}h ${m.toString().padLeft(2, '0')}m';
-}
+String formatRaDeg(double raDeg) => CoordinateFormat.raHmFromDegrees(
+      raDeg,
+      style: SexagesimalStyle.leadPlainLetters,
+      minutes: MinutesPrecision.rounded,
+    );
 
 /// Format a Dec in degrees as `+DD° MM'` with an explicit sign.
-String formatDecDeg(double decDeg) {
-  final sign = decDeg < 0 ? '-' : '+';
-  final abs = decDeg.abs();
-  final d = abs.floor();
-  final m = ((abs - d) * 60).round();
-  if (m == 60) return '$sign${d + 1}° 00\'';
-  return '$sign$d° ${m.toString().padLeft(2, '0')}\'';
-}
+String formatDecDeg(double decDeg) => CoordinateFormat.decDm(
+      decDeg,
+      style: SexagesimalStyle.leadPlainLetters,
+      minutes: MinutesPrecision.rounded,
+    );
 
 /// `RA · Dec` coordinate label for a region/tile centre.
 String formatCenter(double raDeg, double decDeg) =>

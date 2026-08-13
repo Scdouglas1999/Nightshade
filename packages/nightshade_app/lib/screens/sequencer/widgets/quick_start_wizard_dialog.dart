@@ -534,12 +534,8 @@ class _QuickStartWizardDialogState
     });
   }
 
-  String _formatRa(double raHours) {
-    final h = raHours.floor();
-    final m = ((raHours - h) * 60).floor();
-    final s = ((raHours - h - m / 60) * 3600).toStringAsFixed(1);
-    return '${h}h ${m}m ${s}s';
-  }
+  String _formatRa(double raHours) =>
+      CoordinateFormat.ra(raHours, style: SexagesimalStyle.plainLetters);
 
   String _formatDec(double decDeg) {
     final sign = decDeg >= 0 ? '+' : '-';
@@ -1144,14 +1140,9 @@ class _QuickStartWizardDialogState
     return totalSecs + overheadSecs;
   }
 
-  String _formatDuration(double totalSecs) {
-    final hours = (totalSecs / 3600).floor();
-    final mins = ((totalSecs % 3600) / 60).round();
-    if (hours > 0) {
-      return '~${hours}h ${mins}m';
-    }
-    return '~${mins}m';
-  }
+  /// The wizard's "Estimated Duration" line, prefixed "~" because it is one.
+  String _formatDuration(double totalSecs) =>
+      '~${DurationFormat.seconds(totalSecs, style: DurationStyle.compact, roundToMinute: true)}';
 
   /// Per-iteration dither-settle estimate used by the duration preview.
   /// Reads the user's Sequencer-Defaults settle time so the wizard's

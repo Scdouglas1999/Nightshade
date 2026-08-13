@@ -16,6 +16,7 @@ import '../models/planning/target_suggestion.dart';
 import '../models/target/target_models.dart';
 import '../services/mosaic_project_service.dart';
 import '../services/target_library_service.dart';
+import '../utils/coordinate_format.dart';
 import '../utils/coordinate_parser.dart';
 import 'backend_provider.dart';
 import 'database_provider.dart';

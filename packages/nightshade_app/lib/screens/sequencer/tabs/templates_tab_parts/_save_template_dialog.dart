@@ -449,14 +449,9 @@ class _TargetOptionState extends State<_TargetOption> {
     );
   }
 
-  String _formatRA(double raHours) {
-    final hours = raHours.floor();
-    final minutes = ((raHours - hours) * 60).floor();
-    return '${hours}h ${minutes}m';
-  }
+  String _formatRA(double raHours) =>
+      CoordinateFormat.raHm(raHours, style: SexagesimalStyle.plainLetters);
 
-  String _formatDec(double decDegrees) {
-    final sign = decDegrees >= 0 ? '+' : '';
-    return '$sign${decDegrees.toStringAsFixed(1)}°';
-  }
+  String _formatDec(double decDegrees) =>
+      CoordinateFormat.decDecimal(decDegrees);
 }

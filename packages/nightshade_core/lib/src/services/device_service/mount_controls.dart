@@ -33,7 +33,10 @@ extension _DeviceServiceMountControls on DeviceService {
     mountNotifier.setSlewing(true);
     final operationId = operationsNotifier.startOperation(
       type: OperationType.slewToTarget,
-      description: 'Slewing to RA ${_formatRA(ra)}, Dec ${_formatDec(dec)}',
+      description:
+          'Slewing to RA '
+          '${CoordinateFormat.raHm(ra, style: SexagesimalStyle.plainLetters)}, '
+          'Dec ${CoordinateFormat.decDecimal(dec)}',
       canCancel: true,
     );
 
@@ -51,18 +54,6 @@ extension _DeviceServiceMountControls on DeviceService {
   }
 
   /// Format RA for display (hours:minutes)
-  String _formatRA(double raHours) {
-    final h = raHours.floor();
-    final m = ((raHours - h) * 60).floor();
-    return '${h}h ${m}m';
-  }
-
-  /// Format Dec for display (degrees)
-  String _formatDec(double decDeg) {
-    final sign = decDeg >= 0 ? '+' : '';
-    return '$sign${decDeg.toStringAsFixed(1)}°';
-  }
-
   /// Sync mount to coordinates
   Future<void> _syncMountToCoordinates(double ra, double dec) async {
     final deviceId = await _getMountDeviceId();

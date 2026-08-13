@@ -152,23 +152,8 @@ class CatalogOverlayDetailsPanel extends ConsumerWidget {
     }
   }
 
-  static String _formatRA(double raHours) {
-    final hours = raHours.floor();
-    final m = ((raHours - hours) * 60).floor();
-    final s = (((raHours - hours) * 60 - m) * 60);
-    return '${hours.toString().padLeft(2, '0')}h '
-        '${m.toString().padLeft(2, '0')}m '
-        '${s.toStringAsFixed(1).padLeft(4, '0')}s';
-  }
+  static String _formatRA(double raHours) =>
+      CoordinateFormat.ra(raHours, seconds: SecondsPrecision.oneDecimalPadded);
 
-  static String _formatDec(double decDeg) {
-    final sign = decDeg >= 0 ? '+' : '-';
-    final abs = decDeg.abs();
-    final d = abs.floor();
-    final m = ((abs - d) * 60).floor();
-    final s = (((abs - d) * 60 - m) * 60);
-    return '$sign${d.toString().padLeft(2, '0')}° '
-        '${m.toString().padLeft(2, '0')}\' '
-        '${s.toStringAsFixed(1)}"';
-  }
+  static String _formatDec(double decDeg) => CoordinateFormat.dec(decDeg);
 }

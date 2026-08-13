@@ -743,14 +743,11 @@ class _SolveDetails extends StatelessWidget {
   final PlateSolveResult result;
 
   /// Format an RA value in hours (the solver returns degrees) as HHh MMm.
-  static String _formatRa(double degrees) {
-    final hoursTotal = ((degrees % 360) + 360) % 360 / 15.0;
-    final h = hoursTotal.floor();
-    final m = ((hoursTotal - h) * 60).round();
-    // Carry a rounded-up minute.
-    if (m == 60) return '${(h + 1) % 24}h 00m';
-    return '${h}h ${m.toString().padLeft(2, '0')}m';
-  }
+  static String _formatRa(double degrees) => CoordinateFormat.raHmFromDegrees(
+        degrees,
+        style: SexagesimalStyle.leadPlainLetters,
+        minutes: MinutesPrecision.rounded,
+      );
 
   static String _formatDec(double degrees) {
     final sign = degrees < 0 ? '-' : '+';

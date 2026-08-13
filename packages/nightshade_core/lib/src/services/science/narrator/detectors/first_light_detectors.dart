@@ -18,6 +18,7 @@
 /// a cooldown in `defaultNarratorCooldowns`.
 library;
 
+import '../../../../utils/coordinate_format.dart';
 import '../../../transients/transient_candidate.dart';
 import '../narrator_context.dart';
 import '../narrator_detector.dart';
@@ -213,21 +214,11 @@ class MoverDetector extends NarratorDetector {
 }
 
 /// Format RA (degrees) as `HHhMMm` for a compact headline.
-String _formatRa(double raDeg) {
-  var ra = raDeg % 360.0;
-  if (ra < 0) ra += 360.0;
-  final hours = ra / 15.0;
-  final h = hours.floor();
-  final m = ((hours - h) * 60.0).floor();
-  return '${h.toString().padLeft(2, '0')}h${m.toString().padLeft(2, '0')}m';
-}
+String _formatRa(double raDeg) => CoordinateFormat.raHmFromDegrees(
+  raDeg,
+  style: SexagesimalStyle.compactLetters,
+);
 
 /// Format Dec (degrees) as `+DD°MM'` for a compact headline.
-String _formatDec(double decDeg) {
-  final sign = decDeg < 0 ? '-' : '+';
-  final abs = decDeg.abs();
-  final d = abs.floor();
-  final m = ((abs - d) * 60.0).floor();
-  return '$sign${d.toString().padLeft(2, '0')}°'
-      '${m.toString().padLeft(2, '0')}\'';
-}
+String _formatDec(double decDeg) =>
+    CoordinateFormat.decDm(decDeg, style: SexagesimalStyle.compactLetters);

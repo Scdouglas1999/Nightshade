@@ -509,16 +509,11 @@ class _ObservationGroupTile extends StatelessWidget {
         '${utc.minute.toString().padLeft(2, '0')} UTC';
   }
 
-  String _formatRaBrief(double raDeg) {
-    var ra = raDeg % 360.0;
-    if (ra < 0) ra += 360.0;
-    final h = (ra / 15.0).floor();
-    final m = ((ra / 15.0 - h) * 60.0).floor();
-    final s = (((ra / 15.0 - h) * 60.0 - m) * 60.0);
-    return '${h.toString().padLeft(2, '0')}h'
-        '${m.toString().padLeft(2, '0')}m'
-        '${s.toStringAsFixed(1).padLeft(4, '0')}s';
-  }
+  String _formatRaBrief(double raDeg) => CoordinateFormat.raFromDegrees(
+        raDeg,
+        style: SexagesimalStyle.compactLetters,
+        seconds: SecondsPrecision.oneDecimalPadded,
+      );
 
   String _formatDecBrief(double decDeg) {
     final sign = decDeg < 0 ? '-' : '+';

@@ -991,19 +991,11 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
     }
   }
 
-  String _formatRa(double raHours) {
-    final hours = raHours.floor();
-    final minutes = ((raHours - hours) * 60).floor();
-    final seconds = ((raHours - hours - minutes / 60) * 3600);
-    return '${hours.toString().padLeft(2, '0')}h ${minutes.toString().padLeft(2, '0')}m ${seconds.toStringAsFixed(1).padLeft(4, '0')}s';
-  }
+  String _formatRa(double raHours) =>
+      CoordinateFormat.ra(raHours, seconds: SecondsPrecision.oneDecimalPadded);
 
-  String _formatDec(double decDegrees) {
-    final sign = decDegrees >= 0 ? '+' : '-';
-    final absDec = decDegrees.abs();
-    final degrees = absDec.floor();
-    final minutes = ((absDec - degrees) * 60).floor();
-    final seconds = ((absDec - degrees - minutes / 60) * 3600);
-    return '$sign${degrees.toString().padLeft(2, '0')}° ${minutes.toString().padLeft(2, '0')}\' ${seconds.toStringAsFixed(1).padLeft(4, '0')}"';
-  }
+  String _formatDec(double decDegrees) => CoordinateFormat.dec(
+        decDegrees,
+        seconds: SecondsPrecision.oneDecimalPadded,
+      );
 }

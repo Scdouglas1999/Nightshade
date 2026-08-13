@@ -669,20 +669,16 @@ class _TransientAlertTileState extends ConsumerState<_TransientAlertTile> {
     );
   }
 
-  String _formatRa(double raHours) {
-    final h = raHours.truncate();
-    final m = ((raHours - h) * 60).truncate();
-    final s = (((raHours - h) * 60 - m) * 60).truncate();
-    return '${h}h${m.toString().padLeft(2, '0')}m${s.toString().padLeft(2, '0')}s';
-  }
+  String _formatRa(double raHours) => CoordinateFormat.ra(
+        raHours,
+        style: SexagesimalStyle.compactLeadPlainLetters,
+        seconds: SecondsPrecision.integerFloored,
+      );
 
-  String _formatDec(double decDegrees) {
-    final sign = decDegrees >= 0 ? '+' : '-';
-    final absDec = decDegrees.abs();
-    final d = absDec.truncate();
-    final m = ((absDec - d) * 60).truncate();
-    return "$sign$d\u00b0${m.toString().padLeft(2, '0')}'";
-  }
+  String _formatDec(double decDegrees) => CoordinateFormat.decDm(
+        decDegrees,
+        style: SexagesimalStyle.compactLeadPlainLetters,
+      );
 }
 
 // =============================================================================

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/equipment_provider.dart';
+import '../providers/equipment/device_type_registry.dart';
 import '../providers/profiles_provider.dart';
 import '../providers/backend_provider.dart';
 import '../providers/sequence_provider.dart';
@@ -19,6 +20,7 @@ import '../backend/nightshade_exception.dart' show ConnectionException;
 import '../models/equipment/equipment_models.dart';
 import '../models/imaging/imaging_models.dart'
     show AutofocusSettings, FilterAutofocusConfig;
+import '../utils/coordinate_format.dart';
 import '../utils/device_id.dart';
 import 'camera_temperature_poller.dart';
 import 'camera_warmup_controller.dart';

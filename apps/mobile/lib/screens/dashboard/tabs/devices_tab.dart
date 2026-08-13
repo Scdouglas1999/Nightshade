@@ -597,13 +597,7 @@ void _showProfileMissing(BuildContext context, String deviceClass) {
   );
 }
 
-String _formatRa(double raHours) {
-  final h = raHours.floor();
-  final m = ((raHours - h) * 60).floor();
-  return '${h}h ${m}m';
-}
+String _formatRa(double raHours) =>
+    CoordinateFormat.raHm(raHours, style: SexagesimalStyle.plainLetters);
 
-String _formatDec(double decDeg) {
-  final sign = decDeg >= 0 ? '+' : '';
-  return '$sign${decDeg.toStringAsFixed(1)}°';
-}
+String _formatDec(double decDeg) => CoordinateFormat.decDecimal(decDeg);

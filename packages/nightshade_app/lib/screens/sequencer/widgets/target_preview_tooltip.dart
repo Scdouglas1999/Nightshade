@@ -110,21 +110,17 @@ class TargetPreviewTooltip extends ConsumerWidget {
     required this.child,
   });
 
-  String _formatRA(double raHours) {
-    final hours = raHours.floor();
-    final minutes = ((raHours - hours) * 60).floor();
-    final seconds = (((raHours - hours) * 60 - minutes) * 60).floor();
-    return '${hours}h ${minutes}m ${seconds}s';
-  }
+  String _formatRA(double raHours) => CoordinateFormat.ra(
+        raHours,
+        style: SexagesimalStyle.plainLetters,
+        seconds: SecondsPrecision.integerFloored,
+      );
 
-  String _formatDec(double decDegrees) {
-    final sign = decDegrees >= 0 ? '+' : '-';
-    final absVal = decDegrees.abs();
-    final degrees = absVal.floor();
-    final minutes = ((absVal - degrees) * 60).floor();
-    final seconds = (((absVal - degrees) * 60 - minutes) * 60).floor();
-    return "$sign$degrees° $minutes' $seconds\"";
-  }
+  String _formatDec(double decDegrees) => CoordinateFormat.dec(
+        decDegrees,
+        style: SexagesimalStyle.plainLetters,
+        seconds: SecondsPrecision.integerFloored,
+      );
 
   /// Transit is a fact about the OBSERVING SITE, so it reads in the site's
   /// zone (Settings → Location → Timezone), not the controlling laptop's.

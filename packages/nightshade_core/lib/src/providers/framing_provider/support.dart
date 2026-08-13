@@ -416,21 +416,10 @@ class CoordinateUtils {
   /// Parse Dec from string (supports ±DD:MM:SS, ±DD°MM'SS", decimal)
   static double? parseDec(String input) => CoordinateParser.parseDec(input);
 
-  /// Format RA as HH:MM:SS
-  static String formatRA(double raHours) {
-    final hours = raHours.floor();
-    final minutes = ((raHours - hours) * 60).floor();
-    final seconds = (((raHours - hours) * 60 - minutes) * 60);
-    return '${hours.toString().padLeft(2, '0')}h ${minutes.toString().padLeft(2, '0')}m ${seconds.toStringAsFixed(1)}s';
-  }
+  /// Format RA (decimal hours) as `HHh MMm SS.Ss`.
+  static String formatRA(double raHours) => CoordinateFormat.ra(raHours);
 
-  /// Format Dec as ±DD°MM'SS"
-  static String formatDec(double decDegrees) {
-    final sign = decDegrees >= 0 ? '+' : '-';
-    final absDec = decDegrees.abs();
-    final degrees = absDec.floor();
-    final minutes = ((absDec - degrees) * 60).floor();
-    final seconds = ((absDec - degrees) * 60 - minutes) * 60;
-    return '$sign${degrees.toString().padLeft(2, '0')}° ${minutes.toString().padLeft(2, '0')}\' ${seconds.toStringAsFixed(1)}"';
-  }
+  /// Format Dec as `±DD° MM' SS.S"`
+  static String formatDec(double decDegrees) =>
+      CoordinateFormat.dec(decDegrees);
 }

@@ -263,13 +263,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
     );
   }
 
-  String _formatRA(double degrees) {
-    final hours = degrees / 15.0;
-    final h = hours.floor();
-    final m = ((hours - h) * 60).floor();
-    final s = (((hours - h) * 60 - m) * 60).toStringAsFixed(1);
-    return '${h.toString().padLeft(2, '0')}h ${m.toString().padLeft(2, '0')}m ${s}s';
-  }
+  String _formatRA(double degrees) => CoordinateFormat.ra(degrees / 15.0);
 
   String _formatDec(double degrees) {
     final sign = degrees >= 0 ? '+' : '-';

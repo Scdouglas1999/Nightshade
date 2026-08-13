@@ -1107,19 +1107,14 @@ class _HitTile extends StatelessWidget {
   }
 }
 
-String _formatRa(double raHours) {
-  final h = raHours.floor();
-  final m = ((raHours - h) * 60).floor();
-  final s = (((raHours - h) * 60 - m) * 60).round();
-  return '${h.toString().padLeft(2, '0')}h'
-      '${m.toString().padLeft(2, '0')}m'
-      '${s.toString().padLeft(2, '0')}s';
-}
+String _formatRa(double raHours) => CoordinateFormat.ra(
+  raHours,
+  style: SexagesimalStyle.compactLetters,
+  seconds: SecondsPrecision.integerRounded,
+);
 
-String _formatDec(double decDeg) {
-  final sign = decDeg >= 0 ? '+' : '-';
-  final a = decDeg.abs();
-  final d = a.floor();
-  final m = ((a - d) * 60).round();
-  return '$sign${d.toString().padLeft(2, '0')}°${m.toString().padLeft(2, '0')}\'';
-}
+String _formatDec(double decDeg) => CoordinateFormat.decDm(
+  decDeg,
+  style: SexagesimalStyle.compactLetters,
+  minutes: MinutesPrecision.rounded,
+);

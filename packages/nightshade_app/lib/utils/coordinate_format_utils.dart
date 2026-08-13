@@ -1,3 +1,5 @@
+import 'package:nightshade_core/nightshade_core.dart';
+
 /// Coordinate formatting utilities for astronomical coordinates.
 ///
 /// Provides consistent formatting for RA, Dec, altitude, azimuth, and FOV
@@ -8,47 +10,36 @@ class CoordinateFormatUtils {
   /// Format Right Ascension (hours) as "Xh Ym Zs" with seconds.
   ///
   /// Example: 12.345 -> "12h 20m 42.0s"
-  static String formatRA(double ra) {
-    // Normalize to 0-24 range
-    final normalized = ra % 24;
-    final h = normalized.floor();
-    final remainder = (normalized - h) * 60;
-    final m = remainder.floor();
-    final s = ((remainder - m) * 60);
-    return '${h}h ${m}m ${s.toStringAsFixed(1)}s';
-  }
+  static String formatRA(double ra) => CoordinateFormat.ra(
+        ra,
+        style: SexagesimalStyle.plainLetters,
+        wrapHours: true,
+      );
 
   /// Format Right Ascension (hours) in compact form "Xh Ym" without seconds.
   ///
   /// Example: 12.345 -> "12h 20m"
-  static String formatRACompact(double ra) {
-    final normalized = ra % 24;
-    final h = normalized.floor();
-    final m = ((normalized - h) * 60).floor();
-    return '${h}h ${m}m';
-  }
+  static String formatRACompact(double ra) => CoordinateFormat.raHm(
+        ra,
+        style: SexagesimalStyle.plainLetters,
+        wrapHours: true,
+      );
 
   /// Format Right Ascension (hours) in short form "Xh Ym Zs" with integer seconds.
   ///
   /// Example: 12.345 -> "12h 20m 42s"
-  static String formatRAShort(double ra) {
-    final normalized = ra % 24;
-    final h = normalized.floor();
-    final remainder = (normalized - h) * 60;
-    final m = remainder.floor();
-    final s = ((remainder - m) * 60).floor();
-    return '${h}h ${m}m ${s}s';
-  }
+  static String formatRAShort(double ra) => CoordinateFormat.ra(
+        ra,
+        style: SexagesimalStyle.plainLetters,
+        seconds: SecondsPrecision.integerFloored,
+        wrapHours: true,
+      );
 
   /// Format Declination (degrees) as "+/-D\u00b0 M'".
   ///
   /// Example: -45.75 -> "-45\u00b0 45'"
-  static String formatDec(double dec) {
-    final sign = dec >= 0 ? '+' : '-';
-    final d = dec.abs().floor();
-    final m = ((dec.abs() - d) * 60).floor();
-    return "$sign$d\u00b0 $m'";
-  }
+  static String formatDec(double dec) =>
+      CoordinateFormat.decDm(dec, style: SexagesimalStyle.plainLetters);
 
   /// Format Declination (degrees) in compact form "+/-D\u00b0".
   ///

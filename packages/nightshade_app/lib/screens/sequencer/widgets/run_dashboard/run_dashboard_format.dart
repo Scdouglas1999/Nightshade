@@ -4,34 +4,16 @@
 /// look the same (audit §UI consistency: design-system rule).
 library;
 
-String formatRA(double raHours) {
-  // Decompose from a single rounded second count so the seconds carry into
-  // minutes (and minutes into hours) instead of rendering a bogus "60s".
-  var totalSeconds = (raHours * 3600).round();
-  // RA wraps at 24h; keep it in [0, 24h) after the carry.
-  totalSeconds %= 24 * 3600;
-  if (totalSeconds < 0) totalSeconds += 24 * 3600;
-  final h = totalSeconds ~/ 3600;
-  final m = (totalSeconds % 3600) ~/ 60;
-  final s = totalSeconds % 60;
-  return '${h.toString().padLeft(2, '0')}h '
-      '${m.toString().padLeft(2, '0')}m '
-      '${s.toString().padLeft(2, '0')}s';
-}
+import 'package:nightshade_core/nightshade_core.dart';
 
-String formatDec(double decDegrees) {
-  final sign = decDegrees >= 0 ? '+' : '-';
-  // Decompose the absolute value from a single rounded second count so the
-  // seconds carry into arcminutes (and arcminutes into degrees), then apply
-  // the sign. Eliminates the 60-second carry artifact.
-  final totalSeconds = (decDegrees.abs() * 3600).round();
-  final d = totalSeconds ~/ 3600;
-  final m = (totalSeconds % 3600) ~/ 60;
-  final s = totalSeconds % 60;
-  return '$sign${d.toString().padLeft(2, '0')}° '
-      '${m.toString().padLeft(2, '0')}\' '
-      '${s.toString().padLeft(2, '0')}"';
-}
+String formatRA(double raHours) => CoordinateFormat.ra(
+      raHours,
+      seconds: SecondsPrecision.integerRounded,
+      wrapHours: true,
+    );
+
+String formatDec(double decDegrees) =>
+    CoordinateFormat.dec(decDegrees, seconds: SecondsPrecision.integerRounded);
 
 /// Friendly duration: "2h 12m", "45m", "30s", "—" for nulls.
 String formatDuration(Duration? d) {

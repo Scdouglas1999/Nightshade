@@ -21,14 +21,11 @@ class MountControlCard extends ConsumerWidget {
 
   // Dec keeps a bespoke formatter because this card renders it without spaces
   // between the components (±DD°MM'SS"), which no shared SexagesimalStyle emits.
-  String _formatDec(double dec) {
-    final sign = dec >= 0 ? '+' : '-';
-    final absDec = dec.abs();
-    final degrees = absDec.floor();
-    final minutes = ((absDec - degrees) * 60).floor();
-    final seconds = (((absDec - degrees) * 60 - minutes) * 60).round();
-    return '$sign${degrees.toString().padLeft(2, '0')}°${minutes.toString().padLeft(2, '0')}\'${seconds.toString().padLeft(2, '0')}"';
-  }
+  String _formatDec(double dec) => CoordinateFormat.dec(
+        dec,
+        style: SexagesimalStyle.compactLetters,
+        seconds: SecondsPrecision.integerRounded,
+      );
 
   String _trackingRateLabel(TrackingRate rate) {
     return switch (rate) {

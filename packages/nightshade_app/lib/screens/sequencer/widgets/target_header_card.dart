@@ -68,21 +68,11 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
     }
   }
 
-  String _formatRA(double raHours) {
-    final hours = raHours.floor();
-    final minutes = ((raHours - hours) * 60).floor();
-    final seconds = (((raHours - hours) * 60 - minutes) * 60).round();
-    return '${hours.toString().padLeft(2, '0')}h ${minutes.toString().padLeft(2, '0')}m ${seconds.toString().padLeft(2, '0')}s';
-  }
+  String _formatRA(double raHours) =>
+      CoordinateFormat.ra(raHours, seconds: SecondsPrecision.integerRounded);
 
-  String _formatDec(double decDegrees) {
-    final sign = decDegrees >= 0 ? '+' : '-';
-    final absVal = decDegrees.abs();
-    final degrees = absVal.floor();
-    final minutes = ((absVal - degrees) * 60).floor();
-    final seconds = (((absVal - degrees) * 60 - minutes) * 60).round();
-    return '$sign${degrees.toString().padLeft(2, '0')}° ${minutes.toString().padLeft(2, '0')}\' ${seconds.toString().padLeft(2, '0')}"';
-  }
+  String _formatDec(double decDegrees) => CoordinateFormat.dec(decDegrees,
+      seconds: SecondsPrecision.integerRounded);
 
   @override
   Widget build(BuildContext context) {
@@ -688,16 +678,8 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
     return plannedCaptureUnder(sequence, widget.node.id);
   }
 
-  String _formatDuration(double totalSeconds) {
-    final seconds = totalSeconds.round();
-    final hours = seconds ~/ 3600;
-    final minutes = (seconds % 3600) ~/ 60;
-
-    if (hours > 0) {
-      return '${hours}h ${minutes}m';
-    }
-    return '${minutes}m';
-  }
+  String _formatDuration(double totalSeconds) =>
+      DurationFormat.seconds(totalSeconds, style: DurationStyle.compact);
 }
 
 class _CoordinateChip extends StatelessWidget {

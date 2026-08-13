@@ -683,30 +683,15 @@ class _TargetResolutionPreview extends ConsumerWidget {
 }
 
 /// Format decimal RA hours as `HHh MMm SS.Ss`.
-String formatRaHoursAsHms(double hours) {
-  var h = hours % 24;
-  if (h < 0) h += 24;
-  final hh = h.floor();
-  final remMin = (h - hh) * 60;
-  final mm = remMin.floor();
-  final ss = (remMin - mm) * 60;
-  return '${hh.toString().padLeft(2, '0')}h '
-      '${mm.toString().padLeft(2, '0')}m '
-      '${ss.toStringAsFixed(1).padLeft(4, '0')}s';
-}
+String formatRaHoursAsHms(double hours) => CoordinateFormat.ra(
+      hours,
+      seconds: SecondsPrecision.oneDecimalPadded,
+      wrapHours: true,
+    );
 
 /// Format decimal declination degrees as `\u00B1DD\u00B0 MM' SS"`.
-String formatDecDegAsDms(double degrees) {
-  final sign = degrees < 0 ? '-' : '+';
-  final abs = degrees.abs();
-  final dd = abs.floor();
-  final remMin = (abs - dd) * 60;
-  final mm = remMin.floor();
-  final ss = (remMin - mm) * 60;
-  return '$sign${dd.toString().padLeft(2, '0')}\u00B0 '
-      "${mm.toString().padLeft(2, '0')}' "
-      '${ss.toStringAsFixed(0).padLeft(2, '0')}"';
-}
+String formatDecDegAsDms(double degrees) =>
+    CoordinateFormat.dec(degrees, seconds: SecondsPrecision.integerRounded);
 
 class _MeridianFlipProperties extends ConsumerWidget {
   final NightshadeColors colors;

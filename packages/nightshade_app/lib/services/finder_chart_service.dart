@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -646,22 +647,14 @@ class FinderChartService {
     }
   }
 
-  static String _formatRA(double raHours) {
-    final h = raHours.floor();
-    final remainder = (raHours - h) * 60;
-    final m = remainder.floor();
-    final s = ((remainder - m) * 60);
-    return '${h}h ${m}m ${s.toStringAsFixed(1)}s';
-  }
+  static String _formatRA(double raHours) =>
+      CoordinateFormat.ra(raHours, style: SexagesimalStyle.plainLetters);
 
-  static String _formatDec(double decDeg) {
-    final sign = decDeg >= 0 ? '+' : '-';
-    final d = decDeg.abs().floor();
-    final remainder = (decDeg.abs() - d) * 60;
-    final m = remainder.floor();
-    final s = ((remainder - m) * 60).floor();
-    return "$sign$d\u00b0 $m' $s\"";
-  }
+  static String _formatDec(double decDeg) => CoordinateFormat.dec(
+        decDeg,
+        style: SexagesimalStyle.plainLetters,
+        seconds: SecondsPrecision.integerFloored,
+      );
 
   static String _projectionName(SkyProjection projection) {
     switch (projection) {

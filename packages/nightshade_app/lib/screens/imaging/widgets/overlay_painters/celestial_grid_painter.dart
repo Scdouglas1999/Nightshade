@@ -354,28 +354,18 @@ class CelestialGridPainter extends CustomPainter {
   }
 
   /// Format RA (degrees) as HH:MM
-  String _formatRa(double raDeg) {
-    var ra = raDeg;
-    while (ra < 0) {
-      ra += 360;
-    }
-    while (ra >= 360) {
-      ra -= 360;
-    }
-    final totalHours = ra / 15.0;
-    final hours = totalHours.floor();
-    final minutes = ((totalHours - hours) * 60).round();
-    return '${hours.toString().padLeft(2, '0')}h${minutes.toString().padLeft(2, '0')}m';
-  }
+  String _formatRa(double raDeg) => CoordinateFormat.raHmFromDegrees(
+        raDeg,
+        style: SexagesimalStyle.compactLetters,
+        minutes: MinutesPrecision.rounded,
+      );
 
   /// Format Dec (degrees) as +/-DD°MM'
-  String _formatDec(double decDeg) {
-    final sign = decDeg >= 0 ? '+' : '-';
-    final absDec = decDeg.abs();
-    final degrees = absDec.floor();
-    final minutes = ((absDec - degrees) * 60).round();
-    return "$sign${degrees.toString().padLeft(2, '0')}°${minutes.toString().padLeft(2, '0')}'";
-  }
+  String _formatDec(double decDeg) => CoordinateFormat.decDm(
+        decDeg,
+        style: SexagesimalStyle.compactLetters,
+        minutes: MinutesPrecision.rounded,
+      );
 
   @override
   bool shouldRepaint(covariant CelestialGridPainter oldDelegate) {
