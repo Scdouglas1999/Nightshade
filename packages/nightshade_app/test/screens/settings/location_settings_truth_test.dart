@@ -255,12 +255,25 @@ void main() {
         ),
       );
 
-      final expected = DateTime.now().toUtc().add(const Duration(hours: 5));
-      final hhmm = '${expected.hour.toString().padLeft(2, '0')}:'
-          '${expected.minute.toString().padLeft(2, '0')}';
+      // The row rendered a moment before this line runs; if the wall clock
+      // ticked over a minute in between, the rendered time is one minute
+      // behind the one computed here. Accept either — the row's claim is
+      // about the offset, not sub-minute freshness.
+      final after = DateTime.now().toUtc().add(const Duration(hours: 5));
+      final candidates = [after, after.subtract(const Duration(minutes: 1))]
+          .map(
+            (t) => '${t.hour.toString().padLeft(2, '0')}:'
+                '${t.minute.toString().padLeft(2, '0')}',
+          )
+          .toSet();
       expect(
-        find.textContaining('UTC+05:00 — now $hhmm'),
-        findsOneWidget,
+        candidates.any(
+          (hhmm) => find
+              .textContaining('UTC+05:00 — now $hhmm')
+              .evaluate()
+              .isNotEmpty,
+        ),
+        isTrue,
         reason: 'the Timezone row must show the time the chosen offset '
             'produces, not the host time',
       );
