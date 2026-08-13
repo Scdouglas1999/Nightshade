@@ -251,6 +251,70 @@ Harness debts CLEARED (tools/ui_audit/drive_linux.py): leading `--profile` no lo
 (SUPPRESS on the shared parent + post-parse default; probe-verified all four argument
 arrangements) and a `wheel x y notches` command added (single xdotool invocation, verified).
 
+## Wave B-fix stage 1 (launched 2026-08-13 ~11:15)
+
+Running as **wf_97c730bb-5f5** — 8 feature-scoped Opus batches (sequencing-autopilot,
+imaging-guiding-polar, onboarding-settings, equipment-shell-chrome, sky-planetarium,
+science-analytics, collab-mosaic-catalogs, a11y-design-system) covering both P0s, all 18
+P1s, shared-path P2s, and the component-level A11Y-STATE class. Failing-test-first; no GUI
+harness / no bundle rebuilds by agents (live verification belongs to Wave D). Script (for
+cache-resume after a restart): `reports/release-pass/scripts/release-bfix-stage1.js`,
+resumeFromRunId wf_97c730bb-5f5. Impl logs land in reports/release-pass/impl/bfix-*.md.
+
+C1 was committed 2026-08-13 in 15 scoped commits (3e1be6cdc..7aadcacce) after the full gate
+set went green. Two extra fixes rode along: the calibrate-save numeric-header carry-over
+(C1's own blocked handoff, RED-proved test) and the mobile_e2e hang root cause — **btrfs
+EIO-corrupted ~/.pub-cache/pdf-3.12.0** (removed + re-fetched; a system btrfs scrub is
+owed, other files may be corrupt).
+
+## Wave B-fix stage 1 outcome (2026-08-13)
+
+8/8 batches, **80 findings fixed** (both P0s, the P1 set, shared-path P2s, the A11Y-STATE
+component family in nightshade_ui), 10 false positives (mostly "already fixed at HEAD — the
+audited 2026-08-11 binary predates the fix", each pinned with a regression test), 20 blocked.
+Impl logs: reports/release-pass/impl/bfix-*.md.
+
+Key harness discovery (fixed in drive_linux.py the same day): the tree dump printed
+[DISABLED] only for focusable/selectable/checkable nodes, and Flutter drops `focusable` from
+disabled buttons — so a correctly disabled control could NEVER show [DISABLED], and several
+"announced disabled while working" findings were dump artifacts. Interactivity is now decided
+by role. Wave D must re-drive the a11y findings against the fixed dump.
+
+### Closer fixes after the wave (Fable, gate triage)
+
+The wave left 5 test casualties in nightshade_app; all closed:
+1. general_language_scope_test — updated for the a11y Semantics wrapper on dropdown items.
+2. scheduler_tab_content_test + scheduler_screen_test — updated for the intended SEQ-17
+   "Target queue"→"Scheduler queue" rename.
+3. REAL regression: the queue header's new "Last evaluation" timestamp overflowed its Row
+   by 8.5px at narrow widths — fixed in queue_table.dart (Flexible + ellipsis).
+4. REAL regression: the new unknown-panel-size banner rendered ABOVE the mosaic resume
+   banner, pushing the resume affordance below the fold of the fixed-height dialog —
+   banner order swapped (resume outranks the warning). Also repaired the test file's
+   FlutterError.onError filter, which called presentError instead of delegating to the
+   original handler and turned the real failure into an opaque binding assertion.
+
+### Stage-2 sweep list (cross-scope blocked items, root causes already located)
+
+- IMG-14 solver-hints half: extract unified_device_ops::plate_solve's hint-gathering into a
+  shared helper used by polar_alignment's write_temp_fits_for_solve and the annotate path.
+- SCI-27 (linear min/max stretch → black stacked preview) + SCI-28 (Stop destroys the stack,
+  nothing on disk) + SCI-47 (units) — all in screens/imaging/stacking_panel.dart + live_stacking_service.
+- SCI-42 (duplicate warning in report), SCI-46 diagnostics half (dropdown offers only
+  imaging_sessions), SCI-43 sequencer copy instances, SCI-48 (ASTAP .ini debris — solve from
+  a scratch copy; native platesolve.rs).
+- SCI-36 remainder: bare InkWells at mosaic_projects_list_screen.dart:161 +
+  diagnostics_screen "Learn more"; the 29 raw DropdownButton call sites (recipe in the
+  a11y impl log).
+- SKY-8 (tooltip anchor maths + retirement in nightshade_ui tooltip), SKY-9 (profile-sourced
+  sensor dimensions for Framing), EQP-23 (last-gasp shutdown record + safing at the desktop
+  entry point), CON-61b (Settings section param ignored when already open), SET-17 revoke-all
+  UI (needs a PairingNotifier method + confirm flow).
+- IMG-9 Frame Count label during looping = product decision (guide corrections vs loop frames).
+- Concurrent-edit test casualties to re-check at gate time: general_language_scope_test
+  (dropdown item now wrapped in Semantics), tutorial_tour_navigation ×2 +
+  tutorial_overlay_persistence.
+
 ## Work-list
 
 Order of execution from here:
