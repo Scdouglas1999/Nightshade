@@ -133,7 +133,7 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
               ),
             ),
             // Narrative ↔ workbench toggle: one tap, two renderings of one model.
-            _ViewToggleBar(
+            SessionReviewViewToggleBar(
               mode: state.viewMode,
               onChanged: (m) => _controller.setViewMode(m),
             ),
@@ -159,11 +159,15 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
 
 /// The narrative ↔ workbench segmented toggle that sits under the header. One
 /// tap switches which rendering of the single controller state is shown.
-class _ViewToggleBar extends StatelessWidget {
+class SessionReviewViewToggleBar extends StatelessWidget {
   final SessionReviewViewMode mode;
   final ValueChanged<SessionReviewViewMode> onChanged;
 
-  const _ViewToggleBar({required this.mode, required this.onChanged});
+  const SessionReviewViewToggleBar({
+    super.key,
+    required this.mode,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -216,27 +220,38 @@ class _ToggleChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final fg = selected ? colors.onPrimary : colors.textSecondary;
-    return Material(
-      color: selected ? colors.primary : colors.surfaceAlt,
-      borderRadius: BorderRadius.circular(NightshadeTokens.radiusButton),
-      child: InkWell(
-        onTap: onTap,
+    return Semantics(
+      button: true,
+      enabled: true,
+      selected: selected,
+      child: Material(
+        color: selected ? colors.primary : colors.surfaceAlt,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusButton),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: NightshadeTokens.spaceMd,
-            vertical: NightshadeTokens.spaceSm,
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: NightshadeTokens.iconSm, color: fg),
-              const SizedBox(width: NightshadeTokens.spaceXs),
-              Text(
-                label,
-                style: NightshadeTypography.button.copyWith(color: fg),
-              ),
-            ],
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusButton),
+          // The app theme's hoverColor is an OPAQUE surface tone, so the
+          // pointer left resting on a chip after the click that selected it
+          // repainted the primary fill grey — the selected tab looked disabled
+          // and the unselected one looked live. A tint of the chip's own
+          // foreground sits on the fill instead of replacing it.
+          hoverColor: fg.withValues(alpha: 0.08),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: NightshadeTokens.spaceMd,
+              vertical: NightshadeTokens.spaceSm,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: NightshadeTokens.iconSm, color: fg),
+                const SizedBox(width: NightshadeTokens.spaceXs),
+                Text(
+                  label,
+                  style: NightshadeTypography.button.copyWith(color: fg),
+                ),
+              ],
+            ),
           ),
         ),
       ),

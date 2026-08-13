@@ -681,7 +681,10 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                         children: [
                           Expanded(
                             child: Text(
-                              '${widget.assessment!.advisoryScore.toStringAsFixed(0)} score',
+                              // "NN score" collided with the frame's recorded
+                              // quality_score, which is a different number for
+                              // the same frame. Name the one on the tile.
+                              'Advisory ${widget.assessment!.advisoryScore.toStringAsFixed(0)}',
                               style: TextStyle(
                                 fontSize: NightshadeTypography.fontSize8,
                                 color: qualityColor,
@@ -736,8 +739,8 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
       return 'Not rated — this frame has no HFR, star count, guiding RMS or '
           'stored quality score to judge';
     }
-    if (widget.assessment!.reasons.isEmpty) return widget.assessment!.label;
-    return '${widget.assessment!.label}\n${widget.assessment!.reasons.join('\n')}';
+    return '${widget.assessment!.summaryLine}\n'
+        '${widget.assessment!.scoreExplanation}';
   }
 
   Color _getQualityColor(NightshadeColors colors) {

@@ -36,7 +36,15 @@ enum FrameGradingMode { off, advisory, auto }
 /// Result of quality assessment for a single frame.
 class FrameQualityAssessment {
   final FrameQualityLevel level;
+
+  /// The frame's [recordedQualityScore] (or a 75 default) after every review
+  /// penalty the assessor applied. This is the number the gallery tile shows,
+  /// and it is NOT the score the database keeps — see [scoreExplanation].
   final double advisoryScore;
+
+  /// `captured_images.quality_score` as recorded at capture time, or null when
+  /// the frame was never scored.
+  final double? recordedQualityScore;
 
   /// Heuristic score in [0, 1] computed by [FrameQualityAssessmentService].
   ///
@@ -51,6 +59,7 @@ class FrameQualityAssessment {
   const FrameQualityAssessment({
     required this.level,
     required this.advisoryScore,
+    this.recordedQualityScore,
     this.heuristicScore = 0.5,
     this.disposition = FrameQualityDisposition.keep,
     required this.reasons,
@@ -69,6 +78,40 @@ class FrameQualityAssessment {
       case FrameQualityLevel.poor:
         return 'Poor';
     }
+  }
+
+  /// The verdict and its observations as one sentence.
+  ///
+  /// [reasons] holds every observation the assessor made, including ones that
+  /// cost points without moving the verdict. Joining them onto the label with a
+  /// dash therefore produced "Good — Low star count (39)" on a clean session:
+  /// the dash-clause reads as the reason FOR the grade, so the app contradicted
+  /// its own verdict. A frame that passed says so before it lists what it noted.
+  String get summaryLine {
+    if (reasons.isEmpty) return label;
+    if (level == FrameQualityLevel.good) {
+      return '$label — noted but not disqualifying: ${reasons.join('; ')}';
+    }
+    return '$label — ${reasons.join('; ')}';
+  }
+
+  /// Where [advisoryScore] came from, so the tile's number and the database's
+  /// number are never two anonymous "scores" for one frame.
+  String get scoreExplanation {
+    final advisory = advisoryScore.toStringAsFixed(0);
+    final recorded = recordedQualityScore;
+    if (recorded == null) {
+      return 'Advisory $advisory/100 — this frame has no recorded quality '
+          'score, so review started from the 75 default'
+          '${reasons.isEmpty ? '' : ' and subtracted the notes above'}.';
+    }
+    final base = recorded.toStringAsFixed(0);
+    if (advisory == base) {
+      return 'Advisory $advisory/100 — the recorded quality score ($base) with '
+          'nothing subtracted.';
+    }
+    return 'Advisory $advisory/100 — the recorded quality score ($base) minus '
+        'the review penalties listed above.';
   }
 }
 
@@ -266,6 +309,7 @@ class FrameQualityAssessmentService {
     return FrameQualityAssessment(
       level: level,
       advisoryScore: advisoryScore,
+      recordedQualityScore: image.qualityScore,
       heuristicScore: heuristicScore,
       disposition: disposition,
       reasons: reasons,

@@ -212,6 +212,20 @@ class _FrameDetailDialogState extends ConsumerState<FrameDetailDialog> {
         ('Sensor temperature', '${image.sensorTemp!.toStringAsFixed(1)} °C'),
       if (image.hfr != null) ('HFR', '${image.hfr!.toStringAsFixed(2)} px'),
       if (image.starCount != null) ('Stars detected', '${image.starCount}'),
+      // Both scores, each named. The rail's tile shows the advisory number; the
+      // database keeps the recorded one, and they differ by the review
+      // penalties — so printing either as "the score" made the app disagree
+      // with itself about one frame.
+      if (image.qualityScore != null)
+        (
+          'Recorded quality score',
+          '${image.qualityScore!.toStringAsFixed(1)} / 100'
+        ),
+      if (widget.assessment != null)
+        (
+          'Advisory score',
+          '${widget.assessment!.advisoryScore.toStringAsFixed(0)} / 100'
+        ),
       if (image.guidingRmsTotal != null)
         ('Guiding RMS', '${image.guidingRmsTotal!.toStringAsFixed(2)}"'),
       if (image.focuserPosition != null)
@@ -246,13 +260,15 @@ class _FrameDetailDialogState extends ConsumerState<FrameDetailDialog> {
     return [
       if (widget.assessment != null) ...[
         Text(
-          widget.assessment!.reasons.isEmpty
-              ? widget.assessment!.label
-              : '${widget.assessment!.label} — '
-                  '${widget.assessment!.reasons.join('; ')}',
+          widget.assessment!.summaryLine,
           style: NightshadeTypography.bodySm.copyWith(
             color: colors.textSecondary,
           ),
+        ),
+        const SizedBox(height: NightshadeTokens.spaceXs),
+        Text(
+          widget.assessment!.scoreExplanation,
+          style: NightshadeTypography.caption.copyWith(color: colors.textMuted),
         ),
         const SizedBox(height: NightshadeTokens.spaceMd),
       ],

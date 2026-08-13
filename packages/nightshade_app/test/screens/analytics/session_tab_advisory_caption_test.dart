@@ -90,6 +90,11 @@ void main() {
     final caption = captions.single;
     expect(caption, contains('Grade frames'),
         reason: 'the caption must point at the thing that does reject frames');
+    // SCI-15 / SCI-43: the destination has to be one the navigation actually
+    // has. "Science > Grade frames" is not a place — the bulk grader is the
+    // "Grade N frames" button on Analytics ▸ Science ▸ Field Quality.
+    expect(caption, isNot(contains('Science > Grade frames')));
+    expect(caption, contains('Field Quality'));
     expect(
       tester
           .widgetList<Text>(find.byType(Text))

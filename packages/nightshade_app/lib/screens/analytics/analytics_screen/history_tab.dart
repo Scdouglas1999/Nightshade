@@ -21,6 +21,15 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
     super.dispose();
   }
 
+  bool _matchesTimeFilter(DateTime when) {
+    final now = DateTime.now();
+    return switch (_timeFilter) {
+      'This Month' => when.year == now.year && when.month == now.month,
+      'This Year' => when.year == now.year,
+      _ => true,
+    };
+  }
+
   void _clearFilters() {
     _searchController.clear();
     setState(() {
@@ -35,6 +44,14 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
     final colors = NightshadeColors.of(context);
     final sessionsAsyncValue = ref.watch(allSessionsProvider);
     final targetNamesAsync = ref.watch(sessionTargetNamesProvider);
+    // Frames shot outside a sequence carry no imaging_sessions row, so this tab
+    // used to deny a night that Analytics ▸ Session was displaying at the time.
+    // They are not a run and are not listed as one — they get their own entry,
+    // named for what they are.
+    final quickCaptures = (ref.watch(standaloneImagesProvider).valueOrNull ??
+            const <DbCapturedImage>[])
+        .where((image) => image.frameType.toLowerCase() == 'light')
+        .toList(growable: false);
     // Target names for the filter predicate: the dropdown lists real target
     // names, so matching a session needs its targetId resolved.
     final targetNameById = {
@@ -120,7 +137,7 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
               Expanded(
                 child: sessionsAsyncValue.when(
                   data: (sessions) {
-                    if (sessions.isEmpty) {
+                    if (sessions.isEmpty && quickCaptures.isEmpty) {
                       return Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
@@ -162,19 +179,21 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
                         targetNameById,
                       );
                       // Time filter
-                      bool timeMatch = true;
-                      if (_timeFilter == 'This Month') {
-                        final now = DateTime.now();
-                        timeMatch = session.startTime.year == now.year &&
-                            session.startTime.month == now.month;
-                      } else if (_timeFilter == 'This Year') {
-                        timeMatch =
-                            session.startTime.year == DateTime.now().year;
-                      }
+                      final timeMatch = _matchesTimeFilter(session.startTime);
                       return nameMatch && targetMatch && timeMatch;
                     }).toList();
 
-                    if (filteredSessions.isEmpty) {
+                    // The quick-capture entry is not filterable by target or
+                    // session name — it has neither — so it is only suppressed
+                    // by the time filter, which it can answer.
+                    final showQuickCaptures = quickCaptures.isNotEmpty &&
+                        _searchQuery.isEmpty &&
+                        _targetFilter == kAllTargetsFilter &&
+                        quickCaptures.any(
+                          (image) => _matchesTimeFilter(image.capturedAt),
+                        );
+
+                    if (filteredSessions.isEmpty && !showQuickCaptures) {
                       return Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
@@ -201,9 +220,17 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
                     }
 
                     return ListView.builder(
-                      itemCount: filteredSessions.length,
+                      itemCount:
+                          filteredSessions.length + (showQuickCaptures ? 1 : 0),
                       itemBuilder: (context, index) {
-                        final session = filteredSessions[index];
+                        if (showQuickCaptures && index == 0) {
+                          return _QuickCaptureHistoryCard(
+                            lights: quickCaptures,
+                            hasSequenceRuns: filteredSessions.isNotEmpty,
+                          );
+                        }
+                        final session = filteredSessions[
+                            index - (showQuickCaptures ? 1 : 0)];
                         return _SessionHistoryCard(session: session);
                       },
                     );
@@ -255,6 +282,96 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
           ),
         );
       },
+    );
+  }
+}
+
+/// History's entry for frames captured outside any sequence.
+///
+/// These live in `captured_images` with no `session_id` and no
+/// `imaging_sessions` row, so History listed nothing for a night that Analytics
+/// ▸ Session was showing at that moment. They are a real part of the night's
+/// record and belong here — labelled as what they are, not dressed up as a run.
+class _QuickCaptureHistoryCard extends StatelessWidget {
+  final List<DbCapturedImage> lights;
+  final bool hasSequenceRuns;
+
+  const _QuickCaptureHistoryCard({
+    required this.lights,
+    required this.hasSequenceRuns,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    final times = lights.map((image) => image.capturedAt).toList()..sort();
+    final integration = lights.fold<double>(
+      0,
+      (sum, image) =>
+          image.exposureDuration.isFinite && image.exposureDuration > 0
+              ? sum + image.exposureDuration
+              : sum,
+    );
+    final format = DateFormat('MMM d, yyyy HH:mm');
+    final span = times.first == times.last
+        ? format.format(times.first)
+        : '${format.format(times.first)} – ${DateFormat('HH:mm').format(times.last)}';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: NightshadeCard(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(LucideIcons.camera,
+                      size: 16, color: colors.textSecondary),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Quick captures',
+                    style: NightshadeTypography.h5
+                        .copyWith(color: colors.textPrimary),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                span,
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                '${lights.length} light frames taken outside a sequence, '
+                '${_formatAnalyticsIntegration(integration)} of integration. '
+                'They have no run record, so they carry no status, no target '
+                'and no per-run diagnostics — open Analytics ▸ Session to '
+                'review them frame by frame.',
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textMuted,
+                  height: 1.4,
+                ),
+              ),
+              if (!hasSequenceRuns) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'No sequence runs are recorded for this filter.',
+                  style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize11,
+                    color: colors.textMuted,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

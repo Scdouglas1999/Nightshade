@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -12,7 +13,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// products, but the existing empty state never tells the user that *this*
 /// session is failing — only that data is missing." Surfacing the rate plus
 /// a path-forward closes that loop.
-class ScienceSolveRateCard extends StatelessWidget {
+class ScienceSolveRateCard extends ConsumerWidget {
   final NightshadeColors colors;
 
   /// All light frames captured this session (or all standalone lights when
@@ -26,13 +27,17 @@ class ScienceSolveRateCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final total = lightFrames.length;
     final solved = lightFrames.where((image) => image.isPlateSolved).length;
     final rate = total == 0 ? 0.0 : solved / total;
     final pct = (rate * 100).round();
 
     final _Tier tier = _classify(total: total, rate: rate);
+    // Whether a solver is actually on this machine. Without it the zero-solve
+    // message blamed reachability while ASTAP was being launched per frame and
+    // exiting 1 — the failure was pointing/scale, not installation.
+    final detection = ref.watch(plateSolverDetectionProvider).valueOrNull;
 
     return NightshadeCard(
       child: Padding(
@@ -95,7 +100,7 @@ class ScienceSolveRateCard extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(
-              tier.message(total: total),
+              tier.message(total: total, detection: detection),
               style: TextStyle(
                 color: colors.textSecondary,
                 fontSize: NightshadeTypography.fontSize11,
@@ -169,7 +174,10 @@ enum _Tier {
     }
   }
 
-  String message({required int total}) {
+  /// [detection] is the filesystem probe's answer, or null while it is still
+  /// running. A zero solve rate has two very different causes — no solver, or a
+  /// solver that runs and fails — and the card must not guess between them.
+  String message({required int total, PlateSolverDetection? detection}) {
     switch (this) {
       case _Tier.warmup:
         return total == 0
@@ -182,7 +190,25 @@ enum _Tier {
       case _Tier.struggling:
         return 'Many frames are failing to solve. Verify focal length, pixel scale, and that the catalog index is reachable.';
       case _Tier.broken:
-        return 'No frames have solved this session — most science products will stay empty until a solver is reachable.';
+        if (detection == null) {
+          // Detection has not answered (or could not). Say what is true either
+          // way rather than guessing at the cause.
+          return 'No frames have solved this session, so most science products '
+              'will stay empty. Open Plate Solving settings to see whether a '
+              'solver is configured and what it reported.';
+        }
+        if (!detection.hasAnySolver) {
+          return 'No plate solver is installed, so nothing has solved this '
+              'session and most science products will stay empty. Install '
+              'ASTAP (with a star catalog) or astrometry.net, then point '
+              'Nightshade at it.';
+        }
+        return 'No frames have solved this session, and a solver '
+            '${detection.astapReady ? '(ASTAP' : '(astrometry.net'}'
+            '${detection.catalogName == null ? '' : ', catalog ${detection.catalogName}'}) '
+            'is installed — so it is running and failing, not missing. Check '
+            'focal length and pixel scale first, then whether the catalog '
+            'covers this field.';
     }
   }
 }

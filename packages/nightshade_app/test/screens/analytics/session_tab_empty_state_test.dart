@@ -104,7 +104,11 @@ void main() {
           'report',
     );
     expect(find.byType(ResponsiveStatStrip), findsNothing);
-    expect(find.text('No session history'), findsOneWidget);
+    // SCI-34: this tab's empty state used to be the History tab's copy verbatim
+    // ("No session history"), which told the user to go do what they had just
+    // done on a tab whose subject is the session in progress.
+    expect(find.text('Nothing captured yet'), findsOneWidget);
+    expect(find.text('No session history'), findsNothing);
   });
 
   testWidgets('the quick-capture bucket still appears when it holds frames',

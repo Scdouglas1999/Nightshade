@@ -203,9 +203,13 @@ class _SessionTabState extends ConsumerState<_SessionTab> {
                         Icon(LucideIcons.folderOpen,
                             size: 48, color: colors.textMuted),
                         const SizedBox(height: 16),
+                        // Never the History tab's copy: this tab's subject is
+                        // the session in progress, so borrowing "No session
+                        // history / Complete an imaging session to see history
+                        // here" told the user to go do what they had just done.
                         Text(
                           allSessions.isEmpty
-                              ? l10n.text('analyticsNoSessionHistory')
+                              ? 'Nothing captured yet'
                               : 'No quick captures',
                           style: TextStyle(
                             fontSize: NightshadeTypography.fontSize14,
@@ -215,7 +219,8 @@ class _SessionTabState extends ConsumerState<_SessionTab> {
                         const SizedBox(height: 8),
                         Text(
                           allSessions.isEmpty
-                              ? l10n.text('analyticsNoSessionHistoryDesc')
+                              ? 'Start a capture or a sequence and this tab '
+                                  'fills in as the frames arrive.'
                               : 'Choose a session above to review it.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
@@ -379,8 +384,16 @@ class _SessionTabState extends ConsumerState<_SessionTab> {
                         ),
                       ),
                       const SizedBox(height: 4),
+                      // The one instruction that tells a user how to reject
+                      // frames has to name a place they can reach. "Science >
+                      // Grade frames" is not one: the bulk grader lives behind
+                      // the "Grade N frames" button on Analytics ▸ Science ▸
+                      // Field Quality.
                       Text(
-                        l10n.text('analyticsQualityAdvisory'),
+                        'Quality badges are advisory and never change '
+                        'acceptance on their own. Nothing is deleted. To reject '
+                        'frames in bulk, use Analytics ▸ Science ▸ Field '
+                        'Quality ▸ Grade frames.',
                         style: TextStyle(
                           fontSize: NightshadeTypography.fontSize11,
                           color: colors.textMuted,
