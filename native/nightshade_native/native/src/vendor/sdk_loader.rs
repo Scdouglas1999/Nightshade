@@ -24,22 +24,28 @@
 //! (struct + impl) while delegating path search and library opening to the
 //! runtime helper [`open_vendor_library`].
 //!
-//! # Migration pattern (for the remaining 12 vendors)
+//! # Migration pattern
 //!
 //! Replace the per-vendor `struct XyzSdk { ... }`, `static XYZ_SDK`, and
 //! `impl XyzSdk { fn load() ... fn get() ... }` blocks with a single
 //! `load_vendor_sdk!` invocation. The macro generates the same public surface
 //! (`XyzSdk::get() -> Option<&'static XyzSdk>` and per-field `unsafe extern "C" fn`
 //! function pointers), so call sites at the use site (e.g.
-//! `unsafe { (sdk.start_exposure)(...) }`) do not change.
+//! `unsafe { (sdk.start_exposure)(...) }`) do not change. A symbol's type may be
+//! written inline or given as the vendor's existing `type Xyz = unsafe extern
+//! "C" fn(..)` alias, so a migration never has to retype an FFI signature.
 //!
 //! See `zwo.rs` for the canonical example covering all three SDK loaders
-//! (`AsiSdk`, `EafSdk`, `EfwSdk`).
+//! (`AsiSdk`, `EafSdk`, `EfwSdk`), and `atik.rs` for `optional_symbols` —
+//! entry points a vendor only added in a later SDK release, which must not fail
+//! the whole load.
 //!
-//! Remaining vendors (effort estimates documented in
-//! `docs/plans/2026-05-10-vendor-sdk-migration.md`):
-//! atik, fli, fujifilm, gphoto2, ioptron, lx200, moravian, player_one, qhy,
-//! skywatcher, svbony, touptek.
+//! On the macro: zwo, fli, svbony, moravian, atik, player_one (camera + filter
+//! wheel), gphoto2. Still hand-rolled: qhy (custom `resolve_qhy_symbol` plus a
+//! separate initialization latch), fujifilm (Windows-only), touptek (needs a
+//! `HashMap<brand, Sdk>` for its ~10 rebrands — the documented exception, which
+//! should compose `open_vendor_library` + `resolve_symbol` rather than adopt the
+//! macro). ioptron/lx200/skywatcher are serial protocols with no SDK to load.
 
 use std::path::PathBuf;
 use thiserror::Error;
@@ -347,26 +353,32 @@ macro_rules! load_vendor_sdk {
         sdk_static: $sdk_static:ident,
         candidate_paths_fn: $paths_fn:path,
         symbols: {
-            $(
-                $field:ident : $sym_bytes:expr
-                    => unsafe extern $abi:literal fn ( $($arg_ty:ty),* $(,)? ) $(-> $ret_ty:ty)?
-            ),* $(,)?
+            $( $field:ident : $sym_bytes:expr => $sig:ty ),* $(,)?
         }
+        $(
+            , optional_symbols: {
+                $( $opt_field:ident : $opt_sym_bytes:expr => $opt_sig:ty ),* $(,)?
+            }
+        )?
         $(,)?
     ) => {
         $(#[$sdk_meta])*
         struct $sdk {
             $(
-                $field: unsafe extern $abi fn ( $($arg_ty),* ) $(-> $ret_ty)?,
+                $field: $sig,
             )*
+            $($(
+                $opt_field: Option<$opt_sig>,
+            )*)?
             #[allow(dead_code)]
             _library: libloading::Library,
         }
 
-        static $sdk_static: std::sync::OnceLock<Option<$sdk>> = std::sync::OnceLock::new();
+        static $sdk_static: std::sync::OnceLock<Result<$sdk, String>> = std::sync::OnceLock::new();
 
+        #[allow(dead_code)]
         impl $sdk {
-            fn load() -> Option<Self> {
+            fn load() -> Result<Self, $crate::vendor::sdk_loader::VendorLoadError> {
                 let candidate_paths: Vec<std::path::PathBuf> = $paths_fn();
 
                 let (library, library_path) =
@@ -380,7 +392,7 @@ macro_rules! load_vendor_sdk {
                             // that don't have the SDK installed; debug-level
                             // logging avoids spamming the user log.
                             tracing::debug!("{}: SDK unavailable: {}", $vendor_name, e);
-                            return None;
+                            return Err(e);
                         }
                     };
 
@@ -389,27 +401,25 @@ macro_rules! load_vendor_sdk {
                 // forwards the burden to the declaration site.
                 //
                 // The `#[allow(clippy::macro_metavars_in_unsafe)]` is required
-                // because `$arg_ty`/`$ret_ty` are interpolated inside an
-                // `unsafe { ... }` block; this is intentional — `resolve_symbol`
-                // is unsafe and the signature is part of the unsafe call.
+                // because `$sig` is interpolated inside an `unsafe { ... }`
+                // block; this is intentional — `resolve_symbol` is unsafe and
+                // the signature is part of the unsafe call.
                 #[allow(clippy::macro_metavars_in_unsafe)]
                 let result = (|| -> Result<Self, $crate::vendor::sdk_loader::VendorLoadError> {
                     Ok(Self {
                         $(
                             // SAFETY: `resolve_symbol::<F>` is `unsafe` because
                             // the caller asserts that the symbol's ABI matches
-                            // the supplied `F = unsafe extern $abi fn (...)`.
-                            // The macro caller (vendor SDK declaration site —
-                            // e.g. zwo.rs, fli.rs) hand-derives each signature
-                            // from the vendor C header, and any mismatch will
-                            // fail at the first FFI call. `library` outlives the
-                            // returned function pointer because it is stored in
-                            // the same `Self { _library: library }` struct that
-                            // owns the resolved symbol.
+                            // the supplied `F = $sig`. The macro caller (vendor
+                            // SDK declaration site — e.g. zwo.rs, fli.rs)
+                            // hand-derives each signature from the vendor C
+                            // header, and any mismatch will fail at the first
+                            // FFI call. `library` outlives the returned function
+                            // pointer because it is stored in the same
+                            // `Self { _library: library }` struct that owns the
+                            // resolved symbol.
                             $field: unsafe {
-                                $crate::vendor::sdk_loader::resolve_symbol::<
-                                    unsafe extern $abi fn ( $($arg_ty),* ) $(-> $ret_ty)?
-                                >(
+                                $crate::vendor::sdk_loader::resolve_symbol::<$sig>(
                                     $vendor_name,
                                     &library,
                                     &library_path,
@@ -418,6 +428,30 @@ macro_rules! load_vendor_sdk {
                                 )?
                             },
                         )*
+                        $($(
+                            // A symbol the vendor only added in a later SDK
+                            // release. Absent means "this build predates the
+                            // feature", which must not fail the whole load —
+                            // callers branch on the `Option`.
+                            //
+                            // SAFETY: as above; `$opt_sig` is supplied by the
+                            // declaration site from the vendor header.
+                            $opt_field: unsafe {
+                                match library.get::<$opt_sig>($opt_sym_bytes) {
+                                    Ok(symbol) => Some(*symbol),
+                                    Err(e) => {
+                                        tracing::debug!(
+                                            "{}: optional symbol '{}' not present in '{}': {}",
+                                            $vendor_name,
+                                            stringify!($opt_field),
+                                            library_path.display(),
+                                            e
+                                        );
+                                        None
+                                    }
+                                }
+                            },
+                        )*)?
                         _library: library,
                     })
                 })();
@@ -428,19 +462,24 @@ macro_rules! load_vendor_sdk {
                             "{}: all required symbols resolved",
                             $vendor_name
                         );
-                        Some(sdk)
+                        Ok(sdk)
                     }
                     Err(e) => {
                         // resolve_symbol already logged at error level; surface
-                        // here as None so callers see "SDK unavailable".
+                        // the typed error so callers can report *which* symbol
+                        // an installed-but-outdated SDK is missing.
                         tracing::error!(
                             "{}: SDK present but symbol resolution failed: {}",
                             $vendor_name,
                             e
                         );
-                        None
+                        Err(e)
                     }
                 }
+            }
+
+            fn loaded() -> &'static Result<Self, String> {
+                $sdk_static.get_or_init(|| Self::load().map_err(|e| e.to_string()))
             }
 
             /// Public accessor for the lazy-initialized SDK singleton.
@@ -449,7 +488,25 @@ macro_rules! load_vendor_sdk {
             /// otherwise. The first call triggers `load()`; subsequent calls
             /// are O(1).
             pub fn get() -> Option<&'static Self> {
-                $sdk_static.get_or_init(Self::load).as_ref()
+                Self::loaded().as_ref().ok()
+            }
+
+            /// Same as [`get`](Self::get) but carries why the load failed —
+            /// "none of N paths opened" versus "symbol X is missing from
+            /// <path>", which is the difference between "you have no SDK" and
+            /// "your SDK is too old".
+            pub fn get_or_reason() -> Result<&'static Self, &'static str> {
+                Self::loaded().as_ref().map_err(|e| e.as_str())
+            }
+
+            /// Why the SDK failed to load, or `None` if it loaded.
+            pub fn load_error() -> Option<&'static str> {
+                Self::loaded().as_ref().err().map(|e| e.as_str())
+            }
+
+            /// Whether the SDK is usable on this host.
+            pub fn is_available() -> bool {
+                Self::loaded().is_ok()
             }
 
             /// List of C symbol names this SDK requires. Returned in the order
@@ -531,6 +588,74 @@ mod tests {
         assert!(candidates.contains(&PathBuf::from("libCameraSdk.so")));
         assert!(candidates.contains(&exe_dir.join("lib").join("libCameraSdk.so")));
         assert!(candidates.contains(&PathBuf::from("/usr/lib/libCameraSdk.so")));
+    }
+
+    fn absent_library_candidates() -> Vec<PathBuf> {
+        vec![PathBuf::from("/nonexistent/path/libnothing.so")]
+    }
+
+    crate::load_vendor_sdk! {
+        #[allow(dead_code)]
+        vendor_name: "Absent Test Vendor",
+        sdk_struct: AbsentSdk,
+        sdk_static: ABSENT_SDK,
+        candidate_paths_fn: absent_library_candidates,
+        symbols: {
+            do_nothing: b"do_nothing\0" => AbsentFn,
+        }
+    }
+
+    type AbsentFn = unsafe extern "C" fn() -> std::ffi::c_int;
+
+    crate::load_vendor_sdk! {
+        #[allow(dead_code)]
+        vendor_name: "Absent Optional Vendor",
+        sdk_struct: AbsentOptionalSdk,
+        sdk_static: ABSENT_OPTIONAL_SDK,
+        candidate_paths_fn: absent_library_candidates,
+        symbols: {
+            required: b"required\0" => AbsentFn,
+        },
+        optional_symbols: {
+            added_in_a_later_release: b"maybe\0" => AbsentFn,
+        }
+    }
+
+    #[test]
+    fn optional_symbols_do_not_appear_in_the_required_list() {
+        // A symbol declared optional must never be able to fail a load — the
+        // Atik EFW entry points are absent from every pre-2021 SDK build.
+        assert_eq!(AbsentOptionalSdk::required_symbol_names(), &["required"]);
+    }
+
+    #[test]
+    fn generated_loader_reports_why_an_absent_sdk_failed() {
+        // The whole point of the shared loader: a vendor can tell the user
+        // "no SDK here" apart from "your SDK is missing symbol X", instead of
+        // collapsing both into a bare `None`.
+        assert!(!AbsentSdk::is_available());
+        assert!(AbsentSdk::get().is_none());
+
+        let reason = AbsentSdk::load_error().expect("a failed load must carry a reason");
+        assert!(reason.contains("Absent Test Vendor"), "reason: {reason}");
+        assert!(
+            reason.contains("candidate library paths"),
+            "reason: {reason}"
+        );
+        assert_eq!(AbsentSdk::get_or_reason().err(), Some(reason));
+        assert_eq!(AbsentSdk::required_symbol_names(), &["do_nothing"]);
+    }
+
+    #[test]
+    fn generated_loader_accepts_a_type_alias_signature() {
+        // Migrating a hand-rolled vendor loader must not require retyping its
+        // FFI signatures — the vendor's existing `type FLIOpen = ...` aliases
+        // go straight into the symbol table.
+        assert_eq!(
+            <AbsentSdk as VendorSdk>::candidate_library_paths(),
+            absent_library_candidates()
+        );
+        assert_eq!(<AbsentSdk as VendorSdk>::name(), "Absent Test Vendor");
     }
 
     #[test]

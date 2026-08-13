@@ -53,7 +53,7 @@ use crate::NativeVendor;
 use async_trait::async_trait;
 use nightshade_imaging::buffer_pool::global_u8_pool;
 use std::ffi::{c_char, c_int, c_long, CStr};
-use std::sync::{Mutex, OnceLock};
+use std::sync::Mutex;
 
 // =============================================================================
 // COOLER STATE TRACKING
@@ -256,189 +256,106 @@ impl std::fmt::Debug for POAConfigValue {
 // SDK LIBRARY LOADING
 // =============================================================================
 
-/// POA SDK library wrapper
-struct PoaSdk {
-    #[allow(dead_code)]
-    lib: libloading::Library,
-
-    // Function pointers - matches actual SDK signatures from PlayerOneCamera.h
-    get_camera_count: unsafe extern "C" fn() -> c_int,
-    get_camera_properties: unsafe extern "C" fn(c_int, *mut POACameraProperties) -> c_int,
-    get_camera_properties_by_id: unsafe extern "C" fn(c_int, *mut POACameraProperties) -> c_int,
-    open_camera: unsafe extern "C" fn(c_int) -> c_int,
-    init_camera: unsafe extern "C" fn(c_int) -> c_int,
-    close_camera: unsafe extern "C" fn(c_int) -> c_int,
-    // POAGetConfig uses POAConfigValue union
-    get_config: unsafe extern "C" fn(c_int, c_int, *mut POAConfigValue, *mut POABool) -> c_int,
-    // POASetConfig uses POAConfigValue union
-    set_config: unsafe extern "C" fn(c_int, c_int, POAConfigValue, POABool) -> c_int,
-    set_image_bin: unsafe extern "C" fn(c_int, c_int) -> c_int,
-    set_image_size: unsafe extern "C" fn(c_int, c_int, c_int) -> c_int,
-    set_image_start_pos: unsafe extern "C" fn(c_int, c_int, c_int) -> c_int,
-    set_image_format: unsafe extern "C" fn(c_int, c_int) -> c_int,
-    start_exposure: unsafe extern "C" fn(c_int, POABool) -> c_int,
-    stop_exposure: unsafe extern "C" fn(c_int) -> c_int,
-    get_camera_state: unsafe extern "C" fn(c_int, *mut c_int) -> c_int,
-    get_image_data: unsafe extern "C" fn(c_int, *mut u8, c_long, c_int) -> c_int,
-    get_image_size: unsafe extern "C" fn(c_int, *mut c_int, *mut c_int) -> c_int,
-    // Additional functions for readout modes
-    image_ready: unsafe extern "C" fn(c_int, *mut POABool) -> c_int,
-    // SDK metadata. Older camera SDK builds may not export this, so keep it optional.
-    get_sdk_version: Option<unsafe extern "C" fn() -> *const c_char>,
-}
-
-static POA_SDK: OnceLock<Option<PoaSdk>> = OnceLock::new();
-
-/// Player One Phoenix filter-wheel SDK wrapper.
-struct PoaPwSdk {
-    #[allow(dead_code)]
-    lib: libloading::Library,
-    get_pw_count: unsafe extern "C" fn() -> c_int,
-    get_pw_properties: unsafe extern "C" fn(c_int, *mut PWProperties) -> c_int,
-    get_pw_properties_by_handle: unsafe extern "C" fn(c_int, *mut PWProperties) -> c_int,
-    open_pw: unsafe extern "C" fn(c_int) -> c_int,
-    close_pw: unsafe extern "C" fn(c_int) -> c_int,
-    get_current_position: unsafe extern "C" fn(c_int, *mut c_int) -> c_int,
-    goto_position: unsafe extern "C" fn(c_int, c_int) -> c_int,
-    get_pw_state: unsafe extern "C" fn(c_int, *mut PWState) -> c_int,
-    get_filter_alias: unsafe extern "C" fn(c_int, c_int, *mut c_char, c_int) -> c_int,
-    set_filter_alias: unsafe extern "C" fn(c_int, c_int, *const c_char) -> c_int,
-    get_sdk_version: unsafe extern "C" fn() -> *const c_char,
-}
-
-static POA_PW_SDK: OnceLock<Option<PoaPwSdk>> = OnceLock::new();
-
-impl PoaPwSdk {
-    fn load() -> Option<Self> {
-        let lib_paths = if cfg!(target_os = "windows") {
-            vec![
-                std::path::PathBuf::from("PlayerOnePW.dll"),
-                std::path::PathBuf::from(
-                    "C:\\Program Files\\PlayerOne\\SDK\\lib\\x64\\PlayerOnePW.dll",
-                ),
-            ]
-        } else if cfg!(target_os = "macos") {
-            vec![
-                std::path::PathBuf::from("libPlayerOnePW.dylib"),
-                std::path::PathBuf::from("/usr/local/lib/libPlayerOnePW.dylib"),
-            ]
-        } else {
-            crate::vendor::sdk_loader::vendor_library_candidates(
-                &["libPlayerOnePW.so", "libPlayerOnePW.so.1"],
-                &[
-                    "/usr/lib/libPlayerOnePW.so",
-                    "/usr/local/lib/libPlayerOnePW.so",
-                ],
-            )
-        };
-
-        for path in &lib_paths {
-            // SAFETY: path is a static vendor SDK library name/path and symbols below match
-            // PlayerOnePW.h. The Library is stored in PoaPwSdk so function pointers remain valid.
-            unsafe {
-                if let Ok(lib) = libloading::Library::new(path) {
-                    tracing::info!("Loaded Player One PW SDK from: {}", path.display());
-                    return Some(Self {
-                        get_pw_count: *lib.get(b"POAGetPWCount\0").ok()?,
-                        get_pw_properties: *lib.get(b"POAGetPWProperties\0").ok()?,
-                        get_pw_properties_by_handle: *lib
-                            .get(b"POAGetPWPropertiesByHandle\0")
-                            .ok()?,
-                        open_pw: *lib.get(b"POAOpenPW\0").ok()?,
-                        close_pw: *lib.get(b"POAClosePW\0").ok()?,
-                        get_current_position: *lib.get(b"POAGetCurrentPosition\0").ok()?,
-                        goto_position: *lib.get(b"POAGotoPosition\0").ok()?,
-                        get_pw_state: *lib.get(b"POAGetPWState\0").ok()?,
-                        get_filter_alias: *lib.get(b"POAGetPWFilterAlias\0").ok()?,
-                        set_filter_alias: *lib.get(b"POASetPWFilterAlias\0").ok()?,
-                        get_sdk_version: *lib.get(b"POAGetPWSDKVer\0").ok()?,
-                        lib,
-                    });
-                }
-            }
-        }
-
-        tracing::debug!("Player One PW SDK not found");
-        None
-    }
-
-    fn get() -> Option<&'static PoaPwSdk> {
-        POA_PW_SDK.get_or_init(Self::load).as_ref()
+/// Candidate paths for the Player One camera SDK, in search order.
+fn poa_camera_candidate_paths() -> Vec<std::path::PathBuf> {
+    if cfg!(target_os = "windows") {
+        vec![
+            std::path::PathBuf::from("PlayerOneCamera.dll"),
+            std::path::PathBuf::from(
+                "C:\\Program Files\\PlayerOne\\SDK\\lib\\x64\\PlayerOneCamera.dll",
+            ),
+        ]
+    } else if cfg!(target_os = "macos") {
+        vec![
+            std::path::PathBuf::from("libPlayerOneCamera.dylib"),
+            std::path::PathBuf::from("/usr/local/lib/libPlayerOneCamera.dylib"),
+        ]
+    } else {
+        crate::vendor::sdk_loader::vendor_library_candidates(
+            &["libPlayerOneCamera.so", "libPlayerOneCamera.so.1"],
+            &[
+                "/usr/lib/libPlayerOneCamera.so",
+                "/usr/local/lib/libPlayerOneCamera.so",
+            ],
+        )
     }
 }
 
-impl PoaSdk {
-    /// Load the POA SDK library
-    fn load() -> Option<Self> {
-        let lib_paths = if cfg!(target_os = "windows") {
-            vec![
-                std::path::PathBuf::from("PlayerOneCamera.dll"),
-                std::path::PathBuf::from(
-                    "C:\\Program Files\\PlayerOne\\SDK\\lib\\x64\\PlayerOneCamera.dll",
-                ),
-            ]
-        } else if cfg!(target_os = "macos") {
-            vec![
-                std::path::PathBuf::from("libPlayerOneCamera.dylib"),
-                std::path::PathBuf::from("/usr/local/lib/libPlayerOneCamera.dylib"),
-            ]
-        } else {
-            crate::vendor::sdk_loader::vendor_library_candidates(
-                &["libPlayerOneCamera.so", "libPlayerOneCamera.so.1"],
-                &[
-                    "/usr/lib/libPlayerOneCamera.so",
-                    "/usr/local/lib/libPlayerOneCamera.so",
-                ],
-            )
-        };
-
-        for path in &lib_paths {
-            // SAFETY: libloading::Library::new performs platform dynamic loading; each `path` is a compile-time string constant naming a vendor SDK shared library (PlayerOneCamera.dll/dylib/so). Each `lib.get::<FnType>(b"symbol\0")` then dereferences the returned Symbol with `*`: the FFI signatures declared above are the C ABI from PlayerOneCamera.h (verified against vendor header) so the function-pointer ABI is correct. The loaded `lib` is moved into the returned PoaSdk so the function pointers remain valid for the program's lifetime.
-            unsafe {
-                if let Ok(lib) = libloading::Library::new(path) {
-                    tracing::info!("Loaded Player One SDK from: {}", path.display());
-
-                    // Load all function pointers - actual SDK function names
-                    let sdk = Self {
-                        get_camera_count: *lib.get(b"POAGetCameraCount\0").ok()?,
-                        get_camera_properties: *lib.get(b"POAGetCameraProperties\0").ok()?,
-                        get_camera_properties_by_id: *lib
-                            .get(b"POAGetCameraPropertiesByID\0")
-                            .ok()?,
-                        open_camera: *lib.get(b"POAOpenCamera\0").ok()?,
-                        init_camera: *lib.get(b"POAInitCamera\0").ok()?,
-                        close_camera: *lib.get(b"POACloseCamera\0").ok()?,
-                        get_config: *lib.get(b"POAGetConfig\0").ok()?,
-                        set_config: *lib.get(b"POASetConfig\0").ok()?,
-                        set_image_bin: *lib.get(b"POASetImageBin\0").ok()?,
-                        set_image_size: *lib.get(b"POASetImageSize\0").ok()?,
-                        set_image_start_pos: *lib.get(b"POASetImageStartPos\0").ok()?,
-                        set_image_format: *lib.get(b"POASetImageFormat\0").ok()?,
-                        start_exposure: *lib.get(b"POAStartExposure\0").ok()?,
-                        stop_exposure: *lib.get(b"POAStopExposure\0").ok()?,
-                        get_camera_state: *lib.get(b"POAGetCameraState\0").ok()?,
-                        get_image_data: *lib.get(b"POAGetImageData\0").ok()?,
-                        get_image_size: *lib.get(b"POAGetImageSize\0").ok()?,
-                        image_ready: *lib.get(b"POAImageReady\0").ok()?,
-                        get_sdk_version: lib
-                            .get::<unsafe extern "C" fn() -> *const c_char>(b"POAGetSDKVersion\0")
-                            .ok()
-                            .map(|symbol| *symbol),
-                        lib,
-                    };
-
-                    return Some(sdk);
-                }
-            }
-        }
-
-        tracing::debug!("Player One SDK not found");
-        None
+/// Candidate paths for the Player One Phoenix filter-wheel SDK, in search order.
+fn poa_pw_candidate_paths() -> Vec<std::path::PathBuf> {
+    if cfg!(target_os = "windows") {
+        vec![
+            std::path::PathBuf::from("PlayerOnePW.dll"),
+            std::path::PathBuf::from(
+                "C:\\Program Files\\PlayerOne\\SDK\\lib\\x64\\PlayerOnePW.dll",
+            ),
+        ]
+    } else if cfg!(target_os = "macos") {
+        vec![
+            std::path::PathBuf::from("libPlayerOnePW.dylib"),
+            std::path::PathBuf::from("/usr/local/lib/libPlayerOnePW.dylib"),
+        ]
+    } else {
+        crate::vendor::sdk_loader::vendor_library_candidates(
+            &["libPlayerOnePW.so", "libPlayerOnePW.so.1"],
+            &[
+                "/usr/lib/libPlayerOnePW.so",
+                "/usr/local/lib/libPlayerOnePW.so",
+            ],
+        )
     }
+}
 
-    /// Get the global SDK instance
-    fn get() -> Option<&'static PoaSdk> {
-        POA_SDK.get_or_init(Self::load).as_ref()
+crate::load_vendor_sdk! {
+    /// POA SDK library wrapper
+    vendor_name: "Player One Camera",
+    sdk_struct: PoaSdk,
+    sdk_static: POA_SDK,
+    candidate_paths_fn: poa_camera_candidate_paths,
+    symbols: {
+        get_camera_count: b"POAGetCameraCount\0" => unsafe extern "C" fn() -> c_int,
+        get_camera_properties: b"POAGetCameraProperties\0" => unsafe extern "C" fn(c_int, *mut POACameraProperties) -> c_int,
+        get_camera_properties_by_id: b"POAGetCameraPropertiesByID\0" => unsafe extern "C" fn(c_int, *mut POACameraProperties) -> c_int,
+        open_camera: b"POAOpenCamera\0" => unsafe extern "C" fn(c_int) -> c_int,
+        init_camera: b"POAInitCamera\0" => unsafe extern "C" fn(c_int) -> c_int,
+        close_camera: b"POACloseCamera\0" => unsafe extern "C" fn(c_int) -> c_int,
+        get_config: b"POAGetConfig\0" => unsafe extern "C" fn(c_int, c_int, *mut POAConfigValue, *mut POABool) -> c_int,
+        set_config: b"POASetConfig\0" => unsafe extern "C" fn(c_int, c_int, POAConfigValue, POABool) -> c_int,
+        set_image_bin: b"POASetImageBin\0" => unsafe extern "C" fn(c_int, c_int) -> c_int,
+        set_image_size: b"POASetImageSize\0" => unsafe extern "C" fn(c_int, c_int, c_int) -> c_int,
+        set_image_start_pos: b"POASetImageStartPos\0" => unsafe extern "C" fn(c_int, c_int, c_int) -> c_int,
+        set_image_format: b"POASetImageFormat\0" => unsafe extern "C" fn(c_int, c_int) -> c_int,
+        start_exposure: b"POAStartExposure\0" => unsafe extern "C" fn(c_int, POABool) -> c_int,
+        stop_exposure: b"POAStopExposure\0" => unsafe extern "C" fn(c_int) -> c_int,
+        get_camera_state: b"POAGetCameraState\0" => unsafe extern "C" fn(c_int, *mut c_int) -> c_int,
+        get_image_data: b"POAGetImageData\0" => unsafe extern "C" fn(c_int, *mut u8, c_long, c_int) -> c_int,
+        get_image_size: b"POAGetImageSize\0" => unsafe extern "C" fn(c_int, *mut c_int, *mut c_int) -> c_int,
+        image_ready: b"POAImageReady\0" => unsafe extern "C" fn(c_int, *mut POABool) -> c_int,
+    },
+    // SDK metadata. Older camera SDK builds may not export this.
+    optional_symbols: {
+        get_sdk_version: b"POAGetSDKVersion\0" => unsafe extern "C" fn() -> *const c_char,
+    }
+}
+
+crate::load_vendor_sdk! {
+    /// Player One Phoenix filter-wheel SDK wrapper.
+    vendor_name: "Player One Filter Wheel",
+    sdk_struct: PoaPwSdk,
+    sdk_static: POA_PW_SDK,
+    candidate_paths_fn: poa_pw_candidate_paths,
+    symbols: {
+        get_pw_count: b"POAGetPWCount\0" => unsafe extern "C" fn() -> c_int,
+        get_pw_properties: b"POAGetPWProperties\0" => unsafe extern "C" fn(c_int, *mut PWProperties) -> c_int,
+        get_pw_properties_by_handle: b"POAGetPWPropertiesByHandle\0" => unsafe extern "C" fn(c_int, *mut PWProperties) -> c_int,
+        open_pw: b"POAOpenPW\0" => unsafe extern "C" fn(c_int) -> c_int,
+        close_pw: b"POAClosePW\0" => unsafe extern "C" fn(c_int) -> c_int,
+        get_current_position: b"POAGetCurrentPosition\0" => unsafe extern "C" fn(c_int, *mut c_int) -> c_int,
+        goto_position: b"POAGotoPosition\0" => unsafe extern "C" fn(c_int, c_int) -> c_int,
+        get_pw_state: b"POAGetPWState\0" => unsafe extern "C" fn(c_int, *mut PWState) -> c_int,
+        get_filter_alias: b"POAGetPWFilterAlias\0" => unsafe extern "C" fn(c_int, c_int, *mut c_char, c_int) -> c_int,
+        set_filter_alias: b"POASetPWFilterAlias\0" => unsafe extern "C" fn(c_int, c_int, *const c_char) -> c_int,
+        get_sdk_version: b"POAGetPWSDKVer\0" => unsafe extern "C" fn() -> *const c_char,
     }
 }
 

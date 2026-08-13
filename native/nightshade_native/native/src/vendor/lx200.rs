@@ -1257,6 +1257,10 @@ pub struct Lx200MountInfo {
 }
 
 pub async fn discover_mounts() -> Result<Vec<Lx200MountInfo>, NativeError> {
+    crate::vendor::run_serial_scan("LX200", scan_serial_ports).await
+}
+
+fn scan_serial_ports() -> Result<Vec<Lx200MountInfo>, NativeError> {
     let mut mounts = Vec::new();
 
     let ports = serialport::available_ports()

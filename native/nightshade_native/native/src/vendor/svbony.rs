@@ -17,7 +17,6 @@ use crate::utils::calculate_buffer_size_i32;
 use crate::NativeVendor;
 use async_trait::async_trait;
 use std::ffi::{c_char, c_int, c_long, CStr};
-use std::sync::OnceLock;
 
 // =============================================================================
 // SVBony SDK Types (from SVBCameraSDK.h)
@@ -305,28 +304,59 @@ type SvbGetVideoData =
     unsafe extern "C" fn(camera_id: c_int, buf: *mut u8, buf_size: c_long, wait_ms: c_int) -> c_int;
 type SvbGetSdkVersion = unsafe extern "C" fn() -> *const c_char;
 
-/// SVBony SDK wrapper with dynamically loaded functions
-struct SvbonySdk {
-    _library: libloading::Library,
-    get_num_of_connected_cameras: SvbGetNumOfConnectedCameras,
-    get_camera_info: SvbGetCameraInfo,
-    get_camera_property: SvbGetCameraProperty,
-    get_camera_property_ex: SvbGetCameraPropertyEx,
-    get_sensor_pixel_size: SvbGetSensorPixelSize,
-    open_camera: SvbOpenCamera,
-    close_camera: SvbCloseCamera,
-    get_num_of_controls: SvbGetNumOfControls,
-    get_control_caps: SvbGetControlCaps,
-    get_control_value: SvbGetControlValue,
-    set_control_value: SvbSetControlValue,
-    set_roi_format: SvbSetROIFormat,
-    get_roi_format: SvbGetROIFormat,
-    set_output_image_type: SvbSetOutputImageType,
-    get_output_image_type: SvbGetOutputImageType,
-    start_video_capture: SvbStartVideoCapture,
-    stop_video_capture: SvbStopVideoCapture,
-    get_video_data: SvbGetVideoData,
-    get_sdk_version: SvbGetSdkVersion,
+/// Candidate paths for the SVBony camera SDK, in search order.
+fn svbony_candidate_paths() -> Vec<std::path::PathBuf> {
+    let lib_name = if cfg!(target_os = "windows") {
+        "SVBCameraSDK.dll"
+    } else if cfg!(target_os = "macos") {
+        "libSVBCameraSDK.dylib"
+    } else {
+        "libSVBCameraSDK.so"
+    };
+    let system_paths = if cfg!(target_os = "linux") {
+        vec![
+            format!("/usr/lib/{lib_name}"),
+            format!("/usr/local/lib/{lib_name}"),
+        ]
+    } else if cfg!(target_os = "macos") {
+        vec![
+            format!("/usr/local/lib/{lib_name}"),
+            format!("/opt/homebrew/lib/{lib_name}"),
+        ]
+    } else {
+        Vec::new()
+    };
+    let system_path_refs = system_paths.iter().map(String::as_str).collect::<Vec<_>>();
+    crate::vendor::sdk_loader::vendor_library_candidates(&[lib_name], &system_path_refs)
+}
+
+crate::load_vendor_sdk! {
+    /// SVBony SDK wrapper with dynamically loaded functions
+    vendor_name: "SVBony",
+    sdk_struct: SvbonySdk,
+    sdk_static: SDK,
+    candidate_paths_fn: svbony_candidate_paths,
+    symbols: {
+        get_num_of_connected_cameras: b"SVBGetNumOfConnectedCameras\0" => SvbGetNumOfConnectedCameras,
+        get_camera_info: b"SVBGetCameraInfo\0" => SvbGetCameraInfo,
+        get_camera_property: b"SVBGetCameraProperty\0" => SvbGetCameraProperty,
+        get_camera_property_ex: b"SVBGetCameraPropertyEx\0" => SvbGetCameraPropertyEx,
+        get_sensor_pixel_size: b"SVBGetSensorPixelSize\0" => SvbGetSensorPixelSize,
+        open_camera: b"SVBOpenCamera\0" => SvbOpenCamera,
+        close_camera: b"SVBCloseCamera\0" => SvbCloseCamera,
+        get_num_of_controls: b"SVBGetNumOfControls\0" => SvbGetNumOfControls,
+        get_control_caps: b"SVBGetControlCaps\0" => SvbGetControlCaps,
+        get_control_value: b"SVBGetControlValue\0" => SvbGetControlValue,
+        set_control_value: b"SVBSetControlValue\0" => SvbSetControlValue,
+        set_roi_format: b"SVBSetROIFormat\0" => SvbSetROIFormat,
+        get_roi_format: b"SVBGetROIFormat\0" => SvbGetROIFormat,
+        set_output_image_type: b"SVBSetOutputImageType\0" => SvbSetOutputImageType,
+        get_output_image_type: b"SVBGetOutputImageType\0" => SvbGetOutputImageType,
+        start_video_capture: b"SVBStartVideoCapture\0" => SvbStartVideoCapture,
+        stop_video_capture: b"SVBStopVideoCapture\0" => SvbStopVideoCapture,
+        get_video_data: b"SVBGetVideoData\0" => SvbGetVideoData,
+        get_sdk_version: b"SVBGetSDKVersion\0" => SvbGetSdkVersion,
+    }
 }
 
 fn svb_control_value_to_i32(value: i64, label: &str) -> Result<i32, NativeError> {
@@ -338,183 +368,8 @@ fn svb_control_value_to_i32(value: i64, label: &str) -> Result<i32, NativeError>
     })
 }
 
-impl SvbonySdk {
-    /// Load the SDK from the default paths
-    fn load() -> Result<Self, NativeError> {
-        let lib_name = if cfg!(target_os = "windows") {
-            "SVBCameraSDK.dll"
-        } else if cfg!(target_os = "macos") {
-            "libSVBCameraSDK.dylib"
-        } else {
-            "libSVBCameraSDK.so"
-        };
-        let system_paths = if cfg!(target_os = "linux") {
-            vec![
-                format!("/usr/lib/{lib_name}"),
-                format!("/usr/local/lib/{lib_name}"),
-            ]
-        } else if cfg!(target_os = "macos") {
-            vec![
-                format!("/usr/local/lib/{lib_name}"),
-                format!("/opt/homebrew/lib/{lib_name}"),
-            ]
-        } else {
-            Vec::new()
-        };
-        let system_path_refs = system_paths.iter().map(String::as_str).collect::<Vec<_>>();
-        let candidates =
-            crate::vendor::sdk_loader::vendor_library_candidates(&[lib_name], &system_path_refs);
-
-        let mut last_error = None;
-        let mut loaded = None;
-        for path in &candidates {
-            // SAFETY: libloading::Library::new performs platform dynamic loading; `lib_name` is
-            // a compile-time string constant naming the vendor SDK shared library.
-            match unsafe { libloading::Library::new(path) } {
-                Ok(library) => {
-                    tracing::info!("Loaded SVBony SDK from {}", path.display());
-                    loaded = Some(library);
-                    break;
-                }
-                Err(e) => {
-                    last_error = Some(e.to_string());
-                }
-            }
-        }
-        let library = loaded.ok_or_else(|| {
-            NativeError::SdkError(format!(
-                "Failed to load SVBony SDK from {} candidate paths: {}",
-                candidates.len(),
-                last_error.unwrap_or_else(|| "no candidate paths supplied".to_string())
-            ))
-        })?;
-
-        // SAFETY: each `library.get::<FnType>(b"symbol\0")` returns a `Symbol` that we immediately deref with `*` to copy out a function pointer; the C ABI signatures declared above (SvbGetNumOfConnectedCameras, SvbGetCameraInfo, ...) are from the vendor's SVBCameraSDK.h header so the function-pointer ABI matches. The loaded `library` is moved into the returned SvbonySdk so the function pointers remain valid for the program's lifetime (SDK is stored in a `static OnceLock`).
-        unsafe {
-            Ok(Self {
-                get_num_of_connected_cameras: *library
-                    .get::<SvbGetNumOfConnectedCameras>(b"SVBGetNumOfConnectedCameras\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!(
-                            "Failed to load SVBGetNumOfConnectedCameras: {}",
-                            e
-                        ))
-                    })?,
-                get_camera_info: *library
-                    .get::<SvbGetCameraInfo>(b"SVBGetCameraInfo\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load SVBGetCameraInfo: {}", e))
-                    })?,
-                get_camera_property: *library
-                    .get::<SvbGetCameraProperty>(b"SVBGetCameraProperty\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load SVBGetCameraProperty: {}", e))
-                    })?,
-                get_camera_property_ex: *library
-                    .get::<SvbGetCameraPropertyEx>(b"SVBGetCameraPropertyEx\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!(
-                            "Failed to load SVBGetCameraPropertyEx: {}",
-                            e
-                        ))
-                    })?,
-                get_sensor_pixel_size: *library
-                    .get::<SvbGetSensorPixelSize>(b"SVBGetSensorPixelSize\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!(
-                            "Failed to load SVBGetSensorPixelSize: {}",
-                            e
-                        ))
-                    })?,
-                open_camera: *library
-                    .get::<SvbOpenCamera>(b"SVBOpenCamera\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load SVBOpenCamera: {}", e))
-                    })?,
-                close_camera: *library
-                    .get::<SvbCloseCamera>(b"SVBCloseCamera\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load SVBCloseCamera: {}", e))
-                    })?,
-                get_num_of_controls: *library
-                    .get::<SvbGetNumOfControls>(b"SVBGetNumOfControls\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load SVBGetNumOfControls: {}", e))
-                    })?,
-                get_control_caps: *library
-                    .get::<SvbGetControlCaps>(b"SVBGetControlCaps\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load SVBGetControlCaps: {}", e))
-                    })?,
-                get_control_value: *library
-                    .get::<SvbGetControlValue>(b"SVBGetControlValue\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load SVBGetControlValue: {}", e))
-                    })?,
-                set_control_value: *library
-                    .get::<SvbSetControlValue>(b"SVBSetControlValue\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load SVBSetControlValue: {}", e))
-                    })?,
-                set_roi_format: *library
-                    .get::<SvbSetROIFormat>(b"SVBSetROIFormat\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load SVBSetROIFormat: {}", e))
-                    })?,
-                get_roi_format: *library
-                    .get::<SvbGetROIFormat>(b"SVBGetROIFormat\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load SVBGetROIFormat: {}", e))
-                    })?,
-                set_output_image_type: *library
-                    .get::<SvbSetOutputImageType>(b"SVBSetOutputImageType\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!(
-                            "Failed to load SVBSetOutputImageType: {}",
-                            e
-                        ))
-                    })?,
-                get_output_image_type: *library
-                    .get::<SvbGetOutputImageType>(b"SVBGetOutputImageType\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!(
-                            "Failed to load SVBGetOutputImageType: {}",
-                            e
-                        ))
-                    })?,
-                start_video_capture: *library
-                    .get::<SvbStartVideoCapture>(b"SVBStartVideoCapture\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load SVBStartVideoCapture: {}", e))
-                    })?,
-                stop_video_capture: *library
-                    .get::<SvbStopVideoCapture>(b"SVBStopVideoCapture\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load SVBStopVideoCapture: {}", e))
-                    })?,
-                get_video_data: *library
-                    .get::<SvbGetVideoData>(b"SVBGetVideoData\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load SVBGetVideoData: {}", e))
-                    })?,
-                get_sdk_version: *library
-                    .get::<SvbGetSdkVersion>(b"SVBGetSDKVersion\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load SVBGetSDKVersion: {}", e))
-                    })?,
-                _library: library,
-            })
-        }
-    }
-}
-
-/// Global SDK instance
-static SDK: OnceLock<Result<SvbonySdk, String>> = OnceLock::new();
-
 fn get_sdk() -> Result<&'static SvbonySdk, NativeError> {
-    SDK.get_or_init(|| SvbonySdk::load().map_err(|e| e.to_string()))
-        .as_ref()
-        .map_err(|e| NativeError::SdkError(e.clone()))
+    SvbonySdk::get_or_reason().map_err(|reason| NativeError::SdkError(reason.to_string()))
 }
 
 // =============================================================================

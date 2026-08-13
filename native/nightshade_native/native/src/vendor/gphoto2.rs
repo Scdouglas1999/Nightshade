@@ -35,7 +35,6 @@ use crate::traits::*;
 use crate::NativeVendor;
 use async_trait::async_trait;
 use std::ffi::{c_char, c_float, c_int, c_void, CStr, CString};
-use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 // =============================================================================
@@ -185,92 +184,105 @@ const GP_OPERATION_TRIGGER_CAPTURE: c_int = 1 << 4;
 // SDK LIBRARY LOADING
 // =============================================================================
 
-/// libgphoto2 SDK library wrapper
-struct GPhoto2Sdk {
-    #[allow(dead_code)]
-    lib: libloading::Library,
+/// Candidate paths for libgphoto2, in search order.
+fn gphoto2_candidate_paths() -> Vec<std::path::PathBuf> {
+    let mut lib_paths: Vec<std::path::PathBuf> = Vec::new();
 
-    // Context management
-    context_new: unsafe extern "C" fn() -> *mut GPContext,
-    context_unref: unsafe extern "C" fn(*mut GPContext),
+    if cfg!(target_os = "windows") {
+        lib_paths.push(std::path::PathBuf::from("libgphoto2.dll"));
+        lib_paths.push(std::path::PathBuf::from("gphoto2.dll"));
+        // Common installation paths
+        lib_paths.push(std::path::PathBuf::from(
+            "C:\\Program Files\\libgphoto2\\bin\\libgphoto2.dll",
+        ));
+        lib_paths.push(std::path::PathBuf::from(
+            "C:\\msys64\\mingw64\\bin\\libgphoto2.dll",
+        ));
 
-    // Camera lifecycle
-    camera_new: unsafe extern "C" fn(*mut *mut GPCamera) -> c_int,
-    camera_init: unsafe extern "C" fn(*mut GPCamera, *mut GPContext) -> c_int,
-    camera_exit: unsafe extern "C" fn(*mut GPCamera, *mut GPContext) -> c_int,
-    camera_unref: unsafe extern "C" fn(*mut GPCamera) -> c_int,
-    camera_free: unsafe extern "C" fn(*mut GPCamera) -> c_int,
+        if let Ok(exe_path) = std::env::current_exe() {
+            if let Some(exe_dir) = exe_path.parent() {
+                lib_paths.push(exe_dir.join("libgphoto2.dll"));
+            }
+        }
+    } else if cfg!(target_os = "macos") {
+        lib_paths = crate::vendor::sdk_loader::vendor_library_candidates(
+            &["libgphoto2.dylib"],
+            &[
+                "/usr/local/lib/libgphoto2.dylib",
+                "/opt/homebrew/lib/libgphoto2.dylib",
+            ],
+        );
+        // Homebrew Cellar paths
+        lib_paths.push(std::path::PathBuf::from(
+            "/usr/local/opt/libgphoto2/lib/libgphoto2.dylib",
+        ));
+        lib_paths.push(std::path::PathBuf::from(
+            "/opt/homebrew/opt/libgphoto2/lib/libgphoto2.dylib",
+        ));
+    } else {
+        // Linux
+        lib_paths = crate::vendor::sdk_loader::vendor_library_candidates(
+            &["libgphoto2.so", "libgphoto2.so.6", "libgphoto2.so.2"],
+            &[
+                "/usr/lib/libgphoto2.so",
+                "/usr/lib/x86_64-linux-gnu/libgphoto2.so",
+                "/usr/lib/aarch64-linux-gnu/libgphoto2.so",
+                "/usr/local/lib/libgphoto2.so",
+                "/usr/lib64/libgphoto2.so",
+            ],
+        );
+    }
 
-    // Camera detection/autodetect
-    camera_autodetect: unsafe extern "C" fn(*mut CameraList, *mut GPContext) -> c_int,
+    lib_paths
+}
 
-    // Capture
-    camera_capture:
-        unsafe extern "C" fn(*mut GPCamera, c_int, *mut CameraFilePath, *mut GPContext) -> c_int,
-    camera_capture_preview:
-        unsafe extern "C" fn(*mut GPCamera, *mut CameraFile, *mut GPContext) -> c_int,
-    camera_trigger_capture: unsafe extern "C" fn(*mut GPCamera, *mut GPContext) -> c_int,
-    camera_wait_for_event: unsafe extern "C" fn(
-        *mut GPCamera,
-        c_int,
-        *mut c_int,
-        *mut *mut c_void,
-        *mut GPContext,
-    ) -> c_int,
-
-    // File operations
-    camera_file_get: unsafe extern "C" fn(
-        *mut GPCamera,
-        *const c_char,
-        *const c_char,
-        c_int,
-        *mut CameraFile,
-        *mut GPContext,
-    ) -> c_int,
-    camera_file_delete:
-        unsafe extern "C" fn(*mut GPCamera, *const c_char, *const c_char, *mut GPContext) -> c_int,
-
-    // File object
-    file_new: unsafe extern "C" fn(*mut *mut CameraFile) -> c_int,
-    file_unref: unsafe extern "C" fn(*mut CameraFile) -> c_int,
-    file_get_data_and_size:
-        unsafe extern "C" fn(*mut CameraFile, *mut *const c_char, *mut u64) -> c_int,
-    file_free: unsafe extern "C" fn(*mut CameraFile) -> c_int,
-
-    // Camera list
-    list_new: unsafe extern "C" fn(*mut *mut CameraList) -> c_int,
-    list_count: unsafe extern "C" fn(*mut CameraList) -> c_int,
-    list_get_name: unsafe extern "C" fn(*mut CameraList, c_int, *mut *const c_char) -> c_int,
-    list_get_value: unsafe extern "C" fn(*mut CameraList, c_int, *mut *const c_char) -> c_int,
-    list_free: unsafe extern "C" fn(*mut CameraList) -> c_int,
-
-    // Configuration
-    camera_get_config:
-        unsafe extern "C" fn(*mut GPCamera, *mut *mut CameraWidget, *mut GPContext) -> c_int,
-    camera_set_config:
-        unsafe extern "C" fn(*mut GPCamera, *mut CameraWidget, *mut GPContext) -> c_int,
-
-    // Widget operations
-    widget_get_child_by_name:
-        unsafe extern "C" fn(*mut CameraWidget, *const c_char, *mut *mut CameraWidget) -> c_int,
-    widget_get_type: unsafe extern "C" fn(*mut CameraWidget, *mut c_int) -> c_int,
-    widget_get_value: unsafe extern "C" fn(*mut CameraWidget, *mut c_void) -> c_int,
-    widget_set_value: unsafe extern "C" fn(*mut CameraWidget, *const c_void) -> c_int,
-    widget_count_choices: unsafe extern "C" fn(*mut CameraWidget) -> c_int,
-    widget_get_choice: unsafe extern "C" fn(*mut CameraWidget, c_int, *mut *const c_char) -> c_int,
-    widget_get_range:
-        unsafe extern "C" fn(*mut CameraWidget, *mut c_float, *mut c_float, *mut c_float) -> c_int,
-    widget_free: unsafe extern "C" fn(*mut CameraWidget) -> c_int,
-
-    // Camera abilities
-    camera_get_abilities: unsafe extern "C" fn(*mut GPCamera, *mut CameraAbilities) -> c_int,
-
-    // Summary
-    camera_get_summary:
-        unsafe extern "C" fn(*mut GPCamera, *mut GPCameraText, *mut GPContext) -> c_int,
-
-    // Library metadata
-    library_version: Option<unsafe extern "C" fn(c_int) -> *const *const c_char>,
+crate::load_vendor_sdk! {
+    /// libgphoto2 SDK library wrapper
+    vendor_name: "libgphoto2",
+    sdk_struct: GPhoto2Sdk,
+    sdk_static: GPHOTO2_SDK,
+    candidate_paths_fn: gphoto2_candidate_paths,
+    symbols: {
+        context_new: b"gp_context_new\0" => unsafe extern "C" fn() -> *mut GPContext,
+        context_unref: b"gp_context_unref\0" => unsafe extern "C" fn(*mut GPContext),
+        camera_new: b"gp_camera_new\0" => unsafe extern "C" fn(*mut *mut GPCamera) -> c_int,
+        camera_init: b"gp_camera_init\0" => unsafe extern "C" fn(*mut GPCamera, *mut GPContext) -> c_int,
+        camera_exit: b"gp_camera_exit\0" => unsafe extern "C" fn(*mut GPCamera, *mut GPContext) -> c_int,
+        camera_unref: b"gp_camera_unref\0" => unsafe extern "C" fn(*mut GPCamera) -> c_int,
+        camera_free: b"gp_camera_free\0" => unsafe extern "C" fn(*mut GPCamera) -> c_int,
+        camera_autodetect: b"gp_camera_autodetect\0" => unsafe extern "C" fn(*mut CameraList, *mut GPContext) -> c_int,
+        camera_capture: b"gp_camera_capture\0" => unsafe extern "C" fn(*mut GPCamera, c_int, *mut CameraFilePath, *mut GPContext) -> c_int,
+        camera_capture_preview: b"gp_camera_capture_preview\0" => unsafe extern "C" fn(*mut GPCamera, *mut CameraFile, *mut GPContext) -> c_int,
+        camera_trigger_capture: b"gp_camera_trigger_capture\0" => unsafe extern "C" fn(*mut GPCamera, *mut GPContext) -> c_int,
+        camera_wait_for_event: b"gp_camera_wait_for_event\0" => unsafe extern "C" fn( *mut GPCamera, c_int, *mut c_int, *mut *mut c_void, *mut GPContext, ) -> c_int,
+        camera_file_get: b"gp_camera_file_get\0" => unsafe extern "C" fn( *mut GPCamera, *const c_char, *const c_char, c_int, *mut CameraFile, *mut GPContext, ) -> c_int,
+        camera_file_delete: b"gp_camera_file_delete\0" => unsafe extern "C" fn(*mut GPCamera, *const c_char, *const c_char, *mut GPContext) -> c_int,
+        file_new: b"gp_file_new\0" => unsafe extern "C" fn(*mut *mut CameraFile) -> c_int,
+        file_unref: b"gp_file_unref\0" => unsafe extern "C" fn(*mut CameraFile) -> c_int,
+        file_get_data_and_size: b"gp_file_get_data_and_size\0" => unsafe extern "C" fn(*mut CameraFile, *mut *const c_char, *mut u64) -> c_int,
+        file_free: b"gp_file_free\0" => unsafe extern "C" fn(*mut CameraFile) -> c_int,
+        list_new: b"gp_list_new\0" => unsafe extern "C" fn(*mut *mut CameraList) -> c_int,
+        list_count: b"gp_list_count\0" => unsafe extern "C" fn(*mut CameraList) -> c_int,
+        list_get_name: b"gp_list_get_name\0" => unsafe extern "C" fn(*mut CameraList, c_int, *mut *const c_char) -> c_int,
+        list_get_value: b"gp_list_get_value\0" => unsafe extern "C" fn(*mut CameraList, c_int, *mut *const c_char) -> c_int,
+        list_free: b"gp_list_free\0" => unsafe extern "C" fn(*mut CameraList) -> c_int,
+        camera_get_config: b"gp_camera_get_config\0" => unsafe extern "C" fn(*mut GPCamera, *mut *mut CameraWidget, *mut GPContext) -> c_int,
+        camera_set_config: b"gp_camera_set_config\0" => unsafe extern "C" fn(*mut GPCamera, *mut CameraWidget, *mut GPContext) -> c_int,
+        widget_get_child_by_name: b"gp_widget_get_child_by_name\0" => unsafe extern "C" fn(*mut CameraWidget, *const c_char, *mut *mut CameraWidget) -> c_int,
+        widget_get_type: b"gp_widget_get_type\0" => unsafe extern "C" fn(*mut CameraWidget, *mut c_int) -> c_int,
+        widget_get_value: b"gp_widget_get_value\0" => unsafe extern "C" fn(*mut CameraWidget, *mut c_void) -> c_int,
+        widget_set_value: b"gp_widget_set_value\0" => unsafe extern "C" fn(*mut CameraWidget, *const c_void) -> c_int,
+        widget_count_choices: b"gp_widget_count_choices\0" => unsafe extern "C" fn(*mut CameraWidget) -> c_int,
+        widget_get_choice: b"gp_widget_get_choice\0" => unsafe extern "C" fn(*mut CameraWidget, c_int, *mut *const c_char) -> c_int,
+        widget_get_range: b"gp_widget_get_range\0" => unsafe extern "C" fn(*mut CameraWidget, *mut c_float, *mut c_float, *mut c_float) -> c_int,
+        widget_free: b"gp_widget_free\0" => unsafe extern "C" fn(*mut CameraWidget) -> c_int,
+        camera_get_abilities: b"gp_camera_get_abilities\0" => unsafe extern "C" fn(*mut GPCamera, *mut CameraAbilities) -> c_int,
+        camera_get_summary: b"gp_camera_get_summary\0" => unsafe extern "C" fn(*mut GPCamera, *mut GPCameraText, *mut GPContext) -> c_int,
+    },
+    // Library metadata: absent from some distro builds, so never fatal.
+    optional_symbols: {
+        library_version: b"gp_library_version\0" => unsafe extern "C" fn(c_int) -> *const *const c_char,
+    }
 }
 
 /// Camera text struct for summary
@@ -285,253 +297,6 @@ impl Default for GPCameraText {
         Self {
             text: [0; 32 * 1024],
         }
-    }
-}
-
-static GPHOTO2_SDK: OnceLock<Option<GPhoto2Sdk>> = OnceLock::new();
-
-impl GPhoto2Sdk {
-    /// Load the libgphoto2 library
-    fn load() -> Option<Self> {
-        let mut lib_paths: Vec<std::path::PathBuf> = Vec::new();
-
-        if cfg!(target_os = "windows") {
-            lib_paths.push(std::path::PathBuf::from("libgphoto2.dll"));
-            lib_paths.push(std::path::PathBuf::from("gphoto2.dll"));
-            // Common installation paths
-            lib_paths.push(std::path::PathBuf::from(
-                "C:\\Program Files\\libgphoto2\\bin\\libgphoto2.dll",
-            ));
-            lib_paths.push(std::path::PathBuf::from(
-                "C:\\msys64\\mingw64\\bin\\libgphoto2.dll",
-            ));
-
-            if let Ok(exe_path) = std::env::current_exe() {
-                if let Some(exe_dir) = exe_path.parent() {
-                    lib_paths.push(exe_dir.join("libgphoto2.dll"));
-                }
-            }
-        } else if cfg!(target_os = "macos") {
-            lib_paths = crate::vendor::sdk_loader::vendor_library_candidates(
-                &["libgphoto2.dylib"],
-                &[
-                    "/usr/local/lib/libgphoto2.dylib",
-                    "/opt/homebrew/lib/libgphoto2.dylib",
-                ],
-            );
-            // Homebrew Cellar paths
-            lib_paths.push(std::path::PathBuf::from(
-                "/usr/local/opt/libgphoto2/lib/libgphoto2.dylib",
-            ));
-            lib_paths.push(std::path::PathBuf::from(
-                "/opt/homebrew/opt/libgphoto2/lib/libgphoto2.dylib",
-            ));
-        } else {
-            // Linux
-            lib_paths = crate::vendor::sdk_loader::vendor_library_candidates(
-                &["libgphoto2.so", "libgphoto2.so.6", "libgphoto2.so.2"],
-                &[
-                    "/usr/lib/libgphoto2.so",
-                    "/usr/lib/x86_64-linux-gnu/libgphoto2.so",
-                    "/usr/lib/aarch64-linux-gnu/libgphoto2.so",
-                    "/usr/local/lib/libgphoto2.so",
-                    "/usr/lib64/libgphoto2.so",
-                ],
-            );
-        }
-
-        for path in &lib_paths {
-            tracing::debug!("Trying to load libgphoto2 from: {}", path.display());
-            // SAFETY: `libloading::Library::new(path)` is unsafe because the dynamic
-            // linker may execute initializer code from the loaded shared object. The
-            // candidate paths come from a hard-coded list of standard libgphoto2
-            // install locations (no caller-supplied input), and each resolved symbol
-            // signature below is hand-derived from the libgphoto2 C headers, so the
-            // function-pointer ABI matches what we cast it to.
-            unsafe {
-                match libloading::Library::new(path) {
-                    Ok(lib) => {
-                        tracing::info!("Found libgphoto2 at: {}", path.display());
-
-                        fn load_symbol<T: Copy>(
-                            lib: &libloading::Library,
-                            name: &[u8],
-                            name_str: &str,
-                        ) -> Option<T> {
-                            // SAFETY: `Library::get::<T>(name)` is unsafe because the
-                            // caller asserts the symbol's foreign signature matches `T`.
-                            // Every call site below passes the libgphoto2 C-header-derived
-                            // function-pointer type as `T`, and the returned symbol is
-                            // immediately copied out by `*sym` (the underlying `lib` is
-                            // retained by the enclosing match arm so the function pointer
-                            // remains valid for the SDK's lifetime).
-                            match unsafe { lib.get::<T>(name) } {
-                                Ok(sym) => Some(*sym),
-                                Err(e) => {
-                                    tracing::error!(
-                                        "Failed to load gphoto2 function '{}': {}",
-                                        name_str,
-                                        e
-                                    );
-                                    None
-                                }
-                            }
-                        }
-
-                        let context_new = load_symbol(&lib, b"gp_context_new\0", "gp_context_new")?;
-                        let context_unref =
-                            load_symbol(&lib, b"gp_context_unref\0", "gp_context_unref")?;
-                        let camera_new = load_symbol(&lib, b"gp_camera_new\0", "gp_camera_new")?;
-                        let camera_init = load_symbol(&lib, b"gp_camera_init\0", "gp_camera_init")?;
-                        let camera_exit = load_symbol(&lib, b"gp_camera_exit\0", "gp_camera_exit")?;
-                        let camera_unref =
-                            load_symbol(&lib, b"gp_camera_unref\0", "gp_camera_unref")?;
-                        let camera_free = load_symbol(&lib, b"gp_camera_free\0", "gp_camera_free")?;
-                        let camera_autodetect =
-                            load_symbol(&lib, b"gp_camera_autodetect\0", "gp_camera_autodetect")?;
-                        let camera_capture =
-                            load_symbol(&lib, b"gp_camera_capture\0", "gp_camera_capture")?;
-                        let camera_capture_preview = load_symbol(
-                            &lib,
-                            b"gp_camera_capture_preview\0",
-                            "gp_camera_capture_preview",
-                        )?;
-                        let camera_trigger_capture = load_symbol(
-                            &lib,
-                            b"gp_camera_trigger_capture\0",
-                            "gp_camera_trigger_capture",
-                        )?;
-                        let camera_wait_for_event = load_symbol(
-                            &lib,
-                            b"gp_camera_wait_for_event\0",
-                            "gp_camera_wait_for_event",
-                        )?;
-                        let camera_file_get =
-                            load_symbol(&lib, b"gp_camera_file_get\0", "gp_camera_file_get")?;
-                        let camera_file_delete =
-                            load_symbol(&lib, b"gp_camera_file_delete\0", "gp_camera_file_delete")?;
-                        let file_new = load_symbol(&lib, b"gp_file_new\0", "gp_file_new")?;
-                        let file_unref = load_symbol(&lib, b"gp_file_unref\0", "gp_file_unref")?;
-                        let file_get_data_and_size = load_symbol(
-                            &lib,
-                            b"gp_file_get_data_and_size\0",
-                            "gp_file_get_data_and_size",
-                        )?;
-                        let file_free = load_symbol(&lib, b"gp_file_free\0", "gp_file_free")?;
-                        let list_new = load_symbol(&lib, b"gp_list_new\0", "gp_list_new")?;
-                        let list_count = load_symbol(&lib, b"gp_list_count\0", "gp_list_count")?;
-                        let list_get_name =
-                            load_symbol(&lib, b"gp_list_get_name\0", "gp_list_get_name")?;
-                        let list_get_value =
-                            load_symbol(&lib, b"gp_list_get_value\0", "gp_list_get_value")?;
-                        let list_free = load_symbol(&lib, b"gp_list_free\0", "gp_list_free")?;
-                        let camera_get_config =
-                            load_symbol(&lib, b"gp_camera_get_config\0", "gp_camera_get_config")?;
-                        let camera_set_config =
-                            load_symbol(&lib, b"gp_camera_set_config\0", "gp_camera_set_config")?;
-                        let widget_get_child_by_name = load_symbol(
-                            &lib,
-                            b"gp_widget_get_child_by_name\0",
-                            "gp_widget_get_child_by_name",
-                        )?;
-                        let widget_get_type =
-                            load_symbol(&lib, b"gp_widget_get_type\0", "gp_widget_get_type")?;
-                        let widget_get_value =
-                            load_symbol(&lib, b"gp_widget_get_value\0", "gp_widget_get_value")?;
-                        let widget_set_value =
-                            load_symbol(&lib, b"gp_widget_set_value\0", "gp_widget_set_value")?;
-                        let widget_count_choices = load_symbol(
-                            &lib,
-                            b"gp_widget_count_choices\0",
-                            "gp_widget_count_choices",
-                        )?;
-                        let widget_get_choice =
-                            load_symbol(&lib, b"gp_widget_get_choice\0", "gp_widget_get_choice")?;
-                        let widget_get_range =
-                            load_symbol(&lib, b"gp_widget_get_range\0", "gp_widget_get_range")?;
-                        let widget_free = load_symbol(&lib, b"gp_widget_free\0", "gp_widget_free")?;
-                        let camera_get_abilities = load_symbol(
-                            &lib,
-                            b"gp_camera_get_abilities\0",
-                            "gp_camera_get_abilities",
-                        )?;
-                        let camera_get_summary =
-                            load_symbol(&lib, b"gp_camera_get_summary\0", "gp_camera_get_summary")?;
-                        let library_version = lib
-                            .get::<unsafe extern "C" fn(c_int) -> *const *const c_char>(
-                                b"gp_library_version\0",
-                            )
-                            .ok()
-                            .map(|symbol| *symbol);
-
-                        let sdk = Self {
-                            lib,
-                            context_new,
-                            context_unref,
-                            camera_new,
-                            camera_init,
-                            camera_exit,
-                            camera_unref,
-                            camera_free,
-                            camera_autodetect,
-                            camera_capture,
-                            camera_capture_preview,
-                            camera_trigger_capture,
-                            camera_wait_for_event,
-                            camera_file_get,
-                            camera_file_delete,
-                            file_new,
-                            file_unref,
-                            file_get_data_and_size,
-                            file_free,
-                            list_new,
-                            list_count,
-                            list_get_name,
-                            list_get_value,
-                            list_free,
-                            camera_get_config,
-                            camera_set_config,
-                            widget_get_child_by_name,
-                            widget_get_type,
-                            widget_get_value,
-                            widget_set_value,
-                            widget_count_choices,
-                            widget_get_choice,
-                            widget_get_range,
-                            widget_free,
-                            camera_get_abilities,
-                            camera_get_summary,
-                            library_version,
-                        };
-
-                        tracing::info!(
-                            "Successfully loaded all libgphoto2 functions from: {}",
-                            path.display()
-                        );
-                        return Some(sdk);
-                    }
-                    Err(e) => {
-                        tracing::debug!("libgphoto2 not found at {}: {}", path.display(), e);
-                    }
-                }
-            }
-        }
-
-        // WARN, not ERROR: libgphoto2 is an OPTIONAL dependency for DSLR /
-        // mirrorless support. Dedicated astro cameras (ZWO/QHY/etc.) don't need
-        // it, so its absence is an expected capability-unavailable notice, not a
-        // failure — logging it at ERROR on every startup was misleading alarm.
-        tracing::warn!(
-            "libgphoto2 not found (checked {} locations) — DSLR/mirrorless support unavailable. \
-             To enable it install libgphoto2: Linux `apt install libgphoto2-dev`, macOS `brew install libgphoto2`, Windows see https://github.com/gphoto/libgphoto2",
-            lib_paths.len()
-        );
-        None
-    }
-
-    /// Get the global SDK instance
-    fn get() -> Option<&'static GPhoto2Sdk> {
-        GPHOTO2_SDK.get_or_init(Self::load).as_ref()
     }
 }
 

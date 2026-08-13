@@ -186,312 +186,92 @@ type ArtemisAPIVersion = unsafe extern "C" fn() -> c_int;
 type ArtemisSetDarkMode = unsafe extern "C" fn(handle: ArtemisHandle, enable: c_int) -> c_int;
 type ArtemisEightBitMode = unsafe extern "C" fn(handle: ArtemisHandle, eightbit: c_int) -> c_int;
 
-/// Atik SDK wrapper with dynamically loaded functions
-struct AtikSdk {
-    _library: libloading::Library,
-    device_count: ArtemisDeviceCount,
-    refresh_devices_count: Option<ArtemisRefreshDevicesCount>,
-    device_present: ArtemisDevicePresent,
-    device_name: ArtemisDeviceName,
-    device_serial: ArtemisDeviceSerial,
-    device_is_camera: ArtemisDeviceIsCamera,
-    #[allow(dead_code)]
-    device_has_filter_wheel: Option<ArtemisDeviceHasFilterWheel>,
-    efw_is_present: Option<ArtemisEFWIsPresent>,
-    efw_get_device_details: Option<ArtemisEFWGetDeviceDetails>,
-    efw_connect: Option<ArtemisEFWConnect>,
-    efw_is_connected: Option<ArtemisEFWIsConnected>,
-    efw_disconnect: Option<ArtemisEFWDisconnect>,
-    efw_nmr_position: Option<ArtemisEFWNmrPosition>,
-    efw_set_position: Option<ArtemisEFWSetPosition>,
-    efw_get_position: Option<ArtemisEFWGetPosition>,
-    connect: ArtemisConnect,
-    disconnect: ArtemisDisconnect,
-    is_connected: ArtemisIsConnected,
-    properties: ArtemisProperties_,
-    colour_properties: ArtemisColourProperties,
-    bin: ArtemisBin,
-    get_max_bin: ArtemisGetMaxBin,
-    subframe: ArtemisSubframe,
-    start_exposure: ArtemisStartExposure,
-    abort_exposure: ArtemisAbortExposure,
-    image_ready: ArtemisImageReady,
-    exposure_time_remaining: ArtemisExposureTimeRemaining,
-    get_image_data: ArtemisGetImageData,
-    image_buffer: ArtemisImageBuffer,
-    set_cooling: ArtemisSetCooling,
-    cooling_info: ArtemisCoolingInfo,
-    cooler_warm_up: ArtemisCoolerWarmUp,
-    temperature_sensor_info: ArtemisTemperatureSensorInfo,
-    set_gain: ArtemisSetGain,
-    get_gain: ArtemisGetGain,
-    api_version: ArtemisAPIVersion,
-    set_dark_mode: ArtemisSetDarkMode,
-    eight_bit_mode: ArtemisEightBitMode,
+/// Candidate paths for the Atik camera SDK, in search order.
+fn atik_candidate_paths() -> Vec<std::path::PathBuf> {
+    let lib_name = if cfg!(target_os = "windows") {
+        "AtikCameras.dll"
+    } else if cfg!(target_os = "macos") {
+        "libatikcameras.dylib"
+    } else {
+        "libatikcameras.so"
+    };
+    let system_paths = if cfg!(target_os = "linux") {
+        vec![
+            format!("/usr/lib/{lib_name}"),
+            format!("/usr/local/lib/{lib_name}"),
+        ]
+    } else if cfg!(target_os = "macos") {
+        vec![
+            format!("/usr/local/lib/{lib_name}"),
+            format!("/opt/homebrew/lib/{lib_name}"),
+        ]
+    } else {
+        Vec::new()
+    };
+    let system_path_refs = system_paths.iter().map(String::as_str).collect::<Vec<_>>();
+    crate::vendor::sdk_loader::vendor_library_candidates(&[lib_name], &system_path_refs)
 }
 
-impl AtikSdk {
-    /// Load the SDK from the default paths
-    fn load() -> Result<Self, NativeError> {
-        let lib_name = if cfg!(target_os = "windows") {
-            "AtikCameras.dll"
-        } else if cfg!(target_os = "macos") {
-            "libatikcameras.dylib"
-        } else {
-            "libatikcameras.so"
-        };
-        let system_paths = if cfg!(target_os = "linux") {
-            vec![
-                format!("/usr/lib/{lib_name}"),
-                format!("/usr/local/lib/{lib_name}"),
-            ]
-        } else if cfg!(target_os = "macos") {
-            vec![
-                format!("/usr/local/lib/{lib_name}"),
-                format!("/opt/homebrew/lib/{lib_name}"),
-            ]
-        } else {
-            Vec::new()
-        };
-        let system_path_refs = system_paths.iter().map(String::as_str).collect::<Vec<_>>();
-        let candidates =
-            crate::vendor::sdk_loader::vendor_library_candidates(&[lib_name], &system_path_refs);
-
-        let mut last_error = None;
-        let mut loaded = None;
-        for path in &candidates {
-            // SAFETY: libloading::Library::new performs platform dynamic loading; `lib_name` is
-            // a compile-time constant and no memory access or transmute happens here.
-            match unsafe { libloading::Library::new(path) } {
-                Ok(library) => {
-                    tracing::info!("Loaded Atik SDK from {}", path.display());
-                    loaded = Some(library);
-                    break;
-                }
-                Err(e) => {
-                    last_error = Some(e.to_string());
-                }
-            }
-        }
-        let library = loaded.ok_or_else(|| {
-            NativeError::SdkError(format!(
-                "Failed to load Atik SDK from {} candidate paths: {}",
-                candidates.len(),
-                last_error.unwrap_or_else(|| "no candidate paths supplied".to_string())
-            ))
-        })?;
-
-        // SAFETY: each `library.get::<FnType>(symbol)` returns a libloading::Symbol that derefs
-        // to a function pointer of the requested type only after a successful name lookup; the
-        // FFI signatures below mirror AtikCameras.h exactly (vendor header), so the function-
-        // pointer ABI is correct. `library` is moved into `_library` to outlive the symbols.
-        unsafe {
-            Ok(Self {
-                device_count: *library
-                    .get::<ArtemisDeviceCount>(b"ArtemisDeviceCount\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load ArtemisDeviceCount: {}", e))
-                    })?,
-                // Optional: absent on older SDK builds → discovery falls back to
-                // the passive ArtemisDeviceCount.
-                refresh_devices_count: library
-                    .get::<ArtemisRefreshDevicesCount>(b"ArtemisRefreshDevicesCount\0")
-                    .ok()
-                    .map(|s| *s),
-                device_present: *library
-                    .get::<ArtemisDevicePresent>(b"ArtemisDevicePresent\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load ArtemisDevicePresent: {}", e))
-                    })?,
-                device_name: *library
-                    .get::<ArtemisDeviceName>(b"ArtemisDeviceName\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load ArtemisDeviceName: {}", e))
-                    })?,
-                device_serial: *library
-                    .get::<ArtemisDeviceSerial>(b"ArtemisDeviceSerial\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load ArtemisDeviceSerial: {}", e))
-                    })?,
-                device_is_camera: *library
-                    .get::<ArtemisDeviceIsCamera>(b"ArtemisDeviceIsCamera\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!(
-                            "Failed to load ArtemisDeviceIsCamera: {}",
-                            e
-                        ))
-                    })?,
-                device_has_filter_wheel: library
-                    .get::<ArtemisDeviceHasFilterWheel>(b"ArtemisDeviceHasFilterWheel\0")
-                    .ok()
-                    .map(|sym| *sym),
-                efw_is_present: library
-                    .get::<ArtemisEFWIsPresent>(b"ArtemisEFWIsPresent\0")
-                    .ok()
-                    .map(|sym| *sym),
-                efw_get_device_details: library
-                    .get::<ArtemisEFWGetDeviceDetails>(b"ArtemisEFWGetDeviceDetails\0")
-                    .ok()
-                    .map(|sym| *sym),
-                efw_connect: library
-                    .get::<ArtemisEFWConnect>(b"ArtemisEFWConnect\0")
-                    .ok()
-                    .map(|sym| *sym),
-                efw_is_connected: library
-                    .get::<ArtemisEFWIsConnected>(b"ArtemisEFWIsConnected\0")
-                    .ok()
-                    .map(|sym| *sym),
-                efw_disconnect: library
-                    .get::<ArtemisEFWDisconnect>(b"ArtemisEFWDisconnect\0")
-                    .ok()
-                    .map(|sym| *sym),
-                efw_nmr_position: library
-                    .get::<ArtemisEFWNmrPosition>(b"ArtemisEFWNmrPosition\0")
-                    .ok()
-                    .map(|sym| *sym),
-                efw_set_position: library
-                    .get::<ArtemisEFWSetPosition>(b"ArtemisEFWSetPosition\0")
-                    .ok()
-                    .map(|sym| *sym),
-                efw_get_position: library
-                    .get::<ArtemisEFWGetPosition>(b"ArtemisEFWGetPosition\0")
-                    .ok()
-                    .map(|sym| *sym),
-                connect: *library
-                    .get::<ArtemisConnect>(b"ArtemisConnect\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load ArtemisConnect: {}", e))
-                    })?,
-                disconnect: *library
-                    .get::<ArtemisDisconnect>(b"ArtemisDisconnect\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load ArtemisDisconnect: {}", e))
-                    })?,
-                is_connected: *library
-                    .get::<ArtemisIsConnected>(b"ArtemisIsConnected\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load ArtemisIsConnected: {}", e))
-                    })?,
-                properties: *library
-                    .get::<ArtemisProperties_>(b"ArtemisProperties\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load ArtemisProperties: {}", e))
-                    })?,
-                colour_properties: *library
-                    .get::<ArtemisColourProperties>(b"ArtemisColourProperties\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!(
-                            "Failed to load ArtemisColourProperties: {}",
-                            e
-                        ))
-                    })?,
-                bin: *library.get::<ArtemisBin>(b"ArtemisBin\0").map_err(|e| {
-                    NativeError::SdkError(format!("Failed to load ArtemisBin: {}", e))
-                })?,
-                get_max_bin: *library
-                    .get::<ArtemisGetMaxBin>(b"ArtemisGetMaxBin\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load ArtemisGetMaxBin: {}", e))
-                    })?,
-                subframe: *library
-                    .get::<ArtemisSubframe>(b"ArtemisSubframe\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load ArtemisSubframe: {}", e))
-                    })?,
-                start_exposure: *library
-                    .get::<ArtemisStartExposure>(b"ArtemisStartExposure\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load ArtemisStartExposure: {}", e))
-                    })?,
-                abort_exposure: *library
-                    .get::<ArtemisAbortExposure>(b"ArtemisAbortExposure\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load ArtemisAbortExposure: {}", e))
-                    })?,
-                image_ready: *library
-                    .get::<ArtemisImageReady>(b"ArtemisImageReady\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load ArtemisImageReady: {}", e))
-                    })?,
-                exposure_time_remaining: *library
-                    .get::<ArtemisExposureTimeRemaining>(b"ArtemisExposureTimeRemaining\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!(
-                            "Failed to load ArtemisExposureTimeRemaining: {}",
-                            e
-                        ))
-                    })?,
-                get_image_data: *library
-                    .get::<ArtemisGetImageData>(b"ArtemisGetImageData\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load ArtemisGetImageData: {}", e))
-                    })?,
-                image_buffer: *library
-                    .get::<ArtemisImageBuffer>(b"ArtemisImageBuffer\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load ArtemisImageBuffer: {}", e))
-                    })?,
-                set_cooling: *library
-                    .get::<ArtemisSetCooling>(b"ArtemisSetCooling\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load ArtemisSetCooling: {}", e))
-                    })?,
-                cooling_info: *library
-                    .get::<ArtemisCoolingInfo>(b"ArtemisCoolingInfo\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load ArtemisCoolingInfo: {}", e))
-                    })?,
-                cooler_warm_up: *library
-                    .get::<ArtemisCoolerWarmUp>(b"ArtemisCoolerWarmUp\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load ArtemisCoolerWarmUp: {}", e))
-                    })?,
-                temperature_sensor_info: *library
-                    .get::<ArtemisTemperatureSensorInfo>(b"ArtemisTemperatureSensorInfo\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!(
-                            "Failed to load ArtemisTemperatureSensorInfo: {}",
-                            e
-                        ))
-                    })?,
-                set_gain: *library
-                    .get::<ArtemisSetGain>(b"ArtemisSetGain\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load ArtemisSetGain: {}", e))
-                    })?,
-                get_gain: *library
-                    .get::<ArtemisGetGain>(b"ArtemisGetGain\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load ArtemisGetGain: {}", e))
-                    })?,
-                api_version: *library
-                    .get::<ArtemisAPIVersion>(b"ArtemisAPIVersion\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load ArtemisAPIVersion: {}", e))
-                    })?,
-                set_dark_mode: *library
-                    .get::<ArtemisSetDarkMode>(b"ArtemisSetDarkMode\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load ArtemisSetDarkMode: {}", e))
-                    })?,
-                eight_bit_mode: *library
-                    .get::<ArtemisEightBitMode>(b"ArtemisEightBitMode\0")
-                    .map_err(|e| {
-                        NativeError::SdkError(format!("Failed to load ArtemisEightBitMode: {}", e))
-                    })?,
-                _library: library,
-            })
-        }
+crate::load_vendor_sdk! {
+    /// Atik SDK wrapper with dynamically loaded functions.
+    ///
+    /// `device_has_filter_wheel` is resolved but never read — the filter-wheel
+    /// path keys off `efw_is_present` instead. It is kept so the struct-level
+    /// allow below documents one deliberately unused entry rather than hiding
+    /// a whole class of them.
+    #[allow(dead_code)]
+    vendor_name: "Atik",
+    sdk_struct: AtikSdk,
+    sdk_static: SDK,
+    candidate_paths_fn: atik_candidate_paths,
+    symbols: {
+        device_count: b"ArtemisDeviceCount\0" => ArtemisDeviceCount,
+        device_present: b"ArtemisDevicePresent\0" => ArtemisDevicePresent,
+        device_name: b"ArtemisDeviceName\0" => ArtemisDeviceName,
+        device_serial: b"ArtemisDeviceSerial\0" => ArtemisDeviceSerial,
+        device_is_camera: b"ArtemisDeviceIsCamera\0" => ArtemisDeviceIsCamera,
+        connect: b"ArtemisConnect\0" => ArtemisConnect,
+        disconnect: b"ArtemisDisconnect\0" => ArtemisDisconnect,
+        is_connected: b"ArtemisIsConnected\0" => ArtemisIsConnected,
+        properties: b"ArtemisProperties\0" => ArtemisProperties_,
+        colour_properties: b"ArtemisColourProperties\0" => ArtemisColourProperties,
+        bin: b"ArtemisBin\0" => ArtemisBin,
+        get_max_bin: b"ArtemisGetMaxBin\0" => ArtemisGetMaxBin,
+        subframe: b"ArtemisSubframe\0" => ArtemisSubframe,
+        start_exposure: b"ArtemisStartExposure\0" => ArtemisStartExposure,
+        abort_exposure: b"ArtemisAbortExposure\0" => ArtemisAbortExposure,
+        image_ready: b"ArtemisImageReady\0" => ArtemisImageReady,
+        exposure_time_remaining: b"ArtemisExposureTimeRemaining\0" => ArtemisExposureTimeRemaining,
+        get_image_data: b"ArtemisGetImageData\0" => ArtemisGetImageData,
+        image_buffer: b"ArtemisImageBuffer\0" => ArtemisImageBuffer,
+        set_cooling: b"ArtemisSetCooling\0" => ArtemisSetCooling,
+        cooling_info: b"ArtemisCoolingInfo\0" => ArtemisCoolingInfo,
+        cooler_warm_up: b"ArtemisCoolerWarmUp\0" => ArtemisCoolerWarmUp,
+        temperature_sensor_info: b"ArtemisTemperatureSensorInfo\0" => ArtemisTemperatureSensorInfo,
+        set_gain: b"ArtemisSetGain\0" => ArtemisSetGain,
+        get_gain: b"ArtemisGetGain\0" => ArtemisGetGain,
+        api_version: b"ArtemisAPIVersion\0" => ArtemisAPIVersion,
+        set_dark_mode: b"ArtemisSetDarkMode\0" => ArtemisSetDarkMode,
+        eight_bit_mode: b"ArtemisEightBitMode\0" => ArtemisEightBitMode,
+    },
+    // Absent on older SDK builds: discovery falls back to the passive
+    // ArtemisDeviceCount, and the EFW entry points gate the filter-wheel driver.
+    optional_symbols: {
+        refresh_devices_count: b"ArtemisRefreshDevicesCount\0" => ArtemisRefreshDevicesCount,
+        device_has_filter_wheel: b"ArtemisDeviceHasFilterWheel\0" => ArtemisDeviceHasFilterWheel,
+        efw_is_present: b"ArtemisEFWIsPresent\0" => ArtemisEFWIsPresent,
+        efw_get_device_details: b"ArtemisEFWGetDeviceDetails\0" => ArtemisEFWGetDeviceDetails,
+        efw_connect: b"ArtemisEFWConnect\0" => ArtemisEFWConnect,
+        efw_is_connected: b"ArtemisEFWIsConnected\0" => ArtemisEFWIsConnected,
+        efw_disconnect: b"ArtemisEFWDisconnect\0" => ArtemisEFWDisconnect,
+        efw_nmr_position: b"ArtemisEFWNmrPosition\0" => ArtemisEFWNmrPosition,
+        efw_set_position: b"ArtemisEFWSetPosition\0" => ArtemisEFWSetPosition,
+        efw_get_position: b"ArtemisEFWGetPosition\0" => ArtemisEFWGetPosition,
     }
 }
 
-/// Global SDK instance
-static SDK: OnceLock<Result<AtikSdk, String>> = OnceLock::new();
-
 fn get_sdk() -> Result<&'static AtikSdk, NativeError> {
-    SDK.get_or_init(|| AtikSdk::load().map_err(|e| e.to_string()))
-        .as_ref()
-        .map_err(|e| NativeError::SdkError(e.clone()))
+    AtikSdk::get_or_reason().map_err(|reason| NativeError::SdkError(reason.to_string()))
 }
 
 fn check_artemis_error(result: c_int, operation: &str) -> Result<(), NativeError> {
@@ -2131,5 +1911,26 @@ impl NativeFilterWheel for AtikFilterWheel {
     async fn set_filter_name(&mut self, _position: i32, _name: String) -> Result<(), NativeError> {
         // Atik EFW firmware does not persist filter names; callers maintain labels.
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod sdk_loader_tests {
+    use super::*;
+
+    #[test]
+    fn efw_entry_points_stay_optional() {
+        // Every Atik SDK build older than the EFW API exports none of these.
+        // Promoting one to the required table would make such a build fail to
+        // load entirely, so no Atik camera would be visible either.
+        let required = AtikSdk::required_symbol_names();
+        assert!(
+            !required.iter().any(|name| name.starts_with("efw_")),
+            "an EFW entry point became mandatory: {:?}",
+            required
+        );
+        assert!(!required.contains(&"refresh_devices_count"));
+        assert!(required.contains(&"device_count"));
+        assert_eq!(required.len(), 28);
     }
 }

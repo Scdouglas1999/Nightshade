@@ -28,9 +28,8 @@ use crate::traits::{NativeCamera, NativeDevice, NativeError};
 use crate::utils::CleanupGuard;
 use crate::NativeVendor;
 use async_trait::async_trait;
-use libloading::Library;
 use std::ffi::{c_char, c_double, c_float, c_int, c_void};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex};
 
 // ============================================================================
 // SDK Types and Constants
@@ -154,27 +153,36 @@ type GetLastError = unsafe extern "C" fn(camera: PCCamera, buf: *mut c_char, siz
 // SDK Singleton
 // ============================================================================
 
-static SDK: OnceLock<Result<MoravianSdk, String>> = OnceLock::new();
+/// Candidate paths for the Moravian gxccd library, in search order.
+fn moravian_candidate_paths() -> Vec<std::path::PathBuf> {
+    crate::vendor::sdk_loader::vendor_library_candidates(LIB_CANDIDATES, &[])
+}
 
-struct MoravianSdk {
-    enumerate_usb: EnumerateUsb,
-    initialize_usb: InitializeUsb,
-    release: Release,
-    get_boolean_parameter: GetBooleanParameter,
-    get_integer_parameter: GetIntegerParameter,
-    get_string_parameter: GetStringParameter,
-    get_value: GetValue,
-    set_temperature: SetTemperature,
-    set_binning: SetBinning,
-    set_gain: SetGain,
-    set_read_mode: SetReadMode,
-    enumerate_read_modes: EnumerateReadModes,
-    start_exposure: StartExposure,
-    abort_exposure: AbortExposure,
-    image_ready: ImageReady,
-    read_image: ReadImage,
-    get_last_error: GetLastError,
-    _library: Library,
+crate::load_vendor_sdk! {
+    /// Moravian gxccd SDK wrapper with dynamically loaded functions
+    vendor_name: "Moravian",
+    sdk_struct: MoravianSdk,
+    sdk_static: SDK,
+    candidate_paths_fn: moravian_candidate_paths,
+    symbols: {
+        enumerate_usb: b"gxccd_enumerate_usb\0" => EnumerateUsb,
+        initialize_usb: b"gxccd_initialize_usb\0" => InitializeUsb,
+        release: b"gxccd_release\0" => Release,
+        get_boolean_parameter: b"gxccd_get_boolean_parameter\0" => GetBooleanParameter,
+        get_integer_parameter: b"gxccd_get_integer_parameter\0" => GetIntegerParameter,
+        get_string_parameter: b"gxccd_get_string_parameter\0" => GetStringParameter,
+        get_value: b"gxccd_get_value\0" => GetValue,
+        set_temperature: b"gxccd_set_temperature\0" => SetTemperature,
+        set_binning: b"gxccd_set_binning\0" => SetBinning,
+        set_gain: b"gxccd_set_gain\0" => SetGain,
+        set_read_mode: b"gxccd_set_read_mode\0" => SetReadMode,
+        enumerate_read_modes: b"gxccd_enumerate_read_modes\0" => EnumerateReadModes,
+        start_exposure: b"gxccd_start_exposure\0" => StartExposure,
+        abort_exposure: b"gxccd_abort_exposure\0" => AbortExposure,
+        image_ready: b"gxccd_image_ready\0" => ImageReady,
+        read_image: b"gxccd_read_image\0" => ReadImage,
+        get_last_error: b"gxccd_get_last_error\0" => GetLastError,
+    }
 }
 
 // SAFETY: MoravianSdk holds only function pointers and a `libloading::Library` (memory-mapped shared object). The function pointers reference code in a library kept alive for the program's lifetime (we store the Library). Every actual SDK call is serialized through `moravian_mutex()`, so the underlying gxccd SDK never sees concurrent invocation.
@@ -182,92 +190,8 @@ unsafe impl Send for MoravianSdk {}
 // SAFETY: Same justification as `impl Send`: pointer-and-handle aggregate that becomes safe under the moravian_mutex serialization used by every call site.
 unsafe impl Sync for MoravianSdk {}
 
-impl MoravianSdk {
-    fn load() -> Result<Self, String> {
-        // Try each candidate library name; the first that loads wins.
-        let mut last_err = String::new();
-        let mut loaded: Option<Library> = None;
-        for name in LIB_CANDIDATES {
-            // SAFETY: libloading::Library::new performs platform dynamic loading; `name` is a compile-time constant and the resulting Library is moved into the returned MoravianSdk so the function-pointer references remain valid for the program's lifetime — no memory access happens here.
-            match unsafe { Library::new(name) } {
-                Ok(lib) => {
-                    loaded = Some(lib);
-                    break;
-                }
-                Err(e) => last_err = format!("{}: {}", name, e),
-            }
-        }
-        let library = loaded.ok_or_else(|| {
-            format!(
-                "Failed to load Moravian gxccd library (tried {:?}); last error: {}",
-                LIB_CANDIDATES, last_err
-            )
-        })?;
-
-        // SAFETY: each `library.get::<FnType>(b"symbol\0")` followed by `*sym` dereferences a libloading::Symbol to its function-pointer ABI only after a successful name lookup; the FFI signatures are transcribed verbatim from the gxccd.h prototypes cited above the corresponding type aliases.
-        unsafe {
-            Ok(Self {
-                enumerate_usb: *library
-                    .get::<EnumerateUsb>(b"gxccd_enumerate_usb\0")
-                    .map_err(|e| format!("Failed to get gxccd_enumerate_usb: {}", e))?,
-                initialize_usb: *library
-                    .get::<InitializeUsb>(b"gxccd_initialize_usb\0")
-                    .map_err(|e| format!("Failed to get gxccd_initialize_usb: {}", e))?,
-                release: *library
-                    .get::<Release>(b"gxccd_release\0")
-                    .map_err(|e| format!("Failed to get gxccd_release: {}", e))?,
-                get_boolean_parameter: *library
-                    .get::<GetBooleanParameter>(b"gxccd_get_boolean_parameter\0")
-                    .map_err(|e| format!("Failed to get gxccd_get_boolean_parameter: {}", e))?,
-                get_integer_parameter: *library
-                    .get::<GetIntegerParameter>(b"gxccd_get_integer_parameter\0")
-                    .map_err(|e| format!("Failed to get gxccd_get_integer_parameter: {}", e))?,
-                get_string_parameter: *library
-                    .get::<GetStringParameter>(b"gxccd_get_string_parameter\0")
-                    .map_err(|e| format!("Failed to get gxccd_get_string_parameter: {}", e))?,
-                get_value: *library
-                    .get::<GetValue>(b"gxccd_get_value\0")
-                    .map_err(|e| format!("Failed to get gxccd_get_value: {}", e))?,
-                set_temperature: *library
-                    .get::<SetTemperature>(b"gxccd_set_temperature\0")
-                    .map_err(|e| format!("Failed to get gxccd_set_temperature: {}", e))?,
-                set_binning: *library
-                    .get::<SetBinning>(b"gxccd_set_binning\0")
-                    .map_err(|e| format!("Failed to get gxccd_set_binning: {}", e))?,
-                set_gain: *library
-                    .get::<SetGain>(b"gxccd_set_gain\0")
-                    .map_err(|e| format!("Failed to get gxccd_set_gain: {}", e))?,
-                set_read_mode: *library
-                    .get::<SetReadMode>(b"gxccd_set_read_mode\0")
-                    .map_err(|e| format!("Failed to get gxccd_set_read_mode: {}", e))?,
-                enumerate_read_modes: *library
-                    .get::<EnumerateReadModes>(b"gxccd_enumerate_read_modes\0")
-                    .map_err(|e| format!("Failed to get gxccd_enumerate_read_modes: {}", e))?,
-                start_exposure: *library
-                    .get::<StartExposure>(b"gxccd_start_exposure\0")
-                    .map_err(|e| format!("Failed to get gxccd_start_exposure: {}", e))?,
-                abort_exposure: *library
-                    .get::<AbortExposure>(b"gxccd_abort_exposure\0")
-                    .map_err(|e| format!("Failed to get gxccd_abort_exposure: {}", e))?,
-                image_ready: *library
-                    .get::<ImageReady>(b"gxccd_image_ready\0")
-                    .map_err(|e| format!("Failed to get gxccd_image_ready: {}", e))?,
-                read_image: *library
-                    .get::<ReadImage>(b"gxccd_read_image\0")
-                    .map_err(|e| format!("Failed to get gxccd_read_image: {}", e))?,
-                get_last_error: *library
-                    .get::<GetLastError>(b"gxccd_get_last_error\0")
-                    .map_err(|e| format!("Failed to get gxccd_get_last_error: {}", e))?,
-                _library: library,
-            })
-        }
-    }
-}
-
 fn get_sdk() -> Result<&'static MoravianSdk, NativeError> {
-    SDK.get_or_init(MoravianSdk::load)
-        .as_ref()
-        .map_err(|e| NativeError::SdkError(e.clone()))
+    MoravianSdk::get_or_reason().map_err(|reason| NativeError::SdkError(reason.to_string()))
 }
 
 /// Fetch the SDK's human-readable description of the last failing call.

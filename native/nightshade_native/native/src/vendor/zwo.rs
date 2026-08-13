@@ -437,6 +437,38 @@ fn raw16_container_max_adu(bit_depth: u32) -> u32 {
     (((1u32 << bit_depth) - 1) << (CONTAINER_BITS - bit_depth)) & CONTAINER_MAX
 }
 
+/// Single-pass summary of a downloaded raw frame, for diagnostics only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct FrameBufferStats {
+    min: u16,
+    max: u16,
+    mean: u64,
+    non_zero: usize,
+}
+
+impl FrameBufferStats {
+    /// Returns `None` for an empty buffer, which has no meaningful minimum.
+    fn of(data: &[u16]) -> Option<Self> {
+        let mut iter = data.iter().copied();
+        let first = iter.next()?;
+        let mut stats = Self {
+            min: first,
+            max: first,
+            // u16 widened to u64 cannot overflow before 2^48 pixels.
+            mean: first as u64,
+            non_zero: usize::from(first != 0),
+        };
+        for value in iter {
+            stats.min = stats.min.min(value);
+            stats.max = stats.max.max(value);
+            stats.mean += value as u64;
+            stats.non_zero += usize::from(value != 0);
+        }
+        stats.mean /= data.len() as u64;
+        Some(stats)
+    }
+}
+
 /// ZWO ASI Camera implementation
 #[derive(Debug)]
 pub struct ZwoCamera {
@@ -1450,24 +1482,30 @@ impl NativeCamera for ZwoCamera {
             pooled_buffer.iter().map(|&x| (x as u16) * 256).collect()
         };
 
-        // DIAGNOSTIC: Log data statistics to debug mid-gray image issue.
-        // Why: data is Vec<u16>; u16 -> u64 is widening (always safe). data.len() is usize;
-        // usize -> u64 is widening on all Tier 1 targets (usize <= u64).
-        if !data.is_empty() {
-            let min_val = data.iter().min().copied().expect("non-empty data");
-            let max_val = data.iter().max().copied().expect("non-empty data");
-            let sum: u64 = data.iter().map(|&x| x as u64).sum();
-            let avg_val = sum / data.len() as u64;
-            let non_zero_count = data.iter().filter(|&&x| x != 0).count();
-            tracing::info!(
-                "ZWO DIAGNOSTIC: Raw buffer stats - min={}, max={}, avg={}, non_zero={}/{}, img_type={}",
-                min_val, max_val, avg_val, non_zero_count, data.len(), img_type
-            );
-            if min_val == max_val {
-                tracing::warn!(
-                    "ZWO WARNING: All pixels have same value {}! This indicates no actual image data was captured.",
-                    min_val
+        // Raw-buffer statistics, for diagnosing blank or mid-gray frames.
+        //
+        // This runs while the ZWO SDK mutex is held, so every pass costs the
+        // filter wheel and focuser sharing that mutex too: a 62 MP frame is
+        // ~125 M elements. It is therefore one pass, only when someone is
+        // listening at DEBUG. The same statistics are computed downstream in
+        // the imaging pipeline for every frame that reaches it.
+        if tracing::enabled!(tracing::Level::DEBUG) {
+            if let Some(stats) = FrameBufferStats::of(&data) {
+                tracing::debug!(
+                    "ZWO raw buffer stats - min={}, max={}, avg={}, non_zero={}/{}, img_type={}",
+                    stats.min,
+                    stats.max,
+                    stats.mean,
+                    stats.non_zero,
+                    data.len(),
+                    img_type
                 );
+                if stats.min == stats.max {
+                    tracing::warn!(
+                        "ZWO: every pixel of the downloaded frame is {}, which means no image data was captured",
+                        stats.min
+                    );
+                }
             }
         }
 
@@ -3597,6 +3635,39 @@ pub async fn discover_filter_wheels() -> Result<Vec<ZwoFilterWheelDiscoveryInfo>
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // -------------------------------------------------------------------------
+    // Raw-frame diagnostic statistics
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn frame_buffer_stats_match_the_four_pass_definition() {
+        // Parity guard for the single-pass rewrite: min/max/mean/non-zero must
+        // still be exactly what four separate iterator passes produced.
+        let data: Vec<u16> = vec![0, 7, 65535, 0, 1234, 9, 0, 65535];
+        let stats = FrameBufferStats::of(&data).expect("non-empty buffer");
+
+        let sum: u64 = data.iter().map(|&x| x as u64).sum();
+        assert_eq!(stats.min, data.iter().copied().min().unwrap());
+        assert_eq!(stats.max, data.iter().copied().max().unwrap());
+        assert_eq!(stats.mean, sum / data.len() as u64);
+        assert_eq!(stats.non_zero, data.iter().filter(|&&x| x != 0).count());
+    }
+
+    #[test]
+    fn frame_buffer_stats_of_a_flat_frame_report_equal_bounds() {
+        let stats = FrameBufferStats::of(&[4096; 16]).expect("non-empty buffer");
+        assert_eq!(stats.min, stats.max);
+        assert_eq!(stats.mean, 4096);
+        assert_eq!(stats.non_zero, 16);
+    }
+
+    #[test]
+    fn frame_buffer_stats_of_an_empty_buffer_is_none() {
+        // The previous code guarded this with `if !data.is_empty()` before
+        // calling `.expect("non-empty data")`; keep that impossible to get wrong.
+        assert_eq!(FrameBufferStats::of(&[]), None);
+    }
 
     // -------------------------------------------------------------------------
     // Pixel-container full scale (no hardware required)

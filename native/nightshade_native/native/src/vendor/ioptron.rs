@@ -846,6 +846,10 @@ pub struct IOptronMountInfo {
 }
 
 pub async fn discover_mounts() -> Result<Vec<IOptronMountInfo>, NativeError> {
+    crate::vendor::run_serial_scan("iOptron", scan_serial_ports).await
+}
+
+fn scan_serial_ports() -> Result<Vec<IOptronMountInfo>, NativeError> {
     let mut mounts = Vec::new();
 
     let ports = serialport::available_ports()

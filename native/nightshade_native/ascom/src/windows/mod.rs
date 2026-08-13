@@ -28,8 +28,7 @@ pub use camera::{
     AscomCamera, CameraExposureSettings, CameraFullStatus, CameraSensorConfig, CameraThermalStatus,
 };
 pub use connection::{
-    discover_devices, init_com, probe_device_name, uninit_com, AscomCleanupGuard,
-    AscomConnectionBackend, AscomDeviceConnection, AscomDisconnectable, AscomOperationGuard,
+    discover_devices, init_com, uninit_com, AscomConnectionBackend, AscomDeviceConnection,
 };
 // Why: mockall generates `MockAscomConnectionBackend` only when the `mock`
 // feature is on (or in unit-test builds). Re-export it under the same gate so

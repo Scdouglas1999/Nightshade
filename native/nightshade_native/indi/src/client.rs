@@ -805,7 +805,12 @@ impl IndiClient {
         self.shutdown_tx = Some(shutdown_tx);
 
         // Spawn writer task
-        tokio::spawn(Self::writer_task(write_half, rx));
+        tokio::spawn(Self::writer_task(
+            write_half,
+            rx,
+            self.connected.clone(),
+            self.event_tx.clone(),
+        ));
 
         // Reset keepalive state before spawning reader task
         // This prevents stale keepalive data from causing false disconnections
@@ -891,15 +896,39 @@ impl IndiClient {
     }
 
     /// Writer task - sends commands to INDI server
-    async fn writer_task<W: AsyncWrite + Unpin>(mut writer: W, mut rx: mpsc::Receiver<String>) {
+    ///
+    /// A write failure means the socket's send side is gone. The read side of a
+    /// half-open TCP connection can stay quiet indefinitely, so the reader will
+    /// not notice; without clearing `connected` here the client would keep
+    /// reporting itself connected while every `send_command` failed.
+    async fn writer_task<W: AsyncWrite + Unpin>(
+        mut writer: W,
+        mut rx: mpsc::Receiver<String>,
+        connected: Arc<AtomicBool>,
+        event_tx: broadcast::Sender<IndiEvent>,
+    ) {
         while let Some(cmd) = rx.recv().await {
-            if let Err(e) = writer.write_all(cmd.as_bytes()).await {
-                tracing::error!("INDI write error: {}", e);
-                break;
+            let write_result = async {
+                writer.write_all(cmd.as_bytes()).await?;
+                writer.write_all(b"\n").await
             }
-            if let Err(e) = writer.write_all(b"\n").await {
+            .await;
+
+            if let Err(e) = write_result {
                 tracing::error!("INDI write error: {}", e);
-                break;
+                if connected.swap(false, Ordering::SeqCst) {
+                    send_indi_event(
+                        &event_tx,
+                        IndiEvent::Error(format!("INDI write failed: {}", e)),
+                        "writer.write_failed",
+                    );
+                    send_indi_event(
+                        &event_tx,
+                        IndiEvent::ConnectionStateChanged(false),
+                        "writer.connection_state_disconnected",
+                    );
+                }
+                return;
             }
         }
     }
@@ -1109,10 +1138,6 @@ impl IndiClient {
         // BLOB reception timeout tracking
         let mut blob_start_time: Option<Instant> = None;
         let blob_timeout = timeout_config.blob_timeout();
-
-        // Pending element for text content capture (currently unused but preserved for future use)
-        #[allow(unused_assignments)]
-        let mut _pending_number_limits: Option<(String, String, String, NumberLimits)> = None;
 
         // Track consecutive timeouts for message parse detection
         let mut incomplete_message_start: Option<Instant> = None;
@@ -1348,18 +1373,10 @@ impl IndiClient {
                                         (
                                             current_device.clone(),
                                             current_property.clone(),
-                                            elem_name.clone(),
+                                            elem_name,
                                         ),
-                                        limits.clone(),
-                                    );
-
-                                    // Keep pending for value extraction
-                                    _pending_number_limits = Some((
-                                        current_device.clone(),
-                                        current_property.clone(),
-                                        elem_name,
                                         limits,
-                                    ));
+                                    );
                                 }
                             }
                         }
@@ -1546,17 +1563,7 @@ impl IndiClient {
                         && !current_property.is_empty()
                         && !current_element.is_empty()
                     {
-                        // Store value
                         {
-                            let mut vals = property_values.write().await;
-                            vals.insert(
-                                (
-                                    current_device.clone(),
-                                    current_property.clone(),
-                                    current_element.clone(),
-                                ),
-                                text.clone(),
-                            );
                             let mut updated = property_updated_ms.write().await;
                             updated.insert(
                                 (current_device.clone(), current_property.clone()),
@@ -1566,11 +1573,22 @@ impl IndiClient {
 
                         // Handle BLOB data with format validation
                         if current_blob_active {
-                            // Decode base64
-                            match BASE64.decode(text.trim()) {
-                                Ok(data) => {
-                                    // Log successful BLOB reception
-                                    if let Some(start) = blob_start_time {
+                            // The base64 body of a frame is never a readable property
+                            // value — `property_values` is only cleared on disconnect,
+                            // so storing it here would pin ~1.33x the frame size for the
+                            // rest of the session on top of the decoded copy below.
+                            //
+                            // Decoding is CPU-bound and proportional to frame size
+                            // (hundreds of milliseconds for a 62 MP sensor), so it runs
+                            // on a blocking thread; inline it would stall every other
+                            // task on this reader's Tokio worker, keepalives included.
+                            let decode_start = blob_start_time;
+                            let decoded =
+                                tokio::task::spawn_blocking(move || BASE64.decode(text.trim()))
+                                    .await;
+                            match decoded {
+                                Ok(Ok(data)) => {
+                                    if let Some(start) = decode_start {
                                         tracing::debug!(
                                             "BLOB received for {}.{}.{}: {} bytes in {:?}",
                                             current_device,
@@ -1608,9 +1626,18 @@ impl IndiClient {
                                         "reader.blob_received",
                                     );
                                 }
-                                Err(e) => {
+                                Ok(Err(e)) => {
                                     tracing::warn!(
                                         "Failed to decode BLOB base64 for {}.{}.{}: {}",
+                                        current_device,
+                                        current_property,
+                                        current_element,
+                                        e
+                                    );
+                                }
+                                Err(e) => {
+                                    tracing::error!(
+                                        "BLOB decode task failed for {}.{}.{}: {}",
                                         current_device,
                                         current_property,
                                         current_element,
@@ -1623,11 +1650,17 @@ impl IndiClient {
                             current_blob_active = false;
                             current_blob_size = 0;
                             blob_start_time = None;
+                        } else {
+                            property_values.write().await.insert(
+                                (
+                                    current_device.clone(),
+                                    current_property.clone(),
+                                    current_element.clone(),
+                                ),
+                                text,
+                            );
                         }
                     }
-
-                    // Clear pending number limits after processing
-                    _pending_number_limits = None;
                 }
                 Ok(Ok(Event::End(e))) => {
                     // Reset incomplete message tracking on successful event
@@ -1807,11 +1840,15 @@ impl IndiClient {
         self.tx = None; // Drop sender, which will close the writer task
         self.connected.store(false, Ordering::SeqCst);
 
-        // Clear cached state
+        // Clear cached state. `latest_blobs` holds a whole decoded frame and
+        // `property_updated_ms` feeds staleness checks that would otherwise read
+        // pre-disconnect timestamps as fresh after a reconnect.
         self.devices.write().await.clear();
         self.properties.write().await.clear();
         self.property_values.write().await.clear();
+        self.property_updated_ms.write().await.clear();
         self.number_limits.write().await.clear();
+        self.latest_blobs.write().await.clear();
 
         // Reset failure counter since this is intentional disconnect
         self.reader_consecutive_failures.store(0, Ordering::SeqCst);
@@ -3910,6 +3947,19 @@ mod tests {
     async fn drive_parser_with_updates(
         xml: &str,
     ) -> (PropertyValueMap, PropertyUpdateMap, Vec<IndiEvent>) {
+        let (values, updates, _blobs, events) = drive_parser_full(xml).await;
+        (values, updates, events)
+    }
+
+    /// Same fixture as `drive_parser_with_updates`, exposing the decoded-BLOB cache.
+    async fn drive_parser_blobs(xml: &str) -> BlobMap {
+        let (_values, _updates, blobs, _events) = drive_parser_full(xml).await;
+        blobs
+    }
+
+    async fn drive_parser_full(
+        xml: &str,
+    ) -> (PropertyValueMap, PropertyUpdateMap, BlobMap, Vec<IndiEvent>) {
         let devices = Arc::new(RwLock::new(HashMap::new()));
         let properties = Arc::new(RwLock::new(HashMap::new()));
         let property_values = Arc::new(RwLock::new(HashMap::new()));
@@ -3930,6 +3980,7 @@ mod tests {
         // can read the final state without contention.
         let pv_clone = property_values.clone();
         let updated_clone = property_updated_ms.clone();
+        let blobs = latest_blobs.clone();
         let result = IndiClient::reader_task_with_timeout(
             reader,
             devices,
@@ -3953,7 +4004,8 @@ mod tests {
         }
         let pv_snapshot = property_values.read().await.clone();
         let updated_snapshot = property_updated_ms.read().await.clone();
-        (pv_snapshot, updated_snapshot, events)
+        let blob_snapshot = blobs.read().await.clone();
+        (pv_snapshot, updated_snapshot, blob_snapshot, events)
     }
 
     async fn drive_parser(xml: &str) -> (PropertyValueMap, Vec<IndiEvent>) {
@@ -4142,5 +4194,152 @@ mod tests {
             "parser failed to recover after malformed block; events={:?}",
             events
         );
+    }
+
+    #[tokio::test]
+    async fn test_parser_does_not_retain_blob_base64_in_property_values() {
+        // Why: `property_values` is only cleared on disconnect, so storing the
+        // base64 body of a BLOB there pins ~1.33x the frame size for the whole
+        // session on top of the decoded copy in `latest_blobs`.
+        let xml = r#"
+            <setBLOBVector device="CCD" name="CCD1">
+                <oneBLOB name="Image" size="6" format=".fits">/9j/4AAA</oneBLOB>
+            </setBLOBVector>
+        "#;
+
+        let (values, updated, events) = drive_parser_with_updates(xml).await;
+
+        assert!(
+            !values.contains_key(&("CCD".to_string(), "CCD1".to_string(), "Image".to_string())),
+            "BLOB base64 payload was retained in property_values: {:?}",
+            values
+        );
+        assert!(
+            updated.contains_key(&("CCD".to_string(), "CCD1".to_string())),
+            "BLOB arrival must still refresh the property update timestamp"
+        );
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, IndiEvent::BlobReceived { .. })),
+            "BLOB must still be delivered as an event"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_parser_caches_decoded_blob_for_late_subscribers() {
+        let xml = r#"
+            <setBLOBVector device="CCD" name="CCD1">
+                <oneBLOB name="Image" size="6" format=".fits">/9j/4AAA</oneBLOB>
+            </setBLOBVector>
+        "#;
+
+        let blobs = drive_parser_blobs(xml).await;
+        let cached = blobs
+            .get(&("CCD".to_string(), "CCD1".to_string(), "Image".to_string()))
+            .expect("decoded BLOB missing from cache");
+        assert_eq!(cached, &BASE64.decode("/9j/4AAA").unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_disconnect_clears_cached_blobs_and_update_timestamps() {
+        // Why: R6.1 — a decoded frame (tens to hundreds of MB) survived
+        // `disconnect()`, and stale `property_updated_ms` entries made every
+        // staleness check read pre-disconnect values as fresh after reconnect.
+        let mut client = IndiClient::new("localhost", None);
+        client.latest_blobs.write().await.insert(
+            ("CCD".to_string(), "CCD1".to_string(), "Image".to_string()),
+            vec![1u8, 2, 3],
+        );
+        client
+            .property_updated_ms
+            .write()
+            .await
+            .insert(("CCD".to_string(), "CCD1".to_string()), 1234);
+
+        client.disconnect().await.expect("disconnect failed");
+
+        assert!(
+            client.take_blob("CCD", "CCD1", "Image").await.is_none(),
+            "cached BLOB survived disconnect"
+        );
+        assert!(
+            client
+                .get_property_last_update_ms("CCD", "CCD1")
+                .await
+                .is_none(),
+            "stale property update timestamp survived disconnect"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_writer_task_marks_disconnected_on_write_error() {
+        // Why: R6.2 — the writer task broke out of its loop on a socket write
+        // error without touching `connected`, so a half-open connection left
+        // `is_connected()` reporting true while every send failed.
+        use std::io::ErrorKind;
+        use std::pin::Pin;
+        use std::task::{Context, Poll};
+
+        struct FailingWriter;
+        impl AsyncWrite for FailingWriter {
+            fn poll_write(
+                self: Pin<&mut Self>,
+                _cx: &mut Context<'_>,
+                _buf: &[u8],
+            ) -> Poll<std::io::Result<usize>> {
+                Poll::Ready(Err(std::io::Error::new(ErrorKind::BrokenPipe, "closed")))
+            }
+            fn poll_flush(
+                self: Pin<&mut Self>,
+                _cx: &mut Context<'_>,
+            ) -> Poll<std::io::Result<()>> {
+                Poll::Ready(Ok(()))
+            }
+            fn poll_shutdown(
+                self: Pin<&mut Self>,
+                _cx: &mut Context<'_>,
+            ) -> Poll<std::io::Result<()>> {
+                Poll::Ready(Ok(()))
+            }
+        }
+
+        let connected = Arc::new(AtomicBool::new(true));
+        let (event_tx, mut event_rx) = broadcast::channel::<IndiEvent>(16);
+        let (tx, rx) = mpsc::channel::<String>(4);
+        tx.send("<getProperties/>".to_string()).await.unwrap();
+        drop(tx);
+
+        IndiClient::writer_task(FailingWriter, rx, connected.clone(), event_tx).await;
+
+        assert!(
+            !connected.load(Ordering::SeqCst),
+            "writer task died without clearing the connected flag"
+        );
+        let mut saw_disconnect_event = false;
+        while let Ok(ev) = event_rx.try_recv() {
+            if matches!(ev, IndiEvent::ConnectionStateChanged(false)) {
+                saw_disconnect_event = true;
+            }
+        }
+        assert!(
+            saw_disconnect_event,
+            "writer task died without announcing the connection state change"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_writer_task_clean_shutdown_leaves_connected_untouched() {
+        // A closed command channel is the ordinary `disconnect()` path; it must
+        // not masquerade as a write failure.
+        let connected = Arc::new(AtomicBool::new(true));
+        let (event_tx, mut event_rx) = broadcast::channel::<IndiEvent>(16);
+        let (tx, rx) = mpsc::channel::<String>(4);
+        drop(tx);
+
+        IndiClient::writer_task(tokio::io::sink(), rx, connected.clone(), event_tx).await;
+
+        assert!(connected.load(Ordering::SeqCst));
+        assert!(event_rx.try_recv().is_err());
     }
 }

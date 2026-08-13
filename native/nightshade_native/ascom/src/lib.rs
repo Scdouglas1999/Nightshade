@@ -84,19 +84,15 @@ pub use windows::{
     get_timeout_config,
     // COM initialization
     init_com,
-    // Device discovery
-    probe_device_name,
     set_timeout_config,
     uninit_com,
     // Device types
     AscomCamera,
-    AscomCleanupGuard,
     // Mockall seam for per-device wrapper unit tests
     AscomConnectionBackend,
     AscomCoverCalibrator,
     // Device connection wrapper
     AscomDeviceConnection,
-    AscomDisconnectable,
     AscomDome,
     // Error types
     AscomError,
@@ -104,8 +100,6 @@ pub use windows::{
     AscomFocuser,
     AscomMount,
     AscomObservingConditions,
-    // RAII guards for resource cleanup
-    AscomOperationGuard,
     AscomResult,
     AscomRotator,
     AscomSafetyMonitor,

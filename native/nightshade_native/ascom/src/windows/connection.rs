@@ -184,10 +184,10 @@ fn scan_registry_path(root: HKEY, root_name: &str, reg_path: &str) -> Option<Vec
                 // NOTE: We intentionally do NOT probe the device here because:
                 // 1. Some ASCOM drivers show setup dialogs when COM object is created
                 // 2. Probing is slow (creates/destroys COM objects)
-                // 3. We can probe later when user actually selects the device
-                //
-                // The probe_device_name() function is available for on-demand use
-                // after user selects a device, if we need the real name.
+                // 3. An unconnected driver answers `Name` with a generic slot label
+                //    ("ASI Camera (1)"), so probing here would not improve on the
+                //    registry description anyway. The model is only readable after
+                //    `Connected = true` — see the device wrappers.
 
                 let name = if registry_description.is_empty() {
                     prog_id.clone()
@@ -264,49 +264,6 @@ unsafe fn get_driver_description(parent_key: &HKEY, prog_id: &str) -> Option<Str
     }
 
     None
-}
-
-/// Probe an ASCOM device to get its actual name without connecting
-///
-/// This instantiates the COM object and reads the Name property, which
-/// according to ASCOM standards should be available without setting Connected=true.
-/// This allows us to get the real device name (e.g., "ASI1600MM-Cool") instead of
-/// the generic registry description (e.g., "ASI Camera (1)").
-pub fn probe_device_name(prog_id: &str) -> Option<String> {
-    tracing::debug!("Probing ASCOM device name for: {}", prog_id);
-
-    // Try to create the COM object and read Name property
-    match AscomDeviceConnection::new(prog_id) {
-        Ok(device) => {
-            // Read Name property - should work without connecting
-            match device.get_string_property("Name") {
-                Ok(name) if !name.is_empty() => {
-                    tracing::debug!("Probed device name: {} -> {}", prog_id, name);
-                    Some(name)
-                }
-                Ok(_) => {
-                    // Empty name, try Description
-                    match device.get_string_property("Description") {
-                        Ok(desc) if !desc.is_empty() => {
-                            tracing::debug!("Probed device description: {} -> {}", prog_id, desc);
-                            Some(desc)
-                        }
-                        _ => None,
-                    }
-                }
-                Err(e) => {
-                    tracing::debug!("Failed to read Name property for {}: {}", prog_id, e);
-                    // Try Description as fallback
-                    device.get_string_property("Description").ok()
-                }
-            }
-            // device is dropped here, releasing COM object
-        }
-        Err(e) => {
-            tracing::debug!("Failed to create COM object for {}: {}", prog_id, e);
-            None
-        }
-    }
 }
 
 /// ASCOM Device wrapper for COM interaction
@@ -1177,130 +1134,6 @@ unsafe impl Send for AscomDeviceConnection {}
 // immutable references never reach the underlying IDispatch because every call
 // is funneled through a channel onto the apartment thread.
 unsafe impl Sync for AscomDeviceConnection {}
-
-// ============================================================================
-// ASCOM Operation Guard
-// ============================================================================
-
-/// RAII guard that ensures ASCOM device cleanup when operations fail.
-///
-/// This guard calls disconnect on the device if dropped without being defused.
-/// Use this for multi-step operations where you need to ensure cleanup even
-/// if an intermediate step fails.
-///
-/// # Example
-/// ```ignore
-/// let mut mount = AscomMount::new(&prog_id)?;
-/// mount.connect()?;
-///
-/// // Create guard - will disconnect on drop if not defused
-/// let guard = AscomOperationGuard::new(&mut mount as &mut dyn AscomDisconnectable, "slew");
-///
-/// // Perform operations
-/// mount.slew_to_coordinates(ra, dec)?;
-///
-/// // Operation succeeded - defuse the guard
-/// guard.defuse();
-/// mount.disconnect()?;
-/// ```
-pub struct AscomOperationGuard<'a> {
-    device: Option<&'a mut dyn AscomDisconnectable>,
-    operation: String,
-}
-
-/// Trait for ASCOM devices that can be disconnected
-pub trait AscomDisconnectable {
-    /// Disconnect from the device (best-effort cleanup)
-    fn try_disconnect(&mut self) -> Result<(), String>;
-}
-
-impl AscomDisconnectable for AscomDeviceConnection {
-    fn try_disconnect(&mut self) -> Result<(), String> {
-        self.disconnect()
-    }
-}
-
-impl<'a> AscomOperationGuard<'a> {
-    /// Create a new operation guard for the given device.
-    pub fn new(device: &'a mut dyn AscomDisconnectable, operation: impl Into<String>) -> Self {
-        Self {
-            device: Some(device),
-            operation: operation.into(),
-        }
-    }
-
-    /// Defuse the guard, preventing automatic cleanup on drop.
-    /// Call this when the operation succeeds.
-    pub fn defuse(mut self) {
-        self.device = None;
-    }
-}
-
-impl<'a> Drop for AscomOperationGuard<'a> {
-    fn drop(&mut self) {
-        if let Some(device) = self.device.take() {
-            tracing::warn!(
-                "AscomOperationGuard: operation '{}' did not complete - disconnecting",
-                self.operation
-            );
-            if let Err(e) = device.try_disconnect() {
-                tracing::error!(
-                    "AscomOperationGuard: failed to disconnect after failed '{}': {}",
-                    self.operation,
-                    e
-                );
-            }
-        }
-    }
-}
-
-/// Synchronous cleanup guard for use in ASCOM connect sequences.
-///
-/// This guard runs a cleanup closure if dropped without being defused.
-/// Useful for cleaning up partially-initialized state when connect fails.
-///
-/// # Example
-/// ```ignore
-/// // Open device
-/// let device = AscomDeviceConnection::new(&prog_id)?;
-///
-/// // Create guard that will disconnect if subsequent operations fail
-/// let guard = AscomCleanupGuard::new(|| {
-///     let _ = device.disconnect();
-/// });
-///
-/// // Do more initialization
-/// device.connect()?;
-/// device.setup_something()?;
-///
-/// // Success - defuse the guard
-/// guard.defuse();
-/// ```
-pub struct AscomCleanupGuard<F: FnOnce()> {
-    cleanup: Option<F>,
-}
-
-impl<F: FnOnce()> AscomCleanupGuard<F> {
-    /// Create a new cleanup guard with the given cleanup function.
-    pub fn new(cleanup: F) -> Self {
-        Self {
-            cleanup: Some(cleanup),
-        }
-    }
-
-    /// Defuse the guard, preventing the cleanup function from running.
-    pub fn defuse(mut self) {
-        self.cleanup = None;
-    }
-}
-
-impl<F: FnOnce()> Drop for AscomCleanupGuard<F> {
-    fn drop(&mut self) {
-        if let Some(cleanup) = self.cleanup.take() {
-            cleanup();
-        }
-    }
-}
 
 /// Regression cover for the driver's own explanation surviving a failed
 /// `IDispatch::Invoke`.

@@ -8,7 +8,6 @@
 use crate::{
     AlpacaCamera, AlpacaDome, AlpacaFilterWheel, AlpacaFocuser, AlpacaRotator, AlpacaTelescope,
 };
-use std::sync::Arc;
 
 // ============================================================================
 // Alpaca Connection Guard Trait
@@ -167,69 +166,6 @@ impl AlpacaConnectable for AlpacaDome {
 }
 
 // ============================================================================
-// Connection Guard
-// ============================================================================
-
-/// RAII guard that ensures an Alpaca device is disconnected on drop.
-///
-/// Use this when performing operations that connect to a device temporarily.
-/// The guard will automatically disconnect the device when dropped, even if
-/// an error occurs.
-///
-/// # Example
-/// ```ignore
-/// let mount = AlpacaTelescope::from_server(&base_url, device_num);
-/// mount.connect().await?;
-///
-/// // Create guard - will disconnect on drop if not defused
-/// let guard = AlpacaConnectionGuard::new(Arc::new(mount));
-///
-/// // Perform operations
-/// mount.slew_to_target().await?;
-///
-/// // Operation succeeded - defuse the guard and disconnect manually
-/// guard.defuse();
-/// mount.disconnect().await.ok();
-/// ```
-pub struct AlpacaConnectionGuard<T: AlpacaConnectable> {
-    device: Option<Arc<T>>,
-    device_name: String,
-}
-
-impl<T: AlpacaConnectable> AlpacaConnectionGuard<T> {
-    /// Create a new connection guard for the given device.
-    pub fn new(device: Arc<T>, device_name: impl Into<String>) -> Self {
-        Self {
-            device: Some(device),
-            device_name: device_name.into(),
-        }
-    }
-
-    /// Defuse the guard, preventing automatic disconnect on drop.
-    /// Call this when the operation succeeds and you will handle disconnect manually.
-    pub fn defuse(mut self) {
-        self.device = None;
-    }
-
-    /// Get a reference to the guarded device.
-    pub fn device(&self) -> Option<&Arc<T>> {
-        self.device.as_ref()
-    }
-}
-
-impl<T: AlpacaConnectable> Drop for AlpacaConnectionGuard<T> {
-    fn drop(&mut self) {
-        if let Some(device) = self.device.take() {
-            tracing::debug!(
-                "AlpacaConnectionGuard: cleaning up connection to {}",
-                self.device_name
-            );
-            device.disconnect_sync();
-        }
-    }
-}
-
-// ============================================================================
 // Scoped Connection Helper
 // ============================================================================
 
@@ -294,50 +230,6 @@ where
         Err(e) => {
             // Guard will clean up on drop
             Err(e)
-        }
-    }
-}
-
-// ============================================================================
-// Telescope/Mount specific guard with context
-// ============================================================================
-
-/// A guard specifically for telescope operations that tracks the operation context.
-pub struct TelescopeOperationGuard {
-    mount: Arc<AlpacaTelescope>,
-    operation: String,
-    defused: bool,
-}
-
-impl TelescopeOperationGuard {
-    /// Create a new telescope operation guard.
-    pub fn new(mount: Arc<AlpacaTelescope>, operation: impl Into<String>) -> Self {
-        Self {
-            mount,
-            operation: operation.into(),
-            defused: false,
-        }
-    }
-
-    /// Defuse the guard to prevent cleanup on drop.
-    pub fn defuse(mut self) {
-        self.defused = true;
-    }
-
-    /// Get a reference to the mount.
-    pub fn mount(&self) -> &AlpacaTelescope {
-        &self.mount
-    }
-}
-
-impl Drop for TelescopeOperationGuard {
-    fn drop(&mut self) {
-        if !self.defused {
-            tracing::warn!(
-                "TelescopeOperationGuard: operation '{}' did not complete - disconnecting",
-                self.operation
-            );
-            self.mount.disconnect_sync();
         }
     }
 }

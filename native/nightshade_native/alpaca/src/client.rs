@@ -952,45 +952,6 @@ impl AlpacaClient {
         Ok(alpaca_response.value)
     }
 
-    /// Make a long-running GET request with extended timeout
-    pub async fn get_long<T: for<'de> Deserialize<'de>>(
-        &self,
-        endpoint: &str,
-    ) -> Result<T, AlpacaError> {
-        let client = self.create_long_timeout_client()?;
-        let (client_id, transaction_id) = self.client_transaction();
-        let url = format!(
-            "{}?ClientID={}&ClientTransactionID={}",
-            self.build_url(endpoint),
-            client_id,
-            transaction_id
-        );
-
-        let response = client.get(&url).send().await?;
-
-        let status = response.status();
-        if !status.is_success() {
-            let retry_after = parse_retry_after_header(response.headers());
-            let body = response.text().await?;
-            return Err(AlpacaError::HttpError {
-                status: status.as_u16(),
-                message: body,
-                retry_after,
-            });
-        }
-
-        let alpaca_response: AlpacaResponse<T> = response.json().await?;
-
-        if alpaca_response.error_number != 0 {
-            return Err(AlpacaError::DeviceError {
-                code: alpaca_response.error_number,
-                message: alpaca_response.error_message,
-            });
-        }
-
-        Ok(alpaca_response.value)
-    }
-
     /// Make a long-running PUT request with extended timeout
     /// Use for operations like slewing, parking, and shutter control
     pub async fn put_long<T: for<'de> Deserialize<'de>>(
@@ -1083,52 +1044,6 @@ impl AlpacaClient {
         }
 
         decode_put_response::<T>(response.json().await?)
-    }
-
-    /// Make a very long-running GET request with extended timeout
-    /// Use for operations like large image downloads
-    pub async fn get_very_long<T: for<'de> Deserialize<'de>>(
-        &self,
-        endpoint: &str,
-    ) -> Result<T, AlpacaError> {
-        let client = self.create_very_long_timeout_client()?;
-        let (client_id, transaction_id) = self.client_transaction();
-        let url = format!(
-            "{}?ClientID={}&ClientTransactionID={}",
-            self.build_url(endpoint),
-            client_id,
-            transaction_id
-        );
-
-        let response = client.get(&url).send().await.map_err(|e| {
-            if e.is_timeout() {
-                AlpacaError::timeout(endpoint, self.timeout_config.very_long_operation_ms)
-            } else {
-                e.into()
-            }
-        })?;
-
-        let status = response.status();
-        if !status.is_success() {
-            let retry_after = parse_retry_after_header(response.headers());
-            let body = response.text().await?;
-            return Err(AlpacaError::HttpError {
-                status: status.as_u16(),
-                message: body,
-                retry_after,
-            });
-        }
-
-        let alpaca_response: AlpacaResponse<T> = response.json().await?;
-
-        if alpaca_response.error_number != 0 {
-            return Err(AlpacaError::DeviceError {
-                code: alpaca_response.error_number,
-                message: alpaca_response.error_message,
-            });
-        }
-
-        Ok(alpaca_response.value)
     }
 
     // Common device properties
