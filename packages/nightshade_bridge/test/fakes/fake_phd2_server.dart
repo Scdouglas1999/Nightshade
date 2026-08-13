@@ -126,6 +126,30 @@ class FakePhd2Server {
     sendLine(jsonEncode(message));
   }
 
+  /// Write [text] verbatim (no `\r\n` appended) and flush, then yield long
+  /// enough for the bytes to land in the client's socket stream on their own.
+  ///
+  /// Used to split a single protocol frame across two TCP reads, which is what
+  /// PHD2 does for any payload larger than the path MTU (e.g. `get_star_image`).
+  Future<void> sendChunk(String text) async {
+    final client = _client;
+    if (client == null) return;
+    client.write(text);
+    await client.flush();
+    await Future<void>.delayed(const Duration(milliseconds: 25));
+  }
+
+  /// Write raw [bytes] verbatim and flush, with the same per-chunk delivery
+  /// guarantee as [sendChunk]. Lets a test place a multi-byte UTF-8 sequence
+  /// on the wire exactly as PHD2 encodes it.
+  Future<void> sendRawBytes(List<int> bytes) async {
+    final client = _client;
+    if (client == null) return;
+    client.add(bytes);
+    await client.flush();
+    await Future<void>.delayed(const Duration(milliseconds: 25));
+  }
+
   /// Send a JSON-RPC error response correlated to [id].
   void sendError(Object id, int code, String message) {
     sendJson({

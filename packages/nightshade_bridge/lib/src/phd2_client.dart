@@ -128,6 +128,16 @@ class Phd2Client {
   int _requestId = 0;
 
   final _pendingRequests = <int, Completer<dynamic>>{};
+
+  /// Decoded-but-not-yet-terminated inbound text. TCP splits frames wherever it
+  /// likes, so a partial line must survive until the rest of it arrives.
+  final StringBuffer _rxBuffer = StringBuffer();
+
+  /// Chunked UTF-8 decoder feeding [_rxBuffer]. It carries partial multi-byte
+  /// sequences across reads, so a split inside a character is not corruption.
+  /// Discarded on disconnect so a reconnect never resumes mid-frame.
+  ByteConversionSink? _rxDecoder;
+
   final _eventController = StreamController<Phd2Event>.broadcast();
   final _connectionStateController =
       StreamController<Phd2ConnectionState>.broadcast();
@@ -443,6 +453,7 @@ class Phd2Client {
     _subscription = null;
     _socket?.destroy();
     _socket = null;
+    _resetReceiveBuffer();
     _state = Phd2State.stopped;
     _statusMessage = 'Disconnected';
     _updateConnectionState(Phd2ConnectionState.disconnected);
@@ -456,27 +467,32 @@ class Phd2Client {
 
   void _handleData(List<int> data) {
     _lastDataReceived = DateTime.now();
-    final buffer = StringBuffer();
-    buffer.write(String.fromCharCodes(data));
-    _processBuffer(buffer);
+    (_rxDecoder ??= const Utf8Decoder(
+      allowMalformed: true,
+    ).startChunkedConversion(_StringBufferSink(_rxBuffer))).add(data);
+    _processBuffer();
   }
 
-  /// Process incoming data buffer for complete JSON messages
-  void _processBuffer(StringBuffer buffer) {
-    final content = buffer.toString();
+  /// Drop any half-received frame so the next connection starts clean.
+  void _resetReceiveBuffer() {
+    _rxDecoder = null;
+    _rxBuffer.clear();
+  }
+
+  /// Dispatch every complete `\r\n`-terminated line in [_rxBuffer], leaving any
+  /// trailing partial line buffered for the next read.
+  void _processBuffer() {
+    final content = _rxBuffer.toString();
+    if (content.isEmpty) return;
+
     final lines = content.split('\r\n');
+    final partial = lines.removeLast();
+    _rxBuffer.clear();
+    _rxBuffer.write(partial);
 
-    buffer.clear();
-
-    for (int i = 0; i < lines.length; i++) {
-      final line = lines[i].trim();
+    for (final rawLine in lines) {
+      final line = rawLine.trim();
       if (line.isEmpty) continue;
-
-      // If this is the last line and doesn't end with newline, keep it in buffer
-      if (i == lines.length - 1 && !content.endsWith('\r\n')) {
-        buffer.write(line);
-        continue;
-      }
 
       try {
         final json = jsonDecode(line) as Map<String, dynamic>;
@@ -931,6 +947,20 @@ class Phd2Client {
     _eventController.close();
     _connectionStateController.close();
   }
+}
+
+/// Sink target for the chunked UTF-8 decoder: appends decoded text to a
+/// caller-owned [StringBuffer].
+class _StringBufferSink implements Sink<String> {
+  _StringBufferSink(this._buffer);
+
+  final StringBuffer _buffer;
+
+  @override
+  void add(String chunk) => _buffer.write(chunk);
+
+  @override
+  void close() {}
 }
 
 /// PHD2 event

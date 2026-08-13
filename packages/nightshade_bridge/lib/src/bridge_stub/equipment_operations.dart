@@ -81,27 +81,6 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
     }
   }
 
-  /// Set camera binning
-  Future<void> setCameraBinning(String deviceId, int binX, int binY) async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('setCameraBinning');
-    }
-    try {
-      await gen_api.apiSetCameraBinning(
-        deviceId: deviceId,
-        binX: binX,
-        binY: binY,
-      );
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error setting camera binning from native: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
-
   /// Set camera readout mode by index
   /// modeIndex: 0 = default/high quality, 1 = fast readout, etc.
   Future<void> setReadoutMode({
@@ -126,37 +105,6 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
     }
   }
 
-  /// Start a camera exposure
-  Future<void> startExposure({
-    required String deviceId,
-    required double durationSecs,
-    required int gain,
-    required int offset,
-    required int binX,
-    required int binY,
-  }) async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('startExposure');
-    }
-    try {
-      await gen_api.apiCameraStartExposure(
-        deviceId: deviceId,
-        durationSecs: durationSecs,
-        gain: gain,
-        offset: offset,
-        binX: binX,
-        binY: binY,
-      );
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error calling native startExposure: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
-
   /// Cancel current exposure
   Future<void> cancelExposure(String deviceId) async {
     if (!_nativeAvailable) {
@@ -167,43 +115,6 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
     } catch (e) {
       developer.log(
         '[Bridge] Error calling native cancelExposure: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
-
-  /// Get last captured image
-  Future<CapturedImageResult?> getLastImage({required String deviceId}) async {
-    // Why: trace-level (debug 500) â€” these three lines are diagnostic only
-    // and were originally `debugPrint` for tracing the FRB getLastImage round
-    // trip. Promoted into the structured logger so they participate in level
-    // filtering / file rotation like the rest of the bridge.
-    developer.log(
-      '[Bridge] getLastImage called for device $deviceId, nativeAvailable=$_nativeAvailable',
-      name: 'NativeBridge',
-      level: 500,
-    );
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('getLastImage');
-    }
-    try {
-      developer.log(
-        '[Bridge] Calling crateApiApiGetLastImage...',
-        name: 'NativeBridge',
-        level: 500,
-      );
-      final rustResult = await gen_api.apiGetLastImage(deviceId: deviceId);
-      developer.log(
-        '[Bridge] Got result: ${rustResult.width}x${rustResult.height}, displayData size: ${rustResult.displayData.length}',
-        name: 'NativeBridge',
-        level: 500,
-      );
-      return rustResult;
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error calling native getLastImage: $e',
         name: 'NativeBridge',
         level: 1000,
       );
@@ -357,118 +268,6 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
     }
   }
 
-  /// Set mount tracking rate (0=Sidereal, 1=Lunar, 2=Solar, 3=King)
-  Future<void> mountSetTrackingRate(String deviceId, int rate) async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('mountSetTrackingRate');
-    }
-    try {
-      await gen_api.mountSetTrackingRate(deviceId: deviceId, rate: rate);
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error setting tracking rate from native: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
-
-  /// Get mount tracking rate (0=Sidereal, 1=Lunar, 2=Solar, 3=King)
-  Future<int> mountGetTrackingRate(String deviceId) async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('mountGetTrackingRate');
-    }
-    try {
-      return await gen_api.mountGetTrackingRate(deviceId: deviceId);
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error getting tracking rate from native: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
-
-  /// Move mount axis at specified rate (degrees/second)
-  /// axis: 0=RA/Azimuth (primary), 1=Dec/Altitude (secondary)
-  /// rate: degrees per second (positive = N/E, negative = S/W), 0 to stop
-  Future<void> mountMoveAxis(String deviceId, int axis, double rate) async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('mountMoveAxis');
-    }
-    try {
-      await gen_api.mountMoveAxis(deviceId: deviceId, axis: axis, rate: rate);
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error moving axis from native: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
-
-  /// Slew mount to alt/az coordinates
-  Future<void> mountSlewAltAz(
-    String deviceId,
-    double altitude,
-    double azimuth,
-  ) async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('mountSlewAltAz');
-    }
-    try {
-      await gen_api.mountSlewAltAz(
-        deviceId: deviceId,
-        altitude: altitude,
-        azimuth: azimuth,
-      );
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error slewing mount to alt/az: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
-
-  /// Find mount home position
-  Future<void> mountFindHome(String deviceId) async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('mountFindHome');
-    }
-    try {
-      await gen_api.mountFindHome(deviceId: deviceId);
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error finding mount home: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
-
-  /// Abort current mount motion
-  Future<void> mountAbort(String deviceId) async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('mountAbort');
-    }
-    try {
-      await gen_api.mountAbort(deviceId: deviceId);
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error aborting mount motion: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
-
   // =========================================================================
   // Focuser Control
   // =========================================================================
@@ -563,9 +362,12 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
   }
 
   /// Set filter wheel position
-  Future<void> filterWheelSetPosition(String deviceId, int position) async {
+  Future<void> apiFilterwheelSetPosition({
+    required String deviceId,
+    required int position,
+  }) async {
     if (!_nativeAvailable) {
-      _nativeBridgeRequired('filterWheelSetPosition');
+      _nativeBridgeRequired('apiFilterwheelSetPosition');
     }
     try {
       await gen_api.apiFilterwheelSetPosition(
@@ -580,14 +382,6 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
       );
       rethrow;
     }
-  }
-
-  /// Set filter wheel position (API method)
-  Future<void> apiFilterwheelSetPosition({
-    required String deviceId,
-    required int position,
-  }) async {
-    await filterWheelSetPosition(deviceId, position);
   }
 
   /// Get filter wheel names (API method)
@@ -608,75 +402,12 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
     if (index < 0) {
       throw ArgumentError('Filter "$name" not found on device $deviceId');
     }
-    await filterWheelSetPosition(deviceId, index);
-  }
-
-  // =========================================================================
-  // Session Management
-  // =========================================================================
-
-  /// Get current session state
-  Future<NativeSessionState> getSessionState() async {
-    return NativeSessionState(
-      isActive: false,
-      totalExposures: 0,
-      completedExposures: 0,
-      totalIntegrationSecs: 0.0,
-      isGuiding: false,
-      isCapturing: false,
-      isDithering: false,
-    );
-  }
-
-  /// Start a new imaging session
-  Future<void> startSession({
-    String? targetName,
-    double? ra,
-    double? dec,
-  }) async {
-    _eventController.add(
-      _FallbackNightshadeEvent(
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-        severity: EventSeverity.info,
-        category: EventCategory.sequencer,
-        eventType: 'SessionStarted',
-        data: {'target': targetName},
-      ),
-    );
-  }
-
-  /// End the current session
-  Future<void> endSession() async {
-    _eventController.add(
-      _FallbackNightshadeEvent(
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-        severity: EventSeverity.info,
-        category: EventCategory.sequencer,
-        eventType: 'SessionEnded',
-        data: {},
-      ),
-    );
+    await apiFilterwheelSetPosition(deviceId: deviceId, position: index);
   }
 
   // =========================================================================
   // Plate Solving
   // =========================================================================
-
-  /// Check if plate solver is available
-  bool isPlateSolverAvailable() {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('isPlateSolverAvailable');
-    }
-    return gen_api.apiIsPlateSolverAvailable();
-  }
-
-  /// Get plate solver path
-  String? getPlateSolverPath() {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('getPlateSolverPath');
-    }
-    return gen_api.apiGetPlateSolverPath();
-  }
 
   /// Plate solve blind
   Future<PlateSolveResult> plateSolveBlind(
@@ -710,52 +441,5 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
       searchRadius: searchRadius,
       timeoutSecs: timeoutSeconds,
     );
-  }
-
-  // =========================================================================
-  // Autofocus
-  // =========================================================================
-
-  /// Run autofocus
-  Future<AutofocusResultApi> apiRunAutofocus({
-    required String deviceId,
-    required String cameraId,
-    required AutofocusConfigApi config,
-  }) async {
-    if (_nativeAvailable) {
-      try {
-        return await gen_api.apiRunAutofocus(
-          deviceId: deviceId,
-          cameraId: cameraId,
-          config: config,
-        );
-      } catch (e) {
-        developer.log(
-          '[Bridge] Error running autofocus via native: $e',
-          name: 'NativeBridge',
-          level: 1000,
-        );
-        rethrow;
-      }
-    }
-    throw UnsupportedError(_fallbackErrorMessage);
-  }
-
-  /// Cancel autofocus
-  Future<void> apiCancelAutofocus() async {
-    if (_nativeAvailable) {
-      try {
-        await gen_api.apiCancelAutofocus();
-        return;
-      } catch (e) {
-        developer.log(
-          '[Bridge] Error cancelling autofocus via native: $e',
-          name: 'NativeBridge',
-          level: 1000,
-        );
-        rethrow;
-      }
-    }
-    throw UnsupportedError(_fallbackErrorMessage);
   }
 }

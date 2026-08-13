@@ -15,10 +15,38 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
   // Sequencer API
   // =========================================================================
 
-  /// Sequencer state
-  CameraStatus? get cameraStatus => _cameraStatus;
-  FocuserStatus? get focuserStatus => _focuserStatus;
-  FilterWheelStatus? get filterWheelStatus => _filterWheelStatus;
+  /// Guard, call, log — the shape every pass-through to the generated
+  /// sequencer API shares.
+  ///
+  /// [op] names the operation in both the fail-closed error and the failure
+  /// log, so it must match the method's own name. [okLog] is the success line;
+  /// omit it for operations whose success is already visible in the sequencer
+  /// event stream.
+  Future<T> _native<T>(
+    String op,
+    Future<T> Function() body, {
+    String? okLog,
+  }) async {
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired(op);
+    }
+
+    try {
+      final result = await body();
+      if (okLog != null) {
+        developer.log('[Bridge] $okLog', name: 'NativeBridge', level: 800);
+      }
+      return result;
+    } catch (e) {
+      developer.log(
+        '[Bridge] Error in $op: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
+      rethrow;
+    }
+  }
+
   String? get loadedSequenceJson => _loadedSequenceJson;
 
   /// Subscribe to sequencer events (must be called to receive sequencer events)
@@ -76,104 +104,41 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
     String? rotatorId,
     List<String>? filterNames,
     Map<String, int>? filterFocusOffsets,
-  }) async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('sequencerSetDevices');
-    }
-
-    try {
-      await gen_api.apiSequencerSetDevices(
-        cameraId: cameraId,
-        mountId: mountId,
-        focuserId: focuserId,
-        filterwheelId: filterwheelId,
-        rotatorId: rotatorId,
-        filterNames: filterNames,
-        filterFocusOffsets: filterFocusOffsets,
-      );
-      developer.log(
-        '[Bridge] Set sequencer devices: camera=$cameraId, mount=$mountId, focuser=$focuserId, filterwheel=$filterwheelId, rotator=$rotatorId, filterNames=$filterNames, filterFocusOffsets=$filterFocusOffsets',
-        name: 'NativeBridge',
-        level: 800,
-      );
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error setting sequencer devices: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
+  }) => _native(
+    'sequencerSetDevices',
+    () => gen_api.apiSequencerSetDevices(
+      cameraId: cameraId,
+      mountId: mountId,
+      focuserId: focuserId,
+      filterwheelId: filterwheelId,
+      rotatorId: rotatorId,
+      filterNames: filterNames,
+      filterFocusOffsets: filterFocusOffsets,
+    ),
+    okLog:
+        'Set sequencer devices: camera=$cameraId, mount=$mountId, focuser=$focuserId, filterwheel=$filterwheelId, rotator=$rotatorId, filterNames=$filterNames, filterFocusOffsets=$filterFocusOffsets',
+  );
 
   /// Set the safety fail mode for the sequencer
-  Future<void> sequencerSetSafetyFailMode(String mode) async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('sequencerSetSafetyFailMode');
-    }
-
-    try {
-      await gen_api.apiSequencerSetSafetyFailMode(mode: mode);
-      developer.log(
-        '[Bridge] Set sequencer safety fail mode: $mode',
-        name: 'NativeBridge',
-        level: 800,
-      );
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error setting sequencer safety fail mode: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
+  Future<void> sequencerSetSafetyFailMode(String mode) => _native(
+    'sequencerSetSafetyFailMode',
+    () => gen_api.apiSequencerSetSafetyFailMode(mode: mode),
+    okLog: 'Set sequencer safety fail mode: $mode',
+  );
 
   /// Set the safety/humidity polling interval for the sequencer
-  Future<void> sequencerSetSafetyCheckIntervalSeconds(int seconds) async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('sequencerSetSafetyCheckIntervalSeconds');
-    }
-
-    try {
-      await gen_api.apiSequencerSetSafetyCheckIntervalSeconds(seconds: seconds);
-      developer.log(
-        '[Bridge] Set sequencer safety check interval: ${seconds}s',
-        name: 'NativeBridge',
-        level: 800,
-      );
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error setting sequencer safety check interval: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
+  Future<void> sequencerSetSafetyCheckIntervalSeconds(int seconds) => _native(
+    'sequencerSetSafetyCheckIntervalSeconds',
+    () => gen_api.apiSequencerSetSafetyCheckIntervalSeconds(seconds: seconds),
+    okLog: 'Set sequencer safety check interval: ${seconds}s',
+  );
 
   /// Set the save path for sequencer images
-  Future<void> sequencerSetSavePath({String? path}) async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('sequencerSetSavePath');
-    }
-
-    try {
-      await gen_api.apiSequencerSetSavePath(path: path);
-      developer.log(
-        '[Bridge] Set sequencer save path: ${path ?? "<none>"}',
-        name: 'NativeBridge',
-        level: 800,
-      );
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error setting sequencer save path: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
+  Future<void> sequencerSetSavePath({String? path}) => _native(
+    'sequencerSetSavePath',
+    () => gen_api.apiSequencerSetSavePath(path: path),
+    okLog: 'Set sequencer save path: ${path ?? "<none>"}',
+  );
 
   /// Replay Debug — stamp the active `sequence_runs.id` on the
   /// Rust executor so every emitted `DecisionEvent` carries the FK.
@@ -181,53 +146,22 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
   /// Wrapper around the FRB-generated `apiSequencerSetActiveSequenceRunId`
   /// in `api/sequencer.dart`, which itself gracefully degrades when the
   /// underlying `RustLib` binding hasn't been regenerated.
-  Future<void> sequencerSetActiveSequenceRunId({int? sequenceRunId}) async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('sequencerSetActiveSequenceRunId');
-    }
-    try {
-      await gen_api.apiSequencerSetActiveSequenceRunId(
-        sequenceRunId: sequenceRunId,
-      );
-      developer.log(
-        '[Bridge] Set active sequence_run_id: ${sequenceRunId ?? "<none>"}',
-        name: 'NativeBridge',
-        level: 800,
-      );
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error setting active sequence_run_id: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
+  Future<void> sequencerSetActiveSequenceRunId({int? sequenceRunId}) => _native(
+    'sequencerSetActiveSequenceRunId',
+    () => gen_api.apiSequencerSetActiveSequenceRunId(
+      sequenceRunId: sequenceRunId,
+    ),
+    okLog: 'Set active sequence_run_id: ${sequenceRunId ?? "<none>"}',
+  );
 
   /// Replay Debug — runtime toggle for the decision-logging
   /// broadcast channel.
-  Future<void> sequencerSetDecisionLoggingEnabled({
-    required bool enabled,
-  }) async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('sequencerSetDecisionLoggingEnabled');
-    }
-    try {
-      await gen_api.apiSequencerSetDecisionLoggingEnabled(enabled: enabled);
-      developer.log(
-        '[Bridge] Set decision logging enabled: $enabled',
-        name: 'NativeBridge',
-        level: 800,
+  Future<void> sequencerSetDecisionLoggingEnabled({required bool enabled}) =>
+      _native(
+        'sequencerSetDecisionLoggingEnabled',
+        () => gen_api.apiSequencerSetDecisionLoggingEnabled(enabled: enabled),
+        okLog: 'Set decision logging enabled: $enabled',
       );
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error setting decision logging enabled: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
 
   /// Update dither configuration on the running sequencer
   Future<void> sequencerUpdateDitherConfig({
@@ -236,116 +170,51 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
     required double settleTime,
     required double settleTimeout,
     required bool raOnly,
-  }) async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('sequencerUpdateDitherConfig');
-    }
-
-    try {
-      await gen_api.apiSequencerUpdateDitherConfig(
-        pixels: pixels,
-        settlePixels: settlePixels,
-        settleTime: settleTime,
-        settleTimeout: settleTimeout,
-        raOnly: raOnly,
-      );
-      developer.log(
-        '[Bridge] Updated sequencer dither config: pixels=$pixels, settlePixels=$settlePixels, settleTime=$settleTime, settleTimeout=$settleTimeout, raOnly=$raOnly',
-        name: 'NativeBridge',
-        level: 800,
-      );
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error updating sequencer dither config: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
+  }) => _native(
+    'sequencerUpdateDitherConfig',
+    () => gen_api.apiSequencerUpdateDitherConfig(
+      pixels: pixels,
+      settlePixels: settlePixels,
+      settleTime: settleTime,
+      settleTimeout: settleTimeout,
+      raOnly: raOnly,
+    ),
+    okLog:
+        'Updated sequencer dither config: pixels=$pixels, settlePixels=$settlePixels, settleTime=$settleTime, settleTimeout=$settleTimeout, raOnly=$raOnly',
+  );
 
   /// Push the operator's meridian-flip settings onto the standard
   /// `meridian_flip` trigger, which otherwise runs on Rust defaults for the
   /// whole night.
   Future<void> sequencerUpdateMeridianFlipConfig({
     required String configJson,
-  }) async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('sequencerUpdateMeridianFlipConfig');
-    }
-
-    try {
-      await gen_api.apiSequencerUpdateMeridianFlipConfig(
-        configJson: configJson,
-      );
-      developer.log(
-        '[Bridge] Updated sequencer meridian-flip trigger config',
-        name: 'NativeBridge',
-        level: 800,
-      );
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error updating sequencer meridian-flip config: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
+  }) => _native(
+    'sequencerUpdateMeridianFlipConfig',
+    () => gen_api.apiSequencerUpdateMeridianFlipConfig(configJson: configJson),
+    okLog: 'Updated sequencer meridian-flip trigger config',
+  );
 
   /// Update location on the running sequencer
   Future<void> sequencerUpdateLocation({
     required double latitude,
     required double longitude,
-  }) async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('sequencerUpdateLocation');
-    }
-
-    try {
-      await gen_api.apiSequencerUpdateLocation(
-        latitude: latitude,
-        longitude: longitude,
-      );
-      developer.log(
-        '[Bridge] Updated sequencer location: lat=$latitude, lon=$longitude',
-        name: 'NativeBridge',
-        level: 800,
-      );
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error updating sequencer location: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
+  }) => _native(
+    'sequencerUpdateLocation',
+    () => gen_api.apiSequencerUpdateLocation(
+      latitude: latitude,
+      longitude: longitude,
+    ),
+    okLog: 'Updated sequencer location: lat=$latitude, lon=$longitude',
+  );
 
   /// Update filter focus offsets on the running sequencer
   Future<void> sequencerUpdateFilterOffsets({
     required Map<String, int> offsets,
-  }) async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('sequencerUpdateFilterOffsets');
-    }
-
-    try {
-      await gen_api.apiSequencerUpdateFilterOffsets(offsets: offsets);
-      developer.log(
-        '[Bridge] Updated sequencer filter offsets: $offsets',
-        name: 'NativeBridge',
-        level: 800,
-      );
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error updating sequencer filter offsets: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
+  }) => _native(
+    'sequencerUpdateFilterOffsets',
+    () => gen_api.apiSequencerUpdateFilterOffsets(offsets: offsets),
+    okLog: 'Updated sequencer filter offsets: $offsets',
+  );
 
   /// Stage per-target / per-filter carry-over integration on
   /// the executor so the next sequencerStart() seeds the
@@ -353,29 +222,13 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
   /// for semantics; empty inner map zeroes a target's carry-over.
   Future<void> sequencerUpdatePendingIntegrationCarryOver({
     required Map<String, Map<String, double>> carryOver,
-  }) async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('sequencerUpdatePendingIntegrationCarryOver');
-    }
-
-    try {
-      await gen_api.apiSequencerUpdatePendingIntegrationCarryOver(
-        carryOver: carryOver,
-      );
-      developer.log(
-        '[Bridge] Staged integration carry-over for ${carryOver.length} targets',
-        name: 'NativeBridge',
-        level: 800,
-      );
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error staging integration carry-over: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
+  }) => _native(
+    'sequencerUpdatePendingIntegrationCarryOver',
+    () => gen_api.apiSequencerUpdatePendingIntegrationCarryOver(
+      carryOver: carryOver,
+    ),
+    okLog: 'Staged integration carry-over for ${carryOver.length} targets',
+  );
 
   /// Push the operator's autofocus settings so trigger-fired refocus uses
   /// them.
@@ -383,58 +236,24 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
   /// Without this the only source of trigger-autofocus tuning is an Autofocus
   /// node inside the sequence, so a sequence without one runs every
   /// interval-fired refocus on library defaults.
-  Future<void> sequencerUpdateAutofocusConfig({
-    required String configJson,
-  }) async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('sequencerUpdateAutofocusConfig');
-    }
-
-    try {
-      await gen_api.apiSequencerUpdateAutofocusConfig(configJson: configJson);
-      developer.log(
-        '[Bridge] Pushed trigger-autofocus config',
-        name: 'NativeBridge',
-        level: 800,
+  Future<void> sequencerUpdateAutofocusConfig({required String configJson}) =>
+      _native(
+        'sequencerUpdateAutofocusConfig',
+        () => gen_api.apiSequencerUpdateAutofocusConfig(configJson: configJson),
+        okLog: 'Pushed trigger-autofocus config',
       );
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error pushing trigger-autofocus config: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
 
   /// Update the autofocus-interval trigger cadence at
   /// runtime. The bridge rejects 0 (the trigger evaluator treats 0 as
   /// disabled; use the per-trigger `enabled` toggle for that intent).
   Future<void> sequencerUpdateAutofocusInterval({
     required int everyNFrames,
-  }) async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('sequencerUpdateAutofocusInterval');
-    }
-
-    try {
-      await gen_api.apiSequencerUpdateAutofocusInterval(
-        everyNFrames: everyNFrames,
-      );
-      developer.log(
-        '[Bridge] Updated sequencer autofocus-interval cadence: $everyNFrames frames',
-        name: 'NativeBridge',
-        level: 800,
-      );
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error updating sequencer autofocus-interval cadence: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
+  }) => _native(
+    'sequencerUpdateAutofocusInterval',
+    () =>
+        gen_api.apiSequencerUpdateAutofocusInterval(everyNFrames: everyNFrames),
+    okLog: 'Updated sequencer autofocus-interval cadence: $everyNFrames frames',
+  );
 
   /// Update the global default image-grading thresholds. When
   /// `enabled` is false, grading is disabled globally (per-node
@@ -447,58 +266,27 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
     int? starCountMin,
     required int maxConsecutiveRejects,
     required bool enabled,
-  }) async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('sequencerUpdateDefaultQualityCheck');
-    }
-
-    try {
-      await gen_api.apiSequencerUpdateDefaultQualityCheck(
-        hfrThreshold: hfrThreshold,
-        hfrBaselinePercent: hfrBaselinePercent,
-        eccentricityThreshold: eccentricityThreshold,
-        starCountMin: starCountMin,
-        maxConsecutiveRejects: maxConsecutiveRejects,
-        enabled: enabled,
-      );
-      developer.log(
-        '[Bridge] Updated default_quality_check: enabled=$enabled, hfr=$hfrThreshold, baseline=$hfrBaselinePercent%, ecc=$eccentricityThreshold, stars=$starCountMin, maxRejects=$maxConsecutiveRejects',
-        name: 'NativeBridge',
-        level: 800,
-      );
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error updating default_quality_check: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
+  }) => _native(
+    'sequencerUpdateDefaultQualityCheck',
+    () => gen_api.apiSequencerUpdateDefaultQualityCheck(
+      hfrThreshold: hfrThreshold,
+      hfrBaselinePercent: hfrBaselinePercent,
+      eccentricityThreshold: eccentricityThreshold,
+      starCountMin: starCountMin,
+      maxConsecutiveRejects: maxConsecutiveRejects,
+      enabled: enabled,
+    ),
+    okLog:
+        'Updated default_quality_check: enabled=$enabled, hfr=$hfrThreshold, baseline=$hfrBaselinePercent%, ecc=$eccentricityThreshold, stars=$starCountMin, maxRejects=$maxConsecutiveRejects',
+  );
 
   /// Update the reject-folder override. Pass `null` or empty
   /// string to fall back to `<save_path>/Reject/`.
-  Future<void> sequencerUpdateRejectFolderPath({String? path}) async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('sequencerUpdateRejectFolderPath');
-    }
-
-    try {
-      await gen_api.apiSequencerUpdateRejectFolderPath(path: path);
-      developer.log(
-        '[Bridge] Updated reject_folder_path: ${path ?? "<default>"}',
-        name: 'NativeBridge',
-        level: 800,
-      );
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error updating reject_folder_path: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
+  Future<void> sequencerUpdateRejectFolderPath({String? path}) => _native(
+    'sequencerUpdateRejectFolderPath',
+    () => gen_api.apiSequencerUpdateRejectFolderPath(path: path),
+    okLog: 'Updated reject_folder_path: ${path ?? "<default>"}',
+  );
 
   /// Push observer / equipment identification so the next FITS
   /// save stamps real keywords (OBSERVER, TELESCOP, FOCALLEN, APTDIA,
@@ -512,136 +300,20 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
     String? telescopeName,
     double? telescopeFocalLengthMm,
     double? telescopeApertureMm,
-  }) async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('sequencerUpdateObserverProfile');
-    }
-
-    try {
-      await gen_api.apiSequencerUpdateObserverProfile(
-        observerName: observerName,
-        siteElevationM: siteElevationM,
-        cameraMake: cameraMake,
-        cameraModel: cameraModel,
-        telescopeName: telescopeName,
-        telescopeFocalLengthMm: telescopeFocalLengthMm,
-        telescopeApertureMm: telescopeApertureMm,
-      );
-      developer.log(
-        '[Bridge] Updated observer_profile: observer=$observerName, telescope=$telescopeName, camera=$cameraMake $cameraModel',
-        name: 'NativeBridge',
-        level: 800,
-      );
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error updating observer_profile: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
-
-  /// Push the latest live sky-brightness reading
-  /// (mag/arcsec²; bigger = darker) to the executor. Drives sky-
-  /// brightness adaptive exposure decisions on the next TakeExposure
-  /// burst. Pass `null` when the tracker has lost lock.
-  Future<void> sequencerUpdateSkyBrightness({required double? mag}) async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('sequencerUpdateSkyBrightness');
-    }
-
-    try {
-      await gen_api.apiSequencerUpdateSkyBrightness(mag: mag);
-      developer.log(
-        '[Bridge] Updated sky brightness: ${mag?.toStringAsFixed(2) ?? "<none>"} mag/arcsecÂ²',
-        name: 'NativeBridge',
-        level: 800,
-      );
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error updating sky brightness: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
-
-  /// Push the global default sky-brightness adaptive
-  /// exposure config. Per-node `ExposureNode.adaptiveExposure` overrides
-  /// still win; this is the fallback applied to nodes that have none.
-  ///
-  /// The per-filter overrides are flattened into parallel
-  /// (keys, values) lists because FRB cannot bridge `Map<String, T>`
-  /// across the boundary.
-  Future<void> sequencerUpdateDefaultAdaptiveExposure({
-    required bool enabled,
-    required double targetSnr,
-    required double referenceSkyBrightnessMag,
-    required double minExposureSecs,
-    required double maxExposureSecs,
-    required Map<String, bool> perFilterEnabled,
-    required Map<String, double> perFilterMinSecs,
-    required Map<String, double> perFilterMaxSecs,
-  }) async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('sequencerUpdateDefaultAdaptiveExposure');
-    }
-
-    try {
-      await gen_api.apiSequencerUpdateDefaultAdaptiveExposure(
-        enabled: enabled,
-        targetSnr: targetSnr,
-        referenceSkyBrightnessMag: referenceSkyBrightnessMag,
-        minExposureSecs: minExposureSecs,
-        maxExposureSecs: maxExposureSecs,
-        perFilterEnabledKeys: perFilterEnabled.keys.toList(),
-        perFilterEnabledValues: perFilterEnabled.values.toList(),
-        perFilterMinKeys: perFilterMinSecs.keys.toList(),
-        perFilterMinValues: perFilterMinSecs.values.toList(),
-        perFilterMaxKeys: perFilterMaxSecs.keys.toList(),
-        perFilterMaxValues: perFilterMaxSecs.values.toList(),
-      );
-      developer.log(
-        '[Bridge] Updated default_adaptive_exposure: enabled=$enabled, ref=$referenceSkyBrightnessMag mag, min=${minExposureSecs}s, max=${maxExposureSecs}s, per_filter_enabled=${perFilterEnabled.length}',
-        name: 'NativeBridge',
-        level: 800,
-      );
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error updating default_adaptive_exposure: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
-
-  /// Disable the global default sky-brightness
-  /// adaptive exposure config. Convenience wrapper around the typed
-  /// update for the "off" case.
-  Future<void> sequencerClearDefaultAdaptiveExposure() async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('sequencerClearDefaultAdaptiveExposure');
-    }
-
-    try {
-      await gen_api.apiSequencerClearDefaultAdaptiveExposure();
-      developer.log(
-        '[Bridge] Cleared default_adaptive_exposure',
-        name: 'NativeBridge',
-        level: 800,
-      );
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error clearing default_adaptive_exposure: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
+  }) => _native(
+    'sequencerUpdateObserverProfile',
+    () => gen_api.apiSequencerUpdateObserverProfile(
+      observerName: observerName,
+      siteElevationM: siteElevationM,
+      cameraMake: cameraMake,
+      cameraModel: cameraModel,
+      telescopeName: telescopeName,
+      telescopeFocalLengthMm: telescopeFocalLengthMm,
+      telescopeApertureMm: telescopeApertureMm,
+    ),
+    okLog:
+        'Updated observer_profile: observer=$observerName, telescope=$telescopeName, camera=$cameraMake $cameraModel',
+  );
 
   /// Start the loaded sequence
   Future<void> sequencerStart() async {
@@ -724,42 +396,16 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
   }
 
   /// Skip the current node
-  Future<void> sequencerSkip() async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('sequencerSkip');
-    }
-
-    try {
-      await gen_api.apiSequencerSkip();
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error skipping node via native: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
+  Future<void> sequencerSkip() =>
+      _native('sequencerSkip', () => gen_api.apiSequencerSkip());
 
   /// Jump execution to a specific node id. Preceding
   /// siblings are marked Skipped; the currently-running instruction
   /// completes first. Throws if the executor is not running.
-  Future<void> sequencerSkipToNode({required String nodeId}) async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('sequencerSkipToNode');
-    }
-
-    try {
-      await gen_api.apiSequencerSkipToNode(nodeId: nodeId);
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error skipping to node "$nodeId" via native: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
+  Future<void> sequencerSkipToNode({required String nodeId}) => _native(
+    'sequencerSkipToNode',
+    () => gen_api.apiSequencerSkipToNode(nodeId: nodeId),
+  );
 
   /// Report the verdict of a plugin-dispatched
   /// `NodeType::PluginNode` back to the Rust executor. The Rust side
@@ -770,27 +416,15 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
     required bool success,
     String? message,
     String? structuredDetailJson,
-  }) async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('sequencerPluginNodeFinished');
-    }
-
-    try {
-      await gen_api.apiSequencerPluginNodeFinished(
-        nodeId: nodeId,
-        success: success,
-        message: message,
-        structuredDetailJson: structuredDetailJson,
-      );
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error delivering plugin node verdict for "$nodeId" via native: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
+  }) => _native(
+    'sequencerPluginNodeFinished',
+    () => gen_api.apiSequencerPluginNodeFinished(
+      nodeId: nodeId,
+      success: success,
+      message: message,
+      structuredDetailJson: structuredDetailJson,
+    ),
+  );
 
   /// Reset the sequencer
   Future<void> sequencerReset() async {
@@ -814,22 +448,6 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
 
   /// Get the current sequencer state
   SequencerState getSequencerState() => _sequencerState;
-
-  /// Subscribe to sequencer events
-  /// Returns a stream of sequencer events
-  Stream<NightshadeEvent> sequencerEventStream() {
-    if (!_nativeAvailable) {
-      return Stream<NightshadeEvent>.error(
-        UnsupportedError(
-          'Operation "sequencerEventStream" requires the native bridge.\n$_fallbackErrorMessage',
-        ),
-      );
-    }
-
-    return gen_api.apiEventStream().where(
-      (event) => event.category == gen_event.EventCategory.sequencer,
-    );
-  }
 
   /// Set simulation mode (use mock devices instead of real hardware)
   Future<void> sequencerSetSimulationMode(bool enabled) async {
@@ -893,40 +511,16 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
   // =========================================================================
 
   /// Set the checkpoint directory
-  Future<void> sequencerSetCheckpointDir(String path) async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('sequencerSetCheckpointDir');
-    }
-
-    try {
-      await gen_api.apiSequencerSetCheckpointDir(path: path);
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error setting checkpoint dir via native: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
+  Future<void> sequencerSetCheckpointDir(String path) => _native(
+    'sequencerSetCheckpointDir',
+    () => gen_api.apiSequencerSetCheckpointDir(path: path),
+  );
 
   /// Check if a checkpoint exists
-  Future<bool> sequencerHasCheckpoint() async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('sequencerHasCheckpoint');
-    }
-
-    try {
-      return await gen_api.apiSequencerHasCheckpoint();
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error checking checkpoint via native: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
+  Future<bool> sequencerHasCheckpoint() => _native(
+    'sequencerHasCheckpoint',
+    () => gen_api.apiSequencerHasCheckpoint(),
+  );
 
   /// Get checkpoint info
   Future<CheckpointInfoApi?> sequencerGetCheckpointInfo() async {
@@ -970,35 +564,23 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
     required bool refocusAfter,
     required bool resumeGuiding,
     required double settleTimeSecs,
-  }) async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('performMeridianFlip');
-    }
-
-    try {
-      await gen_api.apiPerformMeridianFlip(
-        mountId: mountId,
-        cameraId: cameraId,
-        focuserId: focuserId,
-        coverCalibratorId: coverCalibratorId,
-        targetName: targetName,
-        targetRaHours: targetRaHours,
-        targetDecDegrees: targetDecDegrees,
-        pauseGuiding: pauseGuiding,
-        autoCenter: autoCenter,
-        refocusAfter: refocusAfter,
-        resumeGuiding: resumeGuiding,
-        settleTimeSecs: settleTimeSecs,
-      );
-    } catch (e) {
-      developer.log(
-        '[Bridge] Standalone meridian flip failed: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
+  }) => _native(
+    'performMeridianFlip',
+    () => gen_api.apiPerformMeridianFlip(
+      mountId: mountId,
+      cameraId: cameraId,
+      focuserId: focuserId,
+      coverCalibratorId: coverCalibratorId,
+      targetName: targetName,
+      targetRaHours: targetRaHours,
+      targetDecDegrees: targetDecDegrees,
+      pauseGuiding: pauseGuiding,
+      autoCenter: autoCenter,
+      refocusAfter: refocusAfter,
+      resumeGuiding: resumeGuiding,
+      settleTimeSecs: settleTimeSecs,
+    ),
+  );
 
   /// Resume from checkpoint
   Future<void> sequencerResumeFromCheckpoint() async {
@@ -1020,38 +602,14 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
   }
 
   /// Discard checkpoint
-  Future<void> sequencerDiscardCheckpoint() async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('sequencerDiscardCheckpoint');
-    }
-
-    try {
-      await gen_api.apiSequencerClearCheckpoint();
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error discarding checkpoint via native: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
+  Future<void> sequencerDiscardCheckpoint() => _native(
+    'sequencerDiscardCheckpoint',
+    () => gen_api.apiSequencerClearCheckpoint(),
+  );
 
   /// Save checkpoint
-  Future<void> sequencerSaveCheckpoint() async {
-    if (!_nativeAvailable) {
-      _nativeBridgeRequired('sequencerSaveCheckpoint');
-    }
-
-    try {
-      await gen_api.apiSequencerSaveCheckpoint();
-    } catch (e) {
-      developer.log(
-        '[Bridge] Error saving checkpoint via native: $e',
-        name: 'NativeBridge',
-        level: 1000,
-      );
-      rethrow;
-    }
-  }
+  Future<void> sequencerSaveCheckpoint() => _native(
+    'sequencerSaveCheckpoint',
+    () => gen_api.apiSequencerSaveCheckpoint(),
+  );
 }

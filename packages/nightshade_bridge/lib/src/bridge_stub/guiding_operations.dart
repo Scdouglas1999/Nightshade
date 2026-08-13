@@ -216,30 +216,6 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
     );
   }
 
-  /// Pause guiding
-  Future<void> phd2PauseGuiding() async {
-    if (_nativeAvailable) {
-      await gen_api.apiPhd2SetPaused(paused: true);
-      return;
-    }
-    if (_phd2Client == null || !_phd2Client!.isConnected) {
-      throw Exception('PHD2 not connected');
-    }
-    await _phd2Client!.pauseGuiding();
-  }
-
-  /// Resume guiding
-  Future<void> phd2ResumeGuiding() async {
-    if (_nativeAvailable) {
-      await gen_api.apiPhd2SetPaused(paused: false);
-      return;
-    }
-    if (_phd2Client == null || !_phd2Client!.isConnected) {
-      throw Exception('PHD2 not connected');
-    }
-    await _phd2Client!.resumeGuiding();
-  }
-
   /// Dither
   Future<void> phd2Dither({
     required double amount,
@@ -540,11 +516,11 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
     _nativeBridgeRequired('builtinGuiderSetConfig');
   }
 
-  /// Auto-select guide star in PHD2
+  /// Auto-select guide star in PHD2.
+  ///
+  /// The native PHD2 client exposes no auto-select entry point, so this runs on
+  /// the Dart client in both modes.
   Future<void> phd2AutoSelectStar() async {
-    if (_nativeAvailable) {
-      _nativeBridgeRequired('phd2AutoSelectStar');
-    }
     if (_phd2Client == null || !_phd2Client!.isConnected) {
       throw Exception('PHD2 not connected');
     }

@@ -454,27 +454,6 @@ extension _NativeBridgeConnectionOperations on _NativeBridgeImplementation {
     );
   }
 
-  /// Check if a device is connected
-  Future<bool> isDeviceConnected(DeviceType deviceType, String deviceId) async {
-    // If native bridge is available, use it for authoritative connection status
-    if (_nativeAvailable) {
-      try {
-        return await gen_api.apiIsDeviceConnected(
-          deviceType: _toGenDeviceType(deviceType),
-          deviceId: deviceId,
-        );
-      } catch (e) {
-        developer.log(
-          '[Bridge] Warning: Failed to check device connection from native API: $e',
-          name: 'NativeBridge',
-          level: 900,
-        );
-        // Fall through to local tracking
-      }
-    }
-    return _connectedDevices[deviceId] ?? false;
-  }
-
   /// Get list of connected devices
   Future<List<DeviceInfo>> getConnectedDevices() async {
     // If native bridge is available, use it to get authoritative connected devices list

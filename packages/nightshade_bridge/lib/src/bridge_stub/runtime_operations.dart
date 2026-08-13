@@ -51,9 +51,6 @@ extension _NativeBridgeRuntimeOperations on _NativeBridgeImplementation {
       _nativeAvailable = false;
     }
 
-    // Initialize default states
-    _initializeDefaultStates();
-
     _initialized = true;
 
     // Emit initialization event
@@ -83,69 +80,6 @@ extension _NativeBridgeRuntimeOperations on _NativeBridgeImplementation {
         level: 900,
       );
     }
-  }
-
-  void _initializeDefaultStates() {
-    _cameraStatus = const CameraStatus(
-      connected: false,
-      state: gen_device.CameraState.idle,
-      sensorTemp: 20.0,
-      coolerPower: 0.0,
-      targetTemp: -10.0,
-      coolerOn: false,
-      gain: 100,
-      offset: 10,
-      binX: 1,
-      binY: 1,
-      sensorWidth: 4144,
-      sensorHeight: 2822,
-      pixelSizeX: 3.76,
-      pixelSizeY: 3.76,
-      maxAdu: 65535,
-      canCool: true,
-      canSetGain: true,
-      canSetOffset: true,
-    );
-
-    _mountStatus = const MountStatus(
-      connected: false,
-      tracking: false,
-      slewing: false,
-      parked: true,
-      atHome: false,
-      sideOfPier: PierSide.unknown,
-      rightAscension: 0.0,
-      declination: 0.0,
-      altitude: 0.0,
-      azimuth: 0.0,
-      siderealTime: 0.0,
-      trackingRate: TrackingRate.sidereal,
-      canPark: true,
-      canSlew: true,
-      canSync: true,
-      canPulseGuide: true,
-      canSetTrackingRate: true,
-      availability: {},
-    );
-
-    _focuserStatus = const FocuserStatus(
-      connected: false,
-      position: 25000,
-      moving: false,
-      temperature: 20.0,
-      maxPosition: 50000,
-      stepSize: 1.0,
-      isAbsolute: true,
-      hasTemperature: true,
-    );
-
-    _filterWheelStatus = const FilterWheelStatus(
-      connected: false,
-      position: 0,
-      moving: false,
-      filterCount: 7,
-      filterNames: ['L', 'R', 'G', 'B', 'Ha', 'OIII', 'SII'],
-    );
   }
 
   /// Try to load the native library
@@ -408,38 +342,6 @@ extension _NativeBridgeRuntimeOperations on _NativeBridgeImplementation {
     _discoveryCache.clear();
     _discoveryCacheTime = null;
   }
-
-  /// Get the version of the native library
-  String getNativeVersion() {
-    if (_nativeAvailable && _nativeLib != null) {
-      try {
-        // Try to call the native get_version function
-        final getVersion = _nativeLib!
-            .lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>(
-              'get_native_version',
-            );
-
-        final versionPtr = getVersion();
-        if (versionPtr != nullptr) {
-          final version = versionPtr.toDartString();
-          return version;
-        }
-      } catch (e) {
-        developer.log(
-          '[Bridge] Failed to get native version: $e',
-          name: 'NativeBridge',
-          level: 900,
-        );
-      }
-      return '0.1.0';
-    }
-    // Native library not loaded - return fallback version
-    // Note: Hardware operations will fail without native library
-    return '0.1.0-fallback (native library not loaded)';
-  }
-
-  /// Get the loaded native library (if available)
-  DynamicLibrary? get nativeLibrary => _nativeLib;
 
   // =========================================================================
   // Event Stream

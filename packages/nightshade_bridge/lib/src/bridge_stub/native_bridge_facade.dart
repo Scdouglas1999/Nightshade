@@ -10,13 +10,7 @@ abstract final class NativeBridge {
   static bool get isNativeAvailable => _nativeBridge.isNativeAvailable;
   static void invalidateDiscoveryCache() =>
       _nativeBridge.invalidateDiscoveryCache();
-  static String getNativeVersion() => _nativeBridge.getNativeVersion();
-  static DynamicLibrary? get nativeLibrary => _nativeBridge.nativeLibrary;
   static Stream<NightshadeEvent> eventStream() => _nativeBridge.eventStream();
-  static Future<List<DeviceInfo>> apiDiscoverIndiAtAddress({
-    required String host,
-    required int port,
-  }) => _nativeBridge.apiDiscoverIndiAtAddress(host: host, port: port);
   static Future<List<DeviceInfo>> discoverDevices(DeviceType deviceType) =>
       _nativeBridge.discoverDevices(deviceType);
   static Future<void> connectDevice(DeviceType deviceType, String deviceId) =>
@@ -25,10 +19,6 @@ abstract final class NativeBridge {
     DeviceType deviceType,
     String deviceId,
   ) => _nativeBridge.disconnectDevice(deviceType, deviceId);
-  static Future<bool> isDeviceConnected(
-    DeviceType deviceType,
-    String deviceId,
-  ) => _nativeBridge.isDeviceConnected(deviceType, deviceId);
   static Future<List<DeviceInfo>> getConnectedDevices() =>
       _nativeBridge.getConnectedDevices();
   static Future<CameraStatus> getCameraStatus(String deviceId) =>
@@ -42,32 +32,12 @@ abstract final class NativeBridge {
       _nativeBridge.setCameraGain(deviceId, gain);
   static Future<void> setCameraOffset(String deviceId, int offset) =>
       _nativeBridge.setCameraOffset(deviceId, offset);
-  static Future<void> setCameraBinning(String deviceId, int binX, int binY) =>
-      _nativeBridge.setCameraBinning(deviceId, binX, binY);
   static Future<void> setReadoutMode({
     required String deviceId,
     required int modeIndex,
   }) => _nativeBridge.setReadoutMode(deviceId: deviceId, modeIndex: modeIndex);
-  static Future<void> startExposure({
-    required String deviceId,
-    required double durationSecs,
-    required int gain,
-    required int offset,
-    required int binX,
-    required int binY,
-  }) => _nativeBridge.startExposure(
-    deviceId: deviceId,
-    durationSecs: durationSecs,
-    gain: gain,
-    offset: offset,
-    binX: binX,
-    binY: binY,
-  );
   static Future<void> cancelExposure(String deviceId) =>
       _nativeBridge.cancelExposure(deviceId);
-  static Future<CapturedImageResult?> getLastImage({
-    required String deviceId,
-  }) => _nativeBridge.getLastImage(deviceId: deviceId);
   static Future<MountStatus> getMountStatus(String deviceId) =>
       _nativeBridge.getMountStatus(deviceId);
   static Future<void> mountSlewToCoordinates(
@@ -88,21 +58,6 @@ abstract final class NativeBridge {
     String direction,
     int durationMs,
   ) => _nativeBridge.mountPulseGuide(deviceId, direction, durationMs);
-  static Future<void> mountSetTrackingRate(String deviceId, int rate) =>
-      _nativeBridge.mountSetTrackingRate(deviceId, rate);
-  static Future<int> mountGetTrackingRate(String deviceId) =>
-      _nativeBridge.mountGetTrackingRate(deviceId);
-  static Future<void> mountMoveAxis(String deviceId, int axis, double rate) =>
-      _nativeBridge.mountMoveAxis(deviceId, axis, rate);
-  static Future<void> mountSlewAltAz(
-    String deviceId,
-    double altitude,
-    double azimuth,
-  ) => _nativeBridge.mountSlewAltAz(deviceId, altitude, azimuth);
-  static Future<void> mountFindHome(String deviceId) =>
-      _nativeBridge.mountFindHome(deviceId);
-  static Future<void> mountAbort(String deviceId) =>
-      _nativeBridge.mountAbort(deviceId);
   static Future<FocuserStatus> getFocuserStatus(String deviceId) =>
       _nativeBridge.getFocuserStatus(deviceId);
   static Future<void> focuserMoveTo(String deviceId, int position) =>
@@ -113,8 +68,6 @@ abstract final class NativeBridge {
       _nativeBridge.apiFocuserHalt(deviceId: deviceId);
   static Future<FilterWheelStatus> getFilterWheelStatus(String deviceId) =>
       _nativeBridge.getFilterWheelStatus(deviceId);
-  static Future<void> filterWheelSetPosition(String deviceId, int position) =>
-      _nativeBridge.filterWheelSetPosition(deviceId, position);
   static Future<void> apiFilterwheelSetPosition({
     required String deviceId,
     required int position,
@@ -129,17 +82,6 @@ abstract final class NativeBridge {
     required String deviceId,
     required String name,
   }) => _nativeBridge.apiFilterwheelSetByName(deviceId: deviceId, name: name);
-  static Future<NativeSessionState> getSessionState() =>
-      _nativeBridge.getSessionState();
-  static Future<void> startSession({
-    String? targetName,
-    double? ra,
-    double? dec,
-  }) => _nativeBridge.startSession(targetName: targetName, ra: ra, dec: dec);
-  static Future<void> endSession() => _nativeBridge.endSession();
-  static bool isPlateSolverAvailable() =>
-      _nativeBridge.isPlateSolverAvailable();
-  static String? getPlateSolverPath() => _nativeBridge.getPlateSolverPath();
   static Future<PlateSolveResult> plateSolveBlind(
     String filePath, [
     int? timeoutSeconds,
@@ -157,17 +99,6 @@ abstract final class NativeBridge {
     searchRadius,
     timeoutSeconds,
   );
-  static Future<AutofocusResultApi> apiRunAutofocus({
-    required String deviceId,
-    required String cameraId,
-    required AutofocusConfigApi config,
-  }) => _nativeBridge.apiRunAutofocus(
-    deviceId: deviceId,
-    cameraId: cameraId,
-    config: config,
-  );
-  static Future<void> apiCancelAutofocus() =>
-      _nativeBridge.apiCancelAutofocus();
   static Future<bool> isPhd2Running({
     String host = 'localhost',
     int port = 4400,
@@ -185,8 +116,6 @@ abstract final class NativeBridge {
     settleTimeout: settleTimeout,
   );
   static Future<void> phd2StopGuiding() => _nativeBridge.phd2StopGuiding();
-  static Future<void> phd2PauseGuiding() => _nativeBridge.phd2PauseGuiding();
-  static Future<void> phd2ResumeGuiding() => _nativeBridge.phd2ResumeGuiding();
   static Future<void> phd2Dither({
     required double amount,
     required bool raOnly,
@@ -279,8 +208,6 @@ abstract final class NativeBridge {
   static Future<void> phd2AutoSelectStar() =>
       _nativeBridge.phd2AutoSelectStar();
   static Future<void> phd2Loop() => _nativeBridge.phd2Loop();
-  static Future<Phd2StarImage> phd2GetStarImage({int size = 50}) =>
-      _nativeBridge.phd2GetStarImage(size: size);
   static Future<List<String>> phd2GetAlgoParamNames({required String axis}) =>
       _nativeBridge.phd2GetAlgoParamNames(axis: axis);
   static Future<double> phd2GetAlgoParam({
@@ -310,13 +237,11 @@ abstract final class NativeBridge {
   static Future<(double, double)> phd2GetLockPosition() =>
       _nativeBridge.phd2GetLockPosition();
   static Future<void> phd2DeselectStar() => _nativeBridge.phd2DeselectStar();
-  static CameraStatus? get cameraStatus => _nativeBridge.cameraStatus;
-  static FocuserStatus? get focuserStatus => _nativeBridge.focuserStatus;
-  static FilterWheelStatus? get filterWheelStatus =>
-      _nativeBridge.filterWheelStatus;
-  static String? get loadedSequenceJson => _nativeBridge.loadedSequenceJson;
   static Future<void> sequencerSubscribeEvents() =>
       _nativeBridge.sequencerSubscribeEvents();
+  // Retained: the sole reader of `_loadedSequenceJson`, which the sequencer
+  // lifecycle methods maintain.
+  static String? get loadedSequenceJson => _nativeBridge.loadedSequenceJson;
   static Future<void> sequencerLoadJson(String json) =>
       _nativeBridge.sequencerLoadJson(json);
   static Future<void> sequencerSetDevices({
@@ -422,29 +347,6 @@ abstract final class NativeBridge {
     telescopeFocalLengthMm: telescopeFocalLengthMm,
     telescopeApertureMm: telescopeApertureMm,
   );
-  static Future<void> sequencerUpdateSkyBrightness({required double? mag}) =>
-      _nativeBridge.sequencerUpdateSkyBrightness(mag: mag);
-  static Future<void> sequencerUpdateDefaultAdaptiveExposure({
-    required bool enabled,
-    required double targetSnr,
-    required double referenceSkyBrightnessMag,
-    required double minExposureSecs,
-    required double maxExposureSecs,
-    required Map<String, bool> perFilterEnabled,
-    required Map<String, double> perFilterMinSecs,
-    required Map<String, double> perFilterMaxSecs,
-  }) => _nativeBridge.sequencerUpdateDefaultAdaptiveExposure(
-    enabled: enabled,
-    targetSnr: targetSnr,
-    referenceSkyBrightnessMag: referenceSkyBrightnessMag,
-    minExposureSecs: minExposureSecs,
-    maxExposureSecs: maxExposureSecs,
-    perFilterEnabled: perFilterEnabled,
-    perFilterMinSecs: perFilterMinSecs,
-    perFilterMaxSecs: perFilterMaxSecs,
-  );
-  static Future<void> sequencerClearDefaultAdaptiveExposure() =>
-      _nativeBridge.sequencerClearDefaultAdaptiveExposure();
   static Future<void> sequencerStart() => _nativeBridge.sequencerStart();
   static Future<void> sequencerPause() => _nativeBridge.sequencerPause();
   static Future<void> sequencerResume() => _nativeBridge.sequencerResume();
@@ -464,12 +366,13 @@ abstract final class NativeBridge {
     structuredDetailJson: structuredDetailJson,
   );
   static Future<void> sequencerReset() => _nativeBridge.sequencerReset();
+  // Retained: the sole reader of `_sequencerState`, which the sequencer
+  // lifecycle methods maintain.
   static SequencerState getSequencerState() =>
       _nativeBridge.getSequencerState();
-  static Stream<NightshadeEvent> sequencerEventStream() =>
-      _nativeBridge.sequencerEventStream();
   static Future<void> sequencerSetSimulationMode(bool enabled) =>
       _nativeBridge.sequencerSetSimulationMode(enabled);
+  // Retained: the sole reader of `_simulationMode`.
   static bool isSimulationMode() => _nativeBridge.isSimulationMode();
   static Future<SequencerStatus> sequencerGetStatus() =>
       _nativeBridge.sequencerGetStatus();
@@ -555,33 +458,4 @@ abstract final class NativeBridge {
       _nativeBridge.apiGetLocation();
   static Future<void> apiSetLocation({ObserverLocation? location}) =>
       _nativeBridge.apiSetLocation(location: location);
-  static Future<ImageStats> apiGetImageStats({
-    required int width,
-    required int height,
-    required Uint16List data,
-  }) =>
-      _nativeBridge.apiGetImageStats(width: width, height: height, data: data);
-  static Future<Uint8List> apiAutoStretchImage({
-    required int width,
-    required int height,
-    required Uint16List data,
-  }) => _nativeBridge.apiAutoStretchImage(
-    width: width,
-    height: height,
-    data: data,
-  );
-  static Future<Uint8List> apiDebayerImage({
-    required int width,
-    required int height,
-    required Uint16List data,
-    required String patternStr,
-    required String algoStr,
-  }) => _nativeBridge.apiDebayerImage(
-    width: width,
-    height: height,
-    data: data,
-    patternStr: patternStr,
-    algoStr: algoStr,
-  );
-  static void dispose() => _nativeBridge.dispose();
 }

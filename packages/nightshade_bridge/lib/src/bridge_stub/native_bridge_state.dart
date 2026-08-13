@@ -15,10 +15,6 @@ final class _NativeBridgeImplementation {
 
   final Map<String, bool> _connectedDevices = {};
   final Map<String, DeviceInfo> _connectedDeviceInfo = {};
-  CameraStatus? _cameraStatus;
-  MountStatus? _mountStatus;
-  FocuserStatus? _focuserStatus;
-  FilterWheelStatus? _filterWheelStatus;
 
   final Map<DeviceType, List<DeviceInfo>> _discoveryCache = {};
   DateTime? _discoveryCacheTime;
