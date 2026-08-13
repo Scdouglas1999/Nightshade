@@ -57,6 +57,14 @@ class GuideControlsPanel extends StatefulWidget {
   final Future<void> Function()? onFindStar;
   final Future<void> Function()? onDeselectStar;
 
+  /// Why Pause cannot be used with the active guider, when it cannot.
+  ///
+  /// A control that is unavailable for a reason the app knows must say the
+  /// reason: the built-in guider has no pause, and a Pause button that simply
+  /// did nothing left the operator unable to tell whether corrections were
+  /// suspended — the one thing pause exists to tell them.
+  final String? pauseUnavailableReason;
+
   /// Dither controls
   final double ditherAmount;
   final bool ditherRaOnly;
@@ -83,6 +91,7 @@ class GuideControlsPanel extends StatefulWidget {
     this.onLoop,
     this.onFindStar,
     this.onDeselectStar,
+    this.pauseUnavailableReason,
     this.ditherAmount = 5.0,
     this.ditherRaOnly = false,
     this.onDitherAmountChanged,
@@ -423,6 +432,7 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
                         ? widget.onResumeGuiding
                         : (state.canPause ? widget.onPauseGuiding : null))
                     : null,
+                unavailableReason: widget.pauseUnavailableReason,
               ),
             ),
           ],
@@ -460,11 +470,18 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
             ),
           ),
           const SizedBox(width: 4),
-          GestureDetector(
-            onTap: () => setState(() => _errorText = null),
-            behavior: HitTestBehavior.opaque,
-            child: Icon(LucideIcons.x, size: 16, color: colors.error),
-          ),
+          // The tap lived on a bare gesture wrapper, which publishes an action
+          // and no role, so assistive tech read a live control as an inert
+          // disabled panel. The flags are only published when given.
+          Semantics(
+              button: true,
+              enabled: true,
+              label: 'Dismiss error',
+              child: GestureDetector(
+                onTap: () => setState(() => _errorText = null),
+                behavior: HitTestBehavior.opaque,
+                child: Icon(LucideIcons.x, size: 16, color: colors.error),
+              )),
         ],
       ),
     );
@@ -565,6 +582,9 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
               onTap: () =>
                   widget.onDitherRaOnlyChanged?.call(!widget.ditherRaOnly),
               behavior: HitTestBehavior.opaque,
+              // The Checkbox inside already publishes the checked state; a
+              // second tap node beside it reads as an unnamed disabled panel.
+              excludeFromSemantics: true,
               child: Container(
                 // 44px minimum touch target, but visually compact
                 constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
@@ -577,6 +597,7 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
                       height: 20,
                       child: Checkbox(
                         value: widget.ditherRaOnly,
+                        semanticLabel: 'RA Only',
                         onChanged: (value) =>
                             widget.onDitherRaOnlyChanged?.call(value ?? false),
                         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -618,50 +639,58 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        InkWell(
-          onTap: () => setState(() => _settleExpanded = !_settleExpanded),
-          borderRadius: BorderRadius.circular(8),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: colors.surfaceAlt,
+        // The tap lived on a bare gesture wrapper, which publishes an action
+        // and no role, so assistive tech read a live control as an inert
+        // disabled panel. The flags are only published when given.
+        Semantics(
+            button: true,
+            enabled: true,
+            expanded: _settleExpanded,
+            child: InkWell(
+              onTap: () => setState(() => _settleExpanded = !_settleExpanded),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: colors.border),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  LucideIcons.settings2,
-                  size: 14,
-                  color: colors.textSecondary,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: colors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: colors.border),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Settle Settings',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
+                child: Row(
+                  children: [
+                    Icon(
+                      LucideIcons.settings2,
+                      size: 14,
                       color: colors.textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Settle Settings',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    AnimatedRotation(
+                      turns: _settleExpanded ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 200),
+                      child: Icon(
+                        LucideIcons.chevronDown,
+                        size: 16,
+                        color: colors.textMuted,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                AnimatedRotation(
-                  turns: _settleExpanded ? 0.5 : 0,
-                  duration: const Duration(milliseconds: 200),
-                  child: Icon(
-                    LucideIcons.chevronDown,
-                    size: 16,
-                    color: colors.textMuted,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+              ),
+            )),
         AnimatedCrossFade(
           firstChild: const SizedBox.shrink(),
           secondChild: Container(
@@ -771,6 +800,7 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
     Future<void> Function()? onPressed,
     bool isOutline = false,
     bool small = false,
+    String? unavailableReason,
   }) {
     // Stop rides its own lane so it stays tappable to abort a settling Start;
     // every other action is locked while any command is in flight so no second
@@ -779,6 +809,9 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
     final isThisBusy = isStop ? _stopInFlight : _positiveInFlight == id;
     final laneBusy = isStop ? _stopInFlight : _positiveBusy;
     final isDisabled = onPressed == null || laneBusy;
+    // A reason only applies while the control is genuinely unavailable — never
+    // over a control that is merely busy with its own command.
+    final reason = onPressed == null ? unavailableReason : null;
 
     // These are the controls that start and stop guiding, so they must publish
     // a button role and their enabled state. Without this wrapper the bare
@@ -787,11 +820,11 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
     // never told Start was unavailable while PHD2 was disconnected. The tap
     // action is republished here because excludeSemantics drops the InkWell's
     // own gesture semantics along with the duplicate label node.
-    return Semantics(
+    final button = Semantics(
       container: true,
       button: true,
       enabled: !isDisabled,
-      label: label,
+      label: reason == null ? label : '$label — $reason',
       onTap: isDisabled ? null : () => _runAction(id, onPressed),
       excludeSemantics: true,
       child: Material(
@@ -862,5 +895,7 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
         ),
       ),
     );
+
+    return reason == null ? button : Tooltip(message: reason, child: button);
   }
 }

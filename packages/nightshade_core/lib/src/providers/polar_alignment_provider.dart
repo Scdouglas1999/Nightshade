@@ -165,6 +165,15 @@ class PolarAlignmentStateNotifier extends StateNotifier<PolarAlignmentState> {
   /// issuing a second backend stop; a start waits on it before proceeding.
   Future<void>? _stopFuture;
 
+  /// True from the moment Stop is accepted until the teardown settles.
+  ///
+  /// Teardown is bounded but not instant — the host signals the run and waits
+  /// for it to reach a checkpoint — and the run's last act on the way to that
+  /// checkpoint is usually to fail whatever it was blocked on. That failure is
+  /// the stop landing, not a run that broke, so while this is set the failure
+  /// is recorded rather than published as the run's outcome.
+  bool _stopRequested = false;
+
   /// Manual completion is terminal too. Stop joins it instead of issuing a
   /// second backend stop; repeated Complete presses share one exact outcome.
   Future<void>? _completeFuture;
@@ -302,6 +311,20 @@ class PolarAlignmentStateNotifier extends StateNotifier<PolarAlignmentState> {
         return;
 
       case PolarAlignPhase.error:
+        if (_stopRequested) {
+          // This is the requested stop landing: the run failed the exposure or
+          // solve it was blocked on because we told it to end. Blaming the
+          // solver for a run the user stopped is the failure the operator did
+          // not have. The reason goes to the log; `_doStop` publishes the
+          // stopped outcome once the host confirms.
+          developer.log(
+            '[PolarAlignmentStateNotifier] Run ended during a requested stop: '
+            '$statusStr',
+            name: 'PolarAlignmentStateNotifier',
+            level: 700,
+          );
+          return;
+        }
         // The native run failed on its own. Release hardware ownership so a
         // fresh Start is admitted and surface the error truthfully.
         _hardwareOwned = false;
@@ -677,12 +700,22 @@ class PolarAlignmentStateNotifier extends StateNotifier<PolarAlignmentState> {
     // Idempotent: nothing to stop when no run owns the hardware.
     if (!_hardwareOwned && !state.isRunning && !forceBackend) return;
 
+    _stopRequested = true;
+    // Say so before asking the host. Stopping a three-point run means waiting
+    // for an exposure or a plate solve to reach a checkpoint, which is seconds
+    // of a screen that would otherwise look exactly like a dropped click. The
+    // phase stays active because the run still owns the hardware.
+    if (mounted && state.isRunning) {
+      state = state.copyWith(statusMessage: 'Stopping polar alignment…');
+    }
+
     final future = _doStop();
     _stopFuture = future;
     try {
       await future;
     } finally {
       _stopFuture = null;
+      _stopRequested = false;
     }
   }
 

@@ -436,6 +436,10 @@ struct BuiltinGuiderState {
     settle_deadline: Option<Instant>,
     /// Absolute deadline after which settling is considered failed
     settle_timeout_deadline: Option<Instant>,
+    /// Whether a settle EPISODE is open — the initial settle after calibration,
+    /// or the one a dither asked for. Steady guiding is not settling, so once an
+    /// episode completes nothing re-opens it until something asks again.
+    settling: bool,
     dither_pending: bool,
     /// Offset the pending dither started from, restored when that dither has to
     /// be abandoned so an unsatisfiable dither leaves guiding where it was.
@@ -496,6 +500,7 @@ impl Default for BuiltinGuiderState {
             last_status: BuiltinGuideStatus::default(),
             settle_deadline: None,
             settle_timeout_deadline: None,
+            settling: false,
             dither_pending: false,
             dither_origin: Vec2::default(),
             dither_misses: 0,
@@ -791,6 +796,7 @@ async fn stop_locked() -> Result<(), NightshadeError> {
         guard.desired_offset = Vec2::default();
         guard.settle_deadline = None;
         guard.settle_timeout_deadline = None;
+        guard.settling = false;
         guard.dither_pending = false;
         guard.dither_origin = Vec2::default();
         guard.dither_misses = 0;
@@ -902,6 +908,7 @@ fn abandon_dither(guard: &mut BuiltinGuiderState) {
     guard.dither_abandoned = true;
     guard.settle_deadline = None;
     guard.settle_timeout_deadline = None;
+    guard.settling = false;
 }
 
 /// Move `from` toward the pattern position `to`, capped at [`DITHER_MAX_JUMP_PX`].
@@ -970,6 +977,7 @@ pub async fn dither(
         guard.dither_pending = true;
         // Reset settle state and arm the timeout for this dither settle
         guard.settle_deadline = None;
+        guard.settling = true;
         guard.settle_timeout_deadline =
             Some(Instant::now() + Duration::from_secs_f64(timeout_secs));
         // Store settle params so the guiding loop's apply_settle_state can use them
@@ -1028,6 +1036,7 @@ pub async fn dither(
             guard.dither_pending = false;
             guard.settle_deadline = None;
             guard.settle_timeout_deadline = None;
+            guard.settling = false;
             return Err(NightshadeError::OperationFailed(format!(
                 "Built-in guider dither did not settle within {:.0}s",
                 timeout_secs + 10.0
@@ -1453,10 +1462,28 @@ async fn capture_and_store_loop_frame(
     } else {
         "Connected".to_string()
     };
-    guard.last_status.snr = selected.as_ref().map(|star| star.snr).unwrap_or(0.0);
-    guard.last_status.star_mass = selected.as_ref().map(|star| star.flux).unwrap_or(0.0);
+    publish_star_measurement(&mut guard, selected.as_ref());
     guard.last_frame = Some(frame);
     Ok(())
+}
+
+/// Record the frame's star measurement AND announce it.
+///
+/// Looping exists so the operator can judge star quality and exposure length
+/// before picking a star, and every one of those readouts is fed by the
+/// `GuideStats` event. Storing the measurement in `last_status` without
+/// publishing it left the loop's SNR reading `0.0`, Star Mass blank and Frame
+/// Count `0` for the whole loop, while the detector logged a fresh measurement
+/// for every frame — the one mode where those numbers are the point.
+fn publish_star_measurement(guard: &mut BuiltinGuiderState, star: Option<&DetectedStar>) {
+    let snr = star.map(|s| s.snr).unwrap_or(0.0);
+    let star_mass = star.map(|s| s.flux).unwrap_or(0.0);
+    guard.last_status.snr = snr;
+    guard.last_status.star_mass = star_mass;
+    get_state().publish_guiding_event(
+        GuidingEvent::GuideStats { snr, star_mass },
+        EventSeverity::Info,
+    );
 }
 
 async fn run_guiding_loop(
@@ -1474,6 +1501,7 @@ async fn run_guiding_loop(
         guard.last_status.state = "Guiding".to_string();
         // Arm the settle timeout for the initial settle after calibration
         let timeout_secs = settle_timeout.max(settle_time + 1.0);
+        guard.settling = true;
         guard.settle_timeout_deadline =
             Some(Instant::now() + Duration::from_secs_f64(timeout_secs));
     }
@@ -2350,11 +2378,23 @@ async fn apply_settle_state(
 ) -> Result<(), NightshadeError> {
     let mut guard = controller.write().await;
 
+    // Settling is an episode someone asked for — the first settle after
+    // calibration, or a dither's. Guiding that has already settled is guiding,
+    // so there is nothing here to advance and nothing to announce. Without this
+    // gate the loop re-armed on the first in-tolerance frame after every
+    // completed settle and published `Settling` again within a frame of each
+    // `Settled`, so the guider read `Settling` forever; the re-armed timeout
+    // could also fail the loop task over a session that was guiding perfectly.
+    if !guard.settling {
+        return Ok(());
+    }
+
     // Check if the overall settle timeout has been exceeded
     if let Some(timeout_deadline) = guard.settle_timeout_deadline {
         if Instant::now() >= timeout_deadline {
             guard.settle_deadline = None;
             guard.settle_timeout_deadline = None;
+            guard.settling = false;
             // A dither that will not settle is a failed dither, not a failed
             // guiding session: roll it back and keep guiding. Returning `Err`
             // here fails the loop task, which stops guiding and reports the
@@ -2383,6 +2423,7 @@ async fn apply_settle_state(
             Some(deadline) if Instant::now() >= deadline => {
                 guard.settle_deadline = None;
                 guard.settle_timeout_deadline = None;
+                guard.settling = false;
                 if guard.dither_pending {
                     guard.dither_pending = false;
                     get_state()
@@ -3596,6 +3637,110 @@ mod tests {
         assert_eq!(guard.dither_misses, 0);
         assert!(guard.settle_deadline.is_none());
         assert!(guard.settle_timeout_deadline.is_none());
+    }
+
+    /// A settle is an episode with an end. Once it completes, ordinary guiding
+    /// frames must not open a new one.
+    ///
+    /// Live finding IMG-8: the Guiding screen read `Settling` for 127 frames
+    /// (2.5 minutes) at 0.26px total RMS while the status bar of the same screen
+    /// read `Guiding`. The loop re-armed the settle on the first in-tolerance
+    /// frame AFTER each settle completed, so it published `Settling` again
+    /// within a frame of every `Settled` — perpetually "about to be guiding".
+    /// Automated flows gate on settled, and the re-armed timeout could also fail
+    /// the loop task (stopping guiding) over a session that was guiding fine.
+    #[tokio::test]
+    async fn a_completed_settle_does_not_re_arm_on_the_next_guiding_frame() {
+        let controller = Arc::new(RwLock::new(BuiltinGuiderState {
+            guiding: true,
+            settling: true,
+            settle_timeout_deadline: Some(Instant::now() + Duration::from_secs(30)),
+            ..BuiltinGuiderState::default()
+        }));
+        // settle_time 0 collapses to the 0.1s floor, so one sleep spans it.
+        let settle = |offset: f64| {
+            let controller = controller.clone();
+            async move { apply_settle_state(controller, offset, 1.0, 0.0, 30.0).await }
+        };
+
+        settle(0.1).await.expect("arm the settle");
+        assert!(
+            controller.read().await.settle_deadline.is_some(),
+            "the first in-tolerance frame starts the settle timer"
+        );
+
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        settle(0.1).await.expect("complete the settle");
+        assert!(controller.read().await.settle_deadline.is_none());
+        assert!(!controller.read().await.settling, "the episode is over");
+
+        settle(0.1).await.expect("keep guiding");
+        let guard = controller.read().await;
+        assert!(
+            guard.settle_deadline.is_none(),
+            "a settled guider re-entered settling on the next ordinary frame"
+        );
+        assert!(
+            guard.settle_timeout_deadline.is_none(),
+            "a settle timeout was re-armed over a guider that is already settled"
+        );
+    }
+
+    /// Live finding IMG-9: through a whole Loop Exposures run the guide-star
+    /// badge read `SNR: 0.0`, Star Statistics read `SNR —` / `Star Mass —` /
+    /// `Frame Count 0`, and the thumbnail plainly contained a bright star. Every
+    /// one of those readouts is fed by the `GuideStats` event, and the looping
+    /// path stored its measurement without ever announcing it.
+    #[tokio::test]
+    async fn a_looping_frame_announces_its_star_measurement() {
+        let mut events = get_state().event_bus.subscribe();
+        let mut guard = BuiltinGuiderState {
+            looping: true,
+            ..BuiltinGuiderState::default()
+        };
+
+        publish_star_measurement(&mut guard, Some(&star(10.0, 10.0, 4200.0)));
+
+        assert!((guard.last_status.star_mass - 4200.0).abs() < 1e-9);
+        let announced = loop {
+            let event = tokio::time::timeout(Duration::from_secs(2), events.recv())
+                .await
+                .expect("no guiding event published for a looping frame")
+                .expect("event bus closed");
+            if let crate::event::EventPayload::Guiding(crate::event::GuidingEvent::GuideStats {
+                snr,
+                star_mass,
+            }) = event.payload
+            {
+                break (snr, star_mass);
+            }
+        };
+        assert!((announced.0 - 42.0).abs() < 1e-9, "SNR must reach the UI");
+        assert!((announced.1 - 4200.0).abs() < 1e-9);
+    }
+
+    /// The counterpart: a dither opens a fresh episode, and the loop settles it.
+    #[tokio::test]
+    async fn a_dither_opens_a_new_settle_episode() {
+        let controller = Arc::new(RwLock::new(BuiltinGuiderState {
+            guiding: true,
+            settling: true,
+            dither_pending: true,
+            settle_timeout_deadline: Some(Instant::now() + Duration::from_secs(30)),
+            ..BuiltinGuiderState::default()
+        }));
+
+        apply_settle_state(controller.clone(), 0.1, 1.0, 0.0, 30.0)
+            .await
+            .expect("arm");
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        apply_settle_state(controller.clone(), 0.1, 1.0, 0.0, 30.0)
+            .await
+            .expect("settle");
+
+        let guard = controller.read().await;
+        assert!(!guard.dither_pending, "the dither settled");
+        assert!(!guard.settling);
     }
 
     #[test]

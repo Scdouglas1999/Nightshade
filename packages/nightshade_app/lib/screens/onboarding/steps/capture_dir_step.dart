@@ -161,6 +161,14 @@ class _OnboardingCaptureDirStepState
   bool _validating = false;
   int _operationGeneration = 0;
 
+  /// Re-check pending for the text now in the box.
+  Timer? _editDebounce;
+
+  /// How long a pause in typing counts as "the user has finished the path".
+  /// Short enough that correcting a rejected folder answers while they are
+  /// still looking at it, long enough not to probe the filesystem per keystroke.
+  static const _editSettle = Duration(milliseconds: 500);
+
   /// Editable folder input with a platform-picker alternative.
   late final TextEditingController _pathController;
   late final FocusNode _pathFocus;
@@ -188,6 +196,7 @@ class _OnboardingCaptureDirStepState
 
   @override
   void dispose() {
+    _editDebounce?.cancel();
     _pathFocus.removeListener(_onPathFocusChange);
     _pathFocus.dispose();
     _pathController.dispose();
@@ -201,6 +210,50 @@ class _OnboardingCaptureDirStepState
     unawaited(_commitTypedPath(_pathController.text));
   }
 
+  /// Keep the verdict describing what is in the box.
+  ///
+  /// A verdict belongs to the text that was checked. The moment the user edits
+  /// it away, that verdict is about something they can no longer see, so it goes
+  /// — otherwise correcting a rejected path leaves the rejection standing over
+  /// a folder that is perfectly good, with nothing on screen to suggest a cure.
+  /// The check then re-runs once typing settles, so the field answers for its
+  /// own contents without waiting for Enter or for focus to move somewhere else.
+  void _onPathChanged(String raw) {
+    final path = _resolve(raw);
+    if (_check != null && _checkedPath != path) {
+      setState(() {
+        _check = null;
+        _checkedPath = null;
+        _checkDetail = null;
+      });
+    }
+    _editDebounce?.cancel();
+    if (path.isEmpty) return;
+    _editDebounce = Timer(_editSettle, () {
+      if (!mounted) return;
+      final current =
+          ref.read(onboardingDraftProvider).captureDirectory?.trim();
+      // Typing back to the folder already on record still deserves an answer;
+      // the commit path would take it for a no-op and leave the box silent.
+      if (path == current) {
+        if (_check == null && !_selecting && !_validating) {
+          unawaited(_verify(path));
+        }
+        return;
+      }
+      unawaited(_commitTypedPath(raw));
+    });
+  }
+
+  /// The path a typed string actually names.
+  ///
+  /// "~/Astro/Captures" is what people paste out of a terminal and dart:io does
+  /// not expand it. Only a local path may expand — a tilde in a host path is the
+  /// HOST's home, not this machine's.
+  String _resolve(String raw) => ref.read(isRemoteModeProvider)
+      ? raw.trim()
+      : expandCaptureDirHome(raw.trim());
+
   /// Adopt a hand-typed or pasted folder, subject to the same existence and
   /// writability check the picker's result goes through.
   ///
@@ -209,12 +262,9 @@ class _OnboardingCaptureDirStepState
   /// The failed text is left in the box so it can be corrected rather than
   /// retyped.
   Future<void> _commitTypedPath(String raw) async {
+    _editDebounce?.cancel();
     final isRemote = ref.read(isRemoteModeProvider);
-    // "~/Astro/Captures" is what people paste out of a terminal, and dart:io
-    // does not expand it, so the step used to answer a perfectly good folder
-    // with "That folder does not exist." Only the local branch may expand it —
-    // a tilde in a host path is the HOST's home, not this machine's.
-    final path = isRemote ? raw.trim() : expandCaptureDirHome(raw.trim());
+    final path = _resolve(raw);
     final current = ref.read(onboardingDraftProvider).captureDirectory?.trim();
     if (path.isEmpty || path == current) return;
     if (_selecting || _validating) return;
@@ -495,6 +545,7 @@ class _OnboardingCaptureDirStepState
                           fontFamily: 'monospace',
                         ),
                       ),
+                      onChanged: _onPathChanged,
                       onSubmitted: (value) =>
                           unawaited(_commitTypedPath(value)),
                     ),

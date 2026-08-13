@@ -115,9 +115,12 @@ class _ActionButtons extends ConsumerWidget {
           const SizedBox(height: 16),
         ],
         if (state.isCapturing)
+          // The stop is cooperative: the run aborts the exposure in flight and
+          // finishes the frame it is on, which is seconds of a screen that
+          // otherwise looks exactly like a click that never landed.
           NightshadeButton(
-            label: 'Stop Capture',
-            onPressed: notifier.requestCancel,
+            label: notifier.cancelRequested ? 'Stopping…' : 'Stop Capture',
+            onPressed: notifier.cancelRequested ? null : notifier.requestCancel,
             variant: ButtonVariant.destructive,
           )
         else

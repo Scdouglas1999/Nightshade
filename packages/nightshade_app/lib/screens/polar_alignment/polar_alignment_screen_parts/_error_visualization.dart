@@ -343,21 +343,37 @@ class _PolarErrorPainter extends CustomPainter {
       crossPaint,
     );
 
-    // Draw center target (pulsing)
-    final targetRadius = 8.0 + pulseValue * 4;
-    canvas.drawCircle(
-      center,
-      targetRadius,
-      Paint()..color = colors.primary.withValues(alpha: 0.3 + pulseValue * 0.3),
-    );
-    canvas.drawCircle(
-      center,
-      4,
-      Paint()..color = colors.primary,
-    );
+    // The centre mark is where a measurement WOULD sit if the mount were
+    // perfectly aligned. Filled, it is indistinguishable from a measurement of
+    // zero — which is what an untouched (or failed) run used to show while the
+    // numbers under it read "--". With nothing measured it is an empty target.
+    final hasMeasurement = error != null && phase == PolarAlignPhase.adjusting;
+    if (hasMeasurement) {
+      final targetRadius = 8.0 + pulseValue * 4;
+      canvas.drawCircle(
+        center,
+        targetRadius,
+        Paint()
+          ..color = colors.primary.withValues(alpha: 0.3 + pulseValue * 0.3),
+      );
+      canvas.drawCircle(
+        center,
+        4,
+        Paint()..color = colors.primary,
+      );
+    } else {
+      canvas.drawCircle(
+        center,
+        5,
+        Paint()
+          ..color = colors.textMuted.withValues(alpha: 0.6)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.5,
+      );
+    }
 
     // Draw error position
-    if (error != null && phase == PolarAlignPhase.adjusting) {
+    if (hasMeasurement) {
       final scale = maxRadius / 120.0; // 120 arcseconds = max radius
       final errorX = error!.azimuthError.clamp(-120.0, 120.0) * scale;
       final errorY = -error!.altitudeError.clamp(-120.0, 120.0) * scale;

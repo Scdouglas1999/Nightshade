@@ -194,13 +194,22 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
     }
   }
 
+  /// True while a Stop is in flight. Teardown waits for the run to reach a
+  /// checkpoint — an exposure or a plate solve, seconds either way — and an
+  /// unchanged button over those seconds is what made Stop look ignored.
+  bool _stopping = false;
+
   Future<void> _stopAlignment() async {
+    if (_stopping) return;
+    setState(() => _stopping = true);
     try {
       await ref.read(polarAlignmentControllerProvider).stop();
     } catch (e) {
       if (!mounted) return;
       // Stop failed/timed out: the run stays blocked and visibly in error.
       context.showErrorSnackBar('Could not stop polar alignment: $e');
+    } finally {
+      if (mounted) setState(() => _stopping = false);
     }
   }
 

@@ -521,6 +521,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                     _CompassScaleBarOverlay(
                       zoomLevel: displayScale,
                       plateSolve: currentSkySolution.plateSolve,
+                      readoutsVisible: readoutsVisible,
                     ),
 
                   if (currentImage != null &&

@@ -177,7 +177,13 @@ extension _ScreenShell on _PolarAlignmentScreenState {
         .select((s) => s.connectionState == DeviceConnectionState.connected));
     final mountConnected = ref.watch(mountStateProvider
         .select((s) => s.connectionState == DeviceConnectionState.connected));
-    final equipmentReady = cameraConnected && mountConnected;
+    // A parked mount cannot slew between the three points and is not pointing
+    // at sky. The run used to start anyway, expose, blind-solve a field it was
+    // never going to solve, and hand back "Plate solve timed out" — a solver
+    // error for what is a mount the app knew was parked before the click.
+    final mountParked = mountConnected &&
+        ref.watch(mountStateProvider.select((s) => s.isParked));
+    final equipmentReady = cameraConnected && mountConnected && !mountParked;
     final detectionAsync = ref.watch(plateSolverDetectionProvider);
     final preferenceAsync = ref.watch(plateSolverPreferenceProvider);
     final solverReady = detectionAsync.valueOrNull != null &&
@@ -206,7 +212,9 @@ extension _ScreenShell on _PolarAlignmentScreenState {
       else if (!cameraConnected)
         'Camera not connected'
       else if (!mountConnected)
-        'Mount not connected',
+        'Mount not connected'
+      else if (mountParked)
+        'Mount is parked — unpark it before aligning',
       if (!siteReady)
         settingsResolved
             ? 'No observing location set'
@@ -262,6 +270,17 @@ extension _ScreenShell on _PolarAlignmentScreenState {
       return Expanded(child: button);
     }
 
+    /// Stopping a run means waiting for the exposure or plate solve in flight
+    /// to reach a checkpoint. The button says so for those seconds instead of
+    /// standing unchanged, which reads as a click that never landed.
+    Widget stopButton() => NightshadeButton(
+          label: _stopping ? 'Stopping…' : 'Stop',
+          icon: NightshadeIcons.stop,
+          variant: ButtonVariant.destructive,
+          size: ButtonSize.small,
+          onPressed: _stopping ? null : _stopAlignment,
+        );
+
     List<Widget> actionButtons(bool stretch) {
       switch (state.phase) {
         case PolarAlignPhase.idle:
@@ -282,31 +301,13 @@ extension _ScreenShell on _PolarAlignmentScreenState {
           ];
         case PolarAlignPhase.measuring:
           return [
-            wrapButton(
-              NightshadeButton(
-                label: 'Stop',
-                icon: NightshadeIcons.stop,
-                variant: ButtonVariant.destructive,
-                size: ButtonSize.small,
-                onPressed: _stopAlignment,
-              ),
-              stretch: stretch,
-            ),
+            wrapButton(stopButton(), stretch: stretch),
           ];
         case PolarAlignPhase.adjusting:
           final hasMeasurement =
               state.initialError != null && state.currentError != null;
           return [
-            wrapButton(
-              NightshadeButton(
-                label: 'Stop',
-                icon: NightshadeIcons.stop,
-                variant: ButtonVariant.destructive,
-                size: ButtonSize.small,
-                onPressed: _stopAlignment,
-              ),
-              stretch: stretch,
-            ),
+            wrapButton(stopButton(), stretch: stretch),
             const SizedBox(width: 8),
             wrapButton(
               Tooltip(

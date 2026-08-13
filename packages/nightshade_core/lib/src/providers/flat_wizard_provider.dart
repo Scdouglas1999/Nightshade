@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import '../backend/network_backend.dart';
 import '../models/backend/fits_header.dart' show FitsWriteHeader;
+import '../models/backend/image_result.dart' show CapturedImageResult;
 import '../models/equipment/equipment_models.dart' show DeviceConnectionState;
 import '../models/flat_wizard/flat_capture_config.dart';
 import '../models/flat_wizard/flat_wizard_state.dart';
@@ -631,7 +632,15 @@ class FlatWizardNotifier extends StateNotifier<FlatWizardState> {
 
   // --- Image Preview ---
 
-  void setLastImage(String? path, dynamic imageData) {
+  /// Publish the frame the preview panel should show.
+  ///
+  /// Typed on purpose. The panel needs the frame's dimensions to render it, so
+  /// bare display bytes are unrenderable and were silently dropped: the largest
+  /// element on the wizard read "No flat captured yet" for an entire run while
+  /// frames were landing on disk. `lastImageData` is `Object?` on the state
+  /// (it is runtime-only and never serialised), so the type has to be enforced
+  /// here.
+  void setLastImage(String? path, CapturedImageResult? imageData) {
     state = state.copyWith(lastImagePath: path, lastImageData: imageData);
   }
 
@@ -1125,7 +1134,7 @@ class FlatWizardNotifier extends StateNotifier<FlatWizardState> {
           incrementFilterCapturedCount(idx);
           final image = capture.image;
           if (image != null) {
-            setLastImage(filePath, image.displayData);
+            setLastImage(filePath, image);
             addAduMeasurement(calibration.exposure, image.stats.mean);
           }
         }

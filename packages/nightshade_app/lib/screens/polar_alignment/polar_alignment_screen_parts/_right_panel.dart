@@ -43,6 +43,25 @@ extension _RightPanel on _PolarAlignmentScreenState {
                 phase: state.phase,
                 pulseAnimation: _pulseController,
               ),
+              // A run that never reached a measurement — not started, or ended
+              // in error — leaves the rings with nothing to show. Say so, so
+              // the empty target is read as "no reading" and not as zero error.
+              if (state.phase != PolarAlignPhase.idle &&
+                  !(state.phase == PolarAlignPhase.adjusting &&
+                      state.currentError != null))
+                Positioned(
+                  left: 16,
+                  right: 16,
+                  bottom: 24,
+                  child: Text(
+                    'No measurement yet',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize12,
+                      color: colors.textMuted,
+                    ),
+                  ),
+                ),
               if (state.phase == PolarAlignPhase.idle)
                 Positioned(
                   left: 16,

@@ -290,6 +290,7 @@ mixin _GuidingMobileSections
                                       timestamp: e.timestamp,
                                     ))
                                 .toList(),
+                            showCurrentError: currentError != null,
                             currentRaError: _errorForDisplay(
                                 currentError?.raError ?? 0, stats.pixelScale),
                             currentDecError: _errorForDisplay(
@@ -368,6 +369,7 @@ mixin _GuidingMobileSections
                                   timestamp: e.timestamp,
                                 ))
                             .toList(),
+                        showCurrentError: currentError != null,
                         currentRaError: _errorForDisplay(
                             currentError?.raError ?? 0, stats.pixelScale),
                         currentDecError: _errorForDisplay(
@@ -447,6 +449,8 @@ mixin _GuidingMobileSections
               onResumeGuiding: isPhd2Guider
                   ? () => ref.read(phd2ControllerProvider).resumeGuiding()
                   : null,
+              pauseUnavailableReason:
+                  isPhd2Guider ? null : kBuiltinGuiderNoPauseReason,
               onLoop: () => ref.read(phd2ControllerProvider).loop(),
               onFindStar: () =>
                   ref.read(lockPositionProvider.notifier).findStar(),

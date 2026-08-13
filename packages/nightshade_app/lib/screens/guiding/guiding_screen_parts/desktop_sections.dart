@@ -411,6 +411,10 @@ mixin _GuidingDesktopSections
                           timestamp: e.timestamp,
                         ))
                     .toList(),
+                // Absent error coalesced to 0 put the marker exactly on the
+                // bullseye while the guider was stopped with nothing measured,
+                // which reads as perfect guiding rather than as no reading.
+                showCurrentError: currentError != null,
                 currentRaError: _errorForDisplay(
                     currentError?.raError ?? 0, stats.pixelScale),
                 currentDecError: _errorForDisplay(
@@ -720,6 +724,8 @@ mixin _GuidingDesktopSections
             onResumeGuiding: isPhd2Guider
                 ? () => ref.read(phd2ControllerProvider).resumeGuiding()
                 : null,
+            pauseUnavailableReason:
+                isPhd2Guider ? null : kBuiltinGuiderNoPauseReason,
             onLoop: () => ref.read(phd2ControllerProvider).loop(),
             onFindStar: () =>
                 ref.read(lockPositionProvider.notifier).findStar(),

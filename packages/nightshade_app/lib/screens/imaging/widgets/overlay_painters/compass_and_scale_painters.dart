@@ -1,5 +1,18 @@
 part of '../overlay_painters.dart';
 
+/// Bottom space the viewport's corner readouts occupy, so the painters anchored
+/// to the same corners can stay off them.
+///
+/// Each is the readout's 16px anchor plus its height plus a gap. The histogram
+/// is a fixed 80px tall ([HistogramWidget]); the image-stats card is four
+/// [StatLine]s inside 12px padding, which measures 110px at the shipped type
+/// scale. Both are pinned by a layout test that measures the real widgets, so a
+/// readout that grows fails that test rather than silently colliding again.
+abstract final class PreviewReadoutInsets {
+  static const double histogram = 16 + 80 + 8;
+  static const double stats = 16 + 110 + 8;
+}
+
 class CompassOverlayPainter extends CustomPainter {
   /// WCS rotation angle in degrees (position angle, North through East).
   final double rotationDegrees;
@@ -10,18 +23,38 @@ class CompassOverlayPainter extends CustomPainter {
   /// Margin from the corner of the canvas.
   final double margin;
 
+  /// Space to leave at the bottom of the canvas, when the corner it anchors to
+  /// is already occupied. Defaults to [margin].
+  final double? bottomMargin;
+
   CompassOverlayPainter({
     required this.rotationDegrees,
     this.radius = 60.0,
     this.margin = 20.0,
+    this.bottomMargin,
   });
+
+  /// The circle this painter will draw on a canvas of [size].
+  ///
+  /// Exposed so a layout test can prove the rose does not land under the
+  /// bottom-right stats readout, which is a separately-anchored sibling in the
+  /// same stack and used to be drawn straight over it.
+  Rect boundsIn(Size size) {
+    final center = _centerIn(size);
+    return Rect.fromCircle(center: center, radius: radius);
+  }
+
+  Offset _centerIn(Size size) => Offset(
+        size.width - margin - radius,
+        size.height - (bottomMargin ?? margin) - radius,
+      );
 
   @override
   void paint(Canvas canvas, Size size) {
     // Position in bottom-right corner
-    final centerX = size.width - margin - radius;
-    final centerY = size.height - margin - radius;
-    final center = Offset(centerX, centerY);
+    final center = _centerIn(size);
+    final centerX = center.dx;
+    final centerY = center.dy;
 
     // Semi-transparent background circle
     final bgPaint = Paint()
@@ -144,7 +177,8 @@ class CompassOverlayPainter extends CustomPainter {
   bool shouldRepaint(covariant CompassOverlayPainter oldDelegate) {
     return oldDelegate.rotationDegrees != rotationDegrees ||
         oldDelegate.radius != radius ||
-        oldDelegate.margin != margin;
+        oldDelegate.margin != margin ||
+        oldDelegate.bottomMargin != bottomMargin;
   }
 }
 
@@ -167,12 +201,23 @@ class ScaleBarPainter extends CustomPainter {
   /// Margin from the corner of the canvas.
   final double margin;
 
+  /// Space to leave at the bottom of the canvas, when the corner it anchors to
+  /// is already occupied. Defaults to [margin].
+  final double? bottomMargin;
+
   ScaleBarPainter({
     required this.pixelScaleArcsecPerPixel,
     required this.imageWidthPixels,
     required this.zoomLevel,
     this.margin = 20.0,
+    this.bottomMargin,
   });
+
+  /// Y of the bar itself on a canvas of [size]. The label sits below it and the
+  /// background plate extends ~8px above; exposed so a layout test can prove the
+  /// bar clears the bottom-left histogram card it used to be painted across.
+  double barBaselineIn(Size size) =>
+      size.height - (bottomMargin ?? margin) - 12;
 
   // "Nice" angular values in arcseconds with their human-readable labels.
   static const List<(double arcsec, String label)> _niceScales = [
@@ -224,7 +269,7 @@ class ScaleBarPainter extends CustomPainter {
     if (barLengthPixels < 20 || barLengthPixels > size.width * 0.8) return;
 
     // Position at bottom-left
-    final barY = size.height - margin - 12;
+    final barY = barBaselineIn(size);
     final barX = margin;
 
     // Semi-transparent background behind the bar and label
@@ -307,7 +352,8 @@ class ScaleBarPainter extends CustomPainter {
     return oldDelegate.pixelScaleArcsecPerPixel != pixelScaleArcsecPerPixel ||
         oldDelegate.imageWidthPixels != imageWidthPixels ||
         oldDelegate.zoomLevel != zoomLevel ||
-        oldDelegate.margin != margin;
+        oldDelegate.margin != margin ||
+        oldDelegate.bottomMargin != bottomMargin;
   }
 }
 

@@ -20,6 +20,15 @@ part 'guiding_screen_parts/state_fields.dart';
 part 'guiding_screen_parts/desktop_sections.dart';
 part 'guiding_screen_parts/mobile_sections.dart';
 
+/// Why Pause is unavailable under Nightshade's own guider.
+///
+/// Pause is a PHD2 command. Under the built-in guider the button was simply
+/// inert: nothing changed on screen, in the status bar, or in the log, so the
+/// operator could not tell whether corrections had been suspended.
+const String kBuiltinGuiderNoPauseReason =
+    'Pause is a PHD2 feature. The built-in guider has no pause — '
+    'use Stop to suspend guiding.';
+
 /// Full PHD2 guiding interface screen
 ///
 /// Provides comprehensive guiding control including:

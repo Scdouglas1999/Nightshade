@@ -198,6 +198,25 @@ extension AnnotationPipeline on AnnotationService {
         return;
       }
 
+      // A success flag is not a solution. Every downstream step maps catalog
+      // coordinates onto pixels through the centre and the scale, so a result
+      // carrying neither searches a field of zero size and comes back with
+      // nothing — which the chip then reported as the benign "Found 0 objects",
+      // a statement about the sky rather than about a solve that did not
+      // produce a solution.
+      final geometryProblem = _unusableSolveGeometry(result);
+      if (geometryProblem != null) {
+        _logger.warning(
+          'Plate solve reported success without a usable solution: '
+          '$geometryProblem (RA=${result.ra}, Dec=${result.dec}, '
+          'scale=${result.pixelScale}, field=${result.fieldWidth})',
+          source: 'Annotation',
+        );
+        _ref.read(annotationStateProvider.notifier).state =
+            AnnotationState.plateSolveFailed(geometryProblem);
+        return;
+      }
+
       _logger.info(
         'Plate solve success: RA=${result.ra.toStringAsFixed(4)}, '
         'Dec=${result.dec.toStringAsFixed(4)}, '

@@ -3,6 +3,23 @@
 
 part of '../polar_alignment_screen.dart';
 
+/// The activity line beside the spinner in the measuring panel.
+///
+/// It used to read "Capturing Point N" for the whole point — including the
+/// plate solve that follows the exposure — so the panel stated two different
+/// current activities at once, one of them minutes stale. Deriving it from the
+/// status the run publishes means the two lines cannot disagree.
+String _runActivityLabel(String status, int point) {
+  final phrase = status.toLowerCase();
+  if (phrase.contains('solv')) return 'Plate solving point $point of 3';
+  if (phrase.contains('slew')) return 'Slewing to point $point of 3';
+  if (phrase.contains('rotat')) return 'Rotating to point $point of 3';
+  if (phrase.contains('captur') || phrase.contains('expos')) {
+    return 'Capturing point $point of 3';
+  }
+  return 'Point $point of 3';
+}
+
 extension _MeasurementPanel on _PolarAlignmentScreenState {
   Widget _buildMeasuringStatus(
       NightshadeColors colors, PolarAlignmentState state) {
@@ -201,7 +218,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Capturing Point $point',
+                        _runActivityLabel(status, point),
                         style: TextStyle(
                           fontSize: NightshadeTypography.fontSize11,
                           color: colors.textPrimary,

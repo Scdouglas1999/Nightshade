@@ -438,6 +438,23 @@ class AnnotationService {
     }
   }
 
+  /// Why a solve that reported success cannot be used, or null when it can.
+  ///
+  /// Annotation projects catalog coordinates through the solved centre and
+  /// scale. Without both there is no field to search, so the catalog comes back
+  /// empty for a reason that has nothing to do with what is up there.
+  String? _unusableSolveGeometry(PlateSolveResult result) {
+    if (!result.ra.isFinite || !result.dec.isFinite) {
+      return 'Solver returned no field centre — the frame was not solved';
+    }
+    if (!result.pixelScale.isFinite || result.pixelScale <= 0) {
+      return 'Solver returned no field scale — the frame was not solved; '
+          'set the telescope focal length on the equipment profile so the '
+          'solver is told the scale';
+    }
+    return null;
+  }
+
   /// Convert a raw plate-solve error string into a user-facing description
   /// with actionable advice.
   String _describePlateSolveFailure(String? raw) {

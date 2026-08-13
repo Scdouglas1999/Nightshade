@@ -916,28 +916,96 @@ class _AduConvergenceGraph extends StatelessWidget {
   }
 }
 
-class _FilterProgressCards extends StatelessWidget {
+/// Per-filter progress along the bottom of the panel.
+///
+/// The row scrolls horizontally, but a bare horizontal `ListView` on desktop
+/// shows no scrollbar and does not follow the run: with seven profile filters
+/// the row was cut off after the fourth, and the filter actually being captured
+/// (Ha, with live counts) sat off-screen with nothing on screen to suggest more
+/// cards existed. The scrollbar says the row is scrollable; the auto-scroll
+/// keeps the card that is doing something in view.
+class _FilterProgressCards extends StatefulWidget {
   final FlatWizardState state;
 
   const _FilterProgressCards({required this.state});
 
   @override
+  State<_FilterProgressCards> createState() => _FilterProgressCardsState();
+}
+
+class _FilterProgressCardsState extends State<_FilterProgressCards> {
+  /// Card width plus its right margin — see [_FilterCard].
+  static const double _cardExtent = 108;
+
+  final ScrollController _controller = ScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  List<FlatFilterSettings> get _enabled =>
+      widget.state.filterSettings.where((f) => f.enabled).toList();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _followActive());
+  }
+
+  @override
+  void didUpdateWidget(covariant _FilterProgressCards oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _followActive());
+  }
+
+  void _followActive() {
+    if (!mounted || !_controller.hasClients) return;
+    final index = _enabled
+        .indexWhere((f) => f.status == FilterCalibrationStatus.capturing);
+    if (index < 0) return;
+
+    final position = _controller.position;
+    final start = index * _cardExtent;
+    final end = start + _cardExtent;
+    final visibleStart = position.pixels;
+    final visibleEnd = visibleStart + position.viewportDimension;
+    if (start >= visibleStart && end <= visibleEnd) return;
+
+    final target =
+        (start > visibleStart ? end - position.viewportDimension : start)
+            .clamp(position.minScrollExtent, position.maxScrollExtent);
+    if ((target - position.pixels).abs() < 1) return;
+    _controller.animateTo(
+      target,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final enabledFilters =
-        state.filterSettings.where((f) => f.enabled).toList();
+    final enabledFilters = _enabled;
 
     return Container(
       margin: const EdgeInsets.only(left: 8),
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: enabledFilters.length,
-        itemBuilder: (context, index) {
-          final filter = enabledFilters[index];
-          return _FilterCard(
-            filter: filter,
-            globalFrameCount: state.globalSettings.frameCount,
-          );
-        },
+      child: Scrollbar(
+        controller: _controller,
+        thumbVisibility: true,
+        child: ListView.builder(
+          controller: _controller,
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.only(bottom: 10),
+          itemCount: enabledFilters.length,
+          itemBuilder: (context, index) {
+            final filter = enabledFilters[index];
+            return _FilterCard(
+              filter: filter,
+              globalFrameCount: widget.state.globalSettings.frameCount,
+            );
+          },
+        ),
       ),
     );
   }

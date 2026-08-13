@@ -58,9 +58,17 @@ class _CompassScaleBarOverlay extends ConsumerWidget {
   final double zoomLevel;
   final PlateSolveData? plateSolve;
 
+  /// Whether the corner readouts (histogram bottom-left, image stats
+  /// bottom-right) are on screen. They are separately-anchored siblings in the
+  /// same stack, so the painters have to be told to stay off their corners —
+  /// otherwise the scale bar is drawn straight across the histogram plot and
+  /// the stats card lands on top of the compass rose.
+  final bool readoutsVisible;
+
   const _CompassScaleBarOverlay({
     required this.zoomLevel,
     required this.plateSolve,
+    required this.readoutsVisible,
   });
 
   @override
@@ -83,6 +91,7 @@ class _CompassScaleBarOverlay extends ConsumerWidget {
             showCompass: showCompass,
             showScaleBar: showScaleBar,
             zoomLevel: zoomLevel,
+            readoutsVisible: readoutsVisible,
           ),
         ),
       ),
@@ -97,27 +106,37 @@ class _CompassScaleBarCombinedPainter extends CustomPainter {
   final bool showCompass;
   final bool showScaleBar;
   final double zoomLevel;
+  final bool readoutsVisible;
 
   _CompassScaleBarCombinedPainter({
     required this.plateSolve,
     required this.showCompass,
     required this.showScaleBar,
     required this.zoomLevel,
+    required this.readoutsVisible,
   });
+
+  /// The scale-bar painter this widget draws with.
+  ScaleBarPainter scaleBarPainter() => ScaleBarPainter(
+        pixelScaleArcsecPerPixel: plateSolve.pixelScale,
+        imageWidthPixels: plateSolve.imageWidth.toDouble(),
+        zoomLevel: zoomLevel,
+        bottomMargin: readoutsVisible ? PreviewReadoutInsets.histogram : null,
+      );
+
+  /// The compass painter this widget draws with.
+  CompassOverlayPainter compassPainter() => CompassOverlayPainter(
+        rotationDegrees: plateSolve.rotation,
+        bottomMargin: readoutsVisible ? PreviewReadoutInsets.stats : null,
+      );
 
   @override
   void paint(Canvas canvas, Size size) {
     if (showCompass) {
-      CompassOverlayPainter(
-        rotationDegrees: plateSolve.rotation,
-      ).paint(canvas, size);
+      compassPainter().paint(canvas, size);
     }
     if (showScaleBar) {
-      ScaleBarPainter(
-        pixelScaleArcsecPerPixel: plateSolve.pixelScale,
-        imageWidthPixels: plateSolve.imageWidth.toDouble(),
-        zoomLevel: zoomLevel,
-      ).paint(canvas, size);
+      scaleBarPainter().paint(canvas, size);
     }
   }
 
@@ -126,7 +145,8 @@ class _CompassScaleBarCombinedPainter extends CustomPainter {
     return oldDelegate.plateSolve != plateSolve ||
         oldDelegate.showCompass != showCompass ||
         oldDelegate.showScaleBar != showScaleBar ||
-        oldDelegate.zoomLevel != zoomLevel;
+        oldDelegate.zoomLevel != zoomLevel ||
+        oldDelegate.readoutsVisible != readoutsVisible;
   }
 }
 
