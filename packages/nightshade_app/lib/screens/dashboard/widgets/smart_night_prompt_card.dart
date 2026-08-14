@@ -22,7 +22,7 @@ const double _kMobileHorizontalMargin = 16.0;
 /// visible — measured on the live frame at x 537-920 / y 537-645 over a Moon
 /// card at x 258-722. Reserving its height (108 px measured, plus its bottom
 /// margin) lets the last card scroll clear of it.
-const double kFloatingPromptReservedHeight = 108.0 + _kBottomInset * 2;
+const double kFloatingPromptReservedHeight = 178.0 + _kBottomInset * 2;
 const Duration _kSlideInDuration = Duration(milliseconds: 240);
 
 final smartNightPromptGraceProvider =
@@ -45,7 +45,18 @@ final smartNightPromptClockProvider =
 /// the equipment-ready grace and the pending-draft check) so other surfaces —
 /// e.g. the cockpit standby header — can suppress a duplicate "Plan Tonight"
 /// affordance while the prompt occupies the screen. Defaults to false.
-final smartNightAutoPromptShowingProvider = StateProvider<bool>((ref) => false);
+/// The cards currently claiming the bottom-centre floating-prompt band, by
+/// owner tag. A card adds its tag when it shows and removes ONLY its own tag
+/// when it stands down, so one card's retraction can never clobber the
+/// other's claim (the post-frame publishes race in arbitrary order).
+final floatingPromptOwnersProvider =
+    StateProvider<Set<String>>((ref) => const <String>{});
+
+/// True while any bottom-centre prompt is floating; DashboardScrollView and
+/// the standby header reserve the prompt band off this.
+final smartNightAutoPromptShowingProvider = Provider<bool>(
+  (ref) => ref.watch(floatingPromptOwnersProvider).isNotEmpty,
+);
 
 /// Whether the active profile carries enough OPTICS to plan a night: a focal
 /// length and an aperture, which is all Smart Night needs to derive field of
@@ -96,6 +107,11 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
   @override
   void initState() {
     super.initState();
+    // Captured so dispose() can release this card's band claim without
+    // touching `ref` after unmount (Riverpod forbids it); the owners provider
+    // is not autoDispose, so the controller outlives this widget. Without
+    // this, navigating away mid-prompt strands the tag and the reserve.
+    _ownersController = ref.read(floatingPromptOwnersProvider.notifier);
     _animController = AnimationController(
       vsync: this,
       duration: _kSlideInDuration,
@@ -110,6 +126,10 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
   @override
   void dispose() {
     _graceTimer?.cancel();
+    if (_ownersController.state.contains(_promptOwnerTag)) {
+      _ownersController.state = {..._ownersController.state}
+        ..remove(_promptOwnerTag);
+    }
     _animController.dispose();
     super.dispose();
   }
@@ -117,11 +137,21 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
   /// Publish the prompt's real rendered visibility after the frame settles, so
   /// reading widgets (the standby header) rebuild without mutating provider
   /// state mid-build.
+  static const _promptOwnerTag = 'smart-night';
+
+  late final StateController<Set<String>> _ownersController;
+
   void _publishShowing(bool showing) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final notifier = ref.read(smartNightAutoPromptShowingProvider.notifier);
-      if (notifier.state != showing) notifier.state = showing;
+      final owners = ref.read(floatingPromptOwnersProvider.notifier);
+      final next = <String>{...owners.state};
+      if (showing) {
+        next.add(_promptOwnerTag);
+      } else {
+        next.remove(_promptOwnerTag);
+      }
+      if (next.length != owners.state.length) owners.state = next;
     });
   }
 

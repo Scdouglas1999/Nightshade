@@ -8,7 +8,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'glass_card.dart';
 import 'smart_night_prompt_card.dart'
-    show smartNightAutoPromptShowingProvider, smartNightOpticsReadyProvider;
+    show floatingPromptOwnersProvider, smartNightOpticsReadyProvider;
 
 const double _kDesktopPromptWidth = 480.0;
 const double _kBottomInset = 16.0;
@@ -75,6 +75,11 @@ class _NextUsePromptCardState extends ConsumerState<NextUsePromptCard>
   @override
   void initState() {
     super.initState();
+    // Captured so dispose() can release this card's band claim without
+    // touching `ref` after unmount (Riverpod forbids it); the owners provider
+    // is not autoDispose, so the controller outlives this widget. Without
+    // this, navigating away mid-prompt strands the tag and the reserve.
+    _ownersController = ref.read(floatingPromptOwnersProvider.notifier);
     _animController = AnimationController(
       vsync: this,
       duration: NightshadeTokens.durationQuick,
@@ -88,16 +93,29 @@ class _NextUsePromptCardState extends ConsumerState<NextUsePromptCard>
 
   @override
   void dispose() {
+    if (_ownersController.state.contains(_promptOwnerTag)) {
+      _ownersController.state = {..._ownersController.state}
+        ..remove(_promptOwnerTag);
+    }
     _animController.dispose();
     super.dispose();
   }
 
-  @override
+  static const _promptOwnerTag = 'next-use';
+
+  late final StateController<Set<String>> _ownersController;
+
   void _publishShowing(bool showing) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final notifier = ref.read(smartNightAutoPromptShowingProvider.notifier);
-      if (notifier.state != showing) notifier.state = showing;
+      final owners = ref.read(floatingPromptOwnersProvider.notifier);
+      final next = <String>{...owners.state};
+      if (showing) {
+        next.add(_promptOwnerTag);
+      } else {
+        next.remove(_promptOwnerTag);
+      }
+      if (next.length != owners.state.length) owners.state = next;
     });
   }
 

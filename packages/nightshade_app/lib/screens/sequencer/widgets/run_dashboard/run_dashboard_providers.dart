@@ -488,18 +488,30 @@ List<RunDashboardEvent> collapseRepeatedEvents(
   Iterable<RunDashboardEvent> events,
 ) {
   final out = <RunDashboardEvent>[];
+  // The window measures neighbour-to-neighbour, not first-to-latest: a storm
+  // re-reporting every minute for half an hour is still ONE condition, and
+  // anchoring on the retained (newest) row would split it and evict the rows
+  // that name the cause. Rows arrive newest-first, so the chain's previous
+  // occurrence is the one processed last.
+  DateTime? chainPreviousTime;
   for (final event in events) {
     final last = out.isEmpty ? null : out.last;
     final isRepeat = last != null &&
+        // A stop row is one press or one abort by construction of the fold
+        // above; an xN badge would multiply the operator's action.
+        event.title != 'Sequence stopped' &&
         last.category == event.category &&
         last.title == event.title &&
         last.message == event.message &&
         last.severity == event.severity &&
-        last.time.difference(event.time).abs() <= _collapseWindow;
+        (chainPreviousTime ?? last.time).difference(event.time).abs() <=
+            _collapseWindow;
     if (isRepeat) {
       out[out.length - 1] = last.withRepeatCount(last.repeatCount + 1);
+      chainPreviousTime = event.time;
     } else {
       out.add(event);
+      chainPreviousTime = event.time;
     }
   }
   return out;
@@ -567,41 +579,113 @@ bool isOperatorStopNotice(ns_events.NightshadeEvent event) {
   return isSequenceCancelledNotice(sequencerEvent.message);
 }
 
-/// The whole family one press of Stop puts on the wire: the executor's
-/// cancel-notice Error, the lifecycle decision whose summary is that same
-/// notice, and the Stopped event published once by the state change and once
-/// by the stop API. The feed maps every member to one canonical row so the
-/// group fold below can tell the operator the one thing that happened.
-bool _isStopFamilyEvent(ns_events.NightshadeEvent event) {
+/// Whether this event is POSITIVE EVIDENCE that the operator (or the stop
+/// API acting for them) ended the run: the executor's exact cancel-notice
+/// Error, the lifecycle decision carrying that notice, or the
+/// manual-intervention decision recording the operator's own stop. A bare
+/// `Stopped` is NOT evidence — the state machine also emits it when a safety
+/// abort (weather, dome, ParkAndAbort) cancels the run with nobody present,
+/// and claiming "Stopped by request" there invents an operator action that
+/// never happened: the cry-wolf shape, inverted.
+bool _isOperatorStopEvidence(ns_events.NightshadeEvent event) {
   if (isOperatorStopNotice(event)) return true;
   final payload = event.payload;
   if (payload is! ns_events.EventPayload_Sequencer) return false;
   final sequencerEvent = payload.field0;
-  if (sequencerEvent is ns_events.SequencerEvent_Stopped) return true;
   if (sequencerEvent is ns_events.SequencerEvent_DecisionLogged) {
-    return isSequenceCancelledNotice(sequencerEvent.summary);
+    if (isSequenceCancelledNotice(sequencerEvent.summary)) return true;
+    return sequencerEvent.category == 'manual_intervention' &&
+        sequencerEvent.summary.startsWith('Operator: stop');
   }
   return false;
 }
 
-/// Fold each run of consecutive stop-family rows that happened together into
-/// ONE row. Four producers fire on one press of Stop; a "x4" badge would say
-/// it happened four times, which is the same lie in smaller type — so the
-/// group keeps repeatCount 1. Stops of different runs sit well apart in time
-/// and stay their own rows.
-List<RunDashboardEvent> _coalesceStopGroups(Iterable<RunDashboardEvent> rows) {
+/// The terminal `Stopped` events themselves — cause-neutral: the run ended
+/// without failing, and WHY is only known if operator evidence sits beside
+/// them in the same window.
+bool _isNeutralStoppedEvent(ns_events.NightshadeEvent event) {
+  final payload = event.payload;
+  if (payload is! ns_events.EventPayload_Sequencer) return false;
+  return payload.field0 is ns_events.SequencerEvent_Stopped;
+}
+
+/// Which once-per-press producer this event is, or null for the neutral
+/// `Stopped` pair (one press legitimately publishes two of those). Each of
+/// these kinds fires exactly once per operator stop request, which makes
+/// repetition of a kind the honest press counter: one press's producers span
+/// seconds (the stop API publishes after the safing teardown) while a mashed
+/// Stop repeats every couple of seconds — no time window can separate those,
+/// but identity can.
+String? _stopEvidenceKind(ns_events.NightshadeEvent event) {
+  final payload = event.payload;
+  if (payload is! ns_events.EventPayload_Sequencer) return null;
+  final sequencerEvent = payload.field0;
+  if (sequencerEvent is ns_events.SequencerEvent_Error &&
+      sequencerEvent.message == kSequenceCancelledNotice) {
+    return 'error-notice';
+  }
+  if (sequencerEvent is! ns_events.SequencerEvent_DecisionLogged) return null;
+  if (sequencerEvent.summary == kSequenceCancelledNotice) {
+    return 'decision-notice';
+  }
+  if (sequencerEvent.category == 'manual_intervention' &&
+      sequencerEvent.summary.startsWith('Operator: stop')) {
+    return 'manual-intervention';
+  }
+  return null;
+}
+
+class _StopGroup {
+  final DateTime anchor;
+  final int outIndex;
+  final Set<String> kinds = <String>{};
+  _StopGroup(this.anchor, this.outIndex);
+}
+
+/// Fold each press (or abort) of the stop family into ONE row, regardless of
+/// what landed between its producers: park/dome/device rows routinely
+/// interleave them because the stop API publishes last, after teardown. A
+/// group accepts at most one member of each evidence kind, so a repeated
+/// kind — the fingerprint of a second press — starts a new group and mashing
+/// Stop stays one row per press; neutral `Stopped` rows join the nearest
+/// group inside a 10s window. A group claims "Stopped by request" only when
+/// a member is operator evidence; a fault-driven abort keeps a cause-neutral
+/// message. Groups never wear an xN badge — that would say it happened N
+/// times.
+List<RunDashboardEvent> _foldStopFamilyRows(
+  Iterable<ns_events.NightshadeEvent> events,
+) {
   const window = Duration(seconds: 10);
   final out = <RunDashboardEvent>[];
-  DateTime? groupAnchor;
-  for (final row in rows) {
-    final isStop = row.title == 'Sequence stopped';
-    if (isStop &&
-        groupAnchor != null &&
-        groupAnchor.difference(row.time).abs() <= window) {
-      continue; // Same press of Stop; the group's first row already tells it.
+  final groups = <_StopGroup>[];
+  for (final event in events) {
+    final evidence = _isOperatorStopEvidence(event);
+    final neutral = _isNeutralStoppedEvent(event);
+    final row = _toDashboardEvent(event);
+    if (!evidence && !neutral && row.title != 'Sequence stopped') {
+      out.add(row);
+      continue;
     }
-    groupAnchor = isStop ? row.time : null;
-    out.add(row);
+    final kind = _stopEvidenceKind(event);
+    final candidates = groups.where(
+      (g) =>
+          g.anchor.difference(row.time).abs() <= window &&
+          (kind == null || !g.kinds.contains(kind)),
+    );
+    final group = candidates.isEmpty ? null : candidates.first;
+    if (group == null) {
+      final started = _StopGroup(row.time, out.length);
+      if (kind != null) started.kinds.add(kind);
+      groups.add(started);
+      out.add(row);
+      continue;
+    }
+    if (kind != null) group.kinds.add(kind);
+    // If this member knows the cause and the emitted row does not, the row
+    // learns it.
+    if (out[group.outIndex].message.isEmpty && row.message.isNotEmpty) {
+      out[group.outIndex] = row;
+    }
   }
   return out;
 }
@@ -616,14 +700,18 @@ RunDashboardEvent _toDashboardEvent(ns_events.NightshadeEvent event) {
   // A stop is still worth a row in the feed — it is how the operator
   // reconstructs the night — but it is an INFO row that says what happened,
   // not a critical "Sequencer error".
-  if (_isStopFamilyEvent(event)) {
+  if (_isOperatorStopEvidence(event) || _isNeutralStoppedEvent(event)) {
     return RunDashboardEvent(
       eventId: event.eventId,
       time: DateTime.fromMillisecondsSinceEpoch(ms),
       severity: RunDashboardEventSeverity.info,
       category: _categoryLabel(event.category),
       title: 'Sequence stopped',
-      message: kSequenceStoppedByRequestMessage,
+      // Only operator evidence may claim a cause; a bare Stopped may be a
+      // safety abort with nobody at the keyboard.
+      message: _isOperatorStopEvidence(event)
+          ? kSequenceStoppedByRequestMessage
+          : '',
       isCritical: false,
     );
   }
@@ -701,9 +789,7 @@ final runDashboardRecentEventsProvider =
   // frees slots for the different events behind it. Taking first would leave
   // the panel showing one collapsed row and four blanks' worth of lost history.
   return collapseRepeatedEvents(
-    _coalesceStopGroups(
-      history.where(isUserFacingRunEvent).map(_toDashboardEvent),
-    ),
+    _foldStopFamilyRows(history.where(isUserFacingRunEvent)),
   ).take(limit).toList(growable: false);
 });
 

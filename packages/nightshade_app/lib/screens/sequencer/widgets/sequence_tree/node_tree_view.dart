@@ -66,14 +66,25 @@ class _NodeTreeView extends ConsumerWidget {
     // Use TargetHeaderCard for TargetHeaderNode, otherwise use _NodeItem
     final targetHeaderNode = node is TargetHeaderNode ? node : null;
 
-    // Determine tutorial key based on node type and depth
+    // Determine tutorial key based on node type and depth. The anchors are
+    // static GlobalKeys, so only the FIRST depth-1 node of each type may
+    // carry one: handing the key to every sibling of that type makes Flutter
+    // steal the element from the first holder, and in a release build the
+    // second card silently vanishes from the tree (live: waveH-final
+    // 38-two-siblings.png, two sibling Take Exposures rendered one card).
     GlobalKey? tutorialKey;
-    if (depth == 1) {
-      // Only apply keys to first-level nodes
+    if (depth == 1 && node.parentId != null) {
+      final siblings = sequence.getChildren(node.parentId!);
       if (targetHeaderNode != null) {
-        tutorialKey = SequencerTutorialKeys.targetNode;
+        final anchor = siblings.where((n) => n is TargetHeaderNode).firstOrNull;
+        if (anchor?.id == nodeId) {
+          tutorialKey = SequencerTutorialKeys.targetNode;
+        }
       } else if (node is ExposureNode) {
-        tutorialKey = SequencerTutorialKeys.captureNode;
+        final anchor = siblings.where((n) => n is ExposureNode).firstOrNull;
+        if (anchor?.id == nodeId) {
+          tutorialKey = SequencerTutorialKeys.captureNode;
+        }
       }
     }
 

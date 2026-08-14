@@ -435,6 +435,52 @@ Order of execution from here:
    against a fresh bundle + the fixed a11y dump; verify no fix merely relocated its defect;
    reproduce the JD+0.5 planetarium suspect and the phd2 generic-connect route live; eyeball
    the stacked preview); loop map→fix→verify until a wave is dry.
+## Wave H verdict (2026-08-14) — the final check refuted the closer commit; response landed
+
+Run: release-waveH-final.js (1 live driver + 1 refuter over the G-fix set + closer commit
+47e36459f). Driver report: reports/release-pass/gui/waveH-final.md. Four refutations, all
+of MY closer commit, plus one new defect — every one reproduced, fixed, and pinned by an
+adopted failing test before the fix:
+
+1. **Stop-family fold still triplicated** (driver, live): the fold keyed on adjacency and
+   missed the `manual_intervention "Operator: stop"` decision row. Response: the fold now
+   runs on RAW events in `run_dashboard_providers.dart`, where identity is visible. Pure
+   time-windows are provably insufficient (one press's producers span ~4 s; mashed presses
+   land 3 s apart), so each group accepts at most ONE of each once-per-press evidence kind
+   (cancel-notice error, cancel-notice decision, manual-intervention decision); a repeated
+   kind = a second press = its own row. Neutral `Stopped` rows join the nearest group in a
+   10 s window; stop rows are exempt from the generic xN collapse (a badge would multiply
+   the operator's action). The refuter's conformance suite is adopted as
+   `recent_events_feed_conformance_test.dart` (C1–C4 window semantics, D1–D6 stop-fold
+   contract incl. the 4-presses-in-9s storm and the fault-abort-stays-neutral case) — 5
+   failures at the refuted commit, all green now.
+2. **Prompt-band signal clobber** (refuter): the stood-down card published `false` over the
+   other card's `true` (post-frame publishes race). Response: the shared bool is now derived
+   from `floatingPromptOwnersProvider` (a Set of owner tags); a card adds its tag on show
+   and removes ONLY its own tag on stand-down. Refuter probes adopted and green.
+3. **Reserve short by ~54 px** (driver, measured): `kFloatingPromptReservedHeight` was
+   sized for the Smart Night card; the next-use card is ~194 px. Constant raised 140→210,
+   covering the taller card (the shorter card simply reserves a little extra).
+4. **NEW: two sibling same-type nodes render one card** (driver: 38-two-siblings.png; every
+   model surface counted 2, the tree drew 1 over the root card, absent from a11y).
+   Root-caused and reproduced in a widget test: the depth-1 tutorial anchors are STATIC
+   GlobalKeys handed to every node of the matching type; Flutter resolves the duplicate by
+   stealing the element (silent in release). Fix: only the first depth-1 node of each type
+   carries the anchor (`node_tree_view.dart`); `sequence_tree_sibling_nodes_test.dart`
+   pins both the two-cards contract and the anchor's survival.
+
+Hardened beyond the refutations before commit: both cards release their band claim in
+dispose() (captured controller, no ref-after-unmount) so navigating away mid-prompt cannot
+strand the reserve; the sibling suite also covers three same-type siblings, a two-target
+header pair (same static-key pattern), and deleting the anchor holder (the anchor moves to
+the next node without a duplicate-key trip).
+
+Also confirmed live by the driver: the Templates stacked header at 1000x800, the SEQ-18
+wire-shape tally ("4 / 4 frames" + per-frame boxes agreeing with the session report), the
+reserve mechanism itself, and dismissal semantics. The tally's second-node comparison was
+blocked by finding 4 and is re-checked in the final verification drive (Wave I:
+reports/release-pass/scripts/release-waveI-close.js).
+
 ## Wave F verdict (2026-08-14 early) — CONVERGED TO THE TAIL; adjudicated
 
 47 verified, 13 refute-claims held; **7 still-broken (all with closer recipes), 25 new
