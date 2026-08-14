@@ -4,6 +4,8 @@ import '../../models/sequence/sequence_models.dart';
 import '../settings_provider.dart';
 // Sky-brightness adaptive exposure validation rules.
 import 'rules/adaptive_exposure_rules.dart';
+// "Who owns the rig" — unattended autopilot vs a hand-started run.
+import 'rules/autopilot_rules.dart';
 // Per-frame defect-map validation rules.
 import 'rules/defect_map_rules.dart';
 import 'rules/disk_space_rules.dart';
@@ -349,6 +351,8 @@ final List<SequenceValidator> defaultSequenceValidators =
 final List<RefAwareSequenceValidator> defaultRefAwareSequenceValidators =
     List<RefAwareSequenceValidator>.unmodifiable(<RefAwareSequenceValidator>[
       PluginNodeAvailabilityRule(),
+      // Something else may already own the mount.
+      AutopilotArmedRule(),
       EquipmentConnectionRule(),
       RotatorRotationConflictRule(),
       FilterInWheelRule(),

@@ -88,6 +88,32 @@ class SchedulerEngine {
   // dispatched work owns a rig that needs the scheduler's dawn-safe action.
   bool _dispatchedSinceStart = false;
 
+  // Identity of the run the autopilot itself handed to the executor: the
+  // `Sequence.id` of the last sequence passed to
+  // [SchedulerSequenceSink.dispatchSequence]. This — not `currentTargetId` —
+  // is what makes "is this run mine?" answerable.
+  //
+  // `currentTargetId != null` was a STALE-STATE test, not an ownership test:
+  // when the autopilot's own run ended by any path the engine never hears
+  // about (operator Stop, abort, failure — only a natural completion reaches
+  // the trigger stream), currentTargetId stayed set, so the next no-eligible
+  // tick stopped whatever the operator had loaded by then. The engine now
+  // records the run it dispatched and asks the sink whether that exact run is
+  // still the active one before ending it.
+  String? _dispatchedRunId;
+
+  // Bumped by [stop] (and any other disengage) so an evaluation whose dispatch
+  // was already in flight can tell that the run it just started belongs to a
+  // superseded generation and must not be committed as the engine's current
+  // target.
+  int _runGeneration = 0;
+
+  // Completes when the in-flight evaluation finishes. [stop] waits on it so a
+  // stop issued while `dispatchSequence` is still starting the executor lands
+  // AFTER the run it is meant to end, instead of racing ahead of it and
+  // leaving an orphan run exposing with the autopilot disengaged.
+  Completer<void>? _evaluationIdle;
+
   SchedulerStatus _status = const SchedulerStatus();
   final _statusController = StreamController<SchedulerStatus>.broadcast(
     sync: false,
@@ -173,6 +199,13 @@ class SchedulerEngine {
   Future<void> stop() async {
     _tickTimer?.cancel();
     _tickTimer = null;
+    // A debounced re-evaluation queued a moment ago must not fire after the
+    // operator disengaged the autopilot.
+    _reevaluationDebounceTimer?.cancel();
+    _reevaluationDebounceTimer = null;
+    // Supersede any dispatch already in flight: the run it starts is not the
+    // engine's to keep once this stop has been asked for.
+    _runGeneration++;
     _updateStatus(
       _status.copyWith(
         state: SchedulerState.idle,
@@ -180,6 +213,14 @@ class SchedulerEngine {
         clearNextEvaluation: true,
       ),
     );
+    // Let an evaluation that is mid-dispatch finish starting its run before we
+    // stop it. Without this the operator's Stop could complete BETWEEN
+    // `dispatchSequence` being called and the executor actually starting, so
+    // the stop hit nothing and the run began afterwards — an orphan sequence
+    // exposing all night with the autopilot showing Idle. The state above is
+    // already `idle`, so the evaluations we wait for cannot dispatch anything
+    // new.
+    await _awaitEvaluationQuiescence();
     // Autopilot fully disengaged: hand the editor slot back to the operator and
     // restore the manual sequence that dispatchSequence stashed on take-over.
     // This is the disengage path (not a per-target swap at _maybeStop), so
@@ -189,10 +230,56 @@ class SchedulerEngine {
     // (backend down, native fault) can never leave the editor owned by the
     // autopilot with the operator's stashed manual sequence orphaned behind a
     // stuck owner state.
+    //
+    // Only the autopilot's OWN run is stopped: disengaging an autopilot that
+    // never dispatched anything (or whose run the operator already replaced by
+    // hand) must not end the sequence the operator is watching.
+    final runId = _dispatchedRunId;
     try {
-      await _sequenceSink.stopSequence();
+      if (runId != null && _ownsDispatchedRun(runId)) {
+        await _sequenceSink.stopSequence();
+      }
     } finally {
+      _dispatchedRunId = null;
       await _sequenceSink.releaseSequenceOwnership();
+    }
+  }
+
+  /// Whether the run the engine dispatched as [runId] is still the executor's
+  /// active run — the question every engine-initiated stop has to answer.
+  ///
+  /// Sinks that can see the executor answer it truthfully via
+  /// [SchedulerRunOwnership]. A sink that cannot (headless fakes, unit-test
+  /// doubles) falls back to the engine's own belief: the run it dispatched and
+  /// has not itself ended. That belief is exactly what an operator takeover
+  /// invalidates, which is why the app's sink implements the interface.
+  bool _ownsDispatchedRun(String runId) {
+    // `Object` so the type test promotes: SchedulerRunOwnership is a separate
+    // interface, not a subtype of SchedulerSequenceSink.
+    final Object sink = _sequenceSink;
+    if (sink is SchedulerRunOwnership) return sink.ownsRun(runId);
+    return _dispatchedRunId == runId;
+  }
+
+  /// Wait until no evaluation is in flight.
+  ///
+  /// Called by [stop] before it touches the executor so a dispatch that is
+  /// still starting a run completes first. The loop is bounded because the
+  /// tick timer is already cancelled and the engine state is already `idle`,
+  /// so queued evaluations short-circuit without dispatching.
+  Future<void> _awaitEvaluationQuiescence() async {
+    for (var i = 0; i < 32 && _evaluating; i++) {
+      final idle = _evaluationIdle;
+      if (idle == null) break;
+      try {
+        await idle.future;
+      } catch (_) {
+        // The evaluation's own failure is reported through its caller; here we
+        // only care that it is no longer in flight.
+      }
+      // Give a queued (coalesced) evaluation the chance to take the lock so
+      // the next iteration waits for it too.
+      await Future<void>.delayed(Duration.zero);
     }
   }
 

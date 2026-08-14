@@ -291,12 +291,36 @@ extension CurrentSequenceTreeEditing on CurrentSequenceNotifier {
     _saveUndo();
 
     final newNodes = Map<String, SequenceNode>.from(_currentSequence!.nodes);
+    final previous = newNodes[node.id];
     newNodes[node.id] = node;
 
     _currentSequence = _currentSequence!.copyWith(
       nodes: newNodes,
       modifiedAt: DateTime.now(),
     );
+
+    _syncRepointedTarget(previous, node);
+  }
+
+  /// Follow a target the operator re-pointed through to the catalog row the
+  /// scheduler evaluates.
+  ///
+  /// The builder tree and the `targets` table are two copies of "where is this
+  /// object", and only the run path used to reconcile them — so between an edit
+  /// and the next run the autopilot kept scoring the OLD coordinates while the
+  /// card the operator was looking at showed the new ones. Fire-and-forget: the
+  /// edit itself is synchronous and must not wait on (or fail with) a database
+  /// write, and the sync swallows its own errors.
+  void _syncRepointedTarget(SequenceNode? previous, SequenceNode next) {
+    if (next is! TargetHeaderNode) return;
+    final ref = _ref;
+    if (ref == null) return;
+    if (previous is TargetHeaderNode &&
+        previous.raHours == next.raHours &&
+        previous.decDegrees == next.decDegrees) {
+      return; // Coordinates untouched — this edit was about something else.
+    }
+    unawaited(ref.read(targetCatalogCoordinateSyncProvider).syncHeader(next));
   }
 
   /// Toggle node enabled _currentSequence

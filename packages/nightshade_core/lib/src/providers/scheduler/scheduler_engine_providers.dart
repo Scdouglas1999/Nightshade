@@ -2,7 +2,8 @@ part of '../scheduler_provider.dart';
 
 /// Bridges the engine's "I picked a target" decision to the existing
 /// SequenceExecutor by loading the generated Sequence and starting it.
-class _ExecutorSequenceSink implements SchedulerSequenceSink {
+class _ExecutorSequenceSink
+    implements SchedulerSequenceSink, SchedulerRunOwnership {
   final Ref _ref;
 
   // Capture the notifier eagerly at construction (where ref.read is legal).
@@ -47,6 +48,35 @@ class _ExecutorSequenceSink implements SchedulerSequenceSink {
   Future<void> stopSequence() async {
     final executor = _ref.read(sequenceExecutorProvider);
     await executor.stop();
+  }
+
+  @override
+  bool ownsRun(String sequenceId) {
+    // Three facts have to hold for the autopilot's run to still be the active
+    // one, and each of them is a way the operator can take the rig back:
+    //   * the editor slot is still owned by the autopilot (a manual load or a
+    //     release flips it back to `manual`),
+    //   * the loaded plan is the very sequence we dispatched (a manual Start
+    //     loads a different one — ids are per-dispatch UUIDs), and
+    //   * that plan is actually executing (a finished/stopped run is nobody's
+    //     to stop).
+    if (_currentSequence.activeOwner != ActivePlanOwner.autopilot) return false;
+    final loaded = _ref.read(currentSequenceProvider);
+    if (loaded == null || loaded.id != sequenceId) return false;
+    switch (_ref.read(sequenceExecutionStateProvider)) {
+      case SequenceExecutionState.running:
+      case SequenceExecutionState.paused:
+      case SequenceExecutionState.recovering:
+        return true;
+      case SequenceExecutionState.idle:
+      case SequenceExecutionState.stopping:
+      case SequenceExecutionState.stopFailed:
+      case SequenceExecutionState.completed:
+      case SequenceExecutionState.failed:
+      case SequenceExecutionState.finalizing:
+      case SequenceExecutionState.cleanupFailed:
+        return false;
+    }
   }
 
   @override

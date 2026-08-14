@@ -24,10 +24,16 @@ extension _SchedulerEngineEvaluation on SchedulerEngine {
       return c.future;
     }
     _evaluating = true;
+    // Published so stop() can wait for a dispatch that is already in flight
+    // rather than racing it (see SchedulerEngine._awaitEvaluationQuiescence).
+    final idle = Completer<void>();
+    _evaluationIdle = idle;
     try {
       await _evaluateOnce(reason, candidates: candidates);
     } finally {
       _evaluating = false;
+      if (identical(_evaluationIdle, idle)) _evaluationIdle = null;
+      if (!idle.isCompleted) idle.complete();
       if (_pendingEvaluations.isNotEmpty) {
         final next = _pendingEvaluations.removeAt(0);
         // Run the next evaluation in a microtask so the completer for the
@@ -107,6 +113,13 @@ extension _SchedulerEngineEvaluation on SchedulerEngine {
         // so the engine would never re-dispatch — the autopilot would believe
         // it is imaging a target that never started. By dispatching first and
         // rolling the status back on failure, the next tick retries the switch.
+        // Record the run BEFORE handing it over: the executor may be starting
+        // while the operator presses Stop, and a stop that arrives in that
+        // window still has to be able to name (and end) the run this dispatch
+        // is creating. The generation snapshot below is how the post-await
+        // commit learns such a stop happened.
+        final generation = _runGeneration;
+        _dispatchedRunId = seq.id;
         try {
           await _sequenceSink.dispatchSequence(seq);
         } catch (e) {
@@ -121,6 +134,14 @@ extension _SchedulerEngineEvaluation on SchedulerEngine {
             ),
           );
           await _sequenceSink.releaseSequenceOwnership();
+          return;
+        }
+        if (_runGeneration != generation ||
+            _status.state != SchedulerState.running) {
+          // The autopilot was disengaged while the executor was starting. The
+          // run that just began is not ours to claim — stop() waited for this
+          // dispatch precisely so it can end it — and an idle engine must never
+          // report that it owns a target.
           return;
         }
         _updateStatus(
@@ -366,10 +387,18 @@ extension _SchedulerEngineEvaluation on SchedulerEngine {
     // shares one executor with the manual Start button and had no idea which
     // run it was ending.
     final ownedTarget = _status.currentTargetName;
-    final ownsRun = _status.currentTargetId != null;
-    if (ownsRun) {
+    // Ownership is decided by the run the autopilot dispatched still being the
+    // executor's active run — asked of the sink, which can see the executor —
+    // not by the engine's own `currentTargetId`. That field only says "the
+    // last thing I dispatched"; it survives an operator Stop, an abort, and a
+    // failed run, because only a natural completion reaches the engine's
+    // trigger stream. Testing it stopped the operator's manual sequence.
+    final runId = _dispatchedRunId;
+    final ownsRun = runId != null && _ownsDispatchedRun(runId);
+    if (_status.currentTargetId != null) {
       _updateStatus(_status.copyWith(clearCurrentTarget: true));
     }
+    if (!ownsRun) _dispatchedRunId = null;
     if (!running) return null;
 
     if (_isEndOfNight(now)) {
@@ -384,6 +413,7 @@ extension _SchedulerEngineEvaluation on SchedulerEngine {
       // executor is idempotent on stop and parkForEndOfNight already pauses.
       if (!_parkedForEndOfNight) {
         _parkedForEndOfNight = true;
+        _dispatchedRunId = null;
         await _sequenceSink.parkForEndOfNight();
         return 'The observing night is over — parked the mount and ended '
             'unattended imaging.';
@@ -396,6 +426,7 @@ extension _SchedulerEngineEvaluation on SchedulerEngine {
     // isn't over and the next tick may re-dispatch. A run the operator started
     // by hand is not ours to end.
     if (!ownsRun) return null;
+    _dispatchedRunId = null;
     await _sequenceSink.stopSequence();
     return 'Stopped ${ownedTarget ?? 'imaging'} — no target passes the '
         'scheduler right now; the next evaluation will re-check.';
@@ -473,7 +504,16 @@ extension _SchedulerEngineEvaluation on SchedulerEngine {
     if (reasons.isEmpty) return 'rejected';
     final first = reasons.first;
     if (first.contains('altitude') && first.contains('below site minimum')) {
-      return 'below horizon';
+      // Not "below horizon": a target at +9.8° with a 30° site minimum is up,
+      // it is just too low to image. The chip said one thing while the row's
+      // own message said the other, and only the row was right. Keep the two
+      // numbers so the chip agrees with the sentence beside it.
+      final altitude = _firstNumber(first);
+      if (altitude != null && altitude < 0) return 'below horizon';
+      return altitude == null
+          ? 'below site minimum altitude'
+          : 'too low (${altitude.toStringAsFixed(1)}° < site minimum '
+                '${_config.minAltitudeDegrees.toStringAsFixed(1)}°)';
     }
     if (first.contains('altitude') && first.contains('horizon profile')) {
       return 'behind custom horizon';
@@ -491,6 +531,14 @@ extension _SchedulerEngineEvaluation on SchedulerEngine {
       return 'all integration goals complete';
     }
     return first;
+  }
+
+  /// First signed decimal number in [text] (e.g. the `9.8` of
+  /// `altitude 9.8° below site minimum 30.0°`), or null when there is none.
+  double? _firstNumber(String text) {
+    final match = RegExp(r'-?\d+(\.\d+)?').firstMatch(text);
+    if (match == null) return null;
+    return double.tryParse(match.group(0)!);
   }
 
   void _updateStatus(SchedulerStatus next) {

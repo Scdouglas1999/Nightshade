@@ -722,6 +722,19 @@ class SequenceExecutor {
       final existing = header.catalogTargetId;
       if (existing != null) {
         _runCatalogTargetIds[header.id] = existing;
+        // A node bound to a library row can be re-pointed in the builder just
+        // like a hand-typed one — skipping the refresh here left the scheduler
+        // evaluating the library's original position for exactly the targets
+        // the operator picked FROM the library.
+        try {
+          await _refreshCatalogCoordinates(dao, existing, header);
+        } catch (e) {
+          _logger.warning(
+            'Could not update the catalog coordinates for '
+            '"${header.targetName}": $e',
+            source: 'SequenceExecutor',
+          );
+        }
         continue;
       }
       final name = header.targetName.trim();
