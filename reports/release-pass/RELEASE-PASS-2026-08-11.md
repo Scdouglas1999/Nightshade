@@ -390,6 +390,45 @@ Order of execution from here:
    against a fresh bundle + the fixed a11y dump; verify no fix merely relocated its defect;
    reproduce the JD+0.5 planetarium suspect and the phd2 generic-connect route live; eyeball
    the stacked preview); loop map→fix→verify until a wave is dry.
+## Wave E verdict (2026-08-13 night) — NOT DRY; adjudicated
+
+47 verified fixed, 18 refute-claims held; 29 still-broken, 29 new (1 P1, 4 P2), 6 refuted.
+Full verdict: reports/release-pass/waveE-result.json; narratives in
+reports/release-pass/gui/waveE-*.md. Convergence is real (D: 37+48 → E: 29+29) but the
+recurring residue was mostly items D-fix declared out-of-scope — E-fix charters them
+explicitly so the dryness metric stops re-counting them.
+
+Adjudication:
+- NEW P1 WE-SEQ-N1: after its own dispatched run FAILS, the autopilot never dispatches
+  again — one failed run ends the unattended night. With WE-SEQ-N5 (generated plans have
+  no Unpark step, so every post-safing dispatch fails instantly) these two compound into
+  the worst unattended outcome. E-fix batch 1.
+- Two-implementations strikes to close for good: IMG-14 (the -fov work sits in Dart's
+  PlateSolveService which production does NOT run; the native path never receives
+  hint_scale though the polar wizard computes and logs it), WD-SEQ-N4 (chip's own
+  _statusLabel at target_score_row.dart:175 overrides the fixed engine reason), WD-SEQ-N1
+  (Session Report fixed; the toast/banner pipeline is a different producer still saying
+  "Sequence failed"/"Critical"), WD-EQ-2 (friendlyNameFromDeviceId has no arm for
+  native:builtin_guider/sim_* ids), IMG-9 (claimed auto-select logging is not observable —
+  find the impl that runs).
+- CON-61 (title bar + nav rail absent from AT-SPI) — PARKED as a platform item: the
+  in-widget semantics are compiled in with zero runtime effect; export requires GTK
+  accessibility-bridge work at the embedder layer, out of Flutter-widget reach. Recorded
+  with the probe evidence; stops counting toward dryness.
+- CON-53's "fix" replaced one false claim with another (WE-EQ-N1: a "Target Queue tab"
+  that no longer exists) — the relocated-defect shape; recorded and re-chartered.
+- 6 refuted D-fix claims (incl. SEQ-12 "closed at both seams" — a run the autopilot does
+  not own is never end...; SEQ-13's re-point path; the sequenceStopped stale-state
+  collateral) — details in the JSON for the E-fix agents.
+
+## ~~Wave E dryness check — RUNNING as wf_ea671eb0-a4b~~ (completed, verdict above)
+
+Launched 2026-08-13 ~20:35 against the fresh 20:33 bundle (D-fix code). Script:
+reports/release-pass/scripts/release-waveE-dryness.js; resume with script + runId. D-fix
+was committed through baddf35fd (61 fixes + 3 Fable closers), all gates green. If Wave E
+returns nothing new, the campaign is DRY; otherwise its harvest feeds one more focused
+batch and the loop continues.
+
 ## Wave D verdict (2026-08-13 evening) — adjudicated
 
 11/11 agents against the fresh 18:31 bundle. **66 verified fixed, 28 refute-claims held;
