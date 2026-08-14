@@ -63,7 +63,10 @@ Future<StreamSubscription<DiskSpaceWatchdogEvent>?> startDiskSpaceWatchdog({
           );
           try {
             final backend = container.read(sequencerBackendProvider);
-            await backend.sequencerStop();
+            // A disk-full abort is nobody's press: the origin keeps the
+            // executor from recording (unsilenceably) 'Operator: stop' on
+            // an appliance where nobody is at the keyboard.
+            await backend.sequencerStop(origin: 'disk-watchdog');
             logger.info(
               '[disk-watchdog] Sequencer stop command issued successfully',
               source: _headlessLogSource,

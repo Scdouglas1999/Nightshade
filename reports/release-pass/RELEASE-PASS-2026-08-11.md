@@ -1,6 +1,6 @@
 # Release Tightening Pass — 2026-08-11
 
-## CLOSEOUT (DRAFT — takes effect on Wave L's dry return; chain: F-fix → G → H → I → J → K → L)
+## CLOSEOUT (FINAL — activated 2026-08-14 on Wave M's dry return)
 
 Campaign ledger, 2026-08-11 → 2026-08-14, all on `audit/end-to-end-campaign`:
 - **Wave A** map (16 mappers) → adjudicated work orders per subsystem.
@@ -11,6 +11,25 @@ Campaign ledger, 2026-08-11 → 2026-08-14, all on `audit/end-to-end-campaign`:
 - **Verification**: Waves D, E, F (live re-drives + refuters) + G (closing spot-check).
   Between them: 160 fixes verified live, 16 plausible-but-wrong fix claims refuted before
   they could ship as phantom fixes, and the two-implementations trap caught four times.
+- **The closing chain** (each wave = 1 live driver + 1 refuter over the previous
+  response; every response full-gates green and committed): H (4 refutations of the
+  stop-fold closer + the two-siblings GlobalKey defect) → I (7, incl. the
+  cancel-notice-is-not-evidence ship-blocker) → J (7 lesser: frozen band, claim clobber,
+  unbounded fold, gated evidence) → K (3: autopilot wore operator evidence — origin
+  threaded end-to-end; run identity put ON the wire; copy) → L (5 edges of the K fixes:
+  rollback origin, spine-bounded fold, cleared run stamp, pinned origin chain, retry
+  upgrade) → **M: the driver passed everything live with nothing new**, and the
+  refuter's three (one missed caller of the already-closed origin class — the headless
+  disk watchdog, fixed with a caller sweep proving it was the last; a one-sided test
+  assertion, tightened; a comment scope, corrected) meet the recorded termination
+  judgment: a wave returning nothing significant closes the campaign. Commits
+  6914d5a40 → 4120dc897 → 4268e4281 → 8e6558cb7 → 7acb7777c → the M-fix commit.
+- **What the closing chain bought**: the stop pipeline is now HONEST end-to-end — one
+  row per press, cause named by its true author (operator / autopilot / system), safety
+  aborts neutral, evidence unsilenceable only where a human acted, run identity on the
+  wire, and the whole contract pinned by D1-D18 + producer tests at every layer. Plus:
+  two sibling same-type nodes render (release-silent GlobalKey theft), the prompt band
+  is measured not guessed, and the first FRB regeneration since the C3 splits landed.
 - **Signature catches**: autopilot silently killing manual runs (and later: never
   re-dispatching after its own run failed); the meridian flip's solve exposure stomping an
   in-flight light frame; the stacked-preview linear stretch rendering every sky black;
@@ -435,6 +454,31 @@ Order of execution from here:
    against a fresh bundle + the fixed a11y dump; verify no fix merely relocated its defect;
    reproduce the JD+0.5 planetarium suspect and the phd2 generic-connect route live; eyeball
    the stacked preview); loop map→fix→verify until a wave is dry.
+## Wave M verdict (2026-08-14 ~19:00) — DRY: driver 13/13 live PASS with nothing new; refuter 3 tail items, all fixed in-batch
+
+Run wf_ad6b2190-b05 over commit 7acb7777c (driver report:
+reports/release-pass/gui/waveM-close.md, 37 shots). The DRIVER's pass was exhaustive:
+content-proven bundle freshness for both halves, cold boot, 11 sim devices, a run to
+completion with internally-consistent accounting (9s/13s = 69.2% effective imaging,
+tally agreeing across disk/chip/report/feed/filmstrip), two stop episodes (click and
+press-and-hold) each one honest row, feed stable over time, both a11y surfaces and the
+whole session log clean. Nothing new found.
+
+The REFUTER's three, all fixed in the closing commit:
+- **M-R1**: the headless disk watchdog was the LAST origin-less non-operator stop caller
+  (`sequencerStop(origin: 'disk-watchdog')` now; the Rust arm already handles it as a
+  gated "System: stop"). A repo sweep proves no other caller remains — the desktop disk
+  watchdog pauses via SafeRigService and never stops.
+- **M-R2**: D17 pins the fold's exact deterministic outcome (3 rows), guarding both the
+  over-folding and the no-folding directions.
+- **M-R3**: the L5 upgrade's scope is now stated where it lives: it reaches the native
+  record on the stopFailed half only; a cleanupFailed retry is a pure persistence
+  re-drive and sends no native stop.
+
+Driver carry-forward observations (all pre-existing, P3, recorded): the completion
+producer emits two 'Sequence complete' events (folds x2 — the completion analogue of the
+stop-family dedup, never in scope); the rest as noted in waveM-close.md.
+
 ## Wave L verdict (2026-08-14 ~16:00) — driver 4/4 live PASS; refuter landed 5 (1 P2, 4 P3), all CONFIRMED; response landed
 
 Run wf_519b830b-e40 over commit 8e6558cb7 (driver report:

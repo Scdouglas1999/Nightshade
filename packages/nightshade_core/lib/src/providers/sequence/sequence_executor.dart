@@ -1834,7 +1834,11 @@ class SequenceExecutor {
       // failed stop has genuinely commanded a stop, and that press must be
       // recorded ("only a stop you command yourself is always recorded").
       // The reverse never downgrades: once an operator pressed, the episode
-      // stays theirs whoever retries it.
+      // stays theirs whoever retries it. Scope: the upgrade reaches the
+      // native record only on the stopFailed half (the drive re-issues the
+      // native stop there); a cleanupFailed retry is a pure persistence
+      // re-drive — no native stop is sent, so the press advances the
+      // recovery but adds no decision row.
       if (origin == null || origin == 'operator') {
         f.stopOrigin = origin;
       }
