@@ -43,7 +43,14 @@ typedef StackingMasterDestinationPicker = Future<String?> Function(
     String suggestedName);
 
 Future<String?> _pickStackingMasterDestination(String suggestedName) async {
-  const typeGroup = XTypeGroup(label: 'PNG image', extensions: ['png']);
+  // Named for what is actually written: a 16-bit PNG of the integration (or
+  // the stretched RGBA render for a colour stack). The chooser cannot stop an
+  // operator typing another extension, so `LiveStackingService.saveMaster`
+  // refuses it rather than renaming the file behind their back.
+  const typeGroup = XTypeGroup(
+    label: 'Stacked master (16-bit PNG)',
+    extensions: ['png'],
+  );
   final location = await getSaveLocation(
     suggestedName: suggestedName,
     acceptedTypeGroups: [typeGroup],
@@ -246,7 +253,8 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
           'Stopping releases the stacker, and the '
           '${frames == 1 ? '1 stacked frame' : '$frames stacked frames'} '
           'accumulated so far cannot be recovered afterwards. Save the '
-          'stacked master first, or discard it and stop.',
+          'stacked master first — as a 16-bit PNG of the integration, which '
+          'carries no FITS header or WCS — or discard it and stop.',
           style: TextStyle(
             fontSize: NightshadeTypography.fontSize12,
             color: colors.textSecondary,
@@ -287,6 +295,21 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
         ),
       );
       return true;
+    } on LiveStackingMasterFormatUnsupported catch (error) {
+      // The operator typed a name in another format. Say so instead of writing
+      // a PNG under their .fits name and letting them find out later.
+      if (!mounted) return false;
+      await ErrorDialog.show(
+        context,
+        title: 'Live-stack masters are saved as PNG',
+        message: 'The live stacker writes a 16-bit PNG of the integration, so '
+            'a "${error.requestedExtension}" master cannot be written here — '
+            'the format carries no FITS header, WCS or integration metadata. '
+            'Save it as .png, or use Stack & Share for a processed export. '
+            'The stack is still running and was not discarded.',
+        technicalDetails: error.toString(),
+      );
+      return false;
     } catch (error) {
       if (!mounted) return false;
       await ErrorDialog.show(

@@ -3,6 +3,24 @@
 
 part of '../polar_alignment_screen.dart';
 
+/// Which measurement point the published status is talking about.
+///
+/// `state.currentPoint` is the point that has been MEASURED — the run only
+/// advances it once the next point's frame is in hand — so during the move it
+/// still reads the point behind. The status text names the destination
+/// ("Slewing to point 2..."), so the headline built from `currentPoint` read
+/// "Slewing to point 1 of 3" beside a detail line reading "Slewing to point
+/// 2...", and the headline was the one that was wrong: the mount was moving to
+/// point 2. When the status names a point, that number wins.
+int _effectiveRunPoint(String status, int point) {
+  final match = RegExp(r'point\s+(\d+)', caseSensitive: false).firstMatch(
+    status,
+  );
+  final named = match == null ? null : int.tryParse(match.group(1)!);
+  if (named == null || named < 1 || named > 3) return point;
+  return named;
+}
+
 /// The activity line beside the spinner in the measuring panel.
 ///
 /// It used to read "Capturing Point N" for the whole point — including the
@@ -11,20 +29,23 @@ part of '../polar_alignment_screen.dart';
 /// status the run publishes means the two lines cannot disagree.
 String _runActivityLabel(String status, int point) {
   final phrase = status.toLowerCase();
-  if (phrase.contains('solv')) return 'Plate solving point $point of 3';
-  if (phrase.contains('slew')) return 'Slewing to point $point of 3';
-  if (phrase.contains('rotat')) return 'Rotating to point $point of 3';
+  final at = _effectiveRunPoint(status, point);
+  if (phrase.contains('solv')) return 'Plate solving point $at of 3';
+  if (phrase.contains('slew')) return 'Slewing to point $at of 3';
+  if (phrase.contains('rotat')) return 'Rotating to point $at of 3';
   if (phrase.contains('captur') || phrase.contains('expos')) {
-    return 'Capturing point $point of 3';
+    return 'Capturing point $at of 3';
   }
-  return 'Point $point of 3';
+  return 'Point $at of 3';
 }
 
 extension _MeasurementPanel on _PolarAlignmentScreenState {
   Widget _buildMeasuringStatus(
       NightshadeColors colors, PolarAlignmentState state) {
-    final point = state.currentPoint;
     final status = state.statusMessage;
+    // One number for the whole panel: the progress list and the activity line
+    // are describing the same instant, so they resolve the point the same way.
+    final point = _effectiveRunPoint(status, state.currentPoint);
 
     return LayoutBuilder(
       builder: (context, constraints) {

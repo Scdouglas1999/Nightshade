@@ -152,16 +152,20 @@ extension AnnotationPipeline on AnnotationService {
       );
 
       // Try to get mount position hints for faster solving
-      double? hintRa;
+      double? hintRaHours;
       double? hintDec;
       try {
         final mountState = _ref.read(mountStateProvider);
         if (mountState.ra != null && mountState.dec != null) {
-          // `mountState.ra` is HOURS (ASCOM RightAscension); hints are degrees.
-          hintRa = _raHoursToSolverDegrees(mountState.ra!);
+          // `mountState.ra` is HOURS (ASCOM RightAscension), which is also the
+          // unit PlateSolveService takes; it converts to the solver's degrees
+          // itself (`_raHoursToSolverDegrees` is the same identity, kept for
+          // the callers that still hand the backend degrees directly).
+          hintRaHours = mountState.ra;
           hintDec = mountState.dec;
           _logger.debug(
-            'Using mount position hints: RA=$hintRa, Dec=$hintDec',
+            'Using mount position hints: RA=${_raHoursToSolverDegrees(mountState.ra!)}'
+            '°, Dec=$hintDec°',
             source: 'Annotation',
           );
         }
@@ -173,18 +177,30 @@ extension AnnotationPipeline on AnnotationService {
         );
       }
 
-      final timeoutSeconds = _ref
-          .read(appSettingsProvider)
-          .valueOrNull
-          ?.plateSolveTimeout;
-      final forceBlind =
-          _ref.read(appSettingsProvider).valueOrNull?.blindSolve ?? false;
-      final result = await backend.plateSolve(
-        imagePath: image.filePath!,
-        ra: forceBlind ? null : hintRa,
-        dec: forceBlind ? null : hintDec,
-        timeoutSeconds: timeoutSeconds,
-      );
+      // Solve through the shared service, not `backend.plateSolve` directly.
+      // The direct call was the only solve path in the app that skipped the
+      // service, and it therefore skipped everything the service does: the
+      // operator's configured search radius, the solver-choice validation, the
+      // ASTAP→astrometry fallback, the single-flight gate (two annotate solves
+      // could run ASTAP on the same frame concurrently), and — the reason a
+      // failed annotate solve left no trace anywhere — the one log line that
+      // records a solve's outcome.
+      final PlateSolveResult result;
+      try {
+        result = await _ref
+            .read(plateSolveServiceProvider)
+            .solveWithFallback(
+              imagePath: image.filePath!,
+              hintRaHours: hintRaHours,
+              hintDecDegrees: hintDec,
+            );
+      } on SolverNotAvailableError catch (e) {
+        if (!isCurrent()) return;
+        _logger.warning('Cannot annotate: ${e.message}', source: 'Annotation');
+        _ref.read(annotationStateProvider.notifier).state =
+            AnnotationState.plateSolveFailed(e.message);
+        return;
+      }
       if (!isCurrent()) return;
 
       if (!result.success) {
@@ -228,13 +244,39 @@ extension AnnotationPipeline on AnnotationService {
       // =====================================================================
       // STEP 2: Create PlateSolveData
       // =====================================================================
+      //
+      // The catalog search radius is derived from the field size, so a solver
+      // that reports a centre and a scale but leaves the field at zero (the
+      // local ASTAP/astrometry fallback parsers do exactly that — they recover
+      // position and scale only) searched a cone of radius ZERO and came back
+      // empty. That is how a solved frame reported "Found 0 objects": not a
+      // statement about the sky, an artefact of a missing number we can
+      // compute ourselves from the scale and the frame's own dimensions.
+      final fieldSize = _fieldSizeDegrees(result, image);
+      if (fieldSize == null) {
+        _logger.warning(
+          'Plate solve reported success without a usable field size: '
+          'scale=${result.pixelScale}, field=${result.fieldWidth}x'
+          '${result.fieldHeight}, image=${image.width}x${image.height}',
+          source: 'Annotation',
+        );
+        _ref
+            .read(annotationStateProvider.notifier)
+            .state = const AnnotationState.plateSolveFailed(
+          'Solver returned no field size and none could be derived from '
+          'the frame — nothing can be matched against a field of zero '
+          'size',
+        );
+        return;
+      }
+
       final plateSolveData = PlateSolveData(
         ra: result.ra,
         dec: result.dec,
         pixelScale: result.pixelScale,
         rotation: result.rotation,
-        fieldWidth: result.fieldWidth,
-        fieldHeight: result.fieldHeight,
+        fieldWidth: fieldSize.width,
+        fieldHeight: fieldSize.height,
         imageWidth: image.width,
         imageHeight: image.height,
       );
@@ -329,6 +371,32 @@ extension AnnotationPipeline on AnnotationService {
         e.toString(),
       );
     }
+  }
+
+  /// The field this frame covers, in degrees, or null when it cannot be known.
+  ///
+  /// Prefers whatever the solver reported. When the solver left it at zero (or
+  /// negative / non-finite), it is reconstructed from the solved plate scale
+  /// and the frame's pixel dimensions — `arcsec/px × px ÷ 3600` — which is the
+  /// same identity the solver would have used. Returns null only when neither
+  /// source exists, because a zero-size field silently turns every catalog
+  /// query into a query about nothing.
+  ({double width, double height})? _fieldSizeDegrees(
+    PlateSolveResult result,
+    CapturedImageData image,
+  ) {
+    bool usable(double value) => value.isFinite && value > 0;
+
+    if (usable(result.fieldWidth) && usable(result.fieldHeight)) {
+      return (width: result.fieldWidth, height: result.fieldHeight);
+    }
+    if (!usable(result.pixelScale) || image.width <= 0 || image.height <= 0) {
+      return null;
+    }
+    return (
+      width: result.pixelScale * image.width / 3600.0,
+      height: result.pixelScale * image.height / 3600.0,
+    );
   }
 
   /// Generate annotations for an image given its plate solve result

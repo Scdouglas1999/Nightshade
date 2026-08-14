@@ -29,7 +29,7 @@ import 'stretch_controls.dart';
 ///
 /// The whole bar scrolls horizontally on narrow widths so no control is ever
 /// clipped, mirroring [ImagingPreviewToolbar]'s behaviour above the preview.
-class ImagingBottomBanner extends ConsumerWidget {
+class ImagingBottomBanner extends ConsumerStatefulWidget {
   final NightshadeColors colors;
   final bool isLooping;
   final bool isSingleCapture;
@@ -56,11 +56,32 @@ class ImagingBottomBanner extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ImagingBottomBanner> createState() =>
+      _ImagingBottomBannerState();
+}
+
+class _ImagingBottomBannerState extends ConsumerState<ImagingBottomBanner> {
+  /// Owns the bar's horizontal scroll so the scrollbar has something to track.
+  final ScrollController _barScrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _barScrollController.dispose();
+    super.dispose();
+  }
+
+  NightshadeColors get colors => widget.colors;
+
+  @override
+  Widget build(BuildContext context) {
+    final showStats = widget.showStats;
     final exposureSettings = ref.watch(exposureSettingsProvider);
     final cameraState = ref.watch(cameraStateProvider);
     final isConnected =
         cameraState.connectionState == DeviceConnectionState.connected;
+    final isSingleCapture = widget.isSingleCapture;
+    final isLooping = widget.isLooping;
+    final isStoppingCapture = widget.isStoppingCapture;
     final isCapturing = isSingleCapture || isLooping;
     final isRemoteMode = ref.watch(isRemoteModeProvider);
     final hostSuffix = isRemoteMode ? ' (host)' : '';
@@ -80,10 +101,10 @@ class ImagingBottomBanner extends ConsumerWidget {
       isCapturing: isCapturing,
       isSingleCapture: isSingleCapture,
       isLooping: isLooping,
-      isSavingCapture: isSavingCapture,
+      isSavingCapture: widget.isSavingCapture,
       isStoppingCapture: isStoppingCapture,
-      onSnapshot: onSnapshot,
-      onToggleLoop: onToggleLoop,
+      onSnapshot: widget.onSnapshot,
+      onToggleLoop: widget.onToggleLoop,
     );
 
     final duration = _DurationField(
@@ -145,33 +166,48 @@ class ImagingBottomBanner extends ConsumerWidget {
           //
           // Net effect: identical appearance to the old wide branch whenever it
           // was correct, and a reachable (scrollable) bar everywhere it was not.
-          return SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minWidth: constraints.maxWidth),
-              child: IntrinsicWidth(
-                child: Row(
-                  children: [
-                    capture,
-                    _divider(),
-                    duration,
-                    const SizedBox(width: NightshadeTokens.spaceSm),
-                    exposurePopover,
-                    _divider(),
-                    Expanded(
-                      child: hasFilters
-                          ? Align(
-                              alignment: Alignment.centerLeft, child: filters)
-                          : const SizedBox.shrink(),
-                    ),
-                    if (stats != null) ...[
-                      const SizedBox(width: NightshadeTokens.spaceSm),
-                      stats,
+          // The bar has always scrolled when it did not fit, but it did so
+          // SILENTLY: at 900 dp with a seven-filter wheel the gain chip, the
+          // filters and the Stretch toggle sit past the right edge and the
+          // only hint was the filter strip's own fade. Reachable is not the
+          // same as discoverable — the flat-wizard row got a scrollbar for
+          // exactly this reason, and the capture bar is the one the operator
+          // uses all night. `thumbVisibility` keeps it drawn while there is
+          // anything off-screen, and the controller is what lets us ask.
+          return Scrollbar(
+            controller: _barScrollController,
+            thumbVisibility: true,
+            child: SingleChildScrollView(
+              controller: _barScrollController,
+              scrollDirection: Axis.horizontal,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                child: IntrinsicWidth(
+                  child: Row(
+                    children: [
+                      capture,
                       _divider(),
-                    ] else
+                      duration,
                       const SizedBox(width: NightshadeTokens.spaceSm),
-                    display,
-                  ],
+                      exposurePopover,
+                      _divider(),
+                      Expanded(
+                        child: hasFilters
+                            ? Align(
+                                alignment: Alignment.centerLeft,
+                                child: filters,
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+                      if (stats != null) ...[
+                        const SizedBox(width: NightshadeTokens.spaceSm),
+                        stats,
+                        _divider(),
+                      ] else
+                        const SizedBox(width: NightshadeTokens.spaceSm),
+                      display,
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -228,42 +264,62 @@ class _CaptureGroup extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final saveLoopFrames = ref.watch(loopSavesFramesProvider);
+    final snapshotEnabled = isConnected && !isCapturing;
+    final loopEnabled = isConnected && !isSingleCapture && !isStoppingCapture;
+    final snapshotLabel = isSingleCapture
+        ? (isStoppingCapture
+            ? 'Stopping…'
+            : isSavingCapture
+                ? 'Saving…'
+                : 'Taking…')
+        : 'Snapshot$hostSuffix';
+    final loopLabel = isStoppingCapture
+        ? 'Stopping…'
+        : isLooping
+            ? 'Stop'
+            : 'Loop';
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        SmallButton(
-          key: ImagingTutorialKeys.snapshotBtn,
-          label: isSingleCapture
-              ? (isStoppingCapture
-                  ? 'Stopping…'
-                  : isSavingCapture
-                      ? 'Saving…'
-                      : 'Taking…')
-              : 'Snapshot$hostSuffix',
-          icon: isSingleCapture
-              ? NightshadeIcons.loading
-              : NightshadeIcons.camera,
-          colors: colors,
-          isEnabled: isConnected && !isCapturing,
+        // The screen's two primary actions reached assistive tech as unnamed
+        // generic nodes ("panel: Snapshot"), so a screen-reader user was never
+        // told the shutter was a button, nor that it was unavailable while the
+        // camera was disconnected or already exposing. The role and the
+        // enabled state are published here rather than inside the shared
+        // SmallButton so this bar's contract is pinned by its own test.
+        _BannerActionSemantics(
+          label: snapshotLabel,
+          enabled: snapshotEnabled,
           onTap: onSnapshot,
+          child: SmallButton(
+            key: ImagingTutorialKeys.snapshotBtn,
+            label: snapshotLabel,
+            icon: isSingleCapture
+                ? NightshadeIcons.loading
+                : NightshadeIcons.camera,
+            colors: colors,
+            isEnabled: snapshotEnabled,
+            onTap: onSnapshot,
+          ),
         ),
         const SizedBox(width: NightshadeTokens.spaceSm),
-        SmallButton(
-          key: ImagingTutorialKeys.loopBtn,
-          label: isStoppingCapture
-              ? 'Stopping…'
-              : isLooping
-                  ? 'Stop'
-                  : 'Loop',
-          icon: isStoppingCapture
-              ? NightshadeIcons.loading
-              : isLooping
-                  ? NightshadeIcons.stop
-                  : LucideIcons.video,
-          colors: colors,
-          isOutline: !isLooping,
-          isEnabled: isConnected && !isSingleCapture && !isStoppingCapture,
+        _BannerActionSemantics(
+          label: loopLabel,
+          enabled: loopEnabled,
           onTap: onToggleLoop,
+          child: SmallButton(
+            key: ImagingTutorialKeys.loopBtn,
+            label: loopLabel,
+            icon: isStoppingCapture
+                ? NightshadeIcons.loading
+                : isLooping
+                    ? NightshadeIcons.stop
+                    : LucideIcons.video,
+            colors: colors,
+            isOutline: !isLooping,
+            isEnabled: loopEnabled,
+            onTap: onToggleLoop,
+          ),
         ),
         const SizedBox(width: NightshadeTokens.spaceSm),
         Tooltip(
@@ -291,6 +347,38 @@ class _CaptureGroup extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Publishes the button role + enabled state for one bar action.
+///
+/// `excludeSemantics` drops the child's own (role-less) nodes so the tree
+/// carries exactly one node per control, and the tap action is republished
+/// here because excluding the child's semantics also drops its gesture.
+class _BannerActionSemantics extends StatelessWidget {
+  final String label;
+  final bool enabled;
+  final VoidCallback onTap;
+  final Widget child;
+
+  const _BannerActionSemantics({
+    required this.label,
+    required this.enabled,
+    required this.onTap,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      container: true,
+      button: true,
+      enabled: enabled,
+      label: label,
+      onTap: enabled ? onTap : null,
+      excludeSemantics: true,
+      child: child,
     );
   }
 }
@@ -503,34 +591,43 @@ class _ExposurePopover extends StatelessWidget {
           ),
         ),
       ],
-      child: Container(
-        height: 32,
-        padding:
-            const EdgeInsets.symmetric(horizontal: NightshadeTokens.spaceSm),
-        decoration: BoxDecoration(
-          color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-          border: Border.all(color: colors.border),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(NightshadeIcons.sliders,
-                size: 14, color: colors.textSecondary),
-            const SizedBox(width: 6),
-            Text(
-              'G${settings.gain}',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                fontWeight: FontWeight.w500,
-                fontFeatures: const [FontFeature.tabularFigures()],
-                color: colors.textSecondary,
+      // The chip is live — it opens the gain/offset popover — but it reached
+      // assistive tech as `panel: G100 [DISABLED]`, i.e. as an inert readout,
+      // because the custom child carries no role of its own.
+      child: Semantics(
+        container: true,
+        button: true,
+        enabled: true,
+        label: 'Exposure settings, gain ${settings.gain}',
+        child: Container(
+          height: 32,
+          padding:
+              const EdgeInsets.symmetric(horizontal: NightshadeTokens.spaceSm),
+          decoration: BoxDecoration(
+            color: colors.surfaceAlt,
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+            border: Border.all(color: colors.border),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(NightshadeIcons.sliders,
+                  size: 14, color: colors.textSecondary),
+              const SizedBox(width: 6),
+              Text(
+                'G${settings.gain}',
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  fontWeight: FontWeight.w500,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                  color: colors.textSecondary,
+                ),
               ),
-            ),
-            const SizedBox(width: 2),
-            Icon(NightshadeIcons.chevronDown,
-                size: 13, color: colors.textMuted),
-          ],
+              const SizedBox(width: 2),
+              Icon(NightshadeIcons.chevronDown,
+                  size: 13, color: colors.textMuted),
+            ],
+          ),
         ),
       ),
     );

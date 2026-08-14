@@ -36,6 +36,10 @@ class GuideControlsPanel extends StatefulWidget {
   /// while the control list is taller than its slot.
   static const Key moreBelowKey = ValueKey('guideControlsMoreBelow');
 
+  /// Key of the inline "why that control is unavailable" banner, raised when
+  /// the operator presses a control that cannot act.
+  static const Key noticeBannerKey = ValueKey('guideControlsNotice');
+
   /// Current guiding state
   final Phd2GuidingState state;
 
@@ -158,6 +162,15 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
   /// an unhandled Future or silently reverting the button to an idle look.
   String? _errorText;
 
+  /// Why the control the operator just pressed is unavailable.
+  ///
+  /// A disabled button explains itself on HOVER, which is no explanation at
+  /// all to the operator who clicked it: Pause under the built-in guider ate
+  /// the click, nothing moved, and the log said nothing — the exact silence
+  /// pause exists to break. Pressing an unavailable control now states the
+  /// reason where the operator is already looking.
+  String? _noticeText;
+
   bool get _positiveBusy => _positiveInFlight != null || _stopInFlight;
 
   /// Await [action] with local busy + error handling. Stop rides its own lane
@@ -269,6 +282,10 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
                             children: [
                               if (_errorText != null) ...[
                                 _buildErrorBanner(colors, _errorText!),
+                                const SizedBox(height: 16),
+                              ],
+                              if (_noticeText != null) ...[
+                                _buildNoticeBanner(colors, _noticeText!),
                                 const SizedBox(height: 16),
                               ],
                               _buildMainControls(colors),
@@ -482,6 +499,44 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
                 behavior: HitTestBehavior.opaque,
                 child: Icon(LucideIcons.x, size: 16, color: colors.error),
               )),
+        ],
+      ),
+    );
+  }
+
+  /// Neutral (not error) inline banner: nothing has gone wrong, a control
+  /// simply does not exist for the connected guider.
+  Widget _buildNoticeBanner(NightshadeColors colors, String message) {
+    return Container(
+      key: GuideControlsPanel.noticeBannerKey,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: colors.info.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colors.info.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(LucideIcons.info, size: 16, color: colors.info),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(color: colors.info, fontSize: 12),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Semantics(
+            button: true,
+            enabled: true,
+            label: 'Dismiss notice',
+            child: GestureDetector(
+              onTap: () => setState(() => _noticeText = null),
+              behavior: HitTestBehavior.opaque,
+              child: Icon(LucideIcons.x, size: 16, color: colors.info),
+            ),
+          ),
         ],
       ),
     );
@@ -896,6 +951,23 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
       ),
     );
 
-    return reason == null ? button : Tooltip(message: reason, child: button);
+    if (reason == null) return button;
+
+    // The button stays disabled — it is genuinely not a live control, and the
+    // semantics node above says so. What changes is that pressing it is no
+    // longer silent: a hover tooltip is invisible to the operator who clicks,
+    // and invisible to touch entirely. `excludeFromSemantics` keeps the
+    // tooltip from publishing a second, state-less node over the button's own
+    // (the reason is already carried in its label).
+    return Tooltip(
+      message: reason,
+      excludeFromSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        excludeFromSemantics: true,
+        onTap: () => setState(() => _noticeText = reason),
+        child: button,
+      ),
+    );
   }
 }

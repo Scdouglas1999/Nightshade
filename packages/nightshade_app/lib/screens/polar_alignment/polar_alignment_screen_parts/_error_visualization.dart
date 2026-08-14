@@ -347,7 +347,14 @@ class _PolarErrorPainter extends CustomPainter {
     // perfectly aligned. Filled, it is indistinguishable from a measurement of
     // zero — which is what an untouched (or failed) run used to show while the
     // numbers under it read "--". With nothing measured it is an empty target.
-    final hasMeasurement = error != null && phase == PolarAlignPhase.adjusting;
+    //
+    // The gate is the MEASUREMENT, not the phase. Gating on `adjusting` meant a
+    // finished run — the one moment the operator most wants to see where they
+    // ended up — snapped the marker back to dead centre and captioned itself
+    // "No measurement yet" while the row beneath it read Azimuth 3.2" ·
+    // Altitude 0.6" · Total 3.2" and the centre panel read "Alignment
+    // Complete — Final error: 3.2"".
+    final hasMeasurement = error != null && phase != PolarAlignPhase.idle;
     if (hasMeasurement) {
       final targetRadius = 8.0 + pulseValue * 4;
       canvas.drawCircle(

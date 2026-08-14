@@ -141,6 +141,35 @@ class LiveStackingStats {
   });
 }
 
+/// Thrown when the stacker refuses the frame it was handed.
+///
+/// A refusal is a *counted event*: the engine increments
+/// `totalFramesAttempted` (and, for an alignment refusal,
+/// `rejectedAlignmentFailures`) and only then returns the error. The old
+/// contract threw the bare engine error, so every caller that caught it kept
+/// showing the statistics from the last ACCEPTED frame — a session in which
+/// all 179 frames were rejected read `Total Attempted 1 · Rejected 0`, i.e.
+/// the one number that would have told the operator their alignment settings
+/// were rejecting everything was the number that never moved.
+///
+/// [stats] is the engine's own tally read back immediately after the refusal,
+/// so a caller can publish the truth without a second round trip.
+class LiveStackingFrameRejected implements Exception {
+  /// The engine's reason, verbatim (e.g. "Alignment residual too high:
+  /// 37.11px (max 2.00px)").
+  final String reason;
+
+  /// Stacker statistics AFTER the refusal was counted.
+  final LiveStackingStats stats;
+
+  const LiveStackingFrameRejected({required this.reason, required this.stats});
+
+  /// Renders as the engine's reason so existing user-facing messages that
+  /// interpolate the caught error are unchanged.
+  @override
+  String toString() => reason;
+}
+
 /// Result from adding a frame to the live stack.
 class LiveStackingResult {
   final int width;
@@ -172,6 +201,28 @@ enum LiveStackingMasterFormat {
   /// writers in the imaging pipeline are single-plane, so an OSC master is
   /// written as the display render rather than as a scrambled mono plane.
   stretchedColor8,
+}
+
+/// Thrown when a stacked master is asked for in a format the live stacker
+/// cannot write.
+///
+/// The writer is PNG-only. It used to accept any name and quietly swap the
+/// extension, so typing `stack_master.fits` produced `stack_master.png` — the
+/// operator asked for a FITS master (header, WCS, integration metadata) and
+/// got a picture, with nothing on screen or on disk disclosing the swap.
+class LiveStackingMasterFormatUnsupported implements Exception {
+  /// The extension the caller asked for, lower-cased and including the dot.
+  final String requestedExtension;
+
+  const LiveStackingMasterFormatUnsupported(this.requestedExtension);
+
+  @override
+  String toString() =>
+      'Live-stack masters are written as PNG (16-bit linear for mono, '
+      'stretched RGBA for colour). "$requestedExtension" is not supported — '
+      'a PNG carries no FITS header, WCS or integration metadata, so it '
+      'cannot be saved under that name. Save the master as .png, or use '
+      'Stack & Share for a processed export.';
 }
 
 /// Where a stacked master was written, and in what form.
@@ -321,19 +372,25 @@ class LiveStackingService {
   /// Add a frame to the stack from a file path.
   ///
   /// Returns the current stacked result (can be displayed as a preview).
+  ///
+  /// A refusal (alignment residual too high, too few stars, wrong dimensions)
+  /// arrives as [LiveStackingFrameRejected] carrying the engine's own tally,
+  /// so the rejection is countable rather than invisible.
   Future<LiveStackingResult> addFrameFromFile(String imagePath) async {
     _logger.info(
       'Adding frame to stack: $imagePath',
       source: 'LiveStackingService',
     );
 
-    final remote = _remote;
-    if (remote != null) {
-      return remote.stackingAddFrame(imagePath);
-    }
+    return _asCountedRejection(() async {
+      final remote = _remote;
+      if (remote != null) {
+        return remote.stackingAddFrame(imagePath);
+      }
 
-    final result = await bridge.apiStackingAddFrame(imagePath: imagePath);
-    return _convertResult(result);
+      final result = await bridge.apiStackingAddFrame(imagePath: imagePath);
+      return _convertResult(result);
+    });
   }
 
   /// Add a frame to the stack from raw pixel data.
@@ -348,12 +405,36 @@ class LiveStackingService {
         'host stacks the frames it captures.',
       );
     }
-    final result = await bridge.apiStackingAddFrameFromData(
-      width: width,
-      height: height,
-      data: data,
-    );
-    return _convertResult(result);
+    return _asCountedRejection(() async {
+      final result = await bridge.apiStackingAddFrameFromData(
+        width: width,
+        height: height,
+        data: data,
+      );
+      return _convertResult(result);
+    });
+  }
+
+  /// Run an add-frame call, re-labelling a refusal as
+  /// [LiveStackingFrameRejected] with the engine's post-refusal statistics.
+  ///
+  /// The stats read-back is best effort: if it fails too (the stacker was
+  /// stopped underneath us, the host went away) the original error propagates
+  /// unchanged rather than being replaced by a second, less informative one.
+  Future<LiveStackingResult> _asCountedRejection(
+    Future<LiveStackingResult> Function() add,
+  ) async {
+    try {
+      return await add();
+    } catch (error, stackTrace) {
+      final LiveStackingStats stats;
+      try {
+        stats = await getStats();
+      } catch (_) {
+        Error.throwWithStackTrace(error, stackTrace);
+      }
+      throw LiveStackingFrameRejected(reason: error.toString(), stats: stats);
+    }
   }
 
   /// Get the current stacked result without adding a frame.
@@ -415,11 +496,23 @@ class LiveStackingService {
   /// must offer this: without it the only outcome of Stop is that the whole
   /// integration is destroyed.
   ///
-  /// The extension is normalised to `.png`; the returned
-  /// [LiveStackingMasterSave] carries the path actually written and whether the
-  /// master is the linear 16-bit integration (mono) or the auto-stretched
-  /// colour render (OSC).
+  /// The master is written as PNG — 16-bit linear for a mono stack, 8-bit RGBA
+  /// for the stretched colour render — and the extension is normalised to
+  /// `.png` to match the bytes. Ask for anything else and you get
+  /// [LiveStackingMasterFormatUnsupported] rather than a file whose name says
+  /// FITS and whose contents say PNG: a "stacked master" written as PNG has no
+  /// FITS header, no WCS and no integration metadata, and renaming it silently
+  /// hid exactly that.
+  ///
+  /// The returned [LiveStackingMasterSave] carries the path actually written
+  /// and whether the master is the linear 16-bit integration (mono) or the
+  /// auto-stretched colour render (OSC).
   Future<LiveStackingMasterSave> saveMaster({required String filePath}) async {
+    final requested = p.extension(filePath.trim()).toLowerCase();
+    if (requested.isNotEmpty && requested != '.png') {
+      throw LiveStackingMasterFormatUnsupported(requested);
+    }
+
     final result = await getCurrentResult();
     if (result.stats.stackedFrameCount <= 0 ||
         result.width <= 0 ||

@@ -257,12 +257,51 @@ mixin _GuidingActions on ConsumerState<GuidingScreen>, _GuidingStateFields {
     }
   }
 
+  /// Auto Select: ask the guider to pick a guide star, and SAY what happened.
+  ///
+  /// The button used to hand the notifier's Future straight to the panel, so a
+  /// successful selection produced nothing at all: no message, no log line, and
+  /// on a frame where the star was already locked nothing on screen moved
+  /// either. The operator could not tell the command from a dead button. A
+  /// failure still propagates to the panel's inline error banner.
+  Future<void> _autoSelectStar() async {
+    final logger = ref.read(loggingServiceProvider);
+    logger.info('Auto Select: asking the guider to pick a guide star',
+        source: 'Guiding');
+    await ref.read(lockPositionProvider.notifier).findStar();
+    final position = ref.read(lockPositionProvider);
+    if (position == null) {
+      logger.warning(
+        'Auto Select: the guider reported no guide star',
+        source: 'Guiding',
+      );
+      _showActionNotice(
+        'Auto Select found no guide star — try a longer guide exposure or a '
+        'different part of the sky.',
+      );
+      return;
+    }
+    final where =
+        '(${position.x.toStringAsFixed(1)}, ${position.y.toStringAsFixed(1)})';
+    logger.info('Auto Select: guide star selected at $where px',
+        source: 'Guiding');
+    _showActionNotice('Guide star selected at $where');
+  }
+
   /// Deselect the guide star. Returns the controller Future so the awaiting
   /// caller (GuideControlsPanel's `_runAction`) surfaces a rejected RPC — e.g. a
   /// mid-flight host change — instead of the failure escaping as an unhandled
   /// Future. Discarding it here left a Deselect tap silently failing.
   Future<void> _deselectStar() =>
       ref.read(lockPositionProvider.notifier).deselectStar();
+
+  /// Confirm that an action the operator triggered actually happened. Neutral
+  /// tone: nothing failed, there is simply an outcome to report.
+  void _showActionNotice(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
 
   /// Surface a guiding action failure inline instead of letting it escape as an
   /// unhandled Future (calibration ops issue real PHD2 RPCs that can fail).

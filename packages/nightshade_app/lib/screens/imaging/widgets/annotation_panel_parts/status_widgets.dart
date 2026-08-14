@@ -238,8 +238,30 @@ class AnnotationStatusIndicator extends ConsumerWidget {
         '${state.message ?? ''} ${state.errorDetails ?? ''}'.toLowerCase();
     return text.contains('no supported external plate solver') ||
         text.contains('plate solver is configured') ||
+        text.contains('no usable plate solver') ||
         text.contains('astap');
   }
+
+  /// True for a run that finished having matched nothing.
+  ///
+  /// "Found 0 objects" was rendered in the same green tick treatment as
+  /// "Found 47 objects", so a frame the app could not place on the sky
+  /// presented as a successful identification of an empty field — a statement
+  /// about the sky, made by a run that never got a position. Zero matches is
+  /// a real outcome, but it is not a success: it gets the neutral treatment
+  /// and copy that names what actually happened.
+  static bool _isEmptyResult(AnnotationState state) =>
+      state.status == AnnotationStatus.complete &&
+      (state.objectsFound ?? 0) == 0;
+
+  /// Headline for a completed run that matched nothing.
+  static const String emptyResultHeadline = 'No catalog objects in this frame';
+
+  /// Second line for a completed run that matched nothing.
+  static const String emptyResultHint =
+      'The frame was solved but nothing in the installed catalogs falls '
+      'inside it. If this looks wrong, check the plate-solve result and the '
+      'installed catalogs.';
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -247,15 +269,20 @@ class AnnotationStatusIndicator extends ConsumerWidget {
     final annotationSettings =
         ref.watch(annotationSettingsProvider).valueOrNull;
     final solverMissing = _isSolverMissing(annotationState);
+    final emptyResult = _isEmptyResult(annotationState);
     // Borrow the "prerequisite not installed" presentation (warning tone, not
-    // error) while keeping solver-specific wording below.
-    final presentationStatus = solverMissing
+    // error) while keeping solver-specific wording below. A completed run that
+    // matched nothing borrows the same neutral treatment: it is an outcome to
+    // read, not a success to celebrate.
+    final presentationStatus = solverMissing || emptyResult
         ? AnnotationStatus.catalogsNotInstalled
         : annotationState.status;
     final secondaryMessage = solverMissing
         ? 'Optional: install ASTAP or set its path in Settings to label objects'
-        : (annotationState.errorDetails ??
-            _getActionHint(annotationState.status));
+        : emptyResult
+            ? emptyResultHint
+            : (annotationState.errorDetails ??
+                _getActionHint(annotationState.status));
 
     // Don't show anything if annotations are disabled
     if (annotationSettings != null && !annotationSettings.enabled) {
@@ -299,8 +326,10 @@ class AnnotationStatusIndicator extends ConsumerWidget {
                   Text(
                     solverMissing
                         ? 'No plate solver installed'
-                        : (annotationState.message ??
-                            _getStatusText(annotationState.status)),
+                        : emptyResult
+                            ? emptyResultHeadline
+                            : (annotationState.message ??
+                                _getStatusText(annotationState.status)),
                     style: TextStyle(
                       color: _getTextColor(presentationStatus),
                       fontSize: NightshadeTypography.fontSize11,

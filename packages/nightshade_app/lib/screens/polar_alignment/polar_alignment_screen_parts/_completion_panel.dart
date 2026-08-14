@@ -28,6 +28,27 @@ double polarAlignmentImprovementArcsec(PolarAlignmentState state) {
   return initial.totalError - current.totalError;
 }
 
+/// Smallest change the summary is willing to call a change, in arcseconds.
+///
+/// Both numbers are rendered to a tenth of an arcsecond
+/// ([formatPolarError]), so anything below that is a difference the operator
+/// cannot see and the measurement cannot support. A run that ended at 3.2"
+/// from 3.2" was being graded a red **Worse** off a hundredth of an arcsecond,
+/// directly beneath a green "Alignment Complete" headline — two verdicts on
+/// one card, disagreeing over noise.
+const double kPolarImprovementResolutionArcsec = 0.1;
+
+/// How a finished run changed the polar error: `1` better, `-1` worse, `0`
+/// no measurable change. Top-level so the grading is testable without the
+/// screen.
+int polarAlignmentImprovementSign(PolarAlignmentState state) {
+  final delta = polarAlignmentImprovementArcsec(state);
+  if (!delta.isFinite || delta.abs() < kPolarImprovementResolutionArcsec) {
+    return 0;
+  }
+  return delta > 0 ? 1 : -1;
+}
+
 extension _CompletionPanel on _PolarAlignmentScreenState {
   Widget _buildCompleteStatus(
       NightshadeColors colors, PolarAlignmentState state) {
@@ -79,11 +100,12 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
     final improvementPercent = state.improvementPercent ?? 0.0;
     // Grade the chip by the SIGN of the change, not by the clamped percent:
     // a run that removed nothing (or made it worse) must not wear the same
-    // green "+0%" as one that halved the error.
-    final improvedArcsec = polarAlignmentImprovementArcsec(state);
+    // green "+0%" as one that halved the error. Changes finer than the
+    // displayed resolution are not changes.
+    final sign = polarAlignmentImprovementSign(state);
     final roundedPercent = improvementPercent.round();
-    final improved = improvedArcsec > 0 && roundedPercent > 0;
-    final worsened = improvedArcsec < 0;
+    final improved = sign > 0 && roundedPercent > 0;
+    final worsened = sign < 0;
     final chipColor = improved
         ? colors.success
         : worsened

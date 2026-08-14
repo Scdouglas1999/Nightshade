@@ -11,6 +11,7 @@ import '../backend/network_backend.dart' show NetworkBackend;
 import '../backend/nightshade_backend.dart';
 import '../models/plate_solver.dart' as ps_model;
 import '../providers/backend_provider.dart';
+import '../providers/profiles_provider.dart' show opticalConfigProvider;
 import '../providers/settings_provider.dart';
 import 'logging_service.dart';
 
@@ -81,6 +82,16 @@ class PlateSolverConfig {
   final double? hintRa; // hours
   final double? hintDec; // degrees
 
+  /// Field HEIGHT the frame covers, in degrees — the scale hint, distinct from
+  /// [searchRadius] (which bounds WHERE to look, not how big the field is).
+  ///
+  /// ASTAP's `-fov` takes exactly this. Without it the solver has to determine
+  /// the scale itself, which is the slow part of a solve and the part that
+  /// fails on a sparse field, even though the app has known the scale since
+  /// onboarding computed it from the optical train (`arcsec/px × height ÷
+  /// 3600`).
+  final double? fieldHeightDegrees;
+
   const PlateSolverConfig({
     required this.type,
     required this.executablePath,
@@ -89,6 +100,7 @@ class PlateSolverConfig {
     this.searchRadius,
     this.hintRa,
     this.hintDec,
+    this.fieldHeightDegrees,
   });
 }
 
@@ -410,31 +422,7 @@ class PlateSolveService {
         await wcsFile.delete();
       }
 
-      final args = <String>[
-        '-f',
-        imagePath,
-        '-r',
-        (config.searchRadius ?? 30).toString(),
-      ];
-
-      if (config.hintRa != null && config.hintDec != null) {
-        args.addAll([
-          // ASTAP's CLI takes -ra in hours (unlike astrometry.net and the
-          // Nightshade native bridge, which take degree hints).
-          '-ra', config.hintRa!.toString(),
-          '-spd', (config.hintDec! + 90).toString(), // South pole distance
-        ]);
-      }
-
-      // Point ASTAP at the configured star catalog. ASTAP cannot solve
-      // without one; when the user configured a catalog directory we must
-      // pass it explicitly via `-d`.
-      if (config.catalogPath != null && config.catalogPath!.isNotEmpty) {
-        args.addAll(['-d', config.catalogPath!]);
-      }
-
-      // Tell ASTAP to write the `.wcs` sidecar that `_parseWcsFile` reads.
-      args.add('-wcs');
+      final args = astapArguments(imagePath, config);
 
       final result = await _runSolverProcess(
         config.executablePath,
@@ -464,6 +452,54 @@ class PlateSolveService {
     } catch (e) {
       return _failureResult('Error: $e');
     }
+  }
+
+  /// The exact ASTAP command line for [imagePath] under [config].
+  ///
+  /// Exposed (and tested) on its own because the hints are the difference
+  /// between a solve that lands in a second and one that grinds or fails: the
+  /// audit found the app computing `1.29"/px` during onboarding, printing it on
+  /// the profile card, and then never telling the solver — `grep -i fov` over a
+  /// whole session's log returned nothing.
+  @visibleForTesting
+  static List<String> astapArguments(
+    String imagePath,
+    PlateSolverConfig config,
+  ) {
+    final args = <String>[
+      '-f',
+      imagePath,
+      '-r',
+      (config.searchRadius ?? 30).toString(),
+    ];
+
+    if (config.hintRa != null && config.hintDec != null) {
+      args.addAll([
+        // ASTAP's CLI takes -ra in hours (unlike astrometry.net and the
+        // Nightshade native bridge, which take degree hints).
+        '-ra', config.hintRa!.toString(),
+        '-spd', (config.hintDec! + 90).toString(), // South pole distance
+      ]);
+    }
+
+    // Scale hint: ASTAP's `-fov` is the field HEIGHT in degrees. `0` means
+    // "work it out yourself", which is what omitting the flag already meant,
+    // so only a positive, finite value is worth sending.
+    final fov = config.fieldHeightDegrees;
+    if (fov != null && fov.isFinite && fov > 0) {
+      args.addAll(['-fov', fov.toStringAsFixed(4)]);
+    }
+
+    // Point ASTAP at the configured star catalog. ASTAP cannot solve
+    // without one; when the user configured a catalog directory we must
+    // pass it explicitly via `-d`.
+    if (config.catalogPath != null && config.catalogPath!.isNotEmpty) {
+      args.addAll(['-d', config.catalogPath!]);
+    }
+
+    // Tell ASTAP to write the `.wcs` sidecar that `_parseWcsFile` reads.
+    args.add('-wcs');
+    return args;
   }
 
   /// Solve with Astrometry.net (local)
@@ -728,6 +764,17 @@ class PlateSolveService {
     final effectiveRadius =
         searchRadiusDegrees ?? appSettings?.plateSolveSearchRadius;
     final forceBlind = appSettings?.blindSolve ?? false;
+    // Scale hint, from the optical train the operator configured: ASTAP's
+    // `-fov` is the field HEIGHT in degrees, and `OpticalConfig.fieldOfView`
+    // is that same number computed from focal length + sensor. The app has
+    // had it since onboarding (it prints `1.29"/px` on the profile card) and
+    // never told the solver — a whole session's log carried no `-fov` at all.
+    // Read here rather than taken as a parameter so EVERY caller of this entry
+    // (annotate, centering, framing, the polar wizard) hints identically.
+    final fieldHeightDegrees = _ref
+        .read(opticalConfigProvider)
+        ?.fieldOfView
+        ?.$2;
     final effectiveHintRa = forceBlind ? null : hintRaHours;
     final effectiveHintDec = forceBlind ? null : hintDecDegrees;
 
@@ -758,6 +805,7 @@ class PlateSolveService {
           searchRadius: effectiveRadius,
           hintRa: effectiveHintRa,
           hintDec: effectiveHintDec,
+          fieldHeightDegrees: fieldHeightDegrees,
         ),
       );
     }
@@ -777,6 +825,7 @@ class PlateSolveService {
         searchRadius: effectiveRadius,
         hintRa: effectiveHintRa,
         hintDec: effectiveHintDec,
+        fieldHeightDegrees: fieldHeightDegrees,
       );
       return _runSolve(imagePath, config);
     }
@@ -792,6 +841,7 @@ class PlateSolveService {
         searchRadius: effectiveRadius,
         hintRa: effectiveHintRa,
         hintDec: effectiveHintDec,
+        fieldHeightDegrees: fieldHeightDegrees,
       );
       return _runSolve(imagePath, config);
     }

@@ -452,8 +452,7 @@ mixin _GuidingMobileSections
               pauseUnavailableReason:
                   isPhd2Guider ? null : kBuiltinGuiderNoPauseReason,
               onLoop: () => ref.read(phd2ControllerProvider).loop(),
-              onFindStar: () =>
-                  ref.read(lockPositionProvider.notifier).findStar(),
+              onFindStar: _autoSelectStar,
               onDeselectStar: _deselectStar,
               ditherAmount: _ditherAmount,
               ditherRaOnly: _ditherRaOnly,

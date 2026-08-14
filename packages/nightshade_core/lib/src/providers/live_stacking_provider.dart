@@ -547,6 +547,7 @@ class LiveStackingNotifier extends StateNotifier<LiveStackingState> {
       if (!mounted) return;
       // Frame rejection is not a fatal error -- log and continue
       _logger.warning('Frame rejected: $e', source: 'LiveStackingNotifier');
+      await _publishRejectionStats(generation, authority, e);
     }
   }
 
@@ -592,7 +593,45 @@ class LiveStackingNotifier extends StateNotifier<LiveStackingState> {
     } catch (e) {
       if (!mounted) return;
       _logger.warning('Frame rejected: $e', source: 'LiveStackingNotifier');
+      await _publishRejectionStats(generation, authority, e);
     }
+  }
+
+  /// Publish the stacker's own tally after it REFUSED a frame.
+  ///
+  /// A refusal still counts: the engine increments `totalFramesAttempted` and
+  /// `rejectedAlignmentFailures` before returning the error. Dropping the
+  /// error on the floor left every counter frozen at the last accepted frame,
+  /// so a session that rejected all 179 of its frames displayed
+  /// `Total Attempted 1 · Rejected (Alignment) 0` — the panel reported nothing
+  /// was happening while the engine was throwing every frame away.
+  ///
+  /// Best effort by construction: if the tally cannot be read back the
+  /// previous counters stand rather than being replaced by a guess.
+  Future<void> _publishRejectionStats(
+    int generation,
+    Object authority,
+    Object error,
+  ) async {
+    LiveStackingStats? stats;
+    if (error is LiveStackingFrameRejected) {
+      stats = error.stats;
+    } else {
+      try {
+        final remote = _remoteSessionBackend;
+        stats = remote != null
+            ? await remote.stackingGetStats()
+            : await _sessionService?.getStats();
+      } catch (_) {
+        return;
+      }
+    }
+    if (stats == null) return;
+    if (!_isCurrentSession(generation, authority) ||
+        state.status != LiveStackingStatus.running) {
+      return;
+    }
+    state = state.copyWith(stats: stats);
   }
 
   /// Update the stacking configuration.

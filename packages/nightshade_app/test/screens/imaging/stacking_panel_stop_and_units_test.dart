@@ -38,6 +38,15 @@ class _FakeLiveStackingService extends LiveStackingService {
 
   @override
   Future<LiveStackingMasterSave> saveMaster({required String filePath}) async {
+    // Mirrors the real service: the writer is PNG-only and refuses any other
+    // extension rather than renaming the operator's file.
+    final extension = filePath.contains('.')
+        ? filePath.substring(filePath.lastIndexOf('.')).toLowerCase()
+        : '';
+    if (extension.isNotEmpty && extension != '.png') {
+      _log.add('save-wrong-format');
+      throw LiveStackingMasterFormatUnsupported(extension);
+    }
     if (failSave) {
       _log.add('save-failed');
       throw StateError('destination is not writable');
@@ -206,6 +215,42 @@ void main() {
 
     expect(harness.stacker.stopCalls, 0);
     expect(find.text('Could not save the stacked master'), findsOneWidget);
+  });
+
+  // ND-6: typing `stack_master.fits` into the save chooser produced
+  // `stack_master.png` on disk — the extension was swapped silently, so the
+  // operator believed they had a FITS master with a header, WCS and
+  // integration metadata, and had a picture instead.
+  testWidgets('asking for a FITS master is refused, not renamed',
+      (tester) async {
+    final harness = await _pumpPanel(
+      tester,
+      destination: '/tmp/ns-audit/stack_master.fits',
+    );
+
+    await tester.tap(find.text('Stop'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save master'));
+    await tester.pumpAndSettle();
+
+    expect(harness.service.saved, isEmpty);
+    expect(
+      harness.stacker.stopCalls,
+      0,
+      reason: 'nothing was written, so the stack must survive',
+    );
+    expect(find.text('Live-stack masters are saved as PNG'), findsOneWidget);
+    expect(find.textContaining('.fits'), findsWidgets);
+  });
+
+  testWidgets('the Stop prompt names the format it is about to write',
+      (tester) async {
+    await _pumpPanel(tester);
+
+    await tester.tap(find.text('Stop'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('16-bit PNG'), findsOneWidget);
   });
 
   testWidgets('Statistics rows carry units for frames and for pixels',

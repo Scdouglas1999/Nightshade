@@ -20,6 +20,21 @@ class TestBackendNotifier extends BackendNotifier {
   }
 }
 
+/// The annotate pipeline solves through `PlateSolveService` — the same entry
+/// centering, framing and the polar wizard use — so every backend double has
+/// to answer the solver-choice probe that entry makes before it dispatches.
+void stubSolverDetection(MockNightshadeBackend backend) {
+  when(() => backend.detectPlateSolvers()).thenAnswer(
+    (_) async => const PlateSolverDetection(
+      astapPath: '/usr/bin/astap',
+      catalogPath: '/usr/share/astap',
+    ),
+  );
+  when(() => backend.getPlateSolverConfig()).thenAnswer(
+    (_) async => const PlateSolverPreference(choice: PlateSolverChoice.astap),
+  );
+}
+
 class TestAnnotationSettingsNotifier extends AnnotationSettingsNotifier {
   @override
   Future<AnnotationSettings> build() async => const AnnotationSettings();
@@ -94,6 +109,7 @@ void main() {
       );
 
       final mockBackend = MockNightshadeBackend();
+      stubSolverDetection(mockBackend);
       when(
         () => mockBackend.eventStream,
       ).thenAnswer((_) => const Stream.empty());
@@ -227,6 +243,7 @@ void main() {
       ).thenAnswer((_) async => []);
 
       final mockBackend = MockNightshadeBackend();
+      stubSolverDetection(mockBackend);
       when(
         () => mockBackend.eventStream,
       ).thenAnswer((_) => const Stream.empty());
@@ -407,6 +424,7 @@ void main() {
       );
 
       final backend = MockNightshadeBackend();
+      stubSolverDetection(backend);
       final firstSolve = Completer<PlateSolveResult>();
       var solveCalls = 0;
       when(
@@ -456,7 +474,13 @@ void main() {
       expect(finalState.status, newImageState.status);
       expect(finalState.errorDetails, newImageState.errorDetails);
       expect(container.read(currentAnnotationProvider), isNull);
-      expect(solveCalls, 2);
+      // ONE backend solve, not two: the annotate path now goes through
+      // PlateSolveService, whose single-flight gate refuses a solve while
+      // another is in flight instead of launching a second solver process
+      // against the same catalog. (The live log showed exactly that — two
+      // ASTAP invocations 45 ms apart over one frame.) The invariant this
+      // test exists for is unchanged: the newer image's state stands.
+      expect(solveCalls, 1);
     },
   );
 
@@ -498,6 +522,7 @@ void main() {
       });
 
       final backend = MockNightshadeBackend();
+      stubSolverDetection(backend);
       when(
         () => backend.plateSolve(
           imagePath: any(named: 'imagePath'),

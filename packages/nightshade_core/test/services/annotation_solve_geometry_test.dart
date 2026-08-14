@@ -76,7 +76,11 @@ void main() {
     await CatalogManager.instance.initialize(tempDir.path);
     await File(CatalogManager.instance.annotationCatalogPath).writeAsString(
       'RAJ2000,DEJ2000,Bmag,zhelio,PGC\n'
-      '10.0,20.0,12.3,7000,12345\n',
+      // Deliberately OFF the solved centre (by 0.01°, ~24 px at 1.5"/px):
+      // an object sitting exactly on the centre is inside even a zero-radius
+      // cone, so a fixture at (10, 20) cannot tell a real field from a field
+      // of zero size — which is the whole question here.
+      '10.0,20.01,12.3,7000,12345\n',
     );
 
     final backend = _MockBackend();
@@ -93,6 +97,17 @@ void main() {
         timeoutSeconds: any(named: 'timeoutSeconds'),
       ),
     ).thenAnswer((_) async => solve);
+    // The annotate pipeline solves through PlateSolveService (the same entry
+    // every other feature uses), so the solver-choice probe has to answer.
+    when(() => backend.detectPlateSolvers()).thenAnswer(
+      (_) async => const PlateSolverDetection(
+        astapPath: '/usr/bin/astap',
+        catalogPath: '/usr/share/astap',
+      ),
+    );
+    when(() => backend.getPlateSolverConfig()).thenAnswer(
+      (_) async => const PlateSolverPreference(choice: PlateSolverChoice.astap),
+    );
 
     final container = ProviderContainer(
       overrides: [
@@ -149,4 +164,40 @@ void main() {
     expect(state.status, AnnotationStatus.complete);
     expect(state.objectsFound, greaterThan(0));
   });
+
+  // Wave D re-drive of IMG-4: the chip still read a green "Found 0 objects"
+  // over a frame the app would not put on the sky. The remaining hole was the
+  // FIELD SIZE, not the centre or the scale: the local ASTAP/astrometry
+  // parsers recover position and scale only and leave the field at zero, and
+  // the catalog search radius is derived from the field — so a solve with a
+  // perfectly good centre searched a cone of radius ZERO and returned nothing.
+  // "Found 0 objects" then described the operator's sky rather than the app's
+  // arithmetic.
+  test(
+    'a solve with a scale but no field size still finds its objects',
+    () async {
+      final state = await runPipeline(_result(pixelScale: 1.5, fieldWidth: 0));
+
+      expect(
+        state.status,
+        AnnotationStatus.complete,
+        reason: 'the field is recoverable from the scale and the frame size',
+      );
+      expect(
+        state.objectsFound,
+        greaterThan(0),
+        reason:
+            'a zero-radius catalog query is what produced "Found 0 objects"',
+      );
+    },
+  );
+
+  test(
+    'a solve with neither field size nor scale is reported as failed',
+    () async {
+      final state = await runPipeline(_result(pixelScale: 0, fieldWidth: 0));
+
+      expect(state.status, AnnotationStatus.plateSolveFailed);
+    },
+  );
 }
