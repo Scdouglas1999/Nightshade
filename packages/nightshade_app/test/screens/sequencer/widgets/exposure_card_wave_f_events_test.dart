@@ -24,6 +24,8 @@
 // progress: any counter that attributes a frame to "the run's current node"
 // credits node 2 with node 1's frames. That ordering is encoded below.
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -47,6 +49,12 @@ NightshadeEvent _nodeStarted(String nodeId) =>
 
 /// `SequencerEvent::InstructionProgressStructured` — what the bridge publishes
 /// for every `ExecutorEvent::NodeProgress` that carries a structured detail.
+///
+/// `detail_json` is **jsonEncode**d because that is the wire: the native side
+/// does `payload.to_string()` (api/sequencer/event_translation.rs) into
+/// `detail_json: String`, and `event_mapping.dart` copies that String onto
+/// `event.data`. Feeding a ready-made Map here is what let the previous
+/// version of this test pass while the tally read nothing on a real host.
 NightshadeEvent _structured(
   String nodeId,
   String instruction,
@@ -59,7 +67,7 @@ NightshadeEvent _structured(
       'instruction': instruction,
       'progress_percent': percent,
       'detail_kind': detailKind,
-      'detail_json': detailJson,
+      'detail_json': jsonEncode(detailJson),
     });
 
 NightshadeEvent _exposureProgress(String nodeId, int frame, int total) =>
@@ -94,7 +102,6 @@ void _pump(ProviderContainer container, NightshadeEvent event) {
   applySequencerEventToNodeExposureTally(
     container.read(nodeExposureTallyProvider.notifier),
     event,
-    currentNodeId: container.read(sequenceProgressProvider).currentNodeId,
   );
   applySequencerEventToSequenceProviders(container.read, event);
 }

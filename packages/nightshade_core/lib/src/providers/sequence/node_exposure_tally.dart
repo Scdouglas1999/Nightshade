@@ -33,6 +33,7 @@ library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/backend/event_types.dart';
+import 'structured_progress_json.dart';
 
 /// Frames captured, and frames planned, for one exposure node's current pass.
 class NodeExposureTally {
@@ -70,38 +71,24 @@ class NodeExposureTallyNotifier
     state = next;
   }
 
-  /// True once a source that NAMES the node it is reporting for has been seen.
-  ///
-  /// `ExposureStarted` / `ExposureCompleted` carry no node id, so a subscriber
-  /// can only attribute them to the run's *current* node — and at a burst
-  /// boundary the current node has already advanced to the next one (the waveF
-  /// log has `NodeStarted` for node 2 logged 53 µs BEFORE the final frame of
-  /// node 1). Crediting node 2 with node 1's four frames is the
-  /// join-by-position mistake with the node ids right there in the other
-  /// event. So once a host proves it emits node-addressed exposure progress,
-  /// the id-less fallback stops being used.
-  bool _namedSourceSeen = false;
-
   /// Record that [nodeId] has captured [captured] of [planned] frames.
   ///
   /// Monotonic within a pass: two independent subscribers see every event on a
   /// desktop host (see `applySequencerEventToNodeExposureTally`), and an
   /// out-of-order or repeated sighting must never walk the count backwards.
   ///
-  /// [named] is true when the EVENT named [nodeId]; false when [nodeId] is the
-  /// run's current node, inferred for an event that carries none.
+  /// [nodeId] must be the id the EVENT named. There is no inference from the
+  /// run's current node: `ExposureStarted` / `ExposureCompleted` carry no node
+  /// id, and at a burst boundary the current node has already advanced to the
+  /// next one (the waveF log has `NodeStarted` for node 2 logged 53 µs BEFORE
+  /// the final frame of node 1), so crediting the current node is the
+  /// join-by-position mistake with the right id sitting in the other event.
   void recordFrames(
     String nodeId, {
     required int captured,
     required int planned,
-    bool named = true,
   }) {
     if (nodeId.isEmpty || captured < 0 || planned <= 0) return;
-    if (named) {
-      _namedSourceSeen = true;
-    } else if (_namedSourceSeen) {
-      return;
-    }
     final current = state[nodeId];
     final nextCaptured = current == null
         ? captured
@@ -120,7 +107,6 @@ class NodeExposureTallyNotifier
   }
 
   void reset() {
-    _namedSourceSeen = false;
     if (state.isEmpty) return;
     state = const {};
   }
@@ -142,16 +128,20 @@ final nodeExposureTallyProvider =
 /// provider writes. A test therefore cannot pass against an event shape
 /// production does not handle.
 ///
-/// [currentNodeId] is the run's current node, used only for the two events that
-/// carry no node id of their own (`ExposureStarted` / `ExposureCompleted`). The
-/// structured `InstructionProgressStructured` event DOES carry one and is the
-/// preferred source, because it stays correct across the node boundary where
-/// `currentNodeId` has already advanced to the next node.
+/// `InstructionProgressStructured` is the ONLY source counted, because it is
+/// the only exposure-shaped event that names the node it reports for.
+/// `ExposureStarted` / `ExposureCompleted` carry frame/total but no node id
+/// (`event_mapping.dart`'s ExposureCompleted case is frame, total,
+/// duration_secs), so the only way to use them is to attribute them to the
+/// run's current node — and in the waveF log `NodeStarted` for node 2 lands 53
+/// µs BEFORE node 1's last frame, so that attribution credits node 2 with
+/// node 1's frame while node 1 is left reading 3 / 4. Counting nothing from an
+/// id-less event is the truthful answer; the node-addressed event carries the
+/// same frame number anyway.
 void applySequencerEventToNodeExposureTally(
   NodeExposureTallyNotifier tally,
-  NightshadeEvent event, {
-  String? currentNodeId,
-}) {
+  NightshadeEvent event,
+) {
   switch (event.eventType) {
     case 'NodeStarted':
       final nodeId =
@@ -161,38 +151,20 @@ void applySequencerEventToNodeExposureTally(
 
     case 'InstructionProgressStructured':
       if (event.data['detail_kind'] != 'Exposure') break;
-      final named = event.data['node_id'] as String?;
-      final nodeId = named ?? currentNodeId;
-      if (nodeId == null) break;
-      final json = event.data['detail_json'];
-      final map = json is Map ? json : const {};
-      final frame = _asInt(map['frame']) ?? _asInt(map['current_frame']);
-      final total = _asInt(map['total']) ?? _asInt(map['total_frames']);
+      final nodeId = event.data['node_id'] as String?;
+      if (nodeId == null || nodeId.isEmpty) break;
+      // `detail_json` crosses the bridge as a JSON String; see
+      // [decodeStructuredProgressJson].
+      final decoded = decodeStructuredProgressJson(event.data['detail_json']);
+      if (decoded is! Map) break;
+      final frame =
+          _asInt(decoded['frame']) ?? _asInt(decoded['current_frame']);
+      final total = _asInt(decoded['total']) ?? _asInt(decoded['total_frames']);
       if (frame == null || total == null) break;
       // The native per-frame callback fires AFTER a frame lands
       // (`instructions/expose.rs` calls it once `completed_exposures += 1`), so
       // `frame` here is the number of frames CAPTURED, not the one in flight.
-      tally.recordFrames(
-        nodeId,
-        captured: frame,
-        planned: total,
-        named: named != null,
-      );
-      break;
-
-    case 'ExposureCompleted':
-      final named = event.data['node_id'] as String?;
-      final nodeId = named ?? currentNodeId;
-      if (nodeId == null) break;
-      final frame = _asInt(event.data['frame']);
-      final total = _asInt(event.data['total']);
-      if (frame == null || total == null) break;
-      tally.recordFrames(
-        nodeId,
-        captured: frame,
-        planned: total,
-        named: named != null,
-      );
+      tally.recordFrames(nodeId, captured: frame, planned: total);
       break;
   }
 }

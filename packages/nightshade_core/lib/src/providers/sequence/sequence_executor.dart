@@ -76,6 +76,7 @@ import '../science_provider.dart'
 import '../usb_disconnect_log_provider.dart';
 import 'exposure_progress_vocabulary.dart';
 import 'node_exposure_tally.dart';
+import 'structured_progress_json.dart';
 import 'run_stop_classification.dart';
 import 'sequence_validation.dart' as validation;
 import 'sequencer_defaults.dart';

@@ -280,7 +280,6 @@ void applySequencerEventToSequenceProviders(
   applySequencerEventToNodeExposureTally(
     read(nodeExposureTallyProvider.notifier),
     event,
-    currentNodeId: read(sequenceProgressProvider).currentNodeId,
   );
 
   switch (event.eventType) {

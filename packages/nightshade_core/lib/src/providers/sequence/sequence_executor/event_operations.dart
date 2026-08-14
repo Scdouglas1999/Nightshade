@@ -43,7 +43,6 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     applySequencerEventToNodeExposureTally(
       _ref.read(nodeExposureTallyProvider.notifier),
       event,
-      currentNodeId: _ref.read(sequenceProgressProvider).currentNodeId,
     );
 
     switch (event.eventType) {
@@ -313,7 +312,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         final progressPercent =
             (event.data['progress_percent'] as num?)?.toDouble() ?? 0.0;
         final detailKind = event.data['detail_kind'] as String? ?? 'Unknown';
-        final detailJson = _decodeStructuredProgressJson(
+        final detailJson = decodeStructuredProgressJson(
           event.data['detail_json'],
         );
         final detail = InstructionProgressDetail.fromStructuredData(
@@ -514,18 +513,6 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
   /// the service handles its own change-notification, and a write
   /// failure is logged at warn-level (loud-fail policy without
   /// taking the executor down).
-  Object? _decodeStructuredProgressJson(Object? raw) {
-    if (raw is String) {
-      if (raw.trim().isEmpty) return const <String, Object?>{};
-      try {
-        return jsonDecode(raw);
-      } catch (_) {
-        return {'raw': raw};
-      }
-    }
-    return raw;
-  }
-
   void _persistReplayDecision(NightshadeEvent event) {
     final timestampIso = event.data['timestamp_iso'] as String? ?? '';
     final category = event.data['category'] as String? ?? '';
