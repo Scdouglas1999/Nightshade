@@ -904,3 +904,32 @@ Adjudication:
 ## Fix log
 
 _Pending._
+
+## Decisions-verify adjudication (2026-08-14, post-commit)
+
+Wave wf_dfb71dfd-376 over 925bac536: the driver verified all 14 live GUI checks
+(pause banner verbatim with re-dispatch frozen 2m32s and a failed-run control arm;
+removal persisted and honoured on three surfaces + DB; IMG-9; CON-56; one press one
+row; a11y clean; bundle freshness by content). The refuter REFUTED 3, all fixed in
+the amend to 8d9af4ff7:
+
+- D10: autofocusContinued could not reach a phone (absent from the default matrix
+  AND in the transport's never-escalate arm). Fixed both halves; normal tier,
+  notifyAutofocusFailed toggle; pinned by the refuter's own probe as a test.
+- D2: a safing teardown >2min split the operator's stop into a second, cause-neutral
+  episode that pushed. _join now joins on equal run ids unconditionally; time is the
+  fallback only when an id is missing. Pinned both directions.
+- D4: first fix keyed "unknowable" on can_park=false — the focused re-refuter proved
+  that wrong (ASCOM mandates AtPark readable regardless of CanPark; the fix would
+  have failed every autopilot run at its head Unpark node on such mounts). Corrected
+  per its prescription: mount_status_field::PARKED availability key, marked
+  Unsupported only by the Native NotSupported arm; parked_from_status keys on it.
+  Both scenarios pinned (fabricated false errors; honest CanPark=false passes).
+
+Focused re-refute verdicts: D10 HOLDS, D2 HOLDS (7-case adversarial probe incl.
+noteRunBoundary non-resurrection), D4 corrected as above. Accepted residuals: the
+Rust/Dart AF-summary literal is pinned only by convention across the language
+boundary; a Started landing before the previous run's terminal Stopped can still
+open a fresh episode (pre-existing; decision 1's pause makes the ordering unlikely).
+
+Released: tag v6.2.0 at 8d9af4ff7; release.yml builds and publishes the draft.
