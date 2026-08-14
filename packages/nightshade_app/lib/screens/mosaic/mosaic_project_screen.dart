@@ -412,30 +412,41 @@ class _BackBar extends StatelessWidget {
     // promise "Mosaic projects" in the one case where it really goes there:
     // an empty stack, where _leave falls back to context.go('/mosaic').
     final label = Navigator.of(context).canPop() ? 'Back' : 'Mosaic projects';
+    // NEW-E1: this was an IconButton followed by a bare Text in a Row, so the
+    // WORD was not part of the control — clicking it did nothing (twice, with
+    // 6 s and 10 s settles), only the 24 px chevron popped — and the a11y tree
+    // published `panel: Back` with no role while the projects list one route
+    // below published `button: Back`. One control, label included: the larger
+    // target is now the affordance it looks like.
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: NightshadeTokens.spaceSm,
         vertical: NightshadeTokens.spaceXs,
       ),
       alignment: Alignment.centerLeft,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Tooltip(
+          message: label,
+          child: TextButton.icon(
+            onPressed: () => _leave(context),
             icon: const Icon(
               NightshadeIcons.chevronLeft,
               size: NightshadeTokens.iconMd,
             ),
-            color: colors.textSecondary,
-            tooltip: label,
-            onPressed: () => _leave(context),
+            label: Text(label),
+            style: TextButton.styleFrom(
+              foregroundColor: colors.textSecondary,
+              textStyle: NightshadeTypography.bodySm,
+              // Keep the framework's 48 px minimum so the row is a real touch
+              // target on the tablet layout.
+              minimumSize: const Size(0, kMinInteractiveDimension),
+              padding: const EdgeInsets.symmetric(
+                horizontal: NightshadeTokens.spaceSm,
+              ),
+            ),
           ),
-          Text(
-            label,
-            style:
-                NightshadeTypography.bodySm.copyWith(color: colors.textMuted),
-          ),
-        ],
+        ),
       ),
     );
   }

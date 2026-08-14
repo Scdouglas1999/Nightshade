@@ -180,6 +180,58 @@ void main() {
       // Now that the strip is scrolled, a LEADING affordance appears too.
       expect(chevrons(), findsNWidgets(2));
     });
+
+    // WD-SCI-N4: the chevrons were `Positioned` over the strip, so at 900 px
+    // the right one painted on top of the Science tab and it rendered as
+    // `S › ce`; after a nudge the left one covered History (`Hi ‹ y`) and the
+    // right clipped Diagnostics. A hint must not eat the label it is hinting
+    // about, so the geometry is pinned: no chevron rect may intersect a tab
+    // label rect.
+    testWidgets('a chevron never paints over a tab label', (tester) async {
+      await _pumpAt(tester, const Size(900, 760), _host());
+      expect(chevrons(), findsWidgets);
+
+      void assertNoOverlap() {
+        final chevronRects = [
+          for (var i = 0; i < chevrons().evaluate().length; i++)
+            tester.getRect(chevrons().at(i)),
+        ];
+        expect(chevronRects, isNotEmpty);
+        // What the user actually sees of a label is the part inside the
+        // strip's viewport; anything past it is clipped by the scroll (and
+        // reachable by scrolling), which is a different thing from being
+        // painted over.
+        final viewport = tester.getRect(
+          find.descendant(
+            of: find.byType(AdaptiveTabBar),
+            matching: find.byType(SingleChildScrollView),
+          ),
+        );
+        for (final label in _tabs.map((t) => t.label)) {
+          final finder = find.text(label);
+          if (finder.evaluate().isEmpty) continue;
+          final visible = tester.getRect(finder).intersect(viewport);
+          if (visible.isEmpty || visible.width <= 0) continue;
+          for (final chevron in chevronRects) {
+            expect(
+              chevron.overlaps(visible),
+              isFalse,
+              reason:
+                  '"$label" (visible $visible) is painted under a chevron '
+                  '($chevron)',
+            );
+          }
+        }
+      }
+
+      assertNoOverlap();
+
+      // And after scrolling, when BOTH chevrons are up.
+      await tester.tap(chevrons().first);
+      await tester.pumpAndSettle();
+      expect(chevrons(), findsNWidgets(2));
+      assertNoOverlap();
+    });
   });
 
   testWidgets('labels collapse inside a narrow pane on a wide viewport', (

@@ -426,4 +426,74 @@ extension _NightAnalysisDetectors on NightAnalysisService {
     }
     return findings;
   }
+
+  /// **The frame grader's own verdict (NEW-E5).** Every other detector looks
+  /// for a *change* across the night — drift, a collapse, an onset — so a night
+  /// that was uniformly bad from the first sub to the last trips none of them,
+  /// and the score (which only subtracts) lands on a perfect 100 with
+  /// "A clean night — no problems detected". That is exactly what a live 4×3 s
+  /// run produced while the same app's Workbench badged all four subs POOR
+  /// (HFR 5.7 against its 3.5 cull line, quality_score ~35).
+  ///
+  /// So the night verdict reads the same [FrameQualityAssessmentService] the
+  /// Workbench reads. This is a reconciliation, not a second opinion: if the
+  /// grader condemns most of the night, the night is not clean, whatever the
+  /// trend detectors saw.
+  ///
+  /// Deliberately conservative — a night is only faulted when at least half its
+  /// subs are graded POOR, so one bad frame in a good night stays the frame
+  /// list's business.
+  List<NightFinding> _detectGraderPoorNight(NightData data) {
+    if (data.subs.length < NightAnalysisService.minGradableSubs) {
+      return const [];
+    }
+    const assessor = FrameQualityAssessmentService();
+    final frames = [for (final s in data.subs) s.asGradableFrame()];
+    final assessments = assessor.assessBatch(frames);
+    if (assessments.isEmpty) return const [];
+
+    final poorIds = <int>[
+      for (final s in data.subs)
+        if (assessments[s.id]?.level == FrameQualityLevel.poor) s.id,
+    ];
+    final total = data.subs.length;
+    final poor = poorIds.length;
+    if (poor * 2 < total) return const [];
+
+    final hfrs = [
+      for (final s in data.subs)
+        if (s.hfr != null && s.hfr! > 0) s.hfr!,
+    ];
+    final medianHfr = _median(hfrs);
+    final hfrClause = medianHfr == null
+        ? ''
+        : ' Median HFR across the night was '
+              '${medianHfr.toStringAsFixed(2)} px.';
+    final all = poor == total;
+
+    return [
+      NightFinding(
+        id: 'frames_graded_poor',
+        severity: all
+            ? NightFindingSeverity.critical
+            : NightFindingSeverity.warn,
+        title: all
+            ? 'Every sub was graded POOR'
+            : '$poor of $total subs were graded POOR',
+        explanation:
+            'The frame grader — the same one behind the Workbench badges — '
+            'rates ${all ? 'all $total' : '$poor of $total'} of this '
+            'session\'s subs POOR.$hfrClause No single trend explains it, so '
+            'the night was already this way when it started rather than '
+            'degrading part-way through.',
+        advice: all
+            ? 'Treat this night as unusable until you know why: run an '
+                  'autofocus and check focus, star shape and tracking before '
+                  'the next session. Open Workbench to see each sub\'s reason.'
+            : 'Open Workbench to see which subs were faulted and why before '
+                  'integrating.',
+        evidenceSubIds: poorIds,
+      ),
+    ];
+  }
 }

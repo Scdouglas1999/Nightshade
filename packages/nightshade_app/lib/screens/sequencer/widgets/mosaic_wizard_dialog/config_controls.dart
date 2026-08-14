@@ -349,11 +349,17 @@ class _AdvancedPanel extends StatelessWidget {
   final double panelWidthArcmin;
   final double panelHeightArcmin;
 
-  /// False while neither the rig nor the user has supplied a panel field. The
-  /// size fields then start EMPTY: pre-filling them with the state's
-  /// placeholder printed a concrete "60.0 × 40.0" two inches below the banner
-  /// saying the panel size was unknown, so the dialog contradicted itself.
-  final bool panelSizeKnown;
+  /// Per-dimension: false while neither the rig nor the user has supplied that
+  /// panel field. The field then starts EMPTY — pre-filling it with the
+  /// state's placeholder printed a concrete "60.0 × 40.0" two inches below the
+  /// banner saying the panel size was unknown, so the dialog contradicted
+  /// itself.
+  ///
+  /// Tracked per dimension (WD-COL-N3): with one shared flag, typing a WIDTH
+  /// flipped the height field from empty to the placeholder `40.0` in the same
+  /// frame, which then read as a number the user had entered.
+  final bool panelWidthKnown;
+  final bool panelHeightKnown;
   final VoidCallback onToggle;
   final void Function({
     double? centerRa,
@@ -369,7 +375,8 @@ class _AdvancedPanel extends StatelessWidget {
     required this.centerDec,
     required this.panelWidthArcmin,
     required this.panelHeightArcmin,
-    required this.panelSizeKnown,
+    required this.panelWidthKnown,
+    required this.panelHeightKnown,
     required this.onToggle,
     required this.onChanged,
   });
@@ -385,26 +392,42 @@ class _AdvancedPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          InkWell(
-            onTap: onToggle,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  Icon(LucideIcons.sliders, size: 14, color: colors.textMuted),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text('Advanced (numerical)',
-                        style: NightshadeTypography.labelStrong
-                            .copyWith(color: colors.textPrimary)),
-                  ),
-                  Icon(
-                    expanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
-                    size: 14,
-                    color: colors.textMuted,
-                  ),
-                ],
+          // NEW-C2: a bare InkWell publishes a tap action but no role and no
+          // enabled state, and AT-SPI reads the missing enabled flag as
+          // insensitive — the live tree printed this live control as
+          // `panel: Advanced (numerical) [DISABLED]`. Declaring the role and
+          // the (always true) enabled state is what makes it announce as the
+          // expandable button it is.
+          Semantics(
+            button: true,
+            enabled: true,
+            expanded: expanded,
+            label: 'Advanced (numerical)',
+            child: InkWell(
+              onTap: onToggle,
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    Icon(LucideIcons.sliders,
+                        size: 14, color: colors.textMuted),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text('Advanced (numerical)',
+                          style: NightshadeTypography.labelStrong
+                              .copyWith(color: colors.textPrimary)),
+                    ),
+                    Icon(
+                      expanded
+                          ? LucideIcons.chevronUp
+                          : LucideIcons.chevronDown,
+                      size: 14,
+                      color: colors.textMuted,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -436,7 +459,7 @@ class _AdvancedPanel extends StatelessWidget {
                   _NumberField(
                     colors: colors,
                     label: 'Panel width (arcmin)',
-                    value: panelSizeKnown ? panelWidthArcmin : null,
+                    value: panelWidthKnown ? panelWidthArcmin : null,
                     hintText: 'one camera field, e.g. 60.0',
                     min: 1,
                     max: 360,
@@ -447,7 +470,7 @@ class _AdvancedPanel extends StatelessWidget {
                   _NumberField(
                     colors: colors,
                     label: 'Panel height (arcmin)',
-                    value: panelSizeKnown ? panelHeightArcmin : null,
+                    value: panelHeightKnown ? panelHeightArcmin : null,
                     hintText: 'one camera field, e.g. 40.0',
                     min: 1,
                     max: 360,
@@ -494,6 +517,12 @@ class _NumberField extends StatefulWidget {
 
 class _NumberFieldState extends State<_NumberField> {
   late final TextEditingController _ctl;
+  final FocusNode _focus = FocusNode();
+
+  /// Why the last keystroke was not accepted, or null. Out-of-range typing used
+  /// to be dropped in silence: the field kept the characters, the wizard kept
+  /// the old number, and nothing said which one was in force.
+  String? _error;
 
   @override
   void initState() {
@@ -501,6 +530,18 @@ class _NumberFieldState extends State<_NumberField> {
     _ctl = TextEditingController(
       text: widget.value?.toStringAsFixed(widget.decimals) ?? '',
     );
+    _focus.addListener(_onFocusChange);
+  }
+
+  void _onFocusChange() {
+    if (_focus.hasFocus) return;
+    // On leaving, snap the text back to the value actually in force so the
+    // field can never keep a number the wizard rejected.
+    final value = widget.value;
+    if (value != null) {
+      _ctl.text = value.toStringAsFixed(widget.decimals);
+    }
+    if (_error != null && mounted) setState(() => _error = null);
   }
 
   @override
@@ -508,6 +549,12 @@ class _NumberFieldState extends State<_NumberField> {
     super.didUpdateWidget(old);
     final value = widget.value;
     if (value == null) return;
+    // WD-COL-N3: never rewrite the field the user is typing in. Typing a panel
+    // WIDTH used to make the wizard declare the panel size known, which flipped
+    // the HEIGHT field's value from null to the 60×40 placeholder — and this
+    // branch then wrote `40.0` over whatever the user was in the middle of
+    // entering, so "type 35" ended up as 40.0.
+    if (_focus.hasFocus) return;
     final current = double.tryParse(_ctl.text);
     if (current == null || (current - value).abs() > 1e-3) {
       _ctl.text = value.toStringAsFixed(widget.decimals);
@@ -516,6 +563,8 @@ class _NumberFieldState extends State<_NumberField> {
 
   @override
   void dispose() {
+    _focus.removeListener(_onFocusChange);
+    _focus.dispose();
     _ctl.dispose();
     super.dispose();
   }
@@ -524,9 +573,11 @@ class _NumberFieldState extends State<_NumberField> {
   Widget build(BuildContext context) {
     return TextField(
       controller: _ctl,
+      focusNode: _focus,
       decoration: InputDecoration(
         labelText: widget.label,
         hintText: widget.hintText,
+        errorText: _error,
         isDense: true,
         border: OutlineInputBorder(
             borderSide: BorderSide(color: widget.colors.border)),
@@ -535,8 +586,18 @@ class _NumberFieldState extends State<_NumberField> {
       onChanged: (text) {
         final parsed = double.tryParse(text);
         if (parsed != null && parsed >= widget.min && parsed <= widget.max) {
+          if (_error != null) setState(() => _error = null);
           widget.onChanged(parsed);
+          return;
         }
+        // Half-typed input ("", "-", "1.") is on the way somewhere; only a
+        // complete number that lands outside the range is a refusal worth
+        // showing.
+        final message = parsed == null
+            ? null
+            : 'Enter ${widget.min.toStringAsFixed(0)}–'
+                '${widget.max.toStringAsFixed(0)}';
+        if (_error != message) setState(() => _error = message);
       },
     );
   }

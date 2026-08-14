@@ -8,6 +8,7 @@ import '../screens/equipment/equipment_screen.dart';
 import '../screens/imaging/imaging_screen.dart';
 import '../screens/guiding/guiding_screen.dart';
 import '../screens/sequencer/sequencer_screen.dart';
+import '../screens/sequencer/widgets/replay_debug_screen.dart';
 import '../screens/planetarium/planetarium_screen.dart';
 import '../screens/framing/framing_screen.dart';
 import '../screens/analytics/analytics_screen.dart';
@@ -307,6 +308,34 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 },
               ),
             ],
+          ),
+          // Replay Debug — the retrospective decision scrubber for one run.
+          //
+          // NEW-E2: this screen used to be pushed imperatively with
+          // `Navigator.push` onto the SHELL's navigator, so it sat ABOVE the
+          // page go_router owns. Clicking a nav-rail destination changed the
+          // location underneath it — the rail repainted the new destination as
+          // selected, accent bar and all — while Replay stayed on screen. The
+          // chrome reported a destination the app had not gone to. As a real
+          // route it is part of the same match list, so `go()` replaces it.
+          GoRoute(
+            path: '/replay/:runId',
+            name: 'replay',
+            pageBuilder: (context, state) {
+              final runId =
+                  int.tryParse(state.pathParameters['runId'] ?? '') ?? -1;
+              final q = state.uri.queryParameters;
+              return CustomTransitionPage(
+                child: ReplayDebugScreen(
+                  sequenceRunId: runId,
+                  sequenceName: q['name'] ?? 'Sequence',
+                  startedAt: DateTime.tryParse(q['started'] ?? ''),
+                  endedAt: DateTime.tryParse(q['ended'] ?? ''),
+                ),
+                transitionsBuilder: PageTransitions.slideFadeTransition,
+                transitionDuration: const Duration(milliseconds: 300),
+              );
+            },
           ),
           GoRoute(
             path: '/flat-wizard',

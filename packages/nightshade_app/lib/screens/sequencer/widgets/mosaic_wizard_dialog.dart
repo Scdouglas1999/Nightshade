@@ -18,6 +18,7 @@
 // `_buildResumeBanner` below.
 
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -32,6 +33,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../utils/snackbar_helper.dart';
+import '../../../widgets/gated_action.dart';
 import '../../../utils/authority_bound_dialog.dart';
 import 'mosaic_wizard_dialog/mosaic_project_creation_controller.dart';
 part 'mosaic_wizard_dialog/config_controls.dart';
@@ -90,7 +92,23 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
   double _panelHeightArcmin = 40.0;
   _PanelSizeSource _panelSizeSource = _PanelSizeSource.unknown;
 
-  bool get _panelSizeKnown => _panelSizeSource != _PanelSizeSource.unknown;
+  /// Which of the two dimensions the user has actually supplied.
+  ///
+  /// WD-COL-N3: a single `user` source for both meant typing a panel WIDTH
+  /// declared the whole panel size known, so the height field — until then
+  /// empty — was force-filled from the 60×40 placeholder nobody chose (live:
+  /// width 50 typed, height appeared as `40.0`, and the plan summary quoted
+  /// `0.83° × 0.67°`). It also unlocked the footer actions on half-invented
+  /// geometry. A dimension is known only when it was measured from the rig or
+  /// typed by the user.
+  bool _userSuppliedWidth = false;
+  bool _userSuppliedHeight = false;
+
+  bool get _panelWidthKnown =>
+      _panelSizeSource == _PanelSizeSource.measured || _userSuppliedWidth;
+  bool get _panelHeightKnown =>
+      _panelSizeSource == _PanelSizeSource.measured || _userSuppliedHeight;
+  bool get _panelSizeKnown => _panelWidthKnown && _panelHeightKnown;
   double _overlapPercent = 10.0;
   double _rotation = 0.0;
   int _panelsHorizontal = 3;
@@ -251,13 +269,19 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
               ? 'Add these panels to the current sequence now'
               : 'Panel size unknown — set a focal length and connect the '
                   'camera, or enter it under Advanced',
-          child: NightshadeButton(
-            key: const ValueKey('mosaic_generate_sequence_btn'),
-            onPressed: _isBusy || !_panelSizeKnown ? null : _generateMosaic,
-            icon: NightshadeIcons.add,
+          child: GatedAction(
             label: 'Load into Sequencer',
-            variant: ButtonVariant.outline,
-            size: ButtonSize.small,
+            blockedReason: _panelSizeKnown
+                ? null
+                : 'panel size unknown, so there is no grid to lay out',
+            child: NightshadeButton(
+              key: const ValueKey('mosaic_generate_sequence_btn'),
+              onPressed: _isBusy || !_panelSizeKnown ? null : _generateMosaic,
+              icon: NightshadeIcons.add,
+              label: 'Load into Sequencer',
+              variant: ButtonVariant.outline,
+              size: ButtonSize.small,
+            ),
           ),
         ),
         // Primary path: persist the design as a durable mosaic project and open
@@ -271,20 +295,33 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
                       ? 'Panel size unknown — set a focal length and connect '
                           'the camera, or enter it under Advanced'
                       : 'Save a reusable project and track its progress',
-          child: NightshadeButton(
-            key: const ValueKey('mosaic_create_project_btn'),
-            onPressed: _isBusy || !canCreateProject || !_panelSizeKnown
-                ? null
-                : () => unawaited(_createMosaicProject()),
-            icon: NightshadeIcons.layoutGrid,
+          child: GatedAction(
             label: isRemote
                 ? 'Create on imaging host'
                 : isDisconnected
                     ? 'Connect to create project'
                     : 'Create mosaic project',
-            isLoading: _isCreatingProject,
-            variant: ButtonVariant.primary,
-            size: ButtonSize.small,
+            blockedReason: _isBusy
+                ? null
+                : _actionBlockedReason(
+                    isRemote: isRemote,
+                    isDisconnected: isDisconnected,
+                  ),
+            child: NightshadeButton(
+              key: const ValueKey('mosaic_create_project_btn'),
+              onPressed: _isBusy || !canCreateProject || !_panelSizeKnown
+                  ? null
+                  : () => unawaited(_createMosaicProject()),
+              icon: NightshadeIcons.layoutGrid,
+              label: isRemote
+                  ? 'Create on imaging host'
+                  : isDisconnected
+                      ? 'Connect to create project'
+                      : 'Create mosaic project',
+              isLoading: _isCreatingProject,
+              variant: ButtonVariant.primary,
+              size: ButtonSize.small,
+            ),
           ),
         ),
       ],
@@ -389,7 +426,8 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
                     centerDec: _centerDec,
                     panelWidthArcmin: _panelWidthArcmin,
                     panelHeightArcmin: _panelHeightArcmin,
-                    panelSizeKnown: _panelSizeKnown,
+                    panelWidthKnown: _panelWidthKnown,
+                    panelHeightKnown: _panelHeightKnown,
                     onToggle: () =>
                         setState(() => _advancedExpanded = !_advancedExpanded),
                     onChanged: ({
@@ -403,16 +441,19 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
                         if (centerDec != null) _centerDec = centerDec;
                         if (panelWidthArcmin != null) {
                           _panelWidthArcmin = panelWidthArcmin;
+                          _userSuppliedWidth = true;
                         }
                         if (panelHeightArcmin != null) {
                           _panelHeightArcmin = panelHeightArcmin;
+                          _userSuppliedHeight = true;
                         }
                         // An explicit panel size is a legitimate answer to
                         // "what field does one panel cover?" — it just has to
                         // come from the user rather than from a field
-                        // initialiser nobody chose.
-                        if (panelWidthArcmin != null ||
-                            panelHeightArcmin != null) {
+                        // initialiser nobody chose, and it takes BOTH
+                        // dimensions. One typed number leaves the panel size
+                        // half-unknown, so the wizard keeps saying so.
+                        if (_userSuppliedWidth && _userSuppliedHeight) {
                           _panelSizeSource = _PanelSizeSource.user;
                         }
                       });

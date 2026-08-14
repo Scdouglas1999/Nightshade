@@ -5,6 +5,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../utils/confirm_dialog.dart';
 import '../../../utils/snackbar_helper.dart';
+import '../../../widgets/gated_action.dart';
 
 final deepStarCatalogManagerProvider = Provider<DeepStarCatalogManager>(
   (ref) => DeepStarCatalogManager(),
@@ -323,18 +324,34 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
               spacing: 12,
               runSpacing: 8,
               children: [
-                NightshadeButton(
-                  label: _action == _DeepStarAction.download
+                Builder(builder: (context) {
+                  final label = _action == _DeepStarAction.download
                       ? (_cancelRequested ? 'Stopping…' : 'Downloading…')
-                      : (hasCatalogData ? 'Re-download / Resume' : 'Download'),
-                  icon: NightshadeIcons.download,
-                  variant: ButtonVariant.primary,
-                  // Disabled until a host is entered: with no URL the request
-                  // can only fail, so don't offer it.
-                  onPressed: (_busy || _urlController.text.trim().isEmpty)
-                      ? null
-                      : _download,
-                ),
+                      : (hasCatalogData ? 'Re-download / Resume' : 'Download');
+                  // COL2-3 (third strike). The gate itself has been in place
+                  // for two waves — `onPressed: null` with no URL — yet two
+                  // live drives read the tree as a plain `button: Download`
+                  // with no `[DISABLED]` and a click that did nothing at all.
+                  // With the reason in the accessible NAME, a tree dump says
+                  // which of the two is true instead of leaving it to
+                  // inference.
+                  final blocked = _urlController.text.trim().isEmpty
+                      ? 'no tileset URL is set, so there is nothing to '
+                          'download from'
+                      : null;
+                  return GatedAction(
+                    label: label,
+                    blockedReason: _busy ? null : blocked,
+                    child: NightshadeButton(
+                      label: label,
+                      icon: NightshadeIcons.download,
+                      variant: ButtonVariant.primary,
+                      // Disabled until a host is entered: with no URL the
+                      // request can only fail, so don't offer it.
+                      onPressed: (_busy || blocked != null) ? null : _download,
+                    ),
+                  );
+                }),
                 if (_action == _DeepStarAction.download)
                   NightshadeButton(
                     label: 'Pause',

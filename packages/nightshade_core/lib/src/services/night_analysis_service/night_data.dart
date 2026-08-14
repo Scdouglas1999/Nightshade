@@ -22,6 +22,7 @@ class NightSub {
     this.eccentricity,
     this.snr,
     this.fwhm,
+    this.qualityScore,
   });
 
   final int id;
@@ -44,6 +45,42 @@ class NightSub {
 
   /// Field-median FWHM (science PSF tiles); null when absent.
   final double? fwhm;
+
+  /// `captured_images.quality_score` — the per-frame number the capture
+  /// pipeline already wrote and the Workbench's frame grader starts from.
+  /// Carried here so the night verdict can be reconciled against the same
+  /// grader the operator sees on the other tab (NEW-E5); null when the frame
+  /// was never scored.
+  final double? qualityScore;
+
+  /// This sub as the shared frame grader sees it. The Night Doctor must never
+  /// re-implement the grading rules: it feeds the same
+  /// [FrameQualityAssessmentService] the Workbench uses so a night cannot be
+  /// "clean" on one tab and all-POOR on the next.
+  CapturedImage asGradableFrame() => CapturedImage(
+    id: id,
+    filePath: '',
+    fileName: '',
+    fileFormat: 'fits',
+    frameType: 'light',
+    exposureDuration: 0,
+    binX: 1,
+    binY: 1,
+    isPlateSolved: false,
+    capturedAt: capturedAt,
+    createdAt: capturedAt,
+    isAccepted: isAccepted,
+    filter: filter,
+    hfr: hfr,
+    starCount: starCount,
+    background: background,
+    noise: noise,
+    guidingRmsTotal: guidingRmsTotal,
+    focuserPosition: focuserPosition,
+    focuserTemp: focuserTemp,
+    sensorTemp: sensorTemp,
+    qualityScore: qualityScore,
+  );
 }
 
 /// The analyzed night: a time-sorted list of [NightSub]s. Thin wrapper so the

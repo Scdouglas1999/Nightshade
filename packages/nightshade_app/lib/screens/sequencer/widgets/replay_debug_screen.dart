@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -21,6 +22,31 @@ import 'run_dashboard/frame_detail_dialog.dart';
 /// pre-fills a [NotesService] note with the row's
 /// timestamp + summary so journaling the night the next morning is
 /// one click away.
+/// The window the time-range slider scrubs, as the UNION of the run's
+/// wall-clock span and the decisions actually on record.
+///
+/// NEW-E3: the window used to be the run row's `started_at`/`ended_at` alone,
+/// so a decision written outside it — most commonly the completion decision
+/// persisted a beat after the run row was closed — could not be reached at ANY
+/// slider position, while the header still counted it ("1 of 2 decisions" over
+/// a list of one). A row the screen knows about must always be reachable, so
+/// the span stretches to hold every decision.
+///
+/// Pure and public so the claim can be pinned without driving the screen.
+(DateTime, DateTime) replayScrubSpan(
+  List<ReplayDecision> decisions, {
+  DateTime? startedAt,
+  DateTime? endedAt,
+}) {
+  var start = startedAt ?? decisions.first.timestamp;
+  var end = endedAt ?? decisions.last.timestamp;
+  for (final d in decisions) {
+    if (d.timestamp.isBefore(start)) start = d.timestamp;
+    if (d.timestamp.isAfter(end)) end = d.timestamp;
+  }
+  return (start, end);
+}
+
 class ReplayDebugScreen extends ConsumerStatefulWidget {
   const ReplayDebugScreen({
     required this.sequenceRunId,
@@ -41,8 +67,34 @@ class ReplayDebugScreen extends ConsumerStatefulWidget {
   final DateTime? startedAt;
   final DateTime? endedAt;
 
-  /// Convenience launcher — wraps the screen in a [MaterialPageRoute]
-  /// and pushes it.
+  /// The router location for one run's replay, query-encoded so a deep link
+  /// (and the back stack) carries the header label and the scrub window.
+  static String locationFor({
+    required int sequenceRunId,
+    required String sequenceName,
+    DateTime? startedAt,
+    DateTime? endedAt,
+  }) {
+    final query = <String, String>{
+      'name': sequenceName,
+      if (startedAt != null) 'started': startedAt.toIso8601String(),
+      if (endedAt != null) 'ended': endedAt.toIso8601String(),
+    };
+    return Uri(
+      path: '/replay/$sequenceRunId',
+      queryParameters: query,
+    ).toString();
+  }
+
+  /// Convenience launcher.
+  ///
+  /// NEW-E2: this used to `Navigator.of(context).push` a [MaterialPageRoute],
+  /// which lands ABOVE the page go_router owns inside the shell. Nav-rail
+  /// clicks then changed the location — and the rail's own selected
+  /// highlight — while this screen stayed on top, so the chrome advertised a
+  /// destination the app had not gone to and the operator's obvious escapes
+  /// looked inert. Going through the router keeps one navigation stack, so a
+  /// rail click replaces this screen like every other page.
   static Future<void> push(
     BuildContext context, {
     required int sequenceRunId,
@@ -50,6 +102,16 @@ class ReplayDebugScreen extends ConsumerStatefulWidget {
     DateTime? startedAt,
     DateTime? endedAt,
   }) {
+    final location = locationFor(
+      sequenceRunId: sequenceRunId,
+      sequenceName: sequenceName,
+      startedAt: startedAt,
+      endedAt: endedAt,
+    );
+    final router = GoRouter.maybeOf(context);
+    if (router != null) return router.push<void>(location);
+    // No router above us (widget tests, embedded hosts): fall back to the
+    // imperative push so the screen is still reachable.
     return Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => ReplayDebugScreen(
@@ -96,9 +158,14 @@ class _ReplayDebugScreenState extends ConsumerState<ReplayDebugScreen> {
         title: Text('Replay — ${widget.sequenceName}'),
         backgroundColor: colors.surface,
         actions: [
+          // A bare ✕ in the top-right of a full-screen route reads as CLOSE.
+          // Clicking it here only reset the filters, so the screen "refused to
+          // close" twice in a row during the live drive (NEW-E2). The
+          // filter-clear glyph and the spelled-out label say which of the two
+          // it is; leaving is the AppBar's own back control.
           IconButton(
             tooltip: 'Clear filters',
-            icon: const Icon(LucideIcons.x, size: 18),
+            icon: const Icon(LucideIcons.filterX, size: 18),
             onPressed: _resetFilters,
           ),
         ],
@@ -156,8 +223,11 @@ class _ReplayDebugScreenState extends ConsumerState<ReplayDebugScreen> {
     NightshadeColors colors,
     List<ReplayDecision> all,
   ) {
-    final spanStart = widget.startedAt ?? all.first.timestamp;
-    final spanEnd = widget.endedAt ?? all.last.timestamp;
+    final (spanStart, spanEnd) = replayScrubSpan(
+      all,
+      startedAt: widget.startedAt,
+      endedAt: widget.endedAt,
+    );
     final spanMillis =
         spanEnd.millisecondsSinceEpoch - spanStart.millisecondsSinceEpoch;
     _timeRange ??= const RangeValues(0, 1);
@@ -321,6 +391,10 @@ class _ReplayDebugScreenState extends ConsumerState<ReplayDebugScreen> {
     int spanMillis,
   ) {
     final range = _timeRange;
+    // At full extent the slider is not a filter at all. Say so explicitly
+    // rather than relying on the fraction arithmetic landing exactly on the
+    // endpoints — a row the header counts must be on screen.
+    final unclamped = range == null || (range.start <= 0.0 && range.end >= 1.0);
     final minMillis = (range == null || spanMillis <= 0)
         ? spanStart.millisecondsSinceEpoch
         : spanStart.millisecondsSinceEpoch + (spanMillis * range.start).round();
@@ -338,6 +412,7 @@ class _ReplayDebugScreenState extends ConsumerState<ReplayDebugScreen> {
           !(d.nodeId?.toLowerCase().contains(term) ?? false)) {
         return false;
       }
+      if (unclamped) return true;
       final ms = d.timestamp.millisecondsSinceEpoch;
       if (ms < minMillis || ms > maxMillis) return false;
       return true;

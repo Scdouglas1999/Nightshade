@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nightshade_app/widgets/gated_action.dart';
 import 'package:nightshade_app/screens/settings/widgets/deep_star_catalog_card.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -115,6 +117,47 @@ void main() {
     expect(download.onPressed, isNull);
     expect(find.textContaining('point this at a tileset you host'),
         findsOneWidget);
+  });
+
+  // COL2-3, THIRD strike. The widget-level assertion above passed through two
+  // fix waves while two live drives read the SAME control out of the running
+  // app's accessibility tree as a plain `button: Download` with no `[DISABLED]`
+  // and a click that did nothing. The widget level was never where the two
+  // implementations differed — the SEMANTICS level is, because that is what
+  // the audit harness reads. So pin the announced name and the enabled flags.
+  testWidgets('the blocked Download announces the reason to AT (COL2-3)',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+    final manager = _FakeManager()..baseUrl = '';
+    await _pumpCard(tester, manager);
+
+    final node = tester.getSemantics(find.byType(GatedAction));
+    expect(node.label, contains('Download'));
+    expect(node.label, contains('unavailable: no tileset URL is set'));
+    expect(node.hasFlag(SemanticsFlag.isButton), isTrue);
+    expect(
+      node.hasFlag(SemanticsFlag.hasEnabledState),
+      isTrue,
+      reason: 'AT-SPI derives insensitive from the enabled flags; without '
+          'hasEnabledState the control announces as live',
+    );
+    expect(node.hasFlag(SemanticsFlag.isEnabled), isFalse);
+    handle.dispose();
+  });
+
+  testWidgets('a usable Download announces nothing extra (COL2-3)',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+    final manager = _FakeManager()..baseUrl = 'https://host/tiles';
+    await _pumpCard(tester, manager);
+
+    expect(find.byType(GatedAction), findsOneWidget);
+    final node = tester.getSemantics(
+      find.widgetWithText(NightshadeButton, 'Download'),
+    );
+    expect(node.label, isNot(contains('unavailable')));
+    expect(node.hasFlag(SemanticsFlag.isEnabled), isTrue);
+    handle.dispose();
   });
 
   testWidgets('verification failure is visible and unlocks the action',

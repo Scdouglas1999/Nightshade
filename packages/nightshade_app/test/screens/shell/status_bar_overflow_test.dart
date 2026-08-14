@@ -255,4 +255,42 @@ void main() {
 
     await _disposeBar(tester);
   });
+
+  // WD-COL-N4: at 900x760 the last visible pill was sliced mid-word
+  // ("Simulated Cam") with the thermometer glyph painted straight against it
+  // and no separator, and Mount / Guider / Focus were simply absent with
+  // nothing on screen saying they existed. The 24 px fade is not a control —
+  // with a mouse there was nothing to click — and it left no gap, so the cut
+  // read as a rendering fault.
+  testWidgets('an overflowing bar offers a reachable way to the rest',
+      (tester) async {
+    await _pumpBar(tester, const Size(900, 760));
+    expect(_position(tester).maxScrollExtent, greaterThan(0));
+
+    final affordance = find.bySemanticsLabel('More equipment status');
+    expect(affordance, findsOneWidget,
+        reason: 'a fade alone is not an affordance');
+
+    // It sits clear of the scrolling group, so nothing is painted over a
+    // half-visible pill.
+    final scroller = tester.getRect(_pillScroller().first);
+    expect(tester.getRect(affordance).left,
+        greaterThanOrEqualTo(scroller.right - 0.5));
+
+    // And it moves the group.
+    final before = _position(tester).pixels;
+    await tester.tap(affordance);
+    await tester.pumpAndSettle();
+    expect(_position(tester).pixels, greaterThan(before));
+
+    await _disposeBar(tester);
+  });
+
+  testWidgets('a bar with room offers no scroll affordance', (tester) async {
+    await _pumpBar(tester, const Size(2600, 900));
+    expect(_position(tester).maxScrollExtent, 0);
+    expect(find.bySemanticsLabel('More equipment status'), findsNothing);
+
+    await _disposeBar(tester);
+  });
 }

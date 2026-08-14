@@ -40,6 +40,29 @@ class EquipmentStatusIndicator extends ConsumerWidget {
     final devices = _devices(ref, activeProfile);
     final counts = _countDevices(devices);
 
+    // NEW-E4: `PopupMenuButton` wraps its child in a bare InkWell, which
+    // publishes a tap action but NO button role and NO enabled state — and
+    // AT-SPI reads a missing enabled flag as insensitive. Every screen's tree
+    // dump therefore ended with `panel: 🔭 My Equipment / 2 connected
+    // [DISABLED]` for a chip that opens a five-entry menu on click. This is the
+    // shared-chrome instance of the same class as NEW-C2.
+    return Semantics(
+      button: true,
+      enabled: true,
+      label: '${activeProfile.name}, ${counts.label}',
+      hint: 'Opens equipment status and actions',
+      child: _menuButton(context, ref, activeProfile, devices, counts, colors),
+    );
+  }
+
+  Widget _menuButton(
+    BuildContext context,
+    WidgetRef ref,
+    EquipmentProfileModel activeProfile,
+    List<_DeviceSlot> devices,
+    _EquipmentCounts counts,
+    NightshadeColors colors,
+  ) {
     return PopupMenuButton<String>(
       tooltip: counts.tooltip,
       offset: const Offset(0, -200),

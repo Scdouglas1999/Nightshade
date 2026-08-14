@@ -243,11 +243,23 @@ class _AdaptiveTabBarState extends State<AdaptiveTabBar> {
 
         if (!_canScrollLeft && !_canScrollRight) return strip;
 
-        return Stack(
+        // WD-SCI-N4: the chevrons used to be `Positioned` over the strip in a
+        // Stack, so at 900 px the right chevron painted ON TOP of the Science
+        // tab and it rendered as `S › ce`; after a nudge the left one covered
+        // History (`Hi ‹ y`) and the right clipped Diagnostics. A hint that
+        // eats the label it is hinting about is worse than no hint. Laying
+        // them out beside the strip reserves the width instead of borrowing
+        // it, so no glyph is ever painted over.
+        //
+        // Stable by construction: showing a chevron narrows the viewport,
+        // which can only make the strip MORE scrollable; hiding one at an end
+        // widens it and clamps the offset to the (smaller) new extent, which
+        // leaves that edge still at its stop.
+        return Row(
           children: [
-            strip,
             if (_canScrollLeft)
               _EdgeAffordance(onTap: () => _nudge(-1), isLeading: true),
+            Expanded(child: strip),
             if (_canScrollRight)
               _EdgeAffordance(onTap: () => _nudge(1), isLeading: false),
           ],
@@ -279,26 +291,30 @@ class _EdgeAffordance extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.nightshadeColors;
-    return Positioned(
-      top: 0,
-      bottom: 0,
-      left: isLeading ? 0 : null,
-      right: isLeading ? null : 0,
-      // The TAP TARGET and the CHIP are deliberately different sizes.
-      //
-      // The chip stays 24x30 — it is a hint sitting over a partially-scrolled
-      // tab, and growing it visually would hide more of that tab. But the
-      // interactive area was the same 24x30, which is well under the 48 dp
-      // Android minimum and failed `mobile_tap_target_test` on a 360x640 phone
-      // ("analytics @ small 360x640 has 1 tap target(s) under 48.0dp:
-      // 24.0x30.0"). Undersized targets are a real touch failure, not a lint:
-      // this one sits at the very edge of the screen, where thumbs are least
-      // accurate.
-      //
-      // So the InkWell now fills the strip's full height and [_kMinTapTarget]
-      // of width, with the chip centred inside it as pure decoration. The extra
-      // width only ever covers a tab that is already clipped by the scroll —
-      // the affordance is rendered only when there IS more to scroll to.
+    // Laid out beside the strip (not positioned over it) — see the Row in
+    // `_AdaptiveTabBarState.build`. The tap target keeps its full width so the
+    // 48 dp minimum still holds.
+    // The TAP TARGET and the CHIP are deliberately different sizes.
+    //
+    // The chip stays 24x30 — it is a hint beside the strip, and growing it
+    // visually would waste width the tabs need. But the interactive area was
+    // the same 24x30, which is well under the 48 dp Android minimum and failed
+    // `mobile_tap_target_test` on a 360x640 phone ("analytics @ small 360x640
+    // has 1 tap target(s) under 48.0dp: 24.0x30.0"). Undersized targets are a
+    // real touch failure, not a lint: this one sits at the very edge of the
+    // screen, where thumbs are least accurate.
+    //
+    // So the InkWell fills [_kMinTapTarget] of width with the chip centred
+    // inside it as pure decoration.
+    return ConstrainedBox(
+      // Width AND height: laid out in a Row the affordance no longer inherits
+      // the strip's height from a `Positioned`, and a 48x30 target fails the
+      // Android 48 dp rule (`mobile_tap_target_test`).
+      constraints: const BoxConstraints(
+        minWidth: _kMinTapTarget,
+        maxWidth: _kMinTapTarget,
+        minHeight: _kMinTapTarget,
+      ),
       child: Semantics(
         button: true,
         // `Semantics` only publishes SemanticsFlag.isEnabled when `enabled` is
@@ -314,9 +330,9 @@ class _EdgeAffordance extends StatelessWidget {
             onTap: onTap,
             child: SizedBox(
               width: _kMinTapTarget,
-              // Height is unconstrained here on purpose: `Positioned`'s
-              // top/bottom already stretch this to the strip's full height, so
-              // the target grows with the bar instead of being pinned to 30.
+              // Height is unconstrained on purpose: the Row stretches this to
+              // the strip's full height, so the target grows with the bar
+              // instead of being pinned to 30.
               child: Center(
                 child: Material(
                   color: colors.surfaceHover,

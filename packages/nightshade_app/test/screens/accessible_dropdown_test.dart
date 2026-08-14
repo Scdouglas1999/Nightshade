@@ -206,6 +206,23 @@ void main() {
           entry.key == 'OIII',
           reason: '${entry.key} reports the wrong selected state',
         );
+        // NEW-C4 parity: `NightshadeDropdown` publishes BOTH selected and
+        // checked, and AT-SPI carries the two differently — the audit harness
+        // prints [ON]/[off] from checked/checkable, so a family that sets only
+        // `selected` announces no state at all where its sibling announces
+        // one. The Analytics session pickers (this family) were exactly that
+        // gap: the current row was highlighted on screen and silent to AT.
+        expect(
+          entry.value.hasFlag(SemanticsFlag.hasCheckedState),
+          isTrue,
+          reason: '${entry.key} publishes no checked state, so a reader '
+              'cannot say which entry is in force',
+        );
+        expect(
+          entry.value.hasFlag(SemanticsFlag.isChecked),
+          entry.key == 'OIII',
+          reason: '${entry.key} reports the wrong checked state',
+        );
       }
       handle.dispose();
     });

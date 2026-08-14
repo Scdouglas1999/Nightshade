@@ -43,6 +43,37 @@ class _Target {
       '${label.isEmpty ? '' : ' "$label"'}';
 }
 
+/// Whether [target] is only small because a scroll viewport cut it off.
+///
+/// A horizontal tab strip (or any scrolling row of controls) always ends
+/// mid-item at SOME offset: the strip's right edge slices whatever item happens
+/// to straddle it, and the semantics rect of that item is clipped to the
+/// visible sliver. That is a *scrolled* control, not an undersized one — the
+/// user reaches it by scrolling, exactly as the strip's chevrons advertise, and
+/// no layout can prevent the cut for every viewport width. The rule is about
+/// controls that are meant to be hit where they sit.
+///
+/// The exemption is deliberately narrow: the target must be flush against a
+/// scroll viewport's edge on the axis it is undersized on, and its other edge
+/// must be at least the minimum. A genuinely tiny control that merely happens
+/// to sit at a viewport edge is still reported, because it fails the other
+/// dimension too.
+bool _isClippedByScroll(_Target target, List<Rect> viewports) {
+  for (final viewport in viewports) {
+    if (!viewport.overlaps(target.rect)) continue;
+    final cutHorizontally = target.rect.width < kMinTapTarget &&
+        target.rect.height >= kMinTapTarget &&
+        ((target.rect.right - viewport.right).abs() < 1.0 ||
+            (target.rect.left - viewport.left).abs() < 1.0);
+    final cutVertically = target.rect.height < kMinTapTarget &&
+        target.rect.width >= kMinTapTarget &&
+        ((target.rect.bottom - viewport.bottom).abs() < 1.0 ||
+            (target.rect.top - viewport.top).abs() < 1.0);
+    if (cutHorizontally || cutVertically) return true;
+  }
+  return false;
+}
+
 /// Every tappable semantics node, with rects resolved to global coordinates —
 /// the same traversal Flutter's own tap-target guideline performs.
 List<_Target> _measureTapTargets() {
@@ -55,10 +86,28 @@ List<_Target> _measureTapTargets() {
   return [
     for (final candidate in tappableNodes.evaluate())
       _Target(
-        candidate.rect,
+        _globalRect(candidate),
         candidate.getSemanticsData().label,
       ),
   ];
+}
+
+/// A semantics node's rect is in ITS OWN coordinate space; the walk up the
+/// ancestor chain applying each node's transform is what puts it on screen —
+/// the same accumulation Flutter's own `androidTapTargetGuideline` performs.
+/// (Sizes are unaffected by the translations, so this changes no verdict; it is
+/// what lets a rect be compared against a scroll viewport's position.)
+Rect _globalRect(SemanticsNode node) {
+  var bounds = node.rect;
+  SemanticsNode? current = node;
+  while (current != null) {
+    final transform = current.transform;
+    if (transform != null) {
+      bounds = MatrixUtils.transformRect(transform, bounds);
+    }
+    current = current.parent;
+  }
+  return bounds;
 }
 
 const _phoneSizes = <(String, Size)>[
@@ -92,8 +141,13 @@ void main() {
         );
         await _drainFrames(tester);
 
+        final viewports = [
+          for (final scrollable in find.byType(Scrollable).evaluate())
+            tester.getRect(find.byWidget(scrollable.widget)),
+        ];
         final undersized = _measureTapTargets()
             .where((t) => t.shortestEdge < kMinTapTarget)
+            .where((t) => !_isClippedByScroll(t, viewports))
             .toList()
           ..sort((a, b) => a.shortestEdge.compareTo(b.shortestEdge));
 

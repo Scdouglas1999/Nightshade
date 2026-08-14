@@ -8,10 +8,12 @@
 // saying the panel field was unknown.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/mosaic_wizard_dialog.dart';
+import 'package:nightshade_app/widgets/gated_action.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -124,8 +126,13 @@ void main() {
     expect(tester.widget<TextField>(height).controller!.text, isEmpty);
   });
 
-  testWidgets('typing a panel size in Advanced unblocks the primary action',
+  testWidgets('BOTH typed dimensions unblock the primary action',
       (tester) async {
+    // WD-COL-N3: this test used to type a WIDTH alone and assert the action
+    // unblocked — encoding the defect. One typed number left the height at the
+    // 60x40 field initialiser, so the wizard planned (and offered to persist) a
+    // grid from a dimension nobody supplied. A half-known panel size is still
+    // unknown.
     await _pumpWizard(tester);
 
     await tester.ensureVisible(find.text('Advanced (numerical)'));
@@ -133,15 +140,39 @@ void main() {
     await tester.tap(find.text('Advanced (numerical)'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(
-      find.ancestor(
-        of: find.text('Panel width (arcmin)'),
-        matching: find.byType(TextField),
-      ),
-      '60',
+    final width = find.ancestor(
+      of: find.text('Panel width (arcmin)'),
+      matching: find.byType(TextField),
     );
+    final height = find.ancestor(
+      of: find.text('Panel height (arcmin)'),
+      matching: find.byType(TextField),
+    );
+
+    await tester.enterText(width, '50');
     await tester.pumpAndSettle();
 
+    // The height the user has not given must still read as unknown — the live
+    // repro saw `40.0` appear here on its own and the plan quote 0.83 x 0.67.
+    expect(tester.widget<TextField>(height).controller!.text, isEmpty);
+    expect(
+      find.byKey(const ValueKey('mosaic_action_blocked_reason')),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<NightshadeButton>(
+            find.byKey(const ValueKey('mosaic_create_project_btn')),
+          )
+          .onPressed,
+      isNull,
+    );
+
+    await tester.enterText(height, '35');
+    await tester.pumpAndSettle();
+
+    // The typed height survives: no auto-fill overwrites it.
+    expect(tester.widget<TextField>(height).controller!.text, '35');
     expect(
       find.byKey(const ValueKey('mosaic_unknown_panel_size_banner')),
       findsNothing,
@@ -158,5 +189,29 @@ void main() {
           .onPressed,
       isNotNull,
     );
+    expect(find.textContaining('0.83'), findsWidgets);
+  });
+
+  testWidgets('a gated footer action announces its reason to AT (WD-COL-N2)',
+      (tester) async {
+    // The live tree read both footer actions as plain `button: …` with no
+    // `[DISABLED]`, on a wizard whose banner said the panel size was unknown —
+    // the same shape as COL2-3. The announced name now carries the reason, so
+    // a tree dump distinguishes "gate applied" from "gate absent".
+    final handle = tester.ensureSemantics();
+    await _pumpWizard(tester);
+
+    final node = tester.getSemantics(
+      find.ancestor(
+        of: find.byKey(const ValueKey('mosaic_create_project_btn')),
+        matching: find.byType(GatedAction),
+      ),
+    );
+    expect(node.label, contains('Create mosaic project'));
+    expect(node.label, contains('unavailable:'));
+    expect(node.label, contains('Panel size unknown'));
+    expect(node.hasFlag(SemanticsFlag.hasEnabledState), isTrue);
+    expect(node.hasFlag(SemanticsFlag.isEnabled), isFalse);
+    handle.dispose();
   });
 }

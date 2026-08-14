@@ -235,6 +235,14 @@ List<DropdownMenuItem<T>> annotateDropdownItems<T>(
           child: Semantics(
             enabled: enabled && item.enabled,
             selected: item.value == value,
+            // `selected` alone reaches AT-SPI as SELECTED, which several
+            // readers (and the audit harness, which prints [ON]/[off] from the
+            // checked/checkable states) do not announce for a menu entry — so
+            // the Analytics session pickers highlighted the current row
+            // visually while publishing no checked state at all, unlike
+            // `NightshadeDropdown`, which sets both. Parity, one line: the two
+            // dropdown families must announce the same way.
+            checked: item.value == value,
             child: item.child,
           ),
         ),

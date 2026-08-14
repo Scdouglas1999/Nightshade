@@ -75,36 +75,69 @@ class _StartSequenceButtonState extends State<_StartSequenceButton> {
       isDisabled: !isEnabled,
     );
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      cursor:
-          isEnabled ? SystemMouseCursors.click : SystemMouseCursors.forbidden,
-      child: GestureDetector(
-        onTap: widget.onPressed,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          decoration: BoxDecoration(
-            color: buttonColors.background,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-            border: Border.all(color: buttonColors.border),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                widget.canStart ? LucideIcons.play : LucideIcons.alertTriangle,
-                size: 16,
-                color: onPrimary,
+    final label = widget.hasWarningsOnly ? 'Start Anyway' : 'Start Sequence';
+
+    // WD-SCI-N3: this is the green primary of the whole pre-flight dialog and
+    // it was a bare GestureDetector, so the tree published `panel: Start
+    // Anyway` — no role, no state — beside its own siblings `button: Re-check`
+    // and `button: Cancel`. It also could not be reached from the keyboard.
+    // Declaring the role + enabled state and routing Enter/Space through an
+    // ActivateIntent puts it on the same footing as every NightshadeButton.
+    return Semantics(
+      button: true,
+      enabled: isEnabled,
+      label: label,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        cursor:
+            isEnabled ? SystemMouseCursors.click : SystemMouseCursors.forbidden,
+        child: FocusableActionDetector(
+          enabled: isEnabled,
+          actions: <Type, Action<Intent>>{
+            ActivateIntent: CallbackAction<ActivateIntent>(
+              onInvoke: (_) {
+                widget.onPressed?.call();
+                return null;
+              },
+            ),
+            ButtonActivateIntent: CallbackAction<ButtonActivateIntent>(
+              onInvoke: (_) {
+                widget.onPressed?.call();
+                return null;
+              },
+            ),
+          },
+          child: GestureDetector(
+            onTap: widget.onPressed,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              decoration: BoxDecoration(
+                color: buttonColors.background,
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline8),
+                border: Border.all(color: buttonColors.border),
               ),
-              const SizedBox(width: 8),
-              Text(
-                widget.hasWarningsOnly ? 'Start Anyway' : 'Start Sequence',
-                style:
-                    NightshadeTypography.labelStrong.copyWith(color: onPrimary),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    widget.canStart
+                        ? LucideIcons.play
+                        : LucideIcons.alertTriangle,
+                    size: 16,
+                    color: onPrimary,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    label,
+                    style: NightshadeTypography.labelStrong
+                        .copyWith(color: onPrimary),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),

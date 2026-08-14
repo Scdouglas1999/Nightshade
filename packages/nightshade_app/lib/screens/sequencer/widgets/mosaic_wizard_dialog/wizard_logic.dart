@@ -241,6 +241,12 @@ extension _MosaicWizardLogic on _MosaicWizardDialogState {
   }
 
   void _generateMosaic() {
+    // WD-COL-N2: the live drive reported clicking this button as producing
+    // "no snackbar, no inline error, no new node in the tree, no new log
+    // line" — which is indistinguishable from a disabled button, a swallowed
+    // tap, and a stale binary. One line at entry (and one at each early
+    // return) settles which of those happened.
+    _logWizardAction('load-into-sequencer requested');
     const mosaicService = MosaicService();
 
     final config = MosaicConfig(
@@ -256,11 +262,13 @@ extension _MosaicWizardLogic on _MosaicWizardDialogState {
 
     final validation = mosaicService.validateMosaic(config);
     if (!validation.isValid) {
+      _logWizardAction('load-into-sequencer refused: invalid grid');
       _showValidationDialog(validation);
       return;
     }
 
     if (validation.hasWarnings) {
+      _logWizardAction('load-into-sequencer paused on warnings');
       _showWarningsDialog(validation, () {
         _createSequence(mosaicService, config);
       });
@@ -373,8 +381,10 @@ extension _MosaicWizardLogic on _MosaicWizardDialogState {
   /// the committed `mosaicProjectServiceProvider.createProject`). The
   /// load-into-sequencer path is untouched and still available.
   Future<void> _createMosaicProject() async {
+    _logWizardAction('create-project requested');
     final backend = ref.read(backendProvider);
     if (backend is NetworkBackend || backend is DisconnectedBackend) {
+      _logWizardAction('create-project refused: not the imaging host');
       _showMosaicProjectHostOnlyMessage();
       return;
     }
@@ -392,10 +402,12 @@ extension _MosaicWizardLogic on _MosaicWizardDialogState {
 
     final validation = mosaicService.validateMosaic(config);
     if (!validation.isValid) {
+      _logWizardAction('create-project refused: invalid grid');
       _showValidationDialog(validation);
       return;
     }
     if (validation.hasWarnings) {
+      _logWizardAction('create-project paused on warnings');
       _showWarningsDialog(validation, () => unawaited(_persistProject()));
       return;
     }
@@ -429,6 +441,19 @@ extension _MosaicWizardLogic on _MosaicWizardDialogState {
         context.showErrorSnackBar('Could not create mosaic project: $e');
       }
     }
+  }
+
+  /// One log line per wizard action, so a click that "did nothing" can be told
+  /// apart from a click that never arrived. `panelSize=` records the state the
+  /// gating decision was made from — the field that made two live drives
+  /// disagree about whether the buttons were even enabled.
+  void _logWizardAction(String message) {
+    developer.log(
+      '[MosaicWizard] $message (panelSize='
+      '${_panelSizeKnown ? '${_panelWidthArcmin.toStringAsFixed(1)}x'
+          '${_panelHeightArcmin.toStringAsFixed(1)} arcmin' : 'unknown'})',
+      name: 'MosaicWizardDialog',
+    );
   }
 
   /// Why "Create mosaic project" is unavailable right now, in the operator's

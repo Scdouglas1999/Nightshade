@@ -10,6 +10,7 @@ import '../database/daos/science_dao.dart';
 import '../database/database.dart';
 import '../models/imaging/night_report.dart';
 import '../providers/database_provider.dart';
+import 'frame_quality_assessment_service.dart';
 import 'optical_train_diagnostics_service.dart';
 import 'scheduler/sky_calculations.dart';
 part 'night_analysis_service/detectors.dart';
@@ -190,6 +191,7 @@ class NightAnalysisService {
     _detectDewHfrCollapse,
     _detectMoonGradientOnset,
     _detectTiltCollimation,
+    _detectGraderPoorNight,
   ];
 
   // ---------------------------------------------------------------------------
@@ -268,6 +270,7 @@ class NightAnalysisService {
           eccentricity: eccentricity[r.id],
           snr: snr[r.id],
           fwhm: fwhm[r.id],
+          qualityScore: r.qualityScore,
         ),
     ];
   }

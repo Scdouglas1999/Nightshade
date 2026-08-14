@@ -6,6 +6,7 @@
 // Dark Library / Equipment Health / Optical Train sections.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/preflight_validation_dialog.dart';
@@ -399,5 +400,32 @@ void main() {
 
     expect(started, isTrue);
     expect(container.read(sessionHandoffIgnoreUnavailableOnceProvider), isTrue);
+  });
+
+  // WD-SCI-N3: the green primary of the pre-flight dialog was a bare
+  // GestureDetector, so the live tree printed `panel: Start Anyway` — no role,
+  // no state — right beside its own siblings `button: Re-check` and
+  // `button: Cancel`, and it could not be reached from the keyboard at all.
+  testWidgets('Start Anyway announces itself as an enabled button',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+    await pumpDialog(
+      tester: tester,
+      issues: const [
+        ValidationIssue(
+          severity: ValidationSeverity.warning,
+          category: ValidationCategory.equipmentHealth,
+          title: 'USB Stability Concern',
+          description: 'Camera saw 5 disconnects in the last 24h.',
+        ),
+      ],
+    );
+
+    expect(find.text('Start Anyway'), findsOneWidget);
+    final node = tester.getSemantics(find.text('Start Anyway'));
+    expect(node.hasFlag(SemanticsFlag.isButton), isTrue);
+    expect(node.hasFlag(SemanticsFlag.hasEnabledState), isTrue);
+    expect(node.hasFlag(SemanticsFlag.isEnabled), isTrue);
+    handle.dispose();
   });
 }

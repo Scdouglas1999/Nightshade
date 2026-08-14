@@ -327,6 +327,20 @@ class _StatusBarState extends ConsumerState<StatusBar> {
     ];
 
     final trailing = <Widget>[
+      // WD-COL-N4: at 900 px the pill group's last item was sliced mid-word
+      // ("Simulated Cam") with the thermometer glyph painted straight against
+      // it and no separator, so the bar read as broken rather than scrolled.
+      // The scrolling region always ends at a rule now, whatever it is showing.
+      if (!widget.compact) ...[
+        if (_pillsOverflow)
+          _PillsOverflowAffordance(
+            colors: colors,
+            onTap: _scrollPillsRight,
+          ),
+        const SizedBox(width: 8),
+        _divider(colors),
+        const SizedBox(width: 12),
+      ],
       // On phone, the remote-connection state lives here as a small ambient
       // dot (tap opens the connection sheet) instead of a dedicated top strip,
       // reclaiming the cover-screen's scarce height. Desktop keeps the full
@@ -426,11 +440,13 @@ class _StatusBarState extends ConsumerState<StatusBar> {
                             shaderCallback: _fadeRightEdge,
                             blendMode: BlendMode.dstIn,
                             child: SingleChildScrollView(
+                              controller: _pillsController,
                               scrollDirection: Axis.horizontal,
                               child: Row(children: leading),
                             ),
                           )
                         : SingleChildScrollView(
+                            controller: _pillsController,
                             scrollDirection: Axis.horizontal,
                             child: Row(children: leading),
                           ),
@@ -444,6 +460,33 @@ class _StatusBarState extends ConsumerState<StatusBar> {
 
   /// True while the pill group has content past its right edge.
   bool _pillsOverflow = false;
+
+  /// Drives the pill strip so the overflow affordance can actually move it —
+  /// a fade alone told the operator there was more without offering any way to
+  /// reach it with a mouse.
+  final ScrollController _pillsController = ScrollController();
+
+  @override
+  void dispose() {
+    _pillsController.dispose();
+    super.dispose();
+  }
+
+  void _scrollPillsRight() {
+    if (!_pillsController.hasClients) return;
+    final position = _pillsController.position;
+    final target = position.pixels >= position.maxScrollExtent - 1
+        ? position.minScrollExtent
+        : (position.pixels + 160).clamp(
+            position.minScrollExtent,
+            position.maxScrollExtent,
+          );
+    _pillsController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOut,
+    );
+  }
 
   void _setPillsOverflow(bool value) {
     if (_pillsOverflow == value) return;

@@ -8,6 +8,7 @@
 // the handler falls back to context.go('/mosaic') — really lands there.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -85,5 +86,50 @@ void main() {
     await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
     expect(find.text('join'), findsOneWidget);
+  });
+
+  // NEW-E1: the label was a bare Text beside an IconButton, so clicking the
+  // WORD did nothing and the tree published `panel: Back` with no role. The
+  // whole row is one control now.
+  testWidgets('the label is part of the control, and the control is a button',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+    await tester.pumpWidget(_app(
+      Builder(
+        builder: (context) => Scaffold(
+          body: Center(
+            child: TextButton(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const MosaicProjectScreen(
+                    projectId: 42,
+                    artifactsBaseDir: '/m',
+                  ),
+                ),
+              ),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      ),
+    ));
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    final button = find.ancestor(
+      of: find.text('Back'),
+      matching: find.byType(TextButton),
+    );
+    expect(button, findsOneWidget);
+
+    final node = tester.getSemantics(find.text('Back'));
+    expect(node.hasFlag(SemanticsFlag.isButton), isTrue);
+    expect(node.hasFlag(SemanticsFlag.isEnabled), isTrue);
+
+    // Clicking the WORD leaves, which is what the live drive could not do.
+    await tester.tap(find.text('Back'));
+    await tester.pumpAndSettle();
+    expect(find.text('Back'), findsNothing);
+    handle.dispose();
   });
 }
