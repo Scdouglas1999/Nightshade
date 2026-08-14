@@ -587,4 +587,42 @@ void main() {
     expect(stopRows.single.message, kSequenceStoppedByAutopilotMessage);
     expect(stopRows.single.message, isNot(kSequenceStoppedByRequestMessage));
   });
+
+  test('D17 stepping-stone chaining cannot stretch the id-less bound', () {
+    // Wave L refutation L2: six id-less terminal Stopped events 110 s apart
+    // (every adjacent pair inside the 2-minute bound, total span 9m10s).
+    // Joins measure to the episode SPINE, not to fellow id-less members, so
+    // the chain breaks and the night's record keeps multiple rows.
+    final c = makeContainer();
+    final h = c.read(eventHistoryProvider.notifier);
+    for (var i = 0; i < 6; i++) {
+      h.addEvent(_stopped(1 + i, _t0.add(Duration(seconds: 110 * i))));
+    }
+    final recent = c.read(runDashboardRecentEventsProvider(10));
+    expect(
+      recent.where((e) => e.title == 'Sequence stopped').length,
+      greaterThanOrEqualTo(3),
+      reason:
+          'a 9-minute chain of id-less stops must not fold to one row. Got: '
+          '${recent.map((e) => '${e.time.toIso8601String()} ${e.title}').toList()}',
+    );
+  });
+
+  test('D18 a rollback stop stays cause-neutral', () {
+    // Wave L refutation L1: a failed-launch rollback issues a real native
+    // stop with origin `rollback`; the executor records a SystemEvent, not
+    // operator evidence, so the feed's stop row must stay neutral.
+    final c = makeContainer();
+    final h = c.read(eventHistoryProvider.notifier);
+    h.addEvent(_error(1, kSequenceCancelledNotice, _t0));
+    h.addEvent(_decision(2, kSequenceCancelledNotice, _t0));
+    h.addEvent(_stopped(3, _t0, runId: 15));
+
+    final recent = c.read(runDashboardRecentEventsProvider(5));
+    final stopRows =
+        recent.where((e) => e.title == 'Sequence stopped').toList();
+    expect(stopRows, hasLength(1));
+    expect(stopRows.single.message, isNot(kSequenceStoppedByRequestMessage));
+    expect(stopRows.single.message, isNot(kSequenceStoppedByAutopilotMessage));
+  });
 }

@@ -1,6 +1,6 @@
 # Release Tightening Pass — 2026-08-11
 
-## CLOSEOUT (DRAFT — takes effect when Wave G verifies the F-fix batch)
+## CLOSEOUT (DRAFT — takes effect on Wave L's dry return; chain: F-fix → G → H → I → J → K → L)
 
 Campaign ledger, 2026-08-11 → 2026-08-14, all on `audit/end-to-end-campaign`:
 - **Wave A** map (16 mappers) → adjudicated work orders per subsystem.
@@ -435,6 +435,57 @@ Order of execution from here:
    against a fresh bundle + the fixed a11y dump; verify no fix merely relocated its defect;
    reproduce the JD+0.5 planetarium suspect and the phd2 generic-connect route live; eyeball
    the stacked preview); loop map→fix→verify until a wave is dry.
+## Wave L verdict (2026-08-14 ~16:00) — driver 4/4 live PASS; refuter landed 5 (1 P2, 4 P3), all CONFIRMED; response landed
+
+Run wf_519b830b-e40 over commit 8e6558cb7 (driver report:
+reports/release-pass/gui/waveL-close.md). The DRIVER: the FRB-regenerated bundle boots
+cold to the dashboard, Discovery answers with 11 correctly-bucketed sim devices, a full
+sim run completes end-to-end with a correct tally and session report, one press = one
+honest stop row, and a 16-minute session log carries zero exceptions/overflows. Bundle
+provenance content-proven for BOTH halves (Dart string + Rust symbols).
+
+The refuter's five, all CONFIRMED, response in the follow-up commit:
+
+1. **L1 (P2): the rollback wore the operator's evidence** — `_rollbackStart` built its
+   finalization without stopOrigin, so a failed 2 a.m. autopilot LAUNCH rolled back as
+   'Operator: stop' (the K1 class on the caller K missed). Rollbacks now carry origin
+   `'rollback'`; the executor's origin match gained a third arm (any non-operator named
+   origin → gated "System: stop"); the feed row stays neutral (D18).
+2. **L2 (P3): stepping-stone chaining voided the bound** — each id-less join extended the
+   group's reach (six stops 110s apart folded to ONE row over 9 minutes), a strict
+   regression of J3's guarantee. Id-less members now measure to the episode SPINE (the
+   anchor + id-bearing members), never to fellow id-less members (D17: ≥3 rows).
+3. **L3 (P3): the run-id stamp was never cleared** — post-run decisions were written into
+   the finished run's replay timeline. The finalization drive now clears it (best-effort)
+   once the run settles.
+4. **L4 (P3): the origin mechanism was unpinned below the renderer, and mocktail's
+   argument matching made the old `sequencerStop()` stubs a type-error trap.** Pinned at
+   every layer: a Rust producer test (scheduler → SystemEvent; operator → unsilenceable
+   ManualIntervention; rollback → gated), a Dart propagation test (origin reaches the
+   backend verbatim), and the three stale stubs widened to `any(named: 'origin')`.
+5. **L5 (P3): a human's retry of a failed autopilot stop recorded nothing** — the retry
+   kept the retained origin. It now upgrades toward the operator (never downgrades),
+   honouring "only a stop you command yourself is always recorded"; pinned by a
+   stopFailed-retry test asserting origins `['scheduler', null]`.
+
+Convergence: I 7 (1 blocker) → J 7 (lesser) → K 3 → L 5 (1 P2, 4 P3, driver fully
+clean). The L findings are all edges OF the fixes themselves, none reachable without the
+K-response's own machinery; the next check is scoped to exactly these five.
+
+Self-adjudication ahead of Wave M (its charter questions, answered while gates ran):
+- M(b) spine chaining through an ID-BEARING member is accepted BY DESIGN: spine members
+  are authenticated (they carry the run id) or the anchor, so a chain through them is
+  bounded by that run's own teardown — which is legitimately long. Only chains of
+  id-less members through EACH OTHER are blocked (L2's defect).
+- M(c) the stamp clear as first landed RACED a fast restart: it ran after the idle
+  publish, so a start in the sub-second window could set run 2's id and then have the
+  old drive null it (run 2's decisions would carry null until the next set —
+  self-healing, but wrong). Fixed in the same batch: the clear moved BEFORE the terminal
+  publish, so the stamp is gone before anyone can start.
+- M(d) the retry guard direction is proven by the origins `['scheduler', null]` test;
+  a scheduler retry of an operator's stop passes origin 'scheduler' → the guard keeps
+  the operator's claim (never downgrades).
+
 ## Wave K verdict (2026-08-14 ~11:00) — driver 3/3 live PASS; refuter landed 3, all CONFIRMED; response landed (bridge-level)
 
 Run wf_0d4949b2-8a9 over commit 4268e4281 (driver report:

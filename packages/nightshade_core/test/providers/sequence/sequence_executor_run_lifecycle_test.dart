@@ -160,7 +160,9 @@ void _stubConfirmingStop(
   MockBackend backend,
   StreamController<bridge_event.NightshadeEvent> eventController,
 ) {
-  when(() => backend.sequencerStop()).thenAnswer((_) async {
+  when(() => backend.sequencerStop(origin: any(named: 'origin'))).thenAnswer((
+    _,
+  ) async {
     scheduleMicrotask(() {
       if (!eventController.isClosed) {
         eventController.add(_sequencerEvent('Stopped'));
@@ -489,7 +491,8 @@ void main() {
 
       expect(session.startCount, 1);
       // The rollback commanded the (possibly partial) native launch to stop.
-      verify(() => backend.sequencerStop()).called(1);
+      // The rollback's stop must carry its own origin — nobody pressed it.
+      verify(() => backend.sequencerStop(origin: 'rollback')).called(1);
       await expectCleanRollback(container, session);
     });
 
@@ -505,7 +508,7 @@ void main() {
         // The partial launch may still be imaging AND the best-effort rollback
         // stop fails — so we must NOT tear down / clear / release blind.
         when(
-          () => backend.sequencerStop(),
+          () => backend.sequencerStop(origin: any(named: 'origin')),
         ).thenThrow(StateError('rollback stop boom'));
         container
             .read(currentSequenceProvider.notifier)
@@ -514,7 +517,8 @@ void main() {
 
         await expectLater(executor.start(), throwsA(isA<StateError>()));
 
-        verify(() => backend.sequencerStop()).called(1);
+        // The rollback's stop must carry its own origin — nobody pressed it.
+        verify(() => backend.sequencerStop(origin: 'rollback')).called(1);
         // Retained controllability: run id kept, session NOT ended, stopFailed.
         expect(
           container.read(sequenceExecutionStateProvider),
@@ -703,7 +707,9 @@ void main() {
       final container = buildContainer();
       final gate = Completer<void>();
       final executor = await startRunning(container);
-      when(() => backend.sequencerStop()).thenAnswer((_) => gate.future);
+      when(
+        () => backend.sequencerStop(origin: any(named: 'origin')),
+      ).thenAnswer((_) => gate.future);
 
       final stopFuture = executor.stop();
       // The stopping transition happens synchronously before the first await
@@ -728,7 +734,9 @@ void main() {
         SequenceExecutionState.idle,
       );
       expect(session.endedStatuses, ['stopped']);
-      verify(() => backend.sequencerStop()).called(1);
+      verify(
+        () => backend.sequencerStop(origin: any(named: 'origin')),
+      ).called(1);
     });
 
     test(
@@ -747,7 +755,9 @@ void main() {
         // dangling session).
         await expectLater(executor.stop(), throwsA(isA<StateError>()));
 
-        verify(() => backend.sequencerStop()).called(1);
+        verify(
+          () => backend.sequencerStop(origin: any(named: 'origin')),
+        ).called(1);
         expect(session.endedStatuses, [
           'stopped',
         ], reason: 'endSession was attempted');
@@ -801,7 +811,7 @@ void main() {
         // Native stop FAILS — the hardware was not confirmed stopped and may
         // still be imaging.
         when(
-          () => backend.sequencerStop(),
+          () => backend.sequencerStop(origin: any(named: 'origin')),
         ).thenThrow(StateError('hardware wedged'));
         await expectLater(executor.stop(), throwsA(isA<StateError>()));
 
@@ -858,7 +868,7 @@ void main() {
         await executor.start();
 
         when(
-          () => backend.sequencerStop(),
+          () => backend.sequencerStop(origin: any(named: 'origin')),
         ).thenThrow(StateError('hardware wedged'));
         await expectLater(executor.stop(), throwsA(isA<StateError>()));
         expect(
@@ -899,7 +909,7 @@ void main() {
           SequenceExecutionState.idle,
         );
         await executor.stop();
-        verifyNever(() => backend.sequencerStop());
+        verifyNever(() => backend.sequencerStop(origin: any(named: 'origin')));
         expect(
           container.read(sequenceExecutionStateProvider),
           SequenceExecutionState.idle,
@@ -915,7 +925,9 @@ void main() {
 
       await executor.reset();
 
-      verify(() => backend.sequencerStop()).called(1);
+      verify(
+        () => backend.sequencerStop(origin: any(named: 'origin')),
+      ).called(1);
       verify(() => backend.sequencerReset()).called(1);
       expect(session.endedStatuses, ['stopped']);
       expect(
@@ -928,7 +940,7 @@ void main() {
       final container = buildContainer();
       final executor = await startRunning(container);
       when(
-        () => backend.sequencerStop(),
+        () => backend.sequencerStop(origin: any(named: 'origin')),
       ).thenThrow(StateError('hardware wedged'));
 
       await expectLater(executor.reset(), throwsA(isA<StateError>()));
@@ -950,7 +962,9 @@ void main() {
       // `RecvError::Lagged`, so the one terminal finalization waits on can be
       // lost under load. Before the wait was bounded this hung forever, and
       // the operator's Stop button never returned.
-      when(() => backend.sequencerStop()).thenAnswer((_) async {});
+      when(
+        () => backend.sequencerStop(origin: any(named: 'origin')),
+      ).thenAnswer((_) async {});
 
       await expectLater(
         executor.stop(),
@@ -1015,7 +1029,9 @@ void main() {
         // The command is ACCEPTED and the native side never emits a terminal
         // event — exactly the headless load->start path, where this executor
         // has no subscription for one to arrive on.
-        when(() => backend.sequencerStop()).thenAnswer((_) async {});
+        when(
+          () => backend.sequencerStop(origin: any(named: 'origin')),
+        ).thenAnswer((_) async {});
         // ...but the native executor itself says the run is over. That is the
         // same authority the event carries, pulled instead of pushed.
         stubNativeStatus('cancelled');
@@ -1048,7 +1064,9 @@ void main() {
       () async {
         final container = buildContainer();
         final executor = await startRunning(container);
-        when(() => backend.sequencerStop()).thenAnswer((_) async {});
+        when(
+          () => backend.sequencerStop(origin: any(named: 'origin')),
+        ).thenAnswer((_) async {});
         stubNativeStatus('cancelled');
 
         // First stop settles the run.
@@ -1082,7 +1100,9 @@ void main() {
       () async {
         final container = buildContainer();
         final executor = await startRunning(container);
-        when(() => backend.sequencerStop()).thenAnswer((_) async {});
+        when(
+          () => backend.sequencerStop(origin: any(named: 'origin')),
+        ).thenAnswer((_) async {});
         // The poll must never manufacture a confirmation. If native still says
         // `running`, the camera may still be exposing and the operator must get
         // the truthful refusal, not a teardown on a guess.
@@ -1107,7 +1127,9 @@ void main() {
       final container = buildContainer();
       final gate = Completer<void>();
       final executor = await startRunning(container);
-      when(() => backend.sequencerStop()).thenAnswer((_) => gate.future);
+      when(
+        () => backend.sequencerStop(origin: any(named: 'origin')),
+      ).thenAnswer((_) => gate.future);
 
       final s1 = executor.stop();
       final s2 = executor.stop();
@@ -1122,7 +1144,9 @@ void main() {
       eventController.add(_sequencerEvent('Stopped'));
       await Future.wait([s1, s2]);
 
-      verify(() => backend.sequencerStop()).called(1);
+      verify(
+        () => backend.sequencerStop(origin: any(named: 'origin')),
+      ).called(1);
       expect(session.endedStatuses, ['stopped']);
     });
   });
@@ -1665,7 +1689,7 @@ void main() {
           reason:
               'first-claimed terminal intent (completed) wins, exactly once',
         );
-        verifyNever(() => backend.sequencerStop());
+        verifyNever(() => backend.sequencerStop(origin: any(named: 'origin')));
         expect(
           container.read(sequenceExecutionStateProvider),
           SequenceExecutionState.completed,

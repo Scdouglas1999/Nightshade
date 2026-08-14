@@ -77,16 +77,29 @@ impl SequenceExecutor {
             let _ = tx.send(ExecutorCommand::Stop).await;
         }
 
-        if matches!(origin, Some("scheduler")) {
-            // Not a manual intervention: record it as the system event it
-            // is, under the normal decision-logging gate (autopilot noise
-            // may be silenced; operator evidence may not).
-            self.emit_lifecycle_system_decision(
-                "Autopilot: stop",
-                serde_json::json!({ "origin": "scheduler", "action": "stop" }),
-            );
-        } else {
-            self.emit_manual_intervention("stop", serde_json::json!({}));
+        match origin {
+            Some("scheduler") => {
+                // Not a manual intervention: record it as the system event
+                // it is, under the normal decision-logging gate (autopilot
+                // noise may be silenced; operator evidence may not).
+                self.emit_lifecycle_system_decision(
+                    "Autopilot: stop",
+                    serde_json::json!({ "origin": "scheduler", "action": "stop" }),
+                );
+            }
+            Some(other) if other != "operator" => {
+                // Any other named system origin (e.g. a failed-launch
+                // rollback): a stop nobody commanded. Gated system event,
+                // and the feed's stop row stays cause-neutral.
+                self.emit_lifecycle_system_decision(
+                    "System: stop",
+                    serde_json::json!({ "origin": other, "action": "stop" }),
+                );
+            }
+            // None / "operator": a human's stop — the one decision that is
+            // never silenceable, because it is the only evidence the stop
+            // was human rather than a safety abort.
+            _ => self.emit_manual_intervention("stop", serde_json::json!({})),
         }
 
         let completion_result = if let Some(completion_rx) = self.run_completion_rx.take() {

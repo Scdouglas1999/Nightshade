@@ -195,11 +195,13 @@ class _RunFinalization {
   final bool preserveCheckpoint;
 
   /// WHO asked for the stop — `null`/`'operator'` for a human,
-  /// `'scheduler'` for the autopilot. Threaded to the native stop so the
-  /// executor records an autopilot stop as a system event instead of
-  /// operator evidence (an unattended stop must never render as
-  /// "Stopped by request").
-  final String? stopOrigin;
+  /// `'scheduler'` for the autopilot, `'rollback'` for a failed-launch
+  /// rollback. Threaded to the native stop so the executor records a
+  /// non-operator stop as a system event instead of operator evidence (an
+  /// unattended stop must never render as "Stopped by request"). Mutable
+  /// for exactly one transition: a RETRY by a human upgrades a system
+  /// origin to the operator's — that press is real and must be recorded.
+  String? stopOrigin;
 
   /// Whether a `sequencerStop()` must be issued/confirmed before cleanup. False
   /// for a natural terminal (the hardware already terminated authoritatively)
@@ -1077,6 +1079,10 @@ class SequenceExecutor {
       isRollback: true,
       originalError: startError,
       originalStack: startStack,
+      // A rollback's native stop is nobody's press: without this, the
+      // executor records 'Operator: stop' for a launch that failed on its
+      // own — at 2 a.m. under the autopilot, with nobody at the keyboard.
+      stopOrigin: 'rollback',
     );
     _nativeLaunchAttempted = false;
     _finalization = f;
@@ -1542,6 +1548,17 @@ class SequenceExecutor {
       );
     }
 
+    // The run is over: clear the native run-id stamp so a decision emitted
+    // BETWEEN runs (an idle Pause press, a runtime-config change) is not
+    // written into the finished run's replay timeline. Cleared BEFORE the
+    // terminal UI state publishes: once the state reads idle a new start is
+    // legal, and this clear must not race the new run's own stamp.
+    try {
+      await _backend.sequencerSetActiveSequenceRunId(null);
+    } catch (e) {
+      secondary('clear active run id', e);
+    }
+
     // --- 6. Publish one terminal result, THEN the settled UI state --------
     if (f.publishTerminalResult) {
       _publishTerminalResult(f);
@@ -1812,6 +1829,15 @@ class SequenceExecutor {
         (state == SequenceExecutionState.stopFailed ||
             state == SequenceExecutionState.cleanupFailed)) {
       final f = _finalization!;
+      // The retry keeps the retained intent — EXCEPT the origin, which
+      // upgrades toward the operator: a human re-driving an autopilot's
+      // failed stop has genuinely commanded a stop, and that press must be
+      // recorded ("only a stop you command yourself is always recorded").
+      // The reverse never downgrades: once an operator pressed, the episode
+      // stays theirs whoever retries it.
+      if (origin == null || origin == 'operator') {
+        f.stopOrigin = origin;
+      }
       _setExecutionState(
         f.nativeStopConfirmed
             ? SequenceExecutionState.finalizing

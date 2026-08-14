@@ -105,3 +105,39 @@ async fn manual_intervention_decisions_emit_from_command_helpers() {
     assert_eq!(received.category, DecisionCategory::ManualIntervention);
     assert!(received.summary.contains("pause"));
 }
+
+/// Wave L refutation L4: the origin mechanism must be pinned at the
+/// PRODUCER, not only at the renderer. A scheduler-origin stop is a system
+/// event; an operator stop (None origin) is a manual intervention that the
+/// logging toggle can never silence; any other named origin (a rollback) is
+/// a gated system event.
+#[tokio::test]
+async fn stop_origin_selects_the_decision_category() {
+    // Scheduler origin -> SystemEvent "Autopilot: stop".
+    let mut executor = SequenceExecutor::new();
+    let mut rx = executor.subscribe_decisions();
+    let _ = executor.stop_with_origin(Some("scheduler")).await;
+    let received = rx.recv().await.expect("autopilot decision delivered");
+    assert_eq!(received.category, DecisionCategory::SystemEvent);
+    assert_eq!(received.summary, "Autopilot: stop");
+    assert_eq!(received.details["origin"], serde_json::json!("scheduler"));
+
+    // Operator (None) origin -> ManualIntervention, even with logging OFF.
+    let mut executor = SequenceExecutor::new();
+    let mut rx = executor.subscribe_decisions();
+    executor.set_decision_logging_enabled(false);
+    let _ = executor.stop().await;
+    let received = rx.recv().await.expect("operator stop decision delivered");
+    assert_eq!(received.category, DecisionCategory::ManualIntervention);
+    assert_eq!(received.summary, "Operator: stop");
+
+    // Rollback origin -> gated SystemEvent; silenced when logging is off.
+    let mut executor = SequenceExecutor::new();
+    let mut rx = executor.subscribe_decisions();
+    executor.set_decision_logging_enabled(false);
+    let _ = executor.stop_with_origin(Some("rollback")).await;
+    assert!(
+        rx.try_recv().is_err(),
+        "a rollback stop is system noise the logging toggle may silence"
+    );
+}

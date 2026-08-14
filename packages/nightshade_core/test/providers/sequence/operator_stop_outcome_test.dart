@@ -96,7 +96,9 @@ void main() {
       final (container, executor) = build();
       // The native cancels the in-flight slew and reports the run as FAILED,
       // carrying the instruction-level cancellation as the reason.
-      when(() => backend.sequencerStop()).thenAnswer((_) async {
+      when(
+        () => backend.sequencerStop(origin: any(named: 'origin')),
+      ).thenAnswer((_) async {
         scheduleMicrotask(() {
           executor.handleSequencerEventForTest(
             event('Error', {'message': _slewCancelled}),
@@ -130,7 +132,9 @@ void main() {
   test('a LATE failure terminal cannot re-verdict a finished stop', () async {
     final (container, executor) = build();
     // The stop is confirmed by the native `Stopped` state change...
-    when(() => backend.sequencerStop()).thenAnswer((_) async {
+    when(() => backend.sequencerStop(origin: any(named: 'origin'))).thenAnswer((
+      _,
+    ) async {
       scheduleMicrotask(() {
         executor.handleSequencerEventForTest(
           event('SequenceStopped', const {}),
@@ -185,4 +189,64 @@ void main() {
       contains('Camera disconnected'),
     );
   });
+
+  test('the stop origin reaches the native backend verbatim', () async {
+    // Wave L refutation L4: nothing below the renderer pinned the origin
+    // mechanism. The scheduler's stop must arrive at the backend as
+    // origin='scheduler'; a bare operator stop as null.
+    final (container, executor) = build();
+    final origins = <String?>[];
+    when(() => backend.sequencerStop(origin: any(named: 'origin'))).thenAnswer((
+      invocation,
+    ) async {
+      origins.add(invocation.namedArguments[#origin] as String?);
+      scheduleMicrotask(() {
+        executor.handleSequencerEventForTest(event('SequenceStopped', {}));
+      });
+    });
+
+    await executor.stop(origin: 'scheduler');
+    await executor.terminalCleanupSettledForTest;
+
+    expect(origins, ['scheduler']);
+    // Silence the analyzer about the unused container.
+    expect(container, isNotNull);
+  });
+
+  test(
+    "a human's retry of a failed autopilot stop claims the episode",
+    () async {
+      // Wave L refutation L5: the retry re-drives the retained finalization,
+      // and the origin must upgrade toward the operator — their press is real
+      // and must be recorded ('only a stop you command yourself is always
+      // recorded'). The reverse never downgrades.
+      final (container, executor) = build();
+      final origins = <String?>[];
+      var failFirst = true;
+      when(
+        () => backend.sequencerStop(origin: any(named: 'origin')),
+      ).thenAnswer((invocation) async {
+        origins.add(invocation.namedArguments[#origin] as String?);
+        if (failFirst) {
+          failFirst = false;
+          throw StateError('native stop lost');
+        }
+        scheduleMicrotask(() {
+          executor.handleSequencerEventForTest(event('SequenceStopped', {}));
+        });
+      });
+
+      // Autopilot stops; the native stop throws; the drive settles stopFailed.
+      await expectLater(executor.stop(origin: 'scheduler'), throwsStateError);
+      expect(
+        container.read(sequenceExecutionStateProvider),
+        SequenceExecutionState.stopFailed,
+      );
+
+      // The human presses Stop: the retry must carry THEIR origin.
+      await executor.stop();
+      await executor.terminalCleanupSettledForTest;
+      expect(origins, ['scheduler', null]);
+    },
+  );
 }

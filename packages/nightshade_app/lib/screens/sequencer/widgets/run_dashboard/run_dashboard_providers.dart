@@ -676,15 +676,17 @@ const _stopEpisodeSpan = Duration(minutes: 2);
 class _StopGroup {
   final int outIndex;
   final Set<String> kinds = <String>{};
-  final List<DateTime> memberTimes;
-  int? runId;
-  _StopGroup(DateTime anchor, this.outIndex) : memberTimes = [anchor];
 
-  /// Distance from [time] to the CLOSEST member — pairwise, not
-  /// anchor-relative: the anchor is merely the newest-seen member, and an
-  /// episode's producers chain (press … teardown rows … late terminal), so
-  /// a member belongs if it is close to ANY of them.
-  Duration nearestDistance(DateTime time) => memberTimes
+  /// The episode's SPINE: the first-seen member plus every member that
+  /// carried a run id. Id-less members measure their join distance to the
+  /// spine only — never to fellow id-less members — because letting each
+  /// id-less join extend the reach turns the bound into a stepping-stone
+  /// chain that can absorb (and delete) a stop arbitrarily far away.
+  final List<DateTime> spineTimes;
+  int? runId;
+  _StopGroup(DateTime anchor, this.outIndex) : spineTimes = [anchor];
+
+  Duration nearestSpineDistance(DateTime time) => spineTimes
       .map((t) => t.difference(time).abs())
       .reduce((a, b) => a < b ? a : b);
 }
@@ -743,7 +745,7 @@ List<RunDashboardEvent> _foldStopFamilyRows(
         group = candidate;
         break;
       }
-      final distance = candidate.nearestDistance(row.time);
+      final distance = candidate.nearestSpineDistance(row.time);
       // For id-less members the Started boundary is the primary separator,
       // but it is published by exactly one producer — anywhere it is
       // missing (an attached session, a truncated stream) an unbounded
@@ -766,7 +768,7 @@ List<RunDashboardEvent> _foldStopFamilyRows(
     }
     if (kind != null) group.kinds.add(kind);
     group.runId ??= runId;
-    group.memberTimes.add(row.time);
+    if (runId != null) group.spineTimes.add(row.time);
     // If this member knows the cause and the emitted row does not, the row
     // learns the MESSAGE only — time, eventId, and position stay the
     // emitted row's own.
