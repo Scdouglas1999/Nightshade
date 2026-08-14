@@ -689,6 +689,37 @@ extension _PreFlightSectionBuilders on _PreFlightValidationDialogState {
     );
   }
 
+  /// Why Start cannot run, as a sentence fragment for [GatedAction.announce] —
+  /// or null when it can.
+  ///
+  /// WF-SCI-N3: with errors on the board the primary is inert, and the tree
+  /// published a plain `button: Start Sequence` beside its live siblings
+  /// `Re-check` and `Cancel`. Clicking it did nothing and said nothing, so a
+  /// blocked dialog was indistinguishable from a working one for anyone
+  /// reading the screen through assistive tech.
+  String? _startBlockedReason({
+    required bool canStart,
+    required bool hasWarningsOnly,
+    required bool hasBlockingSimulationIssue,
+  }) {
+    if (canStart || hasWarningsOnly) return null;
+    final result = _result;
+    if (result == null) {
+      return _isValidating
+          ? 'the pre-flight checks have not finished'
+          : 'the pre-flight checks have not run yet';
+    }
+    if (result.hasErrors) {
+      final count = result.errorCount;
+      return 'fix the $count pre-flight '
+          '${count == 1 ? 'error' : 'errors'} above first';
+    }
+    if (hasBlockingSimulationIssue) {
+      return 'the run simulation found a blocking issue';
+    }
+    return 'the pre-flight checks have not cleared this run';
+  }
+
   Widget _buildActions(NightshadeColors colors) {
     final hasBlockingSimulationIssue = _simulation?.hasBlockingIssues ?? false;
     final hasSimulationWarnings = _simulation?.issues.any(
@@ -741,6 +772,11 @@ extension _PreFlightSectionBuilders on _PreFlightValidationDialogState {
                 canStart: canStart,
                 hasWarningsOnly: hasWarningsOnly,
                 colors: colors,
+                blockedReason: _startBlockedReason(
+                  canStart: canStart,
+                  hasWarningsOnly: hasWarningsOnly,
+                  hasBlockingSimulationIssue: hasBlockingSimulationIssue,
+                ),
                 onPressed: (canStart || hasWarningsOnly)
                     ? () async {
                         await _handleStartSequence();

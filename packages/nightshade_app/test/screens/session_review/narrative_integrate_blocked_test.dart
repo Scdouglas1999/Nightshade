@@ -26,7 +26,7 @@ class _FixedStateController extends SessionReviewController {
   int reIntegrateCalls = 0;
 
   @override
-  Future<void> loadSmartData() async {
+  Future<void> loadSmartData({bool recomputeNightReport = false}) async {
     state = _seed;
   }
 

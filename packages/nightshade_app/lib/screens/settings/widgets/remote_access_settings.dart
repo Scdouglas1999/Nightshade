@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
@@ -11,7 +12,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../localization/nightshade_localizations.dart';
-import '../pairing_screen.dart';
+import '../pairing_screen.dart' show pairingProvider;
 import 'settings_widgets.dart';
 
 part 'remote_access_settings/shared_controls.dart';
@@ -366,13 +367,10 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
             _PairingCallout(
               title: l10n.text('remoteAccessPairTitle'),
               description: l10n.text('remoteAccessPairDesc'),
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const PairingScreen(),
-                  ),
-                );
-              },
+              // Routed, not `Navigator.push`ed: a page pushed straight onto
+              // the shell's navigator survives every rail destination the
+              // operator picks afterwards (WF-SS-N2).
+              onPressed: () => context.push('/pairing'),
             ),
             if (webState.isRunning &&
                 webState.serverFingerprint.isNotEmpty) ...[

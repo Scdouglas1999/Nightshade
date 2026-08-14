@@ -31,6 +31,15 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
   final Ref _ref;
   final SessionReviewScope _scope;
 
+  /// Whether this screen has already replaced a stale Night Doctor verdict.
+  ///
+  /// The staleness test in `_loadNightReport` would otherwise fire on every
+  /// smart-data load for the same night — each one computing AND persisting a
+  /// report — because the freshly written report is still older than nothing
+  /// it can change. One automatic recompute per visit is enough to correct the
+  /// record; the operator's Refresh can always force another.
+  bool _nightReportRecomputed = false;
+
   /// Live integration-progress subscription bound from the post-session seam's
   /// `IntegrationProgress` event stream; cancelled in [dispose].
   StreamSubscription<({String phase, double fraction})>? _progressSub;
@@ -148,7 +157,12 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
 
   /// Refresh the sub list + master list from the database (after an external
   /// change, e.g. another screen rejected a frame).
-  Future<void> refresh() => _load();
+  ///
+  /// Also RE-COMPUTES the Night Doctor verdict rather than re-reading the
+  /// persisted one: the operator pressing Refresh on a screen showing a
+  /// verdict they disagree with is the one moment where "use the cached
+  /// answer" is certainly wrong (WF-SCI-N2).
+  Future<void> refresh() => _load(recomputeNightReport: true);
 
   /// Replace the working integration settings (panel edits). Not persisted as
   /// the default unless [persistAsDefault] is set.
@@ -285,11 +299,11 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
   /// leaves that field null/empty rather than sinking the whole load, so a
   /// single-night session (no master, no growth) still gets its night report,
   /// and a master with no persisted curve still gets growth + annotations.
-  Future<void> loadSmartData() async {
+  Future<void> loadSmartData({bool recomputeNightReport = false}) async {
     if (!mounted) return;
     state = state.copyWith(loadingSmartData: true);
 
-    final report = await _loadNightReport();
+    final report = await _loadNightReport(forceRecompute: recomputeNightReport);
     final master = state.reviewedMaster;
     final (curve, population) = master != null
         ? await _loadImprovementCurve(master.id)

@@ -118,8 +118,30 @@ pub(crate) struct GuideSnapshot {
     pub(crate) pixels: Vec<u8>,
     pub(crate) crop_origin_x: i32,
     pub(crate) crop_origin_y: i32,
+    /// Star position INSIDE the crop, i.e. in the 50-100 px thumbnail's own
+    /// coordinates. Right for drawing crosshairs on that thumbnail; wrong for
+    /// anything the operator reads as a position on the guide frame — see
+    /// [`GuideSnapshot::star_frame_position`].
     pub(crate) star_x: f64,
     pub(crate) star_y: f64,
+}
+
+impl GuideSnapshot {
+    /// The star's position in the FULL guide frame.
+    ///
+    /// WF-SN-N1: `find_star` and `get_lock_position` both returned the CROP
+    /// coordinates, so one Auto Select click logged
+    /// "chose a guide star at (967.8, 724.3) px" and then
+    /// "locked guide star at (24.8, 25.3) px", and the operator-facing banner
+    /// showed the second — the corner of a 1920x1080 guide frame for a star
+    /// locked near its centre. PHD2's own `find_star` answers in frame
+    /// coordinates, so the two guider backends disagreed as well.
+    pub(crate) fn star_frame_position(&self) -> (f64, f64) {
+        (
+            self.crop_origin_x as f64 + self.star_x,
+            self.crop_origin_y as f64 + self.star_y,
+        )
+    }
 }
 
 #[derive(Clone, Debug)]

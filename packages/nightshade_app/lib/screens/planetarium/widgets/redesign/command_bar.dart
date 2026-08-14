@@ -357,6 +357,12 @@ class _ToolsMenu extends ConsumerWidget {
       );
     }
 
+    // WF-SS-N3: the hover message was already trigger-borne, but a
+    // `PopupMenuButton`'s icon carries no accessible name of its own, so this
+    // control dumped as a bare `button: ` beside its named siblings — the
+    // whole Tools overflow was anonymous to the keyboard and to a screen
+    // reader. The tooltip is the name here, exactly as in
+    // [CommandBarIconButton].
     return NightshadeTooltip(
       message: 'Tools',
       position: NightshadeTooltipPosition.bottom,
@@ -367,8 +373,12 @@ class _ToolsMenu extends ConsumerWidget {
           borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
           side: BorderSide(color: colors.border),
         ),
+        // The name lives on the icon: `PopupMenuButton` builds an
+        // `IconButton` whose semantics node a parent annotation cannot get
+        // onto, so this bar's Tools control dumped as a bare `button: `
+        // beside its named siblings (WF-SS-N3).
         icon: Icon(NightshadeIcons.settings2,
-            size: 18, color: colors.textSecondary),
+            size: 18, color: colors.textSecondary, semanticLabel: 'Tools'),
         onSelected: (value) {
           switch (value) {
             case 'measurement':

@@ -798,10 +798,16 @@ class _CopyCodeButtonState extends State<_CopyCodeButton> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
+        // Filled, not ghost. A ghost button paints no fill until hover, so its
+        // `textSecondary` label sat straight on the card's `primaryContainer`
+        // and measured 1.15:1 — the one affordance for the credential read as
+        // a disabled ghost (WF-SS-N1). A filled variant carries its own
+        // background, so the label's contrast no longer depends on whatever
+        // card it is dropped onto.
         NightshadeButton(
           label: label,
           icon: _copied ? NightshadeIcons.success : NightshadeIcons.copy,
-          variant: ButtonVariant.ghost,
+          variant: ButtonVariant.primary,
           size: ButtonSize.small,
           onPressed: _copy,
         ),

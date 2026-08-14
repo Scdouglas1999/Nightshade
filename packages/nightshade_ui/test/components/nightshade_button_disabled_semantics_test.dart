@@ -56,6 +56,34 @@ void main() {
     handle.dispose();
   });
 
+  testWidgets('a disabled button advertises no tap action', (tester) async {
+    // WF-SN-N4's counter-input: the two flags above were already correct in the
+    // widget tree, and a disabled `Start Alignment` STILL reached the Linux
+    // AT-SPI bridge as `button: Start Alignment` with the `sensitive` state and
+    // no `[DISABLED]` marker. The flags are not the only thing the bridge
+    // reads — a node that still ADVERTISES `SemanticsAction.tap` is an
+    // actionable object to the platform whatever its enabled flag says, and
+    // this button's `GestureDetector` kept `onTapDown`/`onTapUp`/`onTapCancel`
+    // wired while disabled, which is enough to register a `TapGestureRecognizer`
+    // and with it the tap action.
+    final handle = tester.ensureSemantics();
+    await pump(tester, disabled: true);
+
+    final data = tester
+        .getSemantics(find.byType(NightshadeButton))
+        .getSemanticsData();
+
+    expect(
+      data.hasAction(SemanticsAction.tap),
+      isFalse,
+      reason:
+          'a disabled button that still offers a tap action is announced as '
+          'live by the platform bridge, and activating it does nothing',
+    );
+
+    handle.dispose();
+  });
+
   testWidgets('an enabled button still reads as enabled', (tester) async {
     // The complement, so the test above cannot pass by the flag simply never
     // being set in either direction.

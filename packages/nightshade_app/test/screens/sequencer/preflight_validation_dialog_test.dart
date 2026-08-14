@@ -426,6 +426,47 @@ void main() {
     expect(node.hasFlag(SemanticsFlag.isButton), isTrue);
     expect(node.hasFlag(SemanticsFlag.hasEnabledState), isTrue);
     expect(node.hasFlag(SemanticsFlag.isEnabled), isTrue);
+    expect(
+      node.label.trim(),
+      'Start Anyway',
+      reason: 'nothing blocks a warnings-only run, so no reason is announced',
+    );
+    handle.dispose();
+  });
+
+  // WF-SCI-N3: the counter-input to the fix above. With an ERROR on the board
+  // the same button is inert, and an AT-SPI probe of the live dialog read
+  // `Start Sequence` with `sensitive` and no `enabled` — the blocked primary
+  // was indistinguishable from a live one and carried no reason, while
+  // clicking it produced no dialog change, no run, no toast and no log line.
+  testWidgets('a blocked Start announces why it cannot run', (tester) async {
+    final handle = tester.ensureSemantics();
+    await pumpDialog(
+      tester: tester,
+      issues: const [
+        ValidationIssue(
+          severity: ValidationSeverity.error,
+          category: ValidationCategory.equipmentHealth,
+          title: 'Daylight Gate',
+          description: 'The sun is above the configured altitude limit.',
+        ),
+      ],
+    );
+
+    expect(find.text('Start Sequence'), findsOneWidget);
+    final node = tester.getSemantics(find.text('Start Sequence'));
+    expect(node.hasFlag(SemanticsFlag.isButton), isTrue);
+    expect(node.hasFlag(SemanticsFlag.hasEnabledState), isTrue);
+    expect(node.hasFlag(SemanticsFlag.isEnabled), isFalse);
+    expect(
+      node.label.trim(),
+      'Start Sequence — unavailable: fix the 1 pre-flight error above first',
+    );
+    expect(
+      node.getSemanticsData().hasAction(SemanticsAction.tap),
+      isFalse,
+      reason: 'a blocked primary that still offers a tap action reads as live',
+    );
     handle.dispose();
   });
 }

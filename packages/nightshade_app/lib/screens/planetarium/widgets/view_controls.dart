@@ -540,50 +540,55 @@ class QualitySettingsButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final quality = ref.watch(renderQualityProvider);
 
-    return PopupMenuButton<RenderQuality>(
-      icon: const Icon(
-        NightshadeIcons.settings2,
-        size: 18,
-        color: Colors.white70,
+    return _namedCommandBarPopup(
+      name: 'Render quality',
+      child: PopupMenuButton<RenderQuality>(
+        icon: const Icon(
+          NightshadeIcons.settings2,
+          size: 18,
+          color: Colors.white70,
+        ),
+        // Empty, deliberately: see [_namedCommandBarPopup].
+        tooltip: '',
+        color: colors.surface,
+        shape: RoundedRectangleBorder(
+            borderRadius:
+                BorderRadius.circular(NightshadeTokens.radiusInline8)),
+        offset: const Offset(-120, 0),
+        onSelected: (tier) {
+          ref.read(renderQualityProvider.notifier).setQuality(tier);
+        },
+        itemBuilder: (context) => [
+          _buildQualityMenuItem(
+            context,
+            RenderQuality.minimal,
+            'Minimal',
+            'Raspberry Pi / low-power',
+            quality.quality,
+          ),
+          _buildQualityMenuItem(
+            context,
+            RenderQuality.performance,
+            'Performance',
+            'Low-end devices',
+            quality.quality,
+          ),
+          _buildQualityMenuItem(
+            context,
+            RenderQuality.balanced,
+            'Balanced',
+            'Recommended',
+            quality.quality,
+          ),
+          _buildQualityMenuItem(
+            context,
+            RenderQuality.quality,
+            'Quality',
+            'Best visuals',
+            quality.quality,
+          ),
+        ],
       ),
-      tooltip: 'Render quality',
-      color: colors.surface,
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
-      offset: const Offset(-120, 0),
-      onSelected: (tier) {
-        ref.read(renderQualityProvider.notifier).setQuality(tier);
-      },
-      itemBuilder: (context) => [
-        _buildQualityMenuItem(
-          context,
-          RenderQuality.minimal,
-          'Minimal',
-          'Raspberry Pi / low-power',
-          quality.quality,
-        ),
-        _buildQualityMenuItem(
-          context,
-          RenderQuality.performance,
-          'Performance',
-          'Low-end devices',
-          quality.quality,
-        ),
-        _buildQualityMenuItem(
-          context,
-          RenderQuality.balanced,
-          'Balanced',
-          'Recommended',
-          quality.quality,
-        ),
-        _buildQualityMenuItem(
-          context,
-          RenderQuality.quality,
-          'Quality',
-          'Best visuals',
-          quality.quality,
-        ),
-      ],
     );
   }
 
@@ -631,6 +636,36 @@ class QualitySettingsButton extends ConsumerWidget {
   }
 }
 
+/// Wrap a command-bar [PopupMenuButton] so it has a NAME and its message is
+/// carried by the trigger.
+///
+/// Two things are wrong with a bare `PopupMenuButton(tooltip: 'X')` here, and
+/// both were live findings (D-2, WF-SS-N3):
+///
+///  * The icon carries no label, so the control dumps as a bare `button: ` —
+///    unidentifiable to anyone driving the bar from the keyboard or a screen
+///    reader, and unusable as evidence in an audit.
+///  * Material's `Tooltip` publishes its message as a semantics node of its
+///    own. The live tree kept `panel: Projection: Stereographic` for the rest
+///    of the session after a single hover, with the bar visibly clean on
+///    screen at the same instant. Passing an EMPTY tooltip makes `Tooltip`
+///    return its child untouched, so no such node is ever created; the hover
+///    message comes from [NightshadeTooltip] instead, which retires with the
+///    pointer.
+Widget _namedCommandBarPopup({required String name, required Widget child}) {
+  // The NAME itself goes on the icon (`Icon(semanticLabel:)`), because
+  // `PopupMenuButton` builds an `IconButton` whose semantics node is a
+  // container of its own: a parent `Semantics(label: …)` — even merged —
+  // lands beside that node and leaves the button announcing `button: ` with
+  // nothing after it. The icon's label is the one string that ends up ON the
+  // button node, with its role and its tap action.
+  return NightshadeTooltip(
+    message: name,
+    position: NightshadeTooltipPosition.bottom,
+    child: child,
+  );
+}
+
 /// Projection selector popup button
 class ProjectionSelectorButton extends ConsumerWidget {
   final NightshadeColors colors;
@@ -642,57 +677,64 @@ class ProjectionSelectorButton extends ConsumerWidget {
     final viewState = ref.watch(skyViewStateProvider);
     final currentProjection = viewState.projection;
 
-    return PopupMenuButton<SkyProjection>(
-      icon: Icon(
-        _projectionIcon(currentProjection),
-        size: 18,
-        color: Colors.white70,
+    final name = 'Projection: ${_projectionName(currentProjection)}';
+    return _namedCommandBarPopup(
+      name: name,
+      child: PopupMenuButton<SkyProjection>(
+        icon: Icon(
+          _projectionIcon(currentProjection),
+          size: 18,
+          color: Colors.white70,
+          semanticLabel: name,
+        ),
+        // Empty, deliberately: see [_namedCommandBarPopup].
+        tooltip: '',
+        color: colors.surface,
+        shape: RoundedRectangleBorder(
+            borderRadius:
+                BorderRadius.circular(NightshadeTokens.radiusInline8)),
+        offset: const Offset(-140, 0),
+        onSelected: (projection) {
+          ref.read(skyViewStateProvider.notifier).setProjection(projection);
+        },
+        itemBuilder: (context) => SkyProjection.values.map((projection) {
+          final isSelected = projection == currentProjection;
+          return PopupMenuItem<SkyProjection>(
+            value: projection,
+            child: Row(
+              children: [
+                Icon(
+                  isSelected ? NightshadeIcons.success : NightshadeIcons.circle,
+                  size: 16,
+                  color: isSelected ? colors.accent : colors.textSecondary,
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _projectionName(projection),
+                      style: TextStyle(
+                        color: colors.textPrimary,
+                        fontWeight:
+                            isSelected ? FontWeight.w600 : FontWeight.normal,
+                      ),
+                    ),
+                    Text(
+                      _projectionDescription(projection),
+                      style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize11,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        }).toList(),
       ),
-      tooltip: 'Projection: ${_projectionName(currentProjection)}',
-      color: colors.surface,
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
-      offset: const Offset(-140, 0),
-      onSelected: (projection) {
-        ref.read(skyViewStateProvider.notifier).setProjection(projection);
-      },
-      itemBuilder: (context) => SkyProjection.values.map((projection) {
-        final isSelected = projection == currentProjection;
-        return PopupMenuItem<SkyProjection>(
-          value: projection,
-          child: Row(
-            children: [
-              Icon(
-                isSelected ? NightshadeIcons.success : NightshadeIcons.circle,
-                size: 16,
-                color: isSelected ? colors.accent : colors.textSecondary,
-              ),
-              const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    _projectionName(projection),
-                    style: TextStyle(
-                      color: colors.textPrimary,
-                      fontWeight:
-                          isSelected ? FontWeight.w600 : FontWeight.normal,
-                    ),
-                  ),
-                  Text(
-                    _projectionDescription(projection),
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: colors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      }).toList(),
     );
   }
 

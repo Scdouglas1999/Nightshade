@@ -54,14 +54,19 @@ class LastNightRecapCard extends ConsumerWidget {
               ),
             )
           else
-            _runBody(context, lastRun),
+            _runBody(context, ref, lastRun),
         ],
       ),
     );
   }
 
-  Widget _runBody(BuildContext context, SequenceRun run) {
+  Widget _runBody(BuildContext context, WidgetRef ref, SequenceRun run) {
     final stats = _tryParse(run.statsJson);
+    // Watched during build, not read inside the tap handler: read at tap time
+    // the family provider is still `AsyncLoading`, so the very first click
+    // would always take the no-session fallback.
+    final sessionId =
+        ref.watch(sequenceRunSessionIdProvider(run.id)).valueOrNull;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -135,14 +140,25 @@ class LastNightRecapCard extends ConsumerWidget {
             label: context.l10n.text('dbOpenLastRun'),
             variant: ButtonVariant.ghost,
             size: ButtonSize.small,
-            // History deep-linking by run id isn't a stable route, so we link
-            // to the Sequencer where the History tab surfaces the run list.
-            onPressed: () => context.go('/sequencer'),
+            // WF-SCI-N4: this opened the Sequence BUILDER — 0 nodes, 0 frames,
+            // not the run and not even the History tab — while the card body
+            // around it already deep-links the same run to its Session Review.
+            // A button on a card must not promise less than the card. Same
+            // resolution the Morning Report tile uses: the run's session when
+            // it has one, the History tab when it does not.
+            onPressed: () => context.go(_openLastRunDestination(sessionId)),
           ),
         ),
       ],
     );
   }
+
+  /// Where "Open last run" goes: the run's own Session Review when the run
+  /// produced a session, otherwise the Sequencer's History TAB (never the
+  /// builder).
+  static String _openLastRunDestination(int? sessionId) => sessionId == null
+      ? '/sequencer?tab=history'
+      : '/session-review?session=$sessionId';
 
   /// Defensive parse: the stored blob may be empty/null/malformed. Any failure
   /// → null so we degrade to the bare status row instead of throwing.

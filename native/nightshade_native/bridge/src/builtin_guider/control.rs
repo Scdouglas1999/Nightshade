@@ -337,8 +337,10 @@ pub async fn find_star() -> Result<(f64, f64), NightshadeError> {
         EventSeverity::Info,
     );
 
+    // FRAME coordinates, in both arms — the snapshot's own `star_x/star_y`
+    // live inside the 50 px crop made one line above (WF-SN-N1).
     if let Some(snapshot) = &guard.last_snapshot {
-        Ok((snapshot.star_x, snapshot.star_y))
+        Ok(snapshot.star_frame_position())
     } else {
         Ok((selected.x, selected.y))
     }
@@ -403,7 +405,9 @@ pub async fn set_lock_position(x: f64, y: f64) -> Result<(), NightshadeError> {
 pub async fn get_lock_position() -> Result<(f64, f64), NightshadeError> {
     let guard = state().read().await;
     if let Some(snapshot) = &guard.last_snapshot {
-        return Ok((snapshot.star_x, snapshot.star_y));
+        // Frame coordinates, matching `find_star`, `manual_lock` and the
+        // `StarSelected` event — not the crop's (WF-SN-N1).
+        return Ok(snapshot.star_frame_position());
     }
     if let Some(lock) = guard.manual_lock {
         return Ok((lock.x, lock.y));

@@ -5,6 +5,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../widgets/gated_action.dart';
 import 'mount_unpark_dialog.dart';
 import 'sequence_diff_dialog.dart';
 import 'session_handoff_dialog.dart';

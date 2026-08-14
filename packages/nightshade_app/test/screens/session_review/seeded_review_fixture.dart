@@ -268,7 +268,7 @@ class SeededReviewController extends SessionReviewController {
   final String previewPath;
 
   @override
-  Future<void> loadSmartData() async {
+  Future<void> loadSmartData({bool recomputeNightReport = false}) async {
     state = state.copyWith(
       loading: false,
       loadingSmartData: false,

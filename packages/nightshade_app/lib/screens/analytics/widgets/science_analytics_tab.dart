@@ -69,6 +69,14 @@ final latestScienceSessionProvider = FutureProvider<int?>((ref) async {
   // Remote rigs answer through the network backend, which has no equivalent
   // query; the caller falls back to the newest session there.
   if (backend is NetworkBackend) return null;
+  // WF-SCI-N1: this was computed ONCE and never again, so the Session tab kept
+  // reviewing the previous night after a run finished — the newer run sat one
+  // row up in its own dropdown, and picking it reverted on the next visit.
+  // Restarting the app fixed it, which is the signature of a cached answer
+  // rather than a wrong query. Watching the session stream reruns the query
+  // whenever a session row is written — including the status/end-time update a
+  // run makes when it finishes, which is the moment the answer changes.
+  await ref.watch(allSessionsProvider.future);
   return ref.read(imagesDaoProvider).getLatestSessionIdWithLightFrames();
 });
 

@@ -233,10 +233,19 @@ class _NightshadeButtonState extends State<NightshadeButton>
               },
             ),
           },
+          // Every tap callback is dropped when disabled, not just `onTap`.
+          // `GestureDetector` registers a `TapGestureRecognizer` — and with it
+          // a `SemanticsAction.tap` on this node — if ANY of onTapDown/onTapUp/
+          // onTapCancel/onTap is non-null, and onTapDown was unconditional. So
+          // a disabled button published an actionable node: correct
+          // `hasEnabledState`/`isEnabled` flags, and a tap action beside them.
+          // The Linux AT-SPI bridge reported the result as a live `button:
+          // Start Alignment` with no disabled marker (WF-SN-N4, WF-SCI-N3),
+          // which is also why no wave could use `[DISABLED]` as evidence.
           child: GestureDetector(
-            onTapDown: _handleTapDown,
-            onTapUp: _handleTapUp,
-            onTapCancel: _handleTapCancel,
+            onTapDown: isDisabled ? null : _handleTapDown,
+            onTapUp: isDisabled ? null : _handleTapUp,
+            onTapCancel: isDisabled ? null : _handleTapCancel,
             onTap: isDisabled ? null : widget.onPressed,
             child: AnimatedBuilder(
               animation: _scaleAnimation,

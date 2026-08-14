@@ -5,7 +5,7 @@
 part of '../session_review_controller.dart';
 
 extension _SessionReviewControllerHelpers on SessionReviewController {
-  Future<void> _load() async {
+  Future<void> _load({bool recomputeNightReport = false}) async {
     try {
       final settings = await _loadDefaultSettings();
       final subs = await _loadSubs();
@@ -33,7 +33,15 @@ extension _SessionReviewControllerHelpers on SessionReviewController {
       );
       // The base list is on screen; populate the smart backbone in the
       // background so the panels fill in without blocking the first paint.
-      unawaited(loadSmartData());
+      // An operator-driven Refresh AWAITS the recompute: the caller asked for
+      // a new verdict, so `refresh()` must not complete while one is still
+      // being computed and written. The first load stays unawaited so the sub
+      // list paints without waiting for the analysis.
+      if (recomputeNightReport) {
+        await loadSmartData(recomputeNightReport: true);
+      } else {
+        unawaited(loadSmartData());
+      }
       unawaited(loadComposites());
     } catch (e) {
       if (!mounted) return;
@@ -110,20 +118,40 @@ extension _SessionReviewControllerHelpers on SessionReviewController {
     state = state.copyWith(subs: subs);
   }
 
-  /// The Night Doctor verdict for this scope. Prefers the most-recent persisted
-  /// report (cheap read); computes + persists one on first view. Fail-soft to
-  /// null so the panel shows its "analysis pending" state rather than an error.
-  Future<NightReport?> _loadNightReport() async {
+  /// The Night Doctor verdict for this scope. Reuses the most-recent persisted
+  /// report when it still describes this night; otherwise computes (and
+  /// persists) a fresh one. Fail-soft to null so the panel shows its
+  /// "analysis pending" state rather than an error.
+  ///
+  /// WF-SCI-N2: the stored report used to be preferred unconditionally, so the
+  /// verdict was computed exactly once per session and never again. A night
+  /// analysed before a detector fix kept its old verdict forever — 100/100,
+  /// "A clean night — no problems detected", over four subs the same build
+  /// grades POOR — and Refresh did not recompute it either, so there was no
+  /// user-reachable way to get the new answer. Same trap for any night first
+  /// viewed while its frames were still being graded.
+  ///
+  /// Two ways out, both needed: [forceRecompute] for the operator's own
+  /// Refresh, and a staleness test for the case nobody thinks to refresh —
+  /// a report cannot describe frames that were captured after it was written.
+  Future<NightReport?> _loadNightReport({bool forceRecompute = false}) async {
     try {
       final reports = _ref.read(nightReportsDaoProvider);
-      if (_scope.isSession) {
-        final stored = await reports.latestForSession(_scope.sessionId!);
-        if (stored != null) return stored;
-      } else if (_scope.targetId != null) {
-        final stored = await reports.getForTarget(_scope.targetId!);
-        if (stored.isNotEmpty) return stored.first;
+      if (!forceRecompute) {
+        NightReport? stored;
+        if (_scope.isSession) {
+          stored = await reports.latestForSession(_scope.sessionId!);
+        } else if (_scope.targetId != null) {
+          final rows = await reports.getForTarget(_scope.targetId!);
+          stored = rows.isEmpty ? null : rows.first;
+        }
+        if (stored != null &&
+            (_nightReportRecomputed || !_nightReportIsStale(stored))) {
+          return stored;
+        }
       }
-      // No stored report yet — compute (and persist) one.
+      _nightReportRecomputed = true;
+      // No usable stored report — compute (and persist) one.
       return _ref.read(nightAnalysisServiceProvider).computeReport(
             sessionId: _scope.sessionId,
             targetId: _scope.targetId ?? state.targetId,
@@ -131,6 +159,19 @@ extension _SessionReviewControllerHelpers on SessionReviewController {
     } catch (_) {
       return null;
     }
+  }
+
+  /// True when [report] cannot possibly describe the frames now in scope.
+  ///
+  /// The evidence a report is a verdict ON is the sub list; a sub captured at
+  /// or after the report was written was not part of it. Compared against the
+  /// subs already loaded into state, so this costs no query.
+  bool _nightReportIsStale(NightReport report) {
+    final written = report.createdAt.toUtc();
+    for (final sub in state.subs) {
+      if (!sub.capturedAt.toUtc().isBefore(written)) return true;
+    }
+    return false;
   }
 
   /// Decode the reviewed master's persisted marginal-SNR curve from its

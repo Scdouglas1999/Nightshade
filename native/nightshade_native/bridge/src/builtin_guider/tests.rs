@@ -272,6 +272,42 @@ fn nearest_star_respects_max_distance() {
     assert!(nearest_star(&stars, Vec2 { x: 100.0, y: 100.0 }, 5.0).is_none());
 }
 
+/// WF-SN-N1: one Auto Select click logged two different positions for one
+/// star — "chose a guide star at (967.8, 724.3) px" and then "locked guide
+/// star at (24.8, 25.3) px" — and the operator-facing banner showed the
+/// second. The two numbers are the same star in two coordinate spaces: the
+/// full guide frame, and the 50 px crop cut around it. Only the first is a
+/// position anyone can act on.
+#[test]
+fn reported_lock_position_is_in_frame_coordinates() {
+    let image = ImageData::from_u16(200, 200, 1, &vec![0u16; 200 * 200]);
+    let detected = star(120.0, 90.0, 1000.0);
+    let crop = crop_raw_u16_image(&image, &detected, 50);
+    let snapshot = GuideSnapshot {
+        frame: 1,
+        width: crop.width,
+        height: crop.height,
+        pixels: crop.pixels,
+        crop_origin_x: crop.crop_origin_x,
+        crop_origin_y: crop.crop_origin_y,
+        star_x: crop.star_x,
+        star_y: crop.star_y,
+    };
+
+    // The two spaces really do differ here, so the assertion below is not
+    // passing by coincidence.
+    assert!(
+        (snapshot.star_x - detected.x).abs() > 10.0,
+        "crop-local x {} should be nowhere near frame x {}",
+        snapshot.star_x,
+        detected.x
+    );
+
+    let (x, y) = snapshot.star_frame_position();
+    assert!((x - detected.x).abs() < 1e-9, "frame x was {x}");
+    assert!((y - detected.y).abs() < 1e-9, "frame y was {y}");
+}
+
 #[test]
 fn crop_raw_image_returns_16bit_payload() {
     let image = ImageData::from_u16(4, 4, 1, &(0..16).collect::<Vec<u16>>());

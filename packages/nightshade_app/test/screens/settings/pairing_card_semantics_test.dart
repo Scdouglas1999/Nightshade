@@ -159,4 +159,50 @@ void main() {
     await tester.pumpAndSettle();
     handle.dispose();
   });
+
+  // WF-SS-N1: the button WE-SP-4 introduced was painted worse than the
+  // empty-state WE-SP-3 fixed. `ButtonVariant.ghost` draws its label in
+  // `textSecondary` rgb(154,163,173) and paints no fill until hover, so the
+  // only copy affordance sat directly on the card's `primaryContainer` fill
+  // rgb(91,158,196) at 1.15:1 — a legible confirmation chip AFTER the click,
+  // and a disabled-looking ghost before it.
+  testWidgets('the copy-code label is readable where it sits', (tester) async {
+    final database = PairingDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    final notifier = PairingNotifier.withDatabase(database);
+    expect(await notifier.startPairing(), isTrue);
+
+    await _pumpPairing(tester, notifier);
+    await tester.pumpAndSettle();
+
+    final labelFinder = find.text('Copy code');
+    final context = tester.element(labelFinder);
+    final ink = tester.widget<Text>(labelFinder).style!.color!;
+
+    // Whatever is actually behind the glyphs: the button's own fill when it
+    // paints one, otherwise the card it sits on.
+    final buttonFill = tester
+        .widgetList<AnimatedContainer>(
+          find.descendant(
+            of: find.ancestor(
+              of: labelFinder,
+              matching: find.byType(NightshadeButton),
+            ),
+            matching: find.byType(AnimatedContainer),
+          ),
+        )
+        .map((c) => (c.decoration as BoxDecoration?)?.color)
+        .firstWhere((c) => c != null && c.a > 0.99, orElse: () => null);
+    final behind = buttonFill ?? Theme.of(context).colorScheme.primaryContainer;
+
+    expect(
+      _contrast(ink, behind),
+      greaterThanOrEqualTo(4.5),
+      reason: 'it measured 1.15:1 on the live frame, idle state',
+    );
+
+    await notifier.cancelPairing();
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+  });
 }

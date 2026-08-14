@@ -46,10 +46,16 @@ class _StartSequenceButton extends StatefulWidget {
   final NightshadeColors colors;
   final VoidCallback? onPressed;
 
+  /// Why the run cannot start, or null when it can. Travels into the
+  /// accessible NAME via [GatedAction.announce] so a blocked primary cannot
+  /// read like a live one.
+  final String? blockedReason;
+
   const _StartSequenceButton({
     required this.canStart,
     required this.hasWarningsOnly,
     required this.colors,
+    this.blockedReason,
     this.onPressed,
   });
 
@@ -83,10 +89,16 @@ class _StartSequenceButtonState extends State<_StartSequenceButton> {
     // and `button: Cancel`. It also could not be reached from the keyboard.
     // Declaring the role + enabled state and routing Enter/Space through an
     // ActivateIntent puts it on the same footing as every NightshadeButton.
+    // WF-SCI-N3: the role/keyboard half above was not enough. A direct AT-SPI
+    // probe of the blocked dialog read `Start Sequence` with `sensitive` and
+    // no `enabled` — indistinguishable, to anyone reading the tree or hearing
+    // it, from the live button beside it, and carrying no reason. The reason
+    // now travels in the NAME, the same discriminator `GatedAction` exists to
+    // provide everywhere else.
     return Semantics(
       button: true,
       enabled: isEnabled,
-      label: label,
+      label: GatedAction.announce(label, widget.blockedReason),
       child: MouseRegion(
         onEnter: (_) => setState(() => _isHovered = true),
         onExit: (_) => setState(() => _isHovered = false),
@@ -119,23 +131,30 @@ class _StartSequenceButtonState extends State<_StartSequenceButton> {
                     BorderRadius.circular(NightshadeTokens.radiusInline8),
                 border: Border.all(color: buttonColors.border),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    widget.canStart
-                        ? LucideIcons.play
-                        : LucideIcons.alertTriangle,
-                    size: 16,
-                    color: onPrimary,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    label,
-                    style: NightshadeTypography.labelStrong
-                        .copyWith(color: onPrimary),
-                  ),
-                ],
+              // The visible label is excluded so it cannot be appended to the
+              // annotated name: without this the node announced itself twice
+              // ("Start Anyway\nStart Anyway"), and with a blocked reason it
+              // would have read the reason and then contradicted it with the
+              // bare label.
+              child: ExcludeSemantics(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      widget.canStart
+                          ? LucideIcons.play
+                          : LucideIcons.alertTriangle,
+                      size: 16,
+                      color: onPrimary,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      label,
+                      style: NightshadeTypography.labelStrong
+                          .copyWith(color: onPrimary),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

@@ -19,6 +19,7 @@ import '../screens/flat_wizard/flat_wizard_screen.dart';
 import '../screens/mosaic/mosaic_project_screen.dart';
 import '../screens/mosaic/mosaic_projects_list_screen.dart';
 import '../screens/weather/weather_screen.dart';
+import '../screens/settings/pairing_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import '../screens/settings/plate_solving_settings_screen.dart';
 import '../screens/polar_alignment/polar_alignment_screen.dart';
@@ -251,6 +252,25 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 transitionDuration: const Duration(milliseconds: 300),
               );
             },
+          ),
+          // Remote-connection pairing. A ROUTE, not a `Navigator.push` — that
+          // is the whole point (WF-SS-N2). Pushed straight onto the shell's
+          // navigator it sat above the routed child while the nav rail stayed
+          // visible and clickable beside it: clicking a rail destination
+          // repainted that row as selected, swapped the routed child
+          // underneath, and left Pairing on screen indefinitely. The only way
+          // out was the screen's own back arrow, which then landed on whatever
+          // destination the rail had silently re-pointed to. As a shell route,
+          // `context.go` from the rail replaces the whole match list — the
+          // imperative push included — so the rail's claim comes true.
+          GoRoute(
+            path: '/pairing',
+            name: 'pairing',
+            pageBuilder: (context, state) => const CustomTransitionPage(
+              child: PairingScreen(),
+              transitionsBuilder: PageTransitions.slideFadeTransition,
+              transitionDuration: Duration(milliseconds: 300),
+            ),
           ),
           // Session Review / Morning Report. Reached from the run-completion
           // path, the analytics session list, and "image ready" notifications
