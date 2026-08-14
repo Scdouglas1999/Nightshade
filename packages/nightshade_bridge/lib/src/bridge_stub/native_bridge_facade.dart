@@ -350,7 +350,8 @@ abstract final class NativeBridge {
   static Future<void> sequencerStart() => _nativeBridge.sequencerStart();
   static Future<void> sequencerPause() => _nativeBridge.sequencerPause();
   static Future<void> sequencerResume() => _nativeBridge.sequencerResume();
-  static Future<void> sequencerStop() => _nativeBridge.sequencerStop();
+  static Future<void> sequencerStop({String? origin}) =>
+      _nativeBridge.sequencerStop(origin: origin);
   static Future<void> sequencerSkip() => _nativeBridge.sequencerSkip();
   static Future<void> sequencerSkipToNode({required String nodeId}) =>
       _nativeBridge.sequencerSkipToNode(nodeId: nodeId);

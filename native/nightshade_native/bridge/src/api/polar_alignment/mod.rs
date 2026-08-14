@@ -47,7 +47,7 @@ use super::*;
 use std::sync::atomic::{AtomicBool as PolarAtomicBool, Ordering as PolarOrdering};
 use tokio::task::JoinHandle;
 
-mod entrypoints;
+pub mod entrypoints;
 pub use entrypoints::*;
 mod events;
 pub use events::*;
@@ -57,5 +57,5 @@ mod pole_slew;
 pub use pole_slew::*;
 mod run_control;
 pub use run_control::*;
-mod run_loop;
+pub mod run_loop;
 pub use run_loop::*;

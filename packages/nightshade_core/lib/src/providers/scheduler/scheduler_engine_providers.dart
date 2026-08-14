@@ -47,7 +47,9 @@ class _ExecutorSequenceSink
   @override
   Future<void> stopSequence() async {
     final executor = _ref.read(sequenceExecutorProvider);
-    await executor.stop();
+    // The autopilot is not the operator: the origin keeps its stop from
+    // being recorded as (and rendered as) "Stopped by request".
+    await executor.stop(origin: 'scheduler');
   }
 
   @override

@@ -37,17 +37,17 @@ use nightshade_sequencer::{
     TargetHeaderConfig, TwilightType, WaitTimeConfig, WarmConfig,
 };
 
-mod event_bridge;
+pub mod event_bridge;
 pub use event_bridge::*;
 mod event_translation;
 pub use event_translation::*;
-mod lifecycle;
+pub mod lifecycle;
 pub use lifecycle::*;
-mod mosaic;
+pub mod mosaic;
 pub use mosaic::*;
-mod node_factory;
+pub mod node_factory;
 pub use node_factory::*;
-mod runtime_config;
+pub mod runtime_config;
 pub use runtime_config::*;
 
 /// Get the global sequence executor instance

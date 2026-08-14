@@ -138,7 +138,9 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
   }
 
   @override
-  Future<void> sequencerStop() async {
+  Future<void> sequencerStop({String? origin}) async {
+    // A remote client's stop is an operator action; the origin is not
+    // forwarded because the host treats an unlabelled stop as operator.
     await _post('sequencer/stop');
   }
 

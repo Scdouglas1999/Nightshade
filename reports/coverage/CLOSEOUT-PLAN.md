@@ -16,11 +16,16 @@ Generated from `reports/coverage/status.json` and `inventory.json` on 2026-08-09
 > **Denominator status (task #31, assessed 2026-08-14)**: the extension this task asked
 > for LANDED on 2026-08-09 — coverage_inventory.dart now counts desktop-app, planetarium,
 > design-system, web and API trees (see the dated comment at its unit-collection block).
-> What remains: (a) server/nightshade_hub is still uncounted; (b) **the C3 file splits
-> (2026-08-13) renamed many files under the path-qualified trees, so their unit ids
-> changed and the pre-split status.json history is orphaned for those units** — the next
-> inventory run must reconcile old ids to the new module paths (or accept a reset for
-> those trees); (c) the three known duplicate basename ids remain by design.
+> ~~What remains: (a) server/nightshade_hub is still uncounted; (b) the C3 file splits
+> orphaned pre-split status.json history~~ **Closed 2026-08-14**: (a) the hub tree is
+> counted (`hub:`-prefixed path-qualified units; inventory now 1182 units / 3826
+> controls — the 28 hub files are NEW unswept denominator, honestly widening the gap);
+> (b) reconciled by basename resolution — only two units were truly orphaned
+> (session_report_forensics_section, sub_gallery_panel), both deleted as dead code in
+> de5223a4f and now recorded `resolved-by-deletion`; every other pre-split id still
+> resolves because the basename-keyed sources key on basename, not path. (c) the
+> duplicate basename ids remain by design — and the C3 splits added a FOURTH
+> (`screen:sequencer/node_palette.dart`: widgets/ and sequencer_screen_parts/ collide).
 
 **68 units recorded unreached with a reason, 12 never claimed at all.**
 The inventory tool reports 390/402; that counts only the never-claimed. A unit whose sweeper

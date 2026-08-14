@@ -435,6 +435,43 @@ Order of execution from here:
    against a fresh bundle + the fixed a11y dump; verify no fix merely relocated its defect;
    reproduce the JD+0.5 planetarium suspect and the phd2 generic-connect route live; eyeball
    the stacked preview); loop map→fix→verify until a wave is dry.
+## Wave K verdict (2026-08-14 ~11:00) — driver 3/3 live PASS; refuter landed 3, all CONFIRMED; response landed (bridge-level)
+
+Run wf_0d4949b2-8a9 over commit 4268e4281 (driver report:
+reports/release-pass/gui/waveK-close.md). The DRIVER: one press = one honest row across
+three episodes; the measured reserve exact by pixel scan (142px card + 52px inset = 194
+delta, released to 0); no exceptions or overflows in a 16-minute session; bundle
+provenance via git log -S. Driver also noted the run-toolbar Stop is press-and-hold
+(single-fire — keep) and the builder-toolbar stop single-fires too.
+
+The refuter's three, all CONFIRMED, fixed at the honest layer (the bridge API — the
+no-deferring doctrine applied):
+
+1. **K1: the autopilot's stop wore the operator's evidence** — the scheduler drives the
+   SAME stop path on an unattended re-plan (`stopSequence()` → `SequenceExecutor.stop()`
+   → `api_sequencer_stop`), and the J-ungate made the false "Stopped by request"
+   unsilenceable. Response: `origin` threaded end-to-end
+   (`api_sequencer_stop(origin)` → `stop_with_origin`); the scheduler passes
+   `'scheduler'`; a scheduler-origin stop emits a gated SystemEvent decision
+   "Autopilot: stop" instead of the manual-intervention decision, and the feed renders
+   it "Stopped by autopilot" (new kSequenceStoppedByAutopilotMessage; D16).
+2. **K2: no constant fixes both fold directions** — a 3-minute teardown split into a
+   neutral top row, and a bare terminal 90s before a press still merged and was
+   re-attributed. Response: `SequencerEvent::Stopped` now CARRIES `sequence_run_id`
+   (both producers pass it) and run identity outranks time in the fold — same run always
+   joins (D15: a 5-minute teardown folds in), different runs never join (D14: 90s apart
+   stays two rows). The id-less fallback measures pairwise nearest-member distance, not
+   anchor distance (the refuter's chained-episode nuance).
+3. **K3: the replay-logging copy was now false** — the ungated stop decision persists one
+   row per run with logging off. Copy and header updated to state the exception
+   plainly ("only a stop you command yourself is always recorded").
+
+Mechanical fallout absorbed in the same batch: the FRB regeneration (first since the C3
+Rust splits) moved the generated Dart into module-mirroring files — api_barrel extended,
+stale monoliths (event.dart, device_capabilities.dart, three api files) shimmed or
+removed, generator-addressed Rust mods made pub, and another btrfs EIO pub-cache
+corruption (analyzer-10.2.0) replaced.
+
 ## Wave J verdict (2026-08-14 ~07:00) — driver 4/4 live PASS; refuter landed 7 (5 fixed, 1 by-design, 1 recorded); response landed
 
 Run wf_db2dcdef-d52 over commit 4120dc897 (driver report:

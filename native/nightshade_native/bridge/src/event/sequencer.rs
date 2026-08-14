@@ -9,7 +9,13 @@ pub enum SequencerEvent {
     },
     Paused,
     Resumed,
-    Stopped,
+    Stopped {
+        /// The run this terminal belongs to, when the publisher knows it.
+        /// Episode identity for the dashboard's stop fold: without it a
+        /// bare terminal and a neighbouring press are indistinguishable
+        /// (Wave K refutation K2).
+        sequence_run_id: Option<i64>,
+    },
     Completed,
     /// The run ended in FAILURE. Terminal, and the counterpart of
     /// [`SequencerEvent::Completed`] / [`SequencerEvent::Stopped`].

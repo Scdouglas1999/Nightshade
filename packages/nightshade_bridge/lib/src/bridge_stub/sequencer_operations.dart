@@ -376,13 +376,13 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
   }
 
   /// Stop the running sequence
-  Future<void> sequencerStop() async {
+  Future<void> sequencerStop({String? origin}) async {
     if (!_nativeAvailable) {
       _nativeBridgeRequired('sequencerStop');
     }
 
     try {
-      await gen_api.apiSequencerStop();
+      await gen_api.apiSequencerStop(origin: origin);
       _sequencerState = SequencerState.idle;
       _loadedSequenceJson = null;
     } catch (e) {

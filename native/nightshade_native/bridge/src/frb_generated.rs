@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueNom,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1463207610;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1863281676;
 
 // Section: executor
 
@@ -144,7 +144,7 @@ fn wire__crate__api__imaging__api_auto_stretch_image_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_broadcast_deactivate_impl(
+fn wire__crate__api__sequencer__mosaic__api_broadcast_deactivate_impl(
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
@@ -155,14 +155,14 @@ fn wire__crate__api__sequencer__api_broadcast_deactivate_impl(
         move || {
             transform_result_dco::<_, _, ()>((move || {
                 let output_ok = Result::<_, ()>::Ok({
-                    crate::api::sequencer::api_broadcast_deactivate();
+                    crate::api::sequencer::mosaic::api_broadcast_deactivate();
                 })?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__sequencer__api_broadcast_get_active_impl(
+fn wire__crate__api__sequencer__mosaic__api_broadcast_get_active_impl(
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
@@ -173,13 +173,13 @@ fn wire__crate__api__sequencer__api_broadcast_get_active_impl(
         move || {
             transform_result_dco::<_, _, ()>((move || {
                 let output_ok =
-                    Result::<_, ()>::Ok(crate::api::sequencer::api_broadcast_get_active())?;
+                    Result::<_, ()>::Ok(crate::api::sequencer::mosaic::api_broadcast_get_active())?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__post_session__api_build_master_flat_impl(
+fn wire__crate__api__post_session__entrypoints__api_build_master_flat_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     args_json: impl CstDecode<String>,
 ) {
@@ -193,14 +193,16 @@ fn wire__crate__api__post_session__api_build_master_flat_impl(
             let api_args_json = args_json.cst_decode();
             move |context| {
                 transform_result_dco::<_, _, String>((move || {
-                    let output_ok = crate::api::post_session::api_build_master_flat(api_args_json)?;
+                    let output_ok = crate::api::post_session::entrypoints::api_build_master_flat(
+                        api_args_json,
+                    )?;
                     Ok(output_ok)
                 })())
             }
         },
     )
 }
-fn wire__crate__api__sequencer__api_build_sequence_impl(
+fn wire__crate__api__sequencer__node_factory__api_build_sequence_impl(
     id: impl CstDecode<String>,
     name: impl CstDecode<String>,
     description: impl CstDecode<Option<String>>,
@@ -220,7 +222,7 @@ fn wire__crate__api__sequencer__api_build_sequence_impl(
             let api_node_jsons = node_jsons.cst_decode();
             let api_root_node_id = root_node_id.cst_decode();
             transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
-                let output_ok = crate::api::sequencer::api_build_sequence(
+                let output_ok = crate::api::sequencer::node_factory::api_build_sequence(
                     api_id,
                     api_name,
                     api_description,
@@ -326,7 +328,7 @@ fn wire__crate__api__phd2__api_builtin_guider_set_config_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_calculate_altitude_impl(
+fn wire__crate__api__sequencer__mosaic__api_calculate_altitude_impl(
     ra_hours: impl CstDecode<f64>,
     dec_degrees: impl CstDecode<f64>,
     latitude: impl CstDecode<f64>,
@@ -347,7 +349,7 @@ fn wire__crate__api__sequencer__api_calculate_altitude_impl(
             let api_time_unix_millis = time_unix_millis.cst_decode();
             transform_result_dco::<_, _, ()>((move || {
                 let output_ok =
-                    Result::<_, ()>::Ok(crate::api::sequencer::api_calculate_altitude(
+                    Result::<_, ()>::Ok(crate::api::sequencer::mosaic::api_calculate_altitude(
                         api_ra_hours,
                         api_dec_degrees,
                         api_latitude,
@@ -442,7 +444,7 @@ fn wire__crate__api__imaging__api_calculate_histogram_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_calculate_mosaic_area_impl(
+fn wire__crate__api__sequencer__mosaic__api_calculate_mosaic_area_impl(
     panel_width_arcmin: impl CstDecode<f64>,
     panel_height_arcmin: impl CstDecode<f64>,
     panels_horizontal: impl CstDecode<u32>,
@@ -461,7 +463,7 @@ fn wire__crate__api__sequencer__api_calculate_mosaic_area_impl(
             let api_panels_vertical = panels_vertical.cst_decode();
             transform_result_dco::<_, _, ()>((move || {
                 let output_ok =
-                    Result::<_, ()>::Ok(crate::api::sequencer::api_calculate_mosaic_area(
+                    Result::<_, ()>::Ok(crate::api::sequencer::mosaic::api_calculate_mosaic_area(
                         api_panel_width_arcmin,
                         api_panel_height_arcmin,
                         api_panels_horizontal,
@@ -472,7 +474,7 @@ fn wire__crate__api__sequencer__api_calculate_mosaic_area_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_calculate_mosaic_panels_impl(
+fn wire__crate__api__sequencer__mosaic__api_calculate_mosaic_panels_impl(
     center_ra: impl CstDecode<f64>,
     center_dec: impl CstDecode<f64>,
     panel_width_arcmin: impl CstDecode<f64>,
@@ -498,8 +500,8 @@ fn wire__crate__api__sequencer__api_calculate_mosaic_panels_impl(
             let api_panels_horizontal = panels_horizontal.cst_decode();
             let api_panels_vertical = panels_vertical.cst_decode();
             transform_result_dco::<_, _, ()>((move || {
-                let output_ok =
-                    Result::<_, ()>::Ok(crate::api::sequencer::api_calculate_mosaic_panels(
+                let output_ok = Result::<_, ()>::Ok(
+                    crate::api::sequencer::mosaic::api_calculate_mosaic_panels(
                         api_center_ra,
                         api_center_dec,
                         api_panel_width_arcmin,
@@ -508,7 +510,8 @@ fn wire__crate__api__sequencer__api_calculate_mosaic_panels_impl(
                         api_rotation,
                         api_panels_horizontal,
                         api_panels_vertical,
-                    ))?;
+                    ),
+                )?;
                 Ok(output_ok)
             })())
         },
@@ -1185,7 +1188,7 @@ fn wire__crate__api__devices__cover_calibrator__api_cover_calibrator_open_cover_
         },
     )
 }
-fn wire__crate__api__sequencer__api_create_autofocus_node_impl(
+fn wire__crate__api__sequencer__node_factory__api_create_autofocus_node_impl(
     id: impl CstDecode<String>,
     name: impl CstDecode<String>,
     step_size: impl CstDecode<i32>,
@@ -1207,7 +1210,7 @@ fn wire__crate__api__sequencer__api_create_autofocus_node_impl(
             let api_exposure_duration = exposure_duration.cst_decode();
             let api_method = method.cst_decode();
             transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
-                let output_ok = crate::api::sequencer::api_create_autofocus_node(
+                let output_ok = crate::api::sequencer::node_factory::api_create_autofocus_node(
                     api_id,
                     api_name,
                     api_step_size,
@@ -1220,7 +1223,7 @@ fn wire__crate__api__sequencer__api_create_autofocus_node_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_create_center_node_impl(
+fn wire__crate__api__sequencer__node_factory__api_create_center_node_impl(
     id: impl CstDecode<String>,
     name: impl CstDecode<String>,
     use_target_coords: impl CstDecode<u8>,
@@ -1242,7 +1245,7 @@ fn wire__crate__api__sequencer__api_create_center_node_impl(
             let api_max_attempts = max_attempts.cst_decode();
             let api_exposure_duration = exposure_duration.cst_decode();
             transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
-                let output_ok = crate::api::sequencer::api_create_center_node(
+                let output_ok = crate::api::sequencer::node_factory::api_create_center_node(
                     api_id,
                     api_name,
                     api_use_target_coords,
@@ -1255,7 +1258,7 @@ fn wire__crate__api__sequencer__api_create_center_node_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_create_cool_camera_node_impl(
+fn wire__crate__api__sequencer__node_factory__api_create_cool_camera_node_impl(
     id: impl CstDecode<String>,
     name: impl CstDecode<String>,
     target_temp: impl CstDecode<f64>,
@@ -1273,7 +1276,7 @@ fn wire__crate__api__sequencer__api_create_cool_camera_node_impl(
             let api_target_temp = target_temp.cst_decode();
             let api_duration_mins = duration_mins.cst_decode();
             transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
-                let output_ok = crate::api::sequencer::api_create_cool_camera_node(
+                let output_ok = crate::api::sequencer::node_factory::api_create_cool_camera_node(
                     api_id,
                     api_name,
                     api_target_temp,
@@ -1284,7 +1287,7 @@ fn wire__crate__api__sequencer__api_create_cool_camera_node_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_create_delay_node_impl(
+fn wire__crate__api__sequencer__node_factory__api_create_delay_node_impl(
     id: impl CstDecode<String>,
     name: impl CstDecode<String>,
     seconds: impl CstDecode<f64>,
@@ -1300,14 +1303,17 @@ fn wire__crate__api__sequencer__api_create_delay_node_impl(
             let api_name = name.cst_decode();
             let api_seconds = seconds.cst_decode();
             transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
-                let output_ok =
-                    crate::api::sequencer::api_create_delay_node(api_id, api_name, api_seconds)?;
+                let output_ok = crate::api::sequencer::node_factory::api_create_delay_node(
+                    api_id,
+                    api_name,
+                    api_seconds,
+                )?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__sequencer__api_create_dither_node_impl(
+fn wire__crate__api__sequencer__node_factory__api_create_dither_node_impl(
     id: impl CstDecode<String>,
     name: impl CstDecode<String>,
     pixels: impl CstDecode<f64>,
@@ -1331,7 +1337,7 @@ fn wire__crate__api__sequencer__api_create_dither_node_impl(
             let api_settle_timeout = settle_timeout.cst_decode();
             let api_ra_only = ra_only.cst_decode();
             transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
-                let output_ok = crate::api::sequencer::api_create_dither_node(
+                let output_ok = crate::api::sequencer::node_factory::api_create_dither_node(
                     api_id,
                     api_name,
                     api_pixels,
@@ -1345,7 +1351,7 @@ fn wire__crate__api__sequencer__api_create_dither_node_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_create_exposure_node_impl(
+fn wire__crate__api__sequencer__node_factory__api_create_exposure_node_impl(
     id: impl CstDecode<String>,
     name: impl CstDecode<String>,
     duration_secs: impl CstDecode<f64>,
@@ -1375,7 +1381,7 @@ fn wire__crate__api__sequencer__api_create_exposure_node_impl(
             let api_binning = binning.cst_decode();
             let api_dither_every = dither_every.cst_decode();
             transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
-                let output_ok = crate::api::sequencer::api_create_exposure_node(
+                let output_ok = crate::api::sequencer::node_factory::api_create_exposure_node(
                     api_id,
                     api_name,
                     api_duration_secs,
@@ -1392,7 +1398,7 @@ fn wire__crate__api__sequencer__api_create_exposure_node_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_create_filter_node_impl(
+fn wire__crate__api__sequencer__node_factory__api_create_filter_node_impl(
     id: impl CstDecode<String>,
     name: impl CstDecode<String>,
     filter_name: impl CstDecode<String>,
@@ -1408,7 +1414,7 @@ fn wire__crate__api__sequencer__api_create_filter_node_impl(
             let api_name = name.cst_decode();
             let api_filter_name = filter_name.cst_decode();
             transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
-                let output_ok = crate::api::sequencer::api_create_filter_node(
+                let output_ok = crate::api::sequencer::node_factory::api_create_filter_node(
                     api_id,
                     api_name,
                     api_filter_name,
@@ -1418,7 +1424,7 @@ fn wire__crate__api__sequencer__api_create_filter_node_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_create_loop_node_impl(
+fn wire__crate__api__sequencer__node_factory__api_create_loop_node_impl(
     id: impl CstDecode<String>,
     name: impl CstDecode<String>,
     iterations: impl CstDecode<Option<u32>>,
@@ -1438,7 +1444,7 @@ fn wire__crate__api__sequencer__api_create_loop_node_impl(
             let api_condition = condition.cst_decode();
             let api_children = children.cst_decode();
             transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
-                let output_ok = crate::api::sequencer::api_create_loop_node(
+                let output_ok = crate::api::sequencer::node_factory::api_create_loop_node(
                     api_id,
                     api_name,
                     api_iterations,
@@ -1450,7 +1456,7 @@ fn wire__crate__api__sequencer__api_create_loop_node_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_create_notification_node_impl(
+fn wire__crate__api__sequencer__node_factory__api_create_notification_node_impl(
     id: impl CstDecode<String>,
     name: impl CstDecode<String>,
     title: impl CstDecode<String>,
@@ -1470,7 +1476,7 @@ fn wire__crate__api__sequencer__api_create_notification_node_impl(
             let api_message = message.cst_decode();
             let api_level = level.cst_decode();
             transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
-                let output_ok = crate::api::sequencer::api_create_notification_node(
+                let output_ok = crate::api::sequencer::node_factory::api_create_notification_node(
                     api_id,
                     api_name,
                     api_title,
@@ -1482,7 +1488,7 @@ fn wire__crate__api__sequencer__api_create_notification_node_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_create_park_node_impl(
+fn wire__crate__api__sequencer__node_factory__api_create_park_node_impl(
     id: impl CstDecode<String>,
     name: impl CstDecode<String>,
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
@@ -1496,13 +1502,14 @@ fn wire__crate__api__sequencer__api_create_park_node_impl(
             let api_id = id.cst_decode();
             let api_name = name.cst_decode();
             transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
-                let output_ok = crate::api::sequencer::api_create_park_node(api_id, api_name)?;
+                let output_ok =
+                    crate::api::sequencer::node_factory::api_create_park_node(api_id, api_name)?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__sequencer__api_create_rotator_node_impl(
+fn wire__crate__api__sequencer__node_factory__api_create_rotator_node_impl(
     id: impl CstDecode<String>,
     name: impl CstDecode<String>,
     target_angle: impl CstDecode<f64>,
@@ -1520,7 +1527,7 @@ fn wire__crate__api__sequencer__api_create_rotator_node_impl(
             let api_target_angle = target_angle.cst_decode();
             let api_relative = relative.cst_decode();
             transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
-                let output_ok = crate::api::sequencer::api_create_rotator_node(
+                let output_ok = crate::api::sequencer::node_factory::api_create_rotator_node(
                     api_id,
                     api_name,
                     api_target_angle,
@@ -1531,7 +1538,7 @@ fn wire__crate__api__sequencer__api_create_rotator_node_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_create_script_node_impl(
+fn wire__crate__api__sequencer__node_factory__api_create_script_node_impl(
     id: impl CstDecode<String>,
     name: impl CstDecode<String>,
     script_path: impl CstDecode<String>,
@@ -1551,7 +1558,7 @@ fn wire__crate__api__sequencer__api_create_script_node_impl(
             let api_arguments = arguments.cst_decode();
             let api_timeout_secs = timeout_secs.cst_decode();
             transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
-                let output_ok = crate::api::sequencer::api_create_script_node(
+                let output_ok = crate::api::sequencer::node_factory::api_create_script_node(
                     api_id,
                     api_name,
                     api_script_path,
@@ -1563,7 +1570,7 @@ fn wire__crate__api__sequencer__api_create_script_node_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_create_slew_node_impl(
+fn wire__crate__api__sequencer__node_factory__api_create_slew_node_impl(
     id: impl CstDecode<String>,
     name: impl CstDecode<String>,
     use_target_coords: impl CstDecode<u8>,
@@ -1583,7 +1590,7 @@ fn wire__crate__api__sequencer__api_create_slew_node_impl(
             let api_custom_ra = custom_ra.cst_decode();
             let api_custom_dec = custom_dec.cst_decode();
             transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
-                let output_ok = crate::api::sequencer::api_create_slew_node(
+                let output_ok = crate::api::sequencer::node_factory::api_create_slew_node(
                     api_id,
                     api_name,
                     api_use_target_coords,
@@ -1595,7 +1602,7 @@ fn wire__crate__api__sequencer__api_create_slew_node_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_create_target_group_node_impl(
+fn wire__crate__api__sequencer__node_factory__api_create_target_group_node_impl(
     id: impl CstDecode<String>,
     name: impl CstDecode<String>,
     target_name: impl CstDecode<String>,
@@ -1625,7 +1632,7 @@ fn wire__crate__api__sequencer__api_create_target_group_node_impl(
             let api_priority = priority.cst_decode();
             let api_children = children.cst_decode();
             transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
-                let output_ok = crate::api::sequencer::api_create_target_group_node(
+                let output_ok = crate::api::sequencer::node_factory::api_create_target_group_node(
                     api_id,
                     api_name,
                     api_target_name,
@@ -1642,7 +1649,7 @@ fn wire__crate__api__sequencer__api_create_target_group_node_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_create_target_header_node_impl(
+fn wire__crate__api__sequencer__node_factory__api_create_target_header_node_impl(
     id: impl CstDecode<String>,
     name: impl CstDecode<String>,
     target_name: impl CstDecode<String>,
@@ -1680,7 +1687,7 @@ fn wire__crate__api__sequencer__api_create_target_header_node_impl(
             let api_integration_budget_json = integration_budget_json.cst_decode();
             let api_children = children.cst_decode();
             transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
-                let output_ok = crate::api::sequencer::api_create_target_header_node(
+                let output_ok = crate::api::sequencer::node_factory::api_create_target_header_node(
                     api_id,
                     api_name,
                     api_target_name,
@@ -1701,7 +1708,7 @@ fn wire__crate__api__sequencer__api_create_target_header_node_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_create_unpark_node_impl(
+fn wire__crate__api__sequencer__node_factory__api_create_unpark_node_impl(
     id: impl CstDecode<String>,
     name: impl CstDecode<String>,
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
@@ -1715,13 +1722,14 @@ fn wire__crate__api__sequencer__api_create_unpark_node_impl(
             let api_id = id.cst_decode();
             let api_name = name.cst_decode();
             transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
-                let output_ok = crate::api::sequencer::api_create_unpark_node(api_id, api_name)?;
+                let output_ok =
+                    crate::api::sequencer::node_factory::api_create_unpark_node(api_id, api_name)?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__sequencer__api_create_wait_time_node_impl(
+fn wire__crate__api__sequencer__node_factory__api_create_wait_time_node_impl(
     id: impl CstDecode<String>,
     name: impl CstDecode<String>,
     wait_until: impl CstDecode<Option<i64>>,
@@ -1739,7 +1747,7 @@ fn wire__crate__api__sequencer__api_create_wait_time_node_impl(
             let api_wait_until = wait_until.cst_decode();
             let api_twilight_type = twilight_type.cst_decode();
             transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
-                let output_ok = crate::api::sequencer::api_create_wait_time_node(
+                let output_ok = crate::api::sequencer::node_factory::api_create_wait_time_node(
                     api_id,
                     api_name,
                     api_wait_until,
@@ -1750,7 +1758,7 @@ fn wire__crate__api__sequencer__api_create_wait_time_node_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_create_warm_camera_node_impl(
+fn wire__crate__api__sequencer__node_factory__api_create_warm_camera_node_impl(
     id: impl CstDecode<String>,
     name: impl CstDecode<String>,
     rate_per_min: impl CstDecode<f64>,
@@ -1768,7 +1776,7 @@ fn wire__crate__api__sequencer__api_create_warm_camera_node_impl(
             let api_rate_per_min = rate_per_min.cst_decode();
             let api_target_temp = target_temp.cst_decode();
             transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
-                let output_ok = crate::api::sequencer::api_create_warm_camera_node(
+                let output_ok = crate::api::sequencer::node_factory::api_create_warm_camera_node(
                     api_id,
                     api_name,
                     api_rate_per_min,
@@ -2684,7 +2692,7 @@ fn wire__crate__api__session__api_end_session_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_estimate_mosaic_time_impl(
+fn wire__crate__api__sequencer__mosaic__api_estimate_mosaic_time_impl(
     total_panels: impl CstDecode<u32>,
     exposure_secs: impl CstDecode<f64>,
     exposures_per_panel: impl CstDecode<u32>,
@@ -2703,7 +2711,7 @@ fn wire__crate__api__sequencer__api_estimate_mosaic_time_impl(
             let api_overhead_per_panel_secs = overhead_per_panel_secs.cst_decode();
             transform_result_dco::<_, _, ()>((move || {
                 let output_ok =
-                    Result::<_, ()>::Ok(crate::api::sequencer::api_estimate_mosaic_time(
+                    Result::<_, ()>::Ok(crate::api::sequencer::mosaic::api_estimate_mosaic_time(
                         api_total_panels,
                         api_exposure_secs,
                         api_exposures_per_panel,
@@ -2717,7 +2725,10 @@ fn wire__crate__api__sequencer__api_estimate_mosaic_time_impl(
 fn wire__crate__api__event_stream__api_event_stream_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     sink: impl CstDecode<
-        StreamSink<crate::event::NightshadeEvent, flutter_rust_bridge::for_generated::DcoCodec>,
+        StreamSink<
+            crate::event::bus::NightshadeEvent,
+            flutter_rust_bridge::for_generated::DcoCodec,
+        >,
     >,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
@@ -2784,127 +2795,50 @@ fn wire__crate__api__finishing_enhance__api_extract_background_impl(
         },
     )
 }
-fn wire__crate__api__devices__simulation__api_filterwheel_get_names_impl(
+fn wire__crate__api__devices__simulation__filter_wheel__api_filterwheel_get_names_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     device_id: impl CstDecode<String>,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "api_filterwheel_get_names",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let api_device_id = device_id.cst_decode();
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
-                        let output_ok = crate::api::devices::simulation::api_filterwheel_get_names(
-                            api_device_id,
-                        )
-                        .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_filterwheel_get_names", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || { let api_device_id = device_id.cst_decode(); move |context| async move {
+                    transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
+                         let output_ok = crate::api::devices::simulation::filter_wheel::api_filterwheel_get_names(api_device_id).await?;   Ok(output_ok)
+                    })().await)
+                } })
 }
-fn wire__crate__api__devices__simulation__api_filterwheel_set_by_name_impl(
+fn wire__crate__api__devices__simulation__filter_wheel__api_filterwheel_set_by_name_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     device_id: impl CstDecode<String>,
     name: impl CstDecode<String>,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "api_filterwheel_set_by_name",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let api_device_id = device_id.cst_decode();
-            let api_name = name.cst_decode();
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
-                        let output_ok =
-                            crate::api::devices::simulation::api_filterwheel_set_by_name(
-                                api_device_id,
-                                api_name,
-                            )
-                            .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_filterwheel_set_by_name", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || { let api_device_id = device_id.cst_decode();let api_name = name.cst_decode(); move |context| async move {
+                    transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
+                         let output_ok = crate::api::devices::simulation::filter_wheel::api_filterwheel_set_by_name(api_device_id, api_name).await?;   Ok(output_ok)
+                    })().await)
+                } })
 }
-fn wire__crate__api__devices__simulation__api_filterwheel_set_filter_names_impl(
+fn wire__crate__api__devices__simulation__filter_wheel__api_filterwheel_set_filter_names_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     device_id: impl CstDecode<String>,
     names: impl CstDecode<Vec<String>>,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "api_filterwheel_set_filter_names",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let api_device_id = device_id.cst_decode();
-            let api_names = names.cst_decode();
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
-                        let output_ok =
-                            crate::api::devices::simulation::api_filterwheel_set_filter_names(
-                                api_device_id,
-                                api_names,
-                            )
-                            .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_filterwheel_set_filter_names", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || { let api_device_id = device_id.cst_decode();let api_names = names.cst_decode(); move |context| async move {
+                    transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
+                         let output_ok = crate::api::devices::simulation::filter_wheel::api_filterwheel_set_filter_names(api_device_id, api_names).await?;   Ok(output_ok)
+                    })().await)
+                } })
 }
-fn wire__crate__api__devices__simulation__api_filterwheel_set_position_impl(
+fn wire__crate__api__devices__simulation__filter_wheel__api_filterwheel_set_position_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     device_id: impl CstDecode<String>,
     position: impl CstDecode<i32>,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "api_filterwheel_set_position",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let api_device_id = device_id.cst_decode();
-            let api_position = position.cst_decode();
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
-                        let output_ok =
-                            crate::api::devices::simulation::api_filterwheel_set_position(
-                                api_device_id,
-                                api_position,
-                            )
-                            .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_filterwheel_set_position", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || { let api_device_id = device_id.cst_decode();let api_position = position.cst_decode(); move |context| async move {
+                    transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
+                         let output_ok = crate::api::devices::simulation::filter_wheel::api_filterwheel_set_position(api_device_id, api_position).await?;   Ok(output_ok)
+                    })().await)
+                } })
 }
-fn wire__crate__api__devices__simulation__api_focuser_halt_impl(
+fn wire__crate__api__devices__simulation__focuser__api_focuser_halt_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     device_id: impl CstDecode<String>,
 ) {
@@ -2919,9 +2853,10 @@ fn wire__crate__api__devices__simulation__api_focuser_halt_impl(
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
-                        let output_ok =
-                            crate::api::devices::simulation::api_focuser_halt(api_device_id)
-                                .await?;
+                        let output_ok = crate::api::devices::simulation::focuser::api_focuser_halt(
+                            api_device_id,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -2930,7 +2865,7 @@ fn wire__crate__api__devices__simulation__api_focuser_halt_impl(
         },
     )
 }
-fn wire__crate__api__devices__simulation__api_focuser_move_relative_impl(
+fn wire__crate__api__devices__simulation__focuser__api_focuser_move_relative_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     device_id: impl CstDecode<String>,
     delta: impl CstDecode<i32>,
@@ -2947,11 +2882,12 @@ fn wire__crate__api__devices__simulation__api_focuser_move_relative_impl(
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
-                        let output_ok = crate::api::devices::simulation::api_focuser_move_relative(
-                            api_device_id,
-                            api_delta,
-                        )
-                        .await?;
+                        let output_ok =
+                            crate::api::devices::simulation::focuser::api_focuser_move_relative(
+                                api_device_id,
+                                api_delta,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -2960,7 +2896,7 @@ fn wire__crate__api__devices__simulation__api_focuser_move_relative_impl(
         },
     )
 }
-fn wire__crate__api__devices__simulation__api_focuser_move_to_impl(
+fn wire__crate__api__devices__simulation__focuser__api_focuser_move_to_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     device_id: impl CstDecode<String>,
     position: impl CstDecode<i32>,
@@ -2977,11 +2913,12 @@ fn wire__crate__api__devices__simulation__api_focuser_move_to_impl(
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
-                        let output_ok = crate::api::devices::simulation::api_focuser_move_to(
-                            api_device_id,
-                            api_position,
-                        )
-                        .await?;
+                        let output_ok =
+                            crate::api::devices::simulation::focuser::api_focuser_move_to(
+                                api_device_id,
+                                api_position,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -3130,7 +3067,7 @@ fn wire__crate__api__diagnostics__api_get_camera_capabilities_impl(
         },
     )
 }
-fn wire__crate__api__devices__simulation__api_get_camera_status_impl(
+fn wire__crate__api__devices__simulation__camera__api_get_camera_status_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     device_id: impl CstDecode<String>,
 ) {
@@ -3146,8 +3083,10 @@ fn wire__crate__api__devices__simulation__api_get_camera_status_impl(
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok =
-                            crate::api::devices::simulation::api_get_camera_status(api_device_id)
-                                .await?;
+                            crate::api::devices::simulation::camera::api_get_camera_status(
+                                api_device_id,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -3469,33 +3408,15 @@ fn wire__crate__api__diagnostics__api_get_filterwheel_capabilities_impl(
         },
     )
 }
-fn wire__crate__api__devices__simulation__api_get_filterwheel_status_impl(
+fn wire__crate__api__devices__simulation__filter_wheel__api_get_filterwheel_status_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     device_id: impl CstDecode<String>,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "api_get_filterwheel_status",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let api_device_id = device_id.cst_decode();
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
-                        let output_ok =
-                            crate::api::devices::simulation::api_get_filterwheel_status(
-                                api_device_id,
-                            )
-                            .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_get_filterwheel_status", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || { let api_device_id = device_id.cst_decode(); move |context| async move {
+                    transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
+                         let output_ok = crate::api::devices::simulation::filter_wheel::api_get_filterwheel_status(api_device_id).await?;   Ok(output_ok)
+                    })().await)
+                } })
 }
 fn wire__crate__api__diagnostics__api_get_focuser_capabilities_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
@@ -3523,7 +3444,7 @@ fn wire__crate__api__diagnostics__api_get_focuser_capabilities_impl(
         },
     )
 }
-fn wire__crate__api__devices__simulation__api_get_focuser_status_impl(
+fn wire__crate__api__devices__simulation__focuser__api_get_focuser_status_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     device_id: impl CstDecode<String>,
 ) {
@@ -3539,8 +3460,10 @@ fn wire__crate__api__devices__simulation__api_get_focuser_status_impl(
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok =
-                            crate::api::devices::simulation::api_get_focuser_status(api_device_id)
-                                .await?;
+                            crate::api::devices::simulation::focuser::api_get_focuser_status(
+                                api_device_id,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -3703,7 +3626,7 @@ fn wire__crate__api__diagnostics__api_get_mount_capabilities_impl(
         },
     )
 }
-fn wire__crate__api__devices__simulation__api_get_mount_status_impl(
+fn wire__crate__api__devices__simulation__mount__api_get_mount_status_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     device_id: impl CstDecode<String>,
 ) {
@@ -3719,8 +3642,10 @@ fn wire__crate__api__devices__simulation__api_get_mount_status_impl(
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok =
-                            crate::api::devices::simulation::api_get_mount_status(api_device_id)
-                                .await?;
+                            crate::api::devices::simulation::mount::api_get_mount_status(
+                                api_device_id,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -3846,7 +3771,7 @@ fn wire__crate__api__diagnostics__api_get_rotator_capabilities_impl(
         },
     )
 }
-fn wire__crate__api__devices__simulation__api_get_rotator_status_impl(
+fn wire__crate__api__devices__simulation__rotator__api_get_rotator_status_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     device_id: impl CstDecode<String>,
 ) {
@@ -3862,8 +3787,10 @@ fn wire__crate__api__devices__simulation__api_get_rotator_status_impl(
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok =
-                            crate::api::devices::simulation::api_get_rotator_status(api_device_id)
-                                .await?;
+                            crate::api::devices::simulation::rotator::api_get_rotator_status(
+                                api_device_id,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -4479,7 +4406,7 @@ fn wire__crate__api__init__api_init_with_logging_impl(
         },
     )
 }
-fn wire__crate__api__post_session__api_integrate_session_impl(
+fn wire__crate__api__post_session__entrypoints__api_integrate_session_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     args_json: impl CstDecode<String>,
 ) {
@@ -4493,7 +4420,9 @@ fn wire__crate__api__post_session__api_integrate_session_impl(
             let api_args_json = args_json.cst_decode();
             move |context| {
                 transform_result_dco::<_, _, String>((move || {
-                    let output_ok = crate::api::post_session::api_integrate_session(api_args_json)?;
+                    let output_ok = crate::api::post_session::entrypoints::api_integrate_session(
+                        api_args_json,
+                    )?;
                     Ok(output_ok)
                 })())
             }
@@ -4714,7 +4643,7 @@ fn wire__crate__api__storage__api_load_profile_impl(
         },
     )
 }
-fn wire__crate__api__post_session__api_master_accumulate_impl(
+fn wire__crate__api__post_session__entrypoints__api_master_accumulate_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     args_json: impl CstDecode<String>,
 ) {
@@ -4728,14 +4657,16 @@ fn wire__crate__api__post_session__api_master_accumulate_impl(
             let api_args_json = args_json.cst_decode();
             move |context| {
                 transform_result_dco::<_, _, String>((move || {
-                    let output_ok = crate::api::post_session::api_master_accumulate(api_args_json)?;
+                    let output_ok = crate::api::post_session::entrypoints::api_master_accumulate(
+                        api_args_json,
+                    )?;
                     Ok(output_ok)
                 })())
             }
         },
     )
 }
-fn wire__crate__api__devices__simulation__api_mount_find_home_impl(
+fn wire__crate__api__devices__simulation__mount__api_mount_find_home_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     device_id: impl CstDecode<String>,
 ) {
@@ -4751,8 +4682,10 @@ fn wire__crate__api__devices__simulation__api_mount_find_home_impl(
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok =
-                            crate::api::devices::simulation::api_mount_find_home(api_device_id)
-                                .await?;
+                            crate::api::devices::simulation::mount::api_mount_find_home(
+                                api_device_id,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -4761,7 +4694,7 @@ fn wire__crate__api__devices__simulation__api_mount_find_home_impl(
         },
     )
 }
-fn wire__crate__api__devices__simulation__api_mount_park_impl(
+fn wire__crate__api__devices__simulation__mount__api_mount_park_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     device_id: impl CstDecode<String>,
 ) {
@@ -4777,7 +4710,8 @@ fn wire__crate__api__devices__simulation__api_mount_park_impl(
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok =
-                            crate::api::devices::simulation::api_mount_park(api_device_id).await?;
+                            crate::api::devices::simulation::mount::api_mount_park(api_device_id)
+                                .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -4786,7 +4720,7 @@ fn wire__crate__api__devices__simulation__api_mount_park_impl(
         },
     )
 }
-fn wire__crate__api__devices__simulation__api_mount_pulse_guide_impl(
+fn wire__crate__api__devices__simulation__mount__api_mount_pulse_guide_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     device_id: impl CstDecode<String>,
     direction: impl CstDecode<String>,
@@ -4805,12 +4739,13 @@ fn wire__crate__api__devices__simulation__api_mount_pulse_guide_impl(
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
-                        let output_ok = crate::api::devices::simulation::api_mount_pulse_guide(
-                            api_device_id,
-                            api_direction,
-                            api_duration_ms,
-                        )
-                        .await?;
+                        let output_ok =
+                            crate::api::devices::simulation::mount::api_mount_pulse_guide(
+                                api_device_id,
+                                api_direction,
+                                api_duration_ms,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -4819,7 +4754,7 @@ fn wire__crate__api__devices__simulation__api_mount_pulse_guide_impl(
         },
     )
 }
-fn wire__crate__api__devices__simulation__api_mount_set_tracking_impl(
+fn wire__crate__api__devices__simulation__mount__api_mount_set_tracking_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     device_id: impl CstDecode<String>,
     enabled: impl CstDecode<u8>,
@@ -4836,11 +4771,12 @@ fn wire__crate__api__devices__simulation__api_mount_set_tracking_impl(
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
-                        let output_ok = crate::api::devices::simulation::api_mount_set_tracking(
-                            api_device_id,
-                            api_enabled,
-                        )
-                        .await?;
+                        let output_ok =
+                            crate::api::devices::simulation::mount::api_mount_set_tracking(
+                                api_device_id,
+                                api_enabled,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -4849,7 +4785,7 @@ fn wire__crate__api__devices__simulation__api_mount_set_tracking_impl(
         },
     )
 }
-fn wire__crate__api__devices__simulation__api_mount_slew_alt_az_impl(
+fn wire__crate__api__devices__simulation__mount__api_mount_slew_alt_az_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     device_id: impl CstDecode<String>,
     altitude: impl CstDecode<f64>,
@@ -4868,12 +4804,13 @@ fn wire__crate__api__devices__simulation__api_mount_slew_alt_az_impl(
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
-                        let output_ok = crate::api::devices::simulation::api_mount_slew_alt_az(
-                            api_device_id,
-                            api_altitude,
-                            api_azimuth,
-                        )
-                        .await?;
+                        let output_ok =
+                            crate::api::devices::simulation::mount::api_mount_slew_alt_az(
+                                api_device_id,
+                                api_altitude,
+                                api_azimuth,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -4882,7 +4819,7 @@ fn wire__crate__api__devices__simulation__api_mount_slew_alt_az_impl(
         },
     )
 }
-fn wire__crate__api__devices__simulation__api_mount_slew_to_coordinates_impl(
+fn wire__crate__api__devices__simulation__mount__api_mount_slew_to_coordinates_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     device_id: impl CstDecode<String>,
     ra: impl CstDecode<f64>,
@@ -4902,7 +4839,7 @@ fn wire__crate__api__devices__simulation__api_mount_slew_to_coordinates_impl(
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok =
-                            crate::api::devices::simulation::api_mount_slew_to_coordinates(
+                            crate::api::devices::simulation::mount::api_mount_slew_to_coordinates(
                                 api_device_id,
                                 api_ra,
                                 api_dec,
@@ -4916,7 +4853,7 @@ fn wire__crate__api__devices__simulation__api_mount_slew_to_coordinates_impl(
         },
     )
 }
-fn wire__crate__api__devices__simulation__api_mount_sync_to_coordinates_impl(
+fn wire__crate__api__devices__simulation__mount__api_mount_sync_to_coordinates_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     device_id: impl CstDecode<String>,
     ra: impl CstDecode<f64>,
@@ -4936,7 +4873,7 @@ fn wire__crate__api__devices__simulation__api_mount_sync_to_coordinates_impl(
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok =
-                            crate::api::devices::simulation::api_mount_sync_to_coordinates(
+                            crate::api::devices::simulation::mount::api_mount_sync_to_coordinates(
                                 api_device_id,
                                 api_ra,
                                 api_dec,
@@ -4950,7 +4887,7 @@ fn wire__crate__api__devices__simulation__api_mount_sync_to_coordinates_impl(
         },
     )
 }
-fn wire__crate__api__devices__simulation__api_mount_unpark_impl(
+fn wire__crate__api__devices__simulation__mount__api_mount_unpark_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     device_id: impl CstDecode<String>,
 ) {
@@ -4966,7 +4903,7 @@ fn wire__crate__api__devices__simulation__api_mount_unpark_impl(
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok =
-                            crate::api::devices::simulation::api_mount_unpark(api_device_id)
+                            crate::api::devices::simulation::mount::api_mount_unpark(api_device_id)
                                 .await?;
                         Ok(output_ok)
                     })()
@@ -4976,7 +4913,7 @@ fn wire__crate__api__devices__simulation__api_mount_unpark_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_perform_meridian_flip_impl(
+fn wire__crate__api__sequencer__lifecycle__api_perform_meridian_flip_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     mount_id: impl CstDecode<String>,
     camera_id: impl CstDecode<Option<String>>,
@@ -5013,21 +4950,22 @@ fn wire__crate__api__sequencer__api_perform_meridian_flip_impl(
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
-                        let output_ok = crate::api::sequencer::api_perform_meridian_flip(
-                            api_mount_id,
-                            api_camera_id,
-                            api_focuser_id,
-                            api_cover_calibrator_id,
-                            api_target_name,
-                            api_target_ra_hours,
-                            api_target_dec_degrees,
-                            api_pause_guiding,
-                            api_auto_center,
-                            api_refocus_after,
-                            api_resume_guiding,
-                            api_settle_time_secs,
-                        )
-                        .await?;
+                        let output_ok =
+                            crate::api::sequencer::lifecycle::api_perform_meridian_flip(
+                                api_mount_id,
+                                api_camera_id,
+                                api_focuser_id,
+                                api_cover_calibrator_id,
+                                api_target_name,
+                                api_target_ra_hours,
+                                api_target_dec_degrees,
+                                api_pause_guiding,
+                                api_auto_center,
+                                api_refocus_after,
+                                api_resume_guiding,
+                                api_settle_time_secs,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -5893,7 +5831,7 @@ fn wire__crate__api__hotplug__api_rescan_devices_impl(
         },
     )
 }
-fn wire__crate__api__devices__simulation__api_rotator_halt_impl(
+fn wire__crate__api__devices__simulation__rotator__api_rotator_halt_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     device_id: impl CstDecode<String>,
 ) {
@@ -5908,9 +5846,10 @@ fn wire__crate__api__devices__simulation__api_rotator_halt_impl(
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
-                        let output_ok =
-                            crate::api::devices::simulation::api_rotator_halt(api_device_id)
-                                .await?;
+                        let output_ok = crate::api::devices::simulation::rotator::api_rotator_halt(
+                            api_device_id,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -5919,7 +5858,7 @@ fn wire__crate__api__devices__simulation__api_rotator_halt_impl(
         },
     )
 }
-fn wire__crate__api__devices__simulation__api_rotator_move_relative_impl(
+fn wire__crate__api__devices__simulation__rotator__api_rotator_move_relative_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     device_id: impl CstDecode<String>,
     delta: impl CstDecode<f64>,
@@ -5936,11 +5875,12 @@ fn wire__crate__api__devices__simulation__api_rotator_move_relative_impl(
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
-                        let output_ok = crate::api::devices::simulation::api_rotator_move_relative(
-                            api_device_id,
-                            api_delta,
-                        )
-                        .await?;
+                        let output_ok =
+                            crate::api::devices::simulation::rotator::api_rotator_move_relative(
+                                api_device_id,
+                                api_delta,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -5949,7 +5889,7 @@ fn wire__crate__api__devices__simulation__api_rotator_move_relative_impl(
         },
     )
 }
-fn wire__crate__api__devices__simulation__api_rotator_move_to_impl(
+fn wire__crate__api__devices__simulation__rotator__api_rotator_move_to_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     device_id: impl CstDecode<String>,
     angle: impl CstDecode<f64>,
@@ -5966,11 +5906,12 @@ fn wire__crate__api__devices__simulation__api_rotator_move_to_impl(
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
-                        let output_ok = crate::api::devices::simulation::api_rotator_move_to(
-                            api_device_id,
-                            api_angle,
-                        )
-                        .await?;
+                        let output_ok =
+                            crate::api::devices::simulation::rotator::api_rotator_move_to(
+                                api_device_id,
+                                api_angle,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -5979,7 +5920,7 @@ fn wire__crate__api__devices__simulation__api_rotator_move_to_impl(
         },
     )
 }
-fn wire__crate__api__devices__simulation__api_rotator_set_reverse_impl(
+fn wire__crate__api__devices__simulation__rotator__api_rotator_set_reverse_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     device_id: impl CstDecode<String>,
     reverse: impl CstDecode<bool>,
@@ -5996,11 +5937,12 @@ fn wire__crate__api__devices__simulation__api_rotator_set_reverse_impl(
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
-                        let output_ok = crate::api::devices::simulation::api_rotator_set_reverse(
-                            api_device_id,
-                            api_reverse,
-                        )
-                        .await?;
+                        let output_ok =
+                            crate::api::devices::simulation::rotator::api_rotator_set_reverse(
+                                api_device_id,
+                                api_reverse,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -6009,7 +5951,7 @@ fn wire__crate__api__devices__simulation__api_rotator_set_reverse_impl(
         },
     )
 }
-fn wire__crate__api__devices__simulation__api_rotator_sync_to_pa_impl(
+fn wire__crate__api__devices__simulation__rotator__api_rotator_sync_to_pa_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     device_id: impl CstDecode<String>,
     pa: impl CstDecode<f64>,
@@ -6026,11 +5968,12 @@ fn wire__crate__api__devices__simulation__api_rotator_sync_to_pa_impl(
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
-                        let output_ok = crate::api::devices::simulation::api_rotator_sync_to_pa(
-                            api_device_id,
-                            api_pa,
-                        )
-                        .await?;
+                        let output_ok =
+                            crate::api::devices::simulation::rotator::api_rotator_sync_to_pa(
+                                api_device_id,
+                                api_pa,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -6177,7 +6120,7 @@ fn wire__crate__api__imaging__api_save_fits_from_last_capture_impl(
         },
     )
 }
-fn wire__crate__api__post_session__api_save_fits_master_impl(
+fn wire__crate__api__post_session__entrypoints__api_save_fits_master_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     args_json: impl CstDecode<String>,
 ) {
@@ -6191,7 +6134,8 @@ fn wire__crate__api__post_session__api_save_fits_master_impl(
             let api_args_json = args_json.cst_decode();
             move |context| {
                 transform_result_dco::<_, _, String>((move || {
-                    let output_ok = crate::api::post_session::api_save_fits_master(api_args_json)?;
+                    let output_ok =
+                        crate::api::post_session::entrypoints::api_save_fits_master(api_args_json)?;
                     Ok(output_ok)
                 })())
             }
@@ -6584,7 +6528,7 @@ fn wire__crate__api__imaging__api_sequencer_apply_defect_map_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_sequencer_clear_checkpoint_impl(
+fn wire__crate__api__sequencer__lifecycle__api_sequencer_clear_checkpoint_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
@@ -6596,85 +6540,42 @@ fn wire__crate__api__sequencer__api_sequencer_clear_checkpoint_impl(
         move || {
             move |context| {
                 transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
-                    let output_ok = crate::api::sequencer::api_sequencer_clear_checkpoint()?;
+                    let output_ok =
+                        crate::api::sequencer::lifecycle::api_sequencer_clear_checkpoint()?;
                     Ok(output_ok)
                 })())
             }
         },
     )
 }
-fn wire__crate__api__sequencer__api_sequencer_clear_default_adaptive_exposure_impl(
+fn wire__crate__api__sequencer__runtime_config__api_sequencer_clear_default_adaptive_exposure_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "api_sequencer_clear_default_adaptive_exposure",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
-                        let output_ok =
-                            crate::api::sequencer::api_sequencer_clear_default_adaptive_exposure()
-                                .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_sequencer_clear_default_adaptive_exposure", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || {  move |context| async move {
+                    transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
+                         let output_ok = crate::api::sequencer::runtime_config::api_sequencer_clear_default_adaptive_exposure().await?;   Ok(output_ok)
+                    })().await)
+                } })
 }
-fn wire__crate__api__sequencer__api_sequencer_get_active_sequence_run_id_impl(
+fn wire__crate__api__sequencer__runtime_config__api_sequencer_get_active_sequence_run_id_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "api_sequencer_get_active_sequence_run_id",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
-                        let output_ok =
-                            crate::api::sequencer::api_sequencer_get_active_sequence_run_id()
-                                .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_sequencer_get_active_sequence_run_id", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || {  move |context| async move {
+                    transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
+                         let output_ok = crate::api::sequencer::runtime_config::api_sequencer_get_active_sequence_run_id().await?;   Ok(output_ok)
+                    })().await)
+                } })
 }
-fn wire__crate__api__sequencer__api_sequencer_get_adaptive_swap_json_impl(
+fn wire__crate__api__sequencer__runtime_config__api_sequencer_get_adaptive_swap_json_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "api_sequencer_get_adaptive_swap_json",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
-                        let output_ok =
-                            crate::api::sequencer::api_sequencer_get_adaptive_swap_json().await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_sequencer_get_adaptive_swap_json", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || {  move |context| async move {
+                    transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
+                         let output_ok = crate::api::sequencer::runtime_config::api_sequencer_get_adaptive_swap_json().await?;   Ok(output_ok)
+                    })().await)
+                } })
 }
-fn wire__crate__api__sequencer__api_sequencer_get_checkpoint_info_impl(
+fn wire__crate__api__sequencer__lifecycle__api_sequencer_get_checkpoint_info_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
@@ -6687,7 +6588,7 @@ fn wire__crate__api__sequencer__api_sequencer_get_checkpoint_info_impl(
             move |context| {
                 transform_result_dco::<_, _, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
-                        crate::api::sequencer::api_sequencer_get_checkpoint_info(),
+                        crate::api::sequencer::lifecycle::api_sequencer_get_checkpoint_info(),
                     )?;
                     Ok(output_ok)
                 })())
@@ -6695,102 +6596,43 @@ fn wire__crate__api__sequencer__api_sequencer_get_checkpoint_info_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_sequencer_get_cloud_motion_json_impl(
+fn wire__crate__api__sequencer__runtime_config__api_sequencer_get_cloud_motion_json_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "api_sequencer_get_cloud_motion_json",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
-                        let output_ok =
-                            crate::api::sequencer::api_sequencer_get_cloud_motion_json().await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_sequencer_get_cloud_motion_json", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || {  move |context| async move {
+                    transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
+                         let output_ok = crate::api::sequencer::runtime_config::api_sequencer_get_cloud_motion_json().await?;   Ok(output_ok)
+                    })().await)
+                } })
 }
-fn wire__crate__api__sequencer__api_sequencer_get_current_recovery_json_impl(
+fn wire__crate__api__sequencer__runtime_config__api_sequencer_get_current_recovery_json_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "api_sequencer_get_current_recovery_json",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
-                        let output_ok =
-                            crate::api::sequencer::api_sequencer_get_current_recovery_json()
-                                .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_sequencer_get_current_recovery_json", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || {  move |context| async move {
+                    transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
+                         let output_ok = crate::api::sequencer::runtime_config::api_sequencer_get_current_recovery_json().await?;   Ok(output_ok)
+                    })().await)
+                } })
 }
-fn wire__crate__api__sequencer__api_sequencer_get_decision_logging_enabled_impl(
+fn wire__crate__api__sequencer__runtime_config__api_sequencer_get_decision_logging_enabled_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "api_sequencer_get_decision_logging_enabled",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
-                        let output_ok =
-                            crate::api::sequencer::api_sequencer_get_decision_logging_enabled()
-                                .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_sequencer_get_decision_logging_enabled", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || {  move |context| async move {
+                    transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
+                         let output_ok = crate::api::sequencer::runtime_config::api_sequencer_get_decision_logging_enabled().await?;   Ok(output_ok)
+                    })().await)
+                } })
 }
-fn wire__crate__api__sequencer__api_sequencer_get_recovery_history_json_impl(
+fn wire__crate__api__sequencer__runtime_config__api_sequencer_get_recovery_history_json_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "api_sequencer_get_recovery_history_json",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
-                        let output_ok =
-                            crate::api::sequencer::api_sequencer_get_recovery_history_json()
-                                .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_sequencer_get_recovery_history_json", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || {  move |context| async move {
+                    transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
+                         let output_ok = crate::api::sequencer::runtime_config::api_sequencer_get_recovery_history_json().await?;   Ok(output_ok)
+                    })().await)
+                } })
 }
-fn wire__crate__api__sequencer__api_sequencer_get_state_impl(
+fn wire__crate__api__sequencer__lifecycle__api_sequencer_get_state_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
@@ -6804,7 +6646,7 @@ fn wire__crate__api__sequencer__api_sequencer_get_state_impl(
                 transform_result_dco::<_, _, ()>(
                     (move || async move {
                         let output_ok = Result::<_, ()>::Ok(
-                            crate::api::sequencer::api_sequencer_get_state().await,
+                            crate::api::sequencer::lifecycle::api_sequencer_get_state().await,
                         )?;
                         Ok(output_ok)
                     })()
@@ -6814,7 +6656,7 @@ fn wire__crate__api__sequencer__api_sequencer_get_state_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_sequencer_has_checkpoint_impl(
+fn wire__crate__api__sequencer__lifecycle__api_sequencer_has_checkpoint_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
@@ -6826,15 +6668,16 @@ fn wire__crate__api__sequencer__api_sequencer_has_checkpoint_impl(
         move || {
             move |context| {
                 transform_result_dco::<_, _, ()>((move || {
-                    let output_ok =
-                        Result::<_, ()>::Ok(crate::api::sequencer::api_sequencer_has_checkpoint())?;
+                    let output_ok = Result::<_, ()>::Ok(
+                        crate::api::sequencer::lifecycle::api_sequencer_has_checkpoint(),
+                    )?;
                     Ok(output_ok)
                 })())
             }
         },
     )
 }
-fn wire__crate__api__sequencer__api_sequencer_load_impl(
+fn wire__crate__api__sequencer__lifecycle__api_sequencer_load_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     definition: impl CstDecode<crate::api::sequencer::SequenceDefinitionApi>,
 ) {
@@ -6850,7 +6693,8 @@ fn wire__crate__api__sequencer__api_sequencer_load_impl(
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok =
-                            crate::api::sequencer::api_sequencer_load(api_definition).await?;
+                            crate::api::sequencer::lifecycle::api_sequencer_load(api_definition)
+                                .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -6859,7 +6703,7 @@ fn wire__crate__api__sequencer__api_sequencer_load_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_sequencer_load_json_impl(
+fn wire__crate__api__sequencer__lifecycle__api_sequencer_load_json_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     json: impl CstDecode<String>,
 ) {
@@ -6875,7 +6719,8 @@ fn wire__crate__api__sequencer__api_sequencer_load_json_impl(
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok =
-                            crate::api::sequencer::api_sequencer_load_json(api_json).await?;
+                            crate::api::sequencer::lifecycle::api_sequencer_load_json(api_json)
+                                .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -6884,7 +6729,7 @@ fn wire__crate__api__sequencer__api_sequencer_load_json_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_sequencer_pause_impl(
+fn wire__crate__api__sequencer__lifecycle__api_sequencer_pause_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
@@ -6897,7 +6742,8 @@ fn wire__crate__api__sequencer__api_sequencer_pause_impl(
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
-                        let output_ok = crate::api::sequencer::api_sequencer_pause().await?;
+                        let output_ok =
+                            crate::api::sequencer::lifecycle::api_sequencer_pause().await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -6906,7 +6752,7 @@ fn wire__crate__api__sequencer__api_sequencer_pause_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_sequencer_plugin_node_finished_impl(
+fn wire__crate__api__sequencer__lifecycle__api_sequencer_plugin_node_finished_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     node_id: impl CstDecode<String>,
     success: impl CstDecode<bool>,
@@ -6927,13 +6773,14 @@ fn wire__crate__api__sequencer__api_sequencer_plugin_node_finished_impl(
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
-                        let output_ok = crate::api::sequencer::api_sequencer_plugin_node_finished(
-                            api_node_id,
-                            api_success,
-                            api_message,
-                            api_structured_detail_json,
-                        )
-                        .await?;
+                        let output_ok =
+                            crate::api::sequencer::lifecycle::api_sequencer_plugin_node_finished(
+                                api_node_id,
+                                api_success,
+                                api_message,
+                                api_structured_detail_json,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -6942,7 +6789,7 @@ fn wire__crate__api__sequencer__api_sequencer_plugin_node_finished_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_sequencer_recovery_abort_impl(
+fn wire__crate__api__sequencer__runtime_config__api_sequencer_recovery_abort_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
@@ -6956,7 +6803,8 @@ fn wire__crate__api__sequencer__api_sequencer_recovery_abort_impl(
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok =
-                            crate::api::sequencer::api_sequencer_recovery_abort().await?;
+                            crate::api::sequencer::runtime_config::api_sequencer_recovery_abort()
+                                .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -6965,7 +6813,7 @@ fn wire__crate__api__sequencer__api_sequencer_recovery_abort_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_sequencer_recovery_try_now_impl(
+fn wire__crate__api__sequencer__runtime_config__api_sequencer_recovery_try_now_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
@@ -6979,7 +6827,8 @@ fn wire__crate__api__sequencer__api_sequencer_recovery_try_now_impl(
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok =
-                            crate::api::sequencer::api_sequencer_recovery_try_now().await?;
+                            crate::api::sequencer::runtime_config::api_sequencer_recovery_try_now()
+                                .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -6988,7 +6837,7 @@ fn wire__crate__api__sequencer__api_sequencer_recovery_try_now_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_sequencer_reset_impl(
+fn wire__crate__api__sequencer__lifecycle__api_sequencer_reset_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
@@ -7001,7 +6850,8 @@ fn wire__crate__api__sequencer__api_sequencer_reset_impl(
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
-                        let output_ok = crate::api::sequencer::api_sequencer_reset().await?;
+                        let output_ok =
+                            crate::api::sequencer::lifecycle::api_sequencer_reset().await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -7010,7 +6860,7 @@ fn wire__crate__api__sequencer__api_sequencer_reset_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_sequencer_resume_impl(
+fn wire__crate__api__sequencer__lifecycle__api_sequencer_resume_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
@@ -7023,7 +6873,8 @@ fn wire__crate__api__sequencer__api_sequencer_resume_impl(
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
-                        let output_ok = crate::api::sequencer::api_sequencer_resume().await?;
+                        let output_ok =
+                            crate::api::sequencer::lifecycle::api_sequencer_resume().await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -7032,7 +6883,7 @@ fn wire__crate__api__sequencer__api_sequencer_resume_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_sequencer_resume_from_checkpoint_impl(
+fn wire__crate__api__sequencer__lifecycle__api_sequencer_resume_from_checkpoint_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
@@ -7046,7 +6897,9 @@ fn wire__crate__api__sequencer__api_sequencer_resume_from_checkpoint_impl(
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok =
-                            crate::api::sequencer::api_sequencer_resume_from_checkpoint().await?;
+                            crate::api::sequencer::lifecycle::api_sequencer_resume_from_checkpoint(
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -7055,7 +6908,7 @@ fn wire__crate__api__sequencer__api_sequencer_resume_from_checkpoint_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_sequencer_save_checkpoint_impl(
+fn wire__crate__api__sequencer__lifecycle__api_sequencer_save_checkpoint_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
@@ -7069,7 +6922,8 @@ fn wire__crate__api__sequencer__api_sequencer_save_checkpoint_impl(
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok =
-                            crate::api::sequencer::api_sequencer_save_checkpoint().await?;
+                            crate::api::sequencer::lifecycle::api_sequencer_save_checkpoint()
+                                .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -7078,35 +6932,17 @@ fn wire__crate__api__sequencer__api_sequencer_save_checkpoint_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_sequencer_set_active_sequence_run_id_impl(
+fn wire__crate__api__sequencer__runtime_config__api_sequencer_set_active_sequence_run_id_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     sequence_run_id: impl CstDecode<Option<i64>>,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "api_sequencer_set_active_sequence_run_id",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let api_sequence_run_id = sequence_run_id.cst_decode();
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
-                        let output_ok =
-                            crate::api::sequencer::api_sequencer_set_active_sequence_run_id(
-                                api_sequence_run_id,
-                            )
-                            .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_sequencer_set_active_sequence_run_id", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || { let api_sequence_run_id = sequence_run_id.cst_decode(); move |context| async move {
+                    transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
+                         let output_ok = crate::api::sequencer::runtime_config::api_sequencer_set_active_sequence_run_id(api_sequence_run_id).await?;   Ok(output_ok)
+                    })().await)
+                } })
 }
-fn wire__crate__api__sequencer__api_sequencer_set_checkpoint_dir_impl(
+fn wire__crate__api__sequencer__lifecycle__api_sequencer_set_checkpoint_dir_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     path: impl CstDecode<String>,
 ) {
@@ -7122,34 +6958,8 @@ fn wire__crate__api__sequencer__api_sequencer_set_checkpoint_dir_impl(
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok =
-                            crate::api::sequencer::api_sequencer_set_checkpoint_dir(api_path)
-                                .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
-}
-fn wire__crate__api__sequencer__api_sequencer_set_decision_logging_enabled_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
-    enabled: impl CstDecode<bool>,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "api_sequencer_set_decision_logging_enabled",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let api_enabled = enabled.cst_decode();
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
-                        let output_ok =
-                            crate::api::sequencer::api_sequencer_set_decision_logging_enabled(
-                                api_enabled,
+                            crate::api::sequencer::lifecycle::api_sequencer_set_checkpoint_dir(
+                                api_path,
                             )
                             .await?;
                         Ok(output_ok)
@@ -7160,7 +6970,17 @@ fn wire__crate__api__sequencer__api_sequencer_set_decision_logging_enabled_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_sequencer_set_devices_impl(
+fn wire__crate__api__sequencer__runtime_config__api_sequencer_set_decision_logging_enabled_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    enabled: impl CstDecode<bool>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_sequencer_set_decision_logging_enabled", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || { let api_enabled = enabled.cst_decode(); move |context| async move {
+                    transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
+                         let output_ok = crate::api::sequencer::runtime_config::api_sequencer_set_decision_logging_enabled(api_enabled).await?;   Ok(output_ok)
+                    })().await)
+                } })
+}
+fn wire__crate__api__sequencer__runtime_config__api_sequencer_set_devices_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     camera_id: impl CstDecode<Option<String>>,
     mount_id: impl CstDecode<Option<String>>,
@@ -7187,42 +7007,15 @@ fn wire__crate__api__sequencer__api_sequencer_set_devices_impl(
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
-                        let output_ok = crate::api::sequencer::api_sequencer_set_devices(
-                            api_camera_id,
-                            api_mount_id,
-                            api_focuser_id,
-                            api_filterwheel_id,
-                            api_rotator_id,
-                            api_filter_names,
-                            api_filter_focus_offsets,
-                        )
-                        .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
-}
-fn wire__crate__api__sequencer__api_sequencer_set_safety_check_interval_seconds_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
-    seconds: impl CstDecode<u32>,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "api_sequencer_set_safety_check_interval_seconds",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let api_seconds = seconds.cst_decode();
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
                         let output_ok =
-                            crate::api::sequencer::api_sequencer_set_safety_check_interval_seconds(
-                                api_seconds,
+                            crate::api::sequencer::runtime_config::api_sequencer_set_devices(
+                                api_camera_id,
+                                api_mount_id,
+                                api_focuser_id,
+                                api_filterwheel_id,
+                                api_rotator_id,
+                                api_filter_names,
+                                api_filter_focus_offsets,
                             )
                             .await?;
                         Ok(output_ok)
@@ -7233,33 +7026,27 @@ fn wire__crate__api__sequencer__api_sequencer_set_safety_check_interval_seconds_
         },
     )
 }
-fn wire__crate__api__sequencer__api_sequencer_set_safety_fail_mode_impl(
+fn wire__crate__api__sequencer__runtime_config__api_sequencer_set_safety_check_interval_seconds_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    seconds: impl CstDecode<u32>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_sequencer_set_safety_check_interval_seconds", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || { let api_seconds = seconds.cst_decode(); move |context| async move {
+                    transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
+                         let output_ok = crate::api::sequencer::runtime_config::api_sequencer_set_safety_check_interval_seconds(api_seconds).await?;   Ok(output_ok)
+                    })().await)
+                } })
+}
+fn wire__crate__api__sequencer__runtime_config__api_sequencer_set_safety_fail_mode_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     mode: impl CstDecode<String>,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "api_sequencer_set_safety_fail_mode",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let api_mode = mode.cst_decode();
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
-                        let output_ok =
-                            crate::api::sequencer::api_sequencer_set_safety_fail_mode(api_mode)
-                                .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_sequencer_set_safety_fail_mode", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || { let api_mode = mode.cst_decode(); move |context| async move {
+                    transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
+                         let output_ok = crate::api::sequencer::runtime_config::api_sequencer_set_safety_fail_mode(api_mode).await?;   Ok(output_ok)
+                    })().await)
+                } })
 }
-fn wire__crate__api__sequencer__api_sequencer_set_save_path_impl(
+fn wire__crate__api__sequencer__runtime_config__api_sequencer_set_save_path_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     path: impl CstDecode<Option<String>>,
 ) {
@@ -7275,7 +7062,10 @@ fn wire__crate__api__sequencer__api_sequencer_set_save_path_impl(
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok =
-                            crate::api::sequencer::api_sequencer_set_save_path(api_path).await?;
+                            crate::api::sequencer::runtime_config::api_sequencer_set_save_path(
+                                api_path,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -7284,33 +7074,17 @@ fn wire__crate__api__sequencer__api_sequencer_set_save_path_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_sequencer_set_simulation_mode_impl(
+fn wire__crate__api__sequencer__runtime_config__api_sequencer_set_simulation_mode_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     enabled: impl CstDecode<bool>,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "api_sequencer_set_simulation_mode",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let api_enabled = enabled.cst_decode();
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
-                        let output_ok =
-                            crate::api::sequencer::api_sequencer_set_simulation_mode(api_enabled)
-                                .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_sequencer_set_simulation_mode", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || { let api_enabled = enabled.cst_decode(); move |context| async move {
+                    transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
+                         let output_ok = crate::api::sequencer::runtime_config::api_sequencer_set_simulation_mode(api_enabled).await?;   Ok(output_ok)
+                    })().await)
+                } })
 }
-fn wire__crate__api__sequencer__api_sequencer_skip_impl(
+fn wire__crate__api__sequencer__lifecycle__api_sequencer_skip_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
@@ -7323,7 +7097,8 @@ fn wire__crate__api__sequencer__api_sequencer_skip_impl(
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
-                        let output_ok = crate::api::sequencer::api_sequencer_skip().await?;
+                        let output_ok =
+                            crate::api::sequencer::lifecycle::api_sequencer_skip().await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -7332,7 +7107,7 @@ fn wire__crate__api__sequencer__api_sequencer_skip_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_sequencer_skip_to_node_impl(
+fn wire__crate__api__sequencer__lifecycle__api_sequencer_skip_to_node_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     node_id: impl CstDecode<String>,
 ) {
@@ -7348,7 +7123,10 @@ fn wire__crate__api__sequencer__api_sequencer_skip_to_node_impl(
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok =
-                            crate::api::sequencer::api_sequencer_skip_to_node(api_node_id).await?;
+                            crate::api::sequencer::lifecycle::api_sequencer_skip_to_node(
+                                api_node_id,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -7357,7 +7135,7 @@ fn wire__crate__api__sequencer__api_sequencer_skip_to_node_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_sequencer_start_impl(
+fn wire__crate__api__sequencer__lifecycle__api_sequencer_start_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
@@ -7370,7 +7148,8 @@ fn wire__crate__api__sequencer__api_sequencer_start_impl(
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
-                        let output_ok = crate::api::sequencer::api_sequencer_start().await?;
+                        let output_ok =
+                            crate::api::sequencer::lifecycle::api_sequencer_start().await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -7379,8 +7158,9 @@ fn wire__crate__api__sequencer__api_sequencer_start_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_sequencer_stop_impl(
+fn wire__crate__api__sequencer__lifecycle__api_sequencer_stop_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
+    origin: impl CstDecode<Option<String>>,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
@@ -7389,10 +7169,13 @@ fn wire__crate__api__sequencer__api_sequencer_stop_impl(
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
         move || {
+            let api_origin = origin.cst_decode();
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
-                        let output_ok = crate::api::sequencer::api_sequencer_stop().await?;
+                        let output_ok =
+                            crate::api::sequencer::lifecycle::api_sequencer_stop(api_origin)
+                                .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -7401,7 +7184,7 @@ fn wire__crate__api__sequencer__api_sequencer_stop_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_sequencer_subscribe_events_impl(
+fn wire__crate__api__sequencer__event_bridge__api_sequencer_subscribe_events_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
@@ -7415,7 +7198,8 @@ fn wire__crate__api__sequencer__api_sequencer_subscribe_events_impl(
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok =
-                            crate::api::sequencer::api_sequencer_subscribe_events().await?;
+                            crate::api::sequencer::event_bridge::api_sequencer_subscribe_events()
+                                .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -7424,63 +7208,27 @@ fn wire__crate__api__sequencer__api_sequencer_subscribe_events_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_sequencer_update_autofocus_config_impl(
+fn wire__crate__api__sequencer__runtime_config__api_sequencer_update_autofocus_config_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     config_json: impl CstDecode<String>,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "api_sequencer_update_autofocus_config",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let api_config_json = config_json.cst_decode();
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
-                        let output_ok =
-                            crate::api::sequencer::api_sequencer_update_autofocus_config(
-                                api_config_json,
-                            )
-                            .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_sequencer_update_autofocus_config", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || { let api_config_json = config_json.cst_decode(); move |context| async move {
+                    transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
+                         let output_ok = crate::api::sequencer::runtime_config::api_sequencer_update_autofocus_config(api_config_json).await?;   Ok(output_ok)
+                    })().await)
+                } })
 }
-fn wire__crate__api__sequencer__api_sequencer_update_autofocus_interval_impl(
+fn wire__crate__api__sequencer__runtime_config__api_sequencer_update_autofocus_interval_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     every_n_frames: impl CstDecode<u32>,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "api_sequencer_update_autofocus_interval",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let api_every_n_frames = every_n_frames.cst_decode();
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
-                        let output_ok =
-                            crate::api::sequencer::api_sequencer_update_autofocus_interval(
-                                api_every_n_frames,
-                            )
-                            .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_sequencer_update_autofocus_interval", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || { let api_every_n_frames = every_n_frames.cst_decode(); move |context| async move {
+                    transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
+                         let output_ok = crate::api::sequencer::runtime_config::api_sequencer_update_autofocus_interval(api_every_n_frames).await?;   Ok(output_ok)
+                    })().await)
+                } })
 }
-fn wire__crate__api__sequencer__api_sequencer_update_cloud_motion_impl(
+fn wire__crate__api__sequencer__runtime_config__api_sequencer_update_cloud_motion_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     current_cover_percent: impl CstDecode<Option<f64>>,
     predicted_arrival_minutes: impl CstDecode<Option<f64>>,
@@ -7489,40 +7237,13 @@ fn wire__crate__api__sequencer__api_sequencer_update_cloud_motion_impl(
     predicted_clear_sky_alt: impl CstDecode<Option<f64>>,
     predicted_clear_sky_az: impl CstDecode<Option<f64>>,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "api_sequencer_update_cloud_motion",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let api_current_cover_percent = current_cover_percent.cst_decode();
-            let api_predicted_arrival_minutes = predicted_arrival_minutes.cst_decode();
-            let api_predicted_opening_minutes = predicted_opening_minutes.cst_decode();
-            let api_predicted_opening_duration_secs = predicted_opening_duration_secs.cst_decode();
-            let api_predicted_clear_sky_alt = predicted_clear_sky_alt.cst_decode();
-            let api_predicted_clear_sky_az = predicted_clear_sky_az.cst_decode();
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
-                        let output_ok = crate::api::sequencer::api_sequencer_update_cloud_motion(
-                            api_current_cover_percent,
-                            api_predicted_arrival_minutes,
-                            api_predicted_opening_minutes,
-                            api_predicted_opening_duration_secs,
-                            api_predicted_clear_sky_alt,
-                            api_predicted_clear_sky_az,
-                        )
-                        .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_sequencer_update_cloud_motion", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || { let api_current_cover_percent = current_cover_percent.cst_decode();let api_predicted_arrival_minutes = predicted_arrival_minutes.cst_decode();let api_predicted_opening_minutes = predicted_opening_minutes.cst_decode();let api_predicted_opening_duration_secs = predicted_opening_duration_secs.cst_decode();let api_predicted_clear_sky_alt = predicted_clear_sky_alt.cst_decode();let api_predicted_clear_sky_az = predicted_clear_sky_az.cst_decode(); move |context| async move {
+                    transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
+                         let output_ok = crate::api::sequencer::runtime_config::api_sequencer_update_cloud_motion(api_current_cover_percent, api_predicted_arrival_minutes, api_predicted_opening_minutes, api_predicted_opening_duration_secs, api_predicted_clear_sky_alt, api_predicted_clear_sky_az).await?;   Ok(output_ok)
+                    })().await)
+                } })
 }
-fn wire__crate__api__sequencer__api_sequencer_update_conditions_score_impl(
+fn wire__crate__api__sequencer__runtime_config__api_sequencer_update_conditions_score_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     score: impl CstDecode<Option<f64>>,
     transparency_score: impl CstDecode<Option<f64>>,
@@ -7535,49 +7256,13 @@ fn wire__crate__api__sequencer__api_sequencer_update_conditions_score_impl(
     wind_weight: impl CstDecode<f64>,
     generated_unix_secs: impl CstDecode<i64>,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "api_sequencer_update_conditions_score",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let api_score = score.cst_decode();
-            let api_transparency_score = transparency_score.cst_decode();
-            let api_seeing_score = seeing_score.cst_decode();
-            let api_cloud_score = cloud_score.cst_decode();
-            let api_wind_score = wind_score.cst_decode();
-            let api_transparency_weight = transparency_weight.cst_decode();
-            let api_seeing_weight = seeing_weight.cst_decode();
-            let api_cloud_weight = cloud_weight.cst_decode();
-            let api_wind_weight = wind_weight.cst_decode();
-            let api_generated_unix_secs = generated_unix_secs.cst_decode();
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
-                        let output_ok =
-                            crate::api::sequencer::api_sequencer_update_conditions_score(
-                                api_score,
-                                api_transparency_score,
-                                api_seeing_score,
-                                api_cloud_score,
-                                api_wind_score,
-                                api_transparency_weight,
-                                api_seeing_weight,
-                                api_cloud_weight,
-                                api_wind_weight,
-                                api_generated_unix_secs,
-                            )
-                            .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_sequencer_update_conditions_score", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || { let api_score = score.cst_decode();let api_transparency_score = transparency_score.cst_decode();let api_seeing_score = seeing_score.cst_decode();let api_cloud_score = cloud_score.cst_decode();let api_wind_score = wind_score.cst_decode();let api_transparency_weight = transparency_weight.cst_decode();let api_seeing_weight = seeing_weight.cst_decode();let api_cloud_weight = cloud_weight.cst_decode();let api_wind_weight = wind_weight.cst_decode();let api_generated_unix_secs = generated_unix_secs.cst_decode(); move |context| async move {
+                    transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
+                         let output_ok = crate::api::sequencer::runtime_config::api_sequencer_update_conditions_score(api_score, api_transparency_score, api_seeing_score, api_cloud_score, api_wind_score, api_transparency_weight, api_seeing_weight, api_cloud_weight, api_wind_weight, api_generated_unix_secs).await?;   Ok(output_ok)
+                    })().await)
+                } })
 }
-fn wire__crate__api__sequencer__api_sequencer_update_default_adaptive_exposure_impl(
+fn wire__crate__api__sequencer__runtime_config__api_sequencer_update_default_adaptive_exposure_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     enabled: impl CstDecode<bool>,
     target_snr: impl CstDecode<f64>,
@@ -7591,51 +7276,13 @@ fn wire__crate__api__sequencer__api_sequencer_update_default_adaptive_exposure_i
     per_filter_max_keys: impl CstDecode<Vec<String>>,
     per_filter_max_values: impl CstDecode<Vec<f64>>,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "api_sequencer_update_default_adaptive_exposure",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let api_enabled = enabled.cst_decode();
-            let api_target_snr = target_snr.cst_decode();
-            let api_reference_sky_brightness_mag = reference_sky_brightness_mag.cst_decode();
-            let api_min_exposure_secs = min_exposure_secs.cst_decode();
-            let api_max_exposure_secs = max_exposure_secs.cst_decode();
-            let api_per_filter_enabled_keys = per_filter_enabled_keys.cst_decode();
-            let api_per_filter_enabled_values = per_filter_enabled_values.cst_decode();
-            let api_per_filter_min_keys = per_filter_min_keys.cst_decode();
-            let api_per_filter_min_values = per_filter_min_values.cst_decode();
-            let api_per_filter_max_keys = per_filter_max_keys.cst_decode();
-            let api_per_filter_max_values = per_filter_max_values.cst_decode();
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
-                        let output_ok =
-                            crate::api::sequencer::api_sequencer_update_default_adaptive_exposure(
-                                api_enabled,
-                                api_target_snr,
-                                api_reference_sky_brightness_mag,
-                                api_min_exposure_secs,
-                                api_max_exposure_secs,
-                                api_per_filter_enabled_keys,
-                                api_per_filter_enabled_values,
-                                api_per_filter_min_keys,
-                                api_per_filter_min_values,
-                                api_per_filter_max_keys,
-                                api_per_filter_max_values,
-                            )
-                            .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_sequencer_update_default_adaptive_exposure", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || { let api_enabled = enabled.cst_decode();let api_target_snr = target_snr.cst_decode();let api_reference_sky_brightness_mag = reference_sky_brightness_mag.cst_decode();let api_min_exposure_secs = min_exposure_secs.cst_decode();let api_max_exposure_secs = max_exposure_secs.cst_decode();let api_per_filter_enabled_keys = per_filter_enabled_keys.cst_decode();let api_per_filter_enabled_values = per_filter_enabled_values.cst_decode();let api_per_filter_min_keys = per_filter_min_keys.cst_decode();let api_per_filter_min_values = per_filter_min_values.cst_decode();let api_per_filter_max_keys = per_filter_max_keys.cst_decode();let api_per_filter_max_values = per_filter_max_values.cst_decode(); move |context| async move {
+                    transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
+                         let output_ok = crate::api::sequencer::runtime_config::api_sequencer_update_default_adaptive_exposure(api_enabled, api_target_snr, api_reference_sky_brightness_mag, api_min_exposure_secs, api_max_exposure_secs, api_per_filter_enabled_keys, api_per_filter_enabled_values, api_per_filter_min_keys, api_per_filter_min_values, api_per_filter_max_keys, api_per_filter_max_values).await?;   Ok(output_ok)
+                    })().await)
+                } })
 }
-fn wire__crate__api__sequencer__api_sequencer_update_default_quality_check_impl(
+fn wire__crate__api__sequencer__runtime_config__api_sequencer_update_default_quality_check_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     hfr_threshold: impl CstDecode<Option<f64>>,
     hfr_baseline_percent: impl CstDecode<Option<f64>>,
@@ -7644,41 +7291,13 @@ fn wire__crate__api__sequencer__api_sequencer_update_default_quality_check_impl(
     max_consecutive_rejects: impl CstDecode<u32>,
     enabled: impl CstDecode<bool>,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "api_sequencer_update_default_quality_check",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let api_hfr_threshold = hfr_threshold.cst_decode();
-            let api_hfr_baseline_percent = hfr_baseline_percent.cst_decode();
-            let api_eccentricity_threshold = eccentricity_threshold.cst_decode();
-            let api_star_count_min = star_count_min.cst_decode();
-            let api_max_consecutive_rejects = max_consecutive_rejects.cst_decode();
-            let api_enabled = enabled.cst_decode();
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
-                        let output_ok =
-                            crate::api::sequencer::api_sequencer_update_default_quality_check(
-                                api_hfr_threshold,
-                                api_hfr_baseline_percent,
-                                api_eccentricity_threshold,
-                                api_star_count_min,
-                                api_max_consecutive_rejects,
-                                api_enabled,
-                            )
-                            .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_sequencer_update_default_quality_check", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || { let api_hfr_threshold = hfr_threshold.cst_decode();let api_hfr_baseline_percent = hfr_baseline_percent.cst_decode();let api_eccentricity_threshold = eccentricity_threshold.cst_decode();let api_star_count_min = star_count_min.cst_decode();let api_max_consecutive_rejects = max_consecutive_rejects.cst_decode();let api_enabled = enabled.cst_decode(); move |context| async move {
+                    transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
+                         let output_ok = crate::api::sequencer::runtime_config::api_sequencer_update_default_quality_check(api_hfr_threshold, api_hfr_baseline_percent, api_eccentricity_threshold, api_star_count_min, api_max_consecutive_rejects, api_enabled).await?;   Ok(output_ok)
+                    })().await)
+                } })
 }
-fn wire__crate__api__sequencer__api_sequencer_update_dither_config_impl(
+fn wire__crate__api__sequencer__runtime_config__api_sequencer_update_dither_config_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     pixels: impl CstDecode<f64>,
     settle_pixels: impl CstDecode<f64>,
@@ -7686,64 +7305,23 @@ fn wire__crate__api__sequencer__api_sequencer_update_dither_config_impl(
     settle_timeout: impl CstDecode<f64>,
     ra_only: impl CstDecode<bool>,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "api_sequencer_update_dither_config",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let api_pixels = pixels.cst_decode();
-            let api_settle_pixels = settle_pixels.cst_decode();
-            let api_settle_time = settle_time.cst_decode();
-            let api_settle_timeout = settle_timeout.cst_decode();
-            let api_ra_only = ra_only.cst_decode();
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
-                        let output_ok = crate::api::sequencer::api_sequencer_update_dither_config(
-                            api_pixels,
-                            api_settle_pixels,
-                            api_settle_time,
-                            api_settle_timeout,
-                            api_ra_only,
-                        )
-                        .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_sequencer_update_dither_config", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || { let api_pixels = pixels.cst_decode();let api_settle_pixels = settle_pixels.cst_decode();let api_settle_time = settle_time.cst_decode();let api_settle_timeout = settle_timeout.cst_decode();let api_ra_only = ra_only.cst_decode(); move |context| async move {
+                    transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
+                         let output_ok = crate::api::sequencer::runtime_config::api_sequencer_update_dither_config(api_pixels, api_settle_pixels, api_settle_time, api_settle_timeout, api_ra_only).await?;   Ok(output_ok)
+                    })().await)
+                } })
 }
-fn wire__crate__api__sequencer__api_sequencer_update_filter_offsets_impl(
+fn wire__crate__api__sequencer__runtime_config__api_sequencer_update_filter_offsets_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     offsets: impl CstDecode<std::collections::HashMap<String, i32>>,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "api_sequencer_update_filter_offsets",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let api_offsets = offsets.cst_decode();
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
-                        let output_ok =
-                            crate::api::sequencer::api_sequencer_update_filter_offsets(api_offsets)
-                                .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_sequencer_update_filter_offsets", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || { let api_offsets = offsets.cst_decode(); move |context| async move {
+                    transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
+                         let output_ok = crate::api::sequencer::runtime_config::api_sequencer_update_filter_offsets(api_offsets).await?;   Ok(output_ok)
+                    })().await)
+                } })
 }
-fn wire__crate__api__sequencer__api_sequencer_update_location_impl(
+fn wire__crate__api__sequencer__runtime_config__api_sequencer_update_location_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     latitude: impl CstDecode<Option<f64>>,
     longitude: impl CstDecode<Option<f64>>,
@@ -7760,37 +7338,10 @@ fn wire__crate__api__sequencer__api_sequencer_update_location_impl(
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
-                        let output_ok = crate::api::sequencer::api_sequencer_update_location(
-                            api_latitude,
-                            api_longitude,
-                        )
-                        .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
-}
-fn wire__crate__api__sequencer__api_sequencer_update_meridian_flip_config_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
-    config_json: impl CstDecode<String>,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "api_sequencer_update_meridian_flip_config",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let api_config_json = config_json.cst_decode();
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
                         let output_ok =
-                            crate::api::sequencer::api_sequencer_update_meridian_flip_config(
-                                api_config_json,
+                            crate::api::sequencer::runtime_config::api_sequencer_update_location(
+                                api_latitude,
+                                api_longitude,
                             )
                             .await?;
                         Ok(output_ok)
@@ -7801,7 +7352,17 @@ fn wire__crate__api__sequencer__api_sequencer_update_meridian_flip_config_impl(
         },
     )
 }
-fn wire__crate__api__sequencer__api_sequencer_update_observer_profile_impl(
+fn wire__crate__api__sequencer__runtime_config__api_sequencer_update_meridian_flip_config_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    config_json: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_sequencer_update_meridian_flip_config", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || { let api_config_json = config_json.cst_decode(); move |context| async move {
+                    transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
+                         let output_ok = crate::api::sequencer::runtime_config::api_sequencer_update_meridian_flip_config(api_config_json).await?;   Ok(output_ok)
+                    })().await)
+                } })
+}
+fn wire__crate__api__sequencer__runtime_config__api_sequencer_update_observer_profile_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     observer_name: impl CstDecode<Option<String>>,
     site_elevation_m: impl CstDecode<Option<f64>>,
@@ -7811,43 +7372,13 @@ fn wire__crate__api__sequencer__api_sequencer_update_observer_profile_impl(
     telescope_focal_length_mm: impl CstDecode<Option<f64>>,
     telescope_aperture_mm: impl CstDecode<Option<f64>>,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "api_sequencer_update_observer_profile",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let api_observer_name = observer_name.cst_decode();
-            let api_site_elevation_m = site_elevation_m.cst_decode();
-            let api_camera_make = camera_make.cst_decode();
-            let api_camera_model = camera_model.cst_decode();
-            let api_telescope_name = telescope_name.cst_decode();
-            let api_telescope_focal_length_mm = telescope_focal_length_mm.cst_decode();
-            let api_telescope_aperture_mm = telescope_aperture_mm.cst_decode();
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
-                        let output_ok =
-                            crate::api::sequencer::api_sequencer_update_observer_profile(
-                                api_observer_name,
-                                api_site_elevation_m,
-                                api_camera_make,
-                                api_camera_model,
-                                api_telescope_name,
-                                api_telescope_focal_length_mm,
-                                api_telescope_aperture_mm,
-                            )
-                            .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_sequencer_update_observer_profile", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || { let api_observer_name = observer_name.cst_decode();let api_site_elevation_m = site_elevation_m.cst_decode();let api_camera_make = camera_make.cst_decode();let api_camera_model = camera_model.cst_decode();let api_telescope_name = telescope_name.cst_decode();let api_telescope_focal_length_mm = telescope_focal_length_mm.cst_decode();let api_telescope_aperture_mm = telescope_aperture_mm.cst_decode(); move |context| async move {
+                    transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
+                         let output_ok = crate::api::sequencer::runtime_config::api_sequencer_update_observer_profile(api_observer_name, api_site_elevation_m, api_camera_make, api_camera_model, api_telescope_name, api_telescope_focal_length_mm, api_telescope_aperture_mm).await?;   Ok(output_ok)
+                    })().await)
+                } })
 }
-fn wire__crate__api__sequencer__api_sequencer_update_pending_integration_carry_over_impl(
+fn wire__crate__api__sequencer__runtime_config__api_sequencer_update_pending_integration_carry_over_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     carry_over: impl CstDecode<
         std::collections::HashMap<String, std::collections::HashMap<String, f64>>,
@@ -7855,117 +7386,49 @@ fn wire__crate__api__sequencer__api_sequencer_update_pending_integration_carry_o
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_sequencer_update_pending_integration_carry_over", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || { let api_carry_over = carry_over.cst_decode(); move |context| async move {
                     transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
-                         let output_ok = crate::api::sequencer::api_sequencer_update_pending_integration_carry_over(api_carry_over).await?;   Ok(output_ok)
+                         let output_ok = crate::api::sequencer::runtime_config::api_sequencer_update_pending_integration_carry_over(api_carry_over).await?;   Ok(output_ok)
                     })().await)
                 } })
 }
-fn wire__crate__api__sequencer__api_sequencer_update_recovery_config_impl(
+fn wire__crate__api__sequencer__runtime_config__api_sequencer_update_recovery_config_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
-    update: impl CstDecode<crate::api::sequencer::RecoveryConfigUpdate>,
+    update: impl CstDecode<crate::api::sequencer::runtime_config::RecoveryConfigUpdate>,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "api_sequencer_update_recovery_config",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let api_update = update.cst_decode();
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
-                        let output_ok =
-                            crate::api::sequencer::api_sequencer_update_recovery_config(api_update)
-                                .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_sequencer_update_recovery_config", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || { let api_update = update.cst_decode(); move |context| async move {
+                    transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
+                         let output_ok = crate::api::sequencer::runtime_config::api_sequencer_update_recovery_config(api_update).await?;   Ok(output_ok)
+                    })().await)
+                } })
 }
-fn wire__crate__api__sequencer__api_sequencer_update_reject_folder_path_impl(
+fn wire__crate__api__sequencer__runtime_config__api_sequencer_update_reject_folder_path_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     path: impl CstDecode<Option<String>>,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "api_sequencer_update_reject_folder_path",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let api_path = path.cst_decode();
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
-                        let output_ok =
-                            crate::api::sequencer::api_sequencer_update_reject_folder_path(
-                                api_path,
-                            )
-                            .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_sequencer_update_reject_folder_path", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || { let api_path = path.cst_decode(); move |context| async move {
+                    transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
+                         let output_ok = crate::api::sequencer::runtime_config::api_sequencer_update_reject_folder_path(api_path).await?;   Ok(output_ok)
+                    })().await)
+                } })
 }
-fn wire__crate__api__sequencer__api_sequencer_update_sky_brightness_impl(
+fn wire__crate__api__sequencer__runtime_config__api_sequencer_update_sky_brightness_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     mag: impl CstDecode<Option<f64>>,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "api_sequencer_update_sky_brightness",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let api_mag = mag.cst_decode();
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
-                        let output_ok =
-                            crate::api::sequencer::api_sequencer_update_sky_brightness(api_mag)
-                                .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_sequencer_update_sky_brightness", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || { let api_mag = mag.cst_decode(); move |context| async move {
+                    transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
+                         let output_ok = crate::api::sequencer::runtime_config::api_sequencer_update_sky_brightness(api_mag).await?;   Ok(output_ok)
+                    })().await)
+                } })
 }
-fn wire__crate__api__sequencer__api_sequencer_update_weather_verdict_impl(
+fn wire__crate__api__sequencer__runtime_config__api_sequencer_update_weather_verdict_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     unsafe_override: impl CstDecode<Option<bool>>,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "api_sequencer_update_weather_verdict",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let api_unsafe_override = unsafe_override.cst_decode();
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
-                        let output_ok =
-                            crate::api::sequencer::api_sequencer_update_weather_verdict(
-                                api_unsafe_override,
-                            )
-                            .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_sequencer_update_weather_verdict", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || { let api_unsafe_override = unsafe_override.cst_decode(); move |context| async move {
+                    transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
+                         let output_ok = crate::api::sequencer::runtime_config::api_sequencer_update_weather_verdict(api_unsafe_override).await?;   Ok(output_ok)
+                    })().await)
+                } })
 }
 fn wire__crate__api__devices__camera__api_set_camera_binning_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
@@ -8000,7 +7463,7 @@ fn wire__crate__api__devices__camera__api_set_camera_binning_impl(
         },
     )
 }
-fn wire__crate__api__devices__simulation__api_set_camera_cooler_impl(
+fn wire__crate__api__devices__simulation__camera__api_set_camera_cooler_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     device_id: impl CstDecode<String>,
     enabled: impl CstDecode<u8>,
@@ -8019,12 +7482,13 @@ fn wire__crate__api__devices__simulation__api_set_camera_cooler_impl(
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
-                        let output_ok = crate::api::devices::simulation::api_set_camera_cooler(
-                            api_device_id,
-                            api_enabled,
-                            api_target_temp,
-                        )
-                        .await?;
+                        let output_ok =
+                            crate::api::devices::simulation::camera::api_set_camera_cooler(
+                                api_device_id,
+                                api_enabled,
+                                api_target_temp,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -8033,7 +7497,7 @@ fn wire__crate__api__devices__simulation__api_set_camera_cooler_impl(
         },
     )
 }
-fn wire__crate__api__devices__simulation__api_set_camera_gain_impl(
+fn wire__crate__api__devices__simulation__camera__api_set_camera_gain_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     device_id: impl CstDecode<String>,
     gain: impl CstDecode<i32>,
@@ -8050,11 +7514,12 @@ fn wire__crate__api__devices__simulation__api_set_camera_gain_impl(
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
-                        let output_ok = crate::api::devices::simulation::api_set_camera_gain(
-                            api_device_id,
-                            api_gain,
-                        )
-                        .await?;
+                        let output_ok =
+                            crate::api::devices::simulation::camera::api_set_camera_gain(
+                                api_device_id,
+                                api_gain,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -8063,7 +7528,7 @@ fn wire__crate__api__devices__simulation__api_set_camera_gain_impl(
         },
     )
 }
-fn wire__crate__api__devices__simulation__api_set_camera_offset_impl(
+fn wire__crate__api__devices__simulation__camera__api_set_camera_offset_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     device_id: impl CstDecode<String>,
     offset: impl CstDecode<i32>,
@@ -8080,11 +7545,12 @@ fn wire__crate__api__devices__simulation__api_set_camera_offset_impl(
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
-                        let output_ok = crate::api::devices::simulation::api_set_camera_offset(
-                            api_device_id,
-                            api_offset,
-                        )
-                        .await?;
+                        let output_ok =
+                            crate::api::devices::simulation::camera::api_set_camera_offset(
+                                api_device_id,
+                                api_offset,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -8152,7 +7618,7 @@ fn wire__crate__api__sky_atlas__api_sky_atlas_impl(
         },
     )
 }
-fn wire__crate__api__sky_atlas__api_sky_atlas_add_frame_impl(
+fn wire__crate__api__sky_atlas__frames__api_sky_atlas_add_frame_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     args_json: impl CstDecode<String>,
 ) {
@@ -8166,14 +7632,15 @@ fn wire__crate__api__sky_atlas__api_sky_atlas_add_frame_impl(
             let api_args_json = args_json.cst_decode();
             move |context| {
                 transform_result_dco::<_, _, String>((move || {
-                    let output_ok = crate::api::sky_atlas::api_sky_atlas_add_frame(api_args_json)?;
+                    let output_ok =
+                        crate::api::sky_atlas::frames::api_sky_atlas_add_frame(api_args_json)?;
                     Ok(output_ok)
                 })())
             }
         },
     )
 }
-fn wire__crate__api__sky_atlas__api_sky_atlas_growth_impl(
+fn wire__crate__api__sky_atlas__regions__api_sky_atlas_growth_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     args_json: impl CstDecode<String>,
 ) {
@@ -8187,14 +7654,15 @@ fn wire__crate__api__sky_atlas__api_sky_atlas_growth_impl(
             let api_args_json = args_json.cst_decode();
             move |context| {
                 transform_result_dco::<_, _, String>((move || {
-                    let output_ok = crate::api::sky_atlas::api_sky_atlas_growth(api_args_json)?;
+                    let output_ok =
+                        crate::api::sky_atlas::regions::api_sky_atlas_growth(api_args_json)?;
                     Ok(output_ok)
                 })())
             }
         },
     )
 }
-fn wire__crate__api__sky_atlas__api_sky_atlas_merge_delta_impl(
+fn wire__crate__api__sky_atlas__regions__api_sky_atlas_merge_delta_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     args_json: impl CstDecode<String>,
 ) {
@@ -8209,14 +7677,14 @@ fn wire__crate__api__sky_atlas__api_sky_atlas_merge_delta_impl(
             move |context| {
                 transform_result_dco::<_, _, String>((move || {
                     let output_ok =
-                        crate::api::sky_atlas::api_sky_atlas_merge_delta(api_args_json)?;
+                        crate::api::sky_atlas::regions::api_sky_atlas_merge_delta(api_args_json)?;
                     Ok(output_ok)
                 })())
             }
         },
     )
 }
-fn wire__crate__api__sky_atlas__api_sky_atlas_query_cutout_impl(
+fn wire__crate__api__sky_atlas__frames__api_sky_atlas_query_cutout_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     args_json: impl CstDecode<String>,
 ) {
@@ -8231,14 +7699,14 @@ fn wire__crate__api__sky_atlas__api_sky_atlas_query_cutout_impl(
             move |context| {
                 transform_result_dco::<_, _, String>((move || {
                     let output_ok =
-                        crate::api::sky_atlas::api_sky_atlas_query_cutout(api_args_json)?;
+                        crate::api::sky_atlas::frames::api_sky_atlas_query_cutout(api_args_json)?;
                     Ok(output_ok)
                 })())
             }
         },
     )
 }
-fn wire__crate__api__sky_atlas__api_sky_atlas_region_info_impl(
+fn wire__crate__api__sky_atlas__regions__api_sky_atlas_region_info_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     args_json: impl CstDecode<String>,
 ) {
@@ -8253,7 +7721,7 @@ fn wire__crate__api__sky_atlas__api_sky_atlas_region_info_impl(
             move |context| {
                 transform_result_dco::<_, _, String>((move || {
                     let output_ok =
-                        crate::api::sky_atlas::api_sky_atlas_region_info(api_args_json)?;
+                        crate::api::sky_atlas::regions::api_sky_atlas_region_info(api_args_json)?;
                     Ok(output_ok)
                 })())
             }
@@ -8472,7 +7940,7 @@ fn wire__crate__api__imaging__api_stacking_stop_impl(
         },
     )
 }
-fn wire__crate__api__polar_alignment__api_start_all_sky_polar_alignment_impl(
+fn wire__crate__api__polar_alignment__entrypoints__api_start_all_sky_polar_alignment_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     exposure_time: impl CstDecode<f64>,
     solve_timeout: impl CstDecode<f64>,
@@ -8483,43 +7951,11 @@ fn wire__crate__api__polar_alignment__api_start_all_sky_polar_alignment_impl(
     gain: impl CstDecode<Option<i32>>,
     offset: impl CstDecode<Option<i32>>,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "api_start_all_sky_polar_alignment",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let api_exposure_time = exposure_time.cst_decode();
-            let api_solve_timeout = solve_timeout.cst_decode();
-            let api_binning = binning.cst_decode();
-            let api_is_north = is_north.cst_decode();
-            let api_acceptance_threshold_arcsec = acceptance_threshold_arcsec.cst_decode();
-            let api_iteration_cadence_secs = iteration_cadence_secs.cst_decode();
-            let api_gain = gain.cst_decode();
-            let api_offset = offset.cst_decode();
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
-                        let output_ok =
-                            crate::api::polar_alignment::api_start_all_sky_polar_alignment(
-                                api_exposure_time,
-                                api_solve_timeout,
-                                api_binning,
-                                api_is_north,
-                                api_acceptance_threshold_arcsec,
-                                api_iteration_cadence_secs,
-                                api_gain,
-                                api_offset,
-                            )
-                            .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "api_start_all_sky_polar_alignment", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || { let api_exposure_time = exposure_time.cst_decode();let api_solve_timeout = solve_timeout.cst_decode();let api_binning = binning.cst_decode();let api_is_north = is_north.cst_decode();let api_acceptance_threshold_arcsec = acceptance_threshold_arcsec.cst_decode();let api_iteration_cadence_secs = iteration_cadence_secs.cst_decode();let api_gain = gain.cst_decode();let api_offset = offset.cst_decode(); move |context| async move {
+                    transform_result_dco::<_, _, crate::error::NightshadeError>((move || async move {
+                         let output_ok = crate::api::polar_alignment::entrypoints::api_start_all_sky_polar_alignment(api_exposure_time, api_solve_timeout, api_binning, api_is_north, api_acceptance_threshold_arcsec, api_iteration_cadence_secs, api_gain, api_offset).await?;   Ok(output_ok)
+                    })().await)
+                } })
 }
 fn wire__crate__api__heartbeat__api_start_device_heartbeat_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
@@ -8594,7 +8030,7 @@ fn wire__crate__api__heartbeat__api_start_device_heartbeat_with_config_impl(
         },
     )
 }
-fn wire__crate__api__polar_alignment__api_start_polar_alignment_impl(
+fn wire__crate__api__polar_alignment__run_loop__api_start_polar_alignment_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     exposure_time: impl CstDecode<f64>,
     step_size: impl CstDecode<f64>,
@@ -8629,20 +8065,21 @@ fn wire__crate__api__polar_alignment__api_start_polar_alignment_impl(
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
-                        let output_ok = crate::api::polar_alignment::api_start_polar_alignment(
-                            api_exposure_time,
-                            api_step_size,
-                            api_binning,
-                            api_is_north,
-                            api_manual_rotation,
-                            api_rotate_east,
-                            api_gain,
-                            api_offset,
-                            api_solve_timeout,
-                            api_start_from_current,
-                            api_auto_complete_threshold,
-                        )
-                        .await?;
+                        let output_ok =
+                            crate::api::polar_alignment::run_loop::api_start_polar_alignment(
+                                api_exposure_time,
+                                api_step_size,
+                                api_binning,
+                                api_is_north,
+                                api_manual_rotation,
+                                api_rotate_east,
+                                api_gain,
+                                api_offset,
+                                api_solve_timeout,
+                                api_start_from_current,
+                                api_auto_complete_threshold,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -8730,7 +8167,7 @@ fn wire__crate__api__heartbeat__api_stop_device_heartbeat_impl(
         },
     )
 }
-fn wire__crate__api__polar_alignment__api_stop_polar_alignment_impl(
+fn wire__crate__api__polar_alignment__entrypoints__api_stop_polar_alignment_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
@@ -8744,7 +8181,8 @@ fn wire__crate__api__polar_alignment__api_stop_polar_alignment_impl(
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok =
-                            crate::api::polar_alignment::api_stop_polar_alignment().await?;
+                            crate::api::polar_alignment::entrypoints::api_stop_polar_alignment()
+                                .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -10356,7 +9794,7 @@ fn wire__crate__api__devices__filter_wheel__set_camera_offset_impl(
         },
     )
 }
-fn wire__crate__api__devices__simulation__simulated_camera_default_impl(
+fn wire__crate__api__devices__simulation__camera__simulated_camera_default_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
@@ -10369,7 +9807,7 @@ fn wire__crate__api__devices__simulation__simulated_camera_default_impl(
             move |context| {
                 transform_result_dco::<_, _, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
-                        crate::api::devices::simulation::SimulatedCamera::default(),
+                        crate::api::devices::simulation::camera::SimulatedCamera::default(),
                     )?;
                     Ok(output_ok)
                 })())
@@ -10377,7 +9815,7 @@ fn wire__crate__api__devices__simulation__simulated_camera_default_impl(
         },
     )
 }
-fn wire__crate__api__devices__simulation__simulated_dome_default_impl(
+fn wire__crate__api__devices__simulation__environment__simulated_dome_default_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
@@ -10390,7 +9828,7 @@ fn wire__crate__api__devices__simulation__simulated_dome_default_impl(
             move |context| {
                 transform_result_dco::<_, _, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
-                        crate::api::devices::simulation::SimulatedDome::default(),
+                        crate::api::devices::simulation::environment::SimulatedDome::default(),
                     )?;
                     Ok(output_ok)
                 })())
@@ -10398,28 +9836,16 @@ fn wire__crate__api__devices__simulation__simulated_dome_default_impl(
         },
     )
 }
-fn wire__crate__api__devices__simulation__simulated_filter_wheel_default_impl(
+fn wire__crate__api__devices__simulation__filter_wheel__simulated_filter_wheel_default_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "simulated_filter_wheel_default",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            move |context| {
-                transform_result_dco::<_, _, ()>((move || {
-                    let output_ok = Result::<_, ()>::Ok(
-                        crate::api::devices::simulation::SimulatedFilterWheel::default(),
-                    )?;
-                    Ok(output_ok)
-                })())
-            }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "simulated_filter_wheel_default", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || {  move |context|  {
+                    transform_result_dco::<_, _, ()>((move ||  {
+                         let output_ok = Result::<_,()>::Ok(crate::api::devices::simulation::filter_wheel::SimulatedFilterWheel::default())?;   Ok(output_ok)
+                    })())
+                } })
 }
-fn wire__crate__api__devices__simulation__simulated_focuser_default_impl(
+fn wire__crate__api__devices__simulation__focuser__simulated_focuser_default_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
@@ -10432,7 +9858,7 @@ fn wire__crate__api__devices__simulation__simulated_focuser_default_impl(
             move |context| {
                 transform_result_dco::<_, _, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
-                        crate::api::devices::simulation::SimulatedFocuser::default(),
+                        crate::api::devices::simulation::focuser::SimulatedFocuser::default(),
                     )?;
                     Ok(output_ok)
                 })())
@@ -10440,7 +9866,7 @@ fn wire__crate__api__devices__simulation__simulated_focuser_default_impl(
         },
     )
 }
-fn wire__crate__api__devices__simulation__simulated_mount_default_impl(
+fn wire__crate__api__devices__simulation__mount__simulated_mount_default_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
@@ -10453,7 +9879,7 @@ fn wire__crate__api__devices__simulation__simulated_mount_default_impl(
             move |context| {
                 transform_result_dco::<_, _, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
-                        crate::api::devices::simulation::SimulatedMount::default(),
+                        crate::api::devices::simulation::mount::SimulatedMount::default(),
                     )?;
                     Ok(output_ok)
                 })())
@@ -10461,7 +9887,7 @@ fn wire__crate__api__devices__simulation__simulated_mount_default_impl(
         },
     )
 }
-fn wire__crate__api__devices__simulation__simulated_rotator_default_impl(
+fn wire__crate__api__devices__simulation__rotator__simulated_rotator_default_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
@@ -10474,7 +9900,7 @@ fn wire__crate__api__devices__simulation__simulated_rotator_default_impl(
             move |context| {
                 transform_result_dco::<_, _, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
-                        crate::api::devices::simulation::SimulatedRotator::default(),
+                        crate::api::devices::simulation::rotator::SimulatedRotator::default(),
                     )?;
                     Ok(output_ok)
                 })())
@@ -10482,28 +9908,16 @@ fn wire__crate__api__devices__simulation__simulated_rotator_default_impl(
         },
     )
 }
-fn wire__crate__api__devices__simulation__simulated_safety_monitor_default_impl(
+fn wire__crate__api__devices__simulation__environment__simulated_safety_monitor_default_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "simulated_safety_monitor_default",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            move |context| {
-                transform_result_dco::<_, _, ()>((move || {
-                    let output_ok = Result::<_, ()>::Ok(
-                        crate::api::devices::simulation::SimulatedSafetyMonitor::default(),
-                    )?;
-                    Ok(output_ok)
-                })())
-            }
-        },
-    )
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "simulated_safety_monitor_default", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || {  move |context|  {
+                    transform_result_dco::<_, _, ()>((move ||  {
+                         let output_ok = Result::<_,()>::Ok(crate::api::devices::simulation::environment::SimulatedSafetyMonitor::default())?;   Ok(output_ok)
+                    })())
+                } })
 }
-fn wire__crate__api__devices__simulation__simulated_weather_default_impl(
+fn wire__crate__api__devices__simulation__environment__simulated_weather_default_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
@@ -10516,7 +9930,7 @@ fn wire__crate__api__devices__simulation__simulated_weather_default_impl(
             move |context| {
                 transform_result_dco::<_, _, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
-                        crate::api::devices::simulation::SimulatedWeather::default(),
+                        crate::api::devices::simulation::environment::SimulatedWeather::default(),
                     )?;
                     Ok(output_ok)
                 })())
@@ -10554,6 +9968,26 @@ fn wire__crate__api__connection__ascom_connections__slew_ascom_mount_impl(
                     })()
                     .await,
                 )
+            }
+        },
+    )
+}
+fn wire__crate__api__plate_solve__solve_hints_default_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "solve_hints_default",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            move |context| {
+                transform_result_dco::<_, _, ()>((move || {
+                    let output_ok =
+                        Result::<_, ()>::Ok(crate::api::plate_solve::SolveHints::default())?;
+                    Ok(output_ok)
+                })())
             }
         },
     )
@@ -10727,29 +10161,29 @@ impl CstDecode<crate::device::DriverType> for i32 {
         }
     }
 }
-impl CstDecode<crate::event::EventCategory> for i32 {
+impl CstDecode<crate::event::equipment::EventCategory> for i32 {
     // Codec=Cst (C-struct based), see doc to use other codecs
-    fn cst_decode(self) -> crate::event::EventCategory {
+    fn cst_decode(self) -> crate::event::equipment::EventCategory {
         match self {
-            0 => crate::event::EventCategory::Equipment,
-            1 => crate::event::EventCategory::Imaging,
-            2 => crate::event::EventCategory::Guiding,
-            3 => crate::event::EventCategory::Sequencer,
-            4 => crate::event::EventCategory::Safety,
-            5 => crate::event::EventCategory::System,
-            6 => crate::event::EventCategory::PolarAlignment,
+            0 => crate::event::equipment::EventCategory::Equipment,
+            1 => crate::event::equipment::EventCategory::Imaging,
+            2 => crate::event::equipment::EventCategory::Guiding,
+            3 => crate::event::equipment::EventCategory::Sequencer,
+            4 => crate::event::equipment::EventCategory::Safety,
+            5 => crate::event::equipment::EventCategory::System,
+            6 => crate::event::equipment::EventCategory::PolarAlignment,
             _ => unreachable!("Invalid variant for EventCategory: {}", self),
         }
     }
 }
-impl CstDecode<crate::event::EventSeverity> for i32 {
+impl CstDecode<crate::event::equipment::EventSeverity> for i32 {
     // Codec=Cst (C-struct based), see doc to use other codecs
-    fn cst_decode(self) -> crate::event::EventSeverity {
+    fn cst_decode(self) -> crate::event::equipment::EventSeverity {
         match self {
-            0 => crate::event::EventSeverity::Info,
-            1 => crate::event::EventSeverity::Warning,
-            2 => crate::event::EventSeverity::Error,
-            3 => crate::event::EventSeverity::Critical,
+            0 => crate::event::equipment::EventSeverity::Info,
+            1 => crate::event::equipment::EventSeverity::Warning,
+            2 => crate::event::equipment::EventSeverity::Error,
+            3 => crate::event::equipment::EventSeverity::Critical,
             _ => unreachable!("Invalid variant for EventSeverity: {}", self),
         }
     }
@@ -10793,15 +10227,15 @@ impl CstDecode<crate::api::imaging::FrameTypeApi> for i32 {
         }
     }
 }
-impl CstDecode<crate::event::HeartbeatStatus> for i32 {
+impl CstDecode<crate::event::equipment::HeartbeatStatus> for i32 {
     // Codec=Cst (C-struct based), see doc to use other codecs
-    fn cst_decode(self) -> crate::event::HeartbeatStatus {
+    fn cst_decode(self) -> crate::event::equipment::HeartbeatStatus {
         match self {
-            0 => crate::event::HeartbeatStatus::Healthy,
-            1 => crate::event::HeartbeatStatus::Degraded,
-            2 => crate::event::HeartbeatStatus::Disconnected,
-            3 => crate::event::HeartbeatStatus::Reconnecting,
-            4 => crate::event::HeartbeatStatus::Reconnected,
+            0 => crate::event::equipment::HeartbeatStatus::Healthy,
+            1 => crate::event::equipment::HeartbeatStatus::Degraded,
+            2 => crate::event::equipment::HeartbeatStatus::Disconnected,
+            3 => crate::event::equipment::HeartbeatStatus::Reconnecting,
+            4 => crate::event::equipment::HeartbeatStatus::Reconnected,
             _ => unreachable!("Invalid variant for HeartbeatStatus: {}", self),
         }
     }
@@ -10849,15 +10283,15 @@ impl CstDecode<crate::device::ShutterState> for i32 {
         }
     }
 }
-impl CstDecode<crate::device_capabilities::ShutterStatus> for i32 {
+impl CstDecode<crate::device_capabilities::types::ShutterStatus> for i32 {
     // Codec=Cst (C-struct based), see doc to use other codecs
-    fn cst_decode(self) -> crate::device_capabilities::ShutterStatus {
+    fn cst_decode(self) -> crate::device_capabilities::types::ShutterStatus {
         match self {
-            0 => crate::device_capabilities::ShutterStatus::Open,
-            1 => crate::device_capabilities::ShutterStatus::Closed,
-            2 => crate::device_capabilities::ShutterStatus::Opening,
-            3 => crate::device_capabilities::ShutterStatus::Closing,
-            4 => crate::device_capabilities::ShutterStatus::Unknown,
+            0 => crate::device_capabilities::types::ShutterStatus::Open,
+            1 => crate::device_capabilities::types::ShutterStatus::Closed,
+            2 => crate::device_capabilities::types::ShutterStatus::Opening,
+            3 => crate::device_capabilities::types::ShutterStatus::Closing,
+            4 => crate::device_capabilities::types::ShutterStatus::Unknown,
             _ => unreachable!("Invalid variant for ShutterStatus: {}", self),
         }
     }
@@ -10989,7 +10423,7 @@ impl SseDecode
 }
 
 impl SseDecode
-    for StreamSink<crate::event::NightshadeEvent, flutter_rust_bridge::for_generated::DcoCodec>
+    for StreamSink<crate::event::bus::NightshadeEvent, flutter_rust_bridge::for_generated::DcoCodec>
 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -11280,7 +10714,7 @@ impl SseDecode for crate::device::CalibratorState {
     }
 }
 
-impl SseDecode for crate::device_capabilities::CameraCapabilities {
+impl SseDecode for crate::device_capabilities::types::CameraCapabilities {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_maxWidth = <u32>::sse_decode(deserializer);
@@ -11318,7 +10752,7 @@ impl SseDecode for crate::device_capabilities::CameraCapabilities {
         let mut var_coolerOn = <Option<bool>>::sse_decode(deserializer);
         let mut var_coolerMinTempC = <Option<f64>>::sse_decode(deserializer);
         let mut var_coolerMaxTempC = <Option<f64>>::sse_decode(deserializer);
-        return crate::device_capabilities::CameraCapabilities {
+        return crate::device_capabilities::types::CameraCapabilities {
             max_width: var_maxWidth,
             max_height: var_maxHeight,
             bit_depth: var_bitDepth,
@@ -11358,7 +10792,7 @@ impl SseDecode for crate::device_capabilities::CameraCapabilities {
     }
 }
 
-impl SseDecode for crate::device_capabilities::CameraRecommendedSettings {
+impl SseDecode for crate::device_capabilities::types::CameraRecommendedSettings {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_unityGain = <Option<i32>>::sse_decode(deserializer);
@@ -11366,7 +10800,7 @@ impl SseDecode for crate::device_capabilities::CameraRecommendedSettings {
         let mut var_defaultOffset = <Option<i32>>::sse_decode(deserializer);
         let mut var_recommendedCoolingSetpointC = <Option<f64>>::sse_decode(deserializer);
         let mut var_notes = <String>::sse_decode(deserializer);
-        return crate::device_capabilities::CameraRecommendedSettings {
+        return crate::device_capabilities::types::CameraRecommendedSettings {
             unity_gain: var_unityGain,
             hcg_gain: var_hcgGain,
             default_offset: var_defaultOffset,
@@ -11460,7 +10894,7 @@ impl SseDecode for crate::api::imaging::CapturedImageResult {
     }
 }
 
-impl SseDecode for crate::api::sequencer::CheckpointInfoApi {
+impl SseDecode for crate::api::sequencer::lifecycle::CheckpointInfoApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_sequenceName = <String>::sse_decode(deserializer);
@@ -11469,7 +10903,7 @@ impl SseDecode for crate::api::sequencer::CheckpointInfoApi {
         let mut var_completedIntegrationSecs = <f64>::sse_decode(deserializer);
         let mut var_canResume = <bool>::sse_decode(deserializer);
         let mut var_ageSeconds = <i64>::sse_decode(deserializer);
-        return crate::api::sequencer::CheckpointInfoApi {
+        return crate::api::sequencer::lifecycle::CheckpointInfoApi {
             sequence_name: var_sequenceName,
             timestamp: var_timestamp,
             completed_exposures: var_completedExposures,
@@ -11480,7 +10914,7 @@ impl SseDecode for crate::api::sequencer::CheckpointInfoApi {
     }
 }
 
-impl SseDecode for crate::device_capabilities::CoverCalibratorCapabilities {
+impl SseDecode for crate::device_capabilities::types::CoverCalibratorCapabilities {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_maxBrightness = <i32>::sse_decode(deserializer);
@@ -11490,7 +10924,7 @@ impl SseDecode for crate::device_capabilities::CoverCalibratorCapabilities {
         let mut var_calibratorState =
             <Option<crate::device::CalibratorState>>::sse_decode(deserializer);
         let mut var_brightness = <Option<i32>>::sse_decode(deserializer);
-        return crate::device_capabilities::CoverCalibratorCapabilities {
+        return crate::device_capabilities::types::CoverCalibratorCapabilities {
             max_brightness: var_maxBrightness,
             cover_present: var_coverPresent,
             calibrator_present: var_calibratorPresent,
@@ -11600,64 +11034,84 @@ impl SseDecode for crate::device::DeviceApiVersion {
     }
 }
 
-impl SseDecode for crate::device_capabilities::DeviceCapabilities {
+impl SseDecode for crate::device_capabilities::types::DeviceCapabilities {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut tag_ = <i32>::sse_decode(deserializer);
         match tag_ {
             0 => {
                 let mut var_field0 =
-                    <crate::device_capabilities::MountCapabilities>::sse_decode(deserializer);
-                return crate::device_capabilities::DeviceCapabilities::Mount(var_field0);
+                    <crate::device_capabilities::types::MountCapabilities>::sse_decode(
+                        deserializer,
+                    );
+                return crate::device_capabilities::types::DeviceCapabilities::Mount(var_field0);
             }
             1 => {
                 let mut var_field0 =
-                    <crate::device_capabilities::CameraCapabilities>::sse_decode(deserializer);
-                return crate::device_capabilities::DeviceCapabilities::Camera(var_field0);
+                    <crate::device_capabilities::types::CameraCapabilities>::sse_decode(
+                        deserializer,
+                    );
+                return crate::device_capabilities::types::DeviceCapabilities::Camera(var_field0);
             }
             2 => {
                 let mut var_field0 =
-                    <crate::device_capabilities::FocuserCapabilities>::sse_decode(deserializer);
-                return crate::device_capabilities::DeviceCapabilities::Focuser(var_field0);
+                    <crate::device_capabilities::types::FocuserCapabilities>::sse_decode(
+                        deserializer,
+                    );
+                return crate::device_capabilities::types::DeviceCapabilities::Focuser(var_field0);
             }
             3 => {
                 let mut var_field0 =
-                    <crate::device_capabilities::FilterWheelCapabilities>::sse_decode(deserializer);
-                return crate::device_capabilities::DeviceCapabilities::FilterWheel(var_field0);
+                    <crate::device_capabilities::types::FilterWheelCapabilities>::sse_decode(
+                        deserializer,
+                    );
+                return crate::device_capabilities::types::DeviceCapabilities::FilterWheel(
+                    var_field0,
+                );
             }
             4 => {
                 let mut var_field0 =
-                    <crate::device_capabilities::RotatorCapabilities>::sse_decode(deserializer);
-                return crate::device_capabilities::DeviceCapabilities::Rotator(var_field0);
+                    <crate::device_capabilities::types::RotatorCapabilities>::sse_decode(
+                        deserializer,
+                    );
+                return crate::device_capabilities::types::DeviceCapabilities::Rotator(var_field0);
             }
             5 => {
                 let mut var_field0 =
-                    <crate::device_capabilities::DomeCapabilities>::sse_decode(deserializer);
-                return crate::device_capabilities::DeviceCapabilities::Dome(var_field0);
+                    <crate::device_capabilities::types::DomeCapabilities>::sse_decode(deserializer);
+                return crate::device_capabilities::types::DeviceCapabilities::Dome(var_field0);
             }
             6 => {
                 let mut var_field0 =
-                    <crate::device_capabilities::CoverCalibratorCapabilities>::sse_decode(
+                    <crate::device_capabilities::types::CoverCalibratorCapabilities>::sse_decode(
                         deserializer,
                     );
-                return crate::device_capabilities::DeviceCapabilities::CoverCalibrator(var_field0);
+                return crate::device_capabilities::types::DeviceCapabilities::CoverCalibrator(
+                    var_field0,
+                );
             }
             7 => {
                 let mut var_field0 =
-                    <crate::device_capabilities::WeatherCapabilities>::sse_decode(deserializer);
-                return crate::device_capabilities::DeviceCapabilities::Weather(var_field0);
+                    <crate::device_capabilities::types::WeatherCapabilities>::sse_decode(
+                        deserializer,
+                    );
+                return crate::device_capabilities::types::DeviceCapabilities::Weather(var_field0);
             }
             8 => {
                 let mut var_field0 =
-                    <crate::device_capabilities::SafetyMonitorCapabilities>::sse_decode(
+                    <crate::device_capabilities::types::SafetyMonitorCapabilities>::sse_decode(
                         deserializer,
                     );
-                return crate::device_capabilities::DeviceCapabilities::SafetyMonitor(var_field0);
+                return crate::device_capabilities::types::DeviceCapabilities::SafetyMonitor(
+                    var_field0,
+                );
             }
             9 => {
                 let mut var_field0 =
-                    <crate::device_capabilities::SwitchCapabilities>::sse_decode(deserializer);
-                return crate::device_capabilities::DeviceCapabilities::Switch(var_field0);
+                    <crate::device_capabilities::types::SwitchCapabilities>::sse_decode(
+                        deserializer,
+                    );
+                return crate::device_capabilities::types::DeviceCapabilities::Switch(var_field0);
             }
             _ => {
                 unimplemented!("");
@@ -11739,7 +11193,7 @@ impl SseDecode for crate::device::DeviceType {
     }
 }
 
-impl SseDecode for crate::device_capabilities::DomeCapabilities {
+impl SseDecode for crate::device_capabilities::types::DomeCapabilities {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_canSetAzimuth = <bool>::sse_decode(deserializer);
@@ -11752,11 +11206,11 @@ impl SseDecode for crate::device_capabilities::DomeCapabilities {
         let mut var_atHome = <bool>::sse_decode(deserializer);
         let mut var_atPark = <bool>::sse_decode(deserializer);
         let mut var_shutterStatus =
-            <Option<crate::device_capabilities::ShutterStatus>>::sse_decode(deserializer);
+            <Option<crate::device_capabilities::types::ShutterStatus>>::sse_decode(deserializer);
         let mut var_canSlave = <bool>::sse_decode(deserializer);
         let mut var_slaved = <bool>::sse_decode(deserializer);
         let mut var_canAbort = <bool>::sse_decode(deserializer);
-        return crate::device_capabilities::DomeCapabilities {
+        return crate::device_capabilities::types::DomeCapabilities {
             can_set_azimuth: var_canSetAzimuth,
             can_park: var_canPark,
             can_find_home: var_canFindHome,
@@ -11821,7 +11275,7 @@ impl SseDecode for crate::device::DriverType {
     }
 }
 
-impl SseDecode for crate::event::EquipmentEvent {
+impl SseDecode for crate::event::equipment::EquipmentEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut tag_ = <i32>::sse_decode(deserializer);
@@ -11829,7 +11283,7 @@ impl SseDecode for crate::event::EquipmentEvent {
             0 => {
                 let mut var_deviceType = <String>::sse_decode(deserializer);
                 let mut var_deviceId = <String>::sse_decode(deserializer);
-                return crate::event::EquipmentEvent::Connecting {
+                return crate::event::equipment::EquipmentEvent::Connecting {
                     device_type: var_deviceType,
                     device_id: var_deviceId,
                 };
@@ -11837,7 +11291,7 @@ impl SseDecode for crate::event::EquipmentEvent {
             1 => {
                 let mut var_deviceType = <String>::sse_decode(deserializer);
                 let mut var_deviceId = <String>::sse_decode(deserializer);
-                return crate::event::EquipmentEvent::Connected {
+                return crate::event::equipment::EquipmentEvent::Connected {
                     device_type: var_deviceType,
                     device_id: var_deviceId,
                 };
@@ -11845,7 +11299,7 @@ impl SseDecode for crate::event::EquipmentEvent {
             2 => {
                 let mut var_deviceType = <String>::sse_decode(deserializer);
                 let mut var_deviceId = <String>::sse_decode(deserializer);
-                return crate::event::EquipmentEvent::Disconnected {
+                return crate::event::equipment::EquipmentEvent::Disconnected {
                     device_type: var_deviceType,
                     device_id: var_deviceId,
                 };
@@ -11855,7 +11309,7 @@ impl SseDecode for crate::event::EquipmentEvent {
                 let mut var_deviceId = <String>::sse_decode(deserializer);
                 let mut var_property = <String>::sse_decode(deserializer);
                 let mut var_value = <String>::sse_decode(deserializer);
-                return crate::event::EquipmentEvent::PropertyChanged {
+                return crate::event::equipment::EquipmentEvent::PropertyChanged {
                     device_type: var_deviceType,
                     device_id: var_deviceId,
                     property: var_property,
@@ -11866,7 +11320,7 @@ impl SseDecode for crate::event::EquipmentEvent {
                 let mut var_deviceType = <String>::sse_decode(deserializer);
                 let mut var_deviceId = <String>::sse_decode(deserializer);
                 let mut var_message = <String>::sse_decode(deserializer);
-                return crate::event::EquipmentEvent::Error {
+                return crate::event::equipment::EquipmentEvent::Error {
                     device_type: var_deviceType,
                     device_id: var_deviceId,
                     message: var_message,
@@ -11875,7 +11329,7 @@ impl SseDecode for crate::event::EquipmentEvent {
             5 => {
                 let mut var_ra = <f64>::sse_decode(deserializer);
                 let mut var_dec = <f64>::sse_decode(deserializer);
-                return crate::event::EquipmentEvent::MountSlewStarted {
+                return crate::event::equipment::EquipmentEvent::MountSlewStarted {
                     ra: var_ra,
                     dec: var_dec,
                 };
@@ -11883,41 +11337,41 @@ impl SseDecode for crate::event::EquipmentEvent {
             6 => {
                 let mut var_ra = <f64>::sse_decode(deserializer);
                 let mut var_dec = <f64>::sse_decode(deserializer);
-                return crate::event::EquipmentEvent::MountSlewCompleted {
+                return crate::event::equipment::EquipmentEvent::MountSlewCompleted {
                     ra: var_ra,
                     dec: var_dec,
                 };
             }
             7 => {
-                return crate::event::EquipmentEvent::MountTrackingStarted;
+                return crate::event::equipment::EquipmentEvent::MountTrackingStarted;
             }
             8 => {
-                return crate::event::EquipmentEvent::MountTrackingStopped;
+                return crate::event::equipment::EquipmentEvent::MountTrackingStopped;
             }
             9 => {
-                return crate::event::EquipmentEvent::MountParkStarted;
+                return crate::event::equipment::EquipmentEvent::MountParkStarted;
             }
             10 => {
-                return crate::event::EquipmentEvent::MountParkCompleted;
+                return crate::event::equipment::EquipmentEvent::MountParkCompleted;
             }
             11 => {
-                return crate::event::EquipmentEvent::MountUnparked;
+                return crate::event::equipment::EquipmentEvent::MountUnparked;
             }
             12 => {
                 let mut var_targetPosition = <i32>::sse_decode(deserializer);
-                return crate::event::EquipmentEvent::FocuserMoveStarted {
+                return crate::event::equipment::EquipmentEvent::FocuserMoveStarted {
                     target_position: var_targetPosition,
                 };
             }
             13 => {
                 let mut var_position = <i32>::sse_decode(deserializer);
-                return crate::event::EquipmentEvent::FocuserMoveCompleted {
+                return crate::event::equipment::EquipmentEvent::FocuserMoveCompleted {
                     position: var_position,
                 };
             }
             14 => {
                 let mut var_temperature = <f64>::sse_decode(deserializer);
-                return crate::event::EquipmentEvent::FocuserTemperatureChanged {
+                return crate::event::equipment::EquipmentEvent::FocuserTemperatureChanged {
                     temperature: var_temperature,
                 };
             }
@@ -11925,7 +11379,7 @@ impl SseDecode for crate::event::EquipmentEvent {
                 let mut var_fromPosition = <i32>::sse_decode(deserializer);
                 let mut var_toPosition = <i32>::sse_decode(deserializer);
                 let mut var_filterName = <Option<String>>::sse_decode(deserializer);
-                return crate::event::EquipmentEvent::FilterChanging {
+                return crate::event::equipment::EquipmentEvent::FilterChanging {
                     from_position: var_fromPosition,
                     to_position: var_toPosition,
                     filter_name: var_filterName,
@@ -11934,44 +11388,46 @@ impl SseDecode for crate::event::EquipmentEvent {
             16 => {
                 let mut var_position = <i32>::sse_decode(deserializer);
                 let mut var_filterName = <Option<String>>::sse_decode(deserializer);
-                return crate::event::EquipmentEvent::FilterChanged {
+                return crate::event::equipment::EquipmentEvent::FilterChanged {
                     position: var_position,
                     filter_name: var_filterName,
                 };
             }
             17 => {
                 let mut var_targetAngle = <f64>::sse_decode(deserializer);
-                return crate::event::EquipmentEvent::RotatorMoveStarted {
+                return crate::event::equipment::EquipmentEvent::RotatorMoveStarted {
                     target_angle: var_targetAngle,
                 };
             }
             18 => {
                 let mut var_angle = <f64>::sse_decode(deserializer);
-                return crate::event::EquipmentEvent::RotatorMoveCompleted { angle: var_angle };
+                return crate::event::equipment::EquipmentEvent::RotatorMoveCompleted {
+                    angle: var_angle,
+                };
             }
             19 => {
                 let mut var_targetTemp = <f64>::sse_decode(deserializer);
-                return crate::event::EquipmentEvent::CameraCoolingStarted {
+                return crate::event::equipment::EquipmentEvent::CameraCoolingStarted {
                     target_temp: var_targetTemp,
                 };
             }
             20 => {
                 let mut var_temperature = <f64>::sse_decode(deserializer);
-                return crate::event::EquipmentEvent::CameraCoolingReached {
+                return crate::event::equipment::EquipmentEvent::CameraCoolingReached {
                     temperature: var_temperature,
                 };
             }
             21 => {
-                return crate::event::EquipmentEvent::CameraWarmingStarted;
+                return crate::event::equipment::EquipmentEvent::CameraWarmingStarted;
             }
             22 => {
-                return crate::event::EquipmentEvent::CameraWarmingCompleted;
+                return crate::event::equipment::EquipmentEvent::CameraWarmingCompleted;
             }
             23 => {
                 let mut var_deviceType = <String>::sse_decode(deserializer);
                 let mut var_deviceId = <String>::sse_decode(deserializer);
                 let mut var_intervalSecs = <u64>::sse_decode(deserializer);
-                return crate::event::EquipmentEvent::HeartbeatStarted {
+                return crate::event::equipment::EquipmentEvent::HeartbeatStarted {
                     device_type: var_deviceType,
                     device_id: var_deviceId,
                     interval_secs: var_intervalSecs,
@@ -11980,7 +11436,7 @@ impl SseDecode for crate::event::EquipmentEvent {
             24 => {
                 let mut var_deviceType = <String>::sse_decode(deserializer);
                 let mut var_deviceId = <String>::sse_decode(deserializer);
-                return crate::event::EquipmentEvent::HeartbeatStopped {
+                return crate::event::equipment::EquipmentEvent::HeartbeatStopped {
                     device_type: var_deviceType,
                     device_id: var_deviceId,
                 };
@@ -11988,10 +11444,11 @@ impl SseDecode for crate::event::EquipmentEvent {
             25 => {
                 let mut var_deviceType = <String>::sse_decode(deserializer);
                 let mut var_deviceId = <String>::sse_decode(deserializer);
-                let mut var_status = <crate::event::HeartbeatStatus>::sse_decode(deserializer);
+                let mut var_status =
+                    <crate::event::equipment::HeartbeatStatus>::sse_decode(deserializer);
                 let mut var_consecutiveFailures = <u32>::sse_decode(deserializer);
                 let mut var_lastRttMs = <Option<u64>>::sse_decode(deserializer);
-                return crate::event::EquipmentEvent::HeartbeatStatusChanged {
+                return crate::event::equipment::EquipmentEvent::HeartbeatStatusChanged {
                     device_type: var_deviceType,
                     device_id: var_deviceId,
                     status: var_status,
@@ -12004,7 +11461,7 @@ impl SseDecode for crate::event::EquipmentEvent {
                 let mut var_deviceId = <String>::sse_decode(deserializer);
                 let mut var_attempt = <u32>::sse_decode(deserializer);
                 let mut var_maxAttempts = <u32>::sse_decode(deserializer);
-                return crate::event::EquipmentEvent::HeartbeatReconnecting {
+                return crate::event::equipment::EquipmentEvent::HeartbeatReconnecting {
                     device_type: var_deviceType,
                     device_id: var_deviceId,
                     attempt: var_attempt,
@@ -12015,7 +11472,7 @@ impl SseDecode for crate::event::EquipmentEvent {
                 let mut var_deviceType = <String>::sse_decode(deserializer);
                 let mut var_deviceId = <String>::sse_decode(deserializer);
                 let mut var_afterAttempts = <u32>::sse_decode(deserializer);
-                return crate::event::EquipmentEvent::HeartbeatReconnected {
+                return crate::event::equipment::EquipmentEvent::HeartbeatReconnected {
                     device_type: var_deviceType,
                     device_id: var_deviceId,
                     after_attempts: var_afterAttempts,
@@ -12028,7 +11485,7 @@ impl SseDecode for crate::event::EquipmentEvent {
                 let mut var_name = <String>::sse_decode(deserializer);
                 let mut var_displayName = <String>::sse_decode(deserializer);
                 let mut var_uniqueId = <Option<String>>::sse_decode(deserializer);
-                return crate::event::EquipmentEvent::DeviceDiscovered {
+                return crate::event::equipment::EquipmentEvent::DeviceDiscovered {
                     device_class: var_deviceClass,
                     driver: var_driver,
                     id: var_id,
@@ -12041,7 +11498,7 @@ impl SseDecode for crate::event::EquipmentEvent {
                 let mut var_deviceClass = <String>::sse_decode(deserializer);
                 let mut var_driver = <String>::sse_decode(deserializer);
                 let mut var_id = <String>::sse_decode(deserializer);
-                return crate::event::EquipmentEvent::DeviceLost {
+                return crate::event::equipment::EquipmentEvent::DeviceLost {
                     device_class: var_deviceClass,
                     driver: var_driver,
                     id: var_id,
@@ -12090,64 +11547,70 @@ impl SseDecode for crate::state::EquipmentProfile {
     }
 }
 
-impl SseDecode for crate::event::EventCategory {
+impl SseDecode for crate::event::equipment::EventCategory {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <i32>::sse_decode(deserializer);
         return match inner {
-            0 => crate::event::EventCategory::Equipment,
-            1 => crate::event::EventCategory::Imaging,
-            2 => crate::event::EventCategory::Guiding,
-            3 => crate::event::EventCategory::Sequencer,
-            4 => crate::event::EventCategory::Safety,
-            5 => crate::event::EventCategory::System,
-            6 => crate::event::EventCategory::PolarAlignment,
+            0 => crate::event::equipment::EventCategory::Equipment,
+            1 => crate::event::equipment::EventCategory::Imaging,
+            2 => crate::event::equipment::EventCategory::Guiding,
+            3 => crate::event::equipment::EventCategory::Sequencer,
+            4 => crate::event::equipment::EventCategory::Safety,
+            5 => crate::event::equipment::EventCategory::System,
+            6 => crate::event::equipment::EventCategory::PolarAlignment,
             _ => unreachable!("Invalid variant for EventCategory: {}", inner),
         };
     }
 }
 
-impl SseDecode for crate::event::EventPayload {
+impl SseDecode for crate::event::bus::EventPayload {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut tag_ = <i32>::sse_decode(deserializer);
         match tag_ {
             0 => {
-                let mut var_field0 = <crate::event::EquipmentEvent>::sse_decode(deserializer);
-                return crate::event::EventPayload::Equipment(var_field0);
+                let mut var_field0 =
+                    <crate::event::equipment::EquipmentEvent>::sse_decode(deserializer);
+                return crate::event::bus::EventPayload::Equipment(var_field0);
             }
             1 => {
-                let mut var_field0 = <crate::event::ImagingEvent>::sse_decode(deserializer);
-                return crate::event::EventPayload::Imaging(var_field0);
+                let mut var_field0 =
+                    <crate::event::imaging::ImagingEvent>::sse_decode(deserializer);
+                return crate::event::bus::EventPayload::Imaging(var_field0);
             }
             2 => {
-                let mut var_field0 = <crate::event::GuidingEvent>::sse_decode(deserializer);
-                return crate::event::EventPayload::Guiding(var_field0);
+                let mut var_field0 =
+                    <crate::event::guiding::GuidingEvent>::sse_decode(deserializer);
+                return crate::event::bus::EventPayload::Guiding(var_field0);
             }
             3 => {
-                let mut var_field0 = <crate::event::SequencerEvent>::sse_decode(deserializer);
-                return crate::event::EventPayload::Sequencer(var_field0);
+                let mut var_field0 =
+                    <crate::event::sequencer::SequencerEvent>::sse_decode(deserializer);
+                return crate::event::bus::EventPayload::Sequencer(var_field0);
             }
             4 => {
-                let mut var_field0 = <crate::event::SafetyEvent>::sse_decode(deserializer);
-                return crate::event::EventPayload::Safety(var_field0);
+                let mut var_field0 = <crate::event::system::SafetyEvent>::sse_decode(deserializer);
+                return crate::event::bus::EventPayload::Safety(var_field0);
             }
             5 => {
-                let mut var_field0 = <crate::event::SystemEvent>::sse_decode(deserializer);
-                return crate::event::EventPayload::System(var_field0);
+                let mut var_field0 = <crate::event::system::SystemEvent>::sse_decode(deserializer);
+                return crate::event::bus::EventPayload::System(var_field0);
             }
             6 => {
-                let mut var_field0 = <crate::event::PolarAlignmentEvent>::sse_decode(deserializer);
-                return crate::event::EventPayload::PolarAlignment(var_field0);
+                let mut var_field0 =
+                    <crate::event::imaging::PolarAlignmentEvent>::sse_decode(deserializer);
+                return crate::event::bus::EventPayload::PolarAlignment(var_field0);
             }
             7 => {
-                let mut var_field0 = <crate::event::PolarAlignmentStatus>::sse_decode(deserializer);
-                return crate::event::EventPayload::PolarAlignmentStatus(var_field0);
+                let mut var_field0 =
+                    <crate::event::imaging::PolarAlignmentStatus>::sse_decode(deserializer);
+                return crate::event::bus::EventPayload::PolarAlignmentStatus(var_field0);
             }
             8 => {
                 let mut var_field0 =
-                    <crate::event::PolarAlignmentImageEvent>::sse_decode(deserializer);
-                return crate::event::EventPayload::PolarAlignmentImage(var_field0);
+                    <crate::event::imaging::PolarAlignmentImageEvent>::sse_decode(deserializer);
+                return crate::event::bus::EventPayload::PolarAlignmentImage(var_field0);
             }
             _ => {
                 unimplemented!("");
@@ -12156,15 +11619,15 @@ impl SseDecode for crate::event::EventPayload {
     }
 }
 
-impl SseDecode for crate::event::EventSeverity {
+impl SseDecode for crate::event::equipment::EventSeverity {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <i32>::sse_decode(deserializer);
         return match inner {
-            0 => crate::event::EventSeverity::Info,
-            1 => crate::event::EventSeverity::Warning,
-            2 => crate::event::EventSeverity::Error,
-            3 => crate::event::EventSeverity::Critical,
+            0 => crate::event::equipment::EventSeverity::Info,
+            1 => crate::event::equipment::EventSeverity::Warning,
+            2 => crate::event::equipment::EventSeverity::Error,
+            3 => crate::event::equipment::EventSeverity::Critical,
             _ => unreachable!("Invalid variant for EventSeverity: {}", inner),
         };
     }
@@ -12206,7 +11669,7 @@ impl SseDecode for crate::device::FieldAvailability {
     }
 }
 
-impl SseDecode for crate::device_capabilities::FilterWheelCapabilities {
+impl SseDecode for crate::device_capabilities::types::FilterWheelCapabilities {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_positionCount = <i32>::sse_decode(deserializer);
@@ -12216,7 +11679,7 @@ impl SseDecode for crate::device_capabilities::FilterWheelCapabilities {
         let mut var_isMoving = <bool>::sse_decode(deserializer);
         let mut var_canSetFilterNames = <bool>::sse_decode(deserializer);
         let mut var_canSetFocusOffsets = <bool>::sse_decode(deserializer);
-        return crate::device_capabilities::FilterWheelCapabilities {
+        return crate::device_capabilities::types::FilterWheelCapabilities {
             position_count: var_positionCount,
             current_position: var_currentPosition,
             filter_names: var_filterNames,
@@ -12525,7 +11988,7 @@ impl SseDecode for crate::api::imaging::FocusDataPointApi {
     }
 }
 
-impl SseDecode for crate::device_capabilities::FocuserCapabilities {
+impl SseDecode for crate::device_capabilities::types::FocuserCapabilities {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_maxPosition = <i32>::sse_decode(deserializer);
@@ -12540,7 +12003,7 @@ impl SseDecode for crate::device_capabilities::FocuserCapabilities {
         let mut var_canHalt = <bool>::sse_decode(deserializer);
         let mut var_canReverse = <bool>::sse_decode(deserializer);
         let mut var_reverse = <Option<bool>>::sse_decode(deserializer);
-        return crate::device_capabilities::FocuserCapabilities {
+        return crate::device_capabilities::types::FocuserCapabilities {
             max_position: var_maxPosition,
             max_increment: var_maxIncrement,
             step_size: var_stepSize,
@@ -12581,7 +12044,7 @@ impl SseDecode for crate::device::FocuserStatus {
     }
 }
 
-impl SseDecode for crate::event::FrameCaptureMetadata {
+impl SseDecode for crate::event::sequencer::FrameCaptureMetadata {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_gain = <Option<i32>>::sse_decode(deserializer);
@@ -12601,7 +12064,7 @@ impl SseDecode for crate::event::FrameCaptureMetadata {
         let mut var_binY = <u32>::sse_decode(deserializer);
         let mut var_frameType = <String>::sse_decode(deserializer);
         let mut var_targetId = <Option<String>>::sse_decode(deserializer);
-        return crate::event::FrameCaptureMetadata {
+        return crate::event::sequencer::FrameCaptureMetadata {
             gain: var_gain,
             offset: var_offset,
             sensor_temp_c: var_sensorTempC,
@@ -12654,49 +12117,49 @@ impl SseDecode for crate::api::imaging::FrameTypeApi {
     }
 }
 
-impl SseDecode for crate::event::GuidingEvent {
+impl SseDecode for crate::event::guiding::GuidingEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut tag_ = <i32>::sse_decode(deserializer);
         match tag_ {
             0 => {
-                return crate::event::GuidingEvent::Connected;
+                return crate::event::guiding::GuidingEvent::Connected;
             }
             1 => {
-                return crate::event::GuidingEvent::Disconnected;
+                return crate::event::guiding::GuidingEvent::Disconnected;
             }
             2 => {
-                return crate::event::GuidingEvent::GuidingStarted;
+                return crate::event::guiding::GuidingEvent::GuidingStarted;
             }
             3 => {
-                return crate::event::GuidingEvent::GuidingStopped;
+                return crate::event::guiding::GuidingEvent::GuidingStopped;
             }
             4 => {
-                return crate::event::GuidingEvent::Paused;
+                return crate::event::guiding::GuidingEvent::Paused;
             }
             5 => {
-                return crate::event::GuidingEvent::Resumed;
+                return crate::event::guiding::GuidingEvent::Resumed;
             }
             6 => {
                 let mut var_rms = <f64>::sse_decode(deserializer);
-                return crate::event::GuidingEvent::Settled { rms: var_rms };
+                return crate::event::guiding::GuidingEvent::Settled { rms: var_rms };
             }
             7 => {
-                return crate::event::GuidingEvent::LostStar;
+                return crate::event::guiding::GuidingEvent::LostStar;
             }
             8 => {
                 let mut var_pixels = <f64>::sse_decode(deserializer);
-                return crate::event::GuidingEvent::DitherStarted { pixels: var_pixels };
+                return crate::event::guiding::GuidingEvent::DitherStarted { pixels: var_pixels };
             }
             9 => {
-                return crate::event::GuidingEvent::DitherCompleted;
+                return crate::event::guiding::GuidingEvent::DitherCompleted;
             }
             10 => {
                 let mut var_ra = <f64>::sse_decode(deserializer);
                 let mut var_dec = <f64>::sse_decode(deserializer);
                 let mut var_raRaw = <f64>::sse_decode(deserializer);
                 let mut var_decRaw = <f64>::sse_decode(deserializer);
-                return crate::event::GuidingEvent::Correction {
+                return crate::event::guiding::GuidingEvent::Correction {
                     ra: var_ra,
                     dec: var_dec,
                     ra_raw: var_raRaw,
@@ -12704,30 +12167,30 @@ impl SseDecode for crate::event::GuidingEvent {
                 };
             }
             11 => {
-                return crate::event::GuidingEvent::Looping;
+                return crate::event::guiding::GuidingEvent::Looping;
             }
             12 => {
-                return crate::event::GuidingEvent::Settling;
+                return crate::event::guiding::GuidingEvent::Settling;
             }
             13 => {
-                return crate::event::GuidingEvent::Calibrating;
+                return crate::event::guiding::GuidingEvent::Calibrating;
             }
             14 => {
-                return crate::event::GuidingEvent::CalibrationComplete;
+                return crate::event::guiding::GuidingEvent::CalibrationComplete;
             }
             15 => {
                 let mut var_x = <f64>::sse_decode(deserializer);
                 let mut var_y = <f64>::sse_decode(deserializer);
-                return crate::event::GuidingEvent::StarSelected { x: var_x, y: var_y };
+                return crate::event::guiding::GuidingEvent::StarSelected { x: var_x, y: var_y };
             }
             16 => {
                 let mut var_state = <String>::sse_decode(deserializer);
-                return crate::event::GuidingEvent::AppState { state: var_state };
+                return crate::event::guiding::GuidingEvent::AppState { state: var_state };
             }
             17 => {
                 let mut var_snr = <f64>::sse_decode(deserializer);
                 let mut var_starMass = <f64>::sse_decode(deserializer);
-                return crate::event::GuidingEvent::GuideStats {
+                return crate::event::guiding::GuidingEvent::GuideStats {
                     snr: var_snr,
                     star_mass: var_starMass,
                 };
@@ -12739,16 +12202,16 @@ impl SseDecode for crate::event::GuidingEvent {
     }
 }
 
-impl SseDecode for crate::event::HeartbeatStatus {
+impl SseDecode for crate::event::equipment::HeartbeatStatus {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <i32>::sse_decode(deserializer);
         return match inner {
-            0 => crate::event::HeartbeatStatus::Healthy,
-            1 => crate::event::HeartbeatStatus::Degraded,
-            2 => crate::event::HeartbeatStatus::Disconnected,
-            3 => crate::event::HeartbeatStatus::Reconnecting,
-            4 => crate::event::HeartbeatStatus::Reconnected,
+            0 => crate::event::equipment::HeartbeatStatus::Healthy,
+            1 => crate::event::equipment::HeartbeatStatus::Degraded,
+            2 => crate::event::equipment::HeartbeatStatus::Disconnected,
+            3 => crate::event::equipment::HeartbeatStatus::Reconnecting,
+            4 => crate::event::equipment::HeartbeatStatus::Reconnected,
             _ => unreachable!("Invalid variant for HeartbeatStatus: {}", inner),
         };
     }
@@ -12801,7 +12264,7 @@ impl SseDecode for crate::api::imaging::ImageStatsResult {
     }
 }
 
-impl SseDecode for crate::event::ImagingEvent {
+impl SseDecode for crate::event::imaging::ImagingEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut tag_ = <i32>::sse_decode(deserializer);
@@ -12809,7 +12272,7 @@ impl SseDecode for crate::event::ImagingEvent {
             0 => {
                 let mut var_durationSecs = <f64>::sse_decode(deserializer);
                 let mut var_frameType = <crate::device::FrameType>::sse_decode(deserializer);
-                return crate::event::ImagingEvent::ExposureStarted {
+                return crate::event::imaging::ImagingEvent::ExposureStarted {
                     duration_secs: var_durationSecs,
                     frame_type: var_frameType,
                 };
@@ -12819,7 +12282,7 @@ impl SseDecode for crate::event::ImagingEvent {
                 let mut var_frameType = <crate::device::FrameType>::sse_decode(deserializer);
                 let mut var_frameNumber = <u32>::sse_decode(deserializer);
                 let mut var_totalFrames = <Option<u32>>::sse_decode(deserializer);
-                return crate::event::ImagingEvent::ExposureStartedWithFrame {
+                return crate::event::imaging::ImagingEvent::ExposureStartedWithFrame {
                     duration_secs: var_durationSecs,
                     frame_type: var_frameType,
                     frame_number: var_frameNumber,
@@ -12829,7 +12292,7 @@ impl SseDecode for crate::event::ImagingEvent {
             2 => {
                 let mut var_progress = <f64>::sse_decode(deserializer);
                 let mut var_remainingSecs = <f64>::sse_decode(deserializer);
-                return crate::event::ImagingEvent::ExposureProgress {
+                return crate::event::imaging::ImagingEvent::ExposureProgress {
                     progress: var_progress,
                     remaining_secs: var_remainingSecs,
                 };
@@ -12838,7 +12301,7 @@ impl SseDecode for crate::event::ImagingEvent {
                 let mut var_filePath = <Option<String>>::sse_decode(deserializer);
                 let mut var_hfr = <f64>::sse_decode(deserializer);
                 let mut var_starsDetected = <u32>::sse_decode(deserializer);
-                return crate::event::ImagingEvent::ExposureCompleted {
+                return crate::event::imaging::ImagingEvent::ExposureCompleted {
                     file_path: var_filePath,
                     hfr: var_hfr,
                     stars_detected: var_starsDetected,
@@ -12849,7 +12312,7 @@ impl SseDecode for crate::event::ImagingEvent {
                 let mut var_totalFrames = <Option<u32>>::sse_decode(deserializer);
                 let mut var_hfr = <f64>::sse_decode(deserializer);
                 let mut var_starsDetected = <u32>::sse_decode(deserializer);
-                return crate::event::ImagingEvent::ExposureCompletedWithFrame {
+                return crate::event::imaging::ImagingEvent::ExposureCompletedWithFrame {
                     frame_number: var_frameNumber,
                     total_frames: var_totalFrames,
                     hfr: var_hfr,
@@ -12858,28 +12321,28 @@ impl SseDecode for crate::event::ImagingEvent {
             }
             5 => {
                 let mut var_error = <String>::sse_decode(deserializer);
-                return crate::event::ImagingEvent::ExposureFailed { error: var_error };
+                return crate::event::imaging::ImagingEvent::ExposureFailed { error: var_error };
             }
             6 => {
-                return crate::event::ImagingEvent::ExposureCancelled;
+                return crate::event::imaging::ImagingEvent::ExposureCancelled;
             }
             7 => {
-                return crate::event::ImagingEvent::DownloadStarted;
+                return crate::event::imaging::ImagingEvent::DownloadStarted;
             }
             8 => {
-                return crate::event::ImagingEvent::DownloadCompleted;
+                return crate::event::imaging::ImagingEvent::DownloadCompleted;
             }
             9 => {
                 let mut var_width = <u32>::sse_decode(deserializer);
                 let mut var_height = <u32>::sse_decode(deserializer);
-                return crate::event::ImagingEvent::ImageReady {
+                return crate::event::imaging::ImagingEvent::ImageReady {
                     width: var_width,
                     height: var_height,
                 };
             }
             10 => {
                 let mut var_filePath = <String>::sse_decode(deserializer);
-                return crate::event::ImagingEvent::ImageSaved {
+                return crate::event::imaging::ImagingEvent::ImageSaved {
                     file_path: var_filePath,
                 };
             }
@@ -12888,7 +12351,7 @@ impl SseDecode for crate::event::ImagingEvent {
                 let mut var_fraction = <f32>::sse_decode(deserializer);
                 let mut var_framesDone = <Option<u32>>::sse_decode(deserializer);
                 let mut var_framesTotal = <Option<u32>>::sse_decode(deserializer);
-                return crate::event::ImagingEvent::IntegrationProgress {
+                return crate::event::imaging::ImagingEvent::IntegrationProgress {
                     phase: var_phase,
                     fraction: var_fraction,
                     frames_done: var_framesDone,
@@ -12898,20 +12361,22 @@ impl SseDecode for crate::event::ImagingEvent {
             12 => {
                 let mut var_tempCelsius = <f64>::sse_decode(deserializer);
                 let mut var_coolerPower = <f64>::sse_decode(deserializer);
-                return crate::event::ImagingEvent::TemperatureChanged {
+                return crate::event::imaging::ImagingEvent::TemperatureChanged {
                     temp_celsius: var_tempCelsius,
                     cooler_power: var_coolerPower,
                 };
             }
             13 => {
                 let mut var_success = <bool>::sse_decode(deserializer);
-                return crate::event::ImagingEvent::ExposureComplete {
+                return crate::event::imaging::ImagingEvent::ExposureComplete {
                     success: var_success,
                 };
             }
             14 => {
                 let mut var_reason = <String>::sse_decode(deserializer);
-                return crate::event::ImagingEvent::ExposureFailedOld { reason: var_reason };
+                return crate::event::imaging::ImagingEvent::ExposureFailedOld {
+                    reason: var_reason,
+                };
             }
             _ => {
                 unimplemented!("");
@@ -13081,15 +12546,13 @@ impl SseDecode for Vec<crate::api::imaging::FocusDataPointApi> {
     }
 }
 
-impl SseDecode for Vec<crate::api::sequencer::MosaicPanelResult> {
+impl SseDecode for Vec<crate::api::sequencer::mosaic::MosaicPanelResult> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = vec![];
         for idx_ in 0..len_ {
-            ans_.push(<crate::api::sequencer::MosaicPanelResult>::sse_decode(
-                deserializer,
-            ));
+            ans_.push(<crate::api::sequencer::mosaic::MosaicPanelResult>::sse_decode(deserializer));
         }
         return ans_;
     }
@@ -13283,13 +12746,13 @@ impl SseDecode for Vec<(String, String)> {
     }
 }
 
-impl SseDecode for Vec<crate::event::SchedulerScoreEntry> {
+impl SseDecode for Vec<crate::event::sequencer::SchedulerScoreEntry> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = vec![];
         for idx_ in 0..len_ {
-            ans_.push(<crate::event::SchedulerScoreEntry>::sse_decode(
+            ans_.push(<crate::event::sequencer::SchedulerScoreEntry>::sse_decode(
                 deserializer,
             ));
         }
@@ -13309,13 +12772,13 @@ impl SseDecode for Vec<crate::api::imaging::StarCropApi> {
     }
 }
 
-impl SseDecode for Vec<crate::device_capabilities::SwitchInfo> {
+impl SseDecode for Vec<crate::device_capabilities::types::SwitchInfo> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = vec![];
         for idx_ in 0..len_ {
-            ans_.push(<crate::device_capabilities::SwitchInfo>::sse_decode(
+            ans_.push(<crate::device_capabilities::types::SwitchInfo>::sse_decode(
                 deserializer,
             ));
         }
@@ -13335,7 +12798,7 @@ impl SseDecode for Vec<crate::device::TrackingRate> {
     }
 }
 
-impl SseDecode for crate::api::sequencer::LiveStackingBroadcastSnapshot {
+impl SseDecode for crate::api::sequencer::mosaic::LiveStackingBroadcastSnapshot {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_nodeId = <String>::sse_decode(deserializer);
@@ -13350,7 +12813,7 @@ impl SseDecode for crate::api::sequencer::LiveStackingBroadcastSnapshot {
         let mut var_thumbnailHeight = <u32>::sse_decode(deserializer);
         let mut var_maxFramesToStack = <u32>::sse_decode(deserializer);
         let mut var_activatedAtUnixMillis = <i64>::sse_decode(deserializer);
-        return crate::api::sequencer::LiveStackingBroadcastSnapshot {
+        return crate::api::sequencer::mosaic::LiveStackingBroadcastSnapshot {
             node_id: var_nodeId,
             mode: var_mode,
             stack_method: var_stackMethod,
@@ -13367,7 +12830,7 @@ impl SseDecode for crate::api::sequencer::LiveStackingBroadcastSnapshot {
     }
 }
 
-impl SseDecode for crate::api::sequencer::MosaicPanelResult {
+impl SseDecode for crate::api::sequencer::mosaic::MosaicPanelResult {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_raHours = <f64>::sse_decode(deserializer);
@@ -13375,7 +12838,7 @@ impl SseDecode for crate::api::sequencer::MosaicPanelResult {
         let mut var_panelIndex = <u32>::sse_decode(deserializer);
         let mut var_row = <u32>::sse_decode(deserializer);
         let mut var_col = <u32>::sse_decode(deserializer);
-        return crate::api::sequencer::MosaicPanelResult {
+        return crate::api::sequencer::mosaic::MosaicPanelResult {
             ra_hours: var_raHours,
             dec_degrees: var_decDegrees,
             panel_index: var_panelIndex,
@@ -13385,7 +12848,7 @@ impl SseDecode for crate::api::sequencer::MosaicPanelResult {
     }
 }
 
-impl SseDecode for crate::device_capabilities::MountCapabilities {
+impl SseDecode for crate::device_capabilities::types::MountCapabilities {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_canSlew = <bool>::sse_decode(deserializer);
@@ -13413,7 +12876,7 @@ impl SseDecode for crate::device_capabilities::MountCapabilities {
         let mut var_axisCount = <u32>::sse_decode(deserializer);
         let mut var_minPulseGuideMs = <Option<f64>>::sse_decode(deserializer);
         let mut var_maxPulseGuideMs = <Option<f64>>::sse_decode(deserializer);
-        return crate::device_capabilities::MountCapabilities {
+        return crate::device_capabilities::types::MountCapabilities {
             can_slew: var_canSlew,
             can_slew_async: var_canSlewAsync,
             can_sync: var_canSync,
@@ -13734,18 +13197,18 @@ impl SseDecode for crate::error::NightshadeError {
     }
 }
 
-impl SseDecode for crate::event::NightshadeEvent {
+impl SseDecode for crate::event::bus::NightshadeEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_eventId = <u64>::sse_decode(deserializer);
         let mut var_timestamp = <i64>::sse_decode(deserializer);
-        let mut var_severity = <crate::event::EventSeverity>::sse_decode(deserializer);
-        let mut var_category = <crate::event::EventCategory>::sse_decode(deserializer);
-        let mut var_payload = <crate::event::EventPayload>::sse_decode(deserializer);
+        let mut var_severity = <crate::event::equipment::EventSeverity>::sse_decode(deserializer);
+        let mut var_category = <crate::event::equipment::EventCategory>::sse_decode(deserializer);
+        let mut var_payload = <crate::event::bus::EventPayload>::sse_decode(deserializer);
         let mut var_causedBy = <Option<u64>>::sse_decode(deserializer);
         let mut var_correlationId = <Option<String>>::sse_decode(deserializer);
         let mut var_deviceId = <Option<String>>::sse_decode(deserializer);
-        return crate::event::NightshadeEvent {
+        return crate::event::bus::NightshadeEvent {
             event_id: var_eventId,
             timestamp: var_timestamp,
             severity: var_severity,
@@ -13873,13 +13336,13 @@ impl SseDecode for Option<crate::device::CalibratorState> {
     }
 }
 
-impl SseDecode for Option<crate::api::sequencer::CheckpointInfoApi> {
+impl SseDecode for Option<crate::api::sequencer::lifecycle::CheckpointInfoApi> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
-            return Some(<crate::api::sequencer::CheckpointInfoApi>::sse_decode(
-                deserializer,
-            ));
+            return Some(
+                <crate::api::sequencer::lifecycle::CheckpointInfoApi>::sse_decode(deserializer),
+            );
         } else {
             return None;
         }
@@ -13952,12 +13415,14 @@ impl SseDecode for Option<i64> {
     }
 }
 
-impl SseDecode for Option<crate::api::sequencer::LiveStackingBroadcastSnapshot> {
+impl SseDecode for Option<crate::api::sequencer::mosaic::LiveStackingBroadcastSnapshot> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(
-                <crate::api::sequencer::LiveStackingBroadcastSnapshot>::sse_decode(deserializer),
+                <crate::api::sequencer::mosaic::LiveStackingBroadcastSnapshot>::sse_decode(
+                    deserializer,
+                ),
             );
         } else {
             return None;
@@ -13987,13 +13452,24 @@ impl SseDecode for Option<crate::device::PierSide> {
     }
 }
 
-impl SseDecode for Option<crate::device_capabilities::ShutterStatus> {
+impl SseDecode for Option<(f64, f64)> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
-            return Some(<crate::device_capabilities::ShutterStatus>::sse_decode(
-                deserializer,
-            ));
+            return Some(<(f64, f64)>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::device_capabilities::types::ShutterStatus> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(
+                <crate::device_capabilities::types::ShutterStatus>::sse_decode(deserializer),
+            );
         } else {
             return None;
         }
@@ -14264,7 +13740,7 @@ impl SseDecode for crate::api::plate_solve::PlateSolverInfo {
     }
 }
 
-impl SseDecode for crate::event::PolarAlignmentEvent {
+impl SseDecode for crate::event::imaging::PolarAlignmentEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_azimuthError = <f64>::sse_decode(deserializer);
@@ -14274,7 +13750,7 @@ impl SseDecode for crate::event::PolarAlignmentEvent {
         let mut var_currentDec = <f64>::sse_decode(deserializer);
         let mut var_targetRa = <f64>::sse_decode(deserializer);
         let mut var_targetDec = <f64>::sse_decode(deserializer);
-        return crate::event::PolarAlignmentEvent {
+        return crate::event::imaging::PolarAlignmentEvent {
             azimuth_error: var_azimuthError,
             altitude_error: var_altitudeError,
             total_error: var_totalError,
@@ -14286,7 +13762,7 @@ impl SseDecode for crate::event::PolarAlignmentEvent {
     }
 }
 
-impl SseDecode for crate::event::PolarAlignmentImageEvent {
+impl SseDecode for crate::event::imaging::PolarAlignmentImageEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_imageData = <Vec<u8>>::sse_decode(deserializer);
@@ -14296,7 +13772,7 @@ impl SseDecode for crate::event::PolarAlignmentImageEvent {
         let mut var_solvedDec = <Option<f64>>::sse_decode(deserializer);
         let mut var_point = <i32>::sse_decode(deserializer);
         let mut var_phase = <String>::sse_decode(deserializer);
-        return crate::event::PolarAlignmentImageEvent {
+        return crate::event::imaging::PolarAlignmentImageEvent {
             image_data: var_imageData,
             width: var_width,
             height: var_height,
@@ -14308,13 +13784,13 @@ impl SseDecode for crate::event::PolarAlignmentImageEvent {
     }
 }
 
-impl SseDecode for crate::event::PolarAlignmentStatus {
+impl SseDecode for crate::event::imaging::PolarAlignmentStatus {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_status = <String>::sse_decode(deserializer);
         let mut var_phase = <String>::sse_decode(deserializer);
         let mut var_point = <i32>::sse_decode(deserializer);
-        return crate::event::PolarAlignmentStatus {
+        return crate::event::imaging::PolarAlignmentStatus {
             status: var_status,
             phase: var_phase,
             point: var_point,
@@ -14443,6 +13919,15 @@ impl SseDecode for (i32, f64) {
     }
 }
 
+impl SseDecode for (i32, i32) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_field0 = <i32>::sse_decode(deserializer);
+        let mut var_field1 = <i32>::sse_decode(deserializer);
+        return (var_field0, var_field1);
+    }
+}
+
 impl SseDecode for (i32, Vec<String>) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -14517,7 +14002,7 @@ impl SseDecode for (u64, u64, u32, bool) {
     }
 }
 
-impl SseDecode for crate::api::sequencer::RecoveryConfigUpdate {
+impl SseDecode for crate::api::sequencer::runtime_config::RecoveryConfigUpdate {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_retryIntervalSecs = <f64>::sse_decode(deserializer);
@@ -14525,7 +14010,7 @@ impl SseDecode for crate::api::sequencer::RecoveryConfigUpdate {
         let mut var_stopTrackingDuringRecovery = <bool>::sse_decode(deserializer);
         let mut var_abortOnMeridian = <bool>::sse_decode(deserializer);
         let mut var_audibleAlertWhenEntered = <bool>::sse_decode(deserializer);
-        return crate::api::sequencer::RecoveryConfigUpdate {
+        return crate::api::sequencer::runtime_config::RecoveryConfigUpdate {
             retry_interval_secs: var_retryIntervalSecs,
             max_duration_secs: var_maxDurationSecs,
             stop_tracking_during_recovery: var_stopTrackingDuringRecovery,
@@ -14535,7 +14020,7 @@ impl SseDecode for crate::api::sequencer::RecoveryConfigUpdate {
     }
 }
 
-impl SseDecode for crate::device_capabilities::RotatorCapabilities {
+impl SseDecode for crate::device_capabilities::types::RotatorCapabilities {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_canReverse = <bool>::sse_decode(deserializer);
@@ -14549,7 +14034,7 @@ impl SseDecode for crate::device_capabilities::RotatorCapabilities {
         let mut var_canSync = <bool>::sse_decode(deserializer);
         let mut var_minAngleDeg = <Option<f64>>::sse_decode(deserializer);
         let mut var_maxAngleDeg = <Option<f64>>::sse_decode(deserializer);
-        return crate::device_capabilities::RotatorCapabilities {
+        return crate::device_capabilities::types::RotatorCapabilities {
             can_reverse: var_canReverse,
             reverse: var_reverse,
             step_size: var_stepSize,
@@ -14585,28 +14070,28 @@ impl SseDecode for crate::device::RotatorStatus {
     }
 }
 
-impl SseDecode for crate::event::SafetyEvent {
+impl SseDecode for crate::event::system::SafetyEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut tag_ = <i32>::sse_decode(deserializer);
         match tag_ {
             0 => {
                 let mut var_reason = <String>::sse_decode(deserializer);
-                return crate::event::SafetyEvent::WeatherUnsafe { reason: var_reason };
+                return crate::event::system::SafetyEvent::WeatherUnsafe { reason: var_reason };
             }
             1 => {
-                return crate::event::SafetyEvent::WeatherSafe;
+                return crate::event::system::SafetyEvent::WeatherSafe;
             }
             2 => {
                 let mut var_reason = <String>::sse_decode(deserializer);
-                return crate::event::SafetyEvent::EmergencyStop { reason: var_reason };
+                return crate::event::system::SafetyEvent::EmergencyStop { reason: var_reason };
             }
             3 => {
                 let mut var_reason = <String>::sse_decode(deserializer);
-                return crate::event::SafetyEvent::ParkInitiated { reason: var_reason };
+                return crate::event::system::SafetyEvent::ParkInitiated { reason: var_reason };
             }
             4 => {
-                return crate::event::SafetyEvent::ParkCompleted;
+                return crate::event::system::SafetyEvent::ParkCompleted;
             }
             _ => {
                 unimplemented!("");
@@ -14615,12 +14100,12 @@ impl SseDecode for crate::event::SafetyEvent {
     }
 }
 
-impl SseDecode for crate::device_capabilities::SafetyMonitorCapabilities {
+impl SseDecode for crate::device_capabilities::types::SafetyMonitorCapabilities {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_isSafe = <bool>::sse_decode(deserializer);
         let mut var_safetyDescription = <Option<String>>::sse_decode(deserializer);
-        return crate::device_capabilities::SafetyMonitorCapabilities {
+        return crate::device_capabilities::types::SafetyMonitorCapabilities {
             is_safe: var_isSafe,
             safety_description: var_safetyDescription,
         };
@@ -14639,7 +14124,7 @@ impl SseDecode for crate::device::SafetyStatus {
     }
 }
 
-impl SseDecode for crate::event::SchedulerScoreEntry {
+impl SseDecode for crate::event::sequencer::SchedulerScoreEntry {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_targetId = <String>::sse_decode(deserializer);
@@ -14647,7 +14132,7 @@ impl SseDecode for crate::event::SchedulerScoreEntry {
         let mut var_totalScore = <f64>::sse_decode(deserializer);
         let mut var_runnable = <bool>::sse_decode(deserializer);
         let mut var_reason = <Option<String>>::sse_decode(deserializer);
-        return crate::event::SchedulerScoreEntry {
+        return crate::event::sequencer::SchedulerScoreEntry {
             target_id: var_targetId,
             target_name: var_targetName,
             total_score: var_totalScore,
@@ -14766,37 +14251,40 @@ impl SseDecode for crate::api::sequencer::SequenceDefinitionApi {
     }
 }
 
-impl SseDecode for crate::event::SequencerEvent {
+impl SseDecode for crate::event::sequencer::SequencerEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut tag_ = <i32>::sse_decode(deserializer);
         match tag_ {
             0 => {
                 let mut var_sequenceName = <String>::sse_decode(deserializer);
-                return crate::event::SequencerEvent::Started {
+                return crate::event::sequencer::SequencerEvent::Started {
                     sequence_name: var_sequenceName,
                 };
             }
             1 => {
-                return crate::event::SequencerEvent::Paused;
+                return crate::event::sequencer::SequencerEvent::Paused;
             }
             2 => {
-                return crate::event::SequencerEvent::Resumed;
+                return crate::event::sequencer::SequencerEvent::Resumed;
             }
             3 => {
-                return crate::event::SequencerEvent::Stopped;
+                let mut var_sequenceRunId = <Option<i64>>::sse_decode(deserializer);
+                return crate::event::sequencer::SequencerEvent::Stopped {
+                    sequence_run_id: var_sequenceRunId,
+                };
             }
             4 => {
-                return crate::event::SequencerEvent::Completed;
+                return crate::event::sequencer::SequencerEvent::Completed;
             }
             5 => {
                 let mut var_error = <String>::sse_decode(deserializer);
-                return crate::event::SequencerEvent::Failed { error: var_error };
+                return crate::event::sequencer::SequencerEvent::Failed { error: var_error };
             }
             6 => {
                 let mut var_nodeId = <String>::sse_decode(deserializer);
                 let mut var_nodeType = <String>::sse_decode(deserializer);
-                return crate::event::SequencerEvent::NodeStarted {
+                return crate::event::sequencer::SequencerEvent::NodeStarted {
                     node_id: var_nodeId,
                     node_type: var_nodeType,
                 };
@@ -14804,7 +14292,7 @@ impl SseDecode for crate::event::SequencerEvent {
             7 => {
                 let mut var_nodeId = <String>::sse_decode(deserializer);
                 let mut var_status = <String>::sse_decode(deserializer);
-                return crate::event::SequencerEvent::NodeCompleted {
+                return crate::event::sequencer::SequencerEvent::NodeCompleted {
                     node_id: var_nodeId,
                     status: var_status,
                 };
@@ -14812,7 +14300,7 @@ impl SseDecode for crate::event::SequencerEvent {
             8 => {
                 let mut var_current = <u32>::sse_decode(deserializer);
                 let mut var_total = <u32>::sse_decode(deserializer);
-                return crate::event::SequencerEvent::Progress {
+                return crate::event::sequencer::SequencerEvent::Progress {
                     current: var_current,
                     total: var_total,
                 };
@@ -14821,7 +14309,7 @@ impl SseDecode for crate::event::SequencerEvent {
                 let mut var_targetName = <String>::sse_decode(deserializer);
                 let mut var_ra = <Option<f64>>::sse_decode(deserializer);
                 let mut var_dec = <Option<f64>>::sse_decode(deserializer);
-                return crate::event::SequencerEvent::TargetChanged {
+                return crate::event::sequencer::SequencerEvent::TargetChanged {
                     target_name: var_targetName,
                     ra: var_ra,
                     dec: var_dec,
@@ -14829,7 +14317,7 @@ impl SseDecode for crate::event::SequencerEvent {
             }
             10 => {
                 let mut var_targetName = <String>::sse_decode(deserializer);
-                return crate::event::SequencerEvent::TargetCompleted {
+                return crate::event::sequencer::SequencerEvent::TargetCompleted {
                     target_name: var_targetName,
                 };
             }
@@ -14838,7 +14326,7 @@ impl SseDecode for crate::event::SequencerEvent {
                 let mut var_total = <u32>::sse_decode(deserializer);
                 let mut var_filter = <Option<String>>::sse_decode(deserializer);
                 let mut var_durationSecs = <f64>::sse_decode(deserializer);
-                return crate::event::SequencerEvent::ExposureStarted {
+                return crate::event::sequencer::SequencerEvent::ExposureStarted {
                     frame: var_frame,
                     total: var_total,
                     filter: var_filter,
@@ -14849,7 +14337,7 @@ impl SseDecode for crate::event::SequencerEvent {
                 let mut var_frame = <u32>::sse_decode(deserializer);
                 let mut var_total = <u32>::sse_decode(deserializer);
                 let mut var_durationSecs = <f64>::sse_decode(deserializer);
-                return crate::event::SequencerEvent::ExposureCompleted {
+                return crate::event::sequencer::SequencerEvent::ExposureCompleted {
                     frame: var_frame,
                     total: var_total,
                     duration_secs: var_durationSecs,
@@ -14857,7 +14345,7 @@ impl SseDecode for crate::event::SequencerEvent {
             }
             13 => {
                 let mut var_message = <String>::sse_decode(deserializer);
-                return crate::event::SequencerEvent::Error {
+                return crate::event::sequencer::SequencerEvent::Error {
                     message: var_message,
                 };
             }
@@ -14870,7 +14358,7 @@ impl SseDecode for crate::event::SequencerEvent {
                 let mut var_failedSteps = <Vec<String>>::sse_decode(deserializer);
                 let mut var_error = <Option<String>>::sse_decode(deserializer);
                 let mut var_actionTaken = <Option<String>>::sse_decode(deserializer);
-                return crate::event::SequencerEvent::MeridianFlipOutcome {
+                return crate::event::sequencer::SequencerEvent::MeridianFlipOutcome {
                     outcome: var_outcome,
                     target_name: var_targetName,
                     new_pier_side: var_newPierSide,
@@ -14885,7 +14373,7 @@ impl SseDecode for crate::event::SequencerEvent {
                 let mut var_triggerId = <String>::sse_decode(deserializer);
                 let mut var_triggerName = <String>::sse_decode(deserializer);
                 let mut var_action = <String>::sse_decode(deserializer);
-                return crate::event::SequencerEvent::TriggerFired {
+                return crate::event::sequencer::SequencerEvent::TriggerFired {
                     trigger_id: var_triggerId,
                     trigger_name: var_triggerName,
                     action: var_action,
@@ -14896,7 +14384,7 @@ impl SseDecode for crate::event::SequencerEvent {
                 let mut var_instruction = <String>::sse_decode(deserializer);
                 let mut var_progressPercent = <f64>::sse_decode(deserializer);
                 let mut var_detail = <String>::sse_decode(deserializer);
-                return crate::event::SequencerEvent::InstructionProgress {
+                return crate::event::sequencer::SequencerEvent::InstructionProgress {
                     node_id: var_nodeId,
                     instruction: var_instruction,
                     progress_percent: var_progressPercent,
@@ -14909,7 +14397,7 @@ impl SseDecode for crate::event::SequencerEvent {
                 let mut var_progressPercent = <f64>::sse_decode(deserializer);
                 let mut var_detailKind = <String>::sse_decode(deserializer);
                 let mut var_detailJson = <String>::sse_decode(deserializer);
-                return crate::event::SequencerEvent::InstructionProgressStructured {
+                return crate::event::sequencer::SequencerEvent::InstructionProgressStructured {
                     node_id: var_nodeId,
                     instruction: var_instruction,
                     progress_percent: var_progressPercent,
@@ -14928,8 +14416,8 @@ impl SseDecode for crate::event::SequencerEvent {
                 let mut var_rejectedTotal = <u32>::sse_decode(deserializer);
                 let mut var_savePath = <Option<String>>::sse_decode(deserializer);
                 let mut var_capture =
-                    <crate::event::FrameCaptureMetadata>::sse_decode(deserializer);
-                return crate::event::SequencerEvent::FrameAccepted {
+                    <crate::event::sequencer::FrameCaptureMetadata>::sse_decode(deserializer);
+                return crate::event::sequencer::SequencerEvent::FrameAccepted {
                     node_id: var_nodeId,
                     frame: var_frame,
                     total: var_total,
@@ -14962,8 +14450,8 @@ impl SseDecode for crate::event::SequencerEvent {
                 let mut var_guideRmsAtCapture = <Option<f64>>::sse_decode(deserializer);
                 let mut var_sensorTempAtCapture = <Option<f64>>::sse_decode(deserializer);
                 let mut var_capture =
-                    <crate::event::FrameCaptureMetadata>::sse_decode(deserializer);
-                return crate::event::SequencerEvent::FrameRejected {
+                    <crate::event::sequencer::FrameCaptureMetadata>::sse_decode(deserializer);
+                return crate::event::sequencer::SequencerEvent::FrameRejected {
                     node_id: var_nodeId,
                     frame: var_frame,
                     total: var_total,
@@ -14992,8 +14480,8 @@ impl SseDecode for crate::event::SequencerEvent {
                 let mut var_pickedTargetName = <Option<String>>::sse_decode(deserializer);
                 let mut var_pickedScore = <Option<f64>>::sse_decode(deserializer);
                 let mut var_scores =
-                    <Vec<crate::event::SchedulerScoreEntry>>::sse_decode(deserializer);
-                return crate::event::SequencerEvent::SchedulerDecision {
+                    <Vec<crate::event::sequencer::SchedulerScoreEntry>>::sse_decode(deserializer);
+                return crate::event::sequencer::SequencerEvent::SchedulerDecision {
                     node_id: var_nodeId,
                     decision_counter: var_decisionCounter,
                     picked_target_id: var_pickedTargetId,
@@ -15009,7 +14497,7 @@ impl SseDecode for crate::event::SequencerEvent {
                 let mut var_budgetSecs = <f64>::sse_decode(deserializer);
                 let mut var_fraction = <f64>::sse_decode(deserializer);
                 let mut var_budgetMet = <bool>::sse_decode(deserializer);
-                return crate::event::SequencerEvent::IntegrationBudget {
+                return crate::event::sequencer::SequencerEvent::IntegrationBudget {
                     target_id: var_targetId,
                     filter: var_filter,
                     completed_secs: var_completedSecs,
@@ -15025,7 +14513,7 @@ impl SseDecode for crate::event::SequencerEvent {
                 let mut var_skyBrightnessMag = <Option<f64>>::sse_decode(deserializer);
                 let mut var_filter = <Option<String>>::sse_decode(deserializer);
                 let mut var_reason = <String>::sse_decode(deserializer);
-                return crate::event::SequencerEvent::ExposureAdjusted {
+                return crate::event::sequencer::SequencerEvent::ExposureAdjusted {
                     node_id: var_nodeId,
                     adapted_secs: var_adaptedSecs,
                     nominal_secs: var_nominalSecs,
@@ -15051,7 +14539,7 @@ impl SseDecode for crate::event::SequencerEvent {
                 let mut var_rejectReason = <Option<String>>::sse_decode(deserializer);
                 let mut var_reduceLive = <bool>::sse_decode(deserializer);
                 let mut var_applyDifferential = <bool>::sse_decode(deserializer);
-                return crate::event::SequencerEvent::PhotometryFrame {
+                return crate::event::sequencer::SequencerEvent::PhotometryFrame {
                     node_id: var_nodeId,
                     target_designation: var_targetDesignation,
                     reference_stars: var_referenceStars,
@@ -15077,7 +14565,7 @@ impl SseDecode for crate::event::SequencerEvent {
                 let mut var_gapSecs = <f64>::sse_decode(deserializer);
                 let mut var_maxGapSecs = <f64>::sse_decode(deserializer);
                 let mut var_cadenceBreaks = <u32>::sse_decode(deserializer);
-                return crate::event::SequencerEvent::PhotometryCadenceBroken {
+                return crate::event::sequencer::SequencerEvent::PhotometryCadenceBroken {
                     node_id: var_nodeId,
                     frame: var_frame,
                     total: var_total,
@@ -15093,7 +14581,7 @@ impl SseDecode for crate::event::SequencerEvent {
                 let mut var_framesCaptured = <u32>::sse_decode(deserializer);
                 let mut var_cadenceBreaks = <u32>::sse_decode(deserializer);
                 let mut var_lastRejectReason = <Option<String>>::sse_decode(deserializer);
-                return crate::event::SequencerEvent::PhotometrySummary {
+                return crate::event::sequencer::SequencerEvent::PhotometrySummary {
                     node_id: var_nodeId,
                     target_designation: var_targetDesignation,
                     filter: var_filter,
@@ -15113,7 +14601,7 @@ impl SseDecode for crate::event::SequencerEvent {
                 let mut var_maxDurationSecs = <f64>::sse_decode(deserializer);
                 let mut var_phase = <String>::sse_decode(deserializer);
                 let mut var_lastError = <Option<String>>::sse_decode(deserializer);
-                return crate::event::SequencerEvent::RecoveryStarted {
+                return crate::event::sequencer::SequencerEvent::RecoveryStarted {
                     started_at_iso: var_startedAtIso,
                     cause_kind: var_causeKind,
                     cause_custom_label: var_causeCustomLabel,
@@ -15137,7 +14625,7 @@ impl SseDecode for crate::event::SequencerEvent {
                 let mut var_maxDurationSecs = <f64>::sse_decode(deserializer);
                 let mut var_phase = <String>::sse_decode(deserializer);
                 let mut var_lastError = <Option<String>>::sse_decode(deserializer);
-                return crate::event::SequencerEvent::RecoveryProgress {
+                return crate::event::sequencer::SequencerEvent::RecoveryProgress {
                     started_at_iso: var_startedAtIso,
                     cause_kind: var_causeKind,
                     cause_custom_label: var_causeCustomLabel,
@@ -15161,7 +14649,7 @@ impl SseDecode for crate::event::SequencerEvent {
                 let mut var_maxDurationSecs = <f64>::sse_decode(deserializer);
                 let mut var_phase = <String>::sse_decode(deserializer);
                 let mut var_lastError = <Option<String>>::sse_decode(deserializer);
-                return crate::event::SequencerEvent::RecoveryCompleted {
+                return crate::event::sequencer::SequencerEvent::RecoveryCompleted {
                     started_at_iso: var_startedAtIso,
                     cause_kind: var_causeKind,
                     cause_custom_label: var_causeCustomLabel,
@@ -15186,7 +14674,7 @@ impl SseDecode for crate::event::SequencerEvent {
                 let mut var_phase = <String>::sse_decode(deserializer);
                 let mut var_lastError = <Option<String>>::sse_decode(deserializer);
                 let mut var_abortedByUser = <bool>::sse_decode(deserializer);
-                return crate::event::SequencerEvent::RecoveryGaveUp {
+                return crate::event::sequencer::SequencerEvent::RecoveryGaveUp {
                     started_at_iso: var_startedAtIso,
                     cause_kind: var_causeKind,
                     cause_custom_label: var_causeCustomLabel,
@@ -15207,7 +14695,7 @@ impl SseDecode for crate::event::SequencerEvent {
                 let mut var_configJson = <String>::sse_decode(deserializer);
                 let mut var_displayName = <Option<String>>::sse_decode(deserializer);
                 let mut var_timeoutSecs = <u32>::sse_decode(deserializer);
-                return crate::event::SequencerEvent::PluginNodeRequested {
+                return crate::event::sequencer::SequencerEvent::PluginNodeRequested {
                     node_id: var_nodeId,
                     plugin_id: var_pluginId,
                     node_type_id: var_nodeTypeId,
@@ -15221,7 +14709,7 @@ impl SseDecode for crate::event::SequencerEvent {
                 let mut var_pluginId = <String>::sse_decode(deserializer);
                 let mut var_nodeTypeId = <String>::sse_decode(deserializer);
                 let mut var_detailJson = <String>::sse_decode(deserializer);
-                return crate::event::SequencerEvent::PluginNodeProgress {
+                return crate::event::sequencer::SequencerEvent::PluginNodeProgress {
                     node_id: var_nodeId,
                     plugin_id: var_pluginId,
                     node_type_id: var_nodeTypeId,
@@ -15235,7 +14723,7 @@ impl SseDecode for crate::event::SequencerEvent {
                 let mut var_detailsJson = <String>::sse_decode(deserializer);
                 let mut var_nodeId = <Option<String>>::sse_decode(deserializer);
                 let mut var_sequenceRunId = <Option<i64>>::sse_decode(deserializer);
-                return crate::event::SequencerEvent::DecisionLogged {
+                return crate::event::sequencer::SequencerEvent::DecisionLogged {
                     timestamp_iso: var_timestampIso,
                     category: var_category,
                     summary: var_summary,
@@ -15329,85 +14817,103 @@ impl SseDecode for crate::device::ShutterState {
     }
 }
 
-impl SseDecode for crate::device_capabilities::ShutterStatus {
+impl SseDecode for crate::device_capabilities::types::ShutterStatus {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <i32>::sse_decode(deserializer);
         return match inner {
-            0 => crate::device_capabilities::ShutterStatus::Open,
-            1 => crate::device_capabilities::ShutterStatus::Closed,
-            2 => crate::device_capabilities::ShutterStatus::Opening,
-            3 => crate::device_capabilities::ShutterStatus::Closing,
-            4 => crate::device_capabilities::ShutterStatus::Unknown,
+            0 => crate::device_capabilities::types::ShutterStatus::Open,
+            1 => crate::device_capabilities::types::ShutterStatus::Closed,
+            2 => crate::device_capabilities::types::ShutterStatus::Opening,
+            3 => crate::device_capabilities::types::ShutterStatus::Closing,
+            4 => crate::device_capabilities::types::ShutterStatus::Unknown,
             _ => unreachable!("Invalid variant for ShutterStatus: {}", inner),
         };
     }
 }
 
-impl SseDecode for crate::api::devices::simulation::SimulatedCamera {
+impl SseDecode for crate::api::devices::simulation::camera::SimulatedCamera {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_status = <crate::device::CameraStatus>::sse_decode(deserializer);
-        return crate::api::devices::simulation::SimulatedCamera { status: var_status };
+        return crate::api::devices::simulation::camera::SimulatedCamera { status: var_status };
     }
 }
 
-impl SseDecode for crate::api::devices::simulation::SimulatedDome {
+impl SseDecode for crate::api::devices::simulation::environment::SimulatedDome {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_status = <crate::device::DomeStatus>::sse_decode(deserializer);
-        return crate::api::devices::simulation::SimulatedDome { status: var_status };
+        return crate::api::devices::simulation::environment::SimulatedDome { status: var_status };
     }
 }
 
-impl SseDecode for crate::api::devices::simulation::SimulatedFilterWheel {
+impl SseDecode for crate::api::devices::simulation::filter_wheel::SimulatedFilterWheel {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_status = <crate::device::FilterWheelStatus>::sse_decode(deserializer);
-        return crate::api::devices::simulation::SimulatedFilterWheel { status: var_status };
+        return crate::api::devices::simulation::filter_wheel::SimulatedFilterWheel {
+            status: var_status,
+        };
     }
 }
 
-impl SseDecode for crate::api::devices::simulation::SimulatedFocuser {
+impl SseDecode for crate::api::devices::simulation::focuser::SimulatedFocuser {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_status = <crate::device::FocuserStatus>::sse_decode(deserializer);
-        return crate::api::devices::simulation::SimulatedFocuser { status: var_status };
+        return crate::api::devices::simulation::focuser::SimulatedFocuser { status: var_status };
     }
 }
 
-impl SseDecode for crate::api::devices::simulation::SimulatedMount {
+impl SseDecode for crate::api::devices::simulation::mount::SimulatedMount {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_status = <crate::device::MountStatus>::sse_decode(deserializer);
-        return crate::api::devices::simulation::SimulatedMount { status: var_status };
+        return crate::api::devices::simulation::mount::SimulatedMount { status: var_status };
     }
 }
 
-impl SseDecode for crate::api::devices::simulation::SimulatedRotator {
+impl SseDecode for crate::api::devices::simulation::rotator::SimulatedRotator {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_status = <crate::device::RotatorStatus>::sse_decode(deserializer);
-        return crate::api::devices::simulation::SimulatedRotator { status: var_status };
+        return crate::api::devices::simulation::rotator::SimulatedRotator { status: var_status };
     }
 }
 
-impl SseDecode for crate::api::devices::simulation::SimulatedSafetyMonitor {
+impl SseDecode for crate::api::devices::simulation::environment::SimulatedSafetyMonitor {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_status = <crate::device::SafetyStatus>::sse_decode(deserializer);
-        return crate::api::devices::simulation::SimulatedSafetyMonitor { status: var_status };
+        return crate::api::devices::simulation::environment::SimulatedSafetyMonitor {
+            status: var_status,
+        };
     }
 }
 
-impl SseDecode for crate::api::devices::simulation::SimulatedWeather {
+impl SseDecode for crate::api::devices::simulation::environment::SimulatedWeather {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_connected = <bool>::sse_decode(deserializer);
         let mut var_conditions = <crate::device::WeatherConditions>::sse_decode(deserializer);
-        return crate::api::devices::simulation::SimulatedWeather {
+        return crate::api::devices::simulation::environment::SimulatedWeather {
             connected: var_connected,
             conditions: var_conditions,
+        };
+    }
+}
+
+impl SseDecode for crate::api::plate_solve::SolveHints {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_focalLengthMm = <Option<f64>>::sse_decode(deserializer);
+        let mut var_pixelSizeUm = <Option<(f64, f64)>>::sse_decode(deserializer);
+        let mut var_binning = <(i32, i32)>::sse_decode(deserializer);
+        return crate::api::plate_solve::SolveHints {
+            focal_length_mm: var_focalLengthMm,
+            pixel_size_um: var_pixelSizeUm,
+            binning: var_binning,
         };
     }
 }
@@ -15494,20 +15000,20 @@ impl SseDecode for crate::api::imaging::StretchParamsApi {
     }
 }
 
-impl SseDecode for crate::device_capabilities::SwitchCapabilities {
+impl SseDecode for crate::device_capabilities::types::SwitchCapabilities {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_switchCount = <i32>::sse_decode(deserializer);
         let mut var_switches =
-            <Vec<crate::device_capabilities::SwitchInfo>>::sse_decode(deserializer);
-        return crate::device_capabilities::SwitchCapabilities {
+            <Vec<crate::device_capabilities::types::SwitchInfo>>::sse_decode(deserializer);
+        return crate::device_capabilities::types::SwitchCapabilities {
             switch_count: var_switchCount,
             switches: var_switches,
         };
     }
 }
 
-impl SseDecode for crate::device_capabilities::SwitchInfo {
+impl SseDecode for crate::device_capabilities::types::SwitchInfo {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_index = <i32>::sse_decode(deserializer);
@@ -15519,7 +15025,7 @@ impl SseDecode for crate::device_capabilities::SwitchInfo {
         let mut var_step = <f64>::sse_decode(deserializer);
         let mut var_canWrite = <bool>::sse_decode(deserializer);
         let mut var_value = <f64>::sse_decode(deserializer);
-        return crate::device_capabilities::SwitchInfo {
+        return crate::device_capabilities::types::SwitchInfo {
             index: var_index,
             name: var_name,
             description: var_description,
@@ -15533,26 +15039,26 @@ impl SseDecode for crate::device_capabilities::SwitchInfo {
     }
 }
 
-impl SseDecode for crate::event::SystemEvent {
+impl SseDecode for crate::event::system::SystemEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut tag_ = <i32>::sse_decode(deserializer);
         match tag_ {
             0 => {
-                return crate::event::SystemEvent::Initialized;
+                return crate::event::system::SystemEvent::Initialized;
             }
             1 => {
-                return crate::event::SystemEvent::ShuttingDown;
+                return crate::event::system::SystemEvent::ShuttingDown;
             }
             2 => {
                 let mut var_message = <String>::sse_decode(deserializer);
-                return crate::event::SystemEvent::Error {
+                return crate::event::system::SystemEvent::Error {
                     message: var_message,
                 };
             }
             3 => {
                 let mut var_availableGb = <f64>::sse_decode(deserializer);
-                return crate::event::SystemEvent::DiskSpaceLow {
+                return crate::event::system::SystemEvent::DiskSpaceLow {
                     available_gb: var_availableGb,
                 };
             }
@@ -15561,7 +15067,7 @@ impl SseDecode for crate::event::SystemEvent {
                 let mut var_message = <String>::sse_decode(deserializer);
                 let mut var_level = <String>::sse_decode(deserializer);
                 let mut var_explicitTransports = <Option<Vec<String>>>::sse_decode(deserializer);
-                return crate::event::SystemEvent::Notification {
+                return crate::event::system::SystemEvent::Notification {
                     title: var_title,
                     message: var_message,
                     level: var_level,
@@ -15571,7 +15077,7 @@ impl SseDecode for crate::event::SystemEvent {
             5 => {
                 let mut var_droppedCount = <u64>::sse_decode(deserializer);
                 let mut var_totalDropped = <u64>::sse_decode(deserializer);
-                return crate::event::SystemEvent::EventsDropped {
+                return crate::event::system::SystemEvent::EventsDropped {
                     dropped_count: var_droppedCount,
                     total_dropped: var_totalDropped,
                 };
@@ -15638,7 +15144,7 @@ impl SseDecode for usize {
     }
 }
 
-impl SseDecode for crate::device_capabilities::WeatherCapabilities {
+impl SseDecode for crate::device_capabilities::types::WeatherCapabilities {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_hasCloudCover = <bool>::sse_decode(deserializer);
@@ -15655,7 +15161,7 @@ impl SseDecode for crate::device_capabilities::WeatherCapabilities {
         let mut var_hasWindGust = <bool>::sse_decode(deserializer);
         let mut var_hasWindSpeed = <bool>::sse_decode(deserializer);
         let mut var_averagePeriod = <Option<f64>>::sse_decode(deserializer);
-        return crate::device_capabilities::WeatherCapabilities {
+        return crate::device_capabilities::types::WeatherCapabilities {
             has_cloud_cover: var_hasCloudCover,
             has_dew_point: var_hasDewPoint,
             has_humidity: var_hasHumidity,
@@ -16106,7 +15612,7 @@ impl flutter_rust_bridge::IntoIntoDart<crate::device::CalibratorState>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::device_capabilities::CameraCapabilities {
+impl flutter_rust_bridge::IntoDart for crate::device_capabilities::types::CameraCapabilities {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.max_width.into_into_dart().into_dart(),
@@ -16149,18 +15655,20 @@ impl flutter_rust_bridge::IntoDart for crate::device_capabilities::CameraCapabil
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::device_capabilities::CameraCapabilities
+    for crate::device_capabilities::types::CameraCapabilities
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::device_capabilities::CameraCapabilities>
-    for crate::device_capabilities::CameraCapabilities
+impl flutter_rust_bridge::IntoIntoDart<crate::device_capabilities::types::CameraCapabilities>
+    for crate::device_capabilities::types::CameraCapabilities
 {
-    fn into_into_dart(self) -> crate::device_capabilities::CameraCapabilities {
+    fn into_into_dart(self) -> crate::device_capabilities::types::CameraCapabilities {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::device_capabilities::CameraRecommendedSettings {
+impl flutter_rust_bridge::IntoDart
+    for crate::device_capabilities::types::CameraRecommendedSettings
+{
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.unity_gain.into_into_dart().into_dart(),
@@ -16175,13 +15683,13 @@ impl flutter_rust_bridge::IntoDart for crate::device_capabilities::CameraRecomme
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::device_capabilities::CameraRecommendedSettings
+    for crate::device_capabilities::types::CameraRecommendedSettings
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::device_capabilities::CameraRecommendedSettings>
-    for crate::device_capabilities::CameraRecommendedSettings
+impl flutter_rust_bridge::IntoIntoDart<crate::device_capabilities::types::CameraRecommendedSettings>
+    for crate::device_capabilities::types::CameraRecommendedSettings
 {
-    fn into_into_dart(self) -> crate::device_capabilities::CameraRecommendedSettings {
+    fn into_into_dart(self) -> crate::device_capabilities::types::CameraRecommendedSettings {
         self
     }
 }
@@ -16267,7 +15775,7 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::imaging::CapturedImageResult>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::sequencer::CheckpointInfoApi {
+impl flutter_rust_bridge::IntoDart for crate::api::sequencer::lifecycle::CheckpointInfoApi {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.sequence_name.into_into_dart().into_dart(),
@@ -16281,18 +15789,20 @@ impl flutter_rust_bridge::IntoDart for crate::api::sequencer::CheckpointInfoApi 
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::sequencer::CheckpointInfoApi
+    for crate::api::sequencer::lifecycle::CheckpointInfoApi
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::sequencer::CheckpointInfoApi>
-    for crate::api::sequencer::CheckpointInfoApi
+impl flutter_rust_bridge::IntoIntoDart<crate::api::sequencer::lifecycle::CheckpointInfoApi>
+    for crate::api::sequencer::lifecycle::CheckpointInfoApi
 {
-    fn into_into_dart(self) -> crate::api::sequencer::CheckpointInfoApi {
+    fn into_into_dart(self) -> crate::api::sequencer::lifecycle::CheckpointInfoApi {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::device_capabilities::CoverCalibratorCapabilities {
+impl flutter_rust_bridge::IntoDart
+    for crate::device_capabilities::types::CoverCalibratorCapabilities
+{
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.max_brightness.into_into_dart().into_dart(),
@@ -16306,13 +15816,15 @@ impl flutter_rust_bridge::IntoDart for crate::device_capabilities::CoverCalibrat
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::device_capabilities::CoverCalibratorCapabilities
+    for crate::device_capabilities::types::CoverCalibratorCapabilities
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::device_capabilities::CoverCalibratorCapabilities>
-    for crate::device_capabilities::CoverCalibratorCapabilities
+impl
+    flutter_rust_bridge::IntoIntoDart<
+        crate::device_capabilities::types::CoverCalibratorCapabilities,
+    > for crate::device_capabilities::types::CoverCalibratorCapabilities
 {
-    fn into_into_dart(self) -> crate::device_capabilities::CoverCalibratorCapabilities {
+    fn into_into_dart(self) -> crate::device_capabilities::types::CoverCalibratorCapabilities {
         self
     }
 }
@@ -16439,37 +15951,37 @@ impl flutter_rust_bridge::IntoIntoDart<crate::device::DeviceApiVersion>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::device_capabilities::DeviceCapabilities {
+impl flutter_rust_bridge::IntoDart for crate::device_capabilities::types::DeviceCapabilities {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
-            crate::device_capabilities::DeviceCapabilities::Mount(field0) => {
+            crate::device_capabilities::types::DeviceCapabilities::Mount(field0) => {
                 [0.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::device_capabilities::DeviceCapabilities::Camera(field0) => {
+            crate::device_capabilities::types::DeviceCapabilities::Camera(field0) => {
                 [1.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::device_capabilities::DeviceCapabilities::Focuser(field0) => {
+            crate::device_capabilities::types::DeviceCapabilities::Focuser(field0) => {
                 [2.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::device_capabilities::DeviceCapabilities::FilterWheel(field0) => {
+            crate::device_capabilities::types::DeviceCapabilities::FilterWheel(field0) => {
                 [3.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::device_capabilities::DeviceCapabilities::Rotator(field0) => {
+            crate::device_capabilities::types::DeviceCapabilities::Rotator(field0) => {
                 [4.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::device_capabilities::DeviceCapabilities::Dome(field0) => {
+            crate::device_capabilities::types::DeviceCapabilities::Dome(field0) => {
                 [5.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::device_capabilities::DeviceCapabilities::CoverCalibrator(field0) => {
+            crate::device_capabilities::types::DeviceCapabilities::CoverCalibrator(field0) => {
                 [6.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::device_capabilities::DeviceCapabilities::Weather(field0) => {
+            crate::device_capabilities::types::DeviceCapabilities::Weather(field0) => {
                 [7.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::device_capabilities::DeviceCapabilities::SafetyMonitor(field0) => {
+            crate::device_capabilities::types::DeviceCapabilities::SafetyMonitor(field0) => {
                 [8.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::device_capabilities::DeviceCapabilities::Switch(field0) => {
+            crate::device_capabilities::types::DeviceCapabilities::Switch(field0) => {
                 [9.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
             _ => {
@@ -16479,13 +15991,13 @@ impl flutter_rust_bridge::IntoDart for crate::device_capabilities::DeviceCapabil
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::device_capabilities::DeviceCapabilities
+    for crate::device_capabilities::types::DeviceCapabilities
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::device_capabilities::DeviceCapabilities>
-    for crate::device_capabilities::DeviceCapabilities
+impl flutter_rust_bridge::IntoIntoDart<crate::device_capabilities::types::DeviceCapabilities>
+    for crate::device_capabilities::types::DeviceCapabilities
 {
-    fn into_into_dart(self) -> crate::device_capabilities::DeviceCapabilities {
+    fn into_into_dart(self) -> crate::device_capabilities::types::DeviceCapabilities {
         self
     }
 }
@@ -16566,7 +16078,7 @@ impl flutter_rust_bridge::IntoIntoDart<crate::device::DeviceType> for crate::dev
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::device_capabilities::DomeCapabilities {
+impl flutter_rust_bridge::IntoDart for crate::device_capabilities::types::DomeCapabilities {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.can_set_azimuth.into_into_dart().into_dart(),
@@ -16587,13 +16099,13 @@ impl flutter_rust_bridge::IntoDart for crate::device_capabilities::DomeCapabilit
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::device_capabilities::DomeCapabilities
+    for crate::device_capabilities::types::DomeCapabilities
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::device_capabilities::DomeCapabilities>
-    for crate::device_capabilities::DomeCapabilities
+impl flutter_rust_bridge::IntoIntoDart<crate::device_capabilities::types::DomeCapabilities>
+    for crate::device_capabilities::types::DomeCapabilities
 {
-    fn into_into_dart(self) -> crate::device_capabilities::DomeCapabilities {
+    fn into_into_dart(self) -> crate::device_capabilities::types::DomeCapabilities {
         self
     }
 }
@@ -16643,10 +16155,10 @@ impl flutter_rust_bridge::IntoIntoDart<crate::device::DriverType> for crate::dev
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::event::EquipmentEvent {
+impl flutter_rust_bridge::IntoDart for crate::event::equipment::EquipmentEvent {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
-            crate::event::EquipmentEvent::Connecting {
+            crate::event::equipment::EquipmentEvent::Connecting {
                 device_type,
                 device_id,
             } => [
@@ -16655,7 +16167,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::EquipmentEvent {
                 device_id.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::EquipmentEvent::Connected {
+            crate::event::equipment::EquipmentEvent::Connected {
                 device_type,
                 device_id,
             } => [
@@ -16664,7 +16176,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::EquipmentEvent {
                 device_id.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::EquipmentEvent::Disconnected {
+            crate::event::equipment::EquipmentEvent::Disconnected {
                 device_type,
                 device_id,
             } => [
@@ -16673,7 +16185,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::EquipmentEvent {
                 device_id.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::EquipmentEvent::PropertyChanged {
+            crate::event::equipment::EquipmentEvent::PropertyChanged {
                 device_type,
                 device_id,
                 property,
@@ -16686,7 +16198,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::EquipmentEvent {
                 value.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::EquipmentEvent::Error {
+            crate::event::equipment::EquipmentEvent::Error {
                 device_type,
                 device_id,
                 message,
@@ -16697,33 +16209,41 @@ impl flutter_rust_bridge::IntoDart for crate::event::EquipmentEvent {
                 message.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::EquipmentEvent::MountSlewStarted { ra, dec } => [
+            crate::event::equipment::EquipmentEvent::MountSlewStarted { ra, dec } => [
                 5.into_dart(),
                 ra.into_into_dart().into_dart(),
                 dec.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::EquipmentEvent::MountSlewCompleted { ra, dec } => [
+            crate::event::equipment::EquipmentEvent::MountSlewCompleted { ra, dec } => [
                 6.into_dart(),
                 ra.into_into_dart().into_dart(),
                 dec.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::EquipmentEvent::MountTrackingStarted => [7.into_dart()].into_dart(),
-            crate::event::EquipmentEvent::MountTrackingStopped => [8.into_dart()].into_dart(),
-            crate::event::EquipmentEvent::MountParkStarted => [9.into_dart()].into_dart(),
-            crate::event::EquipmentEvent::MountParkCompleted => [10.into_dart()].into_dart(),
-            crate::event::EquipmentEvent::MountUnparked => [11.into_dart()].into_dart(),
-            crate::event::EquipmentEvent::FocuserMoveStarted { target_position } => {
+            crate::event::equipment::EquipmentEvent::MountTrackingStarted => {
+                [7.into_dart()].into_dart()
+            }
+            crate::event::equipment::EquipmentEvent::MountTrackingStopped => {
+                [8.into_dart()].into_dart()
+            }
+            crate::event::equipment::EquipmentEvent::MountParkStarted => {
+                [9.into_dart()].into_dart()
+            }
+            crate::event::equipment::EquipmentEvent::MountParkCompleted => {
+                [10.into_dart()].into_dart()
+            }
+            crate::event::equipment::EquipmentEvent::MountUnparked => [11.into_dart()].into_dart(),
+            crate::event::equipment::EquipmentEvent::FocuserMoveStarted { target_position } => {
                 [12.into_dart(), target_position.into_into_dart().into_dart()].into_dart()
             }
-            crate::event::EquipmentEvent::FocuserMoveCompleted { position } => {
+            crate::event::equipment::EquipmentEvent::FocuserMoveCompleted { position } => {
                 [13.into_dart(), position.into_into_dart().into_dart()].into_dart()
             }
-            crate::event::EquipmentEvent::FocuserTemperatureChanged { temperature } => {
+            crate::event::equipment::EquipmentEvent::FocuserTemperatureChanged { temperature } => {
                 [14.into_dart(), temperature.into_into_dart().into_dart()].into_dart()
             }
-            crate::event::EquipmentEvent::FilterChanging {
+            crate::event::equipment::EquipmentEvent::FilterChanging {
                 from_position,
                 to_position,
                 filter_name,
@@ -16734,7 +16254,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::EquipmentEvent {
                 filter_name.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::EquipmentEvent::FilterChanged {
+            crate::event::equipment::EquipmentEvent::FilterChanged {
                 position,
                 filter_name,
             } => [
@@ -16743,21 +16263,25 @@ impl flutter_rust_bridge::IntoDart for crate::event::EquipmentEvent {
                 filter_name.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::EquipmentEvent::RotatorMoveStarted { target_angle } => {
+            crate::event::equipment::EquipmentEvent::RotatorMoveStarted { target_angle } => {
                 [17.into_dart(), target_angle.into_into_dart().into_dart()].into_dart()
             }
-            crate::event::EquipmentEvent::RotatorMoveCompleted { angle } => {
+            crate::event::equipment::EquipmentEvent::RotatorMoveCompleted { angle } => {
                 [18.into_dart(), angle.into_into_dart().into_dart()].into_dart()
             }
-            crate::event::EquipmentEvent::CameraCoolingStarted { target_temp } => {
+            crate::event::equipment::EquipmentEvent::CameraCoolingStarted { target_temp } => {
                 [19.into_dart(), target_temp.into_into_dart().into_dart()].into_dart()
             }
-            crate::event::EquipmentEvent::CameraCoolingReached { temperature } => {
+            crate::event::equipment::EquipmentEvent::CameraCoolingReached { temperature } => {
                 [20.into_dart(), temperature.into_into_dart().into_dart()].into_dart()
             }
-            crate::event::EquipmentEvent::CameraWarmingStarted => [21.into_dart()].into_dart(),
-            crate::event::EquipmentEvent::CameraWarmingCompleted => [22.into_dart()].into_dart(),
-            crate::event::EquipmentEvent::HeartbeatStarted {
+            crate::event::equipment::EquipmentEvent::CameraWarmingStarted => {
+                [21.into_dart()].into_dart()
+            }
+            crate::event::equipment::EquipmentEvent::CameraWarmingCompleted => {
+                [22.into_dart()].into_dart()
+            }
+            crate::event::equipment::EquipmentEvent::HeartbeatStarted {
                 device_type,
                 device_id,
                 interval_secs,
@@ -16768,7 +16292,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::EquipmentEvent {
                 interval_secs.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::EquipmentEvent::HeartbeatStopped {
+            crate::event::equipment::EquipmentEvent::HeartbeatStopped {
                 device_type,
                 device_id,
             } => [
@@ -16777,7 +16301,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::EquipmentEvent {
                 device_id.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::EquipmentEvent::HeartbeatStatusChanged {
+            crate::event::equipment::EquipmentEvent::HeartbeatStatusChanged {
                 device_type,
                 device_id,
                 status,
@@ -16792,7 +16316,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::EquipmentEvent {
                 last_rtt_ms.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::EquipmentEvent::HeartbeatReconnecting {
+            crate::event::equipment::EquipmentEvent::HeartbeatReconnecting {
                 device_type,
                 device_id,
                 attempt,
@@ -16805,7 +16329,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::EquipmentEvent {
                 max_attempts.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::EquipmentEvent::HeartbeatReconnected {
+            crate::event::equipment::EquipmentEvent::HeartbeatReconnected {
                 device_type,
                 device_id,
                 after_attempts,
@@ -16816,7 +16340,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::EquipmentEvent {
                 after_attempts.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::EquipmentEvent::DeviceDiscovered {
+            crate::event::equipment::EquipmentEvent::DeviceDiscovered {
                 device_class,
                 driver,
                 id,
@@ -16833,7 +16357,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::EquipmentEvent {
                 unique_id.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::EquipmentEvent::DeviceLost {
+            crate::event::equipment::EquipmentEvent::DeviceLost {
                 device_class,
                 driver,
                 id,
@@ -16850,11 +16374,14 @@ impl flutter_rust_bridge::IntoDart for crate::event::EquipmentEvent {
         }
     }
 }
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::event::EquipmentEvent {}
-impl flutter_rust_bridge::IntoIntoDart<crate::event::EquipmentEvent>
-    for crate::event::EquipmentEvent
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::event::equipment::EquipmentEvent
 {
-    fn into_into_dart(self) -> crate::event::EquipmentEvent {
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::event::equipment::EquipmentEvent>
+    for crate::event::equipment::EquipmentEvent
+{
+    fn into_into_dart(self) -> crate::event::equipment::EquipmentEvent {
         self
     }
 }
@@ -16892,7 +16419,7 @@ impl flutter_rust_bridge::IntoIntoDart<crate::state::EquipmentProfile>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::event::EventCategory {
+impl flutter_rust_bridge::IntoDart for crate::event::equipment::EventCategory {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
             Self::Equipment => 0.into_dart(),
@@ -16906,43 +16433,46 @@ impl flutter_rust_bridge::IntoDart for crate::event::EventCategory {
         }
     }
 }
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::event::EventCategory {}
-impl flutter_rust_bridge::IntoIntoDart<crate::event::EventCategory>
-    for crate::event::EventCategory
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::event::equipment::EventCategory
 {
-    fn into_into_dart(self) -> crate::event::EventCategory {
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::event::equipment::EventCategory>
+    for crate::event::equipment::EventCategory
+{
+    fn into_into_dart(self) -> crate::event::equipment::EventCategory {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::event::EventPayload {
+impl flutter_rust_bridge::IntoDart for crate::event::bus::EventPayload {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
-            crate::event::EventPayload::Equipment(field0) => {
+            crate::event::bus::EventPayload::Equipment(field0) => {
                 [0.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::event::EventPayload::Imaging(field0) => {
+            crate::event::bus::EventPayload::Imaging(field0) => {
                 [1.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::event::EventPayload::Guiding(field0) => {
+            crate::event::bus::EventPayload::Guiding(field0) => {
                 [2.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::event::EventPayload::Sequencer(field0) => {
+            crate::event::bus::EventPayload::Sequencer(field0) => {
                 [3.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::event::EventPayload::Safety(field0) => {
+            crate::event::bus::EventPayload::Safety(field0) => {
                 [4.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::event::EventPayload::System(field0) => {
+            crate::event::bus::EventPayload::System(field0) => {
                 [5.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::event::EventPayload::PolarAlignment(field0) => {
+            crate::event::bus::EventPayload::PolarAlignment(field0) => {
                 [6.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::event::EventPayload::PolarAlignmentStatus(field0) => {
+            crate::event::bus::EventPayload::PolarAlignmentStatus(field0) => {
                 [7.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::event::EventPayload::PolarAlignmentImage(field0) => {
+            crate::event::bus::EventPayload::PolarAlignmentImage(field0) => {
                 [8.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
             _ => {
@@ -16951,14 +16481,19 @@ impl flutter_rust_bridge::IntoDart for crate::event::EventPayload {
         }
     }
 }
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::event::EventPayload {}
-impl flutter_rust_bridge::IntoIntoDart<crate::event::EventPayload> for crate::event::EventPayload {
-    fn into_into_dart(self) -> crate::event::EventPayload {
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::event::bus::EventPayload
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::event::bus::EventPayload>
+    for crate::event::bus::EventPayload
+{
+    fn into_into_dart(self) -> crate::event::bus::EventPayload {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::event::EventSeverity {
+impl flutter_rust_bridge::IntoDart for crate::event::equipment::EventSeverity {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
             Self::Info => 0.into_dart(),
@@ -16969,11 +16504,14 @@ impl flutter_rust_bridge::IntoDart for crate::event::EventSeverity {
         }
     }
 }
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::event::EventSeverity {}
-impl flutter_rust_bridge::IntoIntoDart<crate::event::EventSeverity>
-    for crate::event::EventSeverity
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::event::equipment::EventSeverity
 {
-    fn into_into_dart(self) -> crate::event::EventSeverity {
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::event::equipment::EventSeverity>
+    for crate::event::equipment::EventSeverity
+{
+    fn into_into_dart(self) -> crate::event::equipment::EventSeverity {
         self
     }
 }
@@ -17004,7 +16542,7 @@ impl flutter_rust_bridge::IntoIntoDart<crate::device::FieldAvailability>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::device_capabilities::FilterWheelCapabilities {
+impl flutter_rust_bridge::IntoDart for crate::device_capabilities::types::FilterWheelCapabilities {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.position_count.into_into_dart().into_dart(),
@@ -17019,13 +16557,13 @@ impl flutter_rust_bridge::IntoDart for crate::device_capabilities::FilterWheelCa
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::device_capabilities::FilterWheelCapabilities
+    for crate::device_capabilities::types::FilterWheelCapabilities
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::device_capabilities::FilterWheelCapabilities>
-    for crate::device_capabilities::FilterWheelCapabilities
+impl flutter_rust_bridge::IntoIntoDart<crate::device_capabilities::types::FilterWheelCapabilities>
+    for crate::device_capabilities::types::FilterWheelCapabilities
 {
-    fn into_into_dart(self) -> crate::device_capabilities::FilterWheelCapabilities {
+    fn into_into_dart(self) -> crate::device_capabilities::types::FilterWheelCapabilities {
         self
     }
 }
@@ -17304,7 +16842,7 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::imaging::FocusDataPointApi>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::device_capabilities::FocuserCapabilities {
+impl flutter_rust_bridge::IntoDart for crate::device_capabilities::types::FocuserCapabilities {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.max_position.into_into_dart().into_dart(),
@@ -17324,13 +16862,13 @@ impl flutter_rust_bridge::IntoDart for crate::device_capabilities::FocuserCapabi
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::device_capabilities::FocuserCapabilities
+    for crate::device_capabilities::types::FocuserCapabilities
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::device_capabilities::FocuserCapabilities>
-    for crate::device_capabilities::FocuserCapabilities
+impl flutter_rust_bridge::IntoIntoDart<crate::device_capabilities::types::FocuserCapabilities>
+    for crate::device_capabilities::types::FocuserCapabilities
 {
-    fn into_into_dart(self) -> crate::device_capabilities::FocuserCapabilities {
+    fn into_into_dart(self) -> crate::device_capabilities::types::FocuserCapabilities {
         self
     }
 }
@@ -17359,7 +16897,7 @@ impl flutter_rust_bridge::IntoIntoDart<crate::device::FocuserStatus>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::event::FrameCaptureMetadata {
+impl flutter_rust_bridge::IntoDart for crate::event::sequencer::FrameCaptureMetadata {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.gain.into_into_dart().into_dart(),
@@ -17384,13 +16922,13 @@ impl flutter_rust_bridge::IntoDart for crate::event::FrameCaptureMetadata {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::event::FrameCaptureMetadata
+    for crate::event::sequencer::FrameCaptureMetadata
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::event::FrameCaptureMetadata>
-    for crate::event::FrameCaptureMetadata
+impl flutter_rust_bridge::IntoIntoDart<crate::event::sequencer::FrameCaptureMetadata>
+    for crate::event::sequencer::FrameCaptureMetadata
 {
-    fn into_into_dart(self) -> crate::event::FrameCaptureMetadata {
+    fn into_into_dart(self) -> crate::event::sequencer::FrameCaptureMetadata {
         self
     }
 }
@@ -17439,24 +16977,24 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::imaging::FrameTypeApi>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::event::GuidingEvent {
+impl flutter_rust_bridge::IntoDart for crate::event::guiding::GuidingEvent {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
-            crate::event::GuidingEvent::Connected => [0.into_dart()].into_dart(),
-            crate::event::GuidingEvent::Disconnected => [1.into_dart()].into_dart(),
-            crate::event::GuidingEvent::GuidingStarted => [2.into_dart()].into_dart(),
-            crate::event::GuidingEvent::GuidingStopped => [3.into_dart()].into_dart(),
-            crate::event::GuidingEvent::Paused => [4.into_dart()].into_dart(),
-            crate::event::GuidingEvent::Resumed => [5.into_dart()].into_dart(),
-            crate::event::GuidingEvent::Settled { rms } => {
+            crate::event::guiding::GuidingEvent::Connected => [0.into_dart()].into_dart(),
+            crate::event::guiding::GuidingEvent::Disconnected => [1.into_dart()].into_dart(),
+            crate::event::guiding::GuidingEvent::GuidingStarted => [2.into_dart()].into_dart(),
+            crate::event::guiding::GuidingEvent::GuidingStopped => [3.into_dart()].into_dart(),
+            crate::event::guiding::GuidingEvent::Paused => [4.into_dart()].into_dart(),
+            crate::event::guiding::GuidingEvent::Resumed => [5.into_dart()].into_dart(),
+            crate::event::guiding::GuidingEvent::Settled { rms } => {
                 [6.into_dart(), rms.into_into_dart().into_dart()].into_dart()
             }
-            crate::event::GuidingEvent::LostStar => [7.into_dart()].into_dart(),
-            crate::event::GuidingEvent::DitherStarted { pixels } => {
+            crate::event::guiding::GuidingEvent::LostStar => [7.into_dart()].into_dart(),
+            crate::event::guiding::GuidingEvent::DitherStarted { pixels } => {
                 [8.into_dart(), pixels.into_into_dart().into_dart()].into_dart()
             }
-            crate::event::GuidingEvent::DitherCompleted => [9.into_dart()].into_dart(),
-            crate::event::GuidingEvent::Correction {
+            crate::event::guiding::GuidingEvent::DitherCompleted => [9.into_dart()].into_dart(),
+            crate::event::guiding::GuidingEvent::Correction {
                 ra,
                 dec,
                 ra_raw,
@@ -17469,20 +17007,22 @@ impl flutter_rust_bridge::IntoDart for crate::event::GuidingEvent {
                 dec_raw.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::GuidingEvent::Looping => [11.into_dart()].into_dart(),
-            crate::event::GuidingEvent::Settling => [12.into_dart()].into_dart(),
-            crate::event::GuidingEvent::Calibrating => [13.into_dart()].into_dart(),
-            crate::event::GuidingEvent::CalibrationComplete => [14.into_dart()].into_dart(),
-            crate::event::GuidingEvent::StarSelected { x, y } => [
+            crate::event::guiding::GuidingEvent::Looping => [11.into_dart()].into_dart(),
+            crate::event::guiding::GuidingEvent::Settling => [12.into_dart()].into_dart(),
+            crate::event::guiding::GuidingEvent::Calibrating => [13.into_dart()].into_dart(),
+            crate::event::guiding::GuidingEvent::CalibrationComplete => {
+                [14.into_dart()].into_dart()
+            }
+            crate::event::guiding::GuidingEvent::StarSelected { x, y } => [
                 15.into_dart(),
                 x.into_into_dart().into_dart(),
                 y.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::GuidingEvent::AppState { state } => {
+            crate::event::guiding::GuidingEvent::AppState { state } => {
                 [16.into_dart(), state.into_into_dart().into_dart()].into_dart()
             }
-            crate::event::GuidingEvent::GuideStats { snr, star_mass } => [
+            crate::event::guiding::GuidingEvent::GuideStats { snr, star_mass } => [
                 17.into_dart(),
                 snr.into_into_dart().into_dart(),
                 star_mass.into_into_dart().into_dart(),
@@ -17494,14 +17034,19 @@ impl flutter_rust_bridge::IntoDart for crate::event::GuidingEvent {
         }
     }
 }
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::event::GuidingEvent {}
-impl flutter_rust_bridge::IntoIntoDart<crate::event::GuidingEvent> for crate::event::GuidingEvent {
-    fn into_into_dart(self) -> crate::event::GuidingEvent {
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::event::guiding::GuidingEvent
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::event::guiding::GuidingEvent>
+    for crate::event::guiding::GuidingEvent
+{
+    fn into_into_dart(self) -> crate::event::guiding::GuidingEvent {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::event::HeartbeatStatus {
+impl flutter_rust_bridge::IntoDart for crate::event::equipment::HeartbeatStatus {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
             Self::Healthy => 0.into_dart(),
@@ -17513,11 +17058,14 @@ impl flutter_rust_bridge::IntoDart for crate::event::HeartbeatStatus {
         }
     }
 }
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::event::HeartbeatStatus {}
-impl flutter_rust_bridge::IntoIntoDart<crate::event::HeartbeatStatus>
-    for crate::event::HeartbeatStatus
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::event::equipment::HeartbeatStatus
 {
-    fn into_into_dart(self) -> crate::event::HeartbeatStatus {
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::event::equipment::HeartbeatStatus>
+    for crate::event::equipment::HeartbeatStatus
+{
+    fn into_into_dart(self) -> crate::event::equipment::HeartbeatStatus {
         self
     }
 }
@@ -17550,10 +17098,10 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::imaging::ImageStatsResult>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::event::ImagingEvent {
+impl flutter_rust_bridge::IntoDart for crate::event::imaging::ImagingEvent {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
-            crate::event::ImagingEvent::ExposureStarted {
+            crate::event::imaging::ImagingEvent::ExposureStarted {
                 duration_secs,
                 frame_type,
             } => [
@@ -17562,7 +17110,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::ImagingEvent {
                 frame_type.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::ImagingEvent::ExposureStartedWithFrame {
+            crate::event::imaging::ImagingEvent::ExposureStartedWithFrame {
                 duration_secs,
                 frame_type,
                 frame_number,
@@ -17575,7 +17123,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::ImagingEvent {
                 total_frames.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::ImagingEvent::ExposureProgress {
+            crate::event::imaging::ImagingEvent::ExposureProgress {
                 progress,
                 remaining_secs,
             } => [
@@ -17584,7 +17132,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::ImagingEvent {
                 remaining_secs.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::ImagingEvent::ExposureCompleted {
+            crate::event::imaging::ImagingEvent::ExposureCompleted {
                 file_path,
                 hfr,
                 stars_detected,
@@ -17595,7 +17143,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::ImagingEvent {
                 stars_detected.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::ImagingEvent::ExposureCompletedWithFrame {
+            crate::event::imaging::ImagingEvent::ExposureCompletedWithFrame {
                 frame_number,
                 total_frames,
                 hfr,
@@ -17608,22 +17156,22 @@ impl flutter_rust_bridge::IntoDart for crate::event::ImagingEvent {
                 stars_detected.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::ImagingEvent::ExposureFailed { error } => {
+            crate::event::imaging::ImagingEvent::ExposureFailed { error } => {
                 [5.into_dart(), error.into_into_dart().into_dart()].into_dart()
             }
-            crate::event::ImagingEvent::ExposureCancelled => [6.into_dart()].into_dart(),
-            crate::event::ImagingEvent::DownloadStarted => [7.into_dart()].into_dart(),
-            crate::event::ImagingEvent::DownloadCompleted => [8.into_dart()].into_dart(),
-            crate::event::ImagingEvent::ImageReady { width, height } => [
+            crate::event::imaging::ImagingEvent::ExposureCancelled => [6.into_dart()].into_dart(),
+            crate::event::imaging::ImagingEvent::DownloadStarted => [7.into_dart()].into_dart(),
+            crate::event::imaging::ImagingEvent::DownloadCompleted => [8.into_dart()].into_dart(),
+            crate::event::imaging::ImagingEvent::ImageReady { width, height } => [
                 9.into_dart(),
                 width.into_into_dart().into_dart(),
                 height.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::ImagingEvent::ImageSaved { file_path } => {
+            crate::event::imaging::ImagingEvent::ImageSaved { file_path } => {
                 [10.into_dart(), file_path.into_into_dart().into_dart()].into_dart()
             }
-            crate::event::ImagingEvent::IntegrationProgress {
+            crate::event::imaging::ImagingEvent::IntegrationProgress {
                 phase,
                 fraction,
                 frames_done,
@@ -17636,7 +17184,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::ImagingEvent {
                 frames_total.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::ImagingEvent::TemperatureChanged {
+            crate::event::imaging::ImagingEvent::TemperatureChanged {
                 temp_celsius,
                 cooler_power,
             } => [
@@ -17645,10 +17193,10 @@ impl flutter_rust_bridge::IntoDart for crate::event::ImagingEvent {
                 cooler_power.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::ImagingEvent::ExposureComplete { success } => {
+            crate::event::imaging::ImagingEvent::ExposureComplete { success } => {
                 [13.into_dart(), success.into_into_dart().into_dart()].into_dart()
             }
-            crate::event::ImagingEvent::ExposureFailedOld { reason } => {
+            crate::event::imaging::ImagingEvent::ExposureFailedOld { reason } => {
                 [14.into_dart(), reason.into_into_dart().into_dart()].into_dart()
             }
             _ => {
@@ -17657,9 +17205,14 @@ impl flutter_rust_bridge::IntoDart for crate::event::ImagingEvent {
         }
     }
 }
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::event::ImagingEvent {}
-impl flutter_rust_bridge::IntoIntoDart<crate::event::ImagingEvent> for crate::event::ImagingEvent {
-    fn into_into_dart(self) -> crate::event::ImagingEvent {
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::event::imaging::ImagingEvent
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::event::imaging::ImagingEvent>
+    for crate::event::imaging::ImagingEvent
+{
+    fn into_into_dart(self) -> crate::event::imaging::ImagingEvent {
         self
     }
 }
@@ -17722,7 +17275,9 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::imaging::IndiAutofocusResultA
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::sequencer::LiveStackingBroadcastSnapshot {
+impl flutter_rust_bridge::IntoDart
+    for crate::api::sequencer::mosaic::LiveStackingBroadcastSnapshot
+{
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.node_id.into_into_dart().into_dart(),
@@ -17742,18 +17297,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::sequencer::LiveStackingBroadc
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::sequencer::LiveStackingBroadcastSnapshot
+    for crate::api::sequencer::mosaic::LiveStackingBroadcastSnapshot
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::sequencer::LiveStackingBroadcastSnapshot>
-    for crate::api::sequencer::LiveStackingBroadcastSnapshot
+impl flutter_rust_bridge::IntoIntoDart<crate::api::sequencer::mosaic::LiveStackingBroadcastSnapshot>
+    for crate::api::sequencer::mosaic::LiveStackingBroadcastSnapshot
 {
-    fn into_into_dart(self) -> crate::api::sequencer::LiveStackingBroadcastSnapshot {
+    fn into_into_dart(self) -> crate::api::sequencer::mosaic::LiveStackingBroadcastSnapshot {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::sequencer::MosaicPanelResult {
+impl flutter_rust_bridge::IntoDart for crate::api::sequencer::mosaic::MosaicPanelResult {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.ra_hours.into_into_dart().into_dart(),
@@ -17766,18 +17321,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::sequencer::MosaicPanelResult 
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::sequencer::MosaicPanelResult
+    for crate::api::sequencer::mosaic::MosaicPanelResult
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::sequencer::MosaicPanelResult>
-    for crate::api::sequencer::MosaicPanelResult
+impl flutter_rust_bridge::IntoIntoDart<crate::api::sequencer::mosaic::MosaicPanelResult>
+    for crate::api::sequencer::mosaic::MosaicPanelResult
 {
-    fn into_into_dart(self) -> crate::api::sequencer::MosaicPanelResult {
+    fn into_into_dart(self) -> crate::api::sequencer::mosaic::MosaicPanelResult {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::device_capabilities::MountCapabilities {
+impl flutter_rust_bridge::IntoDart for crate::device_capabilities::types::MountCapabilities {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.can_slew.into_into_dart().into_dart(),
@@ -17809,13 +17364,13 @@ impl flutter_rust_bridge::IntoDart for crate::device_capabilities::MountCapabili
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::device_capabilities::MountCapabilities
+    for crate::device_capabilities::types::MountCapabilities
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::device_capabilities::MountCapabilities>
-    for crate::device_capabilities::MountCapabilities
+impl flutter_rust_bridge::IntoIntoDart<crate::device_capabilities::types::MountCapabilities>
+    for crate::device_capabilities::types::MountCapabilities
 {
-    fn into_into_dart(self) -> crate::device_capabilities::MountCapabilities {
+    fn into_into_dart(self) -> crate::device_capabilities::types::MountCapabilities {
         self
     }
 }
@@ -18076,7 +17631,7 @@ impl flutter_rust_bridge::IntoIntoDart<crate::error::NightshadeError>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::event::NightshadeEvent {
+impl flutter_rust_bridge::IntoDart for crate::event::bus::NightshadeEvent {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.event_id.into_into_dart().into_dart(),
@@ -18091,11 +17646,14 @@ impl flutter_rust_bridge::IntoDart for crate::event::NightshadeEvent {
         .into_dart()
     }
 }
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::event::NightshadeEvent {}
-impl flutter_rust_bridge::IntoIntoDart<crate::event::NightshadeEvent>
-    for crate::event::NightshadeEvent
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::event::bus::NightshadeEvent
 {
-    fn into_into_dart(self) -> crate::event::NightshadeEvent {
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::event::bus::NightshadeEvent>
+    for crate::event::bus::NightshadeEvent
+{
+    fn into_into_dart(self) -> crate::event::bus::NightshadeEvent {
         self
     }
 }
@@ -18367,7 +17925,7 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::plate_solve::PlateSolverInfo>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::event::PolarAlignmentEvent {
+impl flutter_rust_bridge::IntoDart for crate::event::imaging::PolarAlignmentEvent {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.azimuth_error.into_into_dart().into_dart(),
@@ -18382,18 +17940,18 @@ impl flutter_rust_bridge::IntoDart for crate::event::PolarAlignmentEvent {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::event::PolarAlignmentEvent
+    for crate::event::imaging::PolarAlignmentEvent
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::event::PolarAlignmentEvent>
-    for crate::event::PolarAlignmentEvent
+impl flutter_rust_bridge::IntoIntoDart<crate::event::imaging::PolarAlignmentEvent>
+    for crate::event::imaging::PolarAlignmentEvent
 {
-    fn into_into_dart(self) -> crate::event::PolarAlignmentEvent {
+    fn into_into_dart(self) -> crate::event::imaging::PolarAlignmentEvent {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::event::PolarAlignmentImageEvent {
+impl flutter_rust_bridge::IntoDart for crate::event::imaging::PolarAlignmentImageEvent {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.image_data.into_into_dart().into_dart(),
@@ -18408,18 +17966,18 @@ impl flutter_rust_bridge::IntoDart for crate::event::PolarAlignmentImageEvent {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::event::PolarAlignmentImageEvent
+    for crate::event::imaging::PolarAlignmentImageEvent
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::event::PolarAlignmentImageEvent>
-    for crate::event::PolarAlignmentImageEvent
+impl flutter_rust_bridge::IntoIntoDart<crate::event::imaging::PolarAlignmentImageEvent>
+    for crate::event::imaging::PolarAlignmentImageEvent
 {
-    fn into_into_dart(self) -> crate::event::PolarAlignmentImageEvent {
+    fn into_into_dart(self) -> crate::event::imaging::PolarAlignmentImageEvent {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::event::PolarAlignmentStatus {
+impl flutter_rust_bridge::IntoDart for crate::event::imaging::PolarAlignmentStatus {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.status.into_into_dart().into_dart(),
@@ -18430,13 +17988,13 @@ impl flutter_rust_bridge::IntoDart for crate::event::PolarAlignmentStatus {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::event::PolarAlignmentStatus
+    for crate::event::imaging::PolarAlignmentStatus
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::event::PolarAlignmentStatus>
-    for crate::event::PolarAlignmentStatus
+impl flutter_rust_bridge::IntoIntoDart<crate::event::imaging::PolarAlignmentStatus>
+    for crate::event::imaging::PolarAlignmentStatus
 {
-    fn into_into_dart(self) -> crate::event::PolarAlignmentStatus {
+    fn into_into_dart(self) -> crate::event::imaging::PolarAlignmentStatus {
         self
     }
 }
@@ -18567,7 +18125,7 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::diagnostics::QuirkInfo>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::sequencer::RecoveryConfigUpdate {
+impl flutter_rust_bridge::IntoDart for crate::api::sequencer::runtime_config::RecoveryConfigUpdate {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.retry_interval_secs.into_into_dart().into_dart(),
@@ -18582,18 +18140,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::sequencer::RecoveryConfigUpda
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::sequencer::RecoveryConfigUpdate
+    for crate::api::sequencer::runtime_config::RecoveryConfigUpdate
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::sequencer::RecoveryConfigUpdate>
-    for crate::api::sequencer::RecoveryConfigUpdate
+impl flutter_rust_bridge::IntoIntoDart<crate::api::sequencer::runtime_config::RecoveryConfigUpdate>
+    for crate::api::sequencer::runtime_config::RecoveryConfigUpdate
 {
-    fn into_into_dart(self) -> crate::api::sequencer::RecoveryConfigUpdate {
+    fn into_into_dart(self) -> crate::api::sequencer::runtime_config::RecoveryConfigUpdate {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::device_capabilities::RotatorCapabilities {
+impl flutter_rust_bridge::IntoDart for crate::device_capabilities::types::RotatorCapabilities {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.can_reverse.into_into_dart().into_dart(),
@@ -18612,13 +18170,13 @@ impl flutter_rust_bridge::IntoDart for crate::device_capabilities::RotatorCapabi
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::device_capabilities::RotatorCapabilities
+    for crate::device_capabilities::types::RotatorCapabilities
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::device_capabilities::RotatorCapabilities>
-    for crate::device_capabilities::RotatorCapabilities
+impl flutter_rust_bridge::IntoIntoDart<crate::device_capabilities::types::RotatorCapabilities>
+    for crate::device_capabilities::types::RotatorCapabilities
 {
-    fn into_into_dart(self) -> crate::device_capabilities::RotatorCapabilities {
+    fn into_into_dart(self) -> crate::device_capabilities::types::RotatorCapabilities {
         self
     }
 }
@@ -18645,34 +18203,41 @@ impl flutter_rust_bridge::IntoIntoDart<crate::device::RotatorStatus>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::event::SafetyEvent {
+impl flutter_rust_bridge::IntoDart for crate::event::system::SafetyEvent {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
-            crate::event::SafetyEvent::WeatherUnsafe { reason } => {
+            crate::event::system::SafetyEvent::WeatherUnsafe { reason } => {
                 [0.into_dart(), reason.into_into_dart().into_dart()].into_dart()
             }
-            crate::event::SafetyEvent::WeatherSafe => [1.into_dart()].into_dart(),
-            crate::event::SafetyEvent::EmergencyStop { reason } => {
+            crate::event::system::SafetyEvent::WeatherSafe => [1.into_dart()].into_dart(),
+            crate::event::system::SafetyEvent::EmergencyStop { reason } => {
                 [2.into_dart(), reason.into_into_dart().into_dart()].into_dart()
             }
-            crate::event::SafetyEvent::ParkInitiated { reason } => {
+            crate::event::system::SafetyEvent::ParkInitiated { reason } => {
                 [3.into_dart(), reason.into_into_dart().into_dart()].into_dart()
             }
-            crate::event::SafetyEvent::ParkCompleted => [4.into_dart()].into_dart(),
+            crate::event::system::SafetyEvent::ParkCompleted => [4.into_dart()].into_dart(),
             _ => {
                 unimplemented!("");
             }
         }
     }
 }
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::event::SafetyEvent {}
-impl flutter_rust_bridge::IntoIntoDart<crate::event::SafetyEvent> for crate::event::SafetyEvent {
-    fn into_into_dart(self) -> crate::event::SafetyEvent {
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::event::system::SafetyEvent
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::event::system::SafetyEvent>
+    for crate::event::system::SafetyEvent
+{
+    fn into_into_dart(self) -> crate::event::system::SafetyEvent {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::device_capabilities::SafetyMonitorCapabilities {
+impl flutter_rust_bridge::IntoDart
+    for crate::device_capabilities::types::SafetyMonitorCapabilities
+{
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.is_safe.into_into_dart().into_dart(),
@@ -18682,13 +18247,13 @@ impl flutter_rust_bridge::IntoDart for crate::device_capabilities::SafetyMonitor
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::device_capabilities::SafetyMonitorCapabilities
+    for crate::device_capabilities::types::SafetyMonitorCapabilities
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::device_capabilities::SafetyMonitorCapabilities>
-    for crate::device_capabilities::SafetyMonitorCapabilities
+impl flutter_rust_bridge::IntoIntoDart<crate::device_capabilities::types::SafetyMonitorCapabilities>
+    for crate::device_capabilities::types::SafetyMonitorCapabilities
 {
-    fn into_into_dart(self) -> crate::device_capabilities::SafetyMonitorCapabilities {
+    fn into_into_dart(self) -> crate::device_capabilities::types::SafetyMonitorCapabilities {
         self
     }
 }
@@ -18711,7 +18276,7 @@ impl flutter_rust_bridge::IntoIntoDart<crate::device::SafetyStatus>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::event::SchedulerScoreEntry {
+impl flutter_rust_bridge::IntoDart for crate::event::sequencer::SchedulerScoreEntry {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.target_id.into_into_dart().into_dart(),
@@ -18724,13 +18289,13 @@ impl flutter_rust_bridge::IntoDart for crate::event::SchedulerScoreEntry {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::event::SchedulerScoreEntry
+    for crate::event::sequencer::SchedulerScoreEntry
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::event::SchedulerScoreEntry>
-    for crate::event::SchedulerScoreEntry
+impl flutter_rust_bridge::IntoIntoDart<crate::event::sequencer::SchedulerScoreEntry>
+    for crate::event::sequencer::SchedulerScoreEntry
 {
-    fn into_into_dart(self) -> crate::event::SchedulerScoreEntry {
+    fn into_into_dart(self) -> crate::event::sequencer::SchedulerScoreEntry {
         self
     }
 }
@@ -18834,38 +18399,40 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::sequencer::SequenceDefinition
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
+impl flutter_rust_bridge::IntoDart for crate::event::sequencer::SequencerEvent {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
-            crate::event::SequencerEvent::Started { sequence_name } => {
+            crate::event::sequencer::SequencerEvent::Started { sequence_name } => {
                 [0.into_dart(), sequence_name.into_into_dart().into_dart()].into_dart()
             }
-            crate::event::SequencerEvent::Paused => [1.into_dart()].into_dart(),
-            crate::event::SequencerEvent::Resumed => [2.into_dart()].into_dart(),
-            crate::event::SequencerEvent::Stopped => [3.into_dart()].into_dart(),
-            crate::event::SequencerEvent::Completed => [4.into_dart()].into_dart(),
-            crate::event::SequencerEvent::Failed { error } => {
+            crate::event::sequencer::SequencerEvent::Paused => [1.into_dart()].into_dart(),
+            crate::event::sequencer::SequencerEvent::Resumed => [2.into_dart()].into_dart(),
+            crate::event::sequencer::SequencerEvent::Stopped { sequence_run_id } => {
+                [3.into_dart(), sequence_run_id.into_into_dart().into_dart()].into_dart()
+            }
+            crate::event::sequencer::SequencerEvent::Completed => [4.into_dart()].into_dart(),
+            crate::event::sequencer::SequencerEvent::Failed { error } => {
                 [5.into_dart(), error.into_into_dart().into_dart()].into_dart()
             }
-            crate::event::SequencerEvent::NodeStarted { node_id, node_type } => [
+            crate::event::sequencer::SequencerEvent::NodeStarted { node_id, node_type } => [
                 6.into_dart(),
                 node_id.into_into_dart().into_dart(),
                 node_type.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::SequencerEvent::NodeCompleted { node_id, status } => [
+            crate::event::sequencer::SequencerEvent::NodeCompleted { node_id, status } => [
                 7.into_dart(),
                 node_id.into_into_dart().into_dart(),
                 status.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::SequencerEvent::Progress { current, total } => [
+            crate::event::sequencer::SequencerEvent::Progress { current, total } => [
                 8.into_dart(),
                 current.into_into_dart().into_dart(),
                 total.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::SequencerEvent::TargetChanged {
+            crate::event::sequencer::SequencerEvent::TargetChanged {
                 target_name,
                 ra,
                 dec,
@@ -18876,10 +18443,10 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 dec.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::SequencerEvent::TargetCompleted { target_name } => {
+            crate::event::sequencer::SequencerEvent::TargetCompleted { target_name } => {
                 [10.into_dart(), target_name.into_into_dart().into_dart()].into_dart()
             }
-            crate::event::SequencerEvent::ExposureStarted {
+            crate::event::sequencer::SequencerEvent::ExposureStarted {
                 frame,
                 total,
                 filter,
@@ -18892,7 +18459,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 duration_secs.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::SequencerEvent::ExposureCompleted {
+            crate::event::sequencer::SequencerEvent::ExposureCompleted {
                 frame,
                 total,
                 duration_secs,
@@ -18903,10 +18470,10 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 duration_secs.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::SequencerEvent::Error { message } => {
+            crate::event::sequencer::SequencerEvent::Error { message } => {
                 [13.into_dart(), message.into_into_dart().into_dart()].into_dart()
             }
-            crate::event::SequencerEvent::MeridianFlipOutcome {
+            crate::event::sequencer::SequencerEvent::MeridianFlipOutcome {
                 outcome,
                 target_name,
                 new_pier_side,
@@ -18927,7 +18494,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 action_taken.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::SequencerEvent::TriggerFired {
+            crate::event::sequencer::SequencerEvent::TriggerFired {
                 trigger_id,
                 trigger_name,
                 action,
@@ -18938,7 +18505,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 action.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::SequencerEvent::InstructionProgress {
+            crate::event::sequencer::SequencerEvent::InstructionProgress {
                 node_id,
                 instruction,
                 progress_percent,
@@ -18951,7 +18518,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 detail.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::SequencerEvent::InstructionProgressStructured {
+            crate::event::sequencer::SequencerEvent::InstructionProgressStructured {
                 node_id,
                 instruction,
                 progress_percent,
@@ -18966,7 +18533,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 detail_json.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::SequencerEvent::FrameAccepted {
+            crate::event::sequencer::SequencerEvent::FrameAccepted {
                 node_id,
                 frame,
                 total,
@@ -18991,7 +18558,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 capture.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::SequencerEvent::FrameRejected {
+            crate::event::sequencer::SequencerEvent::FrameRejected {
                 node_id,
                 frame,
                 total,
@@ -19034,7 +18601,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 capture.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::SequencerEvent::SchedulerDecision {
+            crate::event::sequencer::SequencerEvent::SchedulerDecision {
                 node_id,
                 decision_counter,
                 picked_target_id,
@@ -19051,7 +18618,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 scores.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::SequencerEvent::IntegrationBudget {
+            crate::event::sequencer::SequencerEvent::IntegrationBudget {
                 target_id,
                 filter,
                 completed_secs,
@@ -19068,7 +18635,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 budget_met.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::SequencerEvent::ExposureAdjusted {
+            crate::event::sequencer::SequencerEvent::ExposureAdjusted {
                 node_id,
                 adapted_secs,
                 nominal_secs,
@@ -19085,7 +18652,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 reason.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::SequencerEvent::PhotometryFrame {
+            crate::event::sequencer::SequencerEvent::PhotometryFrame {
                 node_id,
                 target_designation,
                 reference_stars,
@@ -19122,7 +18689,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 apply_differential.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::SequencerEvent::PhotometryCadenceBroken {
+            crate::event::sequencer::SequencerEvent::PhotometryCadenceBroken {
                 node_id,
                 frame,
                 total,
@@ -19139,7 +18706,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 cadence_breaks.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::SequencerEvent::PhotometrySummary {
+            crate::event::sequencer::SequencerEvent::PhotometrySummary {
                 node_id,
                 target_designation,
                 filter,
@@ -19156,7 +18723,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 last_reject_reason.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::SequencerEvent::RecoveryStarted {
+            crate::event::sequencer::SequencerEvent::RecoveryStarted {
                 started_at_iso,
                 cause_kind,
                 cause_custom_label,
@@ -19181,7 +18748,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 last_error.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::SequencerEvent::RecoveryProgress {
+            crate::event::sequencer::SequencerEvent::RecoveryProgress {
                 started_at_iso,
                 cause_kind,
                 cause_custom_label,
@@ -19206,7 +18773,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 last_error.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::SequencerEvent::RecoveryCompleted {
+            crate::event::sequencer::SequencerEvent::RecoveryCompleted {
                 started_at_iso,
                 cause_kind,
                 cause_custom_label,
@@ -19231,7 +18798,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 last_error.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::SequencerEvent::RecoveryGaveUp {
+            crate::event::sequencer::SequencerEvent::RecoveryGaveUp {
                 started_at_iso,
                 cause_kind,
                 cause_custom_label,
@@ -19258,7 +18825,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 aborted_by_user.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::SequencerEvent::PluginNodeRequested {
+            crate::event::sequencer::SequencerEvent::PluginNodeRequested {
                 node_id,
                 plugin_id,
                 node_type_id,
@@ -19275,7 +18842,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 timeout_secs.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::SequencerEvent::PluginNodeProgress {
+            crate::event::sequencer::SequencerEvent::PluginNodeProgress {
                 node_id,
                 plugin_id,
                 node_type_id,
@@ -19288,7 +18855,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 detail_json.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::SequencerEvent::DecisionLogged {
+            crate::event::sequencer::SequencerEvent::DecisionLogged {
                 timestamp_iso,
                 category,
                 summary,
@@ -19311,11 +18878,14 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
         }
     }
 }
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::event::SequencerEvent {}
-impl flutter_rust_bridge::IntoIntoDart<crate::event::SequencerEvent>
-    for crate::event::SequencerEvent
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::event::sequencer::SequencerEvent
 {
-    fn into_into_dart(self) -> crate::event::SequencerEvent {
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::event::sequencer::SequencerEvent>
+    for crate::event::sequencer::SequencerEvent
+{
+    fn into_into_dart(self) -> crate::event::sequencer::SequencerEvent {
         self
     }
 }
@@ -19398,7 +18968,7 @@ impl flutter_rust_bridge::IntoIntoDart<crate::device::ShutterState>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::device_capabilities::ShutterStatus {
+impl flutter_rust_bridge::IntoDart for crate::device_capabilities::types::ShutterStatus {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
             Self::Open => 0.into_dart(),
@@ -19411,137 +18981,149 @@ impl flutter_rust_bridge::IntoDart for crate::device_capabilities::ShutterStatus
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::device_capabilities::ShutterStatus
+    for crate::device_capabilities::types::ShutterStatus
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::device_capabilities::ShutterStatus>
-    for crate::device_capabilities::ShutterStatus
+impl flutter_rust_bridge::IntoIntoDart<crate::device_capabilities::types::ShutterStatus>
+    for crate::device_capabilities::types::ShutterStatus
 {
-    fn into_into_dart(self) -> crate::device_capabilities::ShutterStatus {
+    fn into_into_dart(self) -> crate::device_capabilities::types::ShutterStatus {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::devices::simulation::SimulatedCamera {
+impl flutter_rust_bridge::IntoDart for crate::api::devices::simulation::camera::SimulatedCamera {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [self.status.into_into_dart().into_dart()].into_dart()
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::devices::simulation::SimulatedCamera
+    for crate::api::devices::simulation::camera::SimulatedCamera
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::devices::simulation::SimulatedCamera>
-    for crate::api::devices::simulation::SimulatedCamera
+impl flutter_rust_bridge::IntoIntoDart<crate::api::devices::simulation::camera::SimulatedCamera>
+    for crate::api::devices::simulation::camera::SimulatedCamera
 {
-    fn into_into_dart(self) -> crate::api::devices::simulation::SimulatedCamera {
+    fn into_into_dart(self) -> crate::api::devices::simulation::camera::SimulatedCamera {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::devices::simulation::SimulatedDome {
+impl flutter_rust_bridge::IntoDart for crate::api::devices::simulation::environment::SimulatedDome {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [self.status.into_into_dart().into_dart()].into_dart()
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::devices::simulation::SimulatedDome
+    for crate::api::devices::simulation::environment::SimulatedDome
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::devices::simulation::SimulatedDome>
-    for crate::api::devices::simulation::SimulatedDome
+impl flutter_rust_bridge::IntoIntoDart<crate::api::devices::simulation::environment::SimulatedDome>
+    for crate::api::devices::simulation::environment::SimulatedDome
 {
-    fn into_into_dart(self) -> crate::api::devices::simulation::SimulatedDome {
+    fn into_into_dart(self) -> crate::api::devices::simulation::environment::SimulatedDome {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::devices::simulation::SimulatedFilterWheel {
+impl flutter_rust_bridge::IntoDart
+    for crate::api::devices::simulation::filter_wheel::SimulatedFilterWheel
+{
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [self.status.into_into_dart().into_dart()].into_dart()
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::devices::simulation::SimulatedFilterWheel
+    for crate::api::devices::simulation::filter_wheel::SimulatedFilterWheel
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::devices::simulation::SimulatedFilterWheel>
-    for crate::api::devices::simulation::SimulatedFilterWheel
+impl
+    flutter_rust_bridge::IntoIntoDart<
+        crate::api::devices::simulation::filter_wheel::SimulatedFilterWheel,
+    > for crate::api::devices::simulation::filter_wheel::SimulatedFilterWheel
 {
-    fn into_into_dart(self) -> crate::api::devices::simulation::SimulatedFilterWheel {
+    fn into_into_dart(self) -> crate::api::devices::simulation::filter_wheel::SimulatedFilterWheel {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::devices::simulation::SimulatedFocuser {
+impl flutter_rust_bridge::IntoDart for crate::api::devices::simulation::focuser::SimulatedFocuser {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [self.status.into_into_dart().into_dart()].into_dart()
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::devices::simulation::SimulatedFocuser
+    for crate::api::devices::simulation::focuser::SimulatedFocuser
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::devices::simulation::SimulatedFocuser>
-    for crate::api::devices::simulation::SimulatedFocuser
+impl flutter_rust_bridge::IntoIntoDart<crate::api::devices::simulation::focuser::SimulatedFocuser>
+    for crate::api::devices::simulation::focuser::SimulatedFocuser
 {
-    fn into_into_dart(self) -> crate::api::devices::simulation::SimulatedFocuser {
+    fn into_into_dart(self) -> crate::api::devices::simulation::focuser::SimulatedFocuser {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::devices::simulation::SimulatedMount {
+impl flutter_rust_bridge::IntoDart for crate::api::devices::simulation::mount::SimulatedMount {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [self.status.into_into_dart().into_dart()].into_dart()
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::devices::simulation::SimulatedMount
+    for crate::api::devices::simulation::mount::SimulatedMount
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::devices::simulation::SimulatedMount>
-    for crate::api::devices::simulation::SimulatedMount
+impl flutter_rust_bridge::IntoIntoDart<crate::api::devices::simulation::mount::SimulatedMount>
+    for crate::api::devices::simulation::mount::SimulatedMount
 {
-    fn into_into_dart(self) -> crate::api::devices::simulation::SimulatedMount {
+    fn into_into_dart(self) -> crate::api::devices::simulation::mount::SimulatedMount {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::devices::simulation::SimulatedRotator {
+impl flutter_rust_bridge::IntoDart for crate::api::devices::simulation::rotator::SimulatedRotator {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [self.status.into_into_dart().into_dart()].into_dart()
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::devices::simulation::SimulatedRotator
+    for crate::api::devices::simulation::rotator::SimulatedRotator
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::devices::simulation::SimulatedRotator>
-    for crate::api::devices::simulation::SimulatedRotator
+impl flutter_rust_bridge::IntoIntoDart<crate::api::devices::simulation::rotator::SimulatedRotator>
+    for crate::api::devices::simulation::rotator::SimulatedRotator
 {
-    fn into_into_dart(self) -> crate::api::devices::simulation::SimulatedRotator {
+    fn into_into_dart(self) -> crate::api::devices::simulation::rotator::SimulatedRotator {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::devices::simulation::SimulatedSafetyMonitor {
+impl flutter_rust_bridge::IntoDart
+    for crate::api::devices::simulation::environment::SimulatedSafetyMonitor
+{
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [self.status.into_into_dart().into_dart()].into_dart()
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::devices::simulation::SimulatedSafetyMonitor
+    for crate::api::devices::simulation::environment::SimulatedSafetyMonitor
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::devices::simulation::SimulatedSafetyMonitor>
-    for crate::api::devices::simulation::SimulatedSafetyMonitor
+impl
+    flutter_rust_bridge::IntoIntoDart<
+        crate::api::devices::simulation::environment::SimulatedSafetyMonitor,
+    > for crate::api::devices::simulation::environment::SimulatedSafetyMonitor
 {
-    fn into_into_dart(self) -> crate::api::devices::simulation::SimulatedSafetyMonitor {
+    fn into_into_dart(
+        self,
+    ) -> crate::api::devices::simulation::environment::SimulatedSafetyMonitor {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::devices::simulation::SimulatedWeather {
+impl flutter_rust_bridge::IntoDart
+    for crate::api::devices::simulation::environment::SimulatedWeather
+{
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.connected.into_into_dart().into_dart(),
@@ -19551,13 +19133,37 @@ impl flutter_rust_bridge::IntoDart for crate::api::devices::simulation::Simulate
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::devices::simulation::SimulatedWeather
+    for crate::api::devices::simulation::environment::SimulatedWeather
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::devices::simulation::SimulatedWeather>
-    for crate::api::devices::simulation::SimulatedWeather
+impl
+    flutter_rust_bridge::IntoIntoDart<
+        crate::api::devices::simulation::environment::SimulatedWeather,
+    > for crate::api::devices::simulation::environment::SimulatedWeather
 {
-    fn into_into_dart(self) -> crate::api::devices::simulation::SimulatedWeather {
+    fn into_into_dart(self) -> crate::api::devices::simulation::environment::SimulatedWeather {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::plate_solve::SolveHints {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.focal_length_mm.into_into_dart().into_dart(),
+            self.pixel_size_um.into_into_dart().into_dart(),
+            self.binning.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::plate_solve::SolveHints
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::plate_solve::SolveHints>
+    for crate::api::plate_solve::SolveHints
+{
+    fn into_into_dart(self) -> crate::api::plate_solve::SolveHints {
         self
     }
 }
@@ -19663,7 +19269,7 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::imaging::StretchParamsApi>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::device_capabilities::SwitchCapabilities {
+impl flutter_rust_bridge::IntoDart for crate::device_capabilities::types::SwitchCapabilities {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.switch_count.into_into_dart().into_dart(),
@@ -19673,18 +19279,18 @@ impl flutter_rust_bridge::IntoDart for crate::device_capabilities::SwitchCapabil
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::device_capabilities::SwitchCapabilities
+    for crate::device_capabilities::types::SwitchCapabilities
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::device_capabilities::SwitchCapabilities>
-    for crate::device_capabilities::SwitchCapabilities
+impl flutter_rust_bridge::IntoIntoDart<crate::device_capabilities::types::SwitchCapabilities>
+    for crate::device_capabilities::types::SwitchCapabilities
 {
-    fn into_into_dart(self) -> crate::device_capabilities::SwitchCapabilities {
+    fn into_into_dart(self) -> crate::device_capabilities::types::SwitchCapabilities {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::device_capabilities::SwitchInfo {
+impl flutter_rust_bridge::IntoDart for crate::device_capabilities::types::SwitchInfo {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.index.into_into_dart().into_dart(),
@@ -19701,29 +19307,29 @@ impl flutter_rust_bridge::IntoDart for crate::device_capabilities::SwitchInfo {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::device_capabilities::SwitchInfo
+    for crate::device_capabilities::types::SwitchInfo
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::device_capabilities::SwitchInfo>
-    for crate::device_capabilities::SwitchInfo
+impl flutter_rust_bridge::IntoIntoDart<crate::device_capabilities::types::SwitchInfo>
+    for crate::device_capabilities::types::SwitchInfo
 {
-    fn into_into_dart(self) -> crate::device_capabilities::SwitchInfo {
+    fn into_into_dart(self) -> crate::device_capabilities::types::SwitchInfo {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::event::SystemEvent {
+impl flutter_rust_bridge::IntoDart for crate::event::system::SystemEvent {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
-            crate::event::SystemEvent::Initialized => [0.into_dart()].into_dart(),
-            crate::event::SystemEvent::ShuttingDown => [1.into_dart()].into_dart(),
-            crate::event::SystemEvent::Error { message } => {
+            crate::event::system::SystemEvent::Initialized => [0.into_dart()].into_dart(),
+            crate::event::system::SystemEvent::ShuttingDown => [1.into_dart()].into_dart(),
+            crate::event::system::SystemEvent::Error { message } => {
                 [2.into_dart(), message.into_into_dart().into_dart()].into_dart()
             }
-            crate::event::SystemEvent::DiskSpaceLow { available_gb } => {
+            crate::event::system::SystemEvent::DiskSpaceLow { available_gb } => {
                 [3.into_dart(), available_gb.into_into_dart().into_dart()].into_dart()
             }
-            crate::event::SystemEvent::Notification {
+            crate::event::system::SystemEvent::Notification {
                 title,
                 message,
                 level,
@@ -19736,7 +19342,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SystemEvent {
                 explicit_transports.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::event::SystemEvent::EventsDropped {
+            crate::event::system::SystemEvent::EventsDropped {
                 dropped_count,
                 total_dropped,
             } => [
@@ -19751,9 +19357,14 @@ impl flutter_rust_bridge::IntoDart for crate::event::SystemEvent {
         }
     }
 }
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::event::SystemEvent {}
-impl flutter_rust_bridge::IntoIntoDart<crate::event::SystemEvent> for crate::event::SystemEvent {
-    fn into_into_dart(self) -> crate::event::SystemEvent {
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::event::system::SystemEvent
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::event::system::SystemEvent>
+    for crate::event::system::SystemEvent
+{
+    fn into_into_dart(self) -> crate::event::system::SystemEvent {
         self
     }
 }
@@ -19779,7 +19390,7 @@ impl flutter_rust_bridge::IntoIntoDart<crate::device::TrackingRate>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::device_capabilities::WeatherCapabilities {
+impl flutter_rust_bridge::IntoDart for crate::device_capabilities::types::WeatherCapabilities {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.has_cloud_cover.into_into_dart().into_dart(),
@@ -19801,13 +19412,13 @@ impl flutter_rust_bridge::IntoDart for crate::device_capabilities::WeatherCapabi
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::device_capabilities::WeatherCapabilities
+    for crate::device_capabilities::types::WeatherCapabilities
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::device_capabilities::WeatherCapabilities>
-    for crate::device_capabilities::WeatherCapabilities
+impl flutter_rust_bridge::IntoIntoDart<crate::device_capabilities::types::WeatherCapabilities>
+    for crate::device_capabilities::types::WeatherCapabilities
 {
-    fn into_into_dart(self) -> crate::device_capabilities::WeatherCapabilities {
+    fn into_into_dart(self) -> crate::device_capabilities::types::WeatherCapabilities {
         self
     }
 }
@@ -19952,7 +19563,7 @@ impl SseEncode
 }
 
 impl SseEncode
-    for StreamSink<crate::event::NightshadeEvent, flutter_rust_bridge::for_generated::DcoCodec>
+    for StreamSink<crate::event::bus::NightshadeEvent, flutter_rust_bridge::for_generated::DcoCodec>
 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -20150,7 +19761,7 @@ impl SseEncode for crate::device::CalibratorState {
     }
 }
 
-impl SseEncode for crate::device_capabilities::CameraCapabilities {
+impl SseEncode for crate::device_capabilities::types::CameraCapabilities {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <u32>::sse_encode(self.max_width, serializer);
@@ -20191,7 +19802,7 @@ impl SseEncode for crate::device_capabilities::CameraCapabilities {
     }
 }
 
-impl SseEncode for crate::device_capabilities::CameraRecommendedSettings {
+impl SseEncode for crate::device_capabilities::types::CameraRecommendedSettings {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <Option<i32>>::sse_encode(self.unity_gain, serializer);
@@ -20260,7 +19871,7 @@ impl SseEncode for crate::api::imaging::CapturedImageResult {
     }
 }
 
-impl SseEncode for crate::api::sequencer::CheckpointInfoApi {
+impl SseEncode for crate::api::sequencer::lifecycle::CheckpointInfoApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.sequence_name, serializer);
@@ -20272,7 +19883,7 @@ impl SseEncode for crate::api::sequencer::CheckpointInfoApi {
     }
 }
 
-impl SseEncode for crate::device_capabilities::CoverCalibratorCapabilities {
+impl SseEncode for crate::device_capabilities::types::CoverCalibratorCapabilities {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.max_brightness, serializer);
@@ -20362,55 +19973,69 @@ impl SseEncode for crate::device::DeviceApiVersion {
     }
 }
 
-impl SseEncode for crate::device_capabilities::DeviceCapabilities {
+impl SseEncode for crate::device_capabilities::types::DeviceCapabilities {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         match self {
-            crate::device_capabilities::DeviceCapabilities::Mount(field0) => {
+            crate::device_capabilities::types::DeviceCapabilities::Mount(field0) => {
                 <i32>::sse_encode(0, serializer);
-                <crate::device_capabilities::MountCapabilities>::sse_encode(field0, serializer);
+                <crate::device_capabilities::types::MountCapabilities>::sse_encode(
+                    field0, serializer,
+                );
             }
-            crate::device_capabilities::DeviceCapabilities::Camera(field0) => {
+            crate::device_capabilities::types::DeviceCapabilities::Camera(field0) => {
                 <i32>::sse_encode(1, serializer);
-                <crate::device_capabilities::CameraCapabilities>::sse_encode(field0, serializer);
+                <crate::device_capabilities::types::CameraCapabilities>::sse_encode(
+                    field0, serializer,
+                );
             }
-            crate::device_capabilities::DeviceCapabilities::Focuser(field0) => {
+            crate::device_capabilities::types::DeviceCapabilities::Focuser(field0) => {
                 <i32>::sse_encode(2, serializer);
-                <crate::device_capabilities::FocuserCapabilities>::sse_encode(field0, serializer);
+                <crate::device_capabilities::types::FocuserCapabilities>::sse_encode(
+                    field0, serializer,
+                );
             }
-            crate::device_capabilities::DeviceCapabilities::FilterWheel(field0) => {
+            crate::device_capabilities::types::DeviceCapabilities::FilterWheel(field0) => {
                 <i32>::sse_encode(3, serializer);
-                <crate::device_capabilities::FilterWheelCapabilities>::sse_encode(
+                <crate::device_capabilities::types::FilterWheelCapabilities>::sse_encode(
                     field0, serializer,
                 );
             }
-            crate::device_capabilities::DeviceCapabilities::Rotator(field0) => {
+            crate::device_capabilities::types::DeviceCapabilities::Rotator(field0) => {
                 <i32>::sse_encode(4, serializer);
-                <crate::device_capabilities::RotatorCapabilities>::sse_encode(field0, serializer);
+                <crate::device_capabilities::types::RotatorCapabilities>::sse_encode(
+                    field0, serializer,
+                );
             }
-            crate::device_capabilities::DeviceCapabilities::Dome(field0) => {
+            crate::device_capabilities::types::DeviceCapabilities::Dome(field0) => {
                 <i32>::sse_encode(5, serializer);
-                <crate::device_capabilities::DomeCapabilities>::sse_encode(field0, serializer);
+                <crate::device_capabilities::types::DomeCapabilities>::sse_encode(
+                    field0, serializer,
+                );
             }
-            crate::device_capabilities::DeviceCapabilities::CoverCalibrator(field0) => {
+            crate::device_capabilities::types::DeviceCapabilities::CoverCalibrator(field0) => {
                 <i32>::sse_encode(6, serializer);
-                <crate::device_capabilities::CoverCalibratorCapabilities>::sse_encode(
+                <crate::device_capabilities::types::CoverCalibratorCapabilities>::sse_encode(
                     field0, serializer,
                 );
             }
-            crate::device_capabilities::DeviceCapabilities::Weather(field0) => {
+            crate::device_capabilities::types::DeviceCapabilities::Weather(field0) => {
                 <i32>::sse_encode(7, serializer);
-                <crate::device_capabilities::WeatherCapabilities>::sse_encode(field0, serializer);
-            }
-            crate::device_capabilities::DeviceCapabilities::SafetyMonitor(field0) => {
-                <i32>::sse_encode(8, serializer);
-                <crate::device_capabilities::SafetyMonitorCapabilities>::sse_encode(
+                <crate::device_capabilities::types::WeatherCapabilities>::sse_encode(
                     field0, serializer,
                 );
             }
-            crate::device_capabilities::DeviceCapabilities::Switch(field0) => {
+            crate::device_capabilities::types::DeviceCapabilities::SafetyMonitor(field0) => {
+                <i32>::sse_encode(8, serializer);
+                <crate::device_capabilities::types::SafetyMonitorCapabilities>::sse_encode(
+                    field0, serializer,
+                );
+            }
+            crate::device_capabilities::types::DeviceCapabilities::Switch(field0) => {
                 <i32>::sse_encode(9, serializer);
-                <crate::device_capabilities::SwitchCapabilities>::sse_encode(field0, serializer);
+                <crate::device_capabilities::types::SwitchCapabilities>::sse_encode(
+                    field0, serializer,
+                );
             }
             _ => {
                 unimplemented!("");
@@ -20474,7 +20099,7 @@ impl SseEncode for crate::device::DeviceType {
     }
 }
 
-impl SseEncode for crate::device_capabilities::DomeCapabilities {
+impl SseEncode for crate::device_capabilities::types::DomeCapabilities {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.can_set_azimuth, serializer);
@@ -20486,7 +20111,7 @@ impl SseEncode for crate::device_capabilities::DomeCapabilities {
         <bool>::sse_encode(self.slewing, serializer);
         <bool>::sse_encode(self.at_home, serializer);
         <bool>::sse_encode(self.at_park, serializer);
-        <Option<crate::device_capabilities::ShutterStatus>>::sse_encode(
+        <Option<crate::device_capabilities::types::ShutterStatus>>::sse_encode(
             self.shutter_status,
             serializer,
         );
@@ -20533,11 +20158,11 @@ impl SseEncode for crate::device::DriverType {
     }
 }
 
-impl SseEncode for crate::event::EquipmentEvent {
+impl SseEncode for crate::event::equipment::EquipmentEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         match self {
-            crate::event::EquipmentEvent::Connecting {
+            crate::event::equipment::EquipmentEvent::Connecting {
                 device_type,
                 device_id,
             } => {
@@ -20545,7 +20170,7 @@ impl SseEncode for crate::event::EquipmentEvent {
                 <String>::sse_encode(device_type, serializer);
                 <String>::sse_encode(device_id, serializer);
             }
-            crate::event::EquipmentEvent::Connected {
+            crate::event::equipment::EquipmentEvent::Connected {
                 device_type,
                 device_id,
             } => {
@@ -20553,7 +20178,7 @@ impl SseEncode for crate::event::EquipmentEvent {
                 <String>::sse_encode(device_type, serializer);
                 <String>::sse_encode(device_id, serializer);
             }
-            crate::event::EquipmentEvent::Disconnected {
+            crate::event::equipment::EquipmentEvent::Disconnected {
                 device_type,
                 device_id,
             } => {
@@ -20561,7 +20186,7 @@ impl SseEncode for crate::event::EquipmentEvent {
                 <String>::sse_encode(device_type, serializer);
                 <String>::sse_encode(device_id, serializer);
             }
-            crate::event::EquipmentEvent::PropertyChanged {
+            crate::event::equipment::EquipmentEvent::PropertyChanged {
                 device_type,
                 device_id,
                 property,
@@ -20573,7 +20198,7 @@ impl SseEncode for crate::event::EquipmentEvent {
                 <String>::sse_encode(property, serializer);
                 <String>::sse_encode(value, serializer);
             }
-            crate::event::EquipmentEvent::Error {
+            crate::event::equipment::EquipmentEvent::Error {
                 device_type,
                 device_id,
                 message,
@@ -20583,44 +20208,44 @@ impl SseEncode for crate::event::EquipmentEvent {
                 <String>::sse_encode(device_id, serializer);
                 <String>::sse_encode(message, serializer);
             }
-            crate::event::EquipmentEvent::MountSlewStarted { ra, dec } => {
+            crate::event::equipment::EquipmentEvent::MountSlewStarted { ra, dec } => {
                 <i32>::sse_encode(5, serializer);
                 <f64>::sse_encode(ra, serializer);
                 <f64>::sse_encode(dec, serializer);
             }
-            crate::event::EquipmentEvent::MountSlewCompleted { ra, dec } => {
+            crate::event::equipment::EquipmentEvent::MountSlewCompleted { ra, dec } => {
                 <i32>::sse_encode(6, serializer);
                 <f64>::sse_encode(ra, serializer);
                 <f64>::sse_encode(dec, serializer);
             }
-            crate::event::EquipmentEvent::MountTrackingStarted => {
+            crate::event::equipment::EquipmentEvent::MountTrackingStarted => {
                 <i32>::sse_encode(7, serializer);
             }
-            crate::event::EquipmentEvent::MountTrackingStopped => {
+            crate::event::equipment::EquipmentEvent::MountTrackingStopped => {
                 <i32>::sse_encode(8, serializer);
             }
-            crate::event::EquipmentEvent::MountParkStarted => {
+            crate::event::equipment::EquipmentEvent::MountParkStarted => {
                 <i32>::sse_encode(9, serializer);
             }
-            crate::event::EquipmentEvent::MountParkCompleted => {
+            crate::event::equipment::EquipmentEvent::MountParkCompleted => {
                 <i32>::sse_encode(10, serializer);
             }
-            crate::event::EquipmentEvent::MountUnparked => {
+            crate::event::equipment::EquipmentEvent::MountUnparked => {
                 <i32>::sse_encode(11, serializer);
             }
-            crate::event::EquipmentEvent::FocuserMoveStarted { target_position } => {
+            crate::event::equipment::EquipmentEvent::FocuserMoveStarted { target_position } => {
                 <i32>::sse_encode(12, serializer);
                 <i32>::sse_encode(target_position, serializer);
             }
-            crate::event::EquipmentEvent::FocuserMoveCompleted { position } => {
+            crate::event::equipment::EquipmentEvent::FocuserMoveCompleted { position } => {
                 <i32>::sse_encode(13, serializer);
                 <i32>::sse_encode(position, serializer);
             }
-            crate::event::EquipmentEvent::FocuserTemperatureChanged { temperature } => {
+            crate::event::equipment::EquipmentEvent::FocuserTemperatureChanged { temperature } => {
                 <i32>::sse_encode(14, serializer);
                 <f64>::sse_encode(temperature, serializer);
             }
-            crate::event::EquipmentEvent::FilterChanging {
+            crate::event::equipment::EquipmentEvent::FilterChanging {
                 from_position,
                 to_position,
                 filter_name,
@@ -20630,7 +20255,7 @@ impl SseEncode for crate::event::EquipmentEvent {
                 <i32>::sse_encode(to_position, serializer);
                 <Option<String>>::sse_encode(filter_name, serializer);
             }
-            crate::event::EquipmentEvent::FilterChanged {
+            crate::event::equipment::EquipmentEvent::FilterChanged {
                 position,
                 filter_name,
             } => {
@@ -20638,29 +20263,29 @@ impl SseEncode for crate::event::EquipmentEvent {
                 <i32>::sse_encode(position, serializer);
                 <Option<String>>::sse_encode(filter_name, serializer);
             }
-            crate::event::EquipmentEvent::RotatorMoveStarted { target_angle } => {
+            crate::event::equipment::EquipmentEvent::RotatorMoveStarted { target_angle } => {
                 <i32>::sse_encode(17, serializer);
                 <f64>::sse_encode(target_angle, serializer);
             }
-            crate::event::EquipmentEvent::RotatorMoveCompleted { angle } => {
+            crate::event::equipment::EquipmentEvent::RotatorMoveCompleted { angle } => {
                 <i32>::sse_encode(18, serializer);
                 <f64>::sse_encode(angle, serializer);
             }
-            crate::event::EquipmentEvent::CameraCoolingStarted { target_temp } => {
+            crate::event::equipment::EquipmentEvent::CameraCoolingStarted { target_temp } => {
                 <i32>::sse_encode(19, serializer);
                 <f64>::sse_encode(target_temp, serializer);
             }
-            crate::event::EquipmentEvent::CameraCoolingReached { temperature } => {
+            crate::event::equipment::EquipmentEvent::CameraCoolingReached { temperature } => {
                 <i32>::sse_encode(20, serializer);
                 <f64>::sse_encode(temperature, serializer);
             }
-            crate::event::EquipmentEvent::CameraWarmingStarted => {
+            crate::event::equipment::EquipmentEvent::CameraWarmingStarted => {
                 <i32>::sse_encode(21, serializer);
             }
-            crate::event::EquipmentEvent::CameraWarmingCompleted => {
+            crate::event::equipment::EquipmentEvent::CameraWarmingCompleted => {
                 <i32>::sse_encode(22, serializer);
             }
-            crate::event::EquipmentEvent::HeartbeatStarted {
+            crate::event::equipment::EquipmentEvent::HeartbeatStarted {
                 device_type,
                 device_id,
                 interval_secs,
@@ -20670,7 +20295,7 @@ impl SseEncode for crate::event::EquipmentEvent {
                 <String>::sse_encode(device_id, serializer);
                 <u64>::sse_encode(interval_secs, serializer);
             }
-            crate::event::EquipmentEvent::HeartbeatStopped {
+            crate::event::equipment::EquipmentEvent::HeartbeatStopped {
                 device_type,
                 device_id,
             } => {
@@ -20678,7 +20303,7 @@ impl SseEncode for crate::event::EquipmentEvent {
                 <String>::sse_encode(device_type, serializer);
                 <String>::sse_encode(device_id, serializer);
             }
-            crate::event::EquipmentEvent::HeartbeatStatusChanged {
+            crate::event::equipment::EquipmentEvent::HeartbeatStatusChanged {
                 device_type,
                 device_id,
                 status,
@@ -20688,11 +20313,11 @@ impl SseEncode for crate::event::EquipmentEvent {
                 <i32>::sse_encode(25, serializer);
                 <String>::sse_encode(device_type, serializer);
                 <String>::sse_encode(device_id, serializer);
-                <crate::event::HeartbeatStatus>::sse_encode(status, serializer);
+                <crate::event::equipment::HeartbeatStatus>::sse_encode(status, serializer);
                 <u32>::sse_encode(consecutive_failures, serializer);
                 <Option<u64>>::sse_encode(last_rtt_ms, serializer);
             }
-            crate::event::EquipmentEvent::HeartbeatReconnecting {
+            crate::event::equipment::EquipmentEvent::HeartbeatReconnecting {
                 device_type,
                 device_id,
                 attempt,
@@ -20704,7 +20329,7 @@ impl SseEncode for crate::event::EquipmentEvent {
                 <u32>::sse_encode(attempt, serializer);
                 <u32>::sse_encode(max_attempts, serializer);
             }
-            crate::event::EquipmentEvent::HeartbeatReconnected {
+            crate::event::equipment::EquipmentEvent::HeartbeatReconnected {
                 device_type,
                 device_id,
                 after_attempts,
@@ -20714,7 +20339,7 @@ impl SseEncode for crate::event::EquipmentEvent {
                 <String>::sse_encode(device_id, serializer);
                 <u32>::sse_encode(after_attempts, serializer);
             }
-            crate::event::EquipmentEvent::DeviceDiscovered {
+            crate::event::equipment::EquipmentEvent::DeviceDiscovered {
                 device_class,
                 driver,
                 id,
@@ -20730,7 +20355,7 @@ impl SseEncode for crate::event::EquipmentEvent {
                 <String>::sse_encode(display_name, serializer);
                 <Option<String>>::sse_encode(unique_id, serializer);
             }
-            crate::event::EquipmentEvent::DeviceLost {
+            crate::event::equipment::EquipmentEvent::DeviceLost {
                 device_class,
                 driver,
                 id,
@@ -20767,18 +20392,18 @@ impl SseEncode for crate::state::EquipmentProfile {
     }
 }
 
-impl SseEncode for crate::event::EventCategory {
+impl SseEncode for crate::event::equipment::EventCategory {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(
             match self {
-                crate::event::EventCategory::Equipment => 0,
-                crate::event::EventCategory::Imaging => 1,
-                crate::event::EventCategory::Guiding => 2,
-                crate::event::EventCategory::Sequencer => 3,
-                crate::event::EventCategory::Safety => 4,
-                crate::event::EventCategory::System => 5,
-                crate::event::EventCategory::PolarAlignment => 6,
+                crate::event::equipment::EventCategory::Equipment => 0,
+                crate::event::equipment::EventCategory::Imaging => 1,
+                crate::event::equipment::EventCategory::Guiding => 2,
+                crate::event::equipment::EventCategory::Sequencer => 3,
+                crate::event::equipment::EventCategory::Safety => 4,
+                crate::event::equipment::EventCategory::System => 5,
+                crate::event::equipment::EventCategory::PolarAlignment => 6,
                 _ => {
                     unimplemented!("");
                 }
@@ -20788,45 +20413,45 @@ impl SseEncode for crate::event::EventCategory {
     }
 }
 
-impl SseEncode for crate::event::EventPayload {
+impl SseEncode for crate::event::bus::EventPayload {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         match self {
-            crate::event::EventPayload::Equipment(field0) => {
+            crate::event::bus::EventPayload::Equipment(field0) => {
                 <i32>::sse_encode(0, serializer);
-                <crate::event::EquipmentEvent>::sse_encode(field0, serializer);
+                <crate::event::equipment::EquipmentEvent>::sse_encode(field0, serializer);
             }
-            crate::event::EventPayload::Imaging(field0) => {
+            crate::event::bus::EventPayload::Imaging(field0) => {
                 <i32>::sse_encode(1, serializer);
-                <crate::event::ImagingEvent>::sse_encode(field0, serializer);
+                <crate::event::imaging::ImagingEvent>::sse_encode(field0, serializer);
             }
-            crate::event::EventPayload::Guiding(field0) => {
+            crate::event::bus::EventPayload::Guiding(field0) => {
                 <i32>::sse_encode(2, serializer);
-                <crate::event::GuidingEvent>::sse_encode(field0, serializer);
+                <crate::event::guiding::GuidingEvent>::sse_encode(field0, serializer);
             }
-            crate::event::EventPayload::Sequencer(field0) => {
+            crate::event::bus::EventPayload::Sequencer(field0) => {
                 <i32>::sse_encode(3, serializer);
-                <crate::event::SequencerEvent>::sse_encode(field0, serializer);
+                <crate::event::sequencer::SequencerEvent>::sse_encode(field0, serializer);
             }
-            crate::event::EventPayload::Safety(field0) => {
+            crate::event::bus::EventPayload::Safety(field0) => {
                 <i32>::sse_encode(4, serializer);
-                <crate::event::SafetyEvent>::sse_encode(field0, serializer);
+                <crate::event::system::SafetyEvent>::sse_encode(field0, serializer);
             }
-            crate::event::EventPayload::System(field0) => {
+            crate::event::bus::EventPayload::System(field0) => {
                 <i32>::sse_encode(5, serializer);
-                <crate::event::SystemEvent>::sse_encode(field0, serializer);
+                <crate::event::system::SystemEvent>::sse_encode(field0, serializer);
             }
-            crate::event::EventPayload::PolarAlignment(field0) => {
+            crate::event::bus::EventPayload::PolarAlignment(field0) => {
                 <i32>::sse_encode(6, serializer);
-                <crate::event::PolarAlignmentEvent>::sse_encode(field0, serializer);
+                <crate::event::imaging::PolarAlignmentEvent>::sse_encode(field0, serializer);
             }
-            crate::event::EventPayload::PolarAlignmentStatus(field0) => {
+            crate::event::bus::EventPayload::PolarAlignmentStatus(field0) => {
                 <i32>::sse_encode(7, serializer);
-                <crate::event::PolarAlignmentStatus>::sse_encode(field0, serializer);
+                <crate::event::imaging::PolarAlignmentStatus>::sse_encode(field0, serializer);
             }
-            crate::event::EventPayload::PolarAlignmentImage(field0) => {
+            crate::event::bus::EventPayload::PolarAlignmentImage(field0) => {
                 <i32>::sse_encode(8, serializer);
-                <crate::event::PolarAlignmentImageEvent>::sse_encode(field0, serializer);
+                <crate::event::imaging::PolarAlignmentImageEvent>::sse_encode(field0, serializer);
             }
             _ => {
                 unimplemented!("");
@@ -20835,15 +20460,15 @@ impl SseEncode for crate::event::EventPayload {
     }
 }
 
-impl SseEncode for crate::event::EventSeverity {
+impl SseEncode for crate::event::equipment::EventSeverity {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(
             match self {
-                crate::event::EventSeverity::Info => 0,
-                crate::event::EventSeverity::Warning => 1,
-                crate::event::EventSeverity::Error => 2,
-                crate::event::EventSeverity::Critical => 3,
+                crate::event::equipment::EventSeverity::Info => 0,
+                crate::event::equipment::EventSeverity::Warning => 1,
+                crate::event::equipment::EventSeverity::Error => 2,
+                crate::event::equipment::EventSeverity::Critical => 3,
                 _ => {
                     unimplemented!("");
                 }
@@ -20888,7 +20513,7 @@ impl SseEncode for crate::device::FieldAvailability {
     }
 }
 
-impl SseEncode for crate::device_capabilities::FilterWheelCapabilities {
+impl SseEncode for crate::device_capabilities::types::FilterWheelCapabilities {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.position_count, serializer);
@@ -21065,7 +20690,7 @@ impl SseEncode for crate::api::imaging::FocusDataPointApi {
     }
 }
 
-impl SseEncode for crate::device_capabilities::FocuserCapabilities {
+impl SseEncode for crate::device_capabilities::types::FocuserCapabilities {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.max_position, serializer);
@@ -21097,7 +20722,7 @@ impl SseEncode for crate::device::FocuserStatus {
     }
 }
 
-impl SseEncode for crate::event::FrameCaptureMetadata {
+impl SseEncode for crate::event::sequencer::FrameCaptureMetadata {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <Option<i32>>::sse_encode(self.gain, serializer);
@@ -21159,43 +20784,43 @@ impl SseEncode for crate::api::imaging::FrameTypeApi {
     }
 }
 
-impl SseEncode for crate::event::GuidingEvent {
+impl SseEncode for crate::event::guiding::GuidingEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         match self {
-            crate::event::GuidingEvent::Connected => {
+            crate::event::guiding::GuidingEvent::Connected => {
                 <i32>::sse_encode(0, serializer);
             }
-            crate::event::GuidingEvent::Disconnected => {
+            crate::event::guiding::GuidingEvent::Disconnected => {
                 <i32>::sse_encode(1, serializer);
             }
-            crate::event::GuidingEvent::GuidingStarted => {
+            crate::event::guiding::GuidingEvent::GuidingStarted => {
                 <i32>::sse_encode(2, serializer);
             }
-            crate::event::GuidingEvent::GuidingStopped => {
+            crate::event::guiding::GuidingEvent::GuidingStopped => {
                 <i32>::sse_encode(3, serializer);
             }
-            crate::event::GuidingEvent::Paused => {
+            crate::event::guiding::GuidingEvent::Paused => {
                 <i32>::sse_encode(4, serializer);
             }
-            crate::event::GuidingEvent::Resumed => {
+            crate::event::guiding::GuidingEvent::Resumed => {
                 <i32>::sse_encode(5, serializer);
             }
-            crate::event::GuidingEvent::Settled { rms } => {
+            crate::event::guiding::GuidingEvent::Settled { rms } => {
                 <i32>::sse_encode(6, serializer);
                 <f64>::sse_encode(rms, serializer);
             }
-            crate::event::GuidingEvent::LostStar => {
+            crate::event::guiding::GuidingEvent::LostStar => {
                 <i32>::sse_encode(7, serializer);
             }
-            crate::event::GuidingEvent::DitherStarted { pixels } => {
+            crate::event::guiding::GuidingEvent::DitherStarted { pixels } => {
                 <i32>::sse_encode(8, serializer);
                 <f64>::sse_encode(pixels, serializer);
             }
-            crate::event::GuidingEvent::DitherCompleted => {
+            crate::event::guiding::GuidingEvent::DitherCompleted => {
                 <i32>::sse_encode(9, serializer);
             }
-            crate::event::GuidingEvent::Correction {
+            crate::event::guiding::GuidingEvent::Correction {
                 ra,
                 dec,
                 ra_raw,
@@ -21207,28 +20832,28 @@ impl SseEncode for crate::event::GuidingEvent {
                 <f64>::sse_encode(ra_raw, serializer);
                 <f64>::sse_encode(dec_raw, serializer);
             }
-            crate::event::GuidingEvent::Looping => {
+            crate::event::guiding::GuidingEvent::Looping => {
                 <i32>::sse_encode(11, serializer);
             }
-            crate::event::GuidingEvent::Settling => {
+            crate::event::guiding::GuidingEvent::Settling => {
                 <i32>::sse_encode(12, serializer);
             }
-            crate::event::GuidingEvent::Calibrating => {
+            crate::event::guiding::GuidingEvent::Calibrating => {
                 <i32>::sse_encode(13, serializer);
             }
-            crate::event::GuidingEvent::CalibrationComplete => {
+            crate::event::guiding::GuidingEvent::CalibrationComplete => {
                 <i32>::sse_encode(14, serializer);
             }
-            crate::event::GuidingEvent::StarSelected { x, y } => {
+            crate::event::guiding::GuidingEvent::StarSelected { x, y } => {
                 <i32>::sse_encode(15, serializer);
                 <f64>::sse_encode(x, serializer);
                 <f64>::sse_encode(y, serializer);
             }
-            crate::event::GuidingEvent::AppState { state } => {
+            crate::event::guiding::GuidingEvent::AppState { state } => {
                 <i32>::sse_encode(16, serializer);
                 <String>::sse_encode(state, serializer);
             }
-            crate::event::GuidingEvent::GuideStats { snr, star_mass } => {
+            crate::event::guiding::GuidingEvent::GuideStats { snr, star_mass } => {
                 <i32>::sse_encode(17, serializer);
                 <f64>::sse_encode(snr, serializer);
                 <f64>::sse_encode(star_mass, serializer);
@@ -21240,16 +20865,16 @@ impl SseEncode for crate::event::GuidingEvent {
     }
 }
 
-impl SseEncode for crate::event::HeartbeatStatus {
+impl SseEncode for crate::event::equipment::HeartbeatStatus {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(
             match self {
-                crate::event::HeartbeatStatus::Healthy => 0,
-                crate::event::HeartbeatStatus::Degraded => 1,
-                crate::event::HeartbeatStatus::Disconnected => 2,
-                crate::event::HeartbeatStatus::Reconnecting => 3,
-                crate::event::HeartbeatStatus::Reconnected => 4,
+                crate::event::equipment::HeartbeatStatus::Healthy => 0,
+                crate::event::equipment::HeartbeatStatus::Degraded => 1,
+                crate::event::equipment::HeartbeatStatus::Disconnected => 2,
+                crate::event::equipment::HeartbeatStatus::Reconnecting => 3,
+                crate::event::equipment::HeartbeatStatus::Reconnected => 4,
                 _ => {
                     unimplemented!("");
                 }
@@ -21295,11 +20920,11 @@ impl SseEncode for crate::api::imaging::ImageStatsResult {
     }
 }
 
-impl SseEncode for crate::event::ImagingEvent {
+impl SseEncode for crate::event::imaging::ImagingEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         match self {
-            crate::event::ImagingEvent::ExposureStarted {
+            crate::event::imaging::ImagingEvent::ExposureStarted {
                 duration_secs,
                 frame_type,
             } => {
@@ -21307,7 +20932,7 @@ impl SseEncode for crate::event::ImagingEvent {
                 <f64>::sse_encode(duration_secs, serializer);
                 <crate::device::FrameType>::sse_encode(frame_type, serializer);
             }
-            crate::event::ImagingEvent::ExposureStartedWithFrame {
+            crate::event::imaging::ImagingEvent::ExposureStartedWithFrame {
                 duration_secs,
                 frame_type,
                 frame_number,
@@ -21319,7 +20944,7 @@ impl SseEncode for crate::event::ImagingEvent {
                 <u32>::sse_encode(frame_number, serializer);
                 <Option<u32>>::sse_encode(total_frames, serializer);
             }
-            crate::event::ImagingEvent::ExposureProgress {
+            crate::event::imaging::ImagingEvent::ExposureProgress {
                 progress,
                 remaining_secs,
             } => {
@@ -21327,7 +20952,7 @@ impl SseEncode for crate::event::ImagingEvent {
                 <f64>::sse_encode(progress, serializer);
                 <f64>::sse_encode(remaining_secs, serializer);
             }
-            crate::event::ImagingEvent::ExposureCompleted {
+            crate::event::imaging::ImagingEvent::ExposureCompleted {
                 file_path,
                 hfr,
                 stars_detected,
@@ -21337,7 +20962,7 @@ impl SseEncode for crate::event::ImagingEvent {
                 <f64>::sse_encode(hfr, serializer);
                 <u32>::sse_encode(stars_detected, serializer);
             }
-            crate::event::ImagingEvent::ExposureCompletedWithFrame {
+            crate::event::imaging::ImagingEvent::ExposureCompletedWithFrame {
                 frame_number,
                 total_frames,
                 hfr,
@@ -21349,29 +20974,29 @@ impl SseEncode for crate::event::ImagingEvent {
                 <f64>::sse_encode(hfr, serializer);
                 <u32>::sse_encode(stars_detected, serializer);
             }
-            crate::event::ImagingEvent::ExposureFailed { error } => {
+            crate::event::imaging::ImagingEvent::ExposureFailed { error } => {
                 <i32>::sse_encode(5, serializer);
                 <String>::sse_encode(error, serializer);
             }
-            crate::event::ImagingEvent::ExposureCancelled => {
+            crate::event::imaging::ImagingEvent::ExposureCancelled => {
                 <i32>::sse_encode(6, serializer);
             }
-            crate::event::ImagingEvent::DownloadStarted => {
+            crate::event::imaging::ImagingEvent::DownloadStarted => {
                 <i32>::sse_encode(7, serializer);
             }
-            crate::event::ImagingEvent::DownloadCompleted => {
+            crate::event::imaging::ImagingEvent::DownloadCompleted => {
                 <i32>::sse_encode(8, serializer);
             }
-            crate::event::ImagingEvent::ImageReady { width, height } => {
+            crate::event::imaging::ImagingEvent::ImageReady { width, height } => {
                 <i32>::sse_encode(9, serializer);
                 <u32>::sse_encode(width, serializer);
                 <u32>::sse_encode(height, serializer);
             }
-            crate::event::ImagingEvent::ImageSaved { file_path } => {
+            crate::event::imaging::ImagingEvent::ImageSaved { file_path } => {
                 <i32>::sse_encode(10, serializer);
                 <String>::sse_encode(file_path, serializer);
             }
-            crate::event::ImagingEvent::IntegrationProgress {
+            crate::event::imaging::ImagingEvent::IntegrationProgress {
                 phase,
                 fraction,
                 frames_done,
@@ -21383,7 +21008,7 @@ impl SseEncode for crate::event::ImagingEvent {
                 <Option<u32>>::sse_encode(frames_done, serializer);
                 <Option<u32>>::sse_encode(frames_total, serializer);
             }
-            crate::event::ImagingEvent::TemperatureChanged {
+            crate::event::imaging::ImagingEvent::TemperatureChanged {
                 temp_celsius,
                 cooler_power,
             } => {
@@ -21391,11 +21016,11 @@ impl SseEncode for crate::event::ImagingEvent {
                 <f64>::sse_encode(temp_celsius, serializer);
                 <f64>::sse_encode(cooler_power, serializer);
             }
-            crate::event::ImagingEvent::ExposureComplete { success } => {
+            crate::event::imaging::ImagingEvent::ExposureComplete { success } => {
                 <i32>::sse_encode(13, serializer);
                 <bool>::sse_encode(success, serializer);
             }
-            crate::event::ImagingEvent::ExposureFailedOld { reason } => {
+            crate::event::imaging::ImagingEvent::ExposureFailedOld { reason } => {
                 <i32>::sse_encode(14, serializer);
                 <String>::sse_encode(reason, serializer);
             }
@@ -21518,12 +21143,12 @@ impl SseEncode for Vec<crate::api::imaging::FocusDataPointApi> {
     }
 }
 
-impl SseEncode for Vec<crate::api::sequencer::MosaicPanelResult> {
+impl SseEncode for Vec<crate::api::sequencer::mosaic::MosaicPanelResult> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::api::sequencer::MosaicPanelResult>::sse_encode(item, serializer);
+            <crate::api::sequencer::mosaic::MosaicPanelResult>::sse_encode(item, serializer);
         }
     }
 }
@@ -21678,12 +21303,12 @@ impl SseEncode for Vec<(String, String)> {
     }
 }
 
-impl SseEncode for Vec<crate::event::SchedulerScoreEntry> {
+impl SseEncode for Vec<crate::event::sequencer::SchedulerScoreEntry> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::event::SchedulerScoreEntry>::sse_encode(item, serializer);
+            <crate::event::sequencer::SchedulerScoreEntry>::sse_encode(item, serializer);
         }
     }
 }
@@ -21698,12 +21323,12 @@ impl SseEncode for Vec<crate::api::imaging::StarCropApi> {
     }
 }
 
-impl SseEncode for Vec<crate::device_capabilities::SwitchInfo> {
+impl SseEncode for Vec<crate::device_capabilities::types::SwitchInfo> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::device_capabilities::SwitchInfo>::sse_encode(item, serializer);
+            <crate::device_capabilities::types::SwitchInfo>::sse_encode(item, serializer);
         }
     }
 }
@@ -21718,7 +21343,7 @@ impl SseEncode for Vec<crate::device::TrackingRate> {
     }
 }
 
-impl SseEncode for crate::api::sequencer::LiveStackingBroadcastSnapshot {
+impl SseEncode for crate::api::sequencer::mosaic::LiveStackingBroadcastSnapshot {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.node_id, serializer);
@@ -21736,7 +21361,7 @@ impl SseEncode for crate::api::sequencer::LiveStackingBroadcastSnapshot {
     }
 }
 
-impl SseEncode for crate::api::sequencer::MosaicPanelResult {
+impl SseEncode for crate::api::sequencer::mosaic::MosaicPanelResult {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <f64>::sse_encode(self.ra_hours, serializer);
@@ -21747,7 +21372,7 @@ impl SseEncode for crate::api::sequencer::MosaicPanelResult {
     }
 }
 
-impl SseEncode for crate::device_capabilities::MountCapabilities {
+impl SseEncode for crate::device_capabilities::types::MountCapabilities {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.can_slew, serializer);
@@ -22024,14 +21649,14 @@ impl SseEncode for crate::error::NightshadeError {
     }
 }
 
-impl SseEncode for crate::event::NightshadeEvent {
+impl SseEncode for crate::event::bus::NightshadeEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <u64>::sse_encode(self.event_id, serializer);
         <i64>::sse_encode(self.timestamp, serializer);
-        <crate::event::EventSeverity>::sse_encode(self.severity, serializer);
-        <crate::event::EventCategory>::sse_encode(self.category, serializer);
-        <crate::event::EventPayload>::sse_encode(self.payload, serializer);
+        <crate::event::equipment::EventSeverity>::sse_encode(self.severity, serializer);
+        <crate::event::equipment::EventCategory>::sse_encode(self.category, serializer);
+        <crate::event::bus::EventPayload>::sse_encode(self.payload, serializer);
         <Option<u64>>::sse_encode(self.caused_by, serializer);
         <Option<String>>::sse_encode(self.correlation_id, serializer);
         <Option<String>>::sse_encode(self.device_id, serializer);
@@ -22129,12 +21754,12 @@ impl SseEncode for Option<crate::device::CalibratorState> {
     }
 }
 
-impl SseEncode for Option<crate::api::sequencer::CheckpointInfoApi> {
+impl SseEncode for Option<crate::api::sequencer::lifecycle::CheckpointInfoApi> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
-            <crate::api::sequencer::CheckpointInfoApi>::sse_encode(value, serializer);
+            <crate::api::sequencer::lifecycle::CheckpointInfoApi>::sse_encode(value, serializer);
         }
     }
 }
@@ -22199,12 +21824,14 @@ impl SseEncode for Option<i64> {
     }
 }
 
-impl SseEncode for Option<crate::api::sequencer::LiveStackingBroadcastSnapshot> {
+impl SseEncode for Option<crate::api::sequencer::mosaic::LiveStackingBroadcastSnapshot> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
-            <crate::api::sequencer::LiveStackingBroadcastSnapshot>::sse_encode(value, serializer);
+            <crate::api::sequencer::mosaic::LiveStackingBroadcastSnapshot>::sse_encode(
+                value, serializer,
+            );
         }
     }
 }
@@ -22229,12 +21856,22 @@ impl SseEncode for Option<crate::device::PierSide> {
     }
 }
 
-impl SseEncode for Option<crate::device_capabilities::ShutterStatus> {
+impl SseEncode for Option<(f64, f64)> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
-            <crate::device_capabilities::ShutterStatus>::sse_encode(value, serializer);
+            <(f64, f64)>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::device_capabilities::types::ShutterStatus> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::device_capabilities::types::ShutterStatus>::sse_encode(value, serializer);
         }
     }
 }
@@ -22428,7 +22065,7 @@ impl SseEncode for crate::api::plate_solve::PlateSolverInfo {
     }
 }
 
-impl SseEncode for crate::event::PolarAlignmentEvent {
+impl SseEncode for crate::event::imaging::PolarAlignmentEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <f64>::sse_encode(self.azimuth_error, serializer);
@@ -22441,7 +22078,7 @@ impl SseEncode for crate::event::PolarAlignmentEvent {
     }
 }
 
-impl SseEncode for crate::event::PolarAlignmentImageEvent {
+impl SseEncode for crate::event::imaging::PolarAlignmentImageEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <Vec<u8>>::sse_encode(self.image_data, serializer);
@@ -22454,7 +22091,7 @@ impl SseEncode for crate::event::PolarAlignmentImageEvent {
     }
 }
 
-impl SseEncode for crate::event::PolarAlignmentStatus {
+impl SseEncode for crate::event::imaging::PolarAlignmentStatus {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.status, serializer);
@@ -22540,6 +22177,14 @@ impl SseEncode for (i32, f64) {
     }
 }
 
+impl SseEncode for (i32, i32) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.0, serializer);
+        <i32>::sse_encode(self.1, serializer);
+    }
+}
+
 impl SseEncode for (i32, Vec<String>) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -22606,7 +22251,7 @@ impl SseEncode for (u64, u64, u32, bool) {
     }
 }
 
-impl SseEncode for crate::api::sequencer::RecoveryConfigUpdate {
+impl SseEncode for crate::api::sequencer::runtime_config::RecoveryConfigUpdate {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <f64>::sse_encode(self.retry_interval_secs, serializer);
@@ -22617,7 +22262,7 @@ impl SseEncode for crate::api::sequencer::RecoveryConfigUpdate {
     }
 }
 
-impl SseEncode for crate::device_capabilities::RotatorCapabilities {
+impl SseEncode for crate::device_capabilities::types::RotatorCapabilities {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.can_reverse, serializer);
@@ -22646,26 +22291,26 @@ impl SseEncode for crate::device::RotatorStatus {
     }
 }
 
-impl SseEncode for crate::event::SafetyEvent {
+impl SseEncode for crate::event::system::SafetyEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         match self {
-            crate::event::SafetyEvent::WeatherUnsafe { reason } => {
+            crate::event::system::SafetyEvent::WeatherUnsafe { reason } => {
                 <i32>::sse_encode(0, serializer);
                 <String>::sse_encode(reason, serializer);
             }
-            crate::event::SafetyEvent::WeatherSafe => {
+            crate::event::system::SafetyEvent::WeatherSafe => {
                 <i32>::sse_encode(1, serializer);
             }
-            crate::event::SafetyEvent::EmergencyStop { reason } => {
+            crate::event::system::SafetyEvent::EmergencyStop { reason } => {
                 <i32>::sse_encode(2, serializer);
                 <String>::sse_encode(reason, serializer);
             }
-            crate::event::SafetyEvent::ParkInitiated { reason } => {
+            crate::event::system::SafetyEvent::ParkInitiated { reason } => {
                 <i32>::sse_encode(3, serializer);
                 <String>::sse_encode(reason, serializer);
             }
-            crate::event::SafetyEvent::ParkCompleted => {
+            crate::event::system::SafetyEvent::ParkCompleted => {
                 <i32>::sse_encode(4, serializer);
             }
             _ => {
@@ -22675,7 +22320,7 @@ impl SseEncode for crate::event::SafetyEvent {
     }
 }
 
-impl SseEncode for crate::device_capabilities::SafetyMonitorCapabilities {
+impl SseEncode for crate::device_capabilities::types::SafetyMonitorCapabilities {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_safe, serializer);
@@ -22691,7 +22336,7 @@ impl SseEncode for crate::device::SafetyStatus {
     }
 }
 
-impl SseEncode for crate::event::SchedulerScoreEntry {
+impl SseEncode for crate::event::sequencer::SchedulerScoreEntry {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.target_id, serializer);
@@ -22762,46 +22407,47 @@ impl SseEncode for crate::api::sequencer::SequenceDefinitionApi {
     }
 }
 
-impl SseEncode for crate::event::SequencerEvent {
+impl SseEncode for crate::event::sequencer::SequencerEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         match self {
-            crate::event::SequencerEvent::Started { sequence_name } => {
+            crate::event::sequencer::SequencerEvent::Started { sequence_name } => {
                 <i32>::sse_encode(0, serializer);
                 <String>::sse_encode(sequence_name, serializer);
             }
-            crate::event::SequencerEvent::Paused => {
+            crate::event::sequencer::SequencerEvent::Paused => {
                 <i32>::sse_encode(1, serializer);
             }
-            crate::event::SequencerEvent::Resumed => {
+            crate::event::sequencer::SequencerEvent::Resumed => {
                 <i32>::sse_encode(2, serializer);
             }
-            crate::event::SequencerEvent::Stopped => {
+            crate::event::sequencer::SequencerEvent::Stopped { sequence_run_id } => {
                 <i32>::sse_encode(3, serializer);
+                <Option<i64>>::sse_encode(sequence_run_id, serializer);
             }
-            crate::event::SequencerEvent::Completed => {
+            crate::event::sequencer::SequencerEvent::Completed => {
                 <i32>::sse_encode(4, serializer);
             }
-            crate::event::SequencerEvent::Failed { error } => {
+            crate::event::sequencer::SequencerEvent::Failed { error } => {
                 <i32>::sse_encode(5, serializer);
                 <String>::sse_encode(error, serializer);
             }
-            crate::event::SequencerEvent::NodeStarted { node_id, node_type } => {
+            crate::event::sequencer::SequencerEvent::NodeStarted { node_id, node_type } => {
                 <i32>::sse_encode(6, serializer);
                 <String>::sse_encode(node_id, serializer);
                 <String>::sse_encode(node_type, serializer);
             }
-            crate::event::SequencerEvent::NodeCompleted { node_id, status } => {
+            crate::event::sequencer::SequencerEvent::NodeCompleted { node_id, status } => {
                 <i32>::sse_encode(7, serializer);
                 <String>::sse_encode(node_id, serializer);
                 <String>::sse_encode(status, serializer);
             }
-            crate::event::SequencerEvent::Progress { current, total } => {
+            crate::event::sequencer::SequencerEvent::Progress { current, total } => {
                 <i32>::sse_encode(8, serializer);
                 <u32>::sse_encode(current, serializer);
                 <u32>::sse_encode(total, serializer);
             }
-            crate::event::SequencerEvent::TargetChanged {
+            crate::event::sequencer::SequencerEvent::TargetChanged {
                 target_name,
                 ra,
                 dec,
@@ -22811,11 +22457,11 @@ impl SseEncode for crate::event::SequencerEvent {
                 <Option<f64>>::sse_encode(ra, serializer);
                 <Option<f64>>::sse_encode(dec, serializer);
             }
-            crate::event::SequencerEvent::TargetCompleted { target_name } => {
+            crate::event::sequencer::SequencerEvent::TargetCompleted { target_name } => {
                 <i32>::sse_encode(10, serializer);
                 <String>::sse_encode(target_name, serializer);
             }
-            crate::event::SequencerEvent::ExposureStarted {
+            crate::event::sequencer::SequencerEvent::ExposureStarted {
                 frame,
                 total,
                 filter,
@@ -22827,7 +22473,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 <Option<String>>::sse_encode(filter, serializer);
                 <f64>::sse_encode(duration_secs, serializer);
             }
-            crate::event::SequencerEvent::ExposureCompleted {
+            crate::event::sequencer::SequencerEvent::ExposureCompleted {
                 frame,
                 total,
                 duration_secs,
@@ -22837,11 +22483,11 @@ impl SseEncode for crate::event::SequencerEvent {
                 <u32>::sse_encode(total, serializer);
                 <f64>::sse_encode(duration_secs, serializer);
             }
-            crate::event::SequencerEvent::Error { message } => {
+            crate::event::sequencer::SequencerEvent::Error { message } => {
                 <i32>::sse_encode(13, serializer);
                 <String>::sse_encode(message, serializer);
             }
-            crate::event::SequencerEvent::MeridianFlipOutcome {
+            crate::event::sequencer::SequencerEvent::MeridianFlipOutcome {
                 outcome,
                 target_name,
                 new_pier_side,
@@ -22861,7 +22507,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 <Option<String>>::sse_encode(error, serializer);
                 <Option<String>>::sse_encode(action_taken, serializer);
             }
-            crate::event::SequencerEvent::TriggerFired {
+            crate::event::sequencer::SequencerEvent::TriggerFired {
                 trigger_id,
                 trigger_name,
                 action,
@@ -22871,7 +22517,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 <String>::sse_encode(trigger_name, serializer);
                 <String>::sse_encode(action, serializer);
             }
-            crate::event::SequencerEvent::InstructionProgress {
+            crate::event::sequencer::SequencerEvent::InstructionProgress {
                 node_id,
                 instruction,
                 progress_percent,
@@ -22883,7 +22529,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 <f64>::sse_encode(progress_percent, serializer);
                 <String>::sse_encode(detail, serializer);
             }
-            crate::event::SequencerEvent::InstructionProgressStructured {
+            crate::event::sequencer::SequencerEvent::InstructionProgressStructured {
                 node_id,
                 instruction,
                 progress_percent,
@@ -22897,7 +22543,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 <String>::sse_encode(detail_kind, serializer);
                 <String>::sse_encode(detail_json, serializer);
             }
-            crate::event::SequencerEvent::FrameAccepted {
+            crate::event::sequencer::SequencerEvent::FrameAccepted {
                 node_id,
                 frame,
                 total,
@@ -22919,9 +22565,9 @@ impl SseEncode for crate::event::SequencerEvent {
                 <u32>::sse_encode(accepted_total, serializer);
                 <u32>::sse_encode(rejected_total, serializer);
                 <Option<String>>::sse_encode(save_path, serializer);
-                <crate::event::FrameCaptureMetadata>::sse_encode(capture, serializer);
+                <crate::event::sequencer::FrameCaptureMetadata>::sse_encode(capture, serializer);
             }
-            crate::event::SequencerEvent::FrameRejected {
+            crate::event::sequencer::SequencerEvent::FrameRejected {
                 node_id,
                 frame,
                 total,
@@ -22961,9 +22607,9 @@ impl SseEncode for crate::event::SequencerEvent {
                 <Option<f64>>::sse_encode(wind_at_capture, serializer);
                 <Option<f64>>::sse_encode(guide_rms_at_capture, serializer);
                 <Option<f64>>::sse_encode(sensor_temp_at_capture, serializer);
-                <crate::event::FrameCaptureMetadata>::sse_encode(capture, serializer);
+                <crate::event::sequencer::FrameCaptureMetadata>::sse_encode(capture, serializer);
             }
-            crate::event::SequencerEvent::SchedulerDecision {
+            crate::event::sequencer::SequencerEvent::SchedulerDecision {
                 node_id,
                 decision_counter,
                 picked_target_id,
@@ -22977,9 +22623,9 @@ impl SseEncode for crate::event::SequencerEvent {
                 <Option<String>>::sse_encode(picked_target_id, serializer);
                 <Option<String>>::sse_encode(picked_target_name, serializer);
                 <Option<f64>>::sse_encode(picked_score, serializer);
-                <Vec<crate::event::SchedulerScoreEntry>>::sse_encode(scores, serializer);
+                <Vec<crate::event::sequencer::SchedulerScoreEntry>>::sse_encode(scores, serializer);
             }
-            crate::event::SequencerEvent::IntegrationBudget {
+            crate::event::sequencer::SequencerEvent::IntegrationBudget {
                 target_id,
                 filter,
                 completed_secs,
@@ -22995,7 +22641,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 <f64>::sse_encode(fraction, serializer);
                 <bool>::sse_encode(budget_met, serializer);
             }
-            crate::event::SequencerEvent::ExposureAdjusted {
+            crate::event::sequencer::SequencerEvent::ExposureAdjusted {
                 node_id,
                 adapted_secs,
                 nominal_secs,
@@ -23011,7 +22657,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 <Option<String>>::sse_encode(filter, serializer);
                 <String>::sse_encode(reason, serializer);
             }
-            crate::event::SequencerEvent::PhotometryFrame {
+            crate::event::sequencer::SequencerEvent::PhotometryFrame {
                 node_id,
                 target_designation,
                 reference_stars,
@@ -23047,7 +22693,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 <bool>::sse_encode(reduce_live, serializer);
                 <bool>::sse_encode(apply_differential, serializer);
             }
-            crate::event::SequencerEvent::PhotometryCadenceBroken {
+            crate::event::sequencer::SequencerEvent::PhotometryCadenceBroken {
                 node_id,
                 frame,
                 total,
@@ -23063,7 +22709,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 <f64>::sse_encode(max_gap_secs, serializer);
                 <u32>::sse_encode(cadence_breaks, serializer);
             }
-            crate::event::SequencerEvent::PhotometrySummary {
+            crate::event::sequencer::SequencerEvent::PhotometrySummary {
                 node_id,
                 target_designation,
                 filter,
@@ -23079,7 +22725,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 <u32>::sse_encode(cadence_breaks, serializer);
                 <Option<String>>::sse_encode(last_reject_reason, serializer);
             }
-            crate::event::SequencerEvent::RecoveryStarted {
+            crate::event::sequencer::SequencerEvent::RecoveryStarted {
                 started_at_iso,
                 cause_kind,
                 cause_custom_label,
@@ -23103,7 +22749,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 <String>::sse_encode(phase, serializer);
                 <Option<String>>::sse_encode(last_error, serializer);
             }
-            crate::event::SequencerEvent::RecoveryProgress {
+            crate::event::sequencer::SequencerEvent::RecoveryProgress {
                 started_at_iso,
                 cause_kind,
                 cause_custom_label,
@@ -23127,7 +22773,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 <String>::sse_encode(phase, serializer);
                 <Option<String>>::sse_encode(last_error, serializer);
             }
-            crate::event::SequencerEvent::RecoveryCompleted {
+            crate::event::sequencer::SequencerEvent::RecoveryCompleted {
                 started_at_iso,
                 cause_kind,
                 cause_custom_label,
@@ -23151,7 +22797,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 <String>::sse_encode(phase, serializer);
                 <Option<String>>::sse_encode(last_error, serializer);
             }
-            crate::event::SequencerEvent::RecoveryGaveUp {
+            crate::event::sequencer::SequencerEvent::RecoveryGaveUp {
                 started_at_iso,
                 cause_kind,
                 cause_custom_label,
@@ -23177,7 +22823,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 <Option<String>>::sse_encode(last_error, serializer);
                 <bool>::sse_encode(aborted_by_user, serializer);
             }
-            crate::event::SequencerEvent::PluginNodeRequested {
+            crate::event::sequencer::SequencerEvent::PluginNodeRequested {
                 node_id,
                 plugin_id,
                 node_type_id,
@@ -23193,7 +22839,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 <Option<String>>::sse_encode(display_name, serializer);
                 <u32>::sse_encode(timeout_secs, serializer);
             }
-            crate::event::SequencerEvent::PluginNodeProgress {
+            crate::event::sequencer::SequencerEvent::PluginNodeProgress {
                 node_id,
                 plugin_id,
                 node_type_id,
@@ -23205,7 +22851,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 <String>::sse_encode(node_type_id, serializer);
                 <String>::sse_encode(detail_json, serializer);
             }
-            crate::event::SequencerEvent::DecisionLogged {
+            crate::event::sequencer::SequencerEvent::DecisionLogged {
                 timestamp_iso,
                 category,
                 summary,
@@ -23283,16 +22929,16 @@ impl SseEncode for crate::device::ShutterState {
     }
 }
 
-impl SseEncode for crate::device_capabilities::ShutterStatus {
+impl SseEncode for crate::device_capabilities::types::ShutterStatus {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(
             match self {
-                crate::device_capabilities::ShutterStatus::Open => 0,
-                crate::device_capabilities::ShutterStatus::Closed => 1,
-                crate::device_capabilities::ShutterStatus::Opening => 2,
-                crate::device_capabilities::ShutterStatus::Closing => 3,
-                crate::device_capabilities::ShutterStatus::Unknown => 4,
+                crate::device_capabilities::types::ShutterStatus::Open => 0,
+                crate::device_capabilities::types::ShutterStatus::Closed => 1,
+                crate::device_capabilities::types::ShutterStatus::Opening => 2,
+                crate::device_capabilities::types::ShutterStatus::Closing => 3,
+                crate::device_capabilities::types::ShutterStatus::Unknown => 4,
                 _ => {
                     unimplemented!("");
                 }
@@ -23302,60 +22948,69 @@ impl SseEncode for crate::device_capabilities::ShutterStatus {
     }
 }
 
-impl SseEncode for crate::api::devices::simulation::SimulatedCamera {
+impl SseEncode for crate::api::devices::simulation::camera::SimulatedCamera {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <crate::device::CameraStatus>::sse_encode(self.status, serializer);
     }
 }
 
-impl SseEncode for crate::api::devices::simulation::SimulatedDome {
+impl SseEncode for crate::api::devices::simulation::environment::SimulatedDome {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <crate::device::DomeStatus>::sse_encode(self.status, serializer);
     }
 }
 
-impl SseEncode for crate::api::devices::simulation::SimulatedFilterWheel {
+impl SseEncode for crate::api::devices::simulation::filter_wheel::SimulatedFilterWheel {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <crate::device::FilterWheelStatus>::sse_encode(self.status, serializer);
     }
 }
 
-impl SseEncode for crate::api::devices::simulation::SimulatedFocuser {
+impl SseEncode for crate::api::devices::simulation::focuser::SimulatedFocuser {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <crate::device::FocuserStatus>::sse_encode(self.status, serializer);
     }
 }
 
-impl SseEncode for crate::api::devices::simulation::SimulatedMount {
+impl SseEncode for crate::api::devices::simulation::mount::SimulatedMount {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <crate::device::MountStatus>::sse_encode(self.status, serializer);
     }
 }
 
-impl SseEncode for crate::api::devices::simulation::SimulatedRotator {
+impl SseEncode for crate::api::devices::simulation::rotator::SimulatedRotator {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <crate::device::RotatorStatus>::sse_encode(self.status, serializer);
     }
 }
 
-impl SseEncode for crate::api::devices::simulation::SimulatedSafetyMonitor {
+impl SseEncode for crate::api::devices::simulation::environment::SimulatedSafetyMonitor {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <crate::device::SafetyStatus>::sse_encode(self.status, serializer);
     }
 }
 
-impl SseEncode for crate::api::devices::simulation::SimulatedWeather {
+impl SseEncode for crate::api::devices::simulation::environment::SimulatedWeather {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.connected, serializer);
         <crate::device::WeatherConditions>::sse_encode(self.conditions, serializer);
+    }
+}
+
+impl SseEncode for crate::api::plate_solve::SolveHints {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Option<f64>>::sse_encode(self.focal_length_mm, serializer);
+        <Option<(f64, f64)>>::sse_encode(self.pixel_size_um, serializer);
+        <(i32, i32)>::sse_encode(self.binning, serializer);
     }
 }
 
@@ -23408,15 +23063,15 @@ impl SseEncode for crate::api::imaging::StretchParamsApi {
     }
 }
 
-impl SseEncode for crate::device_capabilities::SwitchCapabilities {
+impl SseEncode for crate::device_capabilities::types::SwitchCapabilities {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.switch_count, serializer);
-        <Vec<crate::device_capabilities::SwitchInfo>>::sse_encode(self.switches, serializer);
+        <Vec<crate::device_capabilities::types::SwitchInfo>>::sse_encode(self.switches, serializer);
     }
 }
 
-impl SseEncode for crate::device_capabilities::SwitchInfo {
+impl SseEncode for crate::device_capabilities::types::SwitchInfo {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.index, serializer);
@@ -23431,25 +23086,25 @@ impl SseEncode for crate::device_capabilities::SwitchInfo {
     }
 }
 
-impl SseEncode for crate::event::SystemEvent {
+impl SseEncode for crate::event::system::SystemEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         match self {
-            crate::event::SystemEvent::Initialized => {
+            crate::event::system::SystemEvent::Initialized => {
                 <i32>::sse_encode(0, serializer);
             }
-            crate::event::SystemEvent::ShuttingDown => {
+            crate::event::system::SystemEvent::ShuttingDown => {
                 <i32>::sse_encode(1, serializer);
             }
-            crate::event::SystemEvent::Error { message } => {
+            crate::event::system::SystemEvent::Error { message } => {
                 <i32>::sse_encode(2, serializer);
                 <String>::sse_encode(message, serializer);
             }
-            crate::event::SystemEvent::DiskSpaceLow { available_gb } => {
+            crate::event::system::SystemEvent::DiskSpaceLow { available_gb } => {
                 <i32>::sse_encode(3, serializer);
                 <f64>::sse_encode(available_gb, serializer);
             }
-            crate::event::SystemEvent::Notification {
+            crate::event::system::SystemEvent::Notification {
                 title,
                 message,
                 level,
@@ -23461,7 +23116,7 @@ impl SseEncode for crate::event::SystemEvent {
                 <String>::sse_encode(level, serializer);
                 <Option<Vec<String>>>::sse_encode(explicit_transports, serializer);
             }
-            crate::event::SystemEvent::EventsDropped {
+            crate::event::system::SystemEvent::EventsDropped {
                 dropped_count,
                 total_dropped,
             } => {
@@ -23538,7 +23193,7 @@ impl SseEncode for usize {
     }
 }
 
-impl SseEncode for crate::device_capabilities::WeatherCapabilities {
+impl SseEncode for crate::device_capabilities::types::WeatherCapabilities {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.has_cloud_cover, serializer);
@@ -23710,14 +23365,19 @@ mod io {
     }
     impl
         CstDecode<
-            StreamSink<crate::event::NightshadeEvent, flutter_rust_bridge::for_generated::DcoCodec>,
+            StreamSink<
+                crate::event::bus::NightshadeEvent,
+                flutter_rust_bridge::for_generated::DcoCodec,
+            >,
         > for *mut wire_cst_list_prim_u_8_strict
     {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(
             self,
-        ) -> StreamSink<crate::event::NightshadeEvent, flutter_rust_bridge::for_generated::DcoCodec>
-        {
+        ) -> StreamSink<
+            crate::event::bus::NightshadeEvent,
+            flutter_rust_bridge::for_generated::DcoCodec,
+        > {
             let raw: String = self.cst_decode();
             StreamSink::deserialize(raw)
         }
@@ -23926,30 +23586,36 @@ mod io {
             CstDecode::<crate::device::CalibratorState>::cst_decode(*wrap).into()
         }
     }
-    impl CstDecode<crate::device_capabilities::CameraCapabilities>
+    impl CstDecode<crate::device_capabilities::types::CameraCapabilities>
         for *mut wire_cst_camera_capabilities
     {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::device_capabilities::CameraCapabilities {
+        fn cst_decode(self) -> crate::device_capabilities::types::CameraCapabilities {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
-            CstDecode::<crate::device_capabilities::CameraCapabilities>::cst_decode(*wrap).into()
+            CstDecode::<crate::device_capabilities::types::CameraCapabilities>::cst_decode(*wrap)
+                .into()
         }
     }
-    impl CstDecode<crate::api::sequencer::CheckpointInfoApi> for *mut wire_cst_checkpoint_info_api {
+    impl CstDecode<crate::api::sequencer::lifecycle::CheckpointInfoApi>
+        for *mut wire_cst_checkpoint_info_api
+    {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::api::sequencer::CheckpointInfoApi {
+        fn cst_decode(self) -> crate::api::sequencer::lifecycle::CheckpointInfoApi {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
-            CstDecode::<crate::api::sequencer::CheckpointInfoApi>::cst_decode(*wrap).into()
+            CstDecode::<crate::api::sequencer::lifecycle::CheckpointInfoApi>::cst_decode(*wrap)
+                .into()
         }
     }
-    impl CstDecode<crate::device_capabilities::CoverCalibratorCapabilities>
+    impl CstDecode<crate::device_capabilities::types::CoverCalibratorCapabilities>
         for *mut wire_cst_cover_calibrator_capabilities
     {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::device_capabilities::CoverCalibratorCapabilities {
+        fn cst_decode(self) -> crate::device_capabilities::types::CoverCalibratorCapabilities {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
-            CstDecode::<crate::device_capabilities::CoverCalibratorCapabilities>::cst_decode(*wrap)
-                .into()
+            CstDecode::<crate::device_capabilities::types::CoverCalibratorCapabilities>::cst_decode(
+                *wrap,
+            )
+            .into()
         }
     }
     impl CstDecode<crate::device::CoverState> for *mut i32 {
@@ -23959,18 +23625,21 @@ mod io {
             CstDecode::<crate::device::CoverState>::cst_decode(*wrap).into()
         }
     }
-    impl CstDecode<crate::device_capabilities::DomeCapabilities> for *mut wire_cst_dome_capabilities {
+    impl CstDecode<crate::device_capabilities::types::DomeCapabilities>
+        for *mut wire_cst_dome_capabilities
+    {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::device_capabilities::DomeCapabilities {
+        fn cst_decode(self) -> crate::device_capabilities::types::DomeCapabilities {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
-            CstDecode::<crate::device_capabilities::DomeCapabilities>::cst_decode(*wrap).into()
+            CstDecode::<crate::device_capabilities::types::DomeCapabilities>::cst_decode(*wrap)
+                .into()
         }
     }
-    impl CstDecode<crate::event::EquipmentEvent> for *mut wire_cst_equipment_event {
+    impl CstDecode<crate::event::equipment::EquipmentEvent> for *mut wire_cst_equipment_event {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::event::EquipmentEvent {
+        fn cst_decode(self) -> crate::event::equipment::EquipmentEvent {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
-            CstDecode::<crate::event::EquipmentEvent>::cst_decode(*wrap).into()
+            CstDecode::<crate::event::equipment::EquipmentEvent>::cst_decode(*wrap).into()
         }
     }
     impl CstDecode<crate::state::EquipmentProfile> for *mut wire_cst_equipment_profile {
@@ -23992,14 +23661,16 @@ mod io {
             unsafe { *flutter_rust_bridge::for_generated::box_from_leak_ptr(self) }
         }
     }
-    impl CstDecode<crate::device_capabilities::FilterWheelCapabilities>
+    impl CstDecode<crate::device_capabilities::types::FilterWheelCapabilities>
         for *mut wire_cst_filter_wheel_capabilities
     {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::device_capabilities::FilterWheelCapabilities {
+        fn cst_decode(self) -> crate::device_capabilities::types::FilterWheelCapabilities {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
-            CstDecode::<crate::device_capabilities::FilterWheelCapabilities>::cst_decode(*wrap)
-                .into()
+            CstDecode::<crate::device_capabilities::types::FilterWheelCapabilities>::cst_decode(
+                *wrap,
+            )
+            .into()
         }
     }
     impl CstDecode<crate::api::imaging::FitsWriteHeader> for *mut wire_cst_fits_write_header {
@@ -24016,27 +23687,30 @@ mod io {
             CstDecode::<crate::api::imaging::FitsWriteHeaderRich>::cst_decode(*wrap).into()
         }
     }
-    impl CstDecode<crate::device_capabilities::FocuserCapabilities>
+    impl CstDecode<crate::device_capabilities::types::FocuserCapabilities>
         for *mut wire_cst_focuser_capabilities
     {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::device_capabilities::FocuserCapabilities {
+        fn cst_decode(self) -> crate::device_capabilities::types::FocuserCapabilities {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
-            CstDecode::<crate::device_capabilities::FocuserCapabilities>::cst_decode(*wrap).into()
+            CstDecode::<crate::device_capabilities::types::FocuserCapabilities>::cst_decode(*wrap)
+                .into()
         }
     }
-    impl CstDecode<crate::event::FrameCaptureMetadata> for *mut wire_cst_frame_capture_metadata {
+    impl CstDecode<crate::event::sequencer::FrameCaptureMetadata>
+        for *mut wire_cst_frame_capture_metadata
+    {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::event::FrameCaptureMetadata {
+        fn cst_decode(self) -> crate::event::sequencer::FrameCaptureMetadata {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
-            CstDecode::<crate::event::FrameCaptureMetadata>::cst_decode(*wrap).into()
+            CstDecode::<crate::event::sequencer::FrameCaptureMetadata>::cst_decode(*wrap).into()
         }
     }
-    impl CstDecode<crate::event::GuidingEvent> for *mut wire_cst_guiding_event {
+    impl CstDecode<crate::event::guiding::GuidingEvent> for *mut wire_cst_guiding_event {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::event::GuidingEvent {
+        fn cst_decode(self) -> crate::event::guiding::GuidingEvent {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
-            CstDecode::<crate::event::GuidingEvent>::cst_decode(*wrap).into()
+            CstDecode::<crate::event::guiding::GuidingEvent>::cst_decode(*wrap).into()
         }
     }
     impl CstDecode<i32> for *mut i32 {
@@ -24051,11 +23725,11 @@ mod io {
             unsafe { *flutter_rust_bridge::for_generated::box_from_leak_ptr(self) }
         }
     }
-    impl CstDecode<crate::event::ImagingEvent> for *mut wire_cst_imaging_event {
+    impl CstDecode<crate::event::imaging::ImagingEvent> for *mut wire_cst_imaging_event {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::event::ImagingEvent {
+        fn cst_decode(self) -> crate::event::imaging::ImagingEvent {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
-            CstDecode::<crate::event::ImagingEvent>::cst_decode(*wrap).into()
+            CstDecode::<crate::event::imaging::ImagingEvent>::cst_decode(*wrap).into()
         }
     }
     impl CstDecode<crate::api::imaging::IndiAutofocusConfigApi>
@@ -24067,21 +23741,26 @@ mod io {
             CstDecode::<crate::api::imaging::IndiAutofocusConfigApi>::cst_decode(*wrap).into()
         }
     }
-    impl CstDecode<crate::api::sequencer::LiveStackingBroadcastSnapshot>
+    impl CstDecode<crate::api::sequencer::mosaic::LiveStackingBroadcastSnapshot>
         for *mut wire_cst_live_stacking_broadcast_snapshot
     {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::api::sequencer::LiveStackingBroadcastSnapshot {
+        fn cst_decode(self) -> crate::api::sequencer::mosaic::LiveStackingBroadcastSnapshot {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
-            CstDecode::<crate::api::sequencer::LiveStackingBroadcastSnapshot>::cst_decode(*wrap)
-                .into()
+            CstDecode::<crate::api::sequencer::mosaic::LiveStackingBroadcastSnapshot>::cst_decode(
+                *wrap,
+            )
+            .into()
         }
     }
-    impl CstDecode<crate::device_capabilities::MountCapabilities> for *mut wire_cst_mount_capabilities {
+    impl CstDecode<crate::device_capabilities::types::MountCapabilities>
+        for *mut wire_cst_mount_capabilities
+    {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::device_capabilities::MountCapabilities {
+        fn cst_decode(self) -> crate::device_capabilities::types::MountCapabilities {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
-            CstDecode::<crate::device_capabilities::MountCapabilities>::cst_decode(*wrap).into()
+            CstDecode::<crate::device_capabilities::types::MountCapabilities>::cst_decode(*wrap)
+                .into()
         }
     }
     impl CstDecode<crate::storage::ObserverLocation> for *mut wire_cst_observer_location {
@@ -24107,62 +23786,77 @@ mod io {
             CstDecode::<crate::api::plate_solve::PlateSolverConfigPayload>::cst_decode(*wrap).into()
         }
     }
-    impl CstDecode<crate::event::PolarAlignmentEvent> for *mut wire_cst_polar_alignment_event {
+    impl CstDecode<crate::event::imaging::PolarAlignmentEvent> for *mut wire_cst_polar_alignment_event {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::event::PolarAlignmentEvent {
+        fn cst_decode(self) -> crate::event::imaging::PolarAlignmentEvent {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
-            CstDecode::<crate::event::PolarAlignmentEvent>::cst_decode(*wrap).into()
+            CstDecode::<crate::event::imaging::PolarAlignmentEvent>::cst_decode(*wrap).into()
         }
     }
-    impl CstDecode<crate::event::PolarAlignmentImageEvent>
+    impl CstDecode<crate::event::imaging::PolarAlignmentImageEvent>
         for *mut wire_cst_polar_alignment_image_event
     {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::event::PolarAlignmentImageEvent {
+        fn cst_decode(self) -> crate::event::imaging::PolarAlignmentImageEvent {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
-            CstDecode::<crate::event::PolarAlignmentImageEvent>::cst_decode(*wrap).into()
+            CstDecode::<crate::event::imaging::PolarAlignmentImageEvent>::cst_decode(*wrap).into()
         }
     }
-    impl CstDecode<crate::event::PolarAlignmentStatus> for *mut wire_cst_polar_alignment_status {
+    impl CstDecode<crate::event::imaging::PolarAlignmentStatus>
+        for *mut wire_cst_polar_alignment_status
+    {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::event::PolarAlignmentStatus {
+        fn cst_decode(self) -> crate::event::imaging::PolarAlignmentStatus {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
-            CstDecode::<crate::event::PolarAlignmentStatus>::cst_decode(*wrap).into()
+            CstDecode::<crate::event::imaging::PolarAlignmentStatus>::cst_decode(*wrap).into()
         }
     }
-    impl CstDecode<crate::api::sequencer::RecoveryConfigUpdate>
+    impl CstDecode<(f64, f64)> for *mut wire_cst_record_f_64_f_64 {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> (f64, f64) {
+            let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
+            CstDecode::<(f64, f64)>::cst_decode(*wrap).into()
+        }
+    }
+    impl CstDecode<crate::api::sequencer::runtime_config::RecoveryConfigUpdate>
         for *mut wire_cst_recovery_config_update
     {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::api::sequencer::RecoveryConfigUpdate {
+        fn cst_decode(self) -> crate::api::sequencer::runtime_config::RecoveryConfigUpdate {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
-            CstDecode::<crate::api::sequencer::RecoveryConfigUpdate>::cst_decode(*wrap).into()
+            CstDecode::<crate::api::sequencer::runtime_config::RecoveryConfigUpdate>::cst_decode(
+                *wrap,
+            )
+            .into()
         }
     }
-    impl CstDecode<crate::device_capabilities::RotatorCapabilities>
+    impl CstDecode<crate::device_capabilities::types::RotatorCapabilities>
         for *mut wire_cst_rotator_capabilities
     {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::device_capabilities::RotatorCapabilities {
+        fn cst_decode(self) -> crate::device_capabilities::types::RotatorCapabilities {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
-            CstDecode::<crate::device_capabilities::RotatorCapabilities>::cst_decode(*wrap).into()
+            CstDecode::<crate::device_capabilities::types::RotatorCapabilities>::cst_decode(*wrap)
+                .into()
         }
     }
-    impl CstDecode<crate::event::SafetyEvent> for *mut wire_cst_safety_event {
+    impl CstDecode<crate::event::system::SafetyEvent> for *mut wire_cst_safety_event {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::event::SafetyEvent {
+        fn cst_decode(self) -> crate::event::system::SafetyEvent {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
-            CstDecode::<crate::event::SafetyEvent>::cst_decode(*wrap).into()
+            CstDecode::<crate::event::system::SafetyEvent>::cst_decode(*wrap).into()
         }
     }
-    impl CstDecode<crate::device_capabilities::SafetyMonitorCapabilities>
+    impl CstDecode<crate::device_capabilities::types::SafetyMonitorCapabilities>
         for *mut wire_cst_safety_monitor_capabilities
     {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::device_capabilities::SafetyMonitorCapabilities {
+        fn cst_decode(self) -> crate::device_capabilities::types::SafetyMonitorCapabilities {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
-            CstDecode::<crate::device_capabilities::SafetyMonitorCapabilities>::cst_decode(*wrap)
-                .into()
+            CstDecode::<crate::device_capabilities::types::SafetyMonitorCapabilities>::cst_decode(
+                *wrap,
+            )
+            .into()
         }
     }
     impl CstDecode<crate::api::secondary_rig::SecondaryRigConfigApi>
@@ -24183,18 +23877,18 @@ mod io {
             CstDecode::<crate::api::sequencer::SequenceDefinitionApi>::cst_decode(*wrap).into()
         }
     }
-    impl CstDecode<crate::event::SequencerEvent> for *mut wire_cst_sequencer_event {
+    impl CstDecode<crate::event::sequencer::SequencerEvent> for *mut wire_cst_sequencer_event {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::event::SequencerEvent {
+        fn cst_decode(self) -> crate::event::sequencer::SequencerEvent {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
-            CstDecode::<crate::event::SequencerEvent>::cst_decode(*wrap).into()
+            CstDecode::<crate::event::sequencer::SequencerEvent>::cst_decode(*wrap).into()
         }
     }
-    impl CstDecode<crate::device_capabilities::ShutterStatus> for *mut i32 {
+    impl CstDecode<crate::device_capabilities::types::ShutterStatus> for *mut i32 {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::device_capabilities::ShutterStatus {
+        fn cst_decode(self) -> crate::device_capabilities::types::ShutterStatus {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
-            CstDecode::<crate::device_capabilities::ShutterStatus>::cst_decode(*wrap).into()
+            CstDecode::<crate::device_capabilities::types::ShutterStatus>::cst_decode(*wrap).into()
         }
     }
     impl CstDecode<crate::api::imaging::StarDetectionConfigApi>
@@ -24213,20 +23907,21 @@ mod io {
             CstDecode::<crate::api::imaging::StretchParamsApi>::cst_decode(*wrap).into()
         }
     }
-    impl CstDecode<crate::device_capabilities::SwitchCapabilities>
+    impl CstDecode<crate::device_capabilities::types::SwitchCapabilities>
         for *mut wire_cst_switch_capabilities
     {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::device_capabilities::SwitchCapabilities {
+        fn cst_decode(self) -> crate::device_capabilities::types::SwitchCapabilities {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
-            CstDecode::<crate::device_capabilities::SwitchCapabilities>::cst_decode(*wrap).into()
+            CstDecode::<crate::device_capabilities::types::SwitchCapabilities>::cst_decode(*wrap)
+                .into()
         }
     }
-    impl CstDecode<crate::event::SystemEvent> for *mut wire_cst_system_event {
+    impl CstDecode<crate::event::system::SystemEvent> for *mut wire_cst_system_event {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::event::SystemEvent {
+        fn cst_decode(self) -> crate::event::system::SystemEvent {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
-            CstDecode::<crate::event::SystemEvent>::cst_decode(*wrap).into()
+            CstDecode::<crate::event::system::SystemEvent>::cst_decode(*wrap).into()
         }
     }
     impl CstDecode<crate::device::TrackingRate> for *mut i32 {
@@ -24254,13 +23949,14 @@ mod io {
             unsafe { *flutter_rust_bridge::for_generated::box_from_leak_ptr(self) }
         }
     }
-    impl CstDecode<crate::device_capabilities::WeatherCapabilities>
+    impl CstDecode<crate::device_capabilities::types::WeatherCapabilities>
         for *mut wire_cst_weather_capabilities
     {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::device_capabilities::WeatherCapabilities {
+        fn cst_decode(self) -> crate::device_capabilities::types::WeatherCapabilities {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
-            CstDecode::<crate::device_capabilities::WeatherCapabilities>::cst_decode(*wrap).into()
+            CstDecode::<crate::device_capabilities::types::WeatherCapabilities>::cst_decode(*wrap)
+                .into()
         }
     }
     impl CstDecode<crate::api::phd2::BuiltinGuiderConfig> for wire_cst_builtin_guider_config {
@@ -24278,10 +23974,12 @@ mod io {
             }
         }
     }
-    impl CstDecode<crate::device_capabilities::CameraCapabilities> for wire_cst_camera_capabilities {
+    impl CstDecode<crate::device_capabilities::types::CameraCapabilities>
+        for wire_cst_camera_capabilities
+    {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::device_capabilities::CameraCapabilities {
-            crate::device_capabilities::CameraCapabilities {
+        fn cst_decode(self) -> crate::device_capabilities::types::CameraCapabilities {
+            crate::device_capabilities::types::CameraCapabilities {
                 max_width: self.max_width.cst_decode(),
                 max_height: self.max_height.cst_decode(),
                 bit_depth: self.bit_depth.cst_decode(),
@@ -24320,12 +24018,12 @@ mod io {
             }
         }
     }
-    impl CstDecode<crate::device_capabilities::CameraRecommendedSettings>
+    impl CstDecode<crate::device_capabilities::types::CameraRecommendedSettings>
         for wire_cst_camera_recommended_settings
     {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::device_capabilities::CameraRecommendedSettings {
-            crate::device_capabilities::CameraRecommendedSettings {
+        fn cst_decode(self) -> crate::device_capabilities::types::CameraRecommendedSettings {
+            crate::device_capabilities::types::CameraRecommendedSettings {
                 unity_gain: self.unity_gain.cst_decode(),
                 hcg_gain: self.hcg_gain.cst_decode(),
                 default_offset: self.default_offset.cst_decode(),
@@ -24374,10 +24072,12 @@ mod io {
             }
         }
     }
-    impl CstDecode<crate::api::sequencer::CheckpointInfoApi> for wire_cst_checkpoint_info_api {
+    impl CstDecode<crate::api::sequencer::lifecycle::CheckpointInfoApi>
+        for wire_cst_checkpoint_info_api
+    {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::api::sequencer::CheckpointInfoApi {
-            crate::api::sequencer::CheckpointInfoApi {
+        fn cst_decode(self) -> crate::api::sequencer::lifecycle::CheckpointInfoApi {
+            crate::api::sequencer::lifecycle::CheckpointInfoApi {
                 sequence_name: self.sequence_name.cst_decode(),
                 timestamp: self.timestamp.cst_decode(),
                 completed_exposures: self.completed_exposures.cst_decode(),
@@ -24387,12 +24087,12 @@ mod io {
             }
         }
     }
-    impl CstDecode<crate::device_capabilities::CoverCalibratorCapabilities>
+    impl CstDecode<crate::device_capabilities::types::CoverCalibratorCapabilities>
         for wire_cst_cover_calibrator_capabilities
     {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::device_capabilities::CoverCalibratorCapabilities {
-            crate::device_capabilities::CoverCalibratorCapabilities {
+        fn cst_decode(self) -> crate::device_capabilities::types::CoverCalibratorCapabilities {
+            crate::device_capabilities::types::CoverCalibratorCapabilities {
                 max_brightness: self.max_brightness.cst_decode(),
                 cover_present: self.cover_present.cst_decode(),
                 calibrator_present: self.calibrator_present.cst_decode(),
@@ -24446,55 +24146,71 @@ mod io {
             }
         }
     }
-    impl CstDecode<crate::device_capabilities::DeviceCapabilities> for wire_cst_device_capabilities {
+    impl CstDecode<crate::device_capabilities::types::DeviceCapabilities>
+        for wire_cst_device_capabilities
+    {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::device_capabilities::DeviceCapabilities {
+        fn cst_decode(self) -> crate::device_capabilities::types::DeviceCapabilities {
             match self.tag {
                 0 => {
                     let ans = unsafe { self.kind.Mount };
-                    crate::device_capabilities::DeviceCapabilities::Mount(ans.field0.cst_decode())
+                    crate::device_capabilities::types::DeviceCapabilities::Mount(
+                        ans.field0.cst_decode(),
+                    )
                 }
                 1 => {
                     let ans = unsafe { self.kind.Camera };
-                    crate::device_capabilities::DeviceCapabilities::Camera(ans.field0.cst_decode())
+                    crate::device_capabilities::types::DeviceCapabilities::Camera(
+                        ans.field0.cst_decode(),
+                    )
                 }
                 2 => {
                     let ans = unsafe { self.kind.Focuser };
-                    crate::device_capabilities::DeviceCapabilities::Focuser(ans.field0.cst_decode())
+                    crate::device_capabilities::types::DeviceCapabilities::Focuser(
+                        ans.field0.cst_decode(),
+                    )
                 }
                 3 => {
                     let ans = unsafe { self.kind.FilterWheel };
-                    crate::device_capabilities::DeviceCapabilities::FilterWheel(
+                    crate::device_capabilities::types::DeviceCapabilities::FilterWheel(
                         ans.field0.cst_decode(),
                     )
                 }
                 4 => {
                     let ans = unsafe { self.kind.Rotator };
-                    crate::device_capabilities::DeviceCapabilities::Rotator(ans.field0.cst_decode())
+                    crate::device_capabilities::types::DeviceCapabilities::Rotator(
+                        ans.field0.cst_decode(),
+                    )
                 }
                 5 => {
                     let ans = unsafe { self.kind.Dome };
-                    crate::device_capabilities::DeviceCapabilities::Dome(ans.field0.cst_decode())
+                    crate::device_capabilities::types::DeviceCapabilities::Dome(
+                        ans.field0.cst_decode(),
+                    )
                 }
                 6 => {
                     let ans = unsafe { self.kind.CoverCalibrator };
-                    crate::device_capabilities::DeviceCapabilities::CoverCalibrator(
+                    crate::device_capabilities::types::DeviceCapabilities::CoverCalibrator(
                         ans.field0.cst_decode(),
                     )
                 }
                 7 => {
                     let ans = unsafe { self.kind.Weather };
-                    crate::device_capabilities::DeviceCapabilities::Weather(ans.field0.cst_decode())
+                    crate::device_capabilities::types::DeviceCapabilities::Weather(
+                        ans.field0.cst_decode(),
+                    )
                 }
                 8 => {
                     let ans = unsafe { self.kind.SafetyMonitor };
-                    crate::device_capabilities::DeviceCapabilities::SafetyMonitor(
+                    crate::device_capabilities::types::DeviceCapabilities::SafetyMonitor(
                         ans.field0.cst_decode(),
                     )
                 }
                 9 => {
                     let ans = unsafe { self.kind.Switch };
-                    crate::device_capabilities::DeviceCapabilities::Switch(ans.field0.cst_decode())
+                    crate::device_capabilities::types::DeviceCapabilities::Switch(
+                        ans.field0.cst_decode(),
+                    )
                 }
                 _ => unreachable!(),
             }
@@ -24532,10 +24248,10 @@ mod io {
             }
         }
     }
-    impl CstDecode<crate::device_capabilities::DomeCapabilities> for wire_cst_dome_capabilities {
+    impl CstDecode<crate::device_capabilities::types::DomeCapabilities> for wire_cst_dome_capabilities {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::device_capabilities::DomeCapabilities {
-            crate::device_capabilities::DomeCapabilities {
+        fn cst_decode(self) -> crate::device_capabilities::types::DomeCapabilities {
+            crate::device_capabilities::types::DomeCapabilities {
                 can_set_azimuth: self.can_set_azimuth.cst_decode(),
                 can_park: self.can_park.cst_decode(),
                 can_find_home: self.can_find_home.cst_decode(),
@@ -24571,34 +24287,34 @@ mod io {
             }
         }
     }
-    impl CstDecode<crate::event::EquipmentEvent> for wire_cst_equipment_event {
+    impl CstDecode<crate::event::equipment::EquipmentEvent> for wire_cst_equipment_event {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::event::EquipmentEvent {
+        fn cst_decode(self) -> crate::event::equipment::EquipmentEvent {
             match self.tag {
                 0 => {
                     let ans = unsafe { self.kind.Connecting };
-                    crate::event::EquipmentEvent::Connecting {
+                    crate::event::equipment::EquipmentEvent::Connecting {
                         device_type: ans.device_type.cst_decode(),
                         device_id: ans.device_id.cst_decode(),
                     }
                 }
                 1 => {
                     let ans = unsafe { self.kind.Connected };
-                    crate::event::EquipmentEvent::Connected {
+                    crate::event::equipment::EquipmentEvent::Connected {
                         device_type: ans.device_type.cst_decode(),
                         device_id: ans.device_id.cst_decode(),
                     }
                 }
                 2 => {
                     let ans = unsafe { self.kind.Disconnected };
-                    crate::event::EquipmentEvent::Disconnected {
+                    crate::event::equipment::EquipmentEvent::Disconnected {
                         device_type: ans.device_type.cst_decode(),
                         device_id: ans.device_id.cst_decode(),
                     }
                 }
                 3 => {
                     let ans = unsafe { self.kind.PropertyChanged };
-                    crate::event::EquipmentEvent::PropertyChanged {
+                    crate::event::equipment::EquipmentEvent::PropertyChanged {
                         device_type: ans.device_type.cst_decode(),
                         device_id: ans.device_id.cst_decode(),
                         property: ans.property.cst_decode(),
@@ -24607,7 +24323,7 @@ mod io {
                 }
                 4 => {
                     let ans = unsafe { self.kind.Error };
-                    crate::event::EquipmentEvent::Error {
+                    crate::event::equipment::EquipmentEvent::Error {
                         device_type: ans.device_type.cst_decode(),
                         device_id: ans.device_id.cst_decode(),
                         message: ans.message.cst_decode(),
@@ -24615,44 +24331,44 @@ mod io {
                 }
                 5 => {
                     let ans = unsafe { self.kind.MountSlewStarted };
-                    crate::event::EquipmentEvent::MountSlewStarted {
+                    crate::event::equipment::EquipmentEvent::MountSlewStarted {
                         ra: ans.ra.cst_decode(),
                         dec: ans.dec.cst_decode(),
                     }
                 }
                 6 => {
                     let ans = unsafe { self.kind.MountSlewCompleted };
-                    crate::event::EquipmentEvent::MountSlewCompleted {
+                    crate::event::equipment::EquipmentEvent::MountSlewCompleted {
                         ra: ans.ra.cst_decode(),
                         dec: ans.dec.cst_decode(),
                     }
                 }
-                7 => crate::event::EquipmentEvent::MountTrackingStarted,
-                8 => crate::event::EquipmentEvent::MountTrackingStopped,
-                9 => crate::event::EquipmentEvent::MountParkStarted,
-                10 => crate::event::EquipmentEvent::MountParkCompleted,
-                11 => crate::event::EquipmentEvent::MountUnparked,
+                7 => crate::event::equipment::EquipmentEvent::MountTrackingStarted,
+                8 => crate::event::equipment::EquipmentEvent::MountTrackingStopped,
+                9 => crate::event::equipment::EquipmentEvent::MountParkStarted,
+                10 => crate::event::equipment::EquipmentEvent::MountParkCompleted,
+                11 => crate::event::equipment::EquipmentEvent::MountUnparked,
                 12 => {
                     let ans = unsafe { self.kind.FocuserMoveStarted };
-                    crate::event::EquipmentEvent::FocuserMoveStarted {
+                    crate::event::equipment::EquipmentEvent::FocuserMoveStarted {
                         target_position: ans.target_position.cst_decode(),
                     }
                 }
                 13 => {
                     let ans = unsafe { self.kind.FocuserMoveCompleted };
-                    crate::event::EquipmentEvent::FocuserMoveCompleted {
+                    crate::event::equipment::EquipmentEvent::FocuserMoveCompleted {
                         position: ans.position.cst_decode(),
                     }
                 }
                 14 => {
                     let ans = unsafe { self.kind.FocuserTemperatureChanged };
-                    crate::event::EquipmentEvent::FocuserTemperatureChanged {
+                    crate::event::equipment::EquipmentEvent::FocuserTemperatureChanged {
                         temperature: ans.temperature.cst_decode(),
                     }
                 }
                 15 => {
                     let ans = unsafe { self.kind.FilterChanging };
-                    crate::event::EquipmentEvent::FilterChanging {
+                    crate::event::equipment::EquipmentEvent::FilterChanging {
                         from_position: ans.from_position.cst_decode(),
                         to_position: ans.to_position.cst_decode(),
                         filter_name: ans.filter_name.cst_decode(),
@@ -24660,40 +24376,40 @@ mod io {
                 }
                 16 => {
                     let ans = unsafe { self.kind.FilterChanged };
-                    crate::event::EquipmentEvent::FilterChanged {
+                    crate::event::equipment::EquipmentEvent::FilterChanged {
                         position: ans.position.cst_decode(),
                         filter_name: ans.filter_name.cst_decode(),
                     }
                 }
                 17 => {
                     let ans = unsafe { self.kind.RotatorMoveStarted };
-                    crate::event::EquipmentEvent::RotatorMoveStarted {
+                    crate::event::equipment::EquipmentEvent::RotatorMoveStarted {
                         target_angle: ans.target_angle.cst_decode(),
                     }
                 }
                 18 => {
                     let ans = unsafe { self.kind.RotatorMoveCompleted };
-                    crate::event::EquipmentEvent::RotatorMoveCompleted {
+                    crate::event::equipment::EquipmentEvent::RotatorMoveCompleted {
                         angle: ans.angle.cst_decode(),
                     }
                 }
                 19 => {
                     let ans = unsafe { self.kind.CameraCoolingStarted };
-                    crate::event::EquipmentEvent::CameraCoolingStarted {
+                    crate::event::equipment::EquipmentEvent::CameraCoolingStarted {
                         target_temp: ans.target_temp.cst_decode(),
                     }
                 }
                 20 => {
                     let ans = unsafe { self.kind.CameraCoolingReached };
-                    crate::event::EquipmentEvent::CameraCoolingReached {
+                    crate::event::equipment::EquipmentEvent::CameraCoolingReached {
                         temperature: ans.temperature.cst_decode(),
                     }
                 }
-                21 => crate::event::EquipmentEvent::CameraWarmingStarted,
-                22 => crate::event::EquipmentEvent::CameraWarmingCompleted,
+                21 => crate::event::equipment::EquipmentEvent::CameraWarmingStarted,
+                22 => crate::event::equipment::EquipmentEvent::CameraWarmingCompleted,
                 23 => {
                     let ans = unsafe { self.kind.HeartbeatStarted };
-                    crate::event::EquipmentEvent::HeartbeatStarted {
+                    crate::event::equipment::EquipmentEvent::HeartbeatStarted {
                         device_type: ans.device_type.cst_decode(),
                         device_id: ans.device_id.cst_decode(),
                         interval_secs: ans.interval_secs.cst_decode(),
@@ -24701,14 +24417,14 @@ mod io {
                 }
                 24 => {
                     let ans = unsafe { self.kind.HeartbeatStopped };
-                    crate::event::EquipmentEvent::HeartbeatStopped {
+                    crate::event::equipment::EquipmentEvent::HeartbeatStopped {
                         device_type: ans.device_type.cst_decode(),
                         device_id: ans.device_id.cst_decode(),
                     }
                 }
                 25 => {
                     let ans = unsafe { self.kind.HeartbeatStatusChanged };
-                    crate::event::EquipmentEvent::HeartbeatStatusChanged {
+                    crate::event::equipment::EquipmentEvent::HeartbeatStatusChanged {
                         device_type: ans.device_type.cst_decode(),
                         device_id: ans.device_id.cst_decode(),
                         status: ans.status.cst_decode(),
@@ -24718,7 +24434,7 @@ mod io {
                 }
                 26 => {
                     let ans = unsafe { self.kind.HeartbeatReconnecting };
-                    crate::event::EquipmentEvent::HeartbeatReconnecting {
+                    crate::event::equipment::EquipmentEvent::HeartbeatReconnecting {
                         device_type: ans.device_type.cst_decode(),
                         device_id: ans.device_id.cst_decode(),
                         attempt: ans.attempt.cst_decode(),
@@ -24727,7 +24443,7 @@ mod io {
                 }
                 27 => {
                     let ans = unsafe { self.kind.HeartbeatReconnected };
-                    crate::event::EquipmentEvent::HeartbeatReconnected {
+                    crate::event::equipment::EquipmentEvent::HeartbeatReconnected {
                         device_type: ans.device_type.cst_decode(),
                         device_id: ans.device_id.cst_decode(),
                         after_attempts: ans.after_attempts.cst_decode(),
@@ -24735,7 +24451,7 @@ mod io {
                 }
                 28 => {
                     let ans = unsafe { self.kind.DeviceDiscovered };
-                    crate::event::EquipmentEvent::DeviceDiscovered {
+                    crate::event::equipment::EquipmentEvent::DeviceDiscovered {
                         device_class: ans.device_class.cst_decode(),
                         driver: ans.driver.cst_decode(),
                         id: ans.id.cst_decode(),
@@ -24746,7 +24462,7 @@ mod io {
                 }
                 29 => {
                     let ans = unsafe { self.kind.DeviceLost };
-                    crate::event::EquipmentEvent::DeviceLost {
+                    crate::event::equipment::EquipmentEvent::DeviceLost {
                         device_class: ans.device_class.cst_decode(),
                         driver: ans.driver.cst_decode(),
                         id: ans.id.cst_decode(),
@@ -24777,45 +24493,45 @@ mod io {
             }
         }
     }
-    impl CstDecode<crate::event::EventPayload> for wire_cst_event_payload {
+    impl CstDecode<crate::event::bus::EventPayload> for wire_cst_event_payload {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::event::EventPayload {
+        fn cst_decode(self) -> crate::event::bus::EventPayload {
             match self.tag {
                 0 => {
                     let ans = unsafe { self.kind.Equipment };
-                    crate::event::EventPayload::Equipment(ans.field0.cst_decode())
+                    crate::event::bus::EventPayload::Equipment(ans.field0.cst_decode())
                 }
                 1 => {
                     let ans = unsafe { self.kind.Imaging };
-                    crate::event::EventPayload::Imaging(ans.field0.cst_decode())
+                    crate::event::bus::EventPayload::Imaging(ans.field0.cst_decode())
                 }
                 2 => {
                     let ans = unsafe { self.kind.Guiding };
-                    crate::event::EventPayload::Guiding(ans.field0.cst_decode())
+                    crate::event::bus::EventPayload::Guiding(ans.field0.cst_decode())
                 }
                 3 => {
                     let ans = unsafe { self.kind.Sequencer };
-                    crate::event::EventPayload::Sequencer(ans.field0.cst_decode())
+                    crate::event::bus::EventPayload::Sequencer(ans.field0.cst_decode())
                 }
                 4 => {
                     let ans = unsafe { self.kind.Safety };
-                    crate::event::EventPayload::Safety(ans.field0.cst_decode())
+                    crate::event::bus::EventPayload::Safety(ans.field0.cst_decode())
                 }
                 5 => {
                     let ans = unsafe { self.kind.System };
-                    crate::event::EventPayload::System(ans.field0.cst_decode())
+                    crate::event::bus::EventPayload::System(ans.field0.cst_decode())
                 }
                 6 => {
                     let ans = unsafe { self.kind.PolarAlignment };
-                    crate::event::EventPayload::PolarAlignment(ans.field0.cst_decode())
+                    crate::event::bus::EventPayload::PolarAlignment(ans.field0.cst_decode())
                 }
                 7 => {
                     let ans = unsafe { self.kind.PolarAlignmentStatus };
-                    crate::event::EventPayload::PolarAlignmentStatus(ans.field0.cst_decode())
+                    crate::event::bus::EventPayload::PolarAlignmentStatus(ans.field0.cst_decode())
                 }
                 8 => {
                     let ans = unsafe { self.kind.PolarAlignmentImage };
-                    crate::event::EventPayload::PolarAlignmentImage(ans.field0.cst_decode())
+                    crate::event::bus::EventPayload::PolarAlignmentImage(ans.field0.cst_decode())
                 }
                 _ => unreachable!(),
             }
@@ -24835,12 +24551,12 @@ mod io {
             }
         }
     }
-    impl CstDecode<crate::device_capabilities::FilterWheelCapabilities>
+    impl CstDecode<crate::device_capabilities::types::FilterWheelCapabilities>
         for wire_cst_filter_wheel_capabilities
     {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::device_capabilities::FilterWheelCapabilities {
-            crate::device_capabilities::FilterWheelCapabilities {
+        fn cst_decode(self) -> crate::device_capabilities::types::FilterWheelCapabilities {
+            crate::device_capabilities::types::FilterWheelCapabilities {
                 position_count: self.position_count.cst_decode(),
                 current_position: self.current_position.cst_decode(),
                 filter_names: self.filter_names.cst_decode(),
@@ -25023,10 +24739,12 @@ mod io {
             }
         }
     }
-    impl CstDecode<crate::device_capabilities::FocuserCapabilities> for wire_cst_focuser_capabilities {
+    impl CstDecode<crate::device_capabilities::types::FocuserCapabilities>
+        for wire_cst_focuser_capabilities
+    {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::device_capabilities::FocuserCapabilities {
-            crate::device_capabilities::FocuserCapabilities {
+        fn cst_decode(self) -> crate::device_capabilities::types::FocuserCapabilities {
+            crate::device_capabilities::types::FocuserCapabilities {
                 max_position: self.max_position.cst_decode(),
                 max_increment: self.max_increment.cst_decode(),
                 step_size: self.step_size.cst_decode(),
@@ -25057,10 +24775,10 @@ mod io {
             }
         }
     }
-    impl CstDecode<crate::event::FrameCaptureMetadata> for wire_cst_frame_capture_metadata {
+    impl CstDecode<crate::event::sequencer::FrameCaptureMetadata> for wire_cst_frame_capture_metadata {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::event::FrameCaptureMetadata {
-            crate::event::FrameCaptureMetadata {
+        fn cst_decode(self) -> crate::event::sequencer::FrameCaptureMetadata {
+            crate::event::sequencer::FrameCaptureMetadata {
                 gain: self.gain.cst_decode(),
                 offset: self.offset.cst_decode(),
                 sensor_temp_c: self.sensor_temp_c.cst_decode(),
@@ -25081,59 +24799,59 @@ mod io {
             }
         }
     }
-    impl CstDecode<crate::event::GuidingEvent> for wire_cst_guiding_event {
+    impl CstDecode<crate::event::guiding::GuidingEvent> for wire_cst_guiding_event {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::event::GuidingEvent {
+        fn cst_decode(self) -> crate::event::guiding::GuidingEvent {
             match self.tag {
-                0 => crate::event::GuidingEvent::Connected,
-                1 => crate::event::GuidingEvent::Disconnected,
-                2 => crate::event::GuidingEvent::GuidingStarted,
-                3 => crate::event::GuidingEvent::GuidingStopped,
-                4 => crate::event::GuidingEvent::Paused,
-                5 => crate::event::GuidingEvent::Resumed,
+                0 => crate::event::guiding::GuidingEvent::Connected,
+                1 => crate::event::guiding::GuidingEvent::Disconnected,
+                2 => crate::event::guiding::GuidingEvent::GuidingStarted,
+                3 => crate::event::guiding::GuidingEvent::GuidingStopped,
+                4 => crate::event::guiding::GuidingEvent::Paused,
+                5 => crate::event::guiding::GuidingEvent::Resumed,
                 6 => {
                     let ans = unsafe { self.kind.Settled };
-                    crate::event::GuidingEvent::Settled {
+                    crate::event::guiding::GuidingEvent::Settled {
                         rms: ans.rms.cst_decode(),
                     }
                 }
-                7 => crate::event::GuidingEvent::LostStar,
+                7 => crate::event::guiding::GuidingEvent::LostStar,
                 8 => {
                     let ans = unsafe { self.kind.DitherStarted };
-                    crate::event::GuidingEvent::DitherStarted {
+                    crate::event::guiding::GuidingEvent::DitherStarted {
                         pixels: ans.pixels.cst_decode(),
                     }
                 }
-                9 => crate::event::GuidingEvent::DitherCompleted,
+                9 => crate::event::guiding::GuidingEvent::DitherCompleted,
                 10 => {
                     let ans = unsafe { self.kind.Correction };
-                    crate::event::GuidingEvent::Correction {
+                    crate::event::guiding::GuidingEvent::Correction {
                         ra: ans.ra.cst_decode(),
                         dec: ans.dec.cst_decode(),
                         ra_raw: ans.ra_raw.cst_decode(),
                         dec_raw: ans.dec_raw.cst_decode(),
                     }
                 }
-                11 => crate::event::GuidingEvent::Looping,
-                12 => crate::event::GuidingEvent::Settling,
-                13 => crate::event::GuidingEvent::Calibrating,
-                14 => crate::event::GuidingEvent::CalibrationComplete,
+                11 => crate::event::guiding::GuidingEvent::Looping,
+                12 => crate::event::guiding::GuidingEvent::Settling,
+                13 => crate::event::guiding::GuidingEvent::Calibrating,
+                14 => crate::event::guiding::GuidingEvent::CalibrationComplete,
                 15 => {
                     let ans = unsafe { self.kind.StarSelected };
-                    crate::event::GuidingEvent::StarSelected {
+                    crate::event::guiding::GuidingEvent::StarSelected {
                         x: ans.x.cst_decode(),
                         y: ans.y.cst_decode(),
                     }
                 }
                 16 => {
                     let ans = unsafe { self.kind.AppState };
-                    crate::event::GuidingEvent::AppState {
+                    crate::event::guiding::GuidingEvent::AppState {
                         state: ans.state.cst_decode(),
                     }
                 }
                 17 => {
                     let ans = unsafe { self.kind.GuideStats };
-                    crate::event::GuidingEvent::GuideStats {
+                    crate::event::guiding::GuidingEvent::GuideStats {
                         snr: ans.snr.cst_decode(),
                         star_mass: ans.star_mass.cst_decode(),
                     }
@@ -25158,20 +24876,20 @@ mod io {
             }
         }
     }
-    impl CstDecode<crate::event::ImagingEvent> for wire_cst_imaging_event {
+    impl CstDecode<crate::event::imaging::ImagingEvent> for wire_cst_imaging_event {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::event::ImagingEvent {
+        fn cst_decode(self) -> crate::event::imaging::ImagingEvent {
             match self.tag {
                 0 => {
                     let ans = unsafe { self.kind.ExposureStarted };
-                    crate::event::ImagingEvent::ExposureStarted {
+                    crate::event::imaging::ImagingEvent::ExposureStarted {
                         duration_secs: ans.duration_secs.cst_decode(),
                         frame_type: ans.frame_type.cst_decode(),
                     }
                 }
                 1 => {
                     let ans = unsafe { self.kind.ExposureStartedWithFrame };
-                    crate::event::ImagingEvent::ExposureStartedWithFrame {
+                    crate::event::imaging::ImagingEvent::ExposureStartedWithFrame {
                         duration_secs: ans.duration_secs.cst_decode(),
                         frame_type: ans.frame_type.cst_decode(),
                         frame_number: ans.frame_number.cst_decode(),
@@ -25180,14 +24898,14 @@ mod io {
                 }
                 2 => {
                     let ans = unsafe { self.kind.ExposureProgress };
-                    crate::event::ImagingEvent::ExposureProgress {
+                    crate::event::imaging::ImagingEvent::ExposureProgress {
                         progress: ans.progress.cst_decode(),
                         remaining_secs: ans.remaining_secs.cst_decode(),
                     }
                 }
                 3 => {
                     let ans = unsafe { self.kind.ExposureCompleted };
-                    crate::event::ImagingEvent::ExposureCompleted {
+                    crate::event::imaging::ImagingEvent::ExposureCompleted {
                         file_path: ans.file_path.cst_decode(),
                         hfr: ans.hfr.cst_decode(),
                         stars_detected: ans.stars_detected.cst_decode(),
@@ -25195,7 +24913,7 @@ mod io {
                 }
                 4 => {
                     let ans = unsafe { self.kind.ExposureCompletedWithFrame };
-                    crate::event::ImagingEvent::ExposureCompletedWithFrame {
+                    crate::event::imaging::ImagingEvent::ExposureCompletedWithFrame {
                         frame_number: ans.frame_number.cst_decode(),
                         total_frames: ans.total_frames.cst_decode(),
                         hfr: ans.hfr.cst_decode(),
@@ -25204,29 +24922,29 @@ mod io {
                 }
                 5 => {
                     let ans = unsafe { self.kind.ExposureFailed };
-                    crate::event::ImagingEvent::ExposureFailed {
+                    crate::event::imaging::ImagingEvent::ExposureFailed {
                         error: ans.error.cst_decode(),
                     }
                 }
-                6 => crate::event::ImagingEvent::ExposureCancelled,
-                7 => crate::event::ImagingEvent::DownloadStarted,
-                8 => crate::event::ImagingEvent::DownloadCompleted,
+                6 => crate::event::imaging::ImagingEvent::ExposureCancelled,
+                7 => crate::event::imaging::ImagingEvent::DownloadStarted,
+                8 => crate::event::imaging::ImagingEvent::DownloadCompleted,
                 9 => {
                     let ans = unsafe { self.kind.ImageReady };
-                    crate::event::ImagingEvent::ImageReady {
+                    crate::event::imaging::ImagingEvent::ImageReady {
                         width: ans.width.cst_decode(),
                         height: ans.height.cst_decode(),
                     }
                 }
                 10 => {
                     let ans = unsafe { self.kind.ImageSaved };
-                    crate::event::ImagingEvent::ImageSaved {
+                    crate::event::imaging::ImagingEvent::ImageSaved {
                         file_path: ans.file_path.cst_decode(),
                     }
                 }
                 11 => {
                     let ans = unsafe { self.kind.IntegrationProgress };
-                    crate::event::ImagingEvent::IntegrationProgress {
+                    crate::event::imaging::ImagingEvent::IntegrationProgress {
                         phase: ans.phase.cst_decode(),
                         fraction: ans.fraction.cst_decode(),
                         frames_done: ans.frames_done.cst_decode(),
@@ -25235,20 +24953,20 @@ mod io {
                 }
                 12 => {
                     let ans = unsafe { self.kind.TemperatureChanged };
-                    crate::event::ImagingEvent::TemperatureChanged {
+                    crate::event::imaging::ImagingEvent::TemperatureChanged {
                         temp_celsius: ans.temp_celsius.cst_decode(),
                         cooler_power: ans.cooler_power.cst_decode(),
                     }
                 }
                 13 => {
                     let ans = unsafe { self.kind.ExposureComplete };
-                    crate::event::ImagingEvent::ExposureComplete {
+                    crate::event::imaging::ImagingEvent::ExposureComplete {
                         success: ans.success.cst_decode(),
                     }
                 }
                 14 => {
                     let ans = unsafe { self.kind.ExposureFailedOld };
-                    crate::event::ImagingEvent::ExposureFailedOld {
+                    crate::event::imaging::ImagingEvent::ExposureFailedOld {
                         reason: ans.reason.cst_decode(),
                     }
                 }
@@ -25376,11 +25094,11 @@ mod io {
             vec.into_iter().map(CstDecode::cst_decode).collect()
         }
     }
-    impl CstDecode<Vec<crate::api::sequencer::MosaicPanelResult>>
+    impl CstDecode<Vec<crate::api::sequencer::mosaic::MosaicPanelResult>>
         for *mut wire_cst_list_mosaic_panel_result
     {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> Vec<crate::api::sequencer::MosaicPanelResult> {
+        fn cst_decode(self) -> Vec<crate::api::sequencer::mosaic::MosaicPanelResult> {
             let vec = unsafe {
                 let wrap = flutter_rust_bridge::for_generated::box_from_leak_ptr(self);
                 flutter_rust_bridge::for_generated::vec_from_leak_ptr(wrap.ptr, wrap.len)
@@ -25567,11 +25285,11 @@ mod io {
             vec.into_iter().map(CstDecode::cst_decode).collect()
         }
     }
-    impl CstDecode<Vec<crate::event::SchedulerScoreEntry>>
+    impl CstDecode<Vec<crate::event::sequencer::SchedulerScoreEntry>>
         for *mut wire_cst_list_scheduler_score_entry
     {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> Vec<crate::event::SchedulerScoreEntry> {
+        fn cst_decode(self) -> Vec<crate::event::sequencer::SchedulerScoreEntry> {
             let vec = unsafe {
                 let wrap = flutter_rust_bridge::for_generated::box_from_leak_ptr(self);
                 flutter_rust_bridge::for_generated::vec_from_leak_ptr(wrap.ptr, wrap.len)
@@ -25589,9 +25307,11 @@ mod io {
             vec.into_iter().map(CstDecode::cst_decode).collect()
         }
     }
-    impl CstDecode<Vec<crate::device_capabilities::SwitchInfo>> for *mut wire_cst_list_switch_info {
+    impl CstDecode<Vec<crate::device_capabilities::types::SwitchInfo>>
+        for *mut wire_cst_list_switch_info
+    {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> Vec<crate::device_capabilities::SwitchInfo> {
+        fn cst_decode(self) -> Vec<crate::device_capabilities::types::SwitchInfo> {
             let vec = unsafe {
                 let wrap = flutter_rust_bridge::for_generated::box_from_leak_ptr(self);
                 flutter_rust_bridge::for_generated::vec_from_leak_ptr(wrap.ptr, wrap.len)
@@ -25609,12 +25329,12 @@ mod io {
             vec.into_iter().map(CstDecode::cst_decode).collect()
         }
     }
-    impl CstDecode<crate::api::sequencer::LiveStackingBroadcastSnapshot>
+    impl CstDecode<crate::api::sequencer::mosaic::LiveStackingBroadcastSnapshot>
         for wire_cst_live_stacking_broadcast_snapshot
     {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::api::sequencer::LiveStackingBroadcastSnapshot {
-            crate::api::sequencer::LiveStackingBroadcastSnapshot {
+        fn cst_decode(self) -> crate::api::sequencer::mosaic::LiveStackingBroadcastSnapshot {
+            crate::api::sequencer::mosaic::LiveStackingBroadcastSnapshot {
                 node_id: self.node_id.cst_decode(),
                 mode: self.mode.cst_decode(),
                 stack_method: self.stack_method.cst_decode(),
@@ -25630,10 +25350,10 @@ mod io {
             }
         }
     }
-    impl CstDecode<crate::api::sequencer::MosaicPanelResult> for wire_cst_mosaic_panel_result {
+    impl CstDecode<crate::api::sequencer::mosaic::MosaicPanelResult> for wire_cst_mosaic_panel_result {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::api::sequencer::MosaicPanelResult {
-            crate::api::sequencer::MosaicPanelResult {
+        fn cst_decode(self) -> crate::api::sequencer::mosaic::MosaicPanelResult {
+            crate::api::sequencer::mosaic::MosaicPanelResult {
                 ra_hours: self.ra_hours.cst_decode(),
                 dec_degrees: self.dec_degrees.cst_decode(),
                 panel_index: self.panel_index.cst_decode(),
@@ -25642,10 +25362,12 @@ mod io {
             }
         }
     }
-    impl CstDecode<crate::device_capabilities::MountCapabilities> for wire_cst_mount_capabilities {
+    impl CstDecode<crate::device_capabilities::types::MountCapabilities>
+        for wire_cst_mount_capabilities
+    {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::device_capabilities::MountCapabilities {
-            crate::device_capabilities::MountCapabilities {
+        fn cst_decode(self) -> crate::device_capabilities::types::MountCapabilities {
+            crate::device_capabilities::types::MountCapabilities {
                 can_slew: self.can_slew.cst_decode(),
                 can_slew_async: self.can_slew_async.cst_decode(),
                 can_sync: self.can_sync.cst_decode(),
@@ -25905,10 +25627,10 @@ mod io {
             }
         }
     }
-    impl CstDecode<crate::event::NightshadeEvent> for wire_cst_nightshade_event {
+    impl CstDecode<crate::event::bus::NightshadeEvent> for wire_cst_nightshade_event {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::event::NightshadeEvent {
-            crate::event::NightshadeEvent {
+        fn cst_decode(self) -> crate::event::bus::NightshadeEvent {
+            crate::event::bus::NightshadeEvent {
                 event_id: self.event_id.cst_decode(),
                 timestamp: self.timestamp.cst_decode(),
                 severity: self.severity.cst_decode(),
@@ -26055,10 +25777,10 @@ mod io {
             }
         }
     }
-    impl CstDecode<crate::event::PolarAlignmentEvent> for wire_cst_polar_alignment_event {
+    impl CstDecode<crate::event::imaging::PolarAlignmentEvent> for wire_cst_polar_alignment_event {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::event::PolarAlignmentEvent {
-            crate::event::PolarAlignmentEvent {
+        fn cst_decode(self) -> crate::event::imaging::PolarAlignmentEvent {
+            crate::event::imaging::PolarAlignmentEvent {
                 azimuth_error: self.azimuth_error.cst_decode(),
                 altitude_error: self.altitude_error.cst_decode(),
                 total_error: self.total_error.cst_decode(),
@@ -26069,10 +25791,12 @@ mod io {
             }
         }
     }
-    impl CstDecode<crate::event::PolarAlignmentImageEvent> for wire_cst_polar_alignment_image_event {
+    impl CstDecode<crate::event::imaging::PolarAlignmentImageEvent>
+        for wire_cst_polar_alignment_image_event
+    {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::event::PolarAlignmentImageEvent {
-            crate::event::PolarAlignmentImageEvent {
+        fn cst_decode(self) -> crate::event::imaging::PolarAlignmentImageEvent {
+            crate::event::imaging::PolarAlignmentImageEvent {
                 image_data: self.image_data.cst_decode(),
                 width: self.width.cst_decode(),
                 height: self.height.cst_decode(),
@@ -26083,10 +25807,10 @@ mod io {
             }
         }
     }
-    impl CstDecode<crate::event::PolarAlignmentStatus> for wire_cst_polar_alignment_status {
+    impl CstDecode<crate::event::imaging::PolarAlignmentStatus> for wire_cst_polar_alignment_status {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::event::PolarAlignmentStatus {
-            crate::event::PolarAlignmentStatus {
+        fn cst_decode(self) -> crate::event::imaging::PolarAlignmentStatus {
+            crate::event::imaging::PolarAlignmentStatus {
                 status: self.status.cst_decode(),
                 phase: self.phase.cst_decode(),
                 point: self.point.cst_decode(),
@@ -26171,6 +25895,12 @@ mod io {
             (self.field0.cst_decode(), self.field1.cst_decode())
         }
     }
+    impl CstDecode<(i32, i32)> for wire_cst_record_i_32_i_32 {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> (i32, i32) {
+            (self.field0.cst_decode(), self.field1.cst_decode())
+        }
+    }
     impl CstDecode<(i32, Vec<String>)> for wire_cst_record_i_32_list_string {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> (i32, Vec<String>) {
@@ -26228,10 +25958,12 @@ mod io {
             )
         }
     }
-    impl CstDecode<crate::api::sequencer::RecoveryConfigUpdate> for wire_cst_recovery_config_update {
+    impl CstDecode<crate::api::sequencer::runtime_config::RecoveryConfigUpdate>
+        for wire_cst_recovery_config_update
+    {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::api::sequencer::RecoveryConfigUpdate {
-            crate::api::sequencer::RecoveryConfigUpdate {
+        fn cst_decode(self) -> crate::api::sequencer::runtime_config::RecoveryConfigUpdate {
+            crate::api::sequencer::runtime_config::RecoveryConfigUpdate {
                 retry_interval_secs: self.retry_interval_secs.cst_decode(),
                 max_duration_secs: self.max_duration_secs.cst_decode(),
                 stop_tracking_during_recovery: self.stop_tracking_during_recovery.cst_decode(),
@@ -26240,10 +25972,12 @@ mod io {
             }
         }
     }
-    impl CstDecode<crate::device_capabilities::RotatorCapabilities> for wire_cst_rotator_capabilities {
+    impl CstDecode<crate::device_capabilities::types::RotatorCapabilities>
+        for wire_cst_rotator_capabilities
+    {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::device_capabilities::RotatorCapabilities {
-            crate::device_capabilities::RotatorCapabilities {
+        fn cst_decode(self) -> crate::device_capabilities::types::RotatorCapabilities {
+            crate::device_capabilities::types::RotatorCapabilities {
                 can_reverse: self.can_reverse.cst_decode(),
                 reverse: self.reverse.cst_decode(),
                 step_size: self.step_size.cst_decode(),
@@ -26271,40 +26005,40 @@ mod io {
             }
         }
     }
-    impl CstDecode<crate::event::SafetyEvent> for wire_cst_safety_event {
+    impl CstDecode<crate::event::system::SafetyEvent> for wire_cst_safety_event {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::event::SafetyEvent {
+        fn cst_decode(self) -> crate::event::system::SafetyEvent {
             match self.tag {
                 0 => {
                     let ans = unsafe { self.kind.WeatherUnsafe };
-                    crate::event::SafetyEvent::WeatherUnsafe {
+                    crate::event::system::SafetyEvent::WeatherUnsafe {
                         reason: ans.reason.cst_decode(),
                     }
                 }
-                1 => crate::event::SafetyEvent::WeatherSafe,
+                1 => crate::event::system::SafetyEvent::WeatherSafe,
                 2 => {
                     let ans = unsafe { self.kind.EmergencyStop };
-                    crate::event::SafetyEvent::EmergencyStop {
+                    crate::event::system::SafetyEvent::EmergencyStop {
                         reason: ans.reason.cst_decode(),
                     }
                 }
                 3 => {
                     let ans = unsafe { self.kind.ParkInitiated };
-                    crate::event::SafetyEvent::ParkInitiated {
+                    crate::event::system::SafetyEvent::ParkInitiated {
                         reason: ans.reason.cst_decode(),
                     }
                 }
-                4 => crate::event::SafetyEvent::ParkCompleted,
+                4 => crate::event::system::SafetyEvent::ParkCompleted,
                 _ => unreachable!(),
             }
         }
     }
-    impl CstDecode<crate::device_capabilities::SafetyMonitorCapabilities>
+    impl CstDecode<crate::device_capabilities::types::SafetyMonitorCapabilities>
         for wire_cst_safety_monitor_capabilities
     {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::device_capabilities::SafetyMonitorCapabilities {
-            crate::device_capabilities::SafetyMonitorCapabilities {
+        fn cst_decode(self) -> crate::device_capabilities::types::SafetyMonitorCapabilities {
+            crate::device_capabilities::types::SafetyMonitorCapabilities {
                 is_safe: self.is_safe.cst_decode(),
                 safety_description: self.safety_description.cst_decode(),
             }
@@ -26319,10 +26053,10 @@ mod io {
             }
         }
     }
-    impl CstDecode<crate::event::SchedulerScoreEntry> for wire_cst_scheduler_score_entry {
+    impl CstDecode<crate::event::sequencer::SchedulerScoreEntry> for wire_cst_scheduler_score_entry {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::event::SchedulerScoreEntry {
-            crate::event::SchedulerScoreEntry {
+        fn cst_decode(self) -> crate::event::sequencer::SchedulerScoreEntry {
+            crate::event::sequencer::SchedulerScoreEntry {
                 target_id: self.target_id.cst_decode(),
                 target_name: self.target_name.cst_decode(),
                 total_score: self.total_score.cst_decode(),
@@ -26398,50 +26132,55 @@ mod io {
             }
         }
     }
-    impl CstDecode<crate::event::SequencerEvent> for wire_cst_sequencer_event {
+    impl CstDecode<crate::event::sequencer::SequencerEvent> for wire_cst_sequencer_event {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::event::SequencerEvent {
+        fn cst_decode(self) -> crate::event::sequencer::SequencerEvent {
             match self.tag {
                 0 => {
                     let ans = unsafe { self.kind.Started };
-                    crate::event::SequencerEvent::Started {
+                    crate::event::sequencer::SequencerEvent::Started {
                         sequence_name: ans.sequence_name.cst_decode(),
                     }
                 }
-                1 => crate::event::SequencerEvent::Paused,
-                2 => crate::event::SequencerEvent::Resumed,
-                3 => crate::event::SequencerEvent::Stopped,
-                4 => crate::event::SequencerEvent::Completed,
+                1 => crate::event::sequencer::SequencerEvent::Paused,
+                2 => crate::event::sequencer::SequencerEvent::Resumed,
+                3 => {
+                    let ans = unsafe { self.kind.Stopped };
+                    crate::event::sequencer::SequencerEvent::Stopped {
+                        sequence_run_id: ans.sequence_run_id.cst_decode(),
+                    }
+                }
+                4 => crate::event::sequencer::SequencerEvent::Completed,
                 5 => {
                     let ans = unsafe { self.kind.Failed };
-                    crate::event::SequencerEvent::Failed {
+                    crate::event::sequencer::SequencerEvent::Failed {
                         error: ans.error.cst_decode(),
                     }
                 }
                 6 => {
                     let ans = unsafe { self.kind.NodeStarted };
-                    crate::event::SequencerEvent::NodeStarted {
+                    crate::event::sequencer::SequencerEvent::NodeStarted {
                         node_id: ans.node_id.cst_decode(),
                         node_type: ans.node_type.cst_decode(),
                     }
                 }
                 7 => {
                     let ans = unsafe { self.kind.NodeCompleted };
-                    crate::event::SequencerEvent::NodeCompleted {
+                    crate::event::sequencer::SequencerEvent::NodeCompleted {
                         node_id: ans.node_id.cst_decode(),
                         status: ans.status.cst_decode(),
                     }
                 }
                 8 => {
                     let ans = unsafe { self.kind.Progress };
-                    crate::event::SequencerEvent::Progress {
+                    crate::event::sequencer::SequencerEvent::Progress {
                         current: ans.current.cst_decode(),
                         total: ans.total.cst_decode(),
                     }
                 }
                 9 => {
                     let ans = unsafe { self.kind.TargetChanged };
-                    crate::event::SequencerEvent::TargetChanged {
+                    crate::event::sequencer::SequencerEvent::TargetChanged {
                         target_name: ans.target_name.cst_decode(),
                         ra: ans.ra.cst_decode(),
                         dec: ans.dec.cst_decode(),
@@ -26449,13 +26188,13 @@ mod io {
                 }
                 10 => {
                     let ans = unsafe { self.kind.TargetCompleted };
-                    crate::event::SequencerEvent::TargetCompleted {
+                    crate::event::sequencer::SequencerEvent::TargetCompleted {
                         target_name: ans.target_name.cst_decode(),
                     }
                 }
                 11 => {
                     let ans = unsafe { self.kind.ExposureStarted };
-                    crate::event::SequencerEvent::ExposureStarted {
+                    crate::event::sequencer::SequencerEvent::ExposureStarted {
                         frame: ans.frame.cst_decode(),
                         total: ans.total.cst_decode(),
                         filter: ans.filter.cst_decode(),
@@ -26464,7 +26203,7 @@ mod io {
                 }
                 12 => {
                     let ans = unsafe { self.kind.ExposureCompleted };
-                    crate::event::SequencerEvent::ExposureCompleted {
+                    crate::event::sequencer::SequencerEvent::ExposureCompleted {
                         frame: ans.frame.cst_decode(),
                         total: ans.total.cst_decode(),
                         duration_secs: ans.duration_secs.cst_decode(),
@@ -26472,13 +26211,13 @@ mod io {
                 }
                 13 => {
                     let ans = unsafe { self.kind.Error };
-                    crate::event::SequencerEvent::Error {
+                    crate::event::sequencer::SequencerEvent::Error {
                         message: ans.message.cst_decode(),
                     }
                 }
                 14 => {
                     let ans = unsafe { self.kind.MeridianFlipOutcome };
-                    crate::event::SequencerEvent::MeridianFlipOutcome {
+                    crate::event::sequencer::SequencerEvent::MeridianFlipOutcome {
                         outcome: ans.outcome.cst_decode(),
                         target_name: ans.target_name.cst_decode(),
                         new_pier_side: ans.new_pier_side.cst_decode(),
@@ -26491,7 +26230,7 @@ mod io {
                 }
                 15 => {
                     let ans = unsafe { self.kind.TriggerFired };
-                    crate::event::SequencerEvent::TriggerFired {
+                    crate::event::sequencer::SequencerEvent::TriggerFired {
                         trigger_id: ans.trigger_id.cst_decode(),
                         trigger_name: ans.trigger_name.cst_decode(),
                         action: ans.action.cst_decode(),
@@ -26499,7 +26238,7 @@ mod io {
                 }
                 16 => {
                     let ans = unsafe { self.kind.InstructionProgress };
-                    crate::event::SequencerEvent::InstructionProgress {
+                    crate::event::sequencer::SequencerEvent::InstructionProgress {
                         node_id: ans.node_id.cst_decode(),
                         instruction: ans.instruction.cst_decode(),
                         progress_percent: ans.progress_percent.cst_decode(),
@@ -26508,7 +26247,7 @@ mod io {
                 }
                 17 => {
                     let ans = unsafe { self.kind.InstructionProgressStructured };
-                    crate::event::SequencerEvent::InstructionProgressStructured {
+                    crate::event::sequencer::SequencerEvent::InstructionProgressStructured {
                         node_id: ans.node_id.cst_decode(),
                         instruction: ans.instruction.cst_decode(),
                         progress_percent: ans.progress_percent.cst_decode(),
@@ -26518,7 +26257,7 @@ mod io {
                 }
                 18 => {
                     let ans = unsafe { self.kind.FrameAccepted };
-                    crate::event::SequencerEvent::FrameAccepted {
+                    crate::event::sequencer::SequencerEvent::FrameAccepted {
                         node_id: ans.node_id.cst_decode(),
                         frame: ans.frame.cst_decode(),
                         total: ans.total.cst_decode(),
@@ -26533,7 +26272,7 @@ mod io {
                 }
                 19 => {
                     let ans = unsafe { self.kind.FrameRejected };
-                    crate::event::SequencerEvent::FrameRejected {
+                    crate::event::sequencer::SequencerEvent::FrameRejected {
                         node_id: ans.node_id.cst_decode(),
                         frame: ans.frame.cst_decode(),
                         total: ans.total.cst_decode(),
@@ -26557,7 +26296,7 @@ mod io {
                 }
                 20 => {
                     let ans = unsafe { self.kind.SchedulerDecision };
-                    crate::event::SequencerEvent::SchedulerDecision {
+                    crate::event::sequencer::SequencerEvent::SchedulerDecision {
                         node_id: ans.node_id.cst_decode(),
                         decision_counter: ans.decision_counter.cst_decode(),
                         picked_target_id: ans.picked_target_id.cst_decode(),
@@ -26568,7 +26307,7 @@ mod io {
                 }
                 21 => {
                     let ans = unsafe { self.kind.IntegrationBudget };
-                    crate::event::SequencerEvent::IntegrationBudget {
+                    crate::event::sequencer::SequencerEvent::IntegrationBudget {
                         target_id: ans.target_id.cst_decode(),
                         filter: ans.filter.cst_decode(),
                         completed_secs: ans.completed_secs.cst_decode(),
@@ -26579,7 +26318,7 @@ mod io {
                 }
                 22 => {
                     let ans = unsafe { self.kind.ExposureAdjusted };
-                    crate::event::SequencerEvent::ExposureAdjusted {
+                    crate::event::sequencer::SequencerEvent::ExposureAdjusted {
                         node_id: ans.node_id.cst_decode(),
                         adapted_secs: ans.adapted_secs.cst_decode(),
                         nominal_secs: ans.nominal_secs.cst_decode(),
@@ -26590,7 +26329,7 @@ mod io {
                 }
                 23 => {
                     let ans = unsafe { self.kind.PhotometryFrame };
-                    crate::event::SequencerEvent::PhotometryFrame {
+                    crate::event::sequencer::SequencerEvent::PhotometryFrame {
                         node_id: ans.node_id.cst_decode(),
                         target_designation: ans.target_designation.cst_decode(),
                         reference_stars: ans.reference_stars.cst_decode(),
@@ -26611,7 +26350,7 @@ mod io {
                 }
                 24 => {
                     let ans = unsafe { self.kind.PhotometryCadenceBroken };
-                    crate::event::SequencerEvent::PhotometryCadenceBroken {
+                    crate::event::sequencer::SequencerEvent::PhotometryCadenceBroken {
                         node_id: ans.node_id.cst_decode(),
                         frame: ans.frame.cst_decode(),
                         total: ans.total.cst_decode(),
@@ -26622,7 +26361,7 @@ mod io {
                 }
                 25 => {
                     let ans = unsafe { self.kind.PhotometrySummary };
-                    crate::event::SequencerEvent::PhotometrySummary {
+                    crate::event::sequencer::SequencerEvent::PhotometrySummary {
                         node_id: ans.node_id.cst_decode(),
                         target_designation: ans.target_designation.cst_decode(),
                         filter: ans.filter.cst_decode(),
@@ -26633,7 +26372,7 @@ mod io {
                 }
                 26 => {
                     let ans = unsafe { self.kind.RecoveryStarted };
-                    crate::event::SequencerEvent::RecoveryStarted {
+                    crate::event::sequencer::SequencerEvent::RecoveryStarted {
                         started_at_iso: ans.started_at_iso.cst_decode(),
                         cause_kind: ans.cause_kind.cst_decode(),
                         cause_custom_label: ans.cause_custom_label.cst_decode(),
@@ -26648,7 +26387,7 @@ mod io {
                 }
                 27 => {
                     let ans = unsafe { self.kind.RecoveryProgress };
-                    crate::event::SequencerEvent::RecoveryProgress {
+                    crate::event::sequencer::SequencerEvent::RecoveryProgress {
                         started_at_iso: ans.started_at_iso.cst_decode(),
                         cause_kind: ans.cause_kind.cst_decode(),
                         cause_custom_label: ans.cause_custom_label.cst_decode(),
@@ -26663,7 +26402,7 @@ mod io {
                 }
                 28 => {
                     let ans = unsafe { self.kind.RecoveryCompleted };
-                    crate::event::SequencerEvent::RecoveryCompleted {
+                    crate::event::sequencer::SequencerEvent::RecoveryCompleted {
                         started_at_iso: ans.started_at_iso.cst_decode(),
                         cause_kind: ans.cause_kind.cst_decode(),
                         cause_custom_label: ans.cause_custom_label.cst_decode(),
@@ -26678,7 +26417,7 @@ mod io {
                 }
                 29 => {
                     let ans = unsafe { self.kind.RecoveryGaveUp };
-                    crate::event::SequencerEvent::RecoveryGaveUp {
+                    crate::event::sequencer::SequencerEvent::RecoveryGaveUp {
                         started_at_iso: ans.started_at_iso.cst_decode(),
                         cause_kind: ans.cause_kind.cst_decode(),
                         cause_custom_label: ans.cause_custom_label.cst_decode(),
@@ -26694,7 +26433,7 @@ mod io {
                 }
                 30 => {
                     let ans = unsafe { self.kind.PluginNodeRequested };
-                    crate::event::SequencerEvent::PluginNodeRequested {
+                    crate::event::sequencer::SequencerEvent::PluginNodeRequested {
                         node_id: ans.node_id.cst_decode(),
                         plugin_id: ans.plugin_id.cst_decode(),
                         node_type_id: ans.node_type_id.cst_decode(),
@@ -26705,7 +26444,7 @@ mod io {
                 }
                 31 => {
                     let ans = unsafe { self.kind.PluginNodeProgress };
-                    crate::event::SequencerEvent::PluginNodeProgress {
+                    crate::event::sequencer::SequencerEvent::PluginNodeProgress {
                         node_id: ans.node_id.cst_decode(),
                         plugin_id: ans.plugin_id.cst_decode(),
                         node_type_id: ans.node_type_id.cst_decode(),
@@ -26714,7 +26453,7 @@ mod io {
                 }
                 32 => {
                     let ans = unsafe { self.kind.DecisionLogged };
-                    crate::event::SequencerEvent::DecisionLogged {
+                    crate::event::sequencer::SequencerEvent::DecisionLogged {
                         timestamp_iso: ans.timestamp_iso.cst_decode(),
                         category: ans.category.cst_decode(),
                         summary: ans.summary.cst_decode(),
@@ -26764,72 +26503,96 @@ mod io {
             }
         }
     }
-    impl CstDecode<crate::api::devices::simulation::SimulatedCamera> for wire_cst_simulated_camera {
+    impl CstDecode<crate::api::devices::simulation::camera::SimulatedCamera>
+        for wire_cst_simulated_camera
+    {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::api::devices::simulation::SimulatedCamera {
-            crate::api::devices::simulation::SimulatedCamera {
+        fn cst_decode(self) -> crate::api::devices::simulation::camera::SimulatedCamera {
+            crate::api::devices::simulation::camera::SimulatedCamera {
                 status: self.status.cst_decode(),
             }
         }
     }
-    impl CstDecode<crate::api::devices::simulation::SimulatedDome> for wire_cst_simulated_dome {
+    impl CstDecode<crate::api::devices::simulation::environment::SimulatedDome>
+        for wire_cst_simulated_dome
+    {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::api::devices::simulation::SimulatedDome {
-            crate::api::devices::simulation::SimulatedDome {
+        fn cst_decode(self) -> crate::api::devices::simulation::environment::SimulatedDome {
+            crate::api::devices::simulation::environment::SimulatedDome {
                 status: self.status.cst_decode(),
             }
         }
     }
-    impl CstDecode<crate::api::devices::simulation::SimulatedFilterWheel>
+    impl CstDecode<crate::api::devices::simulation::filter_wheel::SimulatedFilterWheel>
         for wire_cst_simulated_filter_wheel
     {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::api::devices::simulation::SimulatedFilterWheel {
-            crate::api::devices::simulation::SimulatedFilterWheel {
+        fn cst_decode(self) -> crate::api::devices::simulation::filter_wheel::SimulatedFilterWheel {
+            crate::api::devices::simulation::filter_wheel::SimulatedFilterWheel {
                 status: self.status.cst_decode(),
             }
         }
     }
-    impl CstDecode<crate::api::devices::simulation::SimulatedFocuser> for wire_cst_simulated_focuser {
+    impl CstDecode<crate::api::devices::simulation::focuser::SimulatedFocuser>
+        for wire_cst_simulated_focuser
+    {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::api::devices::simulation::SimulatedFocuser {
-            crate::api::devices::simulation::SimulatedFocuser {
+        fn cst_decode(self) -> crate::api::devices::simulation::focuser::SimulatedFocuser {
+            crate::api::devices::simulation::focuser::SimulatedFocuser {
                 status: self.status.cst_decode(),
             }
         }
     }
-    impl CstDecode<crate::api::devices::simulation::SimulatedMount> for wire_cst_simulated_mount {
+    impl CstDecode<crate::api::devices::simulation::mount::SimulatedMount>
+        for wire_cst_simulated_mount
+    {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::api::devices::simulation::SimulatedMount {
-            crate::api::devices::simulation::SimulatedMount {
+        fn cst_decode(self) -> crate::api::devices::simulation::mount::SimulatedMount {
+            crate::api::devices::simulation::mount::SimulatedMount {
                 status: self.status.cst_decode(),
             }
         }
     }
-    impl CstDecode<crate::api::devices::simulation::SimulatedRotator> for wire_cst_simulated_rotator {
+    impl CstDecode<crate::api::devices::simulation::rotator::SimulatedRotator>
+        for wire_cst_simulated_rotator
+    {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::api::devices::simulation::SimulatedRotator {
-            crate::api::devices::simulation::SimulatedRotator {
+        fn cst_decode(self) -> crate::api::devices::simulation::rotator::SimulatedRotator {
+            crate::api::devices::simulation::rotator::SimulatedRotator {
                 status: self.status.cst_decode(),
             }
         }
     }
-    impl CstDecode<crate::api::devices::simulation::SimulatedSafetyMonitor>
+    impl CstDecode<crate::api::devices::simulation::environment::SimulatedSafetyMonitor>
         for wire_cst_simulated_safety_monitor
     {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::api::devices::simulation::SimulatedSafetyMonitor {
-            crate::api::devices::simulation::SimulatedSafetyMonitor {
+        fn cst_decode(
+            self,
+        ) -> crate::api::devices::simulation::environment::SimulatedSafetyMonitor {
+            crate::api::devices::simulation::environment::SimulatedSafetyMonitor {
                 status: self.status.cst_decode(),
             }
         }
     }
-    impl CstDecode<crate::api::devices::simulation::SimulatedWeather> for wire_cst_simulated_weather {
+    impl CstDecode<crate::api::devices::simulation::environment::SimulatedWeather>
+        for wire_cst_simulated_weather
+    {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::api::devices::simulation::SimulatedWeather {
-            crate::api::devices::simulation::SimulatedWeather {
+        fn cst_decode(self) -> crate::api::devices::simulation::environment::SimulatedWeather {
+            crate::api::devices::simulation::environment::SimulatedWeather {
                 connected: self.connected.cst_decode(),
                 conditions: self.conditions.cst_decode(),
+            }
+        }
+    }
+    impl CstDecode<crate::api::plate_solve::SolveHints> for wire_cst_solve_hints {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::plate_solve::SolveHints {
+            crate::api::plate_solve::SolveHints {
+                focal_length_mm: self.focal_length_mm.cst_decode(),
+                pixel_size_um: self.pixel_size_um.cst_decode(),
+                binning: self.binning.cst_decode(),
             }
         }
     }
@@ -26886,19 +26649,21 @@ mod io {
             }
         }
     }
-    impl CstDecode<crate::device_capabilities::SwitchCapabilities> for wire_cst_switch_capabilities {
+    impl CstDecode<crate::device_capabilities::types::SwitchCapabilities>
+        for wire_cst_switch_capabilities
+    {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::device_capabilities::SwitchCapabilities {
-            crate::device_capabilities::SwitchCapabilities {
+        fn cst_decode(self) -> crate::device_capabilities::types::SwitchCapabilities {
+            crate::device_capabilities::types::SwitchCapabilities {
                 switch_count: self.switch_count.cst_decode(),
                 switches: self.switches.cst_decode(),
             }
         }
     }
-    impl CstDecode<crate::device_capabilities::SwitchInfo> for wire_cst_switch_info {
+    impl CstDecode<crate::device_capabilities::types::SwitchInfo> for wire_cst_switch_info {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::device_capabilities::SwitchInfo {
-            crate::device_capabilities::SwitchInfo {
+        fn cst_decode(self) -> crate::device_capabilities::types::SwitchInfo {
+            crate::device_capabilities::types::SwitchInfo {
                 index: self.index.cst_decode(),
                 name: self.name.cst_decode(),
                 description: self.description.cst_decode(),
@@ -26911,27 +26676,27 @@ mod io {
             }
         }
     }
-    impl CstDecode<crate::event::SystemEvent> for wire_cst_system_event {
+    impl CstDecode<crate::event::system::SystemEvent> for wire_cst_system_event {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::event::SystemEvent {
+        fn cst_decode(self) -> crate::event::system::SystemEvent {
             match self.tag {
-                0 => crate::event::SystemEvent::Initialized,
-                1 => crate::event::SystemEvent::ShuttingDown,
+                0 => crate::event::system::SystemEvent::Initialized,
+                1 => crate::event::system::SystemEvent::ShuttingDown,
                 2 => {
                     let ans = unsafe { self.kind.Error };
-                    crate::event::SystemEvent::Error {
+                    crate::event::system::SystemEvent::Error {
                         message: ans.message.cst_decode(),
                     }
                 }
                 3 => {
                     let ans = unsafe { self.kind.DiskSpaceLow };
-                    crate::event::SystemEvent::DiskSpaceLow {
+                    crate::event::system::SystemEvent::DiskSpaceLow {
                         available_gb: ans.available_gb.cst_decode(),
                     }
                 }
                 4 => {
                     let ans = unsafe { self.kind.Notification };
-                    crate::event::SystemEvent::Notification {
+                    crate::event::system::SystemEvent::Notification {
                         title: ans.title.cst_decode(),
                         message: ans.message.cst_decode(),
                         level: ans.level.cst_decode(),
@@ -26940,7 +26705,7 @@ mod io {
                 }
                 5 => {
                     let ans = unsafe { self.kind.EventsDropped };
-                    crate::event::SystemEvent::EventsDropped {
+                    crate::event::system::SystemEvent::EventsDropped {
                         dropped_count: ans.dropped_count.cst_decode(),
                         total_dropped: ans.total_dropped.cst_decode(),
                     }
@@ -26949,10 +26714,12 @@ mod io {
             }
         }
     }
-    impl CstDecode<crate::device_capabilities::WeatherCapabilities> for wire_cst_weather_capabilities {
+    impl CstDecode<crate::device_capabilities::types::WeatherCapabilities>
+        for wire_cst_weather_capabilities
+    {
         // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::device_capabilities::WeatherCapabilities {
-            crate::device_capabilities::WeatherCapabilities {
+        fn cst_decode(self) -> crate::device_capabilities::types::WeatherCapabilities {
+            crate::device_capabilities::types::WeatherCapabilities {
                 has_cloud_cover: self.has_cloud_cover.cst_decode(),
                 has_dew_point: self.has_dew_point.cst_decode(),
                 has_humidity: self.has_humidity.cst_decode(),
@@ -28403,6 +28170,19 @@ mod io {
             Self::new_with_null_ptr()
         }
     }
+    impl NewWithNullPtr for wire_cst_record_i_32_i_32 {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                field0: Default::default(),
+                field1: Default::default(),
+            }
+        }
+    }
+    impl Default for wire_cst_record_i_32_i_32 {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
     impl NewWithNullPtr for wire_cst_record_i_32_list_string {
         fn new_with_null_ptr() -> Self {
             Self {
@@ -28849,6 +28629,20 @@ mod io {
             Self::new_with_null_ptr()
         }
     }
+    impl NewWithNullPtr for wire_cst_solve_hints {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                focal_length_mm: core::ptr::null_mut(),
+                pixel_size_um: core::ptr::null_mut(),
+                binning: Default::default(),
+            }
+        }
+    }
+    impl Default for wire_cst_solve_hints {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
     impl NewWithNullPtr for wire_cst_star_crop_api {
         fn new_with_null_ptr() -> Self {
             Self {
@@ -29065,34 +28859,34 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_broadcast_deactivate(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__mosaic__api_broadcast_deactivate(
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-        wire__crate__api__sequencer__api_broadcast_deactivate_impl()
+        wire__crate__api__sequencer__mosaic__api_broadcast_deactivate_impl()
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_broadcast_get_active(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__mosaic__api_broadcast_get_active(
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-        wire__crate__api__sequencer__api_broadcast_get_active_impl()
+        wire__crate__api__sequencer__mosaic__api_broadcast_get_active_impl()
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__post_session__api_build_master_flat(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__post_session__entrypoints__api_build_master_flat(
         port_: i64,
         args_json: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__post_session__api_build_master_flat_impl(port_, args_json)
+        wire__crate__api__post_session__entrypoints__api_build_master_flat_impl(port_, args_json)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_build_sequence(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__node_factory__api_build_sequence(
         id: *mut wire_cst_list_prim_u_8_strict,
         name: *mut wire_cst_list_prim_u_8_strict,
         description: *mut wire_cst_list_prim_u_8_strict,
         node_jsons: *mut wire_cst_list_String,
         root_node_id: *mut wire_cst_list_prim_u_8_strict,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-        wire__crate__api__sequencer__api_build_sequence_impl(
+        wire__crate__api__sequencer__node_factory__api_build_sequence_impl(
             id,
             name,
             description,
@@ -29141,14 +28935,14 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_calculate_altitude(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__mosaic__api_calculate_altitude(
         ra_hours: f64,
         dec_degrees: f64,
         latitude: f64,
         longitude: f64,
         time_unix_millis: i64,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-        wire__crate__api__sequencer__api_calculate_altitude_impl(
+        wire__crate__api__sequencer__mosaic__api_calculate_altitude_impl(
             ra_hours,
             dec_degrees,
             latitude,
@@ -29189,13 +28983,13 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_calculate_mosaic_area(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__mosaic__api_calculate_mosaic_area(
         panel_width_arcmin: f64,
         panel_height_arcmin: f64,
         panels_horizontal: u32,
         panels_vertical: u32,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-        wire__crate__api__sequencer__api_calculate_mosaic_area_impl(
+        wire__crate__api__sequencer__mosaic__api_calculate_mosaic_area_impl(
             panel_width_arcmin,
             panel_height_arcmin,
             panels_horizontal,
@@ -29204,7 +28998,7 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_calculate_mosaic_panels(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__mosaic__api_calculate_mosaic_panels(
         center_ra: f64,
         center_dec: f64,
         panel_width_arcmin: f64,
@@ -29214,7 +29008,7 @@ mod io {
         panels_horizontal: u32,
         panels_vertical: u32,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-        wire__crate__api__sequencer__api_calculate_mosaic_panels_impl(
+        wire__crate__api__sequencer__mosaic__api_calculate_mosaic_panels_impl(
             center_ra,
             center_dec,
             panel_width_arcmin,
@@ -29547,7 +29341,7 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_create_autofocus_node(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__node_factory__api_create_autofocus_node(
         id: *mut wire_cst_list_prim_u_8_strict,
         name: *mut wire_cst_list_prim_u_8_strict,
         step_size: i32,
@@ -29555,7 +29349,7 @@ mod io {
         exposure_duration: f64,
         method: *mut wire_cst_list_prim_u_8_strict,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-        wire__crate__api__sequencer__api_create_autofocus_node_impl(
+        wire__crate__api__sequencer__node_factory__api_create_autofocus_node_impl(
             id,
             name,
             step_size,
@@ -29566,7 +29360,7 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_create_center_node(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__node_factory__api_create_center_node(
         id: *mut wire_cst_list_prim_u_8_strict,
         name: *mut wire_cst_list_prim_u_8_strict,
         use_target_coords: u8,
@@ -29574,7 +29368,7 @@ mod io {
         max_attempts: u32,
         exposure_duration: f64,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-        wire__crate__api__sequencer__api_create_center_node_impl(
+        wire__crate__api__sequencer__node_factory__api_create_center_node_impl(
             id,
             name,
             use_target_coords,
@@ -29585,13 +29379,13 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_create_cool_camera_node(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__node_factory__api_create_cool_camera_node(
         id: *mut wire_cst_list_prim_u_8_strict,
         name: *mut wire_cst_list_prim_u_8_strict,
         target_temp: f64,
         duration_mins: *mut f64,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-        wire__crate__api__sequencer__api_create_cool_camera_node_impl(
+        wire__crate__api__sequencer__node_factory__api_create_cool_camera_node_impl(
             id,
             name,
             target_temp,
@@ -29600,16 +29394,16 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_create_delay_node(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__node_factory__api_create_delay_node(
         id: *mut wire_cst_list_prim_u_8_strict,
         name: *mut wire_cst_list_prim_u_8_strict,
         seconds: f64,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-        wire__crate__api__sequencer__api_create_delay_node_impl(id, name, seconds)
+        wire__crate__api__sequencer__node_factory__api_create_delay_node_impl(id, name, seconds)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_create_dither_node(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__node_factory__api_create_dither_node(
         id: *mut wire_cst_list_prim_u_8_strict,
         name: *mut wire_cst_list_prim_u_8_strict,
         pixels: f64,
@@ -29618,7 +29412,7 @@ mod io {
         settle_timeout: f64,
         ra_only: u8,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-        wire__crate__api__sequencer__api_create_dither_node_impl(
+        wire__crate__api__sequencer__node_factory__api_create_dither_node_impl(
             id,
             name,
             pixels,
@@ -29630,7 +29424,7 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_create_exposure_node(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__node_factory__api_create_exposure_node(
         id: *mut wire_cst_list_prim_u_8_strict,
         name: *mut wire_cst_list_prim_u_8_strict,
         duration_secs: f64,
@@ -29642,7 +29436,7 @@ mod io {
         binning: i32,
         dither_every: *mut u32,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-        wire__crate__api__sequencer__api_create_exposure_node_impl(
+        wire__crate__api__sequencer__node_factory__api_create_exposure_node_impl(
             id,
             name,
             duration_secs,
@@ -29657,67 +29451,76 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_create_filter_node(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__node_factory__api_create_filter_node(
         id: *mut wire_cst_list_prim_u_8_strict,
         name: *mut wire_cst_list_prim_u_8_strict,
         filter_name: *mut wire_cst_list_prim_u_8_strict,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-        wire__crate__api__sequencer__api_create_filter_node_impl(id, name, filter_name)
+        wire__crate__api__sequencer__node_factory__api_create_filter_node_impl(
+            id,
+            name,
+            filter_name,
+        )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_create_loop_node(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__node_factory__api_create_loop_node(
         id: *mut wire_cst_list_prim_u_8_strict,
         name: *mut wire_cst_list_prim_u_8_strict,
         iterations: *mut u32,
         condition: *mut wire_cst_list_prim_u_8_strict,
         children: *mut wire_cst_list_String,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-        wire__crate__api__sequencer__api_create_loop_node_impl(
+        wire__crate__api__sequencer__node_factory__api_create_loop_node_impl(
             id, name, iterations, condition, children,
         )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_create_notification_node(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__node_factory__api_create_notification_node(
         id: *mut wire_cst_list_prim_u_8_strict,
         name: *mut wire_cst_list_prim_u_8_strict,
         title: *mut wire_cst_list_prim_u_8_strict,
         message: *mut wire_cst_list_prim_u_8_strict,
         level: *mut wire_cst_list_prim_u_8_strict,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-        wire__crate__api__sequencer__api_create_notification_node_impl(
+        wire__crate__api__sequencer__node_factory__api_create_notification_node_impl(
             id, name, title, message, level,
         )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_create_park_node(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__node_factory__api_create_park_node(
         id: *mut wire_cst_list_prim_u_8_strict,
         name: *mut wire_cst_list_prim_u_8_strict,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-        wire__crate__api__sequencer__api_create_park_node_impl(id, name)
+        wire__crate__api__sequencer__node_factory__api_create_park_node_impl(id, name)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_create_rotator_node(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__node_factory__api_create_rotator_node(
         id: *mut wire_cst_list_prim_u_8_strict,
         name: *mut wire_cst_list_prim_u_8_strict,
         target_angle: f64,
         relative: u8,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-        wire__crate__api__sequencer__api_create_rotator_node_impl(id, name, target_angle, relative)
+        wire__crate__api__sequencer__node_factory__api_create_rotator_node_impl(
+            id,
+            name,
+            target_angle,
+            relative,
+        )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_create_script_node(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__node_factory__api_create_script_node(
         id: *mut wire_cst_list_prim_u_8_strict,
         name: *mut wire_cst_list_prim_u_8_strict,
         script_path: *mut wire_cst_list_prim_u_8_strict,
         arguments: *mut wire_cst_list_String,
         timeout_secs: *mut u32,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-        wire__crate__api__sequencer__api_create_script_node_impl(
+        wire__crate__api__sequencer__node_factory__api_create_script_node_impl(
             id,
             name,
             script_path,
@@ -29727,14 +29530,14 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_create_slew_node(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__node_factory__api_create_slew_node(
         id: *mut wire_cst_list_prim_u_8_strict,
         name: *mut wire_cst_list_prim_u_8_strict,
         use_target_coords: u8,
         custom_ra: *mut f64,
         custom_dec: *mut f64,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-        wire__crate__api__sequencer__api_create_slew_node_impl(
+        wire__crate__api__sequencer__node_factory__api_create_slew_node_impl(
             id,
             name,
             use_target_coords,
@@ -29744,7 +29547,7 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_create_target_group_node(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__node_factory__api_create_target_group_node(
         id: *mut wire_cst_list_prim_u_8_strict,
         name: *mut wire_cst_list_prim_u_8_strict,
         target_name: *mut wire_cst_list_prim_u_8_strict,
@@ -29756,7 +29559,7 @@ mod io {
         priority: i32,
         children: *mut wire_cst_list_String,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-        wire__crate__api__sequencer__api_create_target_group_node_impl(
+        wire__crate__api__sequencer__node_factory__api_create_target_group_node_impl(
             id,
             name,
             target_name,
@@ -29771,7 +29574,7 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_create_target_header_node(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__node_factory__api_create_target_header_node(
         id: *mut wire_cst_list_prim_u_8_strict,
         name: *mut wire_cst_list_prim_u_8_strict,
         target_name: *mut wire_cst_list_prim_u_8_strict,
@@ -29787,7 +29590,7 @@ mod io {
         integration_budget_json: *mut wire_cst_list_prim_u_8_strict,
         children: *mut wire_cst_list_String,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-        wire__crate__api__sequencer__api_create_target_header_node_impl(
+        wire__crate__api__sequencer__node_factory__api_create_target_header_node_impl(
             id,
             name,
             target_name,
@@ -29806,21 +29609,21 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_create_unpark_node(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__node_factory__api_create_unpark_node(
         id: *mut wire_cst_list_prim_u_8_strict,
         name: *mut wire_cst_list_prim_u_8_strict,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-        wire__crate__api__sequencer__api_create_unpark_node_impl(id, name)
+        wire__crate__api__sequencer__node_factory__api_create_unpark_node_impl(id, name)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_create_wait_time_node(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__node_factory__api_create_wait_time_node(
         id: *mut wire_cst_list_prim_u_8_strict,
         name: *mut wire_cst_list_prim_u_8_strict,
         wait_until: *mut i64,
         twilight_type: *mut wire_cst_list_prim_u_8_strict,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-        wire__crate__api__sequencer__api_create_wait_time_node_impl(
+        wire__crate__api__sequencer__node_factory__api_create_wait_time_node_impl(
             id,
             name,
             wait_until,
@@ -29829,13 +29632,13 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_create_warm_camera_node(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__node_factory__api_create_warm_camera_node(
         id: *mut wire_cst_list_prim_u_8_strict,
         name: *mut wire_cst_list_prim_u_8_strict,
         rate_per_min: f64,
         target_temp: *mut f64,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-        wire__crate__api__sequencer__api_create_warm_camera_node_impl(
+        wire__crate__api__sequencer__node_factory__api_create_warm_camera_node_impl(
             id,
             name,
             rate_per_min,
@@ -30159,13 +29962,13 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_estimate_mosaic_time(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__mosaic__api_estimate_mosaic_time(
         total_panels: u32,
         exposure_secs: f64,
         exposures_per_panel: u32,
         overhead_per_panel_secs: f64,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-        wire__crate__api__sequencer__api_estimate_mosaic_time_impl(
+        wire__crate__api__sequencer__mosaic__api_estimate_mosaic_time_impl(
             total_panels,
             exposure_secs,
             exposures_per_panel,
@@ -30198,72 +30001,76 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_filterwheel_get_names(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__filter_wheel__api_filterwheel_get_names(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__devices__simulation__api_filterwheel_get_names_impl(port_, device_id)
+        wire__crate__api__devices__simulation__filter_wheel__api_filterwheel_get_names_impl(
+            port_, device_id,
+        )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_filterwheel_set_by_name(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__filter_wheel__api_filterwheel_set_by_name(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
         name: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__devices__simulation__api_filterwheel_set_by_name_impl(
+        wire__crate__api__devices__simulation__filter_wheel__api_filterwheel_set_by_name_impl(
             port_, device_id, name,
         )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_filterwheel_set_filter_names(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__filter_wheel__api_filterwheel_set_filter_names(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
         names: *mut wire_cst_list_String,
     ) {
-        wire__crate__api__devices__simulation__api_filterwheel_set_filter_names_impl(
+        wire__crate__api__devices__simulation__filter_wheel__api_filterwheel_set_filter_names_impl(
             port_, device_id, names,
         )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_filterwheel_set_position(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__filter_wheel__api_filterwheel_set_position(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
         position: i32,
     ) {
-        wire__crate__api__devices__simulation__api_filterwheel_set_position_impl(
+        wire__crate__api__devices__simulation__filter_wheel__api_filterwheel_set_position_impl(
             port_, device_id, position,
         )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_focuser_halt(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__focuser__api_focuser_halt(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__devices__simulation__api_focuser_halt_impl(port_, device_id)
+        wire__crate__api__devices__simulation__focuser__api_focuser_halt_impl(port_, device_id)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_focuser_move_relative(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__focuser__api_focuser_move_relative(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
         delta: i32,
     ) {
-        wire__crate__api__devices__simulation__api_focuser_move_relative_impl(
+        wire__crate__api__devices__simulation__focuser__api_focuser_move_relative_impl(
             port_, device_id, delta,
         )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_focuser_move_to(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__focuser__api_focuser_move_to(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
         position: i32,
     ) {
-        wire__crate__api__devices__simulation__api_focuser_move_to_impl(port_, device_id, position)
+        wire__crate__api__devices__simulation__focuser__api_focuser_move_to_impl(
+            port_, device_id, position,
+        )
     }
 
     #[unsafe(no_mangle)]
@@ -30329,11 +30136,11 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_get_camera_status(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__camera__api_get_camera_status(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__devices__simulation__api_get_camera_status_impl(port_, device_id)
+        wire__crate__api__devices__simulation__camera__api_get_camera_status_impl(port_, device_id)
     }
 
     #[unsafe(no_mangle)]
@@ -30435,11 +30242,13 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_get_filterwheel_status(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__filter_wheel__api_get_filterwheel_status(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__devices__simulation__api_get_filterwheel_status_impl(port_, device_id)
+        wire__crate__api__devices__simulation__filter_wheel__api_get_filterwheel_status_impl(
+            port_, device_id,
+        )
     }
 
     #[unsafe(no_mangle)]
@@ -30451,11 +30260,13 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_get_focuser_status(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__focuser__api_get_focuser_status(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__devices__simulation__api_get_focuser_status_impl(port_, device_id)
+        wire__crate__api__devices__simulation__focuser__api_get_focuser_status_impl(
+            port_, device_id,
+        )
     }
 
     #[unsafe(no_mangle)]
@@ -30512,11 +30323,11 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_get_mount_status(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__mount__api_get_mount_status(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__devices__simulation__api_get_mount_status_impl(port_, device_id)
+        wire__crate__api__devices__simulation__mount__api_get_mount_status_impl(port_, device_id)
     }
 
     #[unsafe(no_mangle)]
@@ -30560,11 +30371,13 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_get_rotator_status(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__rotator__api_get_rotator_status(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__devices__simulation__api_get_rotator_status_impl(port_, device_id)
+        wire__crate__api__devices__simulation__rotator__api_get_rotator_status_impl(
+            port_, device_id,
+        )
     }
 
     #[unsafe(no_mangle)]
@@ -30779,11 +30592,11 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__post_session__api_integrate_session(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__post_session__entrypoints__api_integrate_session(
         port_: i64,
         args_json: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__post_session__api_integrate_session_impl(port_, args_json)
+        wire__crate__api__post_session__entrypoints__api_integrate_session_impl(port_, args_json)
     }
 
     #[unsafe(no_mangle)]
@@ -30856,37 +30669,37 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__post_session__api_master_accumulate(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__post_session__entrypoints__api_master_accumulate(
         port_: i64,
         args_json: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__post_session__api_master_accumulate_impl(port_, args_json)
+        wire__crate__api__post_session__entrypoints__api_master_accumulate_impl(port_, args_json)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_mount_find_home(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__mount__api_mount_find_home(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__devices__simulation__api_mount_find_home_impl(port_, device_id)
+        wire__crate__api__devices__simulation__mount__api_mount_find_home_impl(port_, device_id)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_mount_park(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__mount__api_mount_park(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__devices__simulation__api_mount_park_impl(port_, device_id)
+        wire__crate__api__devices__simulation__mount__api_mount_park_impl(port_, device_id)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_mount_pulse_guide(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__mount__api_mount_pulse_guide(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
         direction: *mut wire_cst_list_prim_u_8_strict,
         duration_ms: i32,
     ) {
-        wire__crate__api__devices__simulation__api_mount_pulse_guide_impl(
+        wire__crate__api__devices__simulation__mount__api_mount_pulse_guide_impl(
             port_,
             device_id,
             direction,
@@ -30895,62 +30708,62 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_mount_set_tracking(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__mount__api_mount_set_tracking(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
         enabled: u8,
     ) {
-        wire__crate__api__devices__simulation__api_mount_set_tracking_impl(
+        wire__crate__api__devices__simulation__mount__api_mount_set_tracking_impl(
             port_, device_id, enabled,
         )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_mount_slew_alt_az(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__mount__api_mount_slew_alt_az(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
         altitude: f64,
         azimuth: f64,
     ) {
-        wire__crate__api__devices__simulation__api_mount_slew_alt_az_impl(
+        wire__crate__api__devices__simulation__mount__api_mount_slew_alt_az_impl(
             port_, device_id, altitude, azimuth,
         )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_mount_slew_to_coordinates(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__mount__api_mount_slew_to_coordinates(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
         ra: f64,
         dec: f64,
     ) {
-        wire__crate__api__devices__simulation__api_mount_slew_to_coordinates_impl(
+        wire__crate__api__devices__simulation__mount__api_mount_slew_to_coordinates_impl(
             port_, device_id, ra, dec,
         )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_mount_sync_to_coordinates(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__mount__api_mount_sync_to_coordinates(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
         ra: f64,
         dec: f64,
     ) {
-        wire__crate__api__devices__simulation__api_mount_sync_to_coordinates_impl(
+        wire__crate__api__devices__simulation__mount__api_mount_sync_to_coordinates_impl(
             port_, device_id, ra, dec,
         )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_mount_unpark(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__mount__api_mount_unpark(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__devices__simulation__api_mount_unpark_impl(port_, device_id)
+        wire__crate__api__devices__simulation__mount__api_mount_unpark_impl(port_, device_id)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_perform_meridian_flip(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__lifecycle__api_perform_meridian_flip(
         port_: i64,
         mount_id: *mut wire_cst_list_prim_u_8_strict,
         camera_id: *mut wire_cst_list_prim_u_8_strict,
@@ -30965,7 +30778,7 @@ mod io {
         resume_guiding: bool,
         settle_time_secs: f64,
     ) {
-        wire__crate__api__sequencer__api_perform_meridian_flip_impl(
+        wire__crate__api__sequencer__lifecycle__api_perform_meridian_flip_impl(
             port_,
             mount_id,
             camera_id,
@@ -31279,51 +31092,55 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_rotator_halt(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__rotator__api_rotator_halt(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__devices__simulation__api_rotator_halt_impl(port_, device_id)
+        wire__crate__api__devices__simulation__rotator__api_rotator_halt_impl(port_, device_id)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_rotator_move_relative(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__rotator__api_rotator_move_relative(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
         delta: f64,
     ) {
-        wire__crate__api__devices__simulation__api_rotator_move_relative_impl(
+        wire__crate__api__devices__simulation__rotator__api_rotator_move_relative_impl(
             port_, device_id, delta,
         )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_rotator_move_to(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__rotator__api_rotator_move_to(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
         angle: f64,
     ) {
-        wire__crate__api__devices__simulation__api_rotator_move_to_impl(port_, device_id, angle)
+        wire__crate__api__devices__simulation__rotator__api_rotator_move_to_impl(
+            port_, device_id, angle,
+        )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_rotator_set_reverse(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__rotator__api_rotator_set_reverse(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
         reverse: bool,
     ) {
-        wire__crate__api__devices__simulation__api_rotator_set_reverse_impl(
+        wire__crate__api__devices__simulation__rotator__api_rotator_set_reverse_impl(
             port_, device_id, reverse,
         )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_rotator_sync_to_pa(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__rotator__api_rotator_sync_to_pa(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
         pa: f64,
     ) {
-        wire__crate__api__devices__simulation__api_rotator_sync_to_pa_impl(port_, device_id, pa)
+        wire__crate__api__devices__simulation__rotator__api_rotator_sync_to_pa_impl(
+            port_, device_id, pa,
+        )
     }
 
     #[unsafe(no_mangle)]
@@ -31381,11 +31198,11 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__post_session__api_save_fits_master(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__post_session__entrypoints__api_save_fits_master(
         port_: i64,
         args_json: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__post_session__api_save_fits_master_impl(port_, args_json)
+        wire__crate__api__post_session__entrypoints__api_save_fits_master_impl(port_, args_json)
     }
 
     #[unsafe(no_mangle)]
@@ -31527,114 +31344,124 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_clear_checkpoint(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__lifecycle__api_sequencer_clear_checkpoint(
         port_: i64,
     ) {
-        wire__crate__api__sequencer__api_sequencer_clear_checkpoint_impl(port_)
+        wire__crate__api__sequencer__lifecycle__api_sequencer_clear_checkpoint_impl(port_)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_clear_default_adaptive_exposure(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__runtime_config__api_sequencer_clear_default_adaptive_exposure(
         port_: i64,
     ) {
-        wire__crate__api__sequencer__api_sequencer_clear_default_adaptive_exposure_impl(port_)
+        wire__crate__api__sequencer__runtime_config__api_sequencer_clear_default_adaptive_exposure_impl(port_)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_get_active_sequence_run_id(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__runtime_config__api_sequencer_get_active_sequence_run_id(
         port_: i64,
     ) {
-        wire__crate__api__sequencer__api_sequencer_get_active_sequence_run_id_impl(port_)
+        wire__crate__api__sequencer__runtime_config__api_sequencer_get_active_sequence_run_id_impl(
+            port_,
+        )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_get_adaptive_swap_json(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__runtime_config__api_sequencer_get_adaptive_swap_json(
         port_: i64,
     ) {
-        wire__crate__api__sequencer__api_sequencer_get_adaptive_swap_json_impl(port_)
+        wire__crate__api__sequencer__runtime_config__api_sequencer_get_adaptive_swap_json_impl(
+            port_,
+        )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_get_checkpoint_info(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__lifecycle__api_sequencer_get_checkpoint_info(
         port_: i64,
     ) {
-        wire__crate__api__sequencer__api_sequencer_get_checkpoint_info_impl(port_)
+        wire__crate__api__sequencer__lifecycle__api_sequencer_get_checkpoint_info_impl(port_)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_get_cloud_motion_json(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__runtime_config__api_sequencer_get_cloud_motion_json(
         port_: i64,
     ) {
-        wire__crate__api__sequencer__api_sequencer_get_cloud_motion_json_impl(port_)
+        wire__crate__api__sequencer__runtime_config__api_sequencer_get_cloud_motion_json_impl(port_)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_get_current_recovery_json(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__runtime_config__api_sequencer_get_current_recovery_json(
         port_: i64,
     ) {
-        wire__crate__api__sequencer__api_sequencer_get_current_recovery_json_impl(port_)
+        wire__crate__api__sequencer__runtime_config__api_sequencer_get_current_recovery_json_impl(
+            port_,
+        )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_get_decision_logging_enabled(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__runtime_config__api_sequencer_get_decision_logging_enabled(
         port_: i64,
     ) {
-        wire__crate__api__sequencer__api_sequencer_get_decision_logging_enabled_impl(port_)
+        wire__crate__api__sequencer__runtime_config__api_sequencer_get_decision_logging_enabled_impl(
+            port_,
+        )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_get_recovery_history_json(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__runtime_config__api_sequencer_get_recovery_history_json(
         port_: i64,
     ) {
-        wire__crate__api__sequencer__api_sequencer_get_recovery_history_json_impl(port_)
+        wire__crate__api__sequencer__runtime_config__api_sequencer_get_recovery_history_json_impl(
+            port_,
+        )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_get_state(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__lifecycle__api_sequencer_get_state(
         port_: i64,
     ) {
-        wire__crate__api__sequencer__api_sequencer_get_state_impl(port_)
+        wire__crate__api__sequencer__lifecycle__api_sequencer_get_state_impl(port_)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_has_checkpoint(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__lifecycle__api_sequencer_has_checkpoint(
         port_: i64,
     ) {
-        wire__crate__api__sequencer__api_sequencer_has_checkpoint_impl(port_)
+        wire__crate__api__sequencer__lifecycle__api_sequencer_has_checkpoint_impl(port_)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_load(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__lifecycle__api_sequencer_load(
         port_: i64,
         definition: *mut wire_cst_sequence_definition_api,
     ) {
-        wire__crate__api__sequencer__api_sequencer_load_impl(port_, definition)
+        wire__crate__api__sequencer__lifecycle__api_sequencer_load_impl(port_, definition)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_load_json(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__lifecycle__api_sequencer_load_json(
         port_: i64,
         json: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__sequencer__api_sequencer_load_json_impl(port_, json)
+        wire__crate__api__sequencer__lifecycle__api_sequencer_load_json_impl(port_, json)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_pause(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__lifecycle__api_sequencer_pause(
         port_: i64,
     ) {
-        wire__crate__api__sequencer__api_sequencer_pause_impl(port_)
+        wire__crate__api__sequencer__lifecycle__api_sequencer_pause_impl(port_)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_plugin_node_finished(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__lifecycle__api_sequencer_plugin_node_finished(
         port_: i64,
         node_id: *mut wire_cst_list_prim_u_8_strict,
         success: bool,
         message: *mut wire_cst_list_prim_u_8_strict,
         structured_detail_json: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__sequencer__api_sequencer_plugin_node_finished_impl(
+        wire__crate__api__sequencer__lifecycle__api_sequencer_plugin_node_finished_impl(
             port_,
             node_id,
             success,
@@ -31644,76 +31471,78 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_recovery_abort(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__runtime_config__api_sequencer_recovery_abort(
         port_: i64,
     ) {
-        wire__crate__api__sequencer__api_sequencer_recovery_abort_impl(port_)
+        wire__crate__api__sequencer__runtime_config__api_sequencer_recovery_abort_impl(port_)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_recovery_try_now(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__runtime_config__api_sequencer_recovery_try_now(
         port_: i64,
     ) {
-        wire__crate__api__sequencer__api_sequencer_recovery_try_now_impl(port_)
+        wire__crate__api__sequencer__runtime_config__api_sequencer_recovery_try_now_impl(port_)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_reset(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__lifecycle__api_sequencer_reset(
         port_: i64,
     ) {
-        wire__crate__api__sequencer__api_sequencer_reset_impl(port_)
+        wire__crate__api__sequencer__lifecycle__api_sequencer_reset_impl(port_)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_resume(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__lifecycle__api_sequencer_resume(
         port_: i64,
     ) {
-        wire__crate__api__sequencer__api_sequencer_resume_impl(port_)
+        wire__crate__api__sequencer__lifecycle__api_sequencer_resume_impl(port_)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_resume_from_checkpoint(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__lifecycle__api_sequencer_resume_from_checkpoint(
         port_: i64,
     ) {
-        wire__crate__api__sequencer__api_sequencer_resume_from_checkpoint_impl(port_)
+        wire__crate__api__sequencer__lifecycle__api_sequencer_resume_from_checkpoint_impl(port_)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_save_checkpoint(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__lifecycle__api_sequencer_save_checkpoint(
         port_: i64,
     ) {
-        wire__crate__api__sequencer__api_sequencer_save_checkpoint_impl(port_)
+        wire__crate__api__sequencer__lifecycle__api_sequencer_save_checkpoint_impl(port_)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_set_active_sequence_run_id(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__runtime_config__api_sequencer_set_active_sequence_run_id(
         port_: i64,
         sequence_run_id: *mut i64,
     ) {
-        wire__crate__api__sequencer__api_sequencer_set_active_sequence_run_id_impl(
+        wire__crate__api__sequencer__runtime_config__api_sequencer_set_active_sequence_run_id_impl(
             port_,
             sequence_run_id,
         )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_set_checkpoint_dir(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__lifecycle__api_sequencer_set_checkpoint_dir(
         port_: i64,
         path: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__sequencer__api_sequencer_set_checkpoint_dir_impl(port_, path)
+        wire__crate__api__sequencer__lifecycle__api_sequencer_set_checkpoint_dir_impl(port_, path)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_set_decision_logging_enabled(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__runtime_config__api_sequencer_set_decision_logging_enabled(
         port_: i64,
         enabled: bool,
     ) {
-        wire__crate__api__sequencer__api_sequencer_set_decision_logging_enabled_impl(port_, enabled)
+        wire__crate__api__sequencer__runtime_config__api_sequencer_set_decision_logging_enabled_impl(
+            port_, enabled,
+        )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_set_devices(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__runtime_config__api_sequencer_set_devices(
         port_: i64,
         camera_id: *mut wire_cst_list_prim_u_8_strict,
         mount_id: *mut wire_cst_list_prim_u_8_strict,
@@ -31723,7 +31552,7 @@ mod io {
         filter_names: *mut wire_cst_list_String,
         filter_focus_offsets: *mut wire_cst_list_record_string_i_32,
     ) {
-        wire__crate__api__sequencer__api_sequencer_set_devices_impl(
+        wire__crate__api__sequencer__runtime_config__api_sequencer_set_devices_impl(
             port_,
             camera_id,
             mount_id,
@@ -31736,96 +31565,102 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_set_safety_check_interval_seconds(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__runtime_config__api_sequencer_set_safety_check_interval_seconds(
         port_: i64,
         seconds: u32,
     ) {
-        wire__crate__api__sequencer__api_sequencer_set_safety_check_interval_seconds_impl(
-            port_, seconds,
+        wire__crate__api__sequencer__runtime_config__api_sequencer_set_safety_check_interval_seconds_impl(port_, seconds)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__runtime_config__api_sequencer_set_safety_fail_mode(
+        port_: i64,
+        mode: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__sequencer__runtime_config__api_sequencer_set_safety_fail_mode_impl(
+            port_, mode,
         )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_set_safety_fail_mode(
-        port_: i64,
-        mode: *mut wire_cst_list_prim_u_8_strict,
-    ) {
-        wire__crate__api__sequencer__api_sequencer_set_safety_fail_mode_impl(port_, mode)
-    }
-
-    #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_set_save_path(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__runtime_config__api_sequencer_set_save_path(
         port_: i64,
         path: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__sequencer__api_sequencer_set_save_path_impl(port_, path)
+        wire__crate__api__sequencer__runtime_config__api_sequencer_set_save_path_impl(port_, path)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_set_simulation_mode(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__runtime_config__api_sequencer_set_simulation_mode(
         port_: i64,
         enabled: bool,
     ) {
-        wire__crate__api__sequencer__api_sequencer_set_simulation_mode_impl(port_, enabled)
+        wire__crate__api__sequencer__runtime_config__api_sequencer_set_simulation_mode_impl(
+            port_, enabled,
+        )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_skip(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__lifecycle__api_sequencer_skip(
         port_: i64,
     ) {
-        wire__crate__api__sequencer__api_sequencer_skip_impl(port_)
+        wire__crate__api__sequencer__lifecycle__api_sequencer_skip_impl(port_)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_skip_to_node(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__lifecycle__api_sequencer_skip_to_node(
         port_: i64,
         node_id: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__sequencer__api_sequencer_skip_to_node_impl(port_, node_id)
+        wire__crate__api__sequencer__lifecycle__api_sequencer_skip_to_node_impl(port_, node_id)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_start(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__lifecycle__api_sequencer_start(
         port_: i64,
     ) {
-        wire__crate__api__sequencer__api_sequencer_start_impl(port_)
+        wire__crate__api__sequencer__lifecycle__api_sequencer_start_impl(port_)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_stop(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__lifecycle__api_sequencer_stop(
+        port_: i64,
+        origin: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__sequencer__lifecycle__api_sequencer_stop_impl(port_, origin)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__event_bridge__api_sequencer_subscribe_events(
         port_: i64,
     ) {
-        wire__crate__api__sequencer__api_sequencer_stop_impl(port_)
+        wire__crate__api__sequencer__event_bridge__api_sequencer_subscribe_events_impl(port_)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_subscribe_events(
-        port_: i64,
-    ) {
-        wire__crate__api__sequencer__api_sequencer_subscribe_events_impl(port_)
-    }
-
-    #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_autofocus_config(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__runtime_config__api_sequencer_update_autofocus_config(
         port_: i64,
         config_json: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__sequencer__api_sequencer_update_autofocus_config_impl(port_, config_json)
+        wire__crate__api__sequencer__runtime_config__api_sequencer_update_autofocus_config_impl(
+            port_,
+            config_json,
+        )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_autofocus_interval(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__runtime_config__api_sequencer_update_autofocus_interval(
         port_: i64,
         every_n_frames: u32,
     ) {
-        wire__crate__api__sequencer__api_sequencer_update_autofocus_interval_impl(
+        wire__crate__api__sequencer__runtime_config__api_sequencer_update_autofocus_interval_impl(
             port_,
             every_n_frames,
         )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_cloud_motion(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__runtime_config__api_sequencer_update_cloud_motion(
         port_: i64,
         current_cover_percent: *mut f64,
         predicted_arrival_minutes: *mut f64,
@@ -31834,7 +31669,7 @@ mod io {
         predicted_clear_sky_alt: *mut f64,
         predicted_clear_sky_az: *mut f64,
     ) {
-        wire__crate__api__sequencer__api_sequencer_update_cloud_motion_impl(
+        wire__crate__api__sequencer__runtime_config__api_sequencer_update_cloud_motion_impl(
             port_,
             current_cover_percent,
             predicted_arrival_minutes,
@@ -31846,7 +31681,7 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_conditions_score(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__runtime_config__api_sequencer_update_conditions_score(
         port_: i64,
         score: *mut f64,
         transparency_score: *mut f64,
@@ -31859,7 +31694,7 @@ mod io {
         wind_weight: f64,
         generated_unix_secs: i64,
     ) {
-        wire__crate__api__sequencer__api_sequencer_update_conditions_score_impl(
+        wire__crate__api__sequencer__runtime_config__api_sequencer_update_conditions_score_impl(
             port_,
             score,
             transparency_score,
@@ -31875,7 +31710,7 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_default_adaptive_exposure(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__runtime_config__api_sequencer_update_default_adaptive_exposure(
         port_: i64,
         enabled: bool,
         target_snr: f64,
@@ -31889,24 +31724,11 @@ mod io {
         per_filter_max_keys: *mut wire_cst_list_String,
         per_filter_max_values: *mut wire_cst_list_prim_f_64_loose,
     ) {
-        wire__crate__api__sequencer__api_sequencer_update_default_adaptive_exposure_impl(
-            port_,
-            enabled,
-            target_snr,
-            reference_sky_brightness_mag,
-            min_exposure_secs,
-            max_exposure_secs,
-            per_filter_enabled_keys,
-            per_filter_enabled_values,
-            per_filter_min_keys,
-            per_filter_min_values,
-            per_filter_max_keys,
-            per_filter_max_values,
-        )
+        wire__crate__api__sequencer__runtime_config__api_sequencer_update_default_adaptive_exposure_impl(port_, enabled, target_snr, reference_sky_brightness_mag, min_exposure_secs, max_exposure_secs, per_filter_enabled_keys, per_filter_enabled_values, per_filter_min_keys, per_filter_min_values, per_filter_max_keys, per_filter_max_values)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_default_quality_check(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__runtime_config__api_sequencer_update_default_quality_check(
         port_: i64,
         hfr_threshold: *mut f64,
         hfr_baseline_percent: *mut f64,
@@ -31915,7 +31737,7 @@ mod io {
         max_consecutive_rejects: u32,
         enabled: bool,
     ) {
-        wire__crate__api__sequencer__api_sequencer_update_default_quality_check_impl(
+        wire__crate__api__sequencer__runtime_config__api_sequencer_update_default_quality_check_impl(
             port_,
             hfr_threshold,
             hfr_baseline_percent,
@@ -31927,7 +31749,7 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_dither_config(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__runtime_config__api_sequencer_update_dither_config(
         port_: i64,
         pixels: f64,
         settle_pixels: f64,
@@ -31935,7 +31757,7 @@ mod io {
         settle_timeout: f64,
         ra_only: bool,
     ) {
-        wire__crate__api__sequencer__api_sequencer_update_dither_config_impl(
+        wire__crate__api__sequencer__runtime_config__api_sequencer_update_dither_config_impl(
             port_,
             pixels,
             settle_pixels,
@@ -31946,35 +31768,39 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_filter_offsets(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__runtime_config__api_sequencer_update_filter_offsets(
         port_: i64,
         offsets: *mut wire_cst_list_record_string_i_32,
     ) {
-        wire__crate__api__sequencer__api_sequencer_update_filter_offsets_impl(port_, offsets)
+        wire__crate__api__sequencer__runtime_config__api_sequencer_update_filter_offsets_impl(
+            port_, offsets,
+        )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_location(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__runtime_config__api_sequencer_update_location(
         port_: i64,
         latitude: *mut f64,
         longitude: *mut f64,
     ) {
-        wire__crate__api__sequencer__api_sequencer_update_location_impl(port_, latitude, longitude)
+        wire__crate__api__sequencer__runtime_config__api_sequencer_update_location_impl(
+            port_, latitude, longitude,
+        )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_meridian_flip_config(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__runtime_config__api_sequencer_update_meridian_flip_config(
         port_: i64,
         config_json: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__sequencer__api_sequencer_update_meridian_flip_config_impl(
+        wire__crate__api__sequencer__runtime_config__api_sequencer_update_meridian_flip_config_impl(
             port_,
             config_json,
         )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_observer_profile(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__runtime_config__api_sequencer_update_observer_profile(
         port_: i64,
         observer_name: *mut wire_cst_list_prim_u_8_strict,
         site_elevation_m: *mut f64,
@@ -31984,7 +31810,7 @@ mod io {
         telescope_focal_length_mm: *mut f64,
         telescope_aperture_mm: *mut f64,
     ) {
-        wire__crate__api__sequencer__api_sequencer_update_observer_profile_impl(
+        wire__crate__api__sequencer__runtime_config__api_sequencer_update_observer_profile_impl(
             port_,
             observer_name,
             site_elevation_m,
@@ -31997,45 +31823,49 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_pending_integration_carry_over(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__runtime_config__api_sequencer_update_pending_integration_carry_over(
         port_: i64,
         carry_over: *mut wire_cst_list_record_string_map_string_f_64_none,
     ) {
-        wire__crate__api__sequencer__api_sequencer_update_pending_integration_carry_over_impl(
-            port_, carry_over,
+        wire__crate__api__sequencer__runtime_config__api_sequencer_update_pending_integration_carry_over_impl(port_, carry_over)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__runtime_config__api_sequencer_update_recovery_config(
+        port_: i64,
+        update: *mut wire_cst_recovery_config_update,
+    ) {
+        wire__crate__api__sequencer__runtime_config__api_sequencer_update_recovery_config_impl(
+            port_, update,
         )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_recovery_config(
-        port_: i64,
-        update: *mut wire_cst_recovery_config_update,
-    ) {
-        wire__crate__api__sequencer__api_sequencer_update_recovery_config_impl(port_, update)
-    }
-
-    #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_reject_folder_path(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__runtime_config__api_sequencer_update_reject_folder_path(
         port_: i64,
         path: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__sequencer__api_sequencer_update_reject_folder_path_impl(port_, path)
+        wire__crate__api__sequencer__runtime_config__api_sequencer_update_reject_folder_path_impl(
+            port_, path,
+        )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_sky_brightness(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__runtime_config__api_sequencer_update_sky_brightness(
         port_: i64,
         mag: *mut f64,
     ) {
-        wire__crate__api__sequencer__api_sequencer_update_sky_brightness_impl(port_, mag)
+        wire__crate__api__sequencer__runtime_config__api_sequencer_update_sky_brightness_impl(
+            port_, mag,
+        )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_weather_verdict(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__runtime_config__api_sequencer_update_weather_verdict(
         port_: i64,
         unsafe_override: *mut bool,
     ) {
-        wire__crate__api__sequencer__api_sequencer_update_weather_verdict_impl(
+        wire__crate__api__sequencer__runtime_config__api_sequencer_update_weather_verdict_impl(
             port_,
             unsafe_override,
         )
@@ -32054,13 +31884,13 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_set_camera_cooler(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__camera__api_set_camera_cooler(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
         enabled: u8,
         target_temp: *mut f64,
     ) {
-        wire__crate__api__devices__simulation__api_set_camera_cooler_impl(
+        wire__crate__api__devices__simulation__camera__api_set_camera_cooler_impl(
             port_,
             device_id,
             enabled,
@@ -32069,21 +31899,25 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_set_camera_gain(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__camera__api_set_camera_gain(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
         gain: i32,
     ) {
-        wire__crate__api__devices__simulation__api_set_camera_gain_impl(port_, device_id, gain)
+        wire__crate__api__devices__simulation__camera__api_set_camera_gain_impl(
+            port_, device_id, gain,
+        )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_set_camera_offset(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__camera__api_set_camera_offset(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
         offset: i32,
     ) {
-        wire__crate__api__devices__simulation__api_set_camera_offset_impl(port_, device_id, offset)
+        wire__crate__api__devices__simulation__camera__api_set_camera_offset_impl(
+            port_, device_id, offset,
+        )
     }
 
     #[unsafe(no_mangle)]
@@ -32109,43 +31943,43 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sky_atlas__api_sky_atlas_add_frame(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sky_atlas__frames__api_sky_atlas_add_frame(
         port_: i64,
         args_json: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__sky_atlas__api_sky_atlas_add_frame_impl(port_, args_json)
+        wire__crate__api__sky_atlas__frames__api_sky_atlas_add_frame_impl(port_, args_json)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sky_atlas__api_sky_atlas_growth(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sky_atlas__regions__api_sky_atlas_growth(
         port_: i64,
         args_json: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__sky_atlas__api_sky_atlas_growth_impl(port_, args_json)
+        wire__crate__api__sky_atlas__regions__api_sky_atlas_growth_impl(port_, args_json)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sky_atlas__api_sky_atlas_merge_delta(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sky_atlas__regions__api_sky_atlas_merge_delta(
         port_: i64,
         args_json: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__sky_atlas__api_sky_atlas_merge_delta_impl(port_, args_json)
+        wire__crate__api__sky_atlas__regions__api_sky_atlas_merge_delta_impl(port_, args_json)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sky_atlas__api_sky_atlas_query_cutout(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sky_atlas__frames__api_sky_atlas_query_cutout(
         port_: i64,
         args_json: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__sky_atlas__api_sky_atlas_query_cutout_impl(port_, args_json)
+        wire__crate__api__sky_atlas__frames__api_sky_atlas_query_cutout_impl(port_, args_json)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sky_atlas__api_sky_atlas_region_info(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sky_atlas__regions__api_sky_atlas_region_info(
         port_: i64,
         args_json: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__sky_atlas__api_sky_atlas_region_info_impl(port_, args_json)
+        wire__crate__api__sky_atlas__regions__api_sky_atlas_region_info_impl(port_, args_json)
     }
 
     #[unsafe(no_mangle)]
@@ -32229,7 +32063,7 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__polar_alignment__api_start_all_sky_polar_alignment(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__polar_alignment__entrypoints__api_start_all_sky_polar_alignment(
         port_: i64,
         exposure_time: f64,
         solve_timeout: f64,
@@ -32240,7 +32074,7 @@ mod io {
         gain: *mut i32,
         offset: *mut i32,
     ) {
-        wire__crate__api__polar_alignment__api_start_all_sky_polar_alignment_impl(
+        wire__crate__api__polar_alignment__entrypoints__api_start_all_sky_polar_alignment_impl(
             port_,
             exposure_time,
             solve_timeout,
@@ -32288,7 +32122,7 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__polar_alignment__api_start_polar_alignment(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__polar_alignment__run_loop__api_start_polar_alignment(
         port_: i64,
         exposure_time: f64,
         step_size: f64,
@@ -32302,7 +32136,7 @@ mod io {
         start_from_current: *mut bool,
         auto_complete_threshold: *mut f64,
     ) {
-        wire__crate__api__polar_alignment__api_start_polar_alignment_impl(
+        wire__crate__api__polar_alignment__run_loop__api_start_polar_alignment_impl(
             port_,
             exposure_time,
             step_size,
@@ -32345,10 +32179,10 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__polar_alignment__api_stop_polar_alignment(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__polar_alignment__entrypoints__api_stop_polar_alignment(
         port_: i64,
     ) {
-        wire__crate__api__polar_alignment__api_stop_polar_alignment_impl(port_)
+        wire__crate__api__polar_alignment__entrypoints__api_stop_polar_alignment_impl(port_)
     }
 
     #[unsafe(no_mangle)]
@@ -32884,59 +32718,63 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__simulated_camera_default(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__camera__simulated_camera_default(
         port_: i64,
     ) {
-        wire__crate__api__devices__simulation__simulated_camera_default_impl(port_)
+        wire__crate__api__devices__simulation__camera__simulated_camera_default_impl(port_)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__simulated_dome_default(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__environment__simulated_dome_default(
         port_: i64,
     ) {
-        wire__crate__api__devices__simulation__simulated_dome_default_impl(port_)
+        wire__crate__api__devices__simulation__environment__simulated_dome_default_impl(port_)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__simulated_filter_wheel_default(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__filter_wheel__simulated_filter_wheel_default(
         port_: i64,
     ) {
-        wire__crate__api__devices__simulation__simulated_filter_wheel_default_impl(port_)
+        wire__crate__api__devices__simulation__filter_wheel__simulated_filter_wheel_default_impl(
+            port_,
+        )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__simulated_focuser_default(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__focuser__simulated_focuser_default(
         port_: i64,
     ) {
-        wire__crate__api__devices__simulation__simulated_focuser_default_impl(port_)
+        wire__crate__api__devices__simulation__focuser__simulated_focuser_default_impl(port_)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__simulated_mount_default(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__mount__simulated_mount_default(
         port_: i64,
     ) {
-        wire__crate__api__devices__simulation__simulated_mount_default_impl(port_)
+        wire__crate__api__devices__simulation__mount__simulated_mount_default_impl(port_)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__simulated_rotator_default(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__rotator__simulated_rotator_default(
         port_: i64,
     ) {
-        wire__crate__api__devices__simulation__simulated_rotator_default_impl(port_)
+        wire__crate__api__devices__simulation__rotator__simulated_rotator_default_impl(port_)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__simulated_safety_monitor_default(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__environment__simulated_safety_monitor_default(
         port_: i64,
     ) {
-        wire__crate__api__devices__simulation__simulated_safety_monitor_default_impl(port_)
+        wire__crate__api__devices__simulation__environment__simulated_safety_monitor_default_impl(
+            port_,
+        )
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__simulated_weather_default(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__environment__simulated_weather_default(
         port_: i64,
     ) {
-        wire__crate__api__devices__simulation__simulated_weather_default_impl(port_)
+        wire__crate__api__devices__simulation__environment__simulated_weather_default_impl(port_)
     }
 
     #[unsafe(no_mangle)]
@@ -32949,6 +32787,13 @@ mod io {
         wire__crate__api__connection__ascom_connections__slew_ascom_mount_impl(
             port_, _prog_id, _ra, _dec,
         )
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__plate_solve__solve_hints_default(
+        port_: i64,
+    ) {
+        wire__crate__api__plate_solve__solve_hints_default_impl(port_)
     }
 
     #[unsafe(no_mangle)]
@@ -33284,6 +33129,14 @@ mod io {
     ) -> *mut wire_cst_polar_alignment_status {
         flutter_rust_bridge::for_generated::new_leak_box_ptr(
             wire_cst_polar_alignment_status::new_with_null_ptr(),
+        )
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_record_f_64_f_64(
+    ) -> *mut wire_cst_record_f_64_f_64 {
+        flutter_rust_bridge::for_generated::new_leak_box_ptr(
+            wire_cst_record_f_64_f_64::new_with_null_ptr(),
         )
     }
 
@@ -35585,6 +35438,12 @@ mod io {
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
+    pub struct wire_cst_record_i_32_i_32 {
+        field0: i32,
+        field1: i32,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
     pub struct wire_cst_record_i_32_list_string {
         field0: i32,
         field1: *mut wire_cst_list_String,
@@ -35781,6 +35640,7 @@ mod io {
     #[derive(Clone, Copy)]
     pub union SequencerEventKind {
         Started: wire_cst_SequencerEvent_Started,
+        Stopped: wire_cst_SequencerEvent_Stopped,
         Failed: wire_cst_SequencerEvent_Failed,
         NodeStarted: wire_cst_SequencerEvent_NodeStarted,
         NodeCompleted: wire_cst_SequencerEvent_NodeCompleted,
@@ -35815,6 +35675,11 @@ mod io {
     #[derive(Clone, Copy)]
     pub struct wire_cst_SequencerEvent_Started {
         sequence_name: *mut wire_cst_list_prim_u_8_strict,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_SequencerEvent_Stopped {
+        sequence_run_id: *mut i64,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
@@ -36170,6 +36035,13 @@ mod io {
     pub struct wire_cst_simulated_weather {
         connected: bool,
         conditions: wire_cst_weather_conditions,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_solve_hints {
+        focal_length_mm: *mut f64,
+        pixel_size_um: *mut wire_cst_record_f_64_f_64,
+        binning: wire_cst_record_i_32_i_32,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]

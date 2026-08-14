@@ -3,7 +3,13 @@
 // Surfaces the two replay-debug keys persisted in `app_settings`:
 //   * replay_debug.enabled              — runtime toggle. When false the
 //                                          Rust executor stops emitting
-//                                          DecisionLogged events.
+//                                          DecisionLogged events, with ONE
+//                                          exception: the operator's own
+//                                          stop decision is always recorded
+//                                          (it is the only evidence that a
+//                                          stop was human, not a safety
+//                                          abort, and must not be
+//                                          silenceable).
 //   * replay_debug.retention_days       — daily-prune cutoff used by
 //                                          ReplayDebugService.pruneOlderThan
 //                                          (called from AutoSaveService on
@@ -125,8 +131,9 @@ class _ReplayDebugSettingsState extends ConsumerState<ReplayDebugSettings> {
               subtitle: 'When enabled, every adaptive-exposure swap, trigger '
                   'firing, frame accept or reject, and recovery step is '
                   'recorded so the Replay screen can rebuild the night '
-                  'afterwards. Turning this off leaves past runs with no '
-                  'timeline.',
+                  'afterwards. Turning this off leaves past runs with almost '
+                  'no timeline — only a stop you command yourself is always '
+                  'recorded.',
               trailing: SettingsSwitch(
                 value: enabled,
                 onChanged: (value) async {

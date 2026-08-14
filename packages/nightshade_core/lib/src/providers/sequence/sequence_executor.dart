@@ -172,6 +172,7 @@ class _RunFinalization {
     required this.isRollback,
     this.originalError,
     this.originalStack,
+    this.stopOrigin,
   });
 
   // --- Immutable intent (first-claim wins) ---------------------------------
@@ -192,6 +193,13 @@ class _RunFinalization {
 
   /// Whether the operator asked to keep the checkpoint (a UI Stop).
   final bool preserveCheckpoint;
+
+  /// WHO asked for the stop — `null`/`'operator'` for a human,
+  /// `'scheduler'` for the autopilot. Threaded to the native stop so the
+  /// executor records an autopilot stop as a system event instead of
+  /// operator evidence (an unattended stop must never render as
+  /// "Stopped by request").
+  final String? stopOrigin;
 
   /// Whether a `sequencerStop()` must be issued/confirmed before cleanup. False
   /// for a natural terminal (the hardware already terminated authoritatively)
@@ -1385,7 +1393,7 @@ class SequenceExecutor {
     if (f.nativeStopRequired && !f.nativeStopConfirmed) {
       final confirmation = f.nativeStopConfirmation ??= Completer<void>();
       try {
-        await _backend.sequencerStop();
+        await _backend.sequencerStop(origin: f.stopOrigin);
         // BOUNDED. Waiting for the authoritative terminal is correct — the stop
         // command returning only means it was accepted, and tearing down while
         // the camera may still be exposing is the thing this gate exists to
@@ -1779,7 +1787,7 @@ class SequenceExecutor {
   /// (the action service, the headless API, the scheduler) is updated in
   /// the same audit pass and the few remaining bare `stop()` invocations
   /// are deliberate hard-stops (e.g. reset()).
-  Future<void> stop({bool preserveCheckpoint = false}) {
+  Future<void> stop({bool preserveCheckpoint = false, String? origin}) {
     _ensureBackendAuthority();
     // Join an in-flight finalization — a natural terminal, another stop(), or a
     // rollback: the caller observes the SAME outcome, and native stop + cleanup
@@ -1827,6 +1835,7 @@ class SequenceExecutor {
       publishTerminalResult: true,
       discardCheckpointOnSuccess: !preserveCheckpoint,
       isRollback: false,
+      stopOrigin: origin,
     );
     _finalization = f;
     // Enter `stopping` synchronously (before the first await) so the UI is

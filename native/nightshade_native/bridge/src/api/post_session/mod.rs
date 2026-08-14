@@ -58,7 +58,7 @@ use crate::event::{EventSeverity, ImagingEvent};
 
 mod args;
 pub(crate) use args::*;
-mod entrypoints;
+pub mod entrypoints;
 pub use entrypoints::*;
 mod helpers;
 pub(crate) use helpers::*;

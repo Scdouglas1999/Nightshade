@@ -144,13 +144,17 @@ pub async fn api_sequencer_resume() -> Result<(), NightshadeError> {
     Ok(())
 }
 
-/// Stop the sequence executor
-pub async fn api_sequencer_stop() -> Result<(), NightshadeError> {
-    tracing::info!("Stopping sequence execution");
+/// Stop the sequence executor. `origin` names the CALLER — `None` /
+/// `"operator"` for a human, `"scheduler"` for the autopilot — so the
+/// executor can record an autopilot stop as the system event it is
+/// instead of operator evidence.
+pub async fn api_sequencer_stop(origin: Option<String>) -> Result<(), NightshadeError> {
+    tracing::info!(origin = origin.as_deref(), "Stopping sequence execution");
 
     let mut executor = get_sequence_executor().write().await;
+    let run_id = executor.active_sequence_run_id();
     executor
-        .stop()
+        .stop_with_origin(origin.as_deref())
         .await
         .map_err(|e| NightshadeError::OperationFailed(format!("Failed to stop sequence: {}", e)))?;
 
@@ -172,7 +176,9 @@ pub async fn api_sequencer_stop() -> Result<(), NightshadeError> {
     get_state().publish_event(create_event_auto_id(
         EventSeverity::Info,
         EventCategory::Sequencer,
-        EventPayload::Sequencer(SequencerEvent::Stopped),
+        EventPayload::Sequencer(SequencerEvent::Stopped {
+            sequence_run_id: run_id,
+        }),
     ));
 
     Ok(())

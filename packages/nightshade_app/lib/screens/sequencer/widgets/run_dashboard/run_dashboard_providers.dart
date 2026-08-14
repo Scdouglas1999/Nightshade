@@ -597,6 +597,35 @@ bool _isOperatorStopEvidence(ns_events.NightshadeEvent event) {
       sequencerEvent.summary.startsWith('Operator: stop');
 }
 
+/// The system decision the executor logs when the AUTOPILOT commanded the
+/// stop (origin `scheduler` on the stop API). Evidence of a cause — just
+/// not a human one.
+bool _isAutopilotStopEvidence(ns_events.NightshadeEvent event) {
+  final payload = event.payload;
+  if (payload is! ns_events.EventPayload_Sequencer) return false;
+  final sequencerEvent = payload.field0;
+  return sequencerEvent is ns_events.SequencerEvent_DecisionLogged &&
+      sequencerEvent.category == 'system_event' &&
+      sequencerEvent.summary == 'Autopilot: stop';
+}
+
+/// The run this stop-family event belongs to, when the wire carries it.
+/// Episode identity: two events of DIFFERENT runs may never fold together,
+/// and two of the SAME run always may, however far apart the safing
+/// teardown stretched them.
+int? _stopFamilyRunId(ns_events.NightshadeEvent event) {
+  final payload = event.payload;
+  if (payload is! ns_events.EventPayload_Sequencer) return null;
+  final sequencerEvent = payload.field0;
+  if (sequencerEvent is ns_events.SequencerEvent_Stopped) {
+    return sequencerEvent.sequenceRunId;
+  }
+  if (sequencerEvent is ns_events.SequencerEvent_DecisionLogged) {
+    return sequencerEvent.sequenceRunId;
+  }
+  return null;
+}
+
 /// The rest of the stop family — cause-neutral members that mark THAT the
 /// run ended, not WHY: the terminal `Stopped` pair, the cancel-notice Error,
 /// and the cancel-notice lifecycle decision.
@@ -633,6 +662,9 @@ String? _stopEvidenceKind(ns_events.NightshadeEvent event) {
       sequencerEvent.summary.startsWith('Operator: stop')) {
     return 'manual-intervention';
   }
+  if (_isAutopilotStopEvidence(event)) {
+    return 'autopilot-decision';
+  }
   return null;
 }
 
@@ -642,10 +674,19 @@ String? _stopEvidenceKind(ns_events.NightshadeEvent event) {
 const _stopEpisodeSpan = Duration(minutes: 2);
 
 class _StopGroup {
-  final DateTime anchor;
   final int outIndex;
   final Set<String> kinds = <String>{};
-  _StopGroup(this.anchor, this.outIndex);
+  final List<DateTime> memberTimes;
+  int? runId;
+  _StopGroup(DateTime anchor, this.outIndex) : memberTimes = [anchor];
+
+  /// Distance from [time] to the CLOSEST member — pairwise, not
+  /// anchor-relative: the anchor is merely the newest-seen member, and an
+  /// episode's producers chain (press … teardown rows … late terminal), so
+  /// a member belongs if it is close to ANY of them.
+  Duration nearestDistance(DateTime time) => memberTimes
+      .map((t) => t.difference(time).abs())
+      .reduce((a, b) => a < b ? a : b);
 }
 
 /// Fold each press (or abort) of the stop family into ONE row, regardless of
@@ -674,7 +715,8 @@ List<RunDashboardEvent> _foldStopFamilyRows(
   final out = <RunDashboardEvent>[];
   final groups = <_StopGroup>[];
   for (final event in events) {
-    final evidence = _isOperatorStopEvidence(event);
+    final evidence =
+        _isOperatorStopEvidence(event) || _isAutopilotStopEvidence(event);
     final family = evidence || _isNeutralStopFamilyEvent(event);
     final row = _toDashboardEvent(event);
     if (!family && row.title != 'Sequence stopped') {
@@ -688,18 +730,26 @@ List<RunDashboardEvent> _foldStopFamilyRows(
       continue;
     }
     final kind = _stopEvidenceKind(event);
+    final runId = _stopFamilyRunId(event);
     _StopGroup? group;
     Duration? bestDistance;
     for (final candidate in groups) {
       if (kind != null && candidate.kinds.contains(kind)) continue;
-      final distance = candidate.anchor.difference(row.time).abs();
-      // The Started boundary is the primary separator, but it is published
-      // by exactly one producer — anywhere it is missing (an attached
-      // session, a truncated stream) an unbounded join would absorb an
-      // arbitrarily old stop row and DELETE it from the night's record. The
-      // bound is generous enough for the longest safing teardown between one
-      // press's producers, and past it the fold degrades to two rows, which
-      // is the honest direction.
+      // Run identity outranks time: same run always joins (the safing
+      // teardown can stretch one episode's producers arbitrarily far),
+      // different runs never do.
+      if (runId != null && candidate.runId != null) {
+        if (candidate.runId != runId) continue;
+        group = candidate;
+        break;
+      }
+      final distance = candidate.nearestDistance(row.time);
+      // For id-less members the Started boundary is the primary separator,
+      // but it is published by exactly one producer — anywhere it is
+      // missing (an attached session, a truncated stream) an unbounded
+      // join would absorb an arbitrarily old stop row and DELETE it from
+      // the night's record. Past the bound the fold degrades to two rows,
+      // which is the honest direction.
       if (distance > _stopEpisodeSpan) continue;
       if (bestDistance == null || distance < bestDistance) {
         group = candidate;
@@ -709,11 +759,14 @@ List<RunDashboardEvent> _foldStopFamilyRows(
     if (group == null) {
       final started = _StopGroup(row.time, out.length);
       if (kind != null) started.kinds.add(kind);
+      started.runId = runId;
       groups.add(started);
       out.add(row);
       continue;
     }
     if (kind != null) group.kinds.add(kind);
+    group.runId ??= runId;
+    group.memberTimes.add(row.time);
     // If this member knows the cause and the emitted row does not, the row
     // learns the MESSAGE only — time, eventId, and position stay the
     // emitted row's own.
@@ -745,18 +798,23 @@ RunDashboardEvent _toDashboardEvent(ns_events.NightshadeEvent event) {
   // A stop is still worth a row in the feed — it is how the operator
   // reconstructs the night — but it is an INFO row that says what happened,
   // not a critical "Sequencer error".
-  if (_isOperatorStopEvidence(event) || _isNeutralStopFamilyEvent(event)) {
+  if (_isOperatorStopEvidence(event) ||
+      _isAutopilotStopEvidence(event) ||
+      _isNeutralStopFamilyEvent(event)) {
     return RunDashboardEvent(
       eventId: event.eventId,
       time: DateTime.fromMillisecondsSinceEpoch(ms),
       severity: RunDashboardEventSeverity.info,
       category: _categoryLabel(event.category),
       title: 'Sequence stopped',
-      // Only operator evidence may claim a cause; a bare Stopped may be a
-      // safety abort with nobody at the keyboard.
+      // Only evidence may claim a cause — and it names WHOSE: the
+      // operator's decision or the autopilot's. A bare Stopped may be a
+      // safety abort with nobody at the keyboard and stays neutral.
       message: _isOperatorStopEvidence(event)
           ? kSequenceStoppedByRequestMessage
-          : '',
+          : _isAutopilotStopEvidence(event)
+              ? kSequenceStoppedByAutopilotMessage
+              : '',
       isCritical: false,
     );
   }

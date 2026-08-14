@@ -113,6 +113,9 @@ Map<String, Object?> _buildInventory(String root) {
     ..._treeUnits(root, 'packages/nightshade_ui/lib', 'ui', 'design-system'),
     ..._webUnits(root),
     ..._apiUnits(root),
+    // Added 2026-08-14 (task #31 remainder): the hub server is a shipped
+    // surface (Collaborative Sky) and was the last uncounted tree.
+    ..._treeUnits(root, 'server/nightshade_hub/lib', 'hub', 'hub-server'),
   ];
   units.sort((a, b) => (a['id']! as String).compareTo(b['id']! as String));
   _warnOnDuplicateIds(units);

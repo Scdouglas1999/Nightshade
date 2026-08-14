@@ -3,48 +3,12 @@
 
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
-import '../error.dart';
-import '../frb_generated.dart';
+import '../../error.dart';
+import '../../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `emit_polar_error`, `emit_polar_image`, `emit_polar_status`, `get_polar_align_cancel`, `get_polar_align_flag`, `plate_solve_ra_degrees`, `polar_control_lock`, `polar_generation`, `polar_loop_control`, `polar_task_slot`, `pole_region_target`, `release_polar_run_if_current`, `run_polar_alignment`, `slew_to_pole_region`, `store_polar_task`, `try_admit_polar_run`, `write_temp_fits_for_solve`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `PolarAlignmentMode`, `PolarLoopControl`, `SlewOutcome`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `PolarAlignmentMode`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `eq`, `fmt`
-
-/// Start three-point polar alignment
-///
-/// This initiates the polar alignment process which will:
-/// 1. Capture 3 images at different mount rotations
-/// 2. Plate solve each image
-/// 3. Calculate the center of rotation
-/// 4. Enter adjustment mode with real-time error updates
-///
-/// Note: Requires connected camera and mount devices.
-Future<void> apiStartPolarAlignment({
-  required double exposureTime,
-  required double stepSize,
-  required int binning,
-  required bool isNorth,
-  required bool manualRotation,
-  required bool rotateEast,
-  int? gain,
-  int? offset,
-  double? solveTimeout,
-  bool? startFromCurrent,
-  double? autoCompleteThreshold,
-}) => RustLib.instance.api.crateApiPolarAlignmentApiStartPolarAlignment(
-  exposureTime: exposureTime,
-  stepSize: stepSize,
-  binning: binning,
-  isNorth: isNorth,
-  manualRotation: manualRotation,
-  rotateEast: rotateEast,
-  gain: gain,
-  offset: offset,
-  solveTimeout: solveTimeout,
-  startFromCurrent: startFromCurrent,
-  autoCompleteThreshold: autoCompleteThreshold,
-);
 
 /// Stop the polar alignment process.
 ///
@@ -58,8 +22,8 @@ Future<void> apiStartPolarAlignment({
 /// This is applied to *both* TPPA and all-sky, which share this stop path and
 /// the single owned task slot, so neither can leave a task running under a new
 /// run.
-Future<void> apiStopPolarAlignment() =>
-    RustLib.instance.api.crateApiPolarAlignmentApiStopPolarAlignment();
+Future<void> apiStopPolarAlignment() => RustLib.instance.api
+    .crateApiPolarAlignmentEntrypointsApiStopPolarAlignment();
 
 /// Start all-sky polar alignment.
 ///
@@ -94,13 +58,14 @@ Future<void> apiStartAllSkyPolarAlignment({
   required double iterationCadenceSecs,
   int? gain,
   int? offset,
-}) => RustLib.instance.api.crateApiPolarAlignmentApiStartAllSkyPolarAlignment(
-  exposureTime: exposureTime,
-  solveTimeout: solveTimeout,
-  binning: binning,
-  isNorth: isNorth,
-  acceptanceThresholdArcsec: acceptanceThresholdArcsec,
-  iterationCadenceSecs: iterationCadenceSecs,
-  gain: gain,
-  offset: offset,
-);
+}) => RustLib.instance.api
+    .crateApiPolarAlignmentEntrypointsApiStartAllSkyPolarAlignment(
+      exposureTime: exposureTime,
+      solveTimeout: solveTimeout,
+      binning: binning,
+      isNorth: isNorth,
+      acceptanceThresholdArcsec: acceptanceThresholdArcsec,
+      iterationCadenceSecs: iterationCadenceSecs,
+      gain: gain,
+      offset: offset,
+    );

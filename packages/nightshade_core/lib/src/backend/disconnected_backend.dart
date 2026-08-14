@@ -506,7 +506,7 @@ class DisconnectedBackend
   }
 
   @override
-  Future<void> sequencerStop() async {
+  Future<void> sequencerStop({String? origin}) async {
     _throwNotConnected();
   }
 

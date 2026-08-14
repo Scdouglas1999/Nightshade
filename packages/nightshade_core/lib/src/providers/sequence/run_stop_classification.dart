@@ -42,6 +42,11 @@ const String kSequenceCancelledNotice = 'Sequence cancelled';
 /// recognises the notice.
 const String kSequenceStoppedByRequestMessage = 'Stopped by request';
 
+/// Feed message for a stop the AUTOPILOT commanded (scheduler re-plan,
+/// no-eligible-target tick). Distinct from the operator's message: an
+/// unattended stop must never claim a human asked for it.
+const String kSequenceStoppedByAutopilotMessage = 'Stopped by autopilot';
+
 /// Log tag stamped by every producer that reclassifies a stop, so a live log
 /// says WHICH implementation acted.
 ///

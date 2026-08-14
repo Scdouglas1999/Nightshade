@@ -6,92 +6,12 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `coverage_impl`, `default_channels`, `default_order`, `default_out_pixels`, `default_trust`, `default_weight`, `describe_atlas_error`, `ensure_parent_dir`, `export_delta_impl`, `finalize_impl`, `fold_impl`, `growth_impl`, `info_impl`, `iso_is_after`, `list_tiles_on_disk`, `looks_dated`, `merge_delta_impl`, `mode_from_clip`, `open_atlas`, `parse_interp`, `query_cutout_impl`, `read_frame`, `region_info_impl`, `tile_png_impl`, `wcs_info_from_tile`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `AddFrameArgs`, `AtlasAction`, `CoverageArgs`, `CoverageResult`, `ExportDeltaArgs`, `ExportDeltaResult`, `FinalizeArgs`, `FinalizeResult`, `FoldArgs`, `FoldFrameArgs`, `FoldResult`, `GrowthArgs`, `GrowthPoint`, `GrowthResult`, `InfoArgs`, `InfoResult`, `MergeDeltaArgs`, `MergeDeltaResult`, `QueryCutoutArgs`, `QueryCutoutResult`, `RegionInfoArgs`, `RegionInfoResult`, `TileCoverage`, `TileFoldSummary`, `TilePngArgs`, `TilePngResult`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These functions are ignored because they are not marked as `pub`: `describe_atlas_error`, `ensure_parent_dir`, `list_tiles_on_disk`, `mode_from_clip`, `open_atlas`, `parse_interp`, `read_frame`, `wcs_info_from_tile`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `AtlasAction`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `fmt`
 
 /// Sky-atlas dispatcher. `args_json` carries an `"action"` selecting the
 /// operation; the remaining fields are the action-specific payload documented in
 /// `docs/nightshade_5_0_contracts.md` §2.1. Returns the action's JSON result.
 Future<String> apiSkyAtlas({required String argsJson}) =>
     RustLib.instance.api.crateApiSkyAtlasApiSkyAtlas(argsJson: argsJson);
-
-/// Fold a single plate-solved capture into the atlas. A thin convenience over the
-/// `"fold"` action for the common one-frame case — the same JSON shape minus the
-/// `frames` array wrapper:
-///
-/// ```jsonc
-/// { "atlasRoot": "/…", "order": 9, "contributor": "", "interp": "lanczos3",
-///   "label": "2026-06-19", "framePath": "/…/light_001.fits",
-///   "weight": 1.0, "exposureSec": 300.0, "wcs": <SipWcs JSON>,
-///   "onlineClipLow": 4.0, "onlineClipHigh": 4.0 /* optional */ }
-/// ```
-/// Returns the same [`FoldResult`] JSON as the dispatcher's `"fold"` action.
-Future<String> apiSkyAtlasAddFrame({required String argsJson}) => RustLib
-    .instance
-    .api
-    .crateApiSkyAtlasApiSkyAtlasAddFrame(argsJson: argsJson);
-
-/// Co-add a cone of the atlas into a finalized, sharable cutout (FITS + optional
-/// PNG) and report its statistics:
-///
-/// ```jsonc
-/// { "atlasRoot": "/…", "order": 9,
-///   "centerRa": 83.6, "centerDec": -5.4, "radiusDeg": 0.5,
-///   "channels": 1, "outPixels": 2048, "interp": "lanczos3",
-///   "fitsPath": "/…/cutout.fits", "pngPath": "/…/cutout.png" /* optional */ }
-/// // -> { "ok": true, "fitsPath": "…", "pngPath": "…", "width": …, "height": …,
-/// //      "channels": …, "coveredFraction": 0.97, "meanCoverage": 11.3,
-/// //      "maxCoverage": 30.0, "tilesUsed": 7 }
-/// ```
-Future<String> apiSkyAtlasQueryCutout({required String argsJson}) => RustLib
-    .instance
-    .api
-    .crateApiSkyAtlasApiSkyAtlasQueryCutout(argsJson: argsJson);
-
-/// Summarise a circular region of the atlas (the tiles a cone covers): aggregate
-/// integration time, frame count, coverage depth, and tile tally — the numbers a
-/// "Your Sky" region card shows.
-///
-/// ```jsonc
-/// { "atlasRoot": "/…", "order": 9,
-///   "centerRa": 83.6, "centerDec": -5.4, "radiusDeg": 0.5 }
-/// // -> { "ok": true, "tilesInRegion": 7, "tilesWithData": 5,
-/// //      "totalFrames": 120, "integrationSeconds": 36000.0,
-/// //      "meanCoverage": 11.3, "maxCoverage": 30.0,
-/// //      "contributors": ["", "alice"], "lastFoldIso": "2026-06-19" }
-/// ```
-Future<String> apiSkyAtlasRegionInfo({required String argsJson}) => RustLib
-    .instance
-    .api
-    .crateApiSkyAtlasApiSkyAtlasRegionInfo(argsJson: argsJson);
-
-/// Report a deepening **growth curve** for a region: per-fold cumulative frame
-/// count and integration time, oldest fold first, summed across the region's
-/// tiles. This is the "your sky is getting deeper" timeline the dashboard plots.
-///
-/// ```jsonc
-/// { "atlasRoot": "/…", "order": 9,
-///   "centerRa": 83.6, "centerDec": -5.4, "radiusDeg": 0.5 }
-/// // -> { "ok": true, "points": [
-/// //        { "label": "2026-06-01", "framesAdded": 30, "secondsAdded": 9000.0,
-/// //          "cumulativeFrames": 30, "cumulativeSeconds": 9000.0,
-/// //          "contributor": "" }, … ],
-/// //      "totalFrames": 120, "totalSeconds": 36000.0 }
-/// ```
-Future<String> apiSkyAtlasGrowth({required String argsJson}) =>
-    RustLib.instance.api.crateApiSkyAtlasApiSkyAtlasGrowth(argsJson: argsJson);
-
-/// Merge a contributor delta accumulator into a base accumulator (or retract it),
-/// the linear-additive federation operation the keystone proves exact:
-///
-/// ```jsonc
-/// { "basePath": "/…/hub/tiles/9/42.nst", "deltaPath": "/…/delta_42.nst",
-///   "trust": 0.85, "subtract": false, "outPath": "/…/hub/tiles/9/42.nst" }
-/// // -> { "ok": true, "tileId": 42, "totalFramesAfter": 130,
-/// //      "integrationSecondsAfter": 39000.0, "contributorsAfter": 7 }
-/// ```
-Future<String> apiSkyAtlasMergeDelta({required String argsJson}) => RustLib
-    .instance
-    .api
-    .crateApiSkyAtlasApiSkyAtlasMergeDelta(argsJson: argsJson);

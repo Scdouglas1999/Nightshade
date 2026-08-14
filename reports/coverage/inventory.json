@@ -2810,6 +2810,12 @@
       "controls": 1
     },
     {
+      "id": "api:/api/sequencer/update-autofocus-config",
+      "kind": "api-route",
+      "area": "headless-api",
+      "controls": 1
+    },
+    {
       "id": "api:/api/sequencer/update-autofocus-interval",
       "kind": "api-route",
       "area": "headless-api",
@@ -3765,10 +3771,10 @@
       }
     },
     {
-      "id": "planetarium:src/widgets/object_details_panel/content_sections.dart",
+      "id": "planetarium:src/widgets/object_details_panel/action_sections.dart",
       "kind": "planetarium",
       "area": "planetarium-pkg",
-      "path": "packages/nightshade_planetarium/lib/src/widgets/object_details_panel/content_sections.dart",
+      "path": "packages/nightshade_planetarium/lib/src/widgets/object_details_panel/action_sections.dart",
       "controls": 10,
       "control_kinds": {
         "button": 10
@@ -3789,10 +3795,66 @@
       "kind": "planetarium",
       "area": "planetarium-pkg",
       "path": "packages/nightshade_planetarium/lib/src/widgets/time_control_panel.dart",
-      "controls": 12,
+      "controls": 13,
       "control_kinds": {
-        "button": 10,
+        "button": 11,
         "gesture": 2
+      }
+    },
+    {
+      "id": "screen:analytics/_headers.dart",
+      "kind": "screen",
+      "area": "analytics",
+      "path": "packages/nightshade_app/lib/screens/analytics/widgets/project_tracking_panel_parts/_headers.dart",
+      "controls": 7,
+      "control_kinds": {
+        "button": 3,
+        "dialog": 2,
+        "gesture": 2
+      }
+    },
+    {
+      "id": "screen:analytics/_project_card.dart",
+      "kind": "screen",
+      "area": "analytics",
+      "path": "packages/nightshade_app/lib/screens/analytics/widgets/project_tracking_panel_parts/_project_card.dart",
+      "controls": 8,
+      "control_kinds": {
+        "textfield": 1,
+        "button": 5,
+        "dialog": 2
+      }
+    },
+    {
+      "id": "screen:analytics/_threshold_controls.dart",
+      "kind": "screen",
+      "area": "analytics",
+      "path": "packages/nightshade_app/lib/screens/analytics/widgets/image_grader_dialog_parts/_threshold_controls.dart",
+      "controls": 2,
+      "control_kinds": {
+        "button": 2
+      }
+    },
+    {
+      "id": "screen:analytics/_thumbnail.dart",
+      "kind": "screen",
+      "area": "analytics",
+      "path": "packages/nightshade_app/lib/screens/analytics/widgets/image_thumbnail_strip_parts/_thumbnail.dart",
+      "controls": 5,
+      "control_kinds": {
+        "button": 1,
+        "dialog": 2,
+        "gesture": 2
+      }
+    },
+    {
+      "id": "screen:analytics/analytics_empty_state.dart",
+      "kind": "screen",
+      "area": "analytics",
+      "path": "packages/nightshade_app/lib/screens/analytics/widgets/analytics_empty_state.dart",
+      "controls": 1,
+      "control_kinds": {
+        "button": 1
       }
     },
     {
@@ -3861,13 +3923,25 @@
       }
     },
     {
+      "id": "screen:analytics/hub_state_helpers.dart",
+      "kind": "screen",
+      "area": "analytics",
+      "path": "packages/nightshade_app/lib/screens/analytics/widgets/science_export_hub/hub_state_helpers.dart",
+      "controls": 5,
+      "control_kinds": {
+        "button": 1,
+        "dialog": 2,
+        "gesture": 2
+      }
+    },
+    {
       "id": "screen:analytics/image_grader_dialog.dart",
       "kind": "screen",
       "area": "analytics",
       "path": "packages/nightshade_app/lib/screens/analytics/widgets/image_grader_dialog.dart",
-      "controls": 5,
+      "controls": 3,
       "control_kinds": {
-        "button": 4,
+        "button": 2,
         "dialog": 1
       }
     },
@@ -3876,11 +3950,19 @@
       "kind": "screen",
       "area": "analytics",
       "path": "packages/nightshade_app/lib/screens/analytics/widgets/image_thumbnail_strip.dart",
-      "controls": 6,
+      "controls": 1,
       "control_kinds": {
-        "button": 1,
-        "dialog": 2,
-        "gesture": 3
+        "gesture": 1
+      }
+    },
+    {
+      "id": "screen:analytics/line_ratio_card.dart",
+      "kind": "screen",
+      "area": "analytics",
+      "path": "packages/nightshade_app/lib/screens/analytics/widgets/science_analytics_tab/line_ratio_card.dart",
+      "controls": 1,
+      "control_kinds": {
+        "button": 1
       }
     },
     {
@@ -3926,27 +4008,12 @@
       }
     },
     {
-      "id": "screen:analytics/project_tracking_panel.dart",
-      "kind": "screen",
-      "area": "analytics",
-      "path": "packages/nightshade_app/lib/screens/analytics/widgets/project_tracking_panel.dart",
-      "controls": 15,
-      "control_kinds": {
-        "textfield": 1,
-        "button": 8,
-        "dialog": 4,
-        "gesture": 2
-      }
-    },
-    {
       "id": "screen:analytics/science_analytics_tab.dart",
       "kind": "screen",
       "area": "analytics",
       "path": "packages/nightshade_app/lib/screens/analytics/widgets/science_analytics_tab.dart",
-      "controls": 3,
+      "controls": 1,
       "control_kinds": {
-        "dropdown": 1,
-        "button": 1,
         "gesture": 1
       }
     },
@@ -3965,10 +4032,10 @@
       "kind": "screen",
       "area": "analytics",
       "path": "packages/nightshade_app/lib/screens/analytics/widgets/science_analytics_tab/science_cards.dart",
-      "controls": 6,
+      "controls": 5,
       "control_kinds": {
         "textfield": 1,
-        "button": 3,
+        "button": 2,
         "dialog": 2
       }
     },
@@ -3977,11 +4044,9 @@
       "kind": "screen",
       "area": "analytics",
       "path": "packages/nightshade_app/lib/screens/analytics/widgets/science_export_hub.dart",
-      "controls": 7,
+      "controls": 2,
       "control_kinds": {
-        "button": 3,
-        "dialog": 2,
-        "gesture": 2
+        "button": 2
       }
     },
     {
@@ -4063,9 +4128,8 @@
       "kind": "screen",
       "area": "analytics",
       "path": "packages/nightshade_app/lib/screens/analytics/widgets/science_surface_explorer.dart",
-      "controls": 4,
+      "controls": 3,
       "control_kinds": {
-        "dropdown": 1,
         "slider": 1,
         "gesture": 1,
         "zoom-pan": 1
@@ -4096,9 +4160,18 @@
       "kind": "screen",
       "area": "analytics",
       "path": "packages/nightshade_app/lib/screens/analytics/analytics_screen/session_tab.dart",
-      "controls": 2,
+      "controls": 1,
       "control_kinds": {
-        "dropdown": 1,
+        "button": 1
+      }
+    },
+    {
+      "id": "screen:analytics/tab_sections.dart",
+      "kind": "screen",
+      "area": "analytics",
+      "path": "packages/nightshade_app/lib/screens/analytics/widgets/science_analytics_tab/tab_sections.dart",
+      "controls": 1,
+      "control_kinds": {
         "button": 1
       }
     },
@@ -4213,9 +4286,8 @@
       "kind": "screen",
       "area": "dashboard",
       "path": "packages/nightshade_app/lib/screens/dashboard/widgets/capture_settings_card.dart",
-      "controls": 2,
+      "controls": 1,
       "control_kinds": {
-        "dropdown": 1,
         "textfield": 1
       }
     },
@@ -4288,9 +4360,8 @@
       "kind": "screen",
       "area": "dashboard",
       "path": "packages/nightshade_app/lib/screens/dashboard/widgets/mount_control_card.dart",
-      "controls": 3,
+      "controls": 1,
       "control_kinds": {
-        "dropdown": 2,
         "gesture": 1
       }
     },
@@ -4372,9 +4443,8 @@
       "kind": "screen",
       "area": "diagnostics",
       "path": "packages/nightshade_app/lib/screens/diagnostics/diagnostics_screen/header_widgets.dart",
-      "controls": 5,
+      "controls": 4,
       "control_kinds": {
-        "dropdown": 1,
         "dialog": 2,
         "gesture": 2
       }
@@ -4395,9 +4465,8 @@
       "kind": "screen",
       "area": "equipment",
       "path": "packages/nightshade_app/lib/screens/equipment/widgets/backend_selector_chips.dart",
-      "controls": 4,
+      "controls": 3,
       "control_kinds": {
-        "menu": 1,
         "gesture": 3
       }
     },
@@ -4437,10 +4506,10 @@
       "kind": "screen",
       "area": "equipment",
       "path": "packages/nightshade_app/lib/screens/equipment/widgets/connected_device_card/dialogs_and_settings.dart",
-      "controls": 11,
+      "controls": 8,
       "control_kinds": {
         "switch": 4,
-        "textfield": 7
+        "textfield": 4
       }
     },
     {
@@ -4480,10 +4549,9 @@
       "kind": "screen",
       "area": "equipment",
       "path": "packages/nightshade_app/lib/screens/equipment/dialogs/profile_editor_dialog/filters_and_camera_defaults.dart",
-      "controls": 2,
+      "controls": 1,
       "control_kinds": {
-        "checkbox": 1,
-        "dropdown": 1
+        "checkbox": 1
       }
     },
     {
@@ -4516,9 +4584,8 @@
       "kind": "screen",
       "area": "equipment",
       "path": "packages/nightshade_app/lib/screens/equipment/widgets/connected_device_card/helper_widgets.dart",
-      "controls": 3,
+      "controls": 2,
       "control_kinds": {
-        "dropdown": 1,
         "gesture": 2
       }
     },
@@ -4545,13 +4612,23 @@
       }
     },
     {
+      "id": "screen:equipment/motion_dialogs.dart",
+      "kind": "screen",
+      "area": "equipment",
+      "path": "packages/nightshade_app/lib/screens/equipment/widgets/connected_device_card/motion_dialogs.dart",
+      "controls": 3,
+      "control_kinds": {
+        "textfield": 3
+      }
+    },
+    {
       "id": "screen:equipment/profile_chip.dart",
       "kind": "screen",
       "area": "equipment",
       "path": "packages/nightshade_app/lib/screens/equipment/widgets/profile_chip.dart",
-      "controls": 4,
+      "controls": 2,
       "control_kinds": {
-        "gesture": 4
+        "gesture": 2
       }
     },
     {
@@ -4664,6 +4741,16 @@
       }
     },
     {
+      "id": "screen:flat_wizard/_stats_and_status.dart",
+      "kind": "screen",
+      "area": "flat_wizard",
+      "path": "packages/nightshade_app/lib/screens/flat_wizard/widgets/flat_preview_panel_parts/_stats_and_status.dart",
+      "controls": 4,
+      "control_kinds": {
+        "gesture": 4
+      }
+    },
+    {
       "id": "screen:flat_wizard/action_buttons.dart",
       "kind": "screen",
       "area": "flat_wizard",
@@ -4681,16 +4768,6 @@
       "controls": 1,
       "control_kinds": {
         "checkbox": 1
-      }
-    },
-    {
-      "id": "screen:flat_wizard/flat_preview_panel.dart",
-      "kind": "screen",
-      "area": "flat_wizard",
-      "path": "packages/nightshade_app/lib/screens/flat_wizard/widgets/flat_preview_panel.dart",
-      "controls": 4,
-      "control_kinds": {
-        "gesture": 4
       }
     },
     {
@@ -4715,6 +4792,48 @@
         "textfield": 1,
         "button": 2,
         "gesture": 4
+      }
+    },
+    {
+      "id": "screen:framing/_canvas_controls.dart",
+      "kind": "screen",
+      "area": "framing",
+      "path": "packages/nightshade_app/lib/screens/framing/widgets/framing_canvas_parts/_canvas_controls.dart",
+      "controls": 11,
+      "control_kinds": {
+        "gesture": 11
+      }
+    },
+    {
+      "id": "screen:framing/_fov_controls.dart",
+      "kind": "screen",
+      "area": "framing",
+      "path": "packages/nightshade_app/lib/screens/framing/widgets/framing_controls_parts/_fov_controls.dart",
+      "controls": 9,
+      "control_kinds": {
+        "slider": 2,
+        "gesture": 7
+      }
+    },
+    {
+      "id": "screen:framing/_mosaic_controls.dart",
+      "kind": "screen",
+      "area": "framing",
+      "path": "packages/nightshade_app/lib/screens/framing/widgets/framing_controls_parts/_mosaic_controls.dart",
+      "controls": 14,
+      "control_kinds": {
+        "gesture": 14
+      }
+    },
+    {
+      "id": "screen:framing/_rotation_fields.dart",
+      "kind": "screen",
+      "area": "framing",
+      "path": "packages/nightshade_app/lib/screens/framing/widgets/framing_controls_parts/_rotation_fields.dart",
+      "controls": 7,
+      "control_kinds": {
+        "slider": 1,
+        "gesture": 6
       }
     },
     {
@@ -4743,9 +4862,8 @@
       "kind": "screen",
       "area": "framing",
       "path": "packages/nightshade_app/lib/screens/framing/widgets/framing_sidebar/controls_and_status.dart",
-      "controls": 5,
+      "controls": 4,
       "control_kinds": {
-        "dropdown": 1,
         "button": 1,
         "gesture": 3
       }
@@ -4755,9 +4873,9 @@
       "kind": "screen",
       "area": "framing",
       "path": "packages/nightshade_app/lib/screens/framing/widgets/framing_canvas.dart",
-      "controls": 13,
+      "controls": 2,
       "control_kinds": {
-        "gesture": 12,
+        "gesture": 1,
         "zoom-pan": 1
       }
     },
@@ -4766,10 +4884,10 @@
       "kind": "screen",
       "area": "framing",
       "path": "packages/nightshade_app/lib/screens/framing/widgets/framing_controls.dart",
-      "controls": 35,
+      "controls": 5,
       "control_kinds": {
-        "slider": 4,
-        "gesture": 31
+        "slider": 1,
+        "gesture": 4
       }
     },
     {
@@ -4866,6 +4984,49 @@
       }
     },
     {
+      "id": "screen:imaging/_build_controls.dart",
+      "kind": "screen",
+      "area": "imaging",
+      "path": "packages/nightshade_app/lib/screens/imaging/widgets/calibration_section_parts/_build_controls.dart",
+      "controls": 4,
+      "control_kinds": {
+        "dialog": 2,
+        "gesture": 2
+      }
+    },
+    {
+      "id": "screen:imaging/_builtin_guider_config.dart",
+      "kind": "screen",
+      "area": "imaging",
+      "path": "packages/nightshade_app/lib/screens/imaging/widgets/guiding_panel_parts/_builtin_guider_config.dart",
+      "controls": 5,
+      "control_kinds": {
+        "textfield": 1,
+        "gesture": 4
+      }
+    },
+    {
+      "id": "screen:imaging/_correction_settings.dart",
+      "kind": "screen",
+      "area": "imaging",
+      "path": "packages/nightshade_app/lib/screens/imaging/widgets/calibration_section_parts/_correction_settings.dart",
+      "controls": 1,
+      "control_kinds": {
+        "button": 1
+      }
+    },
+    {
+      "id": "screen:imaging/_offers_and_chips.dart",
+      "kind": "screen",
+      "area": "imaging",
+      "path": "packages/nightshade_app/lib/screens/imaging/widgets/science_hud_parts/_offers_and_chips.dart",
+      "controls": 3,
+      "control_kinds": {
+        "button": 1,
+        "gesture": 2
+      }
+    },
+    {
       "id": "screen:imaging/annotation_filters.dart",
       "kind": "screen",
       "area": "imaging",
@@ -4906,18 +5067,6 @@
       }
     },
     {
-      "id": "screen:imaging/calibration_section.dart",
-      "kind": "screen",
-      "area": "imaging",
-      "path": "packages/nightshade_app/lib/screens/imaging/widgets/calibration_section.dart",
-      "controls": 5,
-      "control_kinds": {
-        "button": 1,
-        "dialog": 2,
-        "gesture": 2
-      }
-    },
-    {
       "id": "screen:imaging/camera_panel.dart",
       "kind": "screen",
       "area": "imaging",
@@ -4938,16 +5087,6 @@
         "button": 1,
         "dialog": 1,
         "gesture": 3
-      }
-    },
-    {
-      "id": "screen:imaging/centering_dialog.dart",
-      "kind": "screen",
-      "area": "imaging",
-      "path": "packages/nightshade_app/lib/screens/imaging/centering_dialog.dart",
-      "controls": 1,
-      "control_kinds": {
-        "textfield": 1
       }
     },
     {
@@ -4989,10 +5128,11 @@
       "kind": "screen",
       "area": "imaging",
       "path": "packages/nightshade_app/lib/screens/imaging/widgets/fullscreen_image_viewer.dart",
-      "controls": 2,
+      "controls": 3,
       "control_kinds": {
         "button": 1,
-        "zoom-pan": 1
+        "zoom-pan": 1,
+        "shortcut": 1
       }
     },
     {
@@ -5000,10 +5140,9 @@
       "kind": "screen",
       "area": "imaging",
       "path": "packages/nightshade_app/lib/screens/imaging/widgets/guiding_panel.dart",
-      "controls": 8,
+      "controls": 3,
       "control_kinds": {
-        "textfield": 1,
-        "gesture": 7
+        "gesture": 3
       }
     },
     {
@@ -5011,11 +5150,11 @@
       "kind": "screen",
       "area": "imaging",
       "path": "packages/nightshade_app/lib/screens/imaging/widgets/imaging_bottom_banner.dart",
-      "controls": 7,
+      "controls": 10,
       "control_kinds": {
         "textfield": 1,
         "menu": 1,
-        "gesture": 5
+        "gesture": 8
       }
     },
     {
@@ -5152,10 +5291,19 @@
       "kind": "screen",
       "area": "imaging",
       "path": "packages/nightshade_app/lib/screens/imaging/widgets/science_hud.dart",
-      "controls": 12,
+      "controls": 9,
       "control_kinds": {
-        "button": 1,
-        "gesture": 11
+        "gesture": 9
+      }
+    },
+    {
+      "id": "screen:imaging/section_builders.dart",
+      "kind": "screen",
+      "area": "imaging",
+      "path": "packages/nightshade_app/lib/screens/imaging/centering_dialog/section_builders.dart",
+      "controls": 1,
+      "control_kinds": {
+        "textfield": 1
       }
     },
     {
@@ -5163,19 +5311,10 @@
       "kind": "screen",
       "area": "imaging",
       "path": "packages/nightshade_app/lib/screens/imaging/widgets/stacking_panel.dart",
-      "controls": 3,
+      "controls": 7,
       "control_kinds": {
-        "gesture": 3
-      }
-    },
-    {
-      "id": "screen:imaging/status_widgets.dart",
-      "kind": "screen",
-      "area": "imaging",
-      "path": "packages/nightshade_app/lib/screens/imaging/widgets/stacking_panel/status_widgets.dart",
-      "controls": 1,
-      "control_kinds": {
-        "button": 1
+        "dialog": 1,
+        "gesture": 6
       }
     },
     {
@@ -5189,13 +5328,22 @@
       }
     },
     {
+      "id": "screen:imaging/status_widgets.dart",
+      "kind": "screen",
+      "area": "imaging",
+      "path": "packages/nightshade_app/lib/screens/imaging/widgets/stacking_panel/status_widgets.dart",
+      "controls": 1,
+      "control_kinds": {
+        "button": 1
+      }
+    },
+    {
       "id": "screen:imaging/stretch_controls.dart",
       "kind": "screen",
       "area": "imaging",
       "path": "packages/nightshade_app/lib/screens/imaging/widgets/stretch_controls.dart",
-      "controls": 6,
+      "controls": 5,
       "control_kinds": {
-        "dropdown": 1,
         "slider": 1,
         "gesture": 4
       }
@@ -5228,9 +5376,9 @@
       "kind": "screen",
       "area": "mosaic",
       "path": "packages/nightshade_app/lib/screens/mosaic/mosaic_project_screen.dart",
-      "controls": 6,
+      "controls": 8,
       "control_kinds": {
-        "button": 4,
+        "button": 6,
         "dialog": 2
       }
     },
@@ -5239,11 +5387,21 @@
       "kind": "screen",
       "area": "mosaic",
       "path": "packages/nightshade_app/lib/screens/mosaic/mosaic_projects_list_screen.dart",
-      "controls": 3,
+      "controls": 5,
       "control_kinds": {
         "button": 1,
         "dialog": 1,
-        "gesture": 1
+        "gesture": 3
+      }
+    },
+    {
+      "id": "screen:onboarding/_chrome.dart",
+      "kind": "screen",
+      "area": "onboarding",
+      "path": "packages/nightshade_app/lib/screens/onboarding/onboarding_screen_parts/_chrome.dart",
+      "controls": 2,
+      "control_kinds": {
+        "button": 2
       }
     },
     {
@@ -5261,9 +5419,9 @@
       "kind": "screen",
       "area": "onboarding",
       "path": "packages/nightshade_app/lib/screens/onboarding/steps/device_picker_step.dart",
-      "controls": 2,
+      "controls": 3,
       "control_kinds": {
-        "gesture": 2
+        "gesture": 3
       }
     },
     {
@@ -5271,9 +5429,9 @@
       "kind": "screen",
       "area": "onboarding",
       "path": "packages/nightshade_app/lib/screens/onboarding/steps/driver_step.dart",
-      "controls": 2,
+      "controls": 3,
       "control_kinds": {
-        "gesture": 2
+        "gesture": 3
       }
     },
     {
@@ -5313,9 +5471,8 @@
       "kind": "screen",
       "area": "onboarding",
       "path": "packages/nightshade_app/lib/screens/onboarding/onboarding_screen.dart",
-      "controls": 4,
+      "controls": 2,
       "control_kinds": {
-        "button": 2,
         "dialog": 2
       }
     },
@@ -5340,13 +5497,24 @@
       }
     },
     {
+      "id": "screen:planetarium/_filter_controls.dart",
+      "kind": "screen",
+      "area": "planetarium",
+      "path": "packages/nightshade_app/lib/screens/planetarium/widgets/search_header_parts/_filter_controls.dart",
+      "controls": 8,
+      "control_kinds": {
+        "slider": 1,
+        "textfield": 1,
+        "gesture": 6
+      }
+    },
+    {
       "id": "screen:planetarium/actions.dart",
       "kind": "screen",
       "area": "planetarium",
       "path": "packages/nightshade_app/lib/screens/planetarium/planetarium_screen/actions.dart",
-      "controls": 9,
+      "controls": 3,
       "control_kinds": {
-        "switch": 6,
         "dialog": 3
       }
     },
@@ -5375,8 +5543,9 @@
       "kind": "screen",
       "area": "planetarium",
       "path": "packages/nightshade_app/lib/screens/planetarium/widgets/redesign/command_bar.dart",
-      "controls": 13,
+      "controls": 14,
       "control_kinds": {
+        "button": 1,
         "menu": 1,
         "dialog": 1,
         "gesture": 11
@@ -5408,9 +5577,9 @@
       "kind": "screen",
       "area": "planetarium",
       "path": "packages/nightshade_app/lib/screens/planetarium/widgets/fov_presets_panel.dart",
-      "controls": 12,
+      "controls": 9,
       "control_kinds": {
-        "dropdown": 4,
+        "dropdown": 1,
         "slider": 1,
         "button": 3,
         "dialog": 2,
@@ -5523,12 +5692,11 @@
       "kind": "screen",
       "area": "planetarium",
       "path": "packages/nightshade_app/lib/screens/planetarium/widgets/search_header.dart",
-      "controls": 23,
+      "controls": 15,
       "control_kinds": {
-        "slider": 1,
-        "textfield": 2,
+        "textfield": 1,
         "tile": 4,
-        "gesture": 16
+        "gesture": 10
       }
     },
     {
@@ -5554,13 +5722,13 @@
       }
     },
     {
-      "id": "screen:planetarium/selected_object_hud.dart",
+      "id": "screen:planetarium/sheets.dart",
       "kind": "screen",
       "area": "planetarium",
-      "path": "packages/nightshade_app/lib/screens/planetarium/widgets/selected_object_hud.dart",
-      "controls": 1,
+      "path": "packages/nightshade_app/lib/screens/planetarium/planetarium_screen/sheets.dart",
+      "controls": 6,
       "control_kinds": {
-        "gesture": 1
+        "switch": 6
       }
     },
     {
@@ -5644,20 +5812,20 @@
       "id": "screen:planetarium/top_overlay.dart",
       "kind": "screen",
       "area": "planetarium",
-      "path": "packages/nightshade_app/lib/screens/planetarium/widgets/mobile_widgets/top_overlay.dart",
-      "controls": 4,
+      "path": "packages/nightshade_app/lib/screens/planetarium/widgets/top_overlay.dart",
+      "controls": 9,
       "control_kinds": {
-        "gesture": 4
+        "gesture": 9
       }
     },
     {
       "id": "screen:planetarium/top_overlay.dart",
       "kind": "screen",
       "area": "planetarium",
-      "path": "packages/nightshade_app/lib/screens/planetarium/widgets/top_overlay.dart",
-      "controls": 9,
+      "path": "packages/nightshade_app/lib/screens/planetarium/widgets/mobile_widgets/top_overlay.dart",
+      "controls": 4,
       "control_kinds": {
-        "gesture": 9
+        "gesture": 4
       }
     },
     {
@@ -5675,8 +5843,9 @@
       "kind": "screen",
       "area": "planetarium",
       "path": "packages/nightshade_app/lib/screens/planetarium/widgets/view_controls.dart",
-      "controls": 20,
+      "controls": 21,
       "control_kinds": {
+        "button": 1,
         "menu": 3,
         "gesture": 17
       }
@@ -5696,10 +5865,20 @@
       "kind": "screen",
       "area": "planner",
       "path": "packages/nightshade_app/lib/screens/planner/planner_screen_parts/_candidate_list.dart",
-      "controls": 6,
+      "controls": 1,
+      "control_kinds": {
+        "dialog": 1
+      }
+    },
+    {
+      "id": "screen:planner/_candidate_observing_list.dart",
+      "kind": "screen",
+      "area": "planner",
+      "path": "packages/nightshade_app/lib/screens/planner/planner_screen_parts/_candidate_observing_list.dart",
+      "controls": 5,
       "control_kinds": {
         "textfield": 1,
-        "dialog": 2,
+        "dialog": 1,
         "gesture": 3
       }
     },
@@ -5718,15 +5897,14 @@
       "kind": "screen",
       "area": "planner",
       "path": "packages/nightshade_app/lib/screens/planner/planner_screen_parts/_filter_controls.dart",
-      "controls": 29,
+      "controls": 12,
       "control_kinds": {
-        "dropdown": 2,
-        "slider": 3,
+        "dropdown": 1,
         "textfield": 1,
         "button": 1,
         "tile": 1,
-        "dialog": 11,
-        "gesture": 10
+        "dialog": 5,
+        "gesture": 3
       }
     },
     {
@@ -5747,6 +5925,18 @@
       "controls": 1,
       "control_kinds": {
         "segmented": 1
+      }
+    },
+    {
+      "id": "screen:planner/_range_controls.dart",
+      "kind": "screen",
+      "area": "planner",
+      "path": "packages/nightshade_app/lib/screens/planner/planner_screen_parts/_range_controls.dart",
+      "controls": 17,
+      "control_kinds": {
+        "slider": 3,
+        "dialog": 6,
+        "gesture": 8
       }
     },
     {
@@ -5778,9 +5968,8 @@
       "kind": "screen",
       "area": "planner",
       "path": "packages/nightshade_app/lib/screens/planner/widgets/progress_tab_content.dart",
-      "controls": 3,
+      "controls": 2,
       "control_kinds": {
-        "dropdown": 1,
         "gesture": 2
       }
     },
@@ -5868,13 +6057,23 @@
       }
     },
     {
+      "id": "screen:root/accessible_dropdown.dart",
+      "kind": "screen",
+      "area": "root",
+      "path": "packages/nightshade_app/lib/screens/accessible_dropdown.dart",
+      "controls": 6,
+      "control_kinds": {
+        "dropdown": 4,
+        "gesture": 2
+      }
+    },
+    {
       "id": "screen:scheduler/constraint_fields.dart",
       "kind": "screen",
       "area": "scheduler",
       "path": "packages/nightshade_app/lib/screens/scheduler/widgets/target_constraints_editor/constraint_fields.dart",
-      "controls": 8,
+      "controls": 7,
       "control_kinds": {
-        "dropdown": 1,
         "slider": 3,
         "button": 4
       }
@@ -5894,9 +6093,8 @@
       "kind": "screen",
       "area": "scheduler",
       "path": "packages/nightshade_app/lib/screens/scheduler/widgets/integration_goals_editor.dart",
-      "controls": 7,
+      "controls": 6,
       "control_kinds": {
-        "dropdown": 1,
         "textfield": 5,
         "button": 1
       }
@@ -5958,9 +6156,8 @@
       "kind": "screen",
       "area": "sequencer",
       "path": "packages/nightshade_app/lib/screens/sequencer/widgets/node_properties_panel_parts/_capture_rich.dart",
-      "controls": 3,
+      "controls": 2,
       "control_kinds": {
-        "dropdown": 1,
         "gesture": 2
       }
     },
@@ -5969,9 +6166,8 @@
       "kind": "screen",
       "area": "sequencer",
       "path": "packages/nightshade_app/lib/screens/sequencer/widgets/node_properties_panel_parts/_exposure_rich.dart",
-      "controls": 5,
+      "controls": 4,
       "control_kinds": {
-        "dropdown": 1,
         "button": 2,
         "gesture": 2
       }
@@ -5981,9 +6177,8 @@
       "kind": "screen",
       "area": "sequencer",
       "path": "packages/nightshade_app/lib/screens/sequencer/widgets/quick_start_wizard_dialog/_filter_step.dart",
-      "controls": 5,
+      "controls": 4,
       "control_kinds": {
-        "dropdown": 1,
         "textfield": 2,
         "gesture": 2
       }
@@ -5993,9 +6188,8 @@
       "kind": "screen",
       "area": "sequencer",
       "path": "packages/nightshade_app/lib/screens/sequencer/widgets/node_properties_panel_parts/_flow_properties.dart",
-      "controls": 5,
+      "controls": 4,
       "control_kinds": {
-        "dropdown": 1,
         "gesture": 4
       }
     },
@@ -6008,6 +6202,27 @@
       "control_kinds": {
         "textfield": 2,
         "gesture": 6
+      }
+    },
+    {
+      "id": "screen:sequencer/_history.dart",
+      "kind": "screen",
+      "area": "sequencer",
+      "path": "packages/nightshade_app/lib/screens/sequencer/widgets/run_dashboard/live_frame_panel_parts/_history.dart",
+      "controls": 2,
+      "control_kinds": {
+        "gesture": 2
+      }
+    },
+    {
+      "id": "screen:sequencer/_inspect_dialog.dart",
+      "kind": "screen",
+      "area": "sequencer",
+      "path": "packages/nightshade_app/lib/screens/sequencer/widgets/run_dashboard/live_frame_panel_parts/_inspect_dialog.dart",
+      "controls": 2,
+      "control_kinds": {
+        "button": 1,
+        "dialog": 1
       }
     },
     {
@@ -6096,6 +6311,17 @@
       }
     },
     {
+      "id": "screen:sequencer/_viewer.dart",
+      "kind": "screen",
+      "area": "sequencer",
+      "path": "packages/nightshade_app/lib/screens/sequencer/widgets/run_dashboard/live_frame_panel_parts/_viewer.dart",
+      "controls": 3,
+      "control_kinds": {
+        "gesture": 2,
+        "zoom-pan": 1
+      }
+    },
+    {
       "id": "screen:sequencer/_wizard_shell.dart",
       "kind": "screen",
       "area": "sequencer",
@@ -6120,9 +6346,10 @@
       "kind": "screen",
       "area": "sequencer",
       "path": "packages/nightshade_app/lib/screens/sequencer/widgets/preflight_validation_dialog/action_widgets.dart",
-      "controls": 2,
+      "controls": 4,
       "control_kinds": {
-        "gesture": 2
+        "gesture": 2,
+        "shortcut": 2
       }
     },
     {
@@ -6130,9 +6357,8 @@
       "kind": "screen",
       "area": "sequencer",
       "path": "packages/nightshade_app/lib/screens/sequencer/widgets/snippet_palette/actions.dart",
-      "controls": 9,
+      "controls": 8,
       "control_kinds": {
-        "dropdown": 1,
         "textfield": 1,
         "dialog": 5,
         "gesture": 2
@@ -6440,27 +6666,13 @@
       }
     },
     {
-      "id": "screen:sequencer/live_frame_panel.dart",
-      "kind": "screen",
-      "area": "sequencer",
-      "path": "packages/nightshade_app/lib/screens/sequencer/widgets/run_dashboard/live_frame_panel.dart",
-      "controls": 7,
-      "control_kinds": {
-        "button": 1,
-        "dialog": 1,
-        "gesture": 4,
-        "zoom-pan": 1
-      }
-    },
-    {
       "id": "screen:sequencer/live_stacking_properties.dart",
       "kind": "screen",
       "area": "sequencer",
       "path": "packages/nightshade_app/lib/screens/sequencer/widgets/live_stacking_properties.dart",
-      "controls": 10,
+      "controls": 8,
       "control_kinds": {
         "switch": 1,
-        "dropdown": 2,
         "textfield": 7
       }
     },
@@ -6521,16 +6733,6 @@
       }
     },
     {
-      "id": "screen:sequencer/mosaic_wizard_dialog.dart",
-      "kind": "screen",
-      "area": "sequencer",
-      "path": "packages/nightshade_app/lib/screens/sequencer/widgets/mosaic_wizard_dialog.dart",
-      "controls": 1,
-      "control_kinds": {
-        "dialog": 1
-      }
-    },
-    {
       "id": "screen:sequencer/narrow_layout.dart",
       "kind": "screen",
       "area": "sequencer",
@@ -6547,25 +6749,21 @@
       "kind": "screen",
       "area": "sequencer",
       "path": "packages/nightshade_app/lib/screens/sequencer/widgets/sequence_tree/node_item.dart",
-      "controls": 9,
+      "controls": 5,
       "control_kinds": {
-        "dropdown": 1,
-        "textfield": 2,
         "menu": 1,
-        "dialog": 1,
         "gesture": 4
       }
     },
     {
-      "id": "screen:sequencer/node_palette.dart",
+      "id": "screen:sequencer/node_item_helpers.dart",
       "kind": "screen",
       "area": "sequencer",
-      "path": "packages/nightshade_app/lib/screens/sequencer/sequencer_screen_parts/node_palette.dart",
-      "controls": 9,
+      "path": "packages/nightshade_app/lib/screens/sequencer/widgets/sequence_tree/node_item_helpers.dart",
+      "controls": 3,
       "control_kinds": {
-        "textfield": 1,
-        "gesture": 7,
-        "drag": 1
+        "textfield": 2,
+        "dialog": 1
       }
     },
     {
@@ -6577,6 +6775,18 @@
       "control_kinds": {
         "textfield": 2,
         "gesture": 13,
+        "drag": 1
+      }
+    },
+    {
+      "id": "screen:sequencer/node_palette.dart",
+      "kind": "screen",
+      "area": "sequencer",
+      "path": "packages/nightshade_app/lib/screens/sequencer/sequencer_screen_parts/node_palette.dart",
+      "controls": 9,
+      "control_kinds": {
+        "textfield": 1,
+        "gesture": 7,
         "drag": 1
       }
     },
@@ -6596,9 +6806,8 @@
       "kind": "screen",
       "area": "sequencer",
       "path": "packages/nightshade_app/lib/screens/sequencer/widgets/node_property_widgets.dart",
-      "controls": 8,
+      "controls": 7,
       "control_kinds": {
-        "dropdown": 1,
         "textfield": 3,
         "gesture": 4
       }
@@ -6677,16 +6886,6 @@
       }
     },
     {
-      "id": "screen:sequencer/playback_footer.dart",
-      "kind": "screen",
-      "area": "sequencer",
-      "path": "packages/nightshade_app/lib/screens/sequencer/widgets/run_dashboard/playback_footer.dart",
-      "controls": 2,
-      "control_kinds": {
-        "gesture": 2
-      }
-    },
-    {
       "id": "screen:sequencer/post_session_stats_dialog.dart",
       "kind": "screen",
       "area": "sequencer",
@@ -6701,9 +6900,9 @@
       "kind": "screen",
       "area": "sequencer",
       "path": "packages/nightshade_app/lib/screens/sequencer/widgets/preflight_validation_dialog.dart",
-      "controls": 11,
+      "controls": 8,
       "control_kinds": {
-        "button": 7,
+        "button": 4,
         "dialog": 4
       }
     },
@@ -6778,11 +6977,20 @@
       "kind": "screen",
       "area": "sequencer",
       "path": "packages/nightshade_app/lib/screens/sequencer/widgets/secondary_rig_card.dart",
-      "controls": 7,
+      "controls": 5,
       "control_kinds": {
-        "dropdown": 2,
         "textfield": 1,
         "button": 4
+      }
+    },
+    {
+      "id": "screen:sequencer/section_builders.dart",
+      "kind": "screen",
+      "area": "sequencer",
+      "path": "packages/nightshade_app/lib/screens/sequencer/widgets/preflight_validation_dialog/section_builders.dart",
+      "controls": 3,
+      "control_kinds": {
+        "button": 3
       }
     },
     {
@@ -6802,10 +7010,21 @@
       "kind": "screen",
       "area": "sequencer",
       "path": "packages/nightshade_app/lib/screens/sequencer/tabs/sequence_library_tab/sequence_card.dart",
-      "controls": 9,
+      "controls": 7,
       "control_kinds": {
-        "button": 3,
-        "dialog": 6
+        "button": 2,
+        "dialog": 5
+      }
+    },
+    {
+      "id": "screen:sequencer/sequence_card_dialogs.dart",
+      "kind": "screen",
+      "area": "sequencer",
+      "path": "packages/nightshade_app/lib/screens/sequencer/tabs/sequence_library_tab/sequence_card_dialogs.dart",
+      "controls": 2,
+      "control_kinds": {
+        "button": 1,
+        "dialog": 1
       }
     },
     {
@@ -6931,19 +7150,6 @@
       }
     },
     {
-      "id": "screen:sequencer/session_report_forensics_section.dart",
-      "kind": "screen",
-      "area": "sequencer",
-      "path": "packages/nightshade_app/lib/screens/sequencer/widgets/session_report_forensics_section.dart",
-      "controls": 8,
-      "control_kinds": {
-        "button": 1,
-        "tile": 1,
-        "dialog": 2,
-        "gesture": 4
-      }
-    },
-    {
       "id": "screen:sequencer/session_warnings_panel.dart",
       "kind": "screen",
       "area": "sequencer",
@@ -6954,13 +7160,22 @@
       }
     },
     {
+      "id": "screen:sequencer/slew_to_target_dialog.dart",
+      "kind": "screen",
+      "area": "sequencer",
+      "path": "packages/nightshade_app/lib/screens/sequencer/widgets/slew_to_target_dialog.dart",
+      "controls": 1,
+      "control_kinds": {
+        "dialog": 1
+      }
+    },
+    {
       "id": "screen:sequencer/smart_exposure_properties.dart",
       "kind": "screen",
       "area": "sequencer",
       "path": "packages/nightshade_app/lib/screens/sequencer/widgets/smart_exposure_properties.dart",
-      "controls": 5,
+      "controls": 4,
       "control_kinds": {
-        "dropdown": 1,
         "textfield": 1,
         "button": 3
       }
@@ -6991,11 +7206,9 @@
       "kind": "screen",
       "area": "sequencer",
       "path": "packages/nightshade_app/lib/screens/sequencer/widgets/sequence_tree/support_widgets.dart",
-      "controls": 17,
+      "controls": 3,
       "control_kinds": {
-        "textfield": 1,
-        "menu": 1,
-        "gesture": 14,
+        "gesture": 2,
         "drag": 1
       }
     },
@@ -7071,9 +7284,8 @@
       "kind": "screen",
       "area": "sequencer",
       "path": "packages/nightshade_app/lib/screens/sequencer/widgets/target_queue_panel.dart",
-      "controls": 10,
+      "controls": 9,
       "control_kinds": {
-        "dropdown": 1,
         "gesture": 6,
         "drag": 3
       }
@@ -7101,13 +7313,24 @@
       }
     },
     {
+      "id": "screen:sequencer/tree_controls.dart",
+      "kind": "screen",
+      "area": "sequencer",
+      "path": "packages/nightshade_app/lib/screens/sequencer/widgets/sequence_tree/tree_controls.dart",
+      "controls": 14,
+      "control_kinds": {
+        "textfield": 1,
+        "menu": 1,
+        "gesture": 12
+      }
+    },
+    {
       "id": "screen:sequencer/trigger_configuration_dialog.dart",
       "kind": "screen",
       "area": "sequencer",
       "path": "packages/nightshade_app/lib/screens/sequencer/widgets/trigger_configuration_dialog.dart",
-      "controls": 6,
+      "controls": 4,
       "control_kinds": {
-        "dropdown": 2,
         "textfield": 1,
         "button": 2,
         "tile": 1
@@ -7122,16 +7345,6 @@
       "control_kinds": {
         "button": 2,
         "gesture": 2
-      }
-    },
-    {
-      "id": "screen:sequencer/trigger_section.dart",
-      "kind": "screen",
-      "area": "sequencer",
-      "path": "packages/nightshade_app/lib/screens/sequencer/widgets/target_node_properties/trigger_section.dart",
-      "controls": 1,
-      "control_kinds": {
-        "dropdown": 1
       }
     },
     {
@@ -7185,6 +7398,47 @@
       "controls": 2,
       "control_kinds": {
         "gesture": 2
+      }
+    },
+    {
+      "id": "screen:sequencer/wizard_logic.dart",
+      "kind": "screen",
+      "area": "sequencer",
+      "path": "packages/nightshade_app/lib/screens/sequencer/widgets/mosaic_wizard_dialog/wizard_logic.dart",
+      "controls": 1,
+      "control_kinds": {
+        "dialog": 1
+      }
+    },
+    {
+      "id": "screen:session_review/_thumbnails.dart",
+      "kind": "screen",
+      "area": "session_review",
+      "path": "packages/nightshade_app/lib/screens/session_review/widgets/sub_cull_rail_parts/_thumbnails.dart",
+      "controls": 2,
+      "control_kinds": {
+        "gesture": 2
+      }
+    },
+    {
+      "id": "screen:session_review/_tiles.dart",
+      "kind": "screen",
+      "area": "session_review",
+      "path": "packages/nightshade_app/lib/screens/session_review/widgets/sub_cull_rail_parts/_tiles.dart",
+      "controls": 3,
+      "control_kinds": {
+        "button": 1,
+        "gesture": 2
+      }
+    },
+    {
+      "id": "screen:session_review/_toolbar.dart",
+      "kind": "screen",
+      "area": "session_review",
+      "path": "packages/nightshade_app/lib/screens/session_review/widgets/sub_cull_rail_parts/_toolbar.dart",
+      "controls": 1,
+      "control_kinds": {
+        "slider": 1
       }
     },
     {
@@ -7275,11 +7529,9 @@
       "kind": "screen",
       "area": "session_review",
       "path": "packages/nightshade_app/lib/screens/session_review/widgets/sub_cull_rail.dart",
-      "controls": 9,
+      "controls": 3,
       "control_kinds": {
-        "slider": 1,
-        "button": 1,
-        "gesture": 6,
+        "gesture": 2,
         "zoom-pan": 1
       }
     },
@@ -7292,6 +7544,97 @@
       "control_kinds": {
         "button": 2,
         "dialog": 1
+      }
+    },
+    {
+      "id": "screen:settings/_actions.dart",
+      "kind": "screen",
+      "area": "settings",
+      "path": "packages/nightshade_app/lib/screens/settings/widgets/log_viewer_parts/_actions.dart",
+      "controls": 10,
+      "control_kinds": {
+        "tile": 2,
+        "dialog": 6,
+        "gesture": 2
+      }
+    },
+    {
+      "id": "screen:settings/_controls.dart",
+      "kind": "screen",
+      "area": "settings",
+      "path": "packages/nightshade_app/lib/screens/settings/widgets/log_viewer_parts/_controls.dart",
+      "controls": 4,
+      "control_kinds": {
+        "gesture": 4
+      }
+    },
+    {
+      "id": "screen:settings/_desktop_layout.dart",
+      "kind": "screen",
+      "area": "settings",
+      "path": "packages/nightshade_app/lib/screens/settings/settings_screen_parts/_desktop_layout.dart",
+      "controls": 10,
+      "control_kinds": {
+        "textfield": 1,
+        "button": 1,
+        "gesture": 8
+      }
+    },
+    {
+      "id": "screen:settings/_dialogs_and_banners.dart",
+      "kind": "screen",
+      "area": "settings",
+      "path": "packages/nightshade_app/lib/screens/settings/pairing_screen_parts/_dialogs_and_banners.dart",
+      "controls": 4,
+      "control_kinds": {
+        "textfield": 1,
+        "button": 2,
+        "dialog": 1
+      }
+    },
+    {
+      "id": "screen:settings/_mobile_layout.dart",
+      "kind": "screen",
+      "area": "settings",
+      "path": "packages/nightshade_app/lib/screens/settings/settings_screen_parts/_mobile_layout.dart",
+      "controls": 10,
+      "control_kinds": {
+        "gesture": 10
+      }
+    },
+    {
+      "id": "screen:settings/_remote_sync.dart",
+      "kind": "screen",
+      "area": "settings",
+      "path": "packages/nightshade_app/lib/screens/settings/widgets/cloud_sync_settings_parts/_remote_sync.dart",
+      "controls": 7,
+      "control_kinds": {
+        "button": 3,
+        "tile": 2,
+        "dialog": 1,
+        "gesture": 1
+      }
+    },
+    {
+      "id": "screen:settings/_tiles.dart",
+      "kind": "screen",
+      "area": "settings",
+      "path": "packages/nightshade_app/lib/screens/settings/widgets/dark_library_settings_parts/_tiles.dart",
+      "controls": 4,
+      "control_kinds": {
+        "button": 4
+      }
+    },
+    {
+      "id": "screen:settings/_tiles_and_preview.dart",
+      "kind": "screen",
+      "area": "settings",
+      "path": "packages/nightshade_app/lib/screens/settings/widgets/calibration_library_settings_parts/_tiles_and_preview.dart",
+      "controls": 8,
+      "control_kinds": {
+        "textfield": 1,
+        "button": 6,
+        "tile": 1
       }
     },
     {
@@ -7330,13 +7673,11 @@
       "kind": "screen",
       "area": "settings",
       "path": "packages/nightshade_app/lib/screens/settings/widgets/calibration_library_settings.dart",
-      "controls": 29,
+      "controls": 19,
       "control_kinds": {
         "checkbox": 1,
-        "dropdown": 2,
-        "textfield": 4,
-        "button": 13,
-        "tile": 1,
+        "textfield": 3,
+        "button": 7,
         "dialog": 8
       }
     },
@@ -7373,23 +7714,12 @@
       }
     },
     {
-      "id": "screen:settings/catalog_settings_screen.dart",
-      "kind": "screen",
-      "area": "settings",
-      "path": "packages/nightshade_app/lib/screens/settings/catalog_settings_screen.dart",
-      "controls": 4,
-      "control_kinds": {
-        "gesture": 4
-      }
-    },
-    {
       "id": "screen:settings/category_editor_dialog.dart",
       "kind": "screen",
       "area": "settings",
       "path": "packages/nightshade_app/lib/screens/settings/widgets/notification_routing_settings/category_editor_dialog.dart",
-      "controls": 7,
+      "controls": 6,
       "control_kinds": {
-        "dropdown": 1,
         "textfield": 3,
         "button": 2,
         "dialog": 1
@@ -7400,15 +7730,11 @@
       "kind": "screen",
       "area": "settings",
       "path": "packages/nightshade_app/lib/screens/settings/widgets/cloud_sync_settings.dart",
-      "controls": 12,
+      "controls": 4,
       "control_kinds": {
         "switch": 2,
-        "dropdown": 1,
         "textfield": 1,
-        "button": 3,
-        "tile": 2,
-        "dialog": 2,
-        "gesture": 1
+        "dialog": 1
       }
     },
     {
@@ -7439,11 +7765,11 @@
       "kind": "screen",
       "area": "settings",
       "path": "packages/nightshade_app/lib/screens/settings/widgets/dark_library_settings.dart",
-      "controls": 24,
+      "controls": 20,
       "control_kinds": {
         "checkbox": 3,
         "textfield": 1,
-        "button": 15,
+        "button": 11,
         "dialog": 5
       }
     },
@@ -7455,16 +7781,6 @@
       "controls": 1,
       "control_kinds": {
         "textfield": 1
-      }
-    },
-    {
-      "id": "screen:settings/element_refresh_card.dart",
-      "kind": "screen",
-      "area": "settings",
-      "path": "packages/nightshade_app/lib/screens/settings/widgets/element_refresh_card.dart",
-      "controls": 1,
-      "control_kinds": {
-        "dropdown": 1
       }
     },
     {
@@ -7513,23 +7829,10 @@
       "kind": "screen",
       "area": "settings",
       "path": "packages/nightshade_app/lib/screens/settings/widgets/log_viewer.dart",
-      "controls": 20,
+      "controls": 5,
       "control_kinds": {
-        "dropdown": 1,
         "textfield": 1,
-        "tile": 2,
-        "dialog": 6,
-        "gesture": 10
-      }
-    },
-    {
-      "id": "screen:settings/mqtt_transport_section.dart",
-      "kind": "screen",
-      "area": "settings",
-      "path": "packages/nightshade_app/lib/screens/settings/widgets/notification_routing_settings/mqtt_transport_section.dart",
-      "controls": 1,
-      "control_kinds": {
-        "dropdown": 1
+        "gesture": 4
       }
     },
     {
@@ -7547,9 +7850,8 @@
       "kind": "screen",
       "area": "settings",
       "path": "packages/nightshade_app/lib/screens/settings/widgets/observation_log_settings.dart",
-      "controls": 5,
+      "controls": 4,
       "control_kinds": {
-        "dropdown": 1,
         "textfield": 1,
         "button": 1,
         "dialog": 2
@@ -7573,12 +7875,11 @@
       "kind": "screen",
       "area": "settings",
       "path": "packages/nightshade_app/lib/screens/settings/pairing_screen.dart",
-      "controls": 10,
+      "controls": 6,
       "control_kinds": {
-        "textfield": 1,
-        "button": 4,
+        "button": 2,
         "menu": 1,
-        "dialog": 4
+        "dialog": 3
       }
     },
     {
@@ -7678,16 +7979,6 @@
       }
     },
     {
-      "id": "screen:settings/science_settings.dart",
-      "kind": "screen",
-      "area": "settings",
-      "path": "packages/nightshade_app/lib/screens/settings/widgets/science_settings.dart",
-      "controls": 5,
-      "control_kinds": {
-        "textfield": 5
-      }
-    },
-    {
       "id": "screen:settings/screen_shell.dart",
       "kind": "screen",
       "area": "settings",
@@ -7734,11 +8025,10 @@
       "kind": "screen",
       "area": "settings",
       "path": "packages/nightshade_app/lib/screens/settings/settings_screen.dart",
-      "controls": 22,
+      "controls": 2,
       "control_kinds": {
-        "textfield": 1,
-        "button": 2,
-        "gesture": 19
+        "button": 1,
+        "gesture": 1
       }
     },
     {
@@ -7772,6 +8062,16 @@
       }
     },
     {
+      "id": "screen:settings/view_builders.dart",
+      "kind": "screen",
+      "area": "settings",
+      "path": "packages/nightshade_app/lib/screens/settings/catalog_settings_screen/view_builders.dart",
+      "controls": 4,
+      "control_kinds": {
+        "gesture": 4
+      }
+    },
+    {
       "id": "screen:settings/weather_safety_settings.dart",
       "kind": "screen",
       "area": "settings",
@@ -7782,14 +8082,33 @@
       }
     },
     {
+      "id": "screen:shell/_mobile_settings_bar.dart",
+      "kind": "screen",
+      "area": "shell",
+      "path": "packages/nightshade_app/lib/screens/shell/app_shell_parts/_mobile_settings_bar.dart",
+      "controls": 2,
+      "control_kinds": {
+        "gesture": 2
+      }
+    },
+    {
+      "id": "screen:shell/_startup_checkpoint.dart",
+      "kind": "screen",
+      "area": "shell",
+      "path": "packages/nightshade_app/lib/screens/shell/app_shell_parts/_startup_checkpoint.dart",
+      "controls": 1,
+      "control_kinds": {
+        "dialog": 1
+      }
+    },
+    {
       "id": "screen:shell/app_shell.dart",
       "kind": "screen",
       "area": "shell",
       "path": "packages/nightshade_app/lib/screens/shell/app_shell.dart",
-      "controls": 8,
+      "controls": 5,
       "control_kinds": {
-        "dialog": 6,
-        "gesture": 2
+        "dialog": 5
       }
     },
     {
@@ -7815,6 +8134,16 @@
       }
     },
     {
+      "id": "screen:shell/pill_widgets.dart",
+      "kind": "screen",
+      "area": "shell",
+      "path": "packages/nightshade_app/lib/screens/shell/widgets/status_bar/pill_widgets.dart",
+      "controls": 2,
+      "control_kinds": {
+        "gesture": 2
+      }
+    },
+    {
       "id": "screen:shell/session_sharing.dart",
       "kind": "screen",
       "area": "shell",
@@ -7833,6 +8162,16 @@
       "controls": 4,
       "control_kinds": {
         "gesture": 4
+      }
+    },
+    {
+      "id": "screen:shell/status_bar.dart",
+      "kind": "screen",
+      "area": "shell",
+      "path": "packages/nightshade_app/lib/screens/shell/widgets/status_bar.dart",
+      "controls": 1,
+      "control_kinds": {
+        "gesture": 1
       }
     },
     {
@@ -7877,18 +8216,38 @@
       }
     },
     {
+      "id": "screen:suggestions/_alert_tiles.dart",
+      "kind": "screen",
+      "area": "suggestions",
+      "path": "packages/nightshade_app/lib/screens/suggestions/widgets/transient_alerts_panel_parts/_alert_tiles.dart",
+      "controls": 4,
+      "control_kinds": {
+        "button": 2,
+        "gesture": 2
+      }
+    },
+    {
+      "id": "screen:suggestions/_settings_dialog.dart",
+      "kind": "screen",
+      "area": "suggestions",
+      "path": "packages/nightshade_app/lib/screens/suggestions/widgets/transient_alerts_panel_parts/_settings_dialog.dart",
+      "controls": 7,
+      "control_kinds": {
+        "switch": 2,
+        "checkbox": 1,
+        "slider": 2,
+        "button": 1,
+        "dialog": 1
+      }
+    },
+    {
       "id": "screen:suggestions/transient_alerts_panel.dart",
       "kind": "screen",
       "area": "suggestions",
       "path": "packages/nightshade_app/lib/screens/suggestions/widgets/transient_alerts_panel.dart",
-      "controls": 13,
+      "controls": 4,
       "control_kinds": {
-        "switch": 2,
-        "checkbox": 1,
-        "slider": 1,
-        "button": 6,
-        "dialog": 1,
-        "gesture": 2
+        "button": 4
       }
     },
     {
@@ -7980,9 +8339,10 @@
       "kind": "screen",
       "area": "your_sky",
       "path": "packages/nightshade_app/lib/screens/your_sky/region_detail_screen.dart",
-      "controls": 1,
+      "controls": 2,
       "control_kinds": {
-        "button": 1
+        "button": 1,
+        "shortcut": 1
       }
     },
     {
@@ -8356,7 +8716,7 @@
       "id": "settings:autofocus",
       "kind": "settings-section",
       "area": "settings",
-      "controls": 51,
+      "controls": 57,
       "rows": [
         "0 = use all detected stars",
         "Apply focus offsets when changing filters",
@@ -8381,14 +8741,19 @@
         "Exposure time",
         "Exposures per point",
         "Filter to switch to for AF runs",
+        "Focus Model",
         "Focuser settle time",
         "Focuser steps between measurement points",
         "Frames to average per focus position",
         "Gates",
+        "HFR tolerance on failure",
         "High-confidence threshold (R²)",
         "How many focuser steps a prediction can be off before",
+        "If focus is past tolerance",
         "Initial offset steps",
         "Inner crop ratio",
+        "Keep imaging while HFR stays within this multiple of",
+        "Keep imaging while HFR stays within this multiple of your good",
         "Learned models",
         "Low-confidence threshold (R²)",
         "Minimum acceptable curve fit quality",
@@ -8408,6 +8773,7 @@
         "Use brightest n stars",
         "Use filter offsets",
         "Wait after focuser move",
+        "What an unattended run does when focus is lost",
         "When enabled, each successful AF run appends a sample"
       ]
     },
@@ -8595,27 +8961,27 @@
       "controls": 24,
       "rows": [
         "7-step guided wizard for your first imaging session —",
-        "Advanced Features",
-        "Automated Imaging",
-        "Calibration Frames",
+        "Advanced features",
+        "Automated imaging",
+        "Calibration frames",
         "Capture your first light",
         "Clear all tutorial progress and start fresh",
         "Enable tutorials",
-        "Equipment Setup",
-        "First Night Walkthrough",
-        "Generate Diagnostic Dump",
+        "Equipment setup",
+        "First night walkthrough",
+        "Generate diagnostic dump",
         "Guided Flows",
         "Help & Tutorials",
         "Package logs, settings, profile metadata, and system details for support.",
         "Re-run equipment setup",
         "Re-run onboarding tour",
         "Replay the first-launch spotlight tour that highlights",
-        "Reset All Progress",
+        "Reset all progress",
         "Reset Progress",
         "Run the one-click first-light flow again — short exposure,",
         "Settings",
         "Show tutorial prompts and guided tours",
-        "Target Planning",
+        "Target planning",
         "Tutorial Tours",
         "Walk back through the equipment onboarding wizard to scan"
       ]
@@ -8769,6 +9135,7 @@
         "Home Assistant (imaging host)",
         "Host configuration unavailable",
         "Host MQTT broker",
+        "Legacy event flags (not wired up)",
         "Lets HA pause/resume and abort the running sequence.",
         "Loading host configuration…",
         "Loading push configuration…",
@@ -8777,17 +9144,15 @@
         "Meridian flip",
         "MQTT broker",
         "MQTT client ID",
-        "Notification Events",
         "Notification routing",
         "Notification routing enabled",
         "Notifications",
-        "Notify on errors and failures",
-        "Notify when meridian flip occurs",
-        "Notify when sequence finishes",
         "One per line, format: Name: value",
         "Password",
         "Password (optional)",
         "Per-event routing",
+        "Per-event routing (Settings → Notification Routing)",
+        "Per-event routing is the live one",
         "Permit pause, resume, and abort commands",
         "Play sounds for notifications",
         "Play the system bell when a critical error fires",
@@ -8852,6 +9217,7 @@
         "Weather unsafe",
         "Webhook URL",
         "When off, no per-category routing fires (legacy push still works)",
+        "Which of these decides where an alert goes",
         "Which sound to play when critical events fire",
         "Write-only secret stored on the imaging host."
       ]
@@ -8982,7 +9348,7 @@
       "id": "settings:science",
       "kind": "settings-section",
       "area": "settings",
-      "controls": 63,
+      "controls": 65,
       "rows": [
         "3D science surfaces",
         "AAVSO",
@@ -9043,6 +9409,8 @@
         "White level used to reject saturated stars from",
         "Write science keywords to FITS",
         "Written into MPC ADES headers and the TNS reporter",
+        "Your 3-character MPC observatory code (e.g.,",
+        "Your assigned AAVSO observer initials (1-5 chars,",
         "Your TNS bot id (tns_marker tns_id).",
         "Your TNS bot name (tns_marker name).",
         "Your TNS discovery_data_source_id.",
@@ -9183,26 +9551,6 @@
       "controls": 7,
       "control_kinds": {
         "gesture": 7
-      }
-    },
-    {
-      "id": "ui:src/components/animated_icon_button.dart",
-      "kind": "ui",
-      "area": "design-system",
-      "path": "packages/nightshade_ui/lib/src/components/animated_icon_button.dart",
-      "controls": 2,
-      "control_kinds": {
-        "gesture": 2
-      }
-    },
-    {
-      "id": "ui:src/components/histogram_display.dart",
-      "kind": "ui",
-      "area": "design-system",
-      "path": "packages/nightshade_ui/lib/src/components/histogram_display.dart",
-      "controls": 2,
-      "control_kinds": {
-        "gesture": 2
       }
     },
     {
@@ -9432,32 +9780,21 @@
       }
     },
     {
-      "id": "ui:src/widgets/accessibility_example.dart",
-      "kind": "ui",
-      "area": "design-system",
-      "path": "packages/nightshade_ui/lib/src/widgets/accessibility_example.dart",
-      "controls": 3,
-      "control_kinds": {
-        "textfield": 1,
-        "button": 1,
-        "dialog": 1
-      }
-    },
-    {
       "id": "ui:src/widgets/accessible_icon_button.dart",
       "kind": "ui",
       "area": "design-system",
       "path": "packages/nightshade_ui/lib/src/widgets/accessible_icon_button.dart",
-      "controls": 2,
+      "controls": 4,
       "control_kinds": {
-        "button": 2
+        "button": 3,
+        "gesture": 1
       }
     },
     {
-      "id": "ui:src/widgets/design_reference_board.dart",
+      "id": "ui:src/widgets/design_reference_board/component_sections.dart",
       "kind": "ui",
       "area": "design-system",
-      "path": "packages/nightshade_ui/lib/src/widgets/design_reference_board.dart",
+      "path": "packages/nightshade_ui/lib/src/widgets/design_reference_board/component_sections.dart",
       "controls": 3,
       "control_kinds": {
         "gesture": 3
@@ -9481,18 +9818,6 @@
       "controls": 2,
       "control_kinds": {
         "gesture": 2
-      }
-    },
-    {
-      "id": "ui:src/widgets/focus_traversal_scaffold.dart",
-      "kind": "ui",
-      "area": "design-system",
-      "path": "packages/nightshade_ui/lib/src/widgets/focus_traversal_scaffold.dart",
-      "controls": 6,
-      "control_kinds": {
-        "checkbox": 1,
-        "textfield": 3,
-        "button": 2
       }
     },
     {
@@ -9767,11 +10092,11 @@
       "kind": "widget",
       "area": "shared-widgets",
       "path": "packages/nightshade_app/lib/widgets/phd2/guide_controls_panel.dart",
-      "controls": 12,
+      "controls": 16,
       "control_kinds": {
         "checkbox": 1,
         "slider": 2,
-        "gesture": 9
+        "gesture": 13
       }
     },
     {

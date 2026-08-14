@@ -193,7 +193,12 @@ pub(crate) async fn run_sequencer_event_loop(
                         EventCategory::Sequencer,
                         EventPayload::Sequencer(match s {
                             ExecutorState::Paused => SequencerEvent::Paused,
-                            ExecutorState::Cancelled => SequencerEvent::Stopped,
+                            ExecutorState::Cancelled => SequencerEvent::Stopped {
+                                sequence_run_id: get_sequence_executor()
+                                    .read()
+                                    .await
+                                    .active_sequence_run_id(),
+                            },
                             ExecutorState::Completed => SequencerEvent::Completed,
                             _ => continue,
                         }),

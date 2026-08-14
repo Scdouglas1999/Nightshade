@@ -11,8 +11,8 @@ mixin _FfiSequencerRecoveryOperations on _FfiBackendBase {
   }
 
   @override
-  Future<void> sequencerStop() async {
-    await bridge.NativeBridge.sequencerStop();
+  Future<void> sequencerStop({String? origin}) async {
+    await bridge.NativeBridge.sequencerStop(origin: origin);
   }
 
   @override

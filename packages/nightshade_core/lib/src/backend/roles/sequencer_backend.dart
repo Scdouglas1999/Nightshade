@@ -40,7 +40,9 @@ abstract class SequencerBackend implements AdaptiveSwapBackend {
   Future<void> sequencerStart();
 
   /// Stop the sequencer
-  Future<void> sequencerStop();
+  /// `origin` names the caller — `null`/`'operator'` for a human,
+  /// `'scheduler'` for the autopilot.
+  Future<void> sequencerStop({String? origin});
 
   /// Pause the sequencer
   Future<void> sequencerPause();

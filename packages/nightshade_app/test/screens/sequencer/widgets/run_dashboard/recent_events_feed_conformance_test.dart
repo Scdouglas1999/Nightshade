@@ -59,12 +59,32 @@ be.NightshadeEvent _manualStop(int id, DateTime at) => be.NightshadeEvent(
       ),
     );
 
-be.NightshadeEvent _stopped(int id, DateTime at) => be.NightshadeEvent(
+be.NightshadeEvent _stopped(int id, DateTime at, {int? runId}) =>
+    be.NightshadeEvent(
       eventId: BigInt.from(id),
       timestamp: at.millisecondsSinceEpoch,
       severity: be.EventSeverity.info,
       category: be.EventCategory.sequencer,
-      payload: const be.EventPayload.sequencer(be.SequencerEvent.stopped()),
+      payload: be.EventPayload.sequencer(
+        be.SequencerEvent.stopped(sequenceRunId: runId),
+      ),
+    );
+
+be.NightshadeEvent _autopilotStop(int id, DateTime at, {int? runId}) =>
+    be.NightshadeEvent(
+      eventId: BigInt.from(id),
+      timestamp: at.millisecondsSinceEpoch,
+      severity: be.EventSeverity.info,
+      category: be.EventCategory.sequencer,
+      payload: be.EventPayload.sequencer(
+        be.SequencerEvent.decisionLogged(
+          timestampIso: at.toUtc().toIso8601String(),
+          category: 'system_event',
+          summary: 'Autopilot: stop',
+          detailsJson: '{"origin":"scheduler","action":"stop"}',
+          sequenceRunId: runId ?? 15,
+        ),
+      ),
     );
 
 be.NightshadeEvent _started(int id, DateTime at) => be.NightshadeEvent(
@@ -489,5 +509,82 @@ void main() {
           '${recent.map((e) => '${e.title}/${e.message}').toList()}',
     );
     expect(recent.any((e) => e.message.contains('Dome shutter')), isTrue);
+  });
+
+  test('D14 run identity outranks time: different runs 90 s apart never merge',
+      () {
+    // Wave K refutation K2 (merge direction): a bare terminal of run 1 and a
+    // press of run 2 ninety seconds later, with NO Started between (attached
+    // session / truncated stream). The run ids on the wire keep them apart.
+    final c = makeContainer();
+    final h = c.read(eventHistoryProvider.notifier);
+    h.addEvent(_stopped(1, _t0, runId: 14));
+    final press = _t0.add(const Duration(seconds: 90));
+    h.addEvent(_error(10, kSequenceCancelledNotice, press));
+    h.addEvent(_decision(11, kSequenceCancelledNotice, press));
+    h.addEvent(_manualStop(12, press));
+    h.addEvent(_stopped(13, press, runId: 15));
+
+    final recent = c.read(runDashboardRecentEventsProvider(10));
+    final stopRows =
+        recent.where((e) => e.title == 'Sequence stopped').toList();
+    expect(
+      stopRows,
+      hasLength(2),
+      reason: 'two runs ended. Got: '
+          '${recent.map((e) => '${e.time.toIso8601String()} ${e.title}/${e.message}').toList()}',
+    );
+    expect(stopRows.last.message, isEmpty,
+        reason: "run 14's ending must not be re-attributed to the operator");
+  });
+
+  test('D15 run identity outranks the bound: a 5-minute teardown folds in', () {
+    // Wave K refutation K2 (split direction): the api Stopped can trail the
+    // press by the WHOLE safing teardown. With the run id on the wire the
+    // late terminal joins its own episode however long that took.
+    final c = makeContainer();
+    final h = c.read(eventHistoryProvider.notifier);
+    h.addEvent(_error(1, kSequenceCancelledNotice, _t0));
+    h.addEvent(_decision(2, kSequenceCancelledNotice, _t0));
+    h.addEvent(_manualStop(3, _t0));
+    h.addEvent(_stopped(4, _t0, runId: 15));
+    h.addEvent(_stopped(5, _t0.add(const Duration(minutes: 5)), runId: 15));
+
+    final recent = c.read(runDashboardRecentEventsProvider(5));
+    final stopRows =
+        recent.where((e) => e.title == 'Sequence stopped').toList();
+    expect(
+      stopRows,
+      hasLength(1),
+      reason: 'one press, one row. Got: '
+          '${recent.map((e) => '${e.time.toIso8601String()} ${e.title}/${e.message}').toList()}',
+    );
+    expect(stopRows.single.message, kSequenceStoppedByRequestMessage);
+  });
+
+  test("D16 the autopilot's stop names the autopilot, never the operator", () {
+    // Wave K refutation K1: the scheduler drives the same stop path on an
+    // unattended re-plan. Its decision is system-origin evidence and the
+    // row must say so — a 2 a.m. autopilot stop rendering "Stopped by
+    // request" invents a human that was not there.
+    final c = makeContainer();
+    final h = c.read(eventHistoryProvider.notifier);
+    h.addEvent(_error(1, kSequenceCancelledNotice, _t0));
+    h.addEvent(_decision(2, kSequenceCancelledNotice, _t0));
+    h.addEvent(_autopilotStop(3, _t0));
+    h.addEvent(_stopped(4, _t0, runId: 15));
+    h.addEvent(_stopped(5, _t0, runId: 15));
+
+    final recent = c.read(runDashboardRecentEventsProvider(5));
+    final stopRows =
+        recent.where((e) => e.title == 'Sequence stopped').toList();
+    expect(
+      stopRows,
+      hasLength(1),
+      reason: 'one autopilot stop. Got: '
+          '${recent.map((e) => '${e.title}/${e.message}').toList()}',
+    );
+    expect(stopRows.single.message, kSequenceStoppedByAutopilotMessage);
+    expect(stopRows.single.message, isNot(kSequenceStoppedByRequestMessage));
   });
 }

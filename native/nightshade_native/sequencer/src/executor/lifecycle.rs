@@ -61,13 +61,33 @@ impl SequenceExecutor {
     /// task to finish that cleanup before confirming termination. Only after
     /// that acknowledgment is the local `command_tx` dropped.
     pub async fn stop(&mut self) -> Result<(), String> {
+        self.stop_with_origin(None).await
+    }
+
+    /// [`Self::stop`] with the CALLER'S identity. The stop decision is what
+    /// the dashboard's stop row claims "Stopped by request" off, and the
+    /// scheduler drives this same path on unattended re-plans — an autopilot
+    /// stop must not wear the operator's evidence (Wave K refutation K1).
+    /// `origin` of `None` or `"operator"` is a human; `"scheduler"` is the
+    /// autopilot.
+    pub async fn stop_with_origin(&mut self, origin: Option<&str>) -> Result<(), String> {
         self.is_cancelled.store(true, Ordering::Release);
 
         if let Some(tx) = &self.command_tx {
             let _ = tx.send(ExecutorCommand::Stop).await;
         }
 
-        self.emit_manual_intervention("stop", serde_json::json!({}));
+        if matches!(origin, Some("scheduler")) {
+            // Not a manual intervention: record it as the system event it
+            // is, under the normal decision-logging gate (autopilot noise
+            // may be silenced; operator evidence may not).
+            self.emit_lifecycle_system_decision(
+                "Autopilot: stop",
+                serde_json::json!({ "origin": "scheduler", "action": "stop" }),
+            );
+        } else {
+            self.emit_manual_intervention("stop", serde_json::json!({}));
+        }
 
         let completion_result = if let Some(completion_rx) = self.run_completion_rx.take() {
             completion_rx.await.map_err(|_| {
@@ -117,6 +137,25 @@ impl SequenceExecutor {
             category: crate::decision::DecisionCategory::ManualIntervention,
             summary,
             details: full,
+            node_id: None,
+            sequence_run_id: self.active_sequence_run_id(),
+        };
+        let _ = self.decision_tx.send(ev);
+    }
+
+    /// Replay Debug — emit a [`crate::decision::DecisionCategory::SystemEvent`]
+    /// decision from a lifecycle method. Unlike the operator's stop
+    /// decision this respects the decision-logging gate: it records what
+    /// the SYSTEM did, not evidence of a human action.
+    fn emit_lifecycle_system_decision(&self, summary: &str, details: serde_json::Value) {
+        if !self.decision_logging_enabled() {
+            return;
+        }
+        let ev = crate::decision::DecisionEvent {
+            timestamp: chrono::Utc::now(),
+            category: crate::decision::DecisionCategory::SystemEvent,
+            summary: summary.to_string(),
+            details,
             node_id: None,
             sequence_run_id: self.active_sequence_run_id(),
         };

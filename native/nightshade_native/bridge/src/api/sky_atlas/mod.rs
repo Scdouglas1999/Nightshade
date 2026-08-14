@@ -41,9 +41,9 @@ use crate::api::post_session::write_preview_png;
 
 mod fold;
 pub(crate) use fold::*;
-mod frames;
+pub mod frames;
 pub use frames::*;
-mod regions;
+pub mod regions;
 pub use regions::*;
 #[cfg(test)]
 mod tests;
