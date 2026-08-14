@@ -9,8 +9,7 @@ use crate::device::*;
 use crate::device_manager::DeviceManager;
 #[allow(unused_imports)] // Trait methods on `dyn Native*` handles require these in scope.
 use nightshade_native::traits::{
-    NativeCamera, NativeCoverCalibrator, NativeDevice, NativeDome, NativeFilterWheel,
-    NativeFocuser, NativeMount, NativeRotator, NativeSafetyMonitor, NativeSwitch, NativeWeather,
+    NativeCamera, NativeDevice, NativeFilterWheel, NativeFocuser, NativeMount,
 };
 use nightshade_native::vendor::atik::{AtikCamera, AtikFilterWheel};
 use nightshade_native::vendor::fli::{FliCamera, FliFilterWheel, FliFocuser};
@@ -410,104 +409,6 @@ impl DeviceManager {
                     .await
                     .map(|_| true)
                     .map_err(|e| format!("Native filter wheel liveness probe failed: {}", e))
-            }
-            DeviceType::Rotator => {
-                let rotators = self.native_rotators.read().await;
-                let rotator = rotators.get(device_id).ok_or_else(|| {
-                    format!(
-                        "Native rotator {} not registered in device manager",
-                        device_id
-                    )
-                })?;
-                if !rotator.is_connected() {
-                    return Ok(false);
-                }
-                rotator
-                    .get_position()
-                    .await
-                    .map(|_| true)
-                    .map_err(|e| format!("Native rotator liveness probe failed: {}", e))
-            }
-            DeviceType::Dome => {
-                let domes = self.native_domes.read().await;
-                let dome = domes.get(device_id).ok_or_else(|| {
-                    format!("Native dome {} not registered in device manager", device_id)
-                })?;
-                if !dome.is_connected() {
-                    return Ok(false);
-                }
-                dome.get_azimuth()
-                    .await
-                    .map(|_| true)
-                    .map_err(|e| format!("Native dome liveness probe failed: {}", e))
-            }
-            DeviceType::Weather => {
-                let stations = self.native_weather.read().await;
-                let station = stations.get(device_id).ok_or_else(|| {
-                    format!(
-                        "Native weather station {} not registered in device manager",
-                        device_id
-                    )
-                })?;
-                if !station.is_connected() {
-                    return Ok(false);
-                }
-                station
-                    .get_temperature()
-                    .await
-                    .map(|_| true)
-                    .map_err(|e| format!("Native weather liveness probe failed: {}", e))
-            }
-            DeviceType::SafetyMonitor => {
-                let monitors = self.native_safety_monitors.read().await;
-                let monitor = monitors.get(device_id).ok_or_else(|| {
-                    format!(
-                        "Native safety monitor {} not registered in device manager",
-                        device_id
-                    )
-                })?;
-                if !monitor.is_connected() {
-                    return Ok(false);
-                }
-                monitor
-                    .is_safe()
-                    .await
-                    .map(|_| true)
-                    .map_err(|e| format!("Native safety monitor liveness probe failed: {}", e))
-            }
-            DeviceType::Switch => {
-                let switches = self.native_switches.read().await;
-                let switch = switches.get(device_id).ok_or_else(|| {
-                    format!(
-                        "Native switch {} not registered in device manager",
-                        device_id
-                    )
-                })?;
-                if !switch.is_connected() {
-                    return Ok(false);
-                }
-                switch
-                    .get_switch_count()
-                    .await
-                    .map(|_| true)
-                    .map_err(|e| format!("Native switch liveness probe failed: {}", e))
-            }
-            DeviceType::CoverCalibrator => {
-                let covers = self.native_cover_calibrators.read().await;
-                let cover = covers.get(device_id).ok_or_else(|| {
-                    format!(
-                        "Native cover calibrator {} not registered in device manager",
-                        device_id
-                    )
-                })?;
-                if !cover.is_connected() {
-                    return Ok(false);
-                }
-                cover
-                    .get_cover_state()
-                    .await
-                    .map(|_| true)
-                    .map_err(|e| format!("Native cover calibrator liveness probe failed: {}", e))
             }
             other => {
                 let devices = self.native_devices.read().await;

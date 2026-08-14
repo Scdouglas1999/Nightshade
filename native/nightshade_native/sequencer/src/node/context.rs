@@ -260,6 +260,18 @@ pub struct ExecutionContext {
     /// allocation (matches the rest of this struct's shared-state pattern).
     pub smart_exposure_states:
         Arc<RwLock<std::collections::HashMap<NodeId, crate::SmartExposureCheckpoint>>>,
+    /// The running session's checkpoint manager, when the executor was
+    /// given a checkpoint directory. Wizards that own step-level resume
+    /// state (mosaic panels today) wrap this in a
+    /// [`crate::checkpoint::SessionWizardCheckpointSink`] so their
+    /// progress lands in `SessionCheckpoint::wizard_states` alongside the
+    /// session checkpoint. `None` (no checkpoint dir, or a wizard run
+    /// outside a session) means nothing is persisted and the next run
+    /// starts at step 0.
+    ///
+    /// The same `Arc` the executor holds, so the wizard sink and the
+    /// streaming-checkpoint task share one manager (and one info cache).
+    pub checkpoint_manager: Option<Arc<crate::checkpoint::CheckpointManager>>,
     /// shared per-target integration budget registry.
     /// `TargetHeader` runtime registers a state on entry; `expose` instruction
     /// credits successful bursts; the next `TargetHeader` child-boundary
@@ -653,6 +665,10 @@ impl ExecutionContext {
             recovery_request_tx: None,
             device_disconnect_recovery_pending: Arc::new(AtomicBool::new(false)),
             smart_exposure_states: Arc::new(RwLock::new(std::collections::HashMap::new())),
+            // No checkpoint manager outside a session: wizard step state
+            // is not persisted and every run starts at step 0. The
+            // executor installs its own Arc at start().
+            checkpoint_manager: None,
             budget_registry: BudgetRegistry::new(),
             // Image Grading: a non-empty session id is preferred to
             // "" so log lines always render a stable identifier; default

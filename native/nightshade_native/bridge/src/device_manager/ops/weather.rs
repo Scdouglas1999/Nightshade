@@ -128,27 +128,10 @@ impl DeviceManager {
                     "ASCOM is only available on Windows",
                 ))
             }
-            Some(DriverType::Native) => {
-                let native_weather = self.native_weather.read().await;
-                if let Some(weather) = native_weather.get(device_id) {
-                    return Ok(WeatherConditions {
-                        temperature: weather.get_temperature().await.ok().flatten(),
-                        humidity: weather.get_humidity().await.ok().flatten(),
-                        pressure: weather.get_pressure().await.ok().flatten(),
-                        cloud_cover: weather.get_cloud_cover().await.ok().flatten(),
-                        dew_point: weather.get_dew_point().await.ok().flatten(),
-                        wind_speed: weather.get_wind_speed().await.ok().flatten(),
-                        wind_direction: weather.get_wind_direction().await.ok().flatten(),
-                        sky_quality: weather.get_sky_quality().await.ok().flatten(),
-                        sky_temperature: None, // Not in native trait, could add later
-                        rain_rate: weather.get_rain_rate().await.ok().flatten(),
-                    });
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    "Native weather device not connected",
-                ))
-            }
+            Some(DriverType::Native) => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                "Native weather device not connected",
+            )),
             Some(DriverType::Simulator) => {
                 let weather = crate::api::devices::simulation::get_sim_weather()
                     .read()

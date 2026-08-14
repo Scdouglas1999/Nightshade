@@ -293,9 +293,16 @@ class _VerticalLayout extends StatelessWidget {
           icon: LucideIcons.camera,
           name: 'Camera',
           deviceName: camera.deviceName,
-          statusText: camera.isExposing ? 'Exposing' : 'Idle',
-          statusColor:
-              camera.isExposing ? colors.success : colors.textSecondary,
+          // The device-state flag only tracks manual captures; a
+          // sequencer-driven exposure reports through exposureProgress —
+          // without the OR the camera read "Idle" mid-60s-exposure
+          // (waveM-close M-3).
+          statusText: camera.isExposing || exposureProgress.remaining > 0
+              ? 'Exposing'
+              : 'Idle',
+          statusColor: camera.isExposing || exposureProgress.remaining > 0
+              ? colors.success
+              : colors.textSecondary,
           rows: [
             if (camera.temperature != null)
               _TelemetryRow(
@@ -310,7 +317,7 @@ class _VerticalLayout extends StatelessWidget {
                 label: 'Cooler',
                 value: '${camera.coolerPower!.toStringAsFixed(0)}%',
               ),
-            if (camera.isExposing && exposureProgress.remaining > 0)
+            if (exposureProgress.remaining > 0)
               _TelemetryRow(
                 colors: colors,
                 label: 'Remaining',

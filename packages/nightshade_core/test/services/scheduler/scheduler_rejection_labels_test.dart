@@ -4,7 +4,6 @@
 // as below the site minimum.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/models/scheduler/scheduler_decision.dart';
-import 'package:nightshade_core/src/models/scheduler/scheduler_status.dart';
 import 'package:nightshade_core/src/models/sequence/sequence_models.dart';
 import 'package:nightshade_core/src/services/scheduler/scheduler_engine.dart';
 

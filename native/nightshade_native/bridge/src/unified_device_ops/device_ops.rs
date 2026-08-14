@@ -172,7 +172,7 @@ impl DeviceOps for UnifiedDeviceOps {
             .await
             .map_err(|e| format!("Failed to get mount status: {}", e))?;
 
-        Ok(status.parked)
+        parked_from_status(mount_id, &status)
     }
 
     async fn mount_can_flip(&self, mount_id: &str) -> DeviceResult<bool> {
@@ -1595,5 +1595,94 @@ impl DeviceOps for UnifiedDeviceOps {
         api_cover_calibrator_get_max_brightness(device_id.to_string())
             .await
             .map_err(|e| format!("Get max brightness failed: {}", e))
+    }
+}
+
+/// Decisions-verify refutation D4 (2026-08-14, corrected by the focused
+/// re-refute): a mount that cannot READ park state (the LX200 family without
+/// a cached park entry) reaches the status layer as a fabricated
+/// `parked=false`, marked by `availability[PARKED] = Unsupported`. Surface
+/// that unknowability as an error so callers take their read-failed path
+/// (the sequencer's unpark gate falls through and issues the unpark) instead
+/// of trusting a value the mount never produced.
+///
+/// `can_park=false` alone is NOT the signal: ASCOM mandates `AtPark` be
+/// readable regardless of `CanPark`, and Alpaca can lose `can_park` to a
+/// transient capabilities hiccup while reading `parked` genuinely — erroring
+/// on those would fail every autopilot run at its head `Unpark` node on
+/// mounts that simply cannot park.
+fn parked_from_status(mount_id: &str, status: &crate::device::MountStatus) -> DeviceResult<bool> {
+    use crate::device::{mount_status_field, FieldAvailability};
+    match status.availability.get(mount_status_field::PARKED) {
+        Some(FieldAvailability::Unsupported) | Some(FieldAvailability::Error(_)) => {
+            Err(format!("Mount {} cannot report park state", mount_id))
+        }
+        _ => Ok(status.parked),
+    }
+}
+
+#[cfg(test)]
+mod parked_from_status_tests {
+    use super::parked_from_status;
+    use crate::device::MountStatus;
+    use std::collections::HashMap;
+
+    fn status(parked: bool, can_park: bool) -> MountStatus {
+        MountStatus {
+            connected: true,
+            tracking: false,
+            slewing: false,
+            parked,
+            at_home: None,
+            side_of_pier: None,
+            right_ascension: 0.0,
+            declination: 0.0,
+            altitude: None,
+            azimuth: None,
+            sidereal_time: None,
+            tracking_rate: None,
+            can_park,
+            can_slew: true,
+            can_sync: true,
+            can_pulse_guide: false,
+            can_set_tracking_rate: false,
+            availability: HashMap::new(),
+        }
+    }
+
+    #[test]
+    fn a_trustworthy_report_passes_through() {
+        assert_eq!(parked_from_status("m", &status(true, true)).unwrap(), true);
+        assert_eq!(
+            parked_from_status("m", &status(false, true)).unwrap(),
+            false
+        );
+    }
+
+    fn unreadable(mut s: MountStatus) -> MountStatus {
+        s.availability.insert(
+            crate::device::mount_status_field::PARKED.to_string(),
+            crate::device::FieldAvailability::Unsupported,
+        );
+        s
+    }
+
+    /// ASCOM mandates AtPark be readable regardless of CanPark: an honest
+    /// "this mount cannot park" with a genuine parked=false must pass
+    /// through, or every autopilot run fails at its head Unpark node.
+    #[test]
+    fn cannot_park_with_a_readable_state_is_not_an_error() {
+        assert_eq!(
+            parked_from_status("m", &status(false, false)).unwrap(),
+            false
+        );
+    }
+
+    /// Only a park state the backend could not READ (Native NotSupported,
+    /// marked via availability) refuses to serve the fabricated bool.
+    #[test]
+    fn an_unreadable_park_state_is_an_error_not_a_fabricated_false() {
+        let err = parked_from_status("m", &unreadable(status(false, false))).unwrap_err();
+        assert!(err.to_string().contains("cannot report park state"));
     }
 }

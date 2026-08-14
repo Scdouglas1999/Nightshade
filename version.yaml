@@ -1,7 +1,7 @@
 # Nightshade - Single Source of Truth for Version Info
 # This file is read by build scripts to update pubspec.yaml, installer.iss, etc.
 
-version: "6.1.0"
+version: "6.2.0"
 build_number: 25
 channel: "alpha"  # stable, beta, alpha
 

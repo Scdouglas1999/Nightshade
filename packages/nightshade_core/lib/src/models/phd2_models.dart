@@ -4,9 +4,31 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'phd2_models.freezed.dart';
 part 'phd2_models.g.dart';
 
+/// The `AppState` PHD2 itself reports, as carried on `phd2StateProvider`.
+///
+/// Distinct from [Phd2GuidingState], which folds "not connected" into the same
+/// enum for the guiding screen's state machine.
+enum Phd2State {
+  stopped,
+  selected,
+  calibrating,
+  guiding,
+  looping,
+  settling,
+  paused,
+  lostLock,
+
+  /// PHD2 reported a state string we do not recognise (new/unmapped AppState),
+  /// or the process is in an indeterminate phase. Distinct from [stopped] so
+  /// the UI never falsely offers "Start" over a possibly-live process — an
+  /// unknown state is treated as potentially active (Stop is offered, Start is
+  /// not). See `Phd2Controller._updateStateFromString`.
+  unknown,
+}
+
 /// PHD2 guiding state — canonical home for the guiding-screen state machine.
-/// `stopped` matches `Phd2State.stopped` from the FRB bridge: connected to PHD2
-/// but not actively looping/calibrating/guiding.
+/// `stopped` matches `Phd2State.stopped`: connected to PHD2 but not actively
+/// looping/calibrating/guiding.
 enum Phd2GuidingState {
   disconnected,
   stopped,
@@ -19,7 +41,7 @@ enum Phd2GuidingState {
 
   /// PHD2 is connected but reported a state we could not classify. Treated as
   /// possibly-live: the controls offer Stop, never an enabled Start. Mirrors
-  /// `Phd2State.unknown` from the bridge.
+  /// [Phd2State.unknown].
   unknown,
 }
 
@@ -269,8 +291,22 @@ abstract class Phd2GuideStats with _$Phd2GuideStats {
     /// Pixel scale (arcsec/pixel)
     @Default(0.0) double pixelScale,
 
-    /// Number of guide frames
+    /// Number of guide STEPS measured — corrections, not exposures.
+    ///
+    /// Zero while Loop Exposures is running (looping takes no corrections), so
+    /// this is also the gate the RMS/Peak readouts use to decide whether they
+    /// have anything to report. See [loopFrameCount] for the loop's own count.
     @Default(0) int frameCount,
+
+    /// Number of frames captured in the CURRENT Loop Exposures run.
+    ///
+    /// Looping exists so the operator can judge star quality and exposure
+    /// length before picking a star, and `Frame Count` read `0` for the whole
+    /// loop because [frameCount] counts guide steps and a loop takes none. A
+    /// loop frame is not a guide correction, so it gets its own count, and each
+    /// new loop starts that count again — the number answers "how many frames
+    /// has THIS loop taken", not "how many since the guider connected".
+    @Default(0) int loopFrameCount,
   }) = _Phd2GuideStats;
 
   factory Phd2GuideStats.fromJson(Map<String, dynamic> json) =>

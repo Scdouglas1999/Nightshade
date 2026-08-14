@@ -293,6 +293,47 @@ async fn test_autofocus_interval_trigger() {
     assert!(trigger.check(&state).await);
 }
 
+/// Owner decision (2026-08-14): a failed trigger autofocus continues the
+/// run. The interval trigger carries no time cooldown, so unless the failed
+/// ATTEMPT also moves the cadence anchor, `frames_since_af` stays at or
+/// above the interval forever and every remaining exposure re-fires a sweep
+/// that already failed — an unattended night spent focusing, not imaging.
+#[tokio::test]
+async fn a_failed_autofocus_attempt_defers_the_next_interval_by_a_full_cadence() {
+    let mut trigger = Trigger::new(
+        "test",
+        "Test Autofocus Interval",
+        TriggerType::AutofocusInterval { every_n_frames: 10 },
+        RecoveryAction::Autofocus,
+    );
+
+    let mut state = TriggerState::new();
+    state.invalidate_autofocus("filter changed to L");
+    for _ in 0..10 {
+        state.increment_exposure_count();
+    }
+    assert!(trigger.check(&state).await);
+
+    // The sweep ran and missed its curve fit; the run keeps the last-good
+    // focus and the anchor moves anyway.
+    state.mark_autofocus_attempted();
+
+    assert!(!state.autofocus_invalidated);
+    for _ in 0..9 {
+        state.increment_exposure_count();
+        assert!(
+            !trigger.check(&state).await,
+            "a failed autofocus must not re-fire on every subsequent frame"
+        );
+    }
+
+    state.increment_exposure_count();
+    assert!(
+        trigger.check(&state).await,
+        "the next attempt is due one full cadence later"
+    );
+}
+
 #[tokio::test]
 async fn test_dither_interval_trigger() {
     let mut trigger = Trigger::new(

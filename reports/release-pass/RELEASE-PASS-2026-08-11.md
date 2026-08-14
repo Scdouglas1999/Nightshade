@@ -1,5 +1,82 @@
 # Release Tightening Pass — 2026-08-11
 
+## Owner decisions (made 2026-08-14, closing session) — implementation wave launched
+
+**P0-class repo defect found by the ui-small batch (2026-08-14): the committed tree did
+not compile from a fresh clone.** `.gitignore:276`'s bare `profiles/` rule also matched
+`packages/nightshade_core/lib/src/providers/profiles/` and silently excluded its THREE
+production source files (equipment_profile_model, equipment_profiles_notifier,
+profile_derived_providers) from every commit since the directory was created — local
+trees compiled because the files exist on disk; a clone did not. Fixed: the rule is
+anchored to `/profiles/` (the repo-root user-data dir it always meant) and the three
+files are staged. A full audit of every bare directory pattern in .gitignore found no
+other hidden source (only .dart_tool artifacts, correctly ignored). Same defect class
+as the 2026-06-11 gitignored-gate-inputs find.
+
+Merge log (running): ui-small MERGED (IMG-9 loop counting; 5/5 + 3/3 new suites,
+guiding 31/31 non-golden; CON-56/62 confirmed already closed at tip). pushes MERGED
+(stop-push arbiter: non-operator stops push with their real cause, operator presses
+silent; 106 notification tests + all 94 fold-conformance cases green on the combined
+tree). Accepted judgment call from the pushes batch: no `info` push tier exists, so
+these use `normal` — the tier sequenceCompleted already uses. The pushes agent
+independently rediscovered the gitignore P0 and had fast-forwarded its own worktree to
+HEAD before working (why its diff applied clean).
+
+Merge log (continued): scheduler MERGED (pause+banner, removal=ineligible; 1,735 tests
+incl. 5/5 pause + 7/7 removal). fits-master MERGED (FITS stacked master with synthesized
+EXPTIME/DATE-OBS; imaging crate 5 suites + app 9/9). BOTH PORTS LANDED with zero
+blockers (sequencer crate 825/0 on the combined tree; the rust-seq port's three
+adaptations documented in its impl log — including the correct insight that
+mark_autofocus_attempted belongs on ALL continue paths). ADJUDICATION of the scheduler
+batch's flagged widening: REVERSED — a safety abort must NOT pause the autopilot (one
+passing cloud must not end an unattended night; the engine's own safety gating already
+refuses to dispatch into unsafe conditions). Implemented via the executor's new
+`lastRunEndOrigin` memo ('operator'/'scheduler'/'rollback'/'safety') consumed by the
+run-ending classifier: only an operator-evidenced stop pauses; 'safety' re-dispatches;
+unknown endings stay conservative and ask the human. Pinned by two memo tests (7/7).
+Cross-batch seam closed: the AF-trigger continuation decision now pushes as a NEW
+info-tier `autofocusContinued` category ("Autofocus could not converge; the sequence
+continues on the restored last-good focus") — autofocusFailed stays error-tier for real
+failures; all five exhaustive switches extended; 1,846 notification/scheduler/provider
+tests green. Also: the scheduler agent's second suspected hidden dir
+(suggestion_filters/) was an EMPTY explicitly-ignored leftover — dir and ignore line
+removed; package-level .gitignore audit clean.
+
+INTEGRATION HAZARD found at merge time: worktrees 3/4/5 of wf_9953116a-7f8 were forked
+from the PRE-CAMPAIGN base 59dec49c7 (old main) instead of HEAD — their diffs reference
+the pre-C3 monoliths (instructions.rs, triggers.rs) that the campaign split, so they
+cannot apply textually. The work is semantically sound (their crate tests passed on
+their base); the plan is a PORT wave: one agent per stale batch re-lands its own diff
+onto a HEAD-based worktree using the original patch as the spec (patches preserved in
+the session scratchpad as batch-rustseq.patch / batch-mosaic.patch; worktree 4's batch
+gets the same treatment when it returns). HEAD-based worktrees (1/2/6/7) merge
+directly. Lesson for the harness: validate every worktree's base against HEAD at
+launch.
+
+All ten parked product calls decided by the owner:
+1. **Stop vs autopilot (WF-N3)**: an operator Stop PAUSES the autopilot with a visible
+   "Autopilot paused — resume?" affordance. No silent re-dispatch.
+2. **Stop pushes**: restore the sequenceStopped push for NON-operator stops only (safety
+   aborts + autopilot), INFO priority, carrying the real cause; the operator's own press
+   stays silent.
+3. **Queue removal (WF-N2/WD-SEQ-N5)**: removal = ineligibility. A target removed from
+   the scheduler cannot be picked by the autopilot.
+4. **Autopilot unpark**: UnparkNode executes only when the mount reports parked;
+   otherwise a no-op.
+5. **Dart fallback device stack**: DELETE (2,656 lines).
+6. **Unreachable code**: DELETE all three blocks (Native* traits + registries, the
+   NIGHTSHADE_COMPANION_UI dashboard, the seven unreachable methods + sequential
+   profile-connect).
+7. **Mosaic panel resume**: WIRE THE REAL SINK (SessionWizardCheckpointSink into
+   production) — owner chose to make it real in 6.x; on-rig validation explicitly owed.
+8. **Stacked master**: EXTEND the FITS writer (EXPTIME/DATE-OBS optional or synthesized
+   from stack metadata); the master saves as FITS.
+9. **IMG-9**: the looping Frame Count label counts loop frames only, resetting per loop.
+10. **AF trigger failure unattended (#36)**: continue with last-good focus (restore
+    pre-AF position), log a decision row, push INFO.
+Also folded into the wave as mechanical conformance: CON-56 (ALL-CAPS NOW/TONIGHT) and
+CON-62 (row-title case + settings_search_index regen).
+
 ## CLOSEOUT (FINAL — activated 2026-08-14 on Wave M's dry return)
 
 Campaign ledger, 2026-08-11 → 2026-08-14, all on `audit/end-to-end-campaign`:
@@ -475,9 +552,14 @@ The REFUTER's three, all fixed in the closing commit:
   record on the stopFailed half only; a cleanupFailed retry is a pure persistence
   re-drive and sends no native stop.
 
-Driver carry-forward observations (all pre-existing, P3, recorded): the completion
-producer emits two 'Sequence complete' events (folds x2 — the completion analogue of the
-stop-family dedup, never in scope); the rest as noted in waveM-close.md.
+Driver carry-forward observations (all pre-existing, P3): M-1 (completion x2 badge)
+CLOSED post-wave — the duplicate wire echo folds badge-free (D19); M-2 (cry-wolf
+"load a sequence to begin" during a run) CLOSED — the copy is state-aware now; M-4
+(filmstrip vs quality scope mismatch) CLOSED — the strip names its scope
+("History — session"). M-3 (camera tile reads Idle mid-exposure) REMAINS: triage rules
+out readiness_card.dart and equipment_telemetry_panel.dart (no 'Idle' literal — the
+word is derived from a device-activity state, not capture state); the fix belongs with
+whoever owns the per-device activity provider, one honest look.
 
 ## Wave L verdict (2026-08-14 ~16:00) — driver 4/4 live PASS; refuter landed 5 (1 P2, 4 P3), all CONFIRMED; response landed
 

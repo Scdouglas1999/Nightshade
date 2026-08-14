@@ -177,7 +177,6 @@ class DeviceService {
 
   bool _disposed = false;
 
-  static const Duration _connectProfileDeviceTimeout = Duration(seconds: 60);
   static const Duration _quiesceTimeout = Duration(seconds: 30);
 
   /// Guard against concurrent autofocus runs. Only one AF can run at a time
@@ -433,34 +432,6 @@ class DeviceService {
       _connectCoverCalibrator(deviceId);
   Future<void> disconnectCoverCalibrator() => _disconnectCoverCalibrator();
 
-  Future<void> connectProfile({
-    String? cameraId,
-    String? mountId,
-    String? focuserId,
-    String? filterWheelId,
-    String? guiderId,
-    String? rotatorId,
-    String? domeId,
-    String? weatherId,
-    String? safetyMonitorId,
-    String? switchId,
-    String? coverCalibratorId,
-    void Function(DeviceConnectProgress progress)? onProgress,
-  }) => _connectProfile(
-    cameraId: cameraId,
-    mountId: mountId,
-    focuserId: focuserId,
-    filterWheelId: filterWheelId,
-    guiderId: guiderId,
-    rotatorId: rotatorId,
-    domeId: domeId,
-    weatherId: weatherId,
-    safetyMonitorId: safetyMonitorId,
-    switchId: switchId,
-    coverCalibratorId: coverCalibratorId,
-    onProgress: onProgress,
-  );
-  Future<void> connectActiveProfile() => _connectActiveProfile();
   Stream<DeviceConnectProgress> connectAllFromProfile(
     EquipmentProfileModel profile,
   ) => _connectAllFromProfile(profile);

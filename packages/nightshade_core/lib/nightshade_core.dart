@@ -413,6 +413,8 @@ export 'src/services/scheduler/integration_goal_service.dart'
         targetConstraintsTargetIndexSql,
         horizonProfilesSchemaSql;
 export 'src/services/scheduler/target_constraint_service.dart';
+export 'src/services/scheduler/scheduler_queue_service.dart'
+    hide schedulerRemovedTargetsSchemaSql;
 // Two HorizonProfile classes exist in the codebase:
 //   * settings_provider.dart::HorizonProfile  - legacy 8-point compass profile
 //     stored as JSON in app_settings.horizon_profile_json

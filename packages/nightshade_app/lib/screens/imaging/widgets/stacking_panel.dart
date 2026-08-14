@@ -43,13 +43,14 @@ typedef StackingMasterDestinationPicker = Future<String?> Function(
     String suggestedName);
 
 Future<String?> _pickStackingMasterDestination(String suggestedName) async {
-  // Named for what is actually written: a 16-bit PNG of the integration (or
-  // the stretched RGBA render for a colour stack). The chooser cannot stop an
-  // operator typing another extension, so `LiveStackingService.saveMaster`
-  // refuses it rather than renaming the file behind their back.
+  // Named for what is actually written: a FITS master of the integration, or
+  // a PNG of the render for anyone who wants the picture. The chooser cannot
+  // stop an operator typing a third extension, so
+  // `LiveStackingService.saveMaster` refuses it rather than renaming the file
+  // behind their back.
   const typeGroup = XTypeGroup(
-    label: 'Stacked master (16-bit PNG)',
-    extensions: ['png'],
+    label: 'Stacked master (FITS, or PNG render)',
+    extensions: ['fits', 'fit', 'fts', 'png'],
   );
   final location = await getSaveLocation(
     suggestedName: suggestedName,
@@ -253,8 +254,8 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
           'Stopping releases the stacker, and the '
           '${frames == 1 ? '1 stacked frame' : '$frames stacked frames'} '
           'accumulated so far cannot be recovered afterwards. Save the '
-          'stacked master first — as a 16-bit PNG of the integration, which '
-          'carries no FITS header or WCS — or discard it and stop.',
+          'stacked master first — a FITS master carrying the integration time '
+          'and frame count — or discard it and stop.',
           style: TextStyle(
             fontSize: NightshadeTypography.fontSize12,
             color: colors.textSecondary,
@@ -276,7 +277,7 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
         .first;
     final destination = await ref.read(
       stackingMasterDestinationPickerProvider,
-    )('live_stack_${stamp}Z_${frames}frames.png');
+    )('live_stack_${stamp}Z_${frames}frames.fits');
     if (!mounted || destination == null || destination.trim().isEmpty) {
       return false;
     }
@@ -286,27 +287,29 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
           .read(liveStackingServiceProvider)
           .saveMaster(filePath: destination);
       if (!mounted) return true;
+      final integration = saved.totalIntegrationSecs;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Stacked master (${saved.stackedFrameCount} frames) saved to '
-            '${saved.filePath}',
+            'Stacked master (${saved.stackedFrameCount} frames'
+            '${integration != null && integration > 0 ? ', '
+                '${integration.toStringAsFixed(0)} s integration' : ''}) '
+            'saved to ${saved.filePath}',
           ),
         ),
       );
       return true;
     } on LiveStackingMasterFormatUnsupported catch (error) {
-      // The operator typed a name in another format. Say so instead of writing
-      // a PNG under their .fits name and letting them find out later.
+      // The operator typed a name in a format this stacker cannot write. Say
+      // which one and why, instead of writing other bytes under their name and
+      // letting them find out later.
       if (!mounted) return false;
       await ErrorDialog.show(
         context,
-        title: 'Live-stack masters are saved as PNG',
-        message: 'The live stacker writes a 16-bit PNG of the integration, so '
-            'a "${error.requestedExtension}" master cannot be written here — '
-            'the format carries no FITS header, WCS or integration metadata. '
-            'Save it as .png, or use Stack & Share for a processed export. '
-            'The stack is still running and was not discarded.',
+        title: 'That master cannot be written here',
+        message: 'A "${error.requestedExtension}" master cannot be written: '
+            '${error.reason}. The stack is still running and was not '
+            'discarded.',
         technicalDetails: error.toString(),
       );
       return false;

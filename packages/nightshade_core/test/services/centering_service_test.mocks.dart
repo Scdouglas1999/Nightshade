@@ -172,12 +172,6 @@ class MockImagingService extends _i1.Mock implements _i5.ImagingService {
     Invocation.method(#retire, []),
     returnValueForMissingStub: null,
   );
-
-  @override
-  void resetFrameCounter() => super.noSuchMethod(
-    Invocation.method(#resetFrameCounter, []),
-    returnValueForMissingStub: null,
-  );
 }
 
 /// A class which mocks [PlateSolveService].
@@ -698,50 +692,6 @@ class MockDeviceService extends _i1.Mock implements _i8.DeviceService {
   _i6.Future<void> disconnectCoverCalibrator() =>
       (super.noSuchMethod(
             Invocation.method(#disconnectCoverCalibrator, []),
-            returnValue: _i6.Future<void>.value(),
-            returnValueForMissingStub: _i6.Future<void>.value(),
-          )
-          as _i6.Future<void>);
-
-  @override
-  _i6.Future<void> connectProfile({
-    String? cameraId,
-    String? mountId,
-    String? focuserId,
-    String? filterWheelId,
-    String? guiderId,
-    String? rotatorId,
-    String? domeId,
-    String? weatherId,
-    String? safetyMonitorId,
-    String? switchId,
-    String? coverCalibratorId,
-    void Function(_i9.DeviceConnectProgress)? onProgress,
-  }) =>
-      (super.noSuchMethod(
-            Invocation.method(#connectProfile, [], {
-              #cameraId: cameraId,
-              #mountId: mountId,
-              #focuserId: focuserId,
-              #filterWheelId: filterWheelId,
-              #guiderId: guiderId,
-              #rotatorId: rotatorId,
-              #domeId: domeId,
-              #weatherId: weatherId,
-              #safetyMonitorId: safetyMonitorId,
-              #switchId: switchId,
-              #coverCalibratorId: coverCalibratorId,
-              #onProgress: onProgress,
-            }),
-            returnValue: _i6.Future<void>.value(),
-            returnValueForMissingStub: _i6.Future<void>.value(),
-          )
-          as _i6.Future<void>);
-
-  @override
-  _i6.Future<void> connectActiveProfile() =>
-      (super.noSuchMethod(
-            Invocation.method(#connectActiveProfile, []),
             returnValue: _i6.Future<void>.value(),
             returnValueForMissingStub: _i6.Future<void>.value(),
           )

@@ -1,163 +1,64 @@
 part of '../bridge_stub.dart';
 
+/// Normalize the PHD2 host the reachability probe dials.
+///
+/// `localhost` resolves to `::1` first on some hosts while PHD2 only listens on
+/// IPv4, so the probe would report "not running" for a perfectly healthy PHD2.
+String _resolvePhd2ProbeHost(String host) {
+  final normalized = host.trim().toLowerCase();
+  if (normalized.isEmpty || normalized == 'localhost' || normalized == '::1') {
+    return '127.0.0.1';
+  }
+  return host.trim();
+}
+
 extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
   // =========================================================================
   // PHD2 Guiding
   // =========================================================================
 
-  /// Check if PHD2 is running
+  /// Check whether something is listening on PHD2's event server.
+  ///
+  /// This is a plain TCP reachability probe, not a device operation — the
+  /// onboarding "Test connection" button uses it to tell the operator whether
+  /// the host/port they typed is live before any connect is attempted, so it
+  /// works with or without the native bridge.
   Future<bool> isPhd2Running({
     String host = 'localhost',
     int port = 4400,
   }) async {
-    return phd2.checkPhd2Running(host: host, port: port);
+    try {
+      final socket = await Socket.connect(
+        _resolvePhd2ProbeHost(host),
+        port,
+        timeout: const Duration(seconds: 1),
+      );
+      socket.destroy();
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
-  /// Connect to PHD2 (auto-launches if not running on Windows)
+  /// Connect to PHD2
   Future<void> phd2Connect({String? host, int? port}) async {
-    final targetHost = host ?? 'localhost';
-    final targetPort = port ?? 4400;
-
-    // Guider commands (loop, guide, find star, etc.) use the Rust PHD2 client
-    // when the native bridge is loaded. Connect must use the same backend or
-    // Dart will show "connected" while Rust returns NotConnected(PHD2).
     if (_nativeAvailable) {
-      _phd2Client?.dispose();
-      _phd2Client = null;
-      await gen_api.apiPhd2Connect(host: targetHost, port: targetPort);
+      await gen_api.apiPhd2Connect(
+        host: host ?? 'localhost',
+        port: port ?? 4400,
+      );
       return;
     }
-
-    // Check if PHD2 is already running
-    bool phd2Running = await phd2.checkPhd2Running(
-      host: targetHost,
-      port: targetPort,
-    );
-
-    // If PHD2 is not running and we're on localhost, try to launch it
-    if (!phd2Running &&
-        (targetHost == 'localhost' || targetHost == '127.0.0.1')) {
-      developer.log(
-        '[PHD2] not running on localhost. Platform.isWindows: ${Platform.isWindows}',
-        name: 'NativeBridge',
-        level: 800,
-      );
-      if (Platform.isWindows) {
-        developer.log(
-          '[PHD2] not running, attempting to launch...',
-          name: 'NativeBridge',
-          level: 800,
-        );
-        try {
-          // Common PHD2 installation paths on Windows
-          final phd2Paths = [
-            r'C:\Program Files (x86)\PHDGuiding2\phd2.exe',
-            r'C:\Program Files\PHDGuiding2\phd2.exe',
-            r'C:\Program Files (x86)\PHD2\phd2.exe',
-            r'C:\Program Files\PHD2\phd2.exe',
-          ];
-
-          String? phd2Path;
-          for (final path in phd2Paths) {
-            if (await File(path).exists()) {
-              phd2Path = path;
-              break;
-            }
-          }
-
-          if (phd2Path != null) {
-            await Process.start(phd2Path, [], mode: ProcessStartMode.detached);
-            developer.log(
-              '[PHD2] launched from: $phd2Path',
-              name: 'NativeBridge',
-              level: 800,
-            );
-
-            // Wait for PHD2 to start and open its server
-            for (int i = 0; i < 30; i++) {
-              await Future<void>.delayed(const Duration(seconds: 1));
-              if (await phd2.checkPhd2Running(
-                host: targetHost,
-                port: targetPort,
-              )) {
-                phd2Running = true;
-                developer.log(
-                  '[PHD2] is now running',
-                  name: 'NativeBridge',
-                  level: 800,
-                );
-                break;
-              }
-            }
-
-            if (!phd2Running) {
-              throw Exception(
-                'PHD2 was launched but did not start its server within 30 seconds',
-              );
-            }
-          } else {
-            throw Exception(
-              'PHD2 not found. Please install PHD2 from https://openphdguiding.org/',
-            );
-          }
-        } catch (e) {
-          developer.log(
-            '[PHD2] Failed to launch: $e',
-            name: 'NativeBridge',
-            level: 1000,
-          );
-          throw Exception('Could not launch PHD2: $e');
-        }
-      } else {
-        developer.log(
-          '[PHD2] Not on Windows, cannot auto-launch PHD2. Platform: ${Platform.operatingSystem}',
-          name: 'NativeBridge',
-          level: 900,
-        );
-        throw Exception(
-          'PHD2 is not running. Platform: ${Platform.operatingSystem}. Please start PHD2 manually.',
-        );
-      }
-    }
-
-    // Now connect to PHD2
-    _phd2Client?.dispose();
-    _phd2Client = phd2.Phd2Client(host: targetHost, port: targetPort);
-
-    await _phd2Client!.connect();
-
-    _eventController.add(
-      _FallbackNightshadeEvent(
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-        severity: EventSeverity.info,
-        category: EventCategory.guiding,
-        eventType: 'PHD2Connected',
-        data: {'host': targetHost, 'port': targetPort},
-      ),
-    );
+    _nativeBridgeRequired('phd2Connect');
   }
 
   /// Disconnect from PHD2
   Future<void> phd2Disconnect() async {
     if (_nativeAvailable) {
       await gen_api.apiPhd2Disconnect();
-      _phd2Client?.dispose();
-      _phd2Client = null;
       return;
     }
-
-    unawaited(_phd2Client?.disconnect() ?? Future<void>.value());
-    _phd2Client = null;
-
-    _eventController.add(
-      _FallbackNightshadeEvent(
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-        severity: EventSeverity.info,
-        category: EventCategory.guiding,
-        eventType: 'PHD2Disconnected',
-        data: {},
-      ),
-    );
+    _nativeBridgeRequired('phd2Disconnect');
   }
 
   /// Start guiding
@@ -174,25 +75,7 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
       );
       return;
     }
-    if (_phd2Client == null || !_phd2Client!.isConnected) {
-      throw Exception('PHD2 not connected. Connect to PHD2 first.');
-    }
-
-    await _phd2Client!.startGuiding(
-      settlePixels: settlePixels,
-      settleTime: settleTime,
-      settleTimeout: settleTimeout,
-    );
-
-    _eventController.add(
-      _FallbackNightshadeEvent(
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-        severity: EventSeverity.info,
-        category: EventCategory.guiding,
-        eventType: 'GuidingStarted',
-        data: {},
-      ),
-    );
+    _nativeBridgeRequired('phd2StartGuiding');
   }
 
   /// Stop guiding
@@ -201,19 +84,7 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
       await gen_api.apiPhd2StopGuiding();
       return;
     }
-    if (_phd2Client != null && _phd2Client!.isConnected) {
-      await _phd2Client!.stopGuiding();
-    }
-
-    _eventController.add(
-      _FallbackNightshadeEvent(
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-        severity: EventSeverity.info,
-        category: EventCategory.guiding,
-        eventType: 'GuidingStopped',
-        data: {},
-      ),
-    );
+    _nativeBridgeRequired('phd2StopGuiding');
   }
 
   /// Dither
@@ -234,56 +105,27 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
       );
       return;
     }
-    if (_phd2Client == null || !_phd2Client!.isConnected) {
-      throw Exception('PHD2 not connected. Connect to PHD2 first.');
-    }
-
-    await _phd2Client!.dither(
-      amount: amount,
-      raOnly: raOnly,
-      settlePixels: settlePixels,
-      settleTime: settleTime,
-      settleTimeout: settleTimeout,
-    );
-
-    _eventController.add(
-      _FallbackNightshadeEvent(
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-        severity: EventSeverity.info,
-        category: EventCategory.guiding,
-        eventType: 'DitherStarted',
-        data: {'amount': amount, 'raOnly': raOnly},
-      ),
-    );
+    _nativeBridgeRequired('phd2Dither');
   }
 
-  /// Get PHD2 status
+  /// Get PHD2 status.
+  ///
+  /// Deliberately non-throwing without the bridge: this is a status query the
+  /// UI polls, not a device command, and "disconnected" is the truthful answer
+  /// when there is no native library to hold a PHD2 connection.
   Future<Phd2Status> phd2GetStatus() async {
     if (_nativeAvailable) {
       return gen_api.apiPhd2GetStatus();
     }
-    if (_phd2Client == null) {
-      return const Phd2Status(
-        connected: false,
-        state: 'Disconnected',
-        rmsRa: 0,
-        rmsDec: 0,
-        rmsTotal: 0,
-        snr: 0,
-        starMass: 0,
-        pixelScale: 0,
-      );
-    }
-
-    return Phd2Status(
-      connected: _phd2Client!.isConnected,
-      state: _phd2Client!.state.name,
-      rmsRa: _phd2Client!.rmsRa,
-      rmsDec: _phd2Client!.rmsDec,
-      rmsTotal: _phd2Client!.rmsTotal,
-      snr: _phd2Client!.snr,
-      starMass: _phd2Client!.starMass,
-      pixelScale: 0, // Would need to call getPixelScale() separately
+    return const Phd2Status(
+      connected: false,
+      state: 'Disconnected',
+      rmsRa: 0,
+      rmsDec: 0,
+      rmsTotal: 0,
+      snr: 0,
+      starMass: 0,
+      pixelScale: 0,
     );
   }
 
@@ -293,18 +135,9 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
     required double settleTime,
     required double settleTimeout,
   }) async {
-    final normalizedDeviceId = _canonicalGuiderDeviceId(deviceId);
     if (_nativeAvailable) {
       await gen_api.apiGuiderStartGuiding(
-        deviceId: normalizedDeviceId,
-        settlePixels: settlePixels,
-        settleTime: settleTime,
-        settleTimeout: settleTimeout,
-      );
-      return;
-    }
-    if (normalizedDeviceId == 'phd2_guider') {
-      await phd2StartGuiding(
+        deviceId: _canonicalGuiderDeviceId(deviceId),
         settlePixels: settlePixels,
         settleTime: settleTime,
         settleTimeout: settleTimeout,
@@ -315,13 +148,8 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
   }
 
   Future<void> guiderStop({required String deviceId}) async {
-    final normalizedDeviceId = _canonicalGuiderDeviceId(deviceId);
     if (_nativeAvailable) {
-      await gen_api.apiGuiderStop(deviceId: normalizedDeviceId);
-      return;
-    }
-    if (normalizedDeviceId == 'phd2_guider') {
-      await phd2StopGuiding();
+      await gen_api.apiGuiderStop(deviceId: _canonicalGuiderDeviceId(deviceId));
       return;
     }
     _nativeBridgeRequired('guiderStop');
@@ -335,22 +163,11 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
     required double settleTime,
     required double settleTimeout,
   }) async {
-    final normalizedDeviceId = _canonicalGuiderDeviceId(deviceId);
     if (_nativeAvailable) {
       await gen_api.apiGuiderDither(
-        deviceId: normalizedDeviceId,
+        deviceId: _canonicalGuiderDeviceId(deviceId),
         amount: amount,
         raOnly: raOnly ? 1 : 0,
-        settlePixels: settlePixels,
-        settleTime: settleTime,
-        settleTimeout: settleTimeout,
-      );
-      return;
-    }
-    if (normalizedDeviceId == 'phd2_guider') {
-      await phd2Dither(
-        amount: amount,
-        raOnly: raOnly,
         settlePixels: settlePixels,
         settleTime: settleTime,
         settleTimeout: settleTimeout,
@@ -361,25 +178,18 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
   }
 
   Future<void> guiderLoop({required String deviceId}) async {
-    final normalizedDeviceId = _canonicalGuiderDeviceId(deviceId);
     if (_nativeAvailable) {
-      await gen_api.apiGuiderLoop(deviceId: normalizedDeviceId);
-      return;
-    }
-    if (normalizedDeviceId == 'phd2_guider') {
-      await phd2Loop();
+      await gen_api.apiGuiderLoop(deviceId: _canonicalGuiderDeviceId(deviceId));
       return;
     }
     _nativeBridgeRequired('guiderLoop');
   }
 
   Future<(double, double)> guiderFindStar({required String deviceId}) async {
-    final normalizedDeviceId = _canonicalGuiderDeviceId(deviceId);
     if (_nativeAvailable) {
-      return gen_api.apiGuiderFindStar(deviceId: normalizedDeviceId);
-    }
-    if (normalizedDeviceId == 'phd2_guider') {
-      return phd2FindStar();
+      return gen_api.apiGuiderFindStar(
+        deviceId: _canonicalGuiderDeviceId(deviceId),
+      );
     }
     _nativeBridgeRequired('guiderFindStar');
   }
@@ -390,18 +200,13 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
     required double y,
     bool exact = false,
   }) async {
-    final normalizedDeviceId = _canonicalGuiderDeviceId(deviceId);
     if (_nativeAvailable) {
       await gen_api.apiGuiderSetLockPosition(
-        deviceId: normalizedDeviceId,
+        deviceId: _canonicalGuiderDeviceId(deviceId),
         x: x,
         y: y,
         exact: exact,
       );
-      return;
-    }
-    if (normalizedDeviceId == 'phd2_guider') {
-      await phd2SetLockPosition(x: x, y: y, exact: exact);
       return;
     }
     _nativeBridgeRequired('guiderSetLockPosition');
@@ -410,24 +215,19 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
   Future<(double, double)> guiderGetLockPosition({
     required String deviceId,
   }) async {
-    final normalizedDeviceId = _canonicalGuiderDeviceId(deviceId);
     if (_nativeAvailable) {
-      return gen_api.apiGuiderGetLockPosition(deviceId: normalizedDeviceId);
-    }
-    if (normalizedDeviceId == 'phd2_guider') {
-      return phd2GetLockPosition();
+      return gen_api.apiGuiderGetLockPosition(
+        deviceId: _canonicalGuiderDeviceId(deviceId),
+      );
     }
     _nativeBridgeRequired('guiderGetLockPosition');
   }
 
   Future<void> guiderDeselectStar({required String deviceId}) async {
-    final normalizedDeviceId = _canonicalGuiderDeviceId(deviceId);
     if (_nativeAvailable) {
-      await gen_api.apiGuiderDeselectStar(deviceId: normalizedDeviceId);
-      return;
-    }
-    if (normalizedDeviceId == 'phd2_guider') {
-      await phd2DeselectStar();
+      await gen_api.apiGuiderDeselectStar(
+        deviceId: _canonicalGuiderDeviceId(deviceId),
+      );
       return;
     }
     _nativeBridgeRequired('guiderDeselectStar');
@@ -437,15 +237,11 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
     required String deviceId,
     int size = 50,
   }) async {
-    final normalizedDeviceId = _canonicalGuiderDeviceId(deviceId);
     if (_nativeAvailable) {
       return gen_api.apiGuiderGetStarImage(
-        deviceId: normalizedDeviceId,
+        deviceId: _canonicalGuiderDeviceId(deviceId),
         size: size,
       );
-    }
-    if (normalizedDeviceId == 'phd2_guider') {
-      return phd2GetStarImage(size: size);
     }
     _nativeBridgeRequired('guiderGetStarImage');
   }
@@ -516,98 +312,13 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
     _nativeBridgeRequired('builtinGuiderSetConfig');
   }
 
-  /// Auto-select guide star in PHD2.
-  ///
-  /// Auto-select IS `find_star`: the Dart client's [phd2.Phd2Client.autoSelectStar]
-  /// sends the `find_star` RPC and ignores the coordinates PHD2 replies with,
-  /// which is exactly what `api_phd2_find_star` does natively (it returns the
-  /// selected star's position). So the native branch is the same command, not
-  /// an approximation of it.
-  ///
-  /// Routing it matters because `_phd2Client` is unconditionally null whenever
-  /// the native library loads — [phd2Connect]'s native branch nulls it and
-  /// returns before the only assignment. Without this branch, auto-select
-  /// refused with "PHD2 not connected" on precisely the builds users run,
-  /// while PHD2 was connected through the Rust client.
-  Future<void> phd2AutoSelectStar() async {
-    if (_nativeAvailable) {
-      await gen_api.apiPhd2FindStar();
-      return;
-    }
-    if (_phd2Client == null || !_phd2Client!.isConnected) {
-      throw Exception('PHD2 not connected');
-    }
-    await _phd2Client!.autoSelectStar();
-  }
-
   /// Start looping exposures in PHD2
   Future<void> phd2Loop() async {
     if (_nativeAvailable) {
       await gen_api.apiPhd2Loop();
       return;
     }
-    if (_phd2Client == null || !_phd2Client!.isConnected) {
-      throw Exception('PHD2 not connected');
-    }
-    await _phd2Client!.loop();
-  }
-
-  /// Get PHD2 star image
-  Future<Phd2StarImage> phd2GetStarImage({int size = 50}) async {
-    if (_nativeAvailable) {
-      return gen_api.apiPhd2GetStarImage(size: size);
-    }
-    if (_phd2Client == null || !_phd2Client!.isConnected) {
-      throw Exception('PHD2 not connected');
-    }
-
-    final result = await _phd2Client!.getStarImage(size: size);
-
-    // PHD2 get_star_image returns:
-    //   frame: scalar frame number
-    //   width, height: top-level integers
-    //   star_pos: [x, y] array (if star is selected)
-    //   pixels: base64-encoded pixel data
-    //
-    // Why: route every field through safelyCast* so a malformed PHD2 reply
-    // surfaces a structured CastFailureException with the offending field
-    // name instead of a bare TypeError.
-    const ctx = 'phd2GetStarImage.result';
-    final frame = safelyCastIntOpt(result, 'frame', contextPrefix: ctx) ?? 0;
-    final width = safelyCastIntOpt(result, 'width', contextPrefix: ctx) ?? size;
-    final height =
-        safelyCastIntOpt(result, 'height', contextPrefix: ctx) ?? size;
-
-    // star_pos is a positional array [x, y], not a named map
-    final starPos = safelyCastOpt<List<Object?>>(
-      result['star_pos'],
-      context: '$ctx["star_pos"]',
-    );
-    final starX = (starPos != null && starPos.isNotEmpty)
-        ? safelyCast<num>(starPos[0], context: '$ctx["star_pos"][0]').toDouble()
-        : width / 2.0;
-    final starY = (starPos != null && starPos.length >= 2)
-        ? safelyCast<num>(starPos[1], context: '$ctx["star_pos"][1]').toDouble()
-        : height / 2.0;
-
-    // Decode base64 pixel data
-    final pixelsB64 = safelyCastOpt<String>(
-      result['pixels'],
-      context: '$ctx["pixels"]',
-    );
-    if (pixelsB64 == null) {
-      throw Exception('No pixel data in PHD2 star image response');
-    }
-    final pixels = base64Decode(pixelsB64);
-
-    return Phd2StarImage(
-      frame: frame,
-      width: width,
-      height: height,
-      starX: starX,
-      starY: starY,
-      pixels: pixels,
-    );
+    _nativeBridgeRequired('phd2Loop');
   }
 
   /// Get PHD2 algorithm parameter names
@@ -615,10 +326,7 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
     if (_nativeAvailable) {
       return gen_api.apiPhd2GetAlgoParamNames(axis: axis);
     }
-    if (_phd2Client == null || !_phd2Client!.isConnected) {
-      throw Exception('PHD2 not connected');
-    }
-    return await _phd2Client!.getAlgoParamNames(axis: axis);
+    _nativeBridgeRequired('phd2GetAlgoParamNames');
   }
 
   /// Get PHD2 algorithm parameter value
@@ -629,10 +337,7 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
     if (_nativeAvailable) {
       return gen_api.apiPhd2GetAlgoParam(axis: axis, name: name);
     }
-    if (_phd2Client == null || !_phd2Client!.isConnected) {
-      throw Exception('PHD2 not connected');
-    }
-    return await _phd2Client!.getAlgoParam(axis: axis, name: name);
+    _nativeBridgeRequired('phd2GetAlgoParam');
   }
 
   /// Set PHD2 algorithm parameter
@@ -645,10 +350,7 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
       await gen_api.apiPhd2SetAlgoParam(axis: axis, name: name, value: value);
       return;
     }
-    if (_phd2Client == null || !_phd2Client!.isConnected) {
-      throw Exception('PHD2 not connected');
-    }
-    await _phd2Client!.setAlgoParam(axis: axis, name: name, value: value);
+    _nativeBridgeRequired('phd2SetAlgoParam');
   }
 
   /// Set PHD2 paused state
@@ -657,14 +359,7 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
       await gen_api.apiPhd2SetPaused(paused: paused);
       return;
     }
-    if (_phd2Client == null || !_phd2Client!.isConnected) {
-      throw Exception('PHD2 not connected');
-    }
-    if (paused) {
-      await _phd2Client!.pauseGuiding();
-    } else {
-      await _phd2Client!.resumeGuiding();
-    }
+    _nativeBridgeRequired('phd2SetPaused');
   }
 
   /// Clear PHD2 calibration
@@ -673,10 +368,7 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
       await gen_api.apiPhd2ClearCalibration(which: which);
       return;
     }
-    if (_phd2Client == null || !_phd2Client!.isConnected) {
-      throw Exception('PHD2 not connected');
-    }
-    await _phd2Client!.clearCalibration(which: which);
+    _nativeBridgeRequired('phd2ClearCalibration');
   }
 
   /// Flip PHD2 calibration (for meridian flip)
@@ -685,10 +377,7 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
       await gen_api.apiPhd2FlipCalibration();
       return;
     }
-    if (_phd2Client == null || !_phd2Client!.isConnected) {
-      throw Exception('PHD2 not connected');
-    }
-    await _phd2Client!.flipCalibration();
+    _nativeBridgeRequired('phd2FlipCalibration');
   }
 
   /// Get PHD2 calibration data
@@ -696,44 +385,7 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
     if (_nativeAvailable) {
       return gen_api.apiPhd2GetCalibrationData();
     }
-    if (_phd2Client == null || !_phd2Client!.isConnected) {
-      throw Exception('PHD2 not connected');
-    }
-
-    // Query PHD2 for calibration data
-    final result = await _phd2Client!.getCalibrationData();
-
-    // PHD2 returns null if not calibrated
-    if (result == null) {
-      return const gen_api.Phd2CalibrationData(
-        isCalibrated: false,
-        raAngle: null,
-        decAngle: null,
-        raRate: null,
-        decRate: null,
-      );
-    }
-
-    // Extract calibration parameters from PHD2's response.
-    // PHD2 returns xAngle/yAngle for RA/Dec rotation angles and xRate/yRate
-    // for guide rates in pixels/second.
-    //
-    // Why: any of these can be absent (older PHD2 builds) or wrong-typed
-    // (PHD2 plugin shims) — surface the offending field name via
-    // CastFailureException rather than a bare TypeError.
-    const ctx = 'phd2GetCalibrationData.result';
-    final xAngle = safelyCastDoubleOpt(result, 'xAngle', contextPrefix: ctx);
-    final yAngle = safelyCastDoubleOpt(result, 'yAngle', contextPrefix: ctx);
-    final xRate = safelyCastDoubleOpt(result, 'xRate', contextPrefix: ctx);
-    final yRate = safelyCastDoubleOpt(result, 'yRate', contextPrefix: ctx);
-
-    return gen_api.Phd2CalibrationData(
-      isCalibrated: true,
-      raAngle: xAngle,
-      decAngle: yAngle,
-      raRate: xRate,
-      decRate: yRate,
-    );
+    _nativeBridgeRequired('phd2GetCalibrationData');
   }
 
   /// Find a guide star in PHD2
@@ -741,10 +393,7 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
     if (_nativeAvailable) {
       return gen_api.apiPhd2FindStar();
     }
-    if (_phd2Client == null || !_phd2Client!.isConnected) {
-      throw Exception('PHD2 not connected');
-    }
-    return await _phd2Client!.findStar();
+    _nativeBridgeRequired('phd2FindStar');
   }
 
   /// Set PHD2 lock position
@@ -757,10 +406,7 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
       await gen_api.apiPhd2SetLockPosition(x: x, y: y, exact: exact);
       return;
     }
-    if (_phd2Client == null || !_phd2Client!.isConnected) {
-      throw Exception('PHD2 not connected');
-    }
-    await _phd2Client!.setLockPosition(x: x, y: y, exact: exact);
+    _nativeBridgeRequired('phd2SetLockPosition');
   }
 
   /// Get PHD2 lock position
@@ -768,10 +414,7 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
     if (_nativeAvailable) {
       return gen_api.apiPhd2GetLockPosition();
     }
-    if (_phd2Client == null || !_phd2Client!.isConnected) {
-      throw Exception('PHD2 not connected');
-    }
-    return await _phd2Client!.getLockPosition();
+    _nativeBridgeRequired('phd2GetLockPosition');
   }
 
   /// Deselect star in PHD2
@@ -780,9 +423,6 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
       await gen_api.apiPhd2DeselectStar();
       return;
     }
-    if (_phd2Client == null || !_phd2Client!.isConnected) {
-      throw Exception('PHD2 not connected');
-    }
-    await _phd2Client!.deselectStar();
+    _nativeBridgeRequired('phd2DeselectStar');
   }
 }

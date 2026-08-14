@@ -27,9 +27,11 @@ import 'dart:developer' as developer;
 
 import '../../models/backend/event_types.dart';
 import '../../models/notification/notification_categories.dart';
+import '../../providers/sequence/run_stop_classification.dart';
 import 'event_classifier.dart';
 import 'notification_signature.dart';
 import 'notification_template.dart';
+import 'stop_push_arbiter.dart';
 import 'transports/notification_transport.dart';
 import 'transports/system_push_transport.dart';
 
@@ -93,6 +95,11 @@ class NotificationRouter {
 
   /// Event stream subscription.
   StreamSubscription<NightshadeEvent>? _subscription;
+
+  /// Decides the ONE phone push a stop episode is allowed, and whether the
+  /// operator's own press gets one at all (it does not). Built lazily so a
+  /// router that never sees a stop arms no timer.
+  StopPushArbiter? _stopPushes;
 
   /// Optional per-sequence overrides. When `_activeSequenceId` matches
   /// the executor's current sequence id (set by the executor bridge),
@@ -170,6 +177,8 @@ class NotificationRouter {
   Future<void> dispose() async {
     await _subscription?.cancel();
     _subscription = null;
+    _stopPushes?.dispose();
+    _stopPushes = null;
     for (final t in _transports.values) {
       await t.dispose();
     }
@@ -197,6 +206,11 @@ class NotificationRouter {
     _lastFireTime[category] = _now();
     _recordRateHit(category);
 
+    if (category == NotificationCategory.sequenceStopped) {
+      _routeStopped(rule, contextValues, eligible);
+      return;
+    }
+
     final ctx = NotificationContext(contextValues);
     final title = renderNotificationTemplate(
       rule.titleTemplate ?? _defaultTitleTemplate(category),
@@ -212,6 +226,86 @@ class NotificationRouter {
     for (final transport in eligible) {
       _dispatch(transport, category, title, body);
     }
+  }
+
+  /// A stop is the one category whose copy depends on an event OTHER than the
+  /// one being routed: the executor's decision row is the only thing that says
+  /// WHO ended the run, and it can arrive after the cancel notice.
+  ///
+  /// The immediate transports (toast, external alerts) render with whatever the
+  /// wire has proved by now — degrading to the cause-neutral sentence rather
+  /// than inventing an author. The phone push is handed to [StopPushArbiter]:
+  /// it waits out the authorship grace, fires at most once per stop episode,
+  /// and stays silent when the operator pressed Stop themselves (owner
+  /// decision 2, 2026-08-14).
+  void _routeStopped(
+    NotificationRoutingRule rule,
+    Map<String, String> contextValues,
+    List<NotificationTransport> eligible,
+  ) {
+    final episode = _stopPushArbiter.noteStopNotification(
+      runId: int.tryParse(contextValues[kStopRunIdContextKey] ?? ''),
+      values: contextValues,
+    );
+    // One stop is one toast: a stop publishes several events and the cause
+    // learned between them must not raise a second, differently-worded copy of
+    // the same statement (the content-signature dedup cannot collapse those —
+    // they no longer read the same).
+    if (episode.announced) return;
+    for (final transport in eligible) {
+      if (transport.kind == NotificationTransportKind.systemPush) continue;
+      _dispatchStop(transport, rule, contextValues, episode.decision);
+    }
+  }
+
+  StopPushArbiter get _stopPushArbiter =>
+      _stopPushes ??= StopPushArbiter(clock: _now, onPush: _pushStop);
+
+  /// The single phone push a non-operator stop earns, fired once the arbiter
+  /// knows who is responsible for it.
+  void _pushStop(SequenceStopDecision? decision, Map<String, String> values) {
+    final transport = _transports[NotificationTransportKind.systemPush];
+    if (transport == null || !transport.isConfigured) return;
+    final rule = _ruleFor(NotificationCategory.sequenceStopped);
+    if (!rule.enabled) return;
+    if (!rule.transports.contains(NotificationTransportKind.systemPush)) return;
+    developer.log(
+      '[$kStopClassificationLogTag] notification_router: pushing a '
+      '${decision?.author.name ?? 'cause-neutral'} stop to the phone',
+      name: 'NotificationRouter',
+    );
+    _dispatchStop(transport, rule, values, decision);
+  }
+
+  void _dispatchStop(
+    NotificationTransport transport,
+    NotificationRoutingRule rule,
+    Map<String, String> values,
+    SequenceStopDecision? decision,
+  ) {
+    final clause = sequenceStopCauseClause(decision);
+    final ctx = NotificationContext({
+      ...values,
+      kStopCauseContextKey: clause.isEmpty
+          ? 'Sequence stopped'
+          : 'Sequence stopped $clause',
+    });
+    _dispatch(
+      transport,
+      NotificationCategory.sequenceStopped,
+      renderNotificationTemplate(
+        rule.titleTemplate ??
+            _defaultTitleTemplate(NotificationCategory.sequenceStopped),
+        ctx,
+        clock: _now,
+      ),
+      renderNotificationTemplate(
+        rule.bodyTemplate ??
+            _defaultBodyTemplate(NotificationCategory.sequenceStopped),
+        ctx,
+        clock: _now,
+      ),
+    );
   }
 
   /// Route the Run Dashboard critical-events bridge's phone-push through the
@@ -371,6 +465,24 @@ class NotificationRouter {
         _dispatch(transport, NotificationCategory.custom, title, body);
       }
       return;
+    }
+
+    // The executor's stop decision raises no notification of its own, but it
+    // is the ONLY event that names who ended the run — the phone push for a
+    // stop is decided off it (and withheld when the author is the operator).
+    final stopDecision = NotificationEventClassifier.stopDecisionOf(event);
+    if (stopDecision != null) {
+      _stopPushArbiter.noteDecision(
+        stopDecision,
+        runId: event.data['sequence_run_id'] as int?,
+      );
+      return;
+    }
+    if (event.category == EventCategory.sequencer &&
+        event.eventType == 'Started') {
+      // Run boundary: nothing published from here belongs to the previous
+      // run's stop episode.
+      _stopPushArbiter.noteRunBoundary();
     }
 
     // Single source of truth for event -> category classification, shared
@@ -586,6 +698,8 @@ class NotificationRouter {
         return 'Meridian flip performed';
       case NotificationCategory.autofocusCompleted:
         return 'Autofocus complete';
+      case NotificationCategory.autofocusContinued:
+        return 'Autofocus failed — continuing';
       case NotificationCategory.autofocusFailed:
         return 'Autofocus failed';
       case NotificationCategory.frameCaptured:
@@ -637,8 +751,14 @@ class NotificationRouter {
         return 'Sequence completed successfully at \${time.clock}.';
       case NotificationCategory.sequenceFailed:
         return 'Sequence aborted at \${time.clock}.';
+      // Only the wire may name the author: `stop.cause` reads "Sequence
+      // stopped", "Sequence stopped by request", "Sequence stopped by
+      // autopilot" or "Sequence stopped by the disk-space watchdog" depending
+      // on what the executor's decision row proved. This template used to say
+      // "by request" for every stop, so a weather abort at 3 a.m. claimed a
+      // human had asked for it.
       case NotificationCategory.sequenceStopped:
-        return 'Sequence stopped by request at \${time.clock}.';
+        return '\${stop.cause} at \${time.clock}.';
       case NotificationCategory.frameCaptured:
         return 'Frame \${frame} captured (\${exposure.duration}s).';
       case NotificationCategory.exposureFailed:
@@ -670,6 +790,9 @@ class NotificationRouter {
         return 'Meridian flip completed.';
       case NotificationCategory.autofocusCompleted:
         return 'Autofocus run completed.';
+      case NotificationCategory.autofocusContinued:
+        return 'Autofocus could not converge; the sequence continues on the '
+            'restored last-good focus.';
       case NotificationCategory.autofocusFailed:
         return 'Autofocus run failed.';
       case NotificationCategory.frameRejected:

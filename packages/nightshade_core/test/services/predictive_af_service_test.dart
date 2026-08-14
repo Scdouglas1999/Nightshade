@@ -6,7 +6,9 @@
 //   * DB round-trip (insert → query → load → predict).
 //   * Drift detection (5 bad runs trigger ShouldWarn; reset on good run).
 //   * Per-profile isolation (two profiles never cross-contaminate).
-//   * Export/import JSON round-trip.
+//   * Export JSON shape (schema, filter, samples, recovered slope).
+
+import 'dart:convert';
 
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
@@ -327,8 +329,8 @@ void main() {
     );
   });
 
-  group('PredictiveAfService - export/import', () {
-    test('exported JSON survives a round trip back into the DB', () async {
+  group('PredictiveAfService - export', () {
+    test('exported JSON carries the schema and every sample', () async {
       for (int i = 0; i < 10; i++) {
         await service.recordAutofocusOutcome(
           equipmentProfileId: 1,
@@ -338,34 +340,20 @@ void main() {
           hfr: 2.0,
         );
       }
+
       final json = await service.exportModel(
         equipmentProfileId: 1,
         filterName: 'Ha',
       );
+
       expect(json, isNotNull);
-      expect(json, contains('"schema"'));
-      expect(json, contains('nightshade.focus_model.v1'));
-
-      // Wipe the existing row then re-import.
-      await service.deleteModel(equipmentProfileId: 1, filterName: 'Ha');
+      final decoded = jsonDecode(json!) as Map<String, dynamic>;
+      expect(decoded['schema'], 'nightshade.focus_model.v1');
+      expect(decoded['filter_name'], 'Ha');
+      expect((decoded['samples'] as List<dynamic>).length, 10);
       expect(
-        await service.getModel(equipmentProfileId: 1, filterName: 'Ha'),
-        isNull,
-      );
-
-      final imported = await service.importModel(
-        equipmentProfileId: 1,
-        jsonBlob: json!,
-      );
-      expect(imported.samples.length, 10);
-      expect(imported.slopeStepsPerC, closeTo(47.0, 0.5));
-    });
-
-    test('importModel rejects an unknown schema', () async {
-      const bogusJson = '{"schema": "other.format.v999"}';
-      expect(
-        () => service.importModel(equipmentProfileId: 1, jsonBlob: bogusJson),
-        throwsA(isA<FormatException>()),
+        (decoded['slope_steps_per_c'] as num).toDouble(),
+        closeTo(47.0, 0.5),
       );
     });
   });

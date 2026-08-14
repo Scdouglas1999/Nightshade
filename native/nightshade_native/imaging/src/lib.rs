@@ -41,6 +41,7 @@ mod reader; // NEW: Memory-mapped readers
 pub mod registration; // NEW: High-quality star-based registration
 mod robust_stats; // The crate's one set of order statistics (median / percentile conventions)
 pub mod sky_atlas; // NEW: HEALPix-tiled additive all-sky accumulator (the 5.0 keystone)
+pub mod stack_master; // NEW: the live stack's FITS master (synthesized EXPTIME/DATE-OBS)
 pub mod stacking;
 pub mod star_reduction; // NEW: Star-size reduction (morphological + screen recombine)
 mod stats;

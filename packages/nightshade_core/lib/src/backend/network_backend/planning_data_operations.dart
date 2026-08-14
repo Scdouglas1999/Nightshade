@@ -112,6 +112,40 @@ mixin _NetworkBackendPlanningDataOperations on _NetworkBackendTransport {
   }
 
   // ===========================================================================
+  // Scheduler queue membership
+  // ===========================================================================
+
+  /// GET /api/scheduler/removed-targets — the ids the host's operator has taken
+  /// out of the scheduler queue. A slave that could not see these ran its
+  /// autopilot over targets the operator had removed, because a goal-less
+  /// target is otherwise a perfectly eligible free-form candidate.
+  Future<Set<int>> getSchedulerQueueRemovedTargets() async {
+    final response = await _get('scheduler/removed-targets');
+    final ids = response['targetIds'];
+    if (ids is! List) {
+      throw const FormatException(
+        'GET /api/scheduler/removed-targets returned no `targetIds` list',
+      );
+    }
+    return ids.whereType<num>().map((n) => n.toInt()).toSet();
+  }
+
+  /// POST /api/scheduler/removed-targets — remove one target from the queue.
+  Future<void> removeSchedulerQueueTarget(int targetId) async {
+    await _post('scheduler/removed-targets', {'targetId': targetId});
+  }
+
+  /// POST /api/scheduler/removed-targets — empty the queue.
+  Future<void> clearSchedulerQueue() async {
+    await _post('scheduler/removed-targets', {'all': true});
+  }
+
+  /// DELETE /api/scheduler/removed-targets?targetId= — put one target back.
+  Future<void> readmitSchedulerQueueTarget(int targetId) async {
+    await _delete('scheduler/removed-targets?targetId=$targetId');
+  }
+
+  // ===========================================================================
   // Horizon profiles
   // ===========================================================================
 

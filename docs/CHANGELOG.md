@@ -9,6 +9,99 @@ Engineering cross-references in the form `(§N.M)` point at the
 `docs/plans/2026-05-09-v250-audit-fixes.md` v2.5.0 pre-release audit and are
 intended for code reviewers rather than end users.
 
+## [6.2.0] — The Tightening Pass (build 26, 2026-08-14)
+
+A commercial-grade hardening cycle: every subsystem mapped, the running app
+adversarially reviewed by agents driving the real release build, and every fix
+batch re-driven live and attacked by independent refuters until a wave came
+back dry. Ground truth: `reports/release-pass/RELEASE-PASS-2026-08-11.md`.
+
+### Added
+
+- **"Autopilot paused — resume?"** — stopping a run the autopilot dispatched now
+  pauses the autopilot with a visible resume affordance instead of silently
+  re-dispatching the next target 44 seconds later. A safety abort does NOT
+  pause it: the autopilot rides out clouds and re-evaluates, its own safety
+  gating deciding when dispatching is sane again.
+- **Stop notifications with their true cause** — safety aborts and autopilot
+  stops push to your phone as info ("Stopped: …"); your own press stays
+  silent. A failed interval autofocus pushes "the sequence continues on the
+  restored last-good focus" instead of ending the night or crying wolf.
+- **FITS stacked masters** — the live-stack master saves as FITS with
+  synthesized EXPTIME (total integration) and DATE-OBS (first frame).
+- **Mosaic panel resume is real** — the wizard checkpoint sink is wired into
+  production (and the executor's streaming checkpoints no longer erase panel
+  state); on-rig validation still owed.
+
+### Changed
+
+- Removing a target from the scheduler now makes it fully ineligible for
+  autopilot selection — removal means what the button says.
+- Autopilot plans unpark the mount only when it actually reports parked.
+- A failed interval autofocus restores the pre-sweep focuser position and
+  CONTINUES the run with a decision row, deferring the next attempt by a full
+  cadence. Explicitly-configured autofocus nodes keep their own failure
+  actions.
+- The imaging screen's Frame Count label counts the current loop's frames
+  while looping, resetting per loop; guide-step counting is unchanged where
+  RMS gating depends on it.
+
+### Removed
+
+- Roughly 13,700 lines of code that could never run in a shipped
+  configuration: the Dart fallback device clients (PHD2, Alpaca, ASCOM) and
+  their retry/circuit-breaker utilities, the unimplemented alternative native
+  backend, the `NIGHTSHADE_COMPANION_UI` mobile dashboard, and orphaned
+  device-service and profile-connect paths. The bridge policy comment now
+  states the truth: Rust is the only device path.
+
+### Fixed
+
+- **Stopping a sequence tells the truth, end to end.** One press of Stop is one
+  feed row reading "Stopped by request" — not three rows and a red error toast.
+  Stops name their true author: the operator's press, "Stopped by autopilot"
+  for a scheduler re-plan, and cause-neutral for safety aborts (weather, dome,
+  disk). The executor records the caller's origin on every stop path —
+  operator, scheduler, failed-launch rollback, disk watchdog — and the one
+  decision proving a human acted can no longer be silenced by the
+  replay-logging preference. Stopped events carry their run id, so the feed
+  can never merge two runs' endings or lose an old stop from the night's
+  record. The whole contract is pinned by a 19-case conformance suite.
+- **Two sequence nodes of the same type now both render.** Adding a second
+  "Take Exposures" (or a second target) beside the first silently showed only
+  one card in release builds — a duplicate-GlobalKey element theft the debug
+  assert masks. Coach-mark anchors now attach to the first node of each type
+  only.
+- The floating dashboard prompts ("Plan tonight", "Skip this step") reserve
+  the space they actually occupy — measured after layout, tracking text-scale
+  and locale rewraps — so the last dashboard row can always scroll clear of
+  them, and dismissing one prompt cannot collapse the reserve under the other.
+- Operator stops are no longer pushed to your phone as critical FAILURES.
+- A completed run shows one completion row (the wire's duplicate terminal echo
+  no longer renders as "Sequence complete ×2").
+- The "No active target — load a sequence to begin." glance line no longer
+  instructs you to load a sequence while one is visibly running.
+- Meridian-flip, autofocus, and recenter triggers wait for the in-flight
+  exposure via a camera claim instead of stomping it; Pause and Park never
+  wait.
+- The stacked preview renders with the shared screen-transfer stretch instead
+  of a linear one that showed every sky as black.
+- Plate-solve centering: the `.wcs` parser read only the first header card,
+  no field-scale hint was passed to the solver, and an interval-autofocus
+  fired mid-run at frame 25 — all three fixed.
+
+### Changed
+
+- ~100 duplicated call sites consolidated onto single implementations
+  (sidereal time ×14, coordinate formatting ×39, duration formatting ×30),
+  each pinned by exact-equality parity tests; 118 oversized files split into
+  reviewable modules; the generated bridge bindings regenerated to mirror the
+  new module tree.
+- PHD2 is visible to the connected-devices API, ending false "guider
+  disconnected" warnings while PHD2 was guiding.
+- The coverage ledger now counts every shipped tree, including the hub server
+  (1,182 units / 3,826 interactive controls).
+
 ## [6.0.0] — Make It Real / Collaborative Sky (build 24)
 
 Everything since 5.0.0: a reliability substrate for rigs left running unattended,

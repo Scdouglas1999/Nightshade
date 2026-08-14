@@ -614,6 +614,16 @@ Future<ApiLiveStackingResult> apiStackingAddFrameFromData({
   data: data,
 );
 
+/// Save the accumulated stack as a FITS master.
+///
+/// This is the session's data product — a PNG of the same pixels carries no
+/// header, no WCS and no integration time.
+Future<ApiLiveStackingMaster> apiStackingSaveMasterFits({
+  required String filePath,
+}) => RustLib.instance.api.crateApiImagingApiStackingSaveMasterFits(
+  filePath: filePath,
+);
+
 /// Get the current stacked result without adding a frame.
 Future<ApiLiveStackingResult> apiStackingGetResult() =>
     RustLib.instance.api.crateApiImagingApiStackingGetResult();
@@ -919,6 +929,45 @@ class ApiLiveStackingConfig {
           sensorMode == other.sensorMode &&
           bayerPattern == other.bayerPattern &&
           demosaicQuality == other.demosaicQuality;
+}
+
+/// What was written when the stacked master was saved.
+class ApiLiveStackingMaster {
+  final String filePath;
+  final int stackedFrameCount;
+
+  /// The master's `EXPTIME`: Σ of the exposures the stacked frames reported.
+  /// `0.0` means no frame reported one (an in-memory stack has no headers to
+  /// read); the FITS card comment says so.
+  final double totalIntegrationSecs;
+
+  /// The master's `DATE-OBS`: the earliest stacked frame's stamp, or the
+  /// moment the stack started when no frame carried one.
+  final String dateObs;
+
+  const ApiLiveStackingMaster({
+    required this.filePath,
+    required this.stackedFrameCount,
+    required this.totalIntegrationSecs,
+    required this.dateObs,
+  });
+
+  @override
+  int get hashCode =>
+      filePath.hashCode ^
+      stackedFrameCount.hashCode ^
+      totalIntegrationSecs.hashCode ^
+      dateObs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ApiLiveStackingMaster &&
+          runtimeType == other.runtimeType &&
+          filePath == other.filePath &&
+          stackedFrameCount == other.stackedFrameCount &&
+          totalIntegrationSecs == other.totalIntegrationSecs &&
+          dateObs == other.dateObs;
 }
 
 /// Result from adding a frame to the live stack

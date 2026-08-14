@@ -87,16 +87,10 @@ impl DeviceManager {
                     "INDI dome not connected",
                 ))
             }
-            Some(DriverType::Native) => {
-                let mut native_domes = self.native_domes.write().await;
-                if let Some(dome) = native_domes.get_mut(device_id) {
-                    return dome.open_shutter().await.map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    "Native dome not connected",
-                ))
-            }
+            Some(DriverType::Native) => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                "Native dome not connected",
+            )),
             Some(DriverType::Simulator) => {
                 let mut dome = crate::api::devices::simulation::get_sim_dome()
                     .write()
@@ -177,16 +171,10 @@ impl DeviceManager {
                     "INDI dome not connected",
                 ))
             }
-            Some(DriverType::Native) => {
-                let mut native_domes = self.native_domes.write().await;
-                if let Some(dome) = native_domes.get_mut(device_id) {
-                    return dome.close_shutter().await.map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    "Native dome not connected",
-                ))
-            }
+            Some(DriverType::Native) => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                "Native dome not connected",
+            )),
             Some(DriverType::Simulator) => {
                 let mut dome = crate::api::devices::simulation::get_sim_dome()
                     .write()
@@ -298,24 +286,10 @@ impl DeviceManager {
                     "ASCOM not supported on this platform",
                 ))
             }
-            Some(DriverType::Native) => {
-                let mut native_domes = self.native_domes.write().await;
-                if let Some(dome) = native_domes.get_mut(device_id) {
-                    return dome.slew_to_azimuth(azimuth).await.map_err(|e| {
-                        DeviceOpError::hardware(
-                            Some(device_id.to_string()),
-                            format!(
-                                "Failed to slew native dome {} to azimuth {:.2}: {}",
-                                device_id, azimuth, e
-                            ),
-                        )
-                    });
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    "Native dome not connected",
-                ))
-            }
+            Some(DriverType::Native) => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                "Native dome not connected",
+            )),
             Some(DriverType::Simulator) => {
                 if !azimuth.is_finite() || !(0.0..360.0).contains(&azimuth) {
                     return Err(DeviceOpError::invalid_parameter(
@@ -396,16 +370,10 @@ impl DeviceManager {
                     "ASCOM not supported on this platform",
                 ))
             }
-            Some(DriverType::Native) => {
-                let native_domes = self.native_domes.read().await;
-                if let Some(dome) = native_domes.get(device_id) {
-                    return dome.get_azimuth().await.map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    "Native dome not connected",
-                ))
-            }
+            Some(DriverType::Native) => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                "Native dome not connected",
+            )),
             Some(DriverType::Simulator) => {
                 let dome = crate::api::devices::simulation::get_sim_dome().read().await;
                 if !dome.status.connected {
@@ -489,29 +457,10 @@ impl DeviceManager {
                 }
                 Ok(4) // Unknown/Error
             }
-            Some(DriverType::Native) => {
-                let native_domes = self.native_domes.read().await;
-                if let Some(dome) = native_domes.get(device_id) {
-                    let status = dome
-                        .get_shutter_status()
-                        .await
-                        .map_err(DeviceOpError::driver)?;
-                    // Convert ShutterState enum to i32: Open=0, Closed=1, Opening=2, Closing=3, Error=4, Unknown=5
-                    let code = match status {
-                        nightshade_native::traits::ShutterState::Open => 0,
-                        nightshade_native::traits::ShutterState::Closed => 1,
-                        nightshade_native::traits::ShutterState::Opening => 2,
-                        nightshade_native::traits::ShutterState::Closing => 3,
-                        nightshade_native::traits::ShutterState::Error => 4,
-                        nightshade_native::traits::ShutterState::Unknown => 5,
-                    };
-                    return Ok(code);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    "Native dome not connected",
-                ))
-            }
+            Some(DriverType::Native) => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                "Native dome not connected",
+            )),
             Some(DriverType::Simulator) => {
                 let dome = crate::api::devices::simulation::get_sim_dome().read().await;
                 if !dome.status.connected {
@@ -587,16 +536,10 @@ impl DeviceManager {
                     "INDI dome not connected",
                 ))
             }
-            Some(DriverType::Native) => {
-                let mut native_domes = self.native_domes.write().await;
-                if let Some(dome) = native_domes.get_mut(device_id) {
-                    return dome.park().await.map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    "Native dome not connected",
-                ))
-            }
+            Some(DriverType::Native) => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                "Native dome not connected",
+            )),
             Some(DriverType::Simulator) => {
                 let mut dome = crate::api::devices::simulation::get_sim_dome()
                     .write()
@@ -671,16 +614,10 @@ impl DeviceManager {
                     "INDI dome not connected",
                 ))
             }
-            Some(DriverType::Native) => {
-                let native_domes = self.native_domes.read().await;
-                if let Some(dome) = native_domes.get(device_id) {
-                    return dome.is_slewing().await.map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    "Native dome not connected",
-                ))
-            }
+            Some(DriverType::Native) => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                "Native dome not connected",
+            )),
             Some(DriverType::Simulator) => {
                 let dome = crate::api::devices::simulation::get_sim_dome().read().await;
                 if !dome.status.connected {
@@ -940,128 +877,10 @@ impl DeviceManager {
                     "INDI dome not connected",
                 ))
             }
-            Some(DriverType::Native) => {
-                let native_domes = self.native_domes.read().await;
-                if let Some(dome) = native_domes.get(device_id) {
-                    // Query all native dome properties
-                    let azimuth = dome.get_azimuth().await.map_err(|e| {
-                        DeviceOpError::hardware(
-                            Some(device_id.to_string()),
-                            format!(
-                                "Failed to read native dome azimuth for {}: {}",
-                                device_id, e
-                            ),
-                        )
-                    })?;
-                    let altitude = dome.get_altitude().await.ok().flatten();
-                    let shutter_state_native = match dome.get_shutter_status().await {
-                        Ok(s) => s,
-                        Err(nightshade_native::traits::NativeError::NotSupported) => {
-                            nightshade_native::traits::ShutterState::Unknown
-                        }
-                        Err(e) => {
-                            return Err(DeviceOpError::hardware(
-                                Some(device_id.to_string()),
-                                format!(
-                                    "Failed to read native dome shutter status for {}: {}",
-                                    device_id, e
-                                ),
-                            ));
-                        }
-                    };
-                    let shutter_status = match shutter_state_native {
-                        nightshade_native::traits::ShutterState::Open => {
-                            crate::device::ShutterState::Open
-                        }
-                        nightshade_native::traits::ShutterState::Closed => {
-                            crate::device::ShutterState::Closed
-                        }
-                        nightshade_native::traits::ShutterState::Opening => {
-                            crate::device::ShutterState::Opening
-                        }
-                        nightshade_native::traits::ShutterState::Closing => {
-                            crate::device::ShutterState::Closing
-                        }
-                        nightshade_native::traits::ShutterState::Error => {
-                            crate::device::ShutterState::Error
-                        }
-                        nightshade_native::traits::ShutterState::Unknown => {
-                            crate::device::ShutterState::Unknown
-                        }
-                    };
-                    let slewing = match dome.is_slewing().await {
-                        Ok(s) => s,
-                        Err(nightshade_native::traits::NativeError::NotSupported) => false,
-                        Err(e) => {
-                            return Err(DeviceOpError::hardware(
-                                Some(device_id.to_string()),
-                                format!(
-                                    "Failed to read native dome slewing for {}: {}",
-                                    device_id, e
-                                ),
-                            ));
-                        }
-                    };
-                    let at_home = match dome.is_at_home().await {
-                        Ok(h) => h,
-                        Err(nightshade_native::traits::NativeError::NotSupported) => false,
-                        Err(e) => {
-                            return Err(DeviceOpError::hardware(
-                                Some(device_id.to_string()),
-                                format!(
-                                    "Failed to read native dome is_at_home for {}: {}",
-                                    device_id, e
-                                ),
-                            ));
-                        }
-                    };
-                    let at_park = match dome.is_parked().await {
-                        Ok(p) => p,
-                        Err(nightshade_native::traits::NativeError::NotSupported) => false,
-                        Err(e) => {
-                            return Err(DeviceOpError::hardware(
-                                Some(device_id.to_string()),
-                                format!(
-                                    "Failed to read native dome is_parked for {}: {}",
-                                    device_id, e
-                                ),
-                            ));
-                        }
-                    };
-                    let is_slaved = match dome.is_slaved().await {
-                        Ok(s) => s,
-                        Err(nightshade_native::traits::NativeError::NotSupported) => false,
-                        Err(e) => {
-                            return Err(DeviceOpError::hardware(
-                                Some(device_id.to_string()),
-                                format!(
-                                    "Failed to read native dome is_slaved for {}: {}",
-                                    device_id, e
-                                ),
-                            ));
-                        }
-                    };
-
-                    return Ok(crate::device::DomeStatus {
-                        connected: true,
-                        azimuth,
-                        altitude,
-                        shutter_status,
-                        slewing,
-                        at_home,
-                        at_park,
-                        can_set_altitude: dome.can_set_altitude(),
-                        can_set_azimuth: dome.can_set_azimuth(),
-                        can_set_shutter: dome.can_set_shutter(),
-                        can_slave: dome.can_slave(),
-                        is_slaved,
-                    });
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    "Native dome not connected",
-                ))
-            }
+            Some(DriverType::Native) => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                "Native dome not connected",
+            )),
             Some(DriverType::Simulator) => {
                 let dome = crate::api::devices::simulation::get_sim_dome().read().await;
                 if !dome.status.connected {
@@ -1143,16 +962,10 @@ impl DeviceManager {
                     "INDI dome not connected",
                 ))
             }
-            Some(DriverType::Native) => {
-                let mut native_domes = self.native_domes.write().await;
-                if let Some(dome) = native_domes.get_mut(device_id) {
-                    return dome.set_slaved(slaved).await.map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    "Native dome not connected",
-                ))
-            }
+            Some(DriverType::Native) => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                "Native dome not connected",
+            )),
             Some(DriverType::Simulator) => {
                 let mut dome = crate::api::devices::simulation::get_sim_dome()
                     .write()
@@ -1224,16 +1037,10 @@ impl DeviceManager {
                     "INDI dome not connected",
                 ))
             }
-            Some(DriverType::Native) => {
-                let mut native_domes = self.native_domes.write().await;
-                if let Some(dome) = native_domes.get_mut(device_id) {
-                    return dome.find_home().await.map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    "Native dome not connected",
-                ))
-            }
+            Some(DriverType::Native) => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                "Native dome not connected",
+            )),
             Some(DriverType::Simulator) => {
                 let mut dome = crate::api::devices::simulation::get_sim_dome()
                     .write()
@@ -1307,16 +1114,10 @@ impl DeviceManager {
                     "INDI dome not connected",
                 ))
             }
-            Some(DriverType::Native) => {
-                let mut native_domes = self.native_domes.write().await;
-                if let Some(dome) = native_domes.get_mut(device_id) {
-                    return dome.abort_slew().await.map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    "Native dome not connected",
-                ))
-            }
+            Some(DriverType::Native) => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                "Native dome not connected",
+            )),
             Some(DriverType::Simulator) => {
                 let mut dome = crate::api::devices::simulation::get_sim_dome()
                     .write()

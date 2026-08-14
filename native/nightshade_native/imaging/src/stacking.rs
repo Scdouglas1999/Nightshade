@@ -7,6 +7,7 @@
 //! - Parallel pixel operations via rayon
 
 use crate::integration::{integrate_columns, Combine, IntegrationConfig, IntegrationFrame, Reject};
+use crate::stack_master::{FrameProvenance, StackProvenance};
 use crate::{
     debayer_u16, detect_stars, BayerPattern, DebayerAlgorithm, DetectedStar, ImageData, PixelType,
     StarDetectionConfig,
@@ -325,6 +326,10 @@ pub struct LiveStacker {
     /// Running statistics
     stats: StackingStats,
 
+    /// What the stacked frames' own headers said, folded for the master's FITS
+    /// header. See [`crate::stack_master`].
+    provenance: StackProvenance,
+
     /// Centroid of reference stars for transform computation
     ref_centroid: (f64, f64),
 }
@@ -335,7 +340,21 @@ impl LiveStacker {
     /// The reference frame defines the coordinate system that all subsequent
     /// frames will be aligned to. Stars are detected in the reference frame
     /// and stored for matching.
+    ///
+    /// The reference frame contributes pixels to the master, so it contributes
+    /// provenance too — as unknown here. Callers that read the reference from a
+    /// file should use [`LiveStacker::new_with_provenance`] so the master's
+    /// `EXPTIME` / `DATE-OBS` count it.
     pub fn new(reference_frame: &ImageData, config: LiveStackConfig) -> Result<Self, String> {
+        Self::new_with_provenance(reference_frame, config, &FrameProvenance::unknown())
+    }
+
+    /// Create a live stacker whose reference frame arrived with a header.
+    pub fn new_with_provenance(
+        reference_frame: &ImageData,
+        config: LiveStackConfig,
+        reference_provenance: &FrameProvenance,
+    ) -> Result<Self, String> {
         if reference_frame.is_empty() {
             return Err("Reference frame is empty".to_string());
         }
@@ -407,11 +426,13 @@ impl LiveStacker {
             accumulators,
             config,
             stats: StackingStats::default(),
+            provenance: StackProvenance::default(),
             ref_centroid,
         };
 
         stacker.stats.total_frames_attempted = 1;
         stacker.stats.stacked_frame_count = 1;
+        stacker.provenance.fold(reference_provenance);
 
         Ok(stacker)
     }
@@ -425,6 +446,18 @@ impl LiveStacker {
     /// 4. Apply transform to align frame pixels to reference
     /// 5. Accumulate aligned pixels with optional sigma-clipping rejection
     pub fn add_frame(&mut self, frame: &ImageData) -> Result<ImageData, String> {
+        self.add_frame_with_provenance(frame, &FrameProvenance::unknown())
+    }
+
+    /// Add a frame that arrived with a header of its own. Only frames that are
+    /// actually stacked fold into the master's provenance — a frame rejected
+    /// for alignment contributes no pixels, so it must contribute no
+    /// integration time either.
+    pub fn add_frame_with_provenance(
+        &mut self,
+        frame: &ImageData,
+        provenance: &FrameProvenance,
+    ) -> Result<ImageData, String> {
         self.stats.total_frames_attempted += 1;
 
         // Validate dimensions
@@ -560,6 +593,7 @@ impl LiveStacker {
 
         // Update stats
         self.stats.stacked_frame_count += 1;
+        self.provenance.fold(provenance);
         // Why (audit IMG-): `avg_matched_pairs` and
         // `avg_alignment_residual` are *per-aligned-frame* metrics. The
         // reference frame contributes neither — it is not matched against
@@ -673,6 +707,9 @@ impl LiveStacker {
         let pixel_count = (self.width as usize) * (self.height as usize) * (self.channels as usize);
         self.accumulators = vec![PixelAccumulator::default(); pixel_count];
         self.stats = StackingStats::default();
+        // The reset drops every accumulated pixel, so the integration those
+        // frames contributed goes with them: a new stack starts now.
+        self.provenance = StackProvenance::default();
         tracing::info!("Live stacker reset");
     }
 
@@ -684,6 +721,11 @@ impl LiveStacker {
     /// Get stacking statistics.
     pub fn get_stats(&self) -> StackingStats {
         self.stats.clone()
+    }
+
+    /// The provenance of the frames actually in the stack, for the FITS master.
+    pub fn provenance(&self) -> &StackProvenance {
+        &self.provenance
     }
 }
 
@@ -2726,6 +2768,59 @@ mod tests {
             1,
             "a rejected frame must not be counted into the stack"
         );
+        assert_eq!(
+            strict.provenance().stacked_frames(),
+            1,
+            "a rejected frame must not be counted into the master's provenance"
+        );
+    }
+
+    /// The master's integration counts the frames whose pixels are in it — the
+    /// reference included, a rejected frame excluded.
+    #[test]
+    fn provenance_sums_the_exposures_of_the_frames_actually_stacked() {
+        let field = osc_test_field();
+        let reference = make_test_image(512, 512, &field);
+        let shifted = make_test_image(512, 512, &shift_field(&field, 3.0, 2.0));
+        let starless = make_test_image(512, 512, &[]);
+
+        let mut stacker = LiveStacker::new_with_provenance(
+            &reference,
+            osc_test_config(),
+            &FrameProvenance {
+                exposure_secs: Some(90.0),
+                date_obs: Some("2026-08-14T03:22:30".to_string()),
+            },
+        )
+        .expect("reference accepted");
+
+        stacker
+            .add_frame_with_provenance(
+                &shifted,
+                &FrameProvenance {
+                    exposure_secs: Some(90.0),
+                    date_obs: Some("2026-08-14T03:21:00".to_string()),
+                },
+            )
+            .expect("shifted frame stacked");
+        stacker
+            .add_frame_with_provenance(
+                &starless,
+                &FrameProvenance {
+                    exposure_secs: Some(90.0),
+                    date_obs: Some("2026-08-14T03:19:30".to_string()),
+                },
+            )
+            .expect_err("a starless frame cannot align");
+
+        assert_eq!(stacker.provenance().stacked_frames(), 2);
+        assert_eq!(stacker.provenance().total_integration_secs(), 180.0);
+        let header = stacker.provenance().to_fits_header();
+        assert_eq!(
+            header.get_string("DATE-OBS"),
+            Some("2026-08-14T03:21:00.000"),
+            "DATE-OBS must come from the earliest STACKED frame, not the rejected one"
+        );
     }
 
     /// (1) Regression: the mono two-frame stack is unchanged by this work.
@@ -2898,6 +2993,7 @@ mod tests {
                 ..LiveStackConfig::default()
             },
             stats: StackingStats::default(),
+            provenance: StackProvenance::default(),
             ref_centroid: (0.0, 0.0),
         };
 

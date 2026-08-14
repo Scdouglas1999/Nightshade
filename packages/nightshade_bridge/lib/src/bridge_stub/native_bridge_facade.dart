@@ -205,8 +205,6 @@ abstract final class NativeBridge {
     minPulseMs: minPulseMs,
     maxPulseMs: maxPulseMs,
   );
-  static Future<void> phd2AutoSelectStar() =>
-      _nativeBridge.phd2AutoSelectStar();
   static Future<void> phd2Loop() => _nativeBridge.phd2Loop();
   static Future<List<String>> phd2GetAlgoParamNames({required String axis}) =>
       _nativeBridge.phd2GetAlgoParamNames(axis: axis);

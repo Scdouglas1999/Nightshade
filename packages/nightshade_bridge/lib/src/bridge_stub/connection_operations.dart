@@ -85,138 +85,36 @@ extension _NativeBridgeConnectionOperations on _NativeBridgeImplementation {
     }
 
     // =========================================================================
-    // Try Native Bridge Connection First (for ASCOM, native, Alpaca, INDI)
+    // Native Bridge Connection (ASCOM, Alpaca, INDI, native vendor SDKs)
     // =========================================================================
-    // For devices discovered by native bridge (ascom:, native:, indi:),
-    // always use native bridge connection. For other devices (alpaca:),
-    // try native bridge first but fall back to the fallback path if needed.
-    final shouldUseNativeOnly =
-        deviceId.startsWith('ascom:') ||
-        deviceId.startsWith('native:') ||
-        deviceId.startsWith('indi:');
-
-    if (_nativeAvailable) {
-      try {
-        developer.log(
-          '[Bridge] Attempting native connection for $deviceId...',
-          name: 'NativeBridge',
-          level: 800,
-        );
-        final genDeviceType = _toGenDeviceType(deviceType);
-        await gen_api.apiConnectDevice(
-          deviceType: genDeviceType,
-          deviceId: deviceId,
-        );
-        developer.log(
-          '[Bridge] âœ“ Successfully connected to $deviceId via native bridge',
-          name: 'NativeBridge',
-          level: 800,
-        );
-
-        _recordConnectedDevice(deviceType: deviceType, deviceId: deviceId);
-
-        // Emit connection event
-        _eventController.add(
-          _FallbackNightshadeEvent(
-            timestamp: DateTime.now().millisecondsSinceEpoch,
-            severity: EventSeverity.info,
-            category: EventCategory.equipment,
-            eventType: 'Connected',
-            data: {'deviceType': deviceType.name, 'deviceId': deviceId},
-          ),
-        );
-
-        return; // Success - native bridge handled it
-      } catch (e, stackTrace) {
-        developer.log(
-          '[Bridge] âœ— Native connection failed for $deviceId',
-          name: 'NativeBridge',
-          level: 1000,
-          error: e,
-          stackTrace: stackTrace,
-        );
-
-        // If this device must use native bridge (was discovered by it),
-        // don't fall back - throw the error
-        if (shouldUseNativeOnly) {
-          throw Exception(
-            'Failed to connect to $deviceId via native bridge: $e',
-          );
-        }
-
-        developer.log(
-          '[Bridge] Device supports fallback - trying fallback methods...',
-          name: 'NativeBridge',
-          level: 900,
-        );
-        // Continue to fallback bridge methods below
-      }
-    } else if (shouldUseNativeOnly) {
-      // Native bridge required but not available
+    // Rust owns every device family, so a missing native bridge is a hard
+    // failure rather than a reason to try a second implementation.
+    if (!_nativeAvailable) {
       throw Exception(
         'Cannot connect to $deviceId: Native bridge required but not available',
       );
     }
 
-    // =========================================================================
-    // Fallback Connection Methods (for when native bridge unavailable)
-    // =========================================================================
-
-    // Check if this is an Alpaca device
-    if (deviceId.startsWith('alpaca:')) {
-      await _connectAlpacaDevice(deviceType, deviceId);
-      return;
-    }
-
-    // Check if this is an ASCOM device
-    if (deviceId.startsWith('ascom:')) {
-      await _connectAscomDevice(deviceType, deviceId);
-      return;
-    }
-
-    // Unknown device type - can't connect
-    throw Exception(
-      'Unknown device: $deviceId. No ASCOM/Alpaca devices found.',
-    );
-  }
-
-  /// Connect to an ASCOM device
-  Future<void> _connectAscomDevice(
-    DeviceType deviceType,
-    String deviceId,
-  ) async {
-    if (!Platform.isWindows) {
-      throw Exception('ASCOM is only available on Windows');
-    }
-
-    // Parse the device ID: ascom:ProgID
-    final progId = deviceId.substring(6); // Remove "ascom:"
-
-    final ascomType = _deviceTypeToAscomType(deviceType);
-    if (ascomType == null) {
-      throw Exception('Unsupported device type for ASCOM: $deviceType');
-    }
-
-    final client = ascom.AscomDeviceClient(
-      progId: progId,
-      deviceType: ascomType,
-    );
-
     try {
       developer.log(
-        '[ASCOM] Connecting to device: $progId',
+        '[Bridge] Attempting native connection for $deviceId...',
         name: 'NativeBridge',
         level: 800,
       );
-      await client.connect();
-
-      _ascomClients[deviceId] = client;
-      _recordConnectedDevice(
-        deviceType: deviceType,
+      final genDeviceType = _toGenDeviceType(deviceType);
+      await gen_api.apiConnectDevice(
+        deviceType: genDeviceType,
         deviceId: deviceId,
-        driverType: DriverType.ascom,
+      );
+      developer.log(
+        '[Bridge] Successfully connected to $deviceId via native bridge',
+        name: 'NativeBridge',
+        level: 800,
       );
 
+      _recordConnectedDevice(deviceType: deviceType, deviceId: deviceId);
+
+      // Emit connection event
       _eventController.add(
         _FallbackNightshadeEvent(
           timestamp: DateTime.now().millisecondsSinceEpoch,
@@ -226,217 +124,44 @@ extension _NativeBridgeConnectionOperations on _NativeBridgeImplementation {
           data: {'deviceType': deviceType.name, 'deviceId': deviceId},
         ),
       );
-
+    } catch (e, stackTrace) {
       developer.log(
-        '[ASCOM] Connected to device: $progId',
+        '[Bridge] Native connection failed for $deviceId',
         name: 'NativeBridge',
-        level: 800,
+        level: 1000,
+        error: e,
+        stackTrace: stackTrace,
       );
-    } catch (e) {
-      client.dispose();
-      throw Exception('Failed to connect to ASCOM device: $e');
-    }
-  }
-
-  /// Connect to an Alpaca device
-  Future<void> _connectAlpacaDevice(
-    DeviceType deviceType,
-    String deviceId,
-  ) async {
-    // Parse the device ID. Discovery emits the canonical form
-    //   alpaca:{protocol}://{host}:{port}:{type}:{num}
-    // (e.g. alpaca:http://127.0.0.1:32323:telescope:0), matching the Rust
-    // `parse_alpaca`. An older form `alpaca:host:port/type/number` is still
-    // accepted for backward compatibility. Previously this only handled the
-    // legacy slash form, so a canonical id split on '/' yielded host="http"
-    // (the protocol token), port=11111 (default), and an empty device type —
-    // producing the broken URL `http://http:11111/api/v1//0/connected` and
-    // failing every Alpaca connection.
-    final remainder = deviceId.substring(7); // Remove "alpaca:"
-    final String host;
-    final int port;
-    final String deviceTypeName;
-    final int deviceNumber;
-
-    if (remainder.contains('://')) {
-      // Canonical: protocol://host:port:type:num (colon-separated).
-      final afterProtocol = remainder.split('://').last;
-      final segs = afterProtocol.split(':');
-      if (segs.length < 4) {
-        throw Exception('Invalid Alpaca device ID: $deviceId');
-      }
-      // type and number are the last two segments; host:port are the first two.
-      // (Reading from the ends tolerates a host that itself contains extra
-      // colons, e.g. a future IPv6 literal.)
-      host = segs[0];
-      port = int.tryParse(segs[1]) ?? 11111;
-      deviceTypeName = segs[segs.length - 2];
-      deviceNumber = int.tryParse(segs[segs.length - 1]) ?? 0;
-    } else {
-      // Legacy: host:port/type/number (slash-separated type/number).
-      final parts = remainder.split('/');
-      if (parts.length < 3) {
-        throw Exception('Invalid Alpaca device ID: $deviceId');
-      }
-      final hostPort = parts[0].split(':');
-      if (hostPort.length != 2) {
-        throw Exception('Invalid Alpaca device ID: $deviceId');
-      }
-      host = hostPort[0];
-      port = int.tryParse(hostPort[1]) ?? 11111;
-      deviceTypeName = parts[1];
-      deviceNumber = int.tryParse(parts[2]) ?? 0;
-    }
-
-    final server = alpaca.AlpacaServer(host: host, port: port);
-    final alpacaDevice = alpaca.AlpacaDevice(
-      deviceName: 'Alpaca Device',
-      deviceType: deviceTypeName,
-      deviceNumber: deviceNumber,
-      uniqueId: deviceId,
-      server: server,
-    );
-
-    // Create appropriate client based on device type
-    alpaca.AlpacaClient client;
-    switch (deviceType) {
-      case DeviceType.camera:
-      case DeviceType.guider:
-        client = alpaca.AlpacaCameraClient(alpacaDevice);
-        break;
-      case DeviceType.mount:
-        client = alpaca.AlpacaMountClient(alpacaDevice);
-        break;
-      case DeviceType.focuser:
-        client = alpaca.AlpacaFocuserClient(alpacaDevice);
-        break;
-      case DeviceType.filterWheel:
-        client = alpaca.AlpacaFilterWheelClient(alpacaDevice);
-        break;
-      default:
-        client = alpaca.AlpacaClient(alpacaDevice);
-    }
-
-    try {
-      developer.log(
-        '[Alpaca] Connecting to device: $deviceId',
-        name: 'NativeBridge',
-        level: 800,
-      );
-      await client.connect();
-
-      _alpacaClients[deviceId] = client;
-      _alpacaDevices[deviceId] = alpacaDevice;
-      _recordConnectedDevice(
-        deviceType: deviceType,
-        deviceId: deviceId,
-        driverType: DriverType.alpaca,
-        name: alpacaDevice.deviceName,
-        displayName: alpacaDevice.deviceName,
-      );
-
-      _eventController.add(
-        _FallbackNightshadeEvent(
-          timestamp: DateTime.now().millisecondsSinceEpoch,
-          severity: EventSeverity.info,
-          category: EventCategory.equipment,
-          eventType: 'Connected',
-          data: {'deviceType': deviceType.name, 'deviceId': deviceId},
-        ),
-      );
-
-      developer.log(
-        '[Alpaca] Connected to device: $deviceId',
-        name: 'NativeBridge',
-        level: 800,
-      );
-    } catch (e) {
-      client.dispose();
-      throw Exception('Failed to connect to Alpaca device: $e');
+      throw Exception('Failed to connect to $deviceId via native bridge: $e');
     }
   }
 
   /// Disconnect from a device
   Future<void> disconnectDevice(DeviceType deviceType, String deviceId) async {
     // Handle PHD2 disconnection (supports new format: phd2:host:port or legacy: phd2)
-    var disconnectedByAuthoritativeBackend = false;
     if (_isPhd2DeviceId(deviceId)) {
       await phd2Disconnect();
-      disconnectedByAuthoritativeBackend = true;
-    }
-
-    // Native-backed connects are authoritative in Rust, so their matching
-    // disconnect must cross the same FFI boundary. Previously this method
-    // only deleted the Dart fallback bookkeeping below. The UI and headless
-    // endpoint therefore reported success while `api_get_connected_devices`
-    // still returned every device and the native drivers stayed open.
-    //
-    // Alpaca is the sole device family that may fall back to the direct Dart
-    // client after a native connect attempt fails. For it, a native
-    // "not registered" error is expected and we continue to the direct
-    // client cleanup. Every other native-available path must surface a Rust
-    // disconnect failure instead of claiming success.
-    if (_nativeAvailable && !disconnectedByAuthoritativeBackend) {
+    } else if (_nativeAvailable) {
+      // Connects are authoritative in Rust, so their matching disconnect must
+      // cross the same FFI boundary. Previously this method only deleted the
+      // Dart bookkeeping below. The UI and headless endpoint therefore
+      // reported success while `api_get_connected_devices` still returned
+      // every device and the native drivers stayed open. A Rust disconnect
+      // failure must surface instead of claiming success.
       try {
         await gen_api.apiDisconnectDevice(
           deviceType: _toGenDeviceType(deviceType),
           deviceId: deviceId,
         );
-        disconnectedByAuthoritativeBackend = true;
       } catch (error, stackTrace) {
-        if (!deviceId.startsWith('alpaca:')) {
-          developer.log(
-            '[Bridge] Native disconnect failed for $deviceId',
-            name: 'NativeBridge',
-            level: 1000,
-            error: error,
-            stackTrace: stackTrace,
-          );
-          rethrow;
-        }
         developer.log(
-          '[Bridge] Alpaca device $deviceId was not owned by the native '
-          'backend; using the direct Dart client cleanup.',
+          '[Bridge] Native disconnect failed for $deviceId',
           name: 'NativeBridge',
-          level: 800,
+          level: 1000,
+          error: error,
+          stackTrace: stackTrace,
         );
-      }
-    }
-
-    // Handle Alpaca device disconnection
-    if (!disconnectedByAuthoritativeBackend && deviceId.startsWith('alpaca:')) {
-      final client = _alpacaClients[deviceId];
-      if (client != null) {
-        try {
-          await client.disconnect();
-        } catch (e) {
-          developer.log(
-            '[Alpaca] Error disconnecting device: $e',
-            name: 'NativeBridge',
-            level: 1000,
-          );
-        }
-        client.dispose();
-        _alpacaClients.remove(deviceId);
-        _alpacaDevices.remove(deviceId);
-      }
-    }
-
-    // Handle ASCOM device disconnection
-    if (!disconnectedByAuthoritativeBackend && deviceId.startsWith('ascom:')) {
-      final client = _ascomClients[deviceId];
-      if (client != null) {
-        try {
-          await client.disconnect();
-        } catch (e) {
-          developer.log(
-            '[ASCOM] Error disconnecting device: $e',
-            name: 'NativeBridge',
-            level: 1000,
-          );
-        }
-        client.dispose();
-        _ascomClients.remove(deviceId);
+        rethrow;
       }
     }
 

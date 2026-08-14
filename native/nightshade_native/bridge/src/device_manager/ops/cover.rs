@@ -46,30 +46,6 @@ use crate::device_manager::DeviceManager;
 use crate::dispatch::DeviceOpError;
 use tracing::warn;
 
-fn native_cover_state_to_bridge(state: nightshade_native::traits::NativeCoverState) -> CoverState {
-    match state {
-        nightshade_native::traits::NativeCoverState::NotPresent => CoverState::NotPresent,
-        nightshade_native::traits::NativeCoverState::Closed => CoverState::Closed,
-        nightshade_native::traits::NativeCoverState::Moving => CoverState::Moving,
-        nightshade_native::traits::NativeCoverState::Open => CoverState::Open,
-        nightshade_native::traits::NativeCoverState::Unknown => CoverState::Unknown,
-        nightshade_native::traits::NativeCoverState::Error => CoverState::Error,
-    }
-}
-
-fn native_calibrator_state_to_bridge(
-    state: nightshade_native::traits::NativeCalibratorState,
-) -> CalibratorState {
-    match state {
-        nightshade_native::traits::NativeCalibratorState::NotPresent => CalibratorState::NotPresent,
-        nightshade_native::traits::NativeCalibratorState::Off => CalibratorState::Off,
-        nightshade_native::traits::NativeCalibratorState::NotReady => CalibratorState::NotReady,
-        nightshade_native::traits::NativeCalibratorState::Ready => CalibratorState::Ready,
-        nightshade_native::traits::NativeCalibratorState::Unknown => CalibratorState::Unknown,
-        nightshade_native::traits::NativeCalibratorState::Error => CalibratorState::Error,
-    }
-}
-
 impl DeviceManager {
     async fn indi_cover_calibrator(
         &self,
@@ -129,16 +105,10 @@ impl DeviceManager {
                 let cover_cal = self.indi_cover_calibrator(device_id).await?;
                 cover_cal.open_cover().await.map_err(DeviceOpError::driver)
             }
-            Some(DriverType::Native) => {
-                let mut covers = self.native_cover_calibrators.write().await;
-                if let Some(cover_cal) = covers.get_mut(device_id) {
-                    return cover_cal.open_cover().await.map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    format!("Native cover calibrator {} not found", device_id),
-                ))
-            }
+            Some(DriverType::Native) => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                format!("Native cover calibrator {} not found", device_id),
+            )),
             Some(DriverType::Simulator) => {
                 sim::sim_cover_move(true).await.map_err(DeviceOpError::from)
             }
@@ -182,16 +152,10 @@ impl DeviceManager {
                 let cover_cal = self.indi_cover_calibrator(device_id).await?;
                 cover_cal.close_cover().await.map_err(DeviceOpError::driver)
             }
-            Some(DriverType::Native) => {
-                let mut covers = self.native_cover_calibrators.write().await;
-                if let Some(cover_cal) = covers.get_mut(device_id) {
-                    return cover_cal.close_cover().await.map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    format!("Native cover calibrator {} not found", device_id),
-                ))
-            }
+            Some(DriverType::Native) => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                format!("Native cover calibrator {} not found", device_id),
+            )),
             Some(DriverType::Simulator) => sim::sim_cover_move(false)
                 .await
                 .map_err(DeviceOpError::from),
@@ -235,16 +199,10 @@ impl DeviceManager {
                 let cover_cal = self.indi_cover_calibrator(device_id).await?;
                 cover_cal.halt_cover().await.map_err(DeviceOpError::driver)
             }
-            Some(DriverType::Native) => {
-                let mut covers = self.native_cover_calibrators.write().await;
-                if let Some(cover_cal) = covers.get_mut(device_id) {
-                    return cover_cal.halt_cover().await.map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    format!("Native cover calibrator {} not found", device_id),
-                ))
-            }
+            Some(DriverType::Native) => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                format!("Native cover calibrator {} not found", device_id),
+            )),
             Some(DriverType::Simulator) => sim::sim_cover_halt().await.map_err(DeviceOpError::from),
             _ => Err(DeviceOpError::unsupported(
                 "Cover calibrator not supported for this driver type",
@@ -299,19 +257,10 @@ impl DeviceManager {
                     .await
                     .map_err(DeviceOpError::driver)
             }
-            Some(DriverType::Native) => {
-                let mut covers = self.native_cover_calibrators.write().await;
-                if let Some(cover_cal) = covers.get_mut(device_id) {
-                    return cover_cal
-                        .calibrator_on(brightness)
-                        .await
-                        .map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    format!("Native cover calibrator {} not found", device_id),
-                ))
-            }
+            Some(DriverType::Native) => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                format!("Native cover calibrator {} not found", device_id),
+            )),
             Some(DriverType::Simulator) => sim::sim_calibrator_on(brightness)
                 .await
                 .map_err(DeviceOpError::from),
@@ -364,19 +313,10 @@ impl DeviceManager {
                     .await
                     .map_err(DeviceOpError::driver)
             }
-            Some(DriverType::Native) => {
-                let mut covers = self.native_cover_calibrators.write().await;
-                if let Some(cover_cal) = covers.get_mut(device_id) {
-                    return cover_cal
-                        .calibrator_off()
-                        .await
-                        .map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    format!("Native cover calibrator {} not found", device_id),
-                ))
-            }
+            Some(DriverType::Native) => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                format!("Native cover calibrator {} not found", device_id),
+            )),
             Some(DriverType::Simulator) => {
                 sim::sim_calibrator_off().await.map_err(DeviceOpError::from)
             }
@@ -425,21 +365,10 @@ impl DeviceManager {
                 let cover_cal = self.indi_cover_calibrator(device_id).await?;
                 Ok(cover_cal.get_cover_state().await.to_i32())
             }
-            Some(DriverType::Native) => {
-                let covers = self.native_cover_calibrators.read().await;
-                if let Some(cover_cal) = covers.get(device_id) {
-                    return cover_cal
-                        .get_cover_state()
-                        .await
-                        .map(native_cover_state_to_bridge)
-                        .map(|state| state.to_i32())
-                        .map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    format!("Native cover calibrator {} not found", device_id),
-                ))
-            }
+            Some(DriverType::Native) => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                format!("Native cover calibrator {} not found", device_id),
+            )),
             Some(DriverType::Simulator) => sim::sim_cover_status()
                 .await
                 .map(|status| status.cover_state.to_i32())
@@ -492,21 +421,10 @@ impl DeviceManager {
                 let cover_cal = self.indi_cover_calibrator(device_id).await?;
                 Ok(cover_cal.get_calibrator_state().await.to_i32())
             }
-            Some(DriverType::Native) => {
-                let covers = self.native_cover_calibrators.read().await;
-                if let Some(cover_cal) = covers.get(device_id) {
-                    return cover_cal
-                        .get_calibrator_state()
-                        .await
-                        .map(native_calibrator_state_to_bridge)
-                        .map(|state| state.to_i32())
-                        .map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    format!("Native cover calibrator {} not found", device_id),
-                ))
-            }
+            Some(DriverType::Native) => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                format!("Native cover calibrator {} not found", device_id),
+            )),
             Some(DriverType::Simulator) => sim::sim_cover_status()
                 .await
                 .map(|status| status.calibrator_state.to_i32())
@@ -557,19 +475,10 @@ impl DeviceManager {
                     .await
                     .map_err(DeviceOpError::driver)
             }
-            Some(DriverType::Native) => {
-                let covers = self.native_cover_calibrators.read().await;
-                if let Some(cover_cal) = covers.get(device_id) {
-                    return cover_cal
-                        .get_brightness()
-                        .await
-                        .map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    format!("Native cover calibrator {} not found", device_id),
-                ))
-            }
+            Some(DriverType::Native) => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                format!("Native cover calibrator {} not found", device_id),
+            )),
             Some(DriverType::Simulator) => sim::sim_cover_status()
                 .await
                 .map(|status| status.brightness)
@@ -623,19 +532,10 @@ impl DeviceManager {
                     .await
                     .map_err(DeviceOpError::driver)
             }
-            Some(DriverType::Native) => {
-                let covers = self.native_cover_calibrators.read().await;
-                if let Some(cover_cal) = covers.get(device_id) {
-                    return cover_cal
-                        .get_max_brightness()
-                        .await
-                        .map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    format!("Native cover calibrator {} not found", device_id),
-                ))
-            }
+            Some(DriverType::Native) => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                format!("Native cover calibrator {} not found", device_id),
+            )),
             Some(DriverType::Simulator) => sim::sim_cover_status()
                 .await
                 .map(|status| status.max_brightness)

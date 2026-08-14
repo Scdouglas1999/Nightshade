@@ -650,6 +650,16 @@ impl AutofocusOutcome {
     }
 }
 
+/// Where the focuser is right now, or `None` when the rig has no focuser or the
+/// driver will not answer. Used either side of a trigger-fired sweep so the
+/// continuation record can name the focus the run kept.
+pub(super) async fn read_focuser_position(
+    device_ops: &SharedDeviceOps,
+    focuser_id: Option<&String>,
+) -> Option<i32> {
+    device_ops.focuser_get_position(focuser_id?).await.ok()
+}
+
 /// Decide whether frames are still worth capturing after autofocus failed.
 ///
 /// `reference` is the run's good HFR (the baseline the degradation trigger

@@ -31,14 +31,23 @@ class _ExecutorSink implements SchedulerSequenceSink, SchedulerRunOwnership {
   int parkCount = 0;
   int releaseCount = 0;
 
+  /// How the run that left [activeRunId] ended, as the real sink reads it off
+  /// the executor's terminal state.
+  SchedulerRunEnding ending = SchedulerRunEnding.failed;
+
   /// The autopilot's own run ends by a path the engine never hears about — a
-  /// failed Center, an abort, the operator's Stop. The executor settles and
-  /// NOTHING is running afterwards.
-  void dispatchedRunEnded() => activeRunId = null;
+  /// failed Center, an abort. The executor settles and NOTHING is running
+  /// afterwards. (An operator Stop is the same shape but a different verdict;
+  /// it is covered in scheduler_operator_stop_pause_test.dart.)
+  void dispatchedRunEnded() {
+    activeRunId = null;
+    ending = SchedulerRunEnding.failed;
+  }
 
   /// The operator takes the rig back with a run of their own.
   void operatorTakesOver({String manualRunId = 'operator-manual-run'}) {
     activeRunId = manualRunId;
+    ending = SchedulerRunEnding.stoppedByOperator;
   }
 
   @override
@@ -79,6 +88,9 @@ class _ExecutorSink implements SchedulerSequenceSink, SchedulerRunOwnership {
 
   @override
   bool get hasActiveRun => activeRunId != null;
+
+  @override
+  SchedulerRunEnding endingFor(String sequenceId) => ending;
 }
 
 const _site = SchedulerSite(

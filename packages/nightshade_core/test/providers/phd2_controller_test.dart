@@ -13,7 +13,6 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:nightshade_bridge/nightshade_bridge.dart' show Phd2State;
 import 'package:nightshade_core/nightshade_core.dart';
 
 class _MockBackend extends Mock implements NightshadeBackend {}

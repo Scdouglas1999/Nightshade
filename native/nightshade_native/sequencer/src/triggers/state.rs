@@ -489,6 +489,24 @@ impl TriggerState {
         self.autofocus_invalidation_reason = None;
     }
 
+    /// Mark that autofocus was ATTEMPTED at this frame and did not converge.
+    ///
+    /// The cadence anchor moves even though focus did not improve, because the
+    /// unattended trigger policy (owner decision 2026-08-14) is to continue on
+    /// the last-good focus. Leaving `last_autofocus_frame` where it was would
+    /// keep `frames_since_af >= every_n_frames` true forever, so the interval
+    /// trigger — which deliberately carries no time cooldown — would re-fire a
+    /// failing autofocus after EVERY subsequent frame and spend the rest of the
+    /// night sweeping instead of imaging. Retry one full cadence later.
+    ///
+    /// The stale-focus latch is dropped for the same reason it is dropped when
+    /// the action is impossible: the HFR trigger force-fires on it every
+    /// evaluation tick otherwise.
+    pub fn mark_autofocus_attempted(&mut self) {
+        self.last_autofocus_frame = self.completed_exposures;
+        self.clear_autofocus_invalidation();
+    }
+
     /// Drop a pending "autofocus is stale" latch WITHOUT claiming an autofocus
     /// actually ran.
     ///

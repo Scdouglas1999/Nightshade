@@ -123,7 +123,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -1863281676;
+  int get rustContentHash => -1262008658;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -1557,6 +1557,10 @@ abstract class RustLibApi extends BaseApi {
   bool crateApiImagingApiStackingIsActive();
 
   Future<void> crateApiImagingApiStackingReset();
+
+  Future<ApiLiveStackingMaster> crateApiImagingApiStackingSaveMasterFits({
+    required String filePath,
+  });
 
   Future<ApiLiveStackingStats> crateApiImagingApiStackingStart({
     required String referenceImagePath,
@@ -12503,6 +12507,36 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "api_stacking_reset", argNames: []);
 
   @override
+  Future<ApiLiveStackingMaster> crateApiImagingApiStackingSaveMasterFits({
+    required String filePath,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          var arg0 = cst_encode_String(filePath);
+          return wire.wire__crate__api__imaging__api_stacking_save_master_fits(
+            port_,
+            arg0,
+          );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_api_live_stacking_master,
+          decodeErrorData: dco_decode_nightshade_error,
+        ),
+        constMeta: kCrateApiImagingApiStackingSaveMasterFitsConstMeta,
+        argValues: [filePath],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiImagingApiStackingSaveMasterFitsConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_stacking_save_master_fits",
+        argNames: ["filePath"],
+      );
+
+  @override
   Future<ApiLiveStackingStats> crateApiImagingApiStackingStart({
     required String referenceImagePath,
     required ApiLiveStackingConfig config,
@@ -15283,6 +15317,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       sensorMode: dco_decode_String(arr[6]),
       bayerPattern: dco_decode_opt_String(arr[7]),
       demosaicQuality: dco_decode_String(arr[8]),
+    );
+  }
+
+  @protected
+  ApiLiveStackingMaster dco_decode_api_live_stacking_master(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return ApiLiveStackingMaster(
+      filePath: dco_decode_String(arr[0]),
+      stackedFrameCount: dco_decode_u_32(arr[1]),
+      totalIntegrationSecs: dco_decode_f_64(arr[2]),
+      dateObs: dco_decode_String(arr[3]),
     );
   }
 
@@ -18971,6 +19019,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       sensorMode: var_sensorMode,
       bayerPattern: var_bayerPattern,
       demosaicQuality: var_demosaicQuality,
+    );
+  }
+
+  @protected
+  ApiLiveStackingMaster sse_decode_api_live_stacking_master(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_filePath = sse_decode_String(deserializer);
+    var var_stackedFrameCount = sse_decode_u_32(deserializer);
+    var var_totalIntegrationSecs = sse_decode_f_64(deserializer);
+    var var_dateObs = sse_decode_String(deserializer);
+    return ApiLiveStackingMaster(
+      filePath: var_filePath,
+      stackedFrameCount: var_stackedFrameCount,
+      totalIntegrationSecs: var_totalIntegrationSecs,
+      dateObs: var_dateObs,
     );
   }
 
@@ -24181,6 +24246,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.sensorMode, serializer);
     sse_encode_opt_String(self.bayerPattern, serializer);
     sse_encode_String(self.demosaicQuality, serializer);
+  }
+
+  @protected
+  void sse_encode_api_live_stacking_master(
+    ApiLiveStackingMaster self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.filePath, serializer);
+    sse_encode_u_32(self.stackedFrameCount, serializer);
+    sse_encode_f_64(self.totalIntegrationSecs, serializer);
+    sse_encode_String(self.dateObs, serializer);
   }
 
   @protected

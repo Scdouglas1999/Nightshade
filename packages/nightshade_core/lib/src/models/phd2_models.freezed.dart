@@ -1171,8 +1171,20 @@ mixin _$Phd2GuideStats {
  double get hfd;/// Guide star X position
  double get starX;/// Guide star Y position
  double get starY;/// Pixel scale (arcsec/pixel)
- double get pixelScale;/// Number of guide frames
- int get frameCount;
+ double get pixelScale;/// Number of guide STEPS measured — corrections, not exposures.
+///
+/// Zero while Loop Exposures is running (looping takes no corrections), so
+/// this is also the gate the RMS/Peak readouts use to decide whether they
+/// have anything to report. See [loopFrameCount] for the loop's own count.
+ int get frameCount;/// Number of frames captured in the CURRENT Loop Exposures run.
+///
+/// Looping exists so the operator can judge star quality and exposure
+/// length before picking a star, and `Frame Count` read `0` for the whole
+/// loop because [frameCount] counts guide steps and a loop takes none. A
+/// loop frame is not a guide correction, so it gets its own count, and each
+/// new loop starts that count again — the number answers "how many frames
+/// has THIS loop taken", not "how many since the guider connected".
+ int get loopFrameCount;
 /// Create a copy of Phd2GuideStats
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1185,16 +1197,16 @@ $Phd2GuideStatsCopyWith<Phd2GuideStats> get copyWith => _$Phd2GuideStatsCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Phd2GuideStats&&(identical(other.rmsRa, rmsRa) || other.rmsRa == rmsRa)&&(identical(other.rmsDec, rmsDec) || other.rmsDec == rmsDec)&&(identical(other.rmsTotal, rmsTotal) || other.rmsTotal == rmsTotal)&&(identical(other.peakRa, peakRa) || other.peakRa == peakRa)&&(identical(other.peakDec, peakDec) || other.peakDec == peakDec)&&(identical(other.snr, snr) || other.snr == snr)&&(identical(other.starMass, starMass) || other.starMass == starMass)&&(identical(other.hfd, hfd) || other.hfd == hfd)&&(identical(other.starX, starX) || other.starX == starX)&&(identical(other.starY, starY) || other.starY == starY)&&(identical(other.pixelScale, pixelScale) || other.pixelScale == pixelScale)&&(identical(other.frameCount, frameCount) || other.frameCount == frameCount));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Phd2GuideStats&&(identical(other.rmsRa, rmsRa) || other.rmsRa == rmsRa)&&(identical(other.rmsDec, rmsDec) || other.rmsDec == rmsDec)&&(identical(other.rmsTotal, rmsTotal) || other.rmsTotal == rmsTotal)&&(identical(other.peakRa, peakRa) || other.peakRa == peakRa)&&(identical(other.peakDec, peakDec) || other.peakDec == peakDec)&&(identical(other.snr, snr) || other.snr == snr)&&(identical(other.starMass, starMass) || other.starMass == starMass)&&(identical(other.hfd, hfd) || other.hfd == hfd)&&(identical(other.starX, starX) || other.starX == starX)&&(identical(other.starY, starY) || other.starY == starY)&&(identical(other.pixelScale, pixelScale) || other.pixelScale == pixelScale)&&(identical(other.frameCount, frameCount) || other.frameCount == frameCount)&&(identical(other.loopFrameCount, loopFrameCount) || other.loopFrameCount == loopFrameCount));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,rmsRa,rmsDec,rmsTotal,peakRa,peakDec,snr,starMass,hfd,starX,starY,pixelScale,frameCount);
+int get hashCode => Object.hash(runtimeType,rmsRa,rmsDec,rmsTotal,peakRa,peakDec,snr,starMass,hfd,starX,starY,pixelScale,frameCount,loopFrameCount);
 
 @override
 String toString() {
-  return 'Phd2GuideStats(rmsRa: $rmsRa, rmsDec: $rmsDec, rmsTotal: $rmsTotal, peakRa: $peakRa, peakDec: $peakDec, snr: $snr, starMass: $starMass, hfd: $hfd, starX: $starX, starY: $starY, pixelScale: $pixelScale, frameCount: $frameCount)';
+  return 'Phd2GuideStats(rmsRa: $rmsRa, rmsDec: $rmsDec, rmsTotal: $rmsTotal, peakRa: $peakRa, peakDec: $peakDec, snr: $snr, starMass: $starMass, hfd: $hfd, starX: $starX, starY: $starY, pixelScale: $pixelScale, frameCount: $frameCount, loopFrameCount: $loopFrameCount)';
 }
 
 
@@ -1205,7 +1217,7 @@ abstract mixin class $Phd2GuideStatsCopyWith<$Res>  {
   factory $Phd2GuideStatsCopyWith(Phd2GuideStats value, $Res Function(Phd2GuideStats) _then) = _$Phd2GuideStatsCopyWithImpl;
 @useResult
 $Res call({
- double rmsRa, double rmsDec, double rmsTotal, double peakRa, double peakDec, double snr, double starMass, double hfd, double starX, double starY, double pixelScale, int frameCount
+ double rmsRa, double rmsDec, double rmsTotal, double peakRa, double peakDec, double snr, double starMass, double hfd, double starX, double starY, double pixelScale, int frameCount, int loopFrameCount
 });
 
 
@@ -1222,7 +1234,7 @@ class _$Phd2GuideStatsCopyWithImpl<$Res>
 
 /// Create a copy of Phd2GuideStats
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? rmsRa = null,Object? rmsDec = null,Object? rmsTotal = null,Object? peakRa = null,Object? peakDec = null,Object? snr = null,Object? starMass = null,Object? hfd = null,Object? starX = null,Object? starY = null,Object? pixelScale = null,Object? frameCount = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? rmsRa = null,Object? rmsDec = null,Object? rmsTotal = null,Object? peakRa = null,Object? peakDec = null,Object? snr = null,Object? starMass = null,Object? hfd = null,Object? starX = null,Object? starY = null,Object? pixelScale = null,Object? frameCount = null,Object? loopFrameCount = null,}) {
   return _then(_self.copyWith(
 rmsRa: null == rmsRa ? _self.rmsRa : rmsRa // ignore: cast_nullable_to_non_nullable
 as double,rmsDec: null == rmsDec ? _self.rmsDec : rmsDec // ignore: cast_nullable_to_non_nullable
@@ -1236,6 +1248,7 @@ as double,starX: null == starX ? _self.starX : starX // ignore: cast_nullable_to
 as double,starY: null == starY ? _self.starY : starY // ignore: cast_nullable_to_non_nullable
 as double,pixelScale: null == pixelScale ? _self.pixelScale : pixelScale // ignore: cast_nullable_to_non_nullable
 as double,frameCount: null == frameCount ? _self.frameCount : frameCount // ignore: cast_nullable_to_non_nullable
+as int,loopFrameCount: null == loopFrameCount ? _self.loopFrameCount : loopFrameCount // ignore: cast_nullable_to_non_nullable
 as int,
   ));
 }
@@ -1321,10 +1334,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( double rmsRa,  double rmsDec,  double rmsTotal,  double peakRa,  double peakDec,  double snr,  double starMass,  double hfd,  double starX,  double starY,  double pixelScale,  int frameCount)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( double rmsRa,  double rmsDec,  double rmsTotal,  double peakRa,  double peakDec,  double snr,  double starMass,  double hfd,  double starX,  double starY,  double pixelScale,  int frameCount,  int loopFrameCount)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Phd2GuideStats() when $default != null:
-return $default(_that.rmsRa,_that.rmsDec,_that.rmsTotal,_that.peakRa,_that.peakDec,_that.snr,_that.starMass,_that.hfd,_that.starX,_that.starY,_that.pixelScale,_that.frameCount);case _:
+return $default(_that.rmsRa,_that.rmsDec,_that.rmsTotal,_that.peakRa,_that.peakDec,_that.snr,_that.starMass,_that.hfd,_that.starX,_that.starY,_that.pixelScale,_that.frameCount,_that.loopFrameCount);case _:
   return orElse();
 
 }
@@ -1342,10 +1355,10 @@ return $default(_that.rmsRa,_that.rmsDec,_that.rmsTotal,_that.peakRa,_that.peakD
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( double rmsRa,  double rmsDec,  double rmsTotal,  double peakRa,  double peakDec,  double snr,  double starMass,  double hfd,  double starX,  double starY,  double pixelScale,  int frameCount)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( double rmsRa,  double rmsDec,  double rmsTotal,  double peakRa,  double peakDec,  double snr,  double starMass,  double hfd,  double starX,  double starY,  double pixelScale,  int frameCount,  int loopFrameCount)  $default,) {final _that = this;
 switch (_that) {
 case _Phd2GuideStats():
-return $default(_that.rmsRa,_that.rmsDec,_that.rmsTotal,_that.peakRa,_that.peakDec,_that.snr,_that.starMass,_that.hfd,_that.starX,_that.starY,_that.pixelScale,_that.frameCount);case _:
+return $default(_that.rmsRa,_that.rmsDec,_that.rmsTotal,_that.peakRa,_that.peakDec,_that.snr,_that.starMass,_that.hfd,_that.starX,_that.starY,_that.pixelScale,_that.frameCount,_that.loopFrameCount);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -1362,10 +1375,10 @@ return $default(_that.rmsRa,_that.rmsDec,_that.rmsTotal,_that.peakRa,_that.peakD
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( double rmsRa,  double rmsDec,  double rmsTotal,  double peakRa,  double peakDec,  double snr,  double starMass,  double hfd,  double starX,  double starY,  double pixelScale,  int frameCount)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( double rmsRa,  double rmsDec,  double rmsTotal,  double peakRa,  double peakDec,  double snr,  double starMass,  double hfd,  double starX,  double starY,  double pixelScale,  int frameCount,  int loopFrameCount)?  $default,) {final _that = this;
 switch (_that) {
 case _Phd2GuideStats() when $default != null:
-return $default(_that.rmsRa,_that.rmsDec,_that.rmsTotal,_that.peakRa,_that.peakDec,_that.snr,_that.starMass,_that.hfd,_that.starX,_that.starY,_that.pixelScale,_that.frameCount);case _:
+return $default(_that.rmsRa,_that.rmsDec,_that.rmsTotal,_that.peakRa,_that.peakDec,_that.snr,_that.starMass,_that.hfd,_that.starX,_that.starY,_that.pixelScale,_that.frameCount,_that.loopFrameCount);case _:
   return null;
 
 }
@@ -1377,7 +1390,7 @@ return $default(_that.rmsRa,_that.rmsDec,_that.rmsTotal,_that.peakRa,_that.peakD
 @JsonSerializable()
 
 class _Phd2GuideStats implements Phd2GuideStats {
-  const _Phd2GuideStats({this.rmsRa = 0.0, this.rmsDec = 0.0, this.rmsTotal = 0.0, this.peakRa = 0.0, this.peakDec = 0.0, this.snr = 0.0, this.starMass = 0.0, this.hfd = 0.0, this.starX = 0.0, this.starY = 0.0, this.pixelScale = 0.0, this.frameCount = 0});
+  const _Phd2GuideStats({this.rmsRa = 0.0, this.rmsDec = 0.0, this.rmsTotal = 0.0, this.peakRa = 0.0, this.peakDec = 0.0, this.snr = 0.0, this.starMass = 0.0, this.hfd = 0.0, this.starX = 0.0, this.starY = 0.0, this.pixelScale = 0.0, this.frameCount = 0, this.loopFrameCount = 0});
   factory _Phd2GuideStats.fromJson(Map<String, dynamic> json) => _$Phd2GuideStatsFromJson(json);
 
 /// RMS error in RA (guide-camera pixels; see class docs)
@@ -1402,8 +1415,21 @@ class _Phd2GuideStats implements Phd2GuideStats {
 @override@JsonKey() final  double starY;
 /// Pixel scale (arcsec/pixel)
 @override@JsonKey() final  double pixelScale;
-/// Number of guide frames
+/// Number of guide STEPS measured — corrections, not exposures.
+///
+/// Zero while Loop Exposures is running (looping takes no corrections), so
+/// this is also the gate the RMS/Peak readouts use to decide whether they
+/// have anything to report. See [loopFrameCount] for the loop's own count.
 @override@JsonKey() final  int frameCount;
+/// Number of frames captured in the CURRENT Loop Exposures run.
+///
+/// Looping exists so the operator can judge star quality and exposure
+/// length before picking a star, and `Frame Count` read `0` for the whole
+/// loop because [frameCount] counts guide steps and a loop takes none. A
+/// loop frame is not a guide correction, so it gets its own count, and each
+/// new loop starts that count again — the number answers "how many frames
+/// has THIS loop taken", not "how many since the guider connected".
+@override@JsonKey() final  int loopFrameCount;
 
 /// Create a copy of Phd2GuideStats
 /// with the given fields replaced by the non-null parameter values.
@@ -1418,16 +1444,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Phd2GuideStats&&(identical(other.rmsRa, rmsRa) || other.rmsRa == rmsRa)&&(identical(other.rmsDec, rmsDec) || other.rmsDec == rmsDec)&&(identical(other.rmsTotal, rmsTotal) || other.rmsTotal == rmsTotal)&&(identical(other.peakRa, peakRa) || other.peakRa == peakRa)&&(identical(other.peakDec, peakDec) || other.peakDec == peakDec)&&(identical(other.snr, snr) || other.snr == snr)&&(identical(other.starMass, starMass) || other.starMass == starMass)&&(identical(other.hfd, hfd) || other.hfd == hfd)&&(identical(other.starX, starX) || other.starX == starX)&&(identical(other.starY, starY) || other.starY == starY)&&(identical(other.pixelScale, pixelScale) || other.pixelScale == pixelScale)&&(identical(other.frameCount, frameCount) || other.frameCount == frameCount));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Phd2GuideStats&&(identical(other.rmsRa, rmsRa) || other.rmsRa == rmsRa)&&(identical(other.rmsDec, rmsDec) || other.rmsDec == rmsDec)&&(identical(other.rmsTotal, rmsTotal) || other.rmsTotal == rmsTotal)&&(identical(other.peakRa, peakRa) || other.peakRa == peakRa)&&(identical(other.peakDec, peakDec) || other.peakDec == peakDec)&&(identical(other.snr, snr) || other.snr == snr)&&(identical(other.starMass, starMass) || other.starMass == starMass)&&(identical(other.hfd, hfd) || other.hfd == hfd)&&(identical(other.starX, starX) || other.starX == starX)&&(identical(other.starY, starY) || other.starY == starY)&&(identical(other.pixelScale, pixelScale) || other.pixelScale == pixelScale)&&(identical(other.frameCount, frameCount) || other.frameCount == frameCount)&&(identical(other.loopFrameCount, loopFrameCount) || other.loopFrameCount == loopFrameCount));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,rmsRa,rmsDec,rmsTotal,peakRa,peakDec,snr,starMass,hfd,starX,starY,pixelScale,frameCount);
+int get hashCode => Object.hash(runtimeType,rmsRa,rmsDec,rmsTotal,peakRa,peakDec,snr,starMass,hfd,starX,starY,pixelScale,frameCount,loopFrameCount);
 
 @override
 String toString() {
-  return 'Phd2GuideStats(rmsRa: $rmsRa, rmsDec: $rmsDec, rmsTotal: $rmsTotal, peakRa: $peakRa, peakDec: $peakDec, snr: $snr, starMass: $starMass, hfd: $hfd, starX: $starX, starY: $starY, pixelScale: $pixelScale, frameCount: $frameCount)';
+  return 'Phd2GuideStats(rmsRa: $rmsRa, rmsDec: $rmsDec, rmsTotal: $rmsTotal, peakRa: $peakRa, peakDec: $peakDec, snr: $snr, starMass: $starMass, hfd: $hfd, starX: $starX, starY: $starY, pixelScale: $pixelScale, frameCount: $frameCount, loopFrameCount: $loopFrameCount)';
 }
 
 
@@ -1438,7 +1464,7 @@ abstract mixin class _$Phd2GuideStatsCopyWith<$Res> implements $Phd2GuideStatsCo
   factory _$Phd2GuideStatsCopyWith(_Phd2GuideStats value, $Res Function(_Phd2GuideStats) _then) = __$Phd2GuideStatsCopyWithImpl;
 @override @useResult
 $Res call({
- double rmsRa, double rmsDec, double rmsTotal, double peakRa, double peakDec, double snr, double starMass, double hfd, double starX, double starY, double pixelScale, int frameCount
+ double rmsRa, double rmsDec, double rmsTotal, double peakRa, double peakDec, double snr, double starMass, double hfd, double starX, double starY, double pixelScale, int frameCount, int loopFrameCount
 });
 
 
@@ -1455,7 +1481,7 @@ class __$Phd2GuideStatsCopyWithImpl<$Res>
 
 /// Create a copy of Phd2GuideStats
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? rmsRa = null,Object? rmsDec = null,Object? rmsTotal = null,Object? peakRa = null,Object? peakDec = null,Object? snr = null,Object? starMass = null,Object? hfd = null,Object? starX = null,Object? starY = null,Object? pixelScale = null,Object? frameCount = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? rmsRa = null,Object? rmsDec = null,Object? rmsTotal = null,Object? peakRa = null,Object? peakDec = null,Object? snr = null,Object? starMass = null,Object? hfd = null,Object? starX = null,Object? starY = null,Object? pixelScale = null,Object? frameCount = null,Object? loopFrameCount = null,}) {
   return _then(_Phd2GuideStats(
 rmsRa: null == rmsRa ? _self.rmsRa : rmsRa // ignore: cast_nullable_to_non_nullable
 as double,rmsDec: null == rmsDec ? _self.rmsDec : rmsDec // ignore: cast_nullable_to_non_nullable
@@ -1469,6 +1495,7 @@ as double,starX: null == starX ? _self.starX : starX // ignore: cast_nullable_to
 as double,starY: null == starY ? _self.starY : starY // ignore: cast_nullable_to_non_nullable
 as double,pixelScale: null == pixelScale ? _self.pixelScale : pixelScale // ignore: cast_nullable_to_non_nullable
 as double,frameCount: null == frameCount ? _self.frameCount : frameCount // ignore: cast_nullable_to_non_nullable
+as int,loopFrameCount: null == loopFrameCount ? _self.loopFrameCount : loopFrameCount // ignore: cast_nullable_to_non_nullable
 as int,
   ));
 }

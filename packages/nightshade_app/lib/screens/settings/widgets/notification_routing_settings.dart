@@ -226,6 +226,7 @@ class NotificationRoutingSettings extends ConsumerWidget {
       case NotificationCategory.meridianFlipPerformed:
         return LucideIcons.rotateCw;
       case NotificationCategory.autofocusCompleted:
+      case NotificationCategory.autofocusContinued:
       case NotificationCategory.autofocusFailed:
         return LucideIcons.focus;
       case NotificationCategory.frameCaptured:

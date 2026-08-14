@@ -987,43 +987,16 @@ impl DeviceManager {
                             record_disconnect!("Native filter wheel", fw.disconnect().await);
                         }
                     }
-                    DeviceType::Rotator => {
-                        let mut rotators = self.native_rotators.write().await;
-                        if let Some(mut rotator) = rotators.remove(device_id) {
-                            record_disconnect!("Native rotator", rotator.disconnect().await);
-                        }
-                    }
-                    DeviceType::Dome => {
-                        let mut domes = self.native_domes.write().await;
-                        if let Some(mut dome) = domes.remove(device_id) {
-                            record_disconnect!("Native dome", dome.disconnect().await);
-                        }
-                    }
-                    DeviceType::Weather => {
-                        let mut weather = self.native_weather.write().await;
-                        if let Some(mut w) = weather.remove(device_id) {
-                            record_disconnect!("Native weather", w.disconnect().await);
-                        }
-                    }
-                    DeviceType::SafetyMonitor => {
-                        let mut safety = self.native_safety_monitors.write().await;
-                        if let Some(mut s) = safety.remove(device_id) {
-                            record_disconnect!("Native safety monitor", s.disconnect().await);
-                        }
-                    }
-                    DeviceType::Switch => {
-                        let mut switches = self.native_switches.write().await;
-                        if let Some(mut sw) = switches.remove(device_id) {
-                            record_disconnect!("Native switch", sw.disconnect().await);
-                        }
-                    }
-                    DeviceType::CoverCalibrator => {
-                        let mut covers = self.native_cover_calibrators.write().await;
-                        if let Some(mut cover) = covers.remove(device_id) {
-                            record_disconnect!("Native cover calibrator", cover.disconnect().await);
-                        }
-                    }
-                    DeviceType::Guider => {}
+                    // Rotator, dome, weather, safety monitor, switch and
+                    // cover calibrator have no native-SDK driver: the generic
+                    // `native_devices` removal above is the whole cleanup.
+                    DeviceType::Rotator
+                    | DeviceType::Dome
+                    | DeviceType::Weather
+                    | DeviceType::SafetyMonitor
+                    | DeviceType::Switch
+                    | DeviceType::CoverCalibrator
+                    | DeviceType::Guider => {}
                 }
             }
             DriverType::Alpaca => {

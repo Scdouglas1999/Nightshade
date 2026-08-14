@@ -104,6 +104,49 @@ class _ExecutorSequenceSink
   }
 
   @override
+  SchedulerRunEnding endingFor(String sequenceId) {
+    // Somebody took the editor slot or loaded a different plan: whatever the
+    // executor is doing now, the autopilot's run ended by a human's hand.
+    if (_currentSequence.activeOwner != ActivePlanOwner.autopilot) {
+      return SchedulerRunEnding.stoppedByOperator;
+    }
+    final loaded = _ref.read(currentSequenceProvider);
+    if (loaded == null || loaded.id != sequenceId) {
+      return SchedulerRunEnding.stoppedByOperator;
+    }
+    switch (_ref.read(sequenceExecutionStateProvider)) {
+      case SequenceExecutionState.completed:
+        return SchedulerRunEnding.completed;
+      case SequenceExecutionState.failed:
+        return SchedulerRunEnding.failed;
+      case SequenceExecutionState.idle:
+        // The plan is still ours and still loaded, but nothing is executing:
+        // the run was STOPPED by somebody outside the engine. WHO matters:
+        // only a human's stop should pause the autopilot; a safety abort
+        // (weather, dome, disk) is the system's doing, and pausing on it
+        // would let one passing cloud end an unattended night — the
+        // engine's own safety gating already refuses to dispatch into
+        // unsafe conditions. The executor remembers its last run's end
+        // origin; anything it cannot attribute stays conservative and asks
+        // the human.
+        final endOrigin = _ref.read(sequenceExecutorProvider).lastRunEndOrigin;
+        if (endOrigin == 'safety') {
+          return SchedulerRunEnding.failed;
+        }
+        return SchedulerRunEnding.stoppedByOperator;
+      case SequenceExecutionState.running:
+      case SequenceExecutionState.paused:
+      case SequenceExecutionState.recovering:
+      case SequenceExecutionState.stopping:
+      case SequenceExecutionState.stopFailed:
+      case SequenceExecutionState.finalizing:
+      case SequenceExecutionState.cleanupFailed:
+        // Still in flight or still tearing down: no verdict yet.
+        return SchedulerRunEnding.unknown;
+    }
+  }
+
+  @override
   Future<void> releaseSequenceOwnership() async {
     // Autopilot disengaged: restore manual ownership and the operator's stashed
     // unsaved sequence (a no-op if the autopilot never owned the slot). Uses the

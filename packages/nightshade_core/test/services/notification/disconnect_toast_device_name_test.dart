@@ -168,8 +168,10 @@ void main() {
       // Reads the shipped source: a body template that reaches for
       // `equipment.device_id` is the defect, whatever it renders today.
       final source = await _routerSource();
+      // The DEFINITION, not a call site: the router calls the same helper by
+      // name for the stop templates, and those calls sit above it in the file.
       final bodyFn = source.indexOf(
-        '_defaultBodyTemplate(NotificationCategory',
+        'static String _defaultBodyTemplate(NotificationCategory',
       );
       expect(bodyFn, greaterThan(0), reason: 'body-template function moved');
       final armStart = source.indexOf(

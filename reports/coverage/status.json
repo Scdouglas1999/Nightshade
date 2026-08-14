@@ -1726,5 +1726,117 @@
   "state": "unreached",
   "by": "mobile operation - companion dashboard shell, mount/sequencer/log/settings tabs, session picker and session replay, driven disconnected on the ns_test_api35 emulator",
   "why": "SessionReplayScreen requires a runId and is pushed from exactly one place, session_picker_screen.dart:244 `builder: (_) => SessionReplayScreen(runId: run.id)`, inside the tap handler of a run row. Run rows come from NetworkBackend.fetchSequenceRuns, so the list is only ever non-empty when the phone is paired with a host that has completed sequence runs in its database. Driven disconnected, the picker correctly renders its 'Connect to a server' empty state instead of any rows, so there is no row to tap and no runId to pass. Pairing with the one appliance reachable from this emulator (another agent's live desktop on the host) would both break the no-appliance premise of this sweep and disturb a concurrent audit. Source-only observations: the screen accepts a dataSourceOverride for tests (session_replay_screen.dart:35-41), and its own disconnected behaviour is therefore untested here."
+ },
+ "hub:nightshade_hub.dart": {
+  "state": "visited",
+  "by": "hub-sweep 2026-08-14: barrel imported by bin/server.dart for the live hub process on :18099 (and by the sweep driver for payload construction); every exercised symbol resolved through it"
+ },
+ "hub:src/auth/account_service.dart": {
+  "state": "visited",
+  "by": "hub-sweep 2026-08-14: POST /v1/accounts 201 x5 + admin bootstrap login; wrong-password 401 / correct-password 200; trust echoed on the fused contribution (trustApplied=0.5)"
+ },
+ "hub:src/auth/moderation_service.dart": {
+  "state": "visited",
+  "by": "hub-sweep 2026-08-14: suspend->old AND fresh tokens fail closed 401->reinstate->login-ok cycle via POST /v1/moderation/*; 403/422 denials fed checkAbuse through the audit-denial middleware (threshold 25 not tripped)"
+ },
+ "hub:src/auth/password_hasher.dart": {
+  "state": "visited",
+  "by": "hub-sweep 2026-08-14: PBKDF2 driven through POST /v1/accounts (hash on signup) and POST /v1/sessions (verify: wrong password 401, correct password 200)"
+ },
+ "hub:src/auth/secret_policy.dart": {
+  "state": "visited",
+  "by": "hub-sweep 2026-08-14: bin/server.dart --secret change-me refused to start (exit 78, \"well-known placeholder\"); the strong 64-hex secret passed the same gate at the real boot"
+ },
+ "hub:src/auth/token_service.dart": {
+  "state": "visited",
+  "by": "hub-sweep 2026-08-14: bearer resolve on every authed call; POST /v1/tokens minted a tile-bound read token (unbound route 403, own bound tile 200); DELETE /v1/sessions/current self-revoked it and reuse got 401"
+ },
+ "hub:src/calibration/calibration_master_store.dart": {
+  "state": "visited",
+  "by": "hub-sweep 2026-08-14: publish stored the master bytes; GET /v1/calibration/masters/<id>/file round-tripped 11072B byte-identical with x-master-meta header"
+ },
+ "hub:src/calibration/fits_master_validation.dart": {
+  "state": "visited",
+  "by": "hub-sweep 2026-08-14: valid 64x64 BITPIX16 master parsed + pixel-sanity passed (201); header-only poison declaring the same geometry rejected 422 truncatedData"
+ },
+ "hub:src/calibration/shared_calibration_service.dart": {
+  "state": "visited",
+  "by": "hub-sweep 2026-08-14: publish dark 201 / ranked query / download / retract via /v1/calibration/masters; flat cross-account scoping held (peer never offered a foreign flat; by-id download 404, no existence oracle)"
+ },
+ "hub:src/collab/attribution_service.dart": {
+  "state": "visited",
+  "by": "hub-sweep 2026-08-14: GET /v1/attribution listed tile credits (recomputed after retraction), 2-contributor mosaic credits on completion, and closed co-imaging session credits"
+ },
+ "hub:src/collab/consent_service.dart": {
+  "state": "visited",
+  "by": "hub-sweep 2026-08-14: license-less tile share refused 400 with the supportedLicenses list; consent recorded on tile/subframe/calibration/mosaic-panel/coimaging shares and revoked on retract/delete/close"
+ },
+ "hub:src/db/hub_database.dart": {
+  "state": "visited",
+  "by": "hub-sweep 2026-08-14: fresh schema created at the scratch hub.db on boot; accounts/tokens/contributions/tile_index/consent/audit rows persisted and re-read across all 90+ checks"
+ },
+ "hub:src/http/audit_log.dart": {
+  "state": "visited",
+  "by": "hub-sweep 2026-08-14: GET /v1/audit (admin) returned 65 entries incl. signup, login, denied-4xx rows from the audit-denial middleware, and \"login locked out\"; non-admin read 403"
+ },
+ "hub:src/http/error_envelope.dart": {
+  "state": "visited",
+  "by": "hub-sweep 2026-08-14: 400/401/403/404/409/422/429 all wrapped as {error:{code,message},requestId} with x-request-id echoed; conflict codes geometryMismatch/mosaicPanelHeld/coimagingBatonHeld/handoffHeld observed"
+ },
+ "hub:src/http/rate_limiter.dart": {
+  "state": "visited",
+  "by": "hub-sweep 2026-08-14: RateLimiter: token-keyed flood got 429 with retry-after=59 after 120 in-window requests, other identities unaffected; LoginThrottle: 5 failed logins locked the key, 6th attempt 429"
+ },
+ "hub:src/hub_server.dart": {
+  "state": "visited",
+  "by": "hub-sweep 2026-08-14: stood up via dart run bin/server.dart on :18099; all 44 routes in _routeTable driven (90+ checks) incl. requestId, error-trap, rate-limit, and audit-denial middleware behavior"
+ },
+ "hub:src/scheduler/coimaging_service.dart": {
+  "state": "visited",
+  "by": "hub-sweep 2026-08-14: create/join (slot 1, 30arcsec offset)/leave/SSE snapshot frame/plausible report (combined accounting)/implausible report 422/baton claim-held-release/close (credits)/join-after-close 409; list+detail reads too"
+ },
+ "hub:src/scheduler/follow_the_night.dart": {
+  "state": "visited",
+  "by": "hub-sweep 2026-08-14: POST /v1/targets ensureTarget -> activeTileId 173380; GET /v1/targets browse; GET /v1/follow-the-night lat/lon plan; altitude check via handoff state query params"
+ },
+ "hub:src/scheduler/handoff_service.dart": {
+  "state": "visited",
+  "by": "hub-sweep 2026-08-14: claim -> second-rig 409 handoffHeld -> release on target 1; re-driven as the co-imaging longitude baton (claim/held-409/release)"
+ },
+ "hub:src/scheduler/mosaic_broker_service.dart": {
+  "state": "visited",
+  "by": "hub-sweep 2026-08-14: 2-panel publish/claim/held-409/non-owner force-release 403/owner eviction/reclaim/voluntary release/claim-token upload gate/assembling flip on final panel/premature output 409/complete"
+ },
+ "hub:src/tiles/fusion_service.dart": {
+  "state": "visited",
+  "by": "hub-sweep 2026-08-14: two noisy contributions fused (x-total-frames=8, contributors=2), outlier soft-rejected (deviation 6.4e5), foreign retract 403, own retract subtracted exactly (frames back to 4)"
+ },
+ "hub:src/tiles/mosaic_master_store.dart": {
+  "state": "visited",
+  "by": "hub-sweep 2026-08-14: panel master + stitched output stored under the scratch atlas root and streamed back byte-identical (11072B) to owner/participant pulls"
+ },
+ "hub:src/tiles/subframe_service.dart": {
+  "state": "visited",
+  "by": "hub-sweep 2026-08-14: POST /v1/tiles/<id>/subframes stored 11072B on a hub started --accepts-raw-subs, receipt echoed; DELETE /v1/subframes/<id> returned deleted:true and revoked the consent"
+ },
+ "hub:src/tiles/subframe_store.dart": {
+  "state": "visited",
+  "by": "hub-sweep 2026-08-14: stored subframe file verified on disk under the atlas root by contribution id via the store path; removed by the DELETE flow"
+ },
+ "hub:src/tiles/tile_builder.dart": {
+  "state": "visited",
+  "by": "hub-sweep 2026-08-14: first contribution to never-seen tile 173380 seeded TileBuilder.empty server-side and fused; tileCenter fed the tile_index row and target contributor counts"
+ },
+ "hub:src/tiles/tile_codec.dart": {
+  "state": "visited",
+  "by": "hub-sweep 2026-08-14: deserialize/sanitizeContributionProvenance/mergeSigned on the contribution path; merged .nst (finalized=false) re-deserialized with 2 contributors; bad magic 400 badMagic; path-vs-delta tile-id mismatch 409 geometryMismatch"
+ },
+ "hub:src/tiles/tile_quality.dart": {
+  "state": "visited",
+  "by": "hub-sweep 2026-08-14: verdicts in contribution responses: insufficient-overlap accept on the fresh tile, within-tolerance accept on the 2nd, outlier-rejected (deviation 644131) on a 1e6-mean delta"
+ },
+ "hub:src/tiles/tile_store.dart": {
+  "state": "visited",
+  "by": "hub-sweep 2026-08-14: .nst sidecar persisted in the scratch atlas; GET /v1/tiles/173380 served the finalized mean (8388608B) with x-total-frames/x-contributors headers and the raw accumulator bytes"
  }
 }

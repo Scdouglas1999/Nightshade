@@ -38,14 +38,19 @@ class _FakeLiveStackingService extends LiveStackingService {
 
   @override
   Future<LiveStackingMasterSave> saveMaster({required String filePath}) async {
-    // Mirrors the real service: the writer is PNG-only and refuses any other
-    // extension rather than renaming the operator's file.
+    // Mirrors the real service: FITS is the master, PNG is the render, and any
+    // other extension is refused rather than renaming the operator's file.
     final extension = filePath.contains('.')
         ? filePath.substring(filePath.lastIndexOf('.')).toLowerCase()
         : '';
-    if (extension.isNotEmpty && extension != '.png') {
+    const writable = {'', '.fits', '.fit', '.fts', '.png'};
+    if (!writable.contains(extension)) {
       _log.add('save-wrong-format');
-      throw LiveStackingMasterFormatUnsupported(extension);
+      throw LiveStackingMasterFormatUnsupported(
+        extension,
+        reason: 'the live stacker writes a FITS master of the integration or a '
+            'PNG of the render, and nothing else',
+      );
     }
     if (failSave) {
       _log.add('save-failed');
@@ -53,11 +58,19 @@ class _FakeLiveStackingService extends LiveStackingService {
     }
     saved.add(filePath);
     _log.add('save');
-    return LiveStackingMasterSave(
-      filePath: filePath,
-      stackedFrameCount: 32,
-      format: LiveStackingMasterFormat.linearMono16,
-    );
+    return extension == '.png'
+        ? LiveStackingMasterSave(
+            filePath: filePath,
+            stackedFrameCount: 32,
+            format: LiveStackingMasterFormat.linearMono16,
+          )
+        : LiveStackingMasterSave(
+            filePath: filePath,
+            stackedFrameCount: 32,
+            format: LiveStackingMasterFormat.fitsMaster,
+            totalIntegrationSecs: 3840.0,
+            dateObs: '2026-08-14T03:21:09.000',
+          );
   }
 }
 
@@ -172,19 +185,37 @@ void main() {
 
   testWidgets('Save master writes the stack out before releasing it',
       (tester) async {
-    final harness = await _pumpPanel(tester, destination: '/tmp/master.png');
+    final harness = await _pumpPanel(tester, destination: '/tmp/master.fits');
 
     await tester.tap(find.text('Stop'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Save master'));
     await tester.pumpAndSettle();
 
-    expect(harness.service.saved, ['/tmp/master.png']);
+    expect(harness.service.saved, ['/tmp/master.fits']);
     expect(harness.stacker.stopCalls, 1);
     final ops = _log.where((e) => !e.startsWith('pick:')).toList();
     expect(ops, ['save', 'stop'],
         reason: 'the master must be on disk before the stacker is released');
-    expect(find.textContaining('/tmp/master.png'), findsOneWidget);
+    expect(find.textContaining('/tmp/master.fits'), findsOneWidget);
+    // Decision 8: the master carries its integration, so the confirmation can
+    // state it instead of naming a frame count alone.
+    expect(find.textContaining('3840 s integration'), findsOneWidget);
+  });
+
+  // The default destination is the data product, not the render: an operator
+  // who accepts the suggested name gets a FITS master.
+  testWidgets('the suggested destination is a FITS master', (tester) async {
+    await _pumpPanel(tester, destination: '/tmp/master.fits');
+
+    await tester.tap(find.text('Stop'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save master'));
+    await tester.pumpAndSettle();
+
+    final picked = _log.firstWhere((e) => e.startsWith('pick:'));
+    expect(picked, endsWith('.fits'));
+    expect(picked, contains('32frames'));
   });
 
   testWidgets('a cancelled destination leaves the stack running',
@@ -220,12 +251,14 @@ void main() {
   // ND-6: typing `stack_master.fits` into the save chooser produced
   // `stack_master.png` on disk — the extension was swapped silently, so the
   // operator believed they had a FITS master with a header, WCS and
-  // integration metadata, and had a picture instead.
-  testWidgets('asking for a FITS master is refused, not renamed',
+  // integration metadata, and had a picture instead. Decision 8 made the FITS
+  // master real; a format the stacker still cannot write is refused with the
+  // reason rather than renamed.
+  testWidgets('a format the stacker cannot write is refused, not renamed',
       (tester) async {
     final harness = await _pumpPanel(
       tester,
-      destination: '/tmp/ns-audit/stack_master.fits',
+      destination: '/tmp/ns-audit/stack_master.tif',
     );
 
     await tester.tap(find.text('Stop'));
@@ -239,8 +272,8 @@ void main() {
       0,
       reason: 'nothing was written, so the stack must survive',
     );
-    expect(find.text('Live-stack masters are saved as PNG'), findsOneWidget);
-    expect(find.textContaining('.fits'), findsWidgets);
+    expect(find.text('That master cannot be written here'), findsOneWidget);
+    expect(find.textContaining('.tif'), findsWidgets);
   });
 
   testWidgets('the Stop prompt names the format it is about to write',
@@ -250,7 +283,7 @@ void main() {
     await tester.tap(find.text('Stop'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('16-bit PNG'), findsOneWidget);
+    expect(find.textContaining('FITS master'), findsOneWidget);
   });
 
   testWidgets('Statistics rows carry units for frames and for pixels',

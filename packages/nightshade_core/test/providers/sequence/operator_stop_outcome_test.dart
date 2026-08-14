@@ -249,4 +249,39 @@ void main() {
       expect(origins, ['scheduler', null]);
     },
   );
+
+  test(
+    'the executor remembers WHO ended the run (autopilot narrowing)',
+    () async {
+      // The scheduler's reconcile must not pause the autopilot for a safety
+      // abort: only a human's stop expresses intent. The memo is the
+      // classifier's evidence — an explicit stop records its commander, a
+      // natural stopped terminal that nobody commanded records 'safety'.
+      final (container, executor) = build();
+      when(
+        () => backend.sequencerStop(origin: any(named: 'origin')),
+      ).thenAnswer((_) async {
+        scheduleMicrotask(() {
+          executor.handleSequencerEventForTest(event('SequenceStopped', {}));
+        });
+      });
+
+      await executor.stop();
+      await executor.terminalCleanupSettledForTest;
+      expect(executor.lastRunEndOrigin, 'operator');
+      expect(container, isNotNull);
+    },
+  );
+
+  test('a native-side abort with no stop() commander records safety', () async {
+    // A ParkAndAbort (weather/dome) terminates the run natively: Dart never
+    // calls stop(), the terminal arrives on its own, and the memo must say
+    // 'safety' so the autopilot keeps the night alive.
+    final (container, executor) = build();
+
+    executor.handleSequencerEventForTest(event('SequenceStopped', {}));
+    await executor.terminalCleanupSettledForTest;
+    expect(executor.lastRunEndOrigin, 'safety');
+    expect(container, isNotNull);
+  });
 }

@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueNom,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1863281676;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1262008658;
 
 // Section: executor
 
@@ -7866,6 +7866,32 @@ fn wire__crate__api__imaging__api_stacking_reset_impl(
         },
     )
 }
+fn wire__crate__api__imaging__api_stacking_save_master_fits_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    file_path: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_stacking_save_master_fits",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_file_path = file_path.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::imaging::api_stacking_save_master_fits(api_file_path)
+                                .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__imaging__api_stacking_start_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     reference_image_path: impl CstDecode<String>,
@@ -10500,6 +10526,22 @@ impl SseDecode for crate::api::imaging::ApiLiveStackingConfig {
             sensor_mode: var_sensorMode,
             bayer_pattern: var_bayerPattern,
             demosaic_quality: var_demosaicQuality,
+        };
+    }
+}
+
+impl SseDecode for crate::api::imaging::ApiLiveStackingMaster {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_filePath = <String>::sse_decode(deserializer);
+        let mut var_stackedFrameCount = <u32>::sse_decode(deserializer);
+        let mut var_totalIntegrationSecs = <f64>::sse_decode(deserializer);
+        let mut var_dateObs = <String>::sse_decode(deserializer);
+        return crate::api::imaging::ApiLiveStackingMaster {
+            file_path: var_filePath,
+            stacked_frame_count: var_stackedFrameCount,
+            total_integration_secs: var_totalIntegrationSecs,
+            date_obs: var_dateObs,
         };
     }
 }
@@ -15372,6 +15414,29 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::imaging::ApiLiveStackingConfi
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::imaging::ApiLiveStackingMaster {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.file_path.into_into_dart().into_dart(),
+            self.stacked_frame_count.into_into_dart().into_dart(),
+            self.total_integration_secs.into_into_dart().into_dart(),
+            self.date_obs.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::imaging::ApiLiveStackingMaster
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::imaging::ApiLiveStackingMaster>
+    for crate::api::imaging::ApiLiveStackingMaster
+{
+    fn into_into_dart(self) -> crate::api::imaging::ApiLiveStackingMaster {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::imaging::ApiLiveStackingResult {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -19616,6 +19681,16 @@ impl SseEncode for crate::api::imaging::ApiLiveStackingConfig {
     }
 }
 
+impl SseEncode for crate::api::imaging::ApiLiveStackingMaster {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.file_path, serializer);
+        <u32>::sse_encode(self.stacked_frame_count, serializer);
+        <f64>::sse_encode(self.total_integration_secs, serializer);
+        <String>::sse_encode(self.date_obs, serializer);
+    }
+}
+
 impl SseEncode for crate::api::imaging::ApiLiveStackingResult {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -23430,6 +23505,17 @@ mod io {
             }
         }
     }
+    impl CstDecode<crate::api::imaging::ApiLiveStackingMaster> for wire_cst_api_live_stacking_master {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::imaging::ApiLiveStackingMaster {
+            crate::api::imaging::ApiLiveStackingMaster {
+                file_path: self.file_path.cst_decode(),
+                stacked_frame_count: self.stacked_frame_count.cst_decode(),
+                total_integration_secs: self.total_integration_secs.cst_decode(),
+                date_obs: self.date_obs.cst_decode(),
+            }
+        }
+    }
     impl CstDecode<crate::api::imaging::ApiLiveStackingResult> for wire_cst_api_live_stacking_result {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> crate::api::imaging::ApiLiveStackingResult {
@@ -26817,6 +26903,21 @@ mod io {
         }
     }
     impl Default for wire_cst_api_live_stacking_config {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_api_live_stacking_master {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                file_path: core::ptr::null_mut(),
+                stacked_frame_count: Default::default(),
+                total_integration_secs: Default::default(),
+                date_obs: core::ptr::null_mut(),
+            }
+        }
+    }
+    impl Default for wire_cst_api_live_stacking_master {
         fn default() -> Self {
             Self::new_with_null_ptr()
         }
@@ -32034,6 +32135,14 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__imaging__api_stacking_save_master_fits(
+        port_: i64,
+        file_path: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__imaging__api_stacking_save_master_fits_impl(port_, file_path)
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__imaging__api_stacking_start(
         port_: i64,
         reference_image_path: *mut wire_cst_list_prim_u_8_strict,
@@ -33697,6 +33806,14 @@ mod io {
         sensor_mode: *mut wire_cst_list_prim_u_8_strict,
         bayer_pattern: *mut wire_cst_list_prim_u_8_strict,
         demosaic_quality: *mut wire_cst_list_prim_u_8_strict,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_api_live_stacking_master {
+        file_path: *mut wire_cst_list_prim_u_8_strict,
+        stacked_frame_count: u32,
+        total_integration_secs: f64,
+        date_obs: *mut wire_cst_list_prim_u_8_strict,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]

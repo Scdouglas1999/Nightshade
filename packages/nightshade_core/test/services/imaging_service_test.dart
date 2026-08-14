@@ -2024,21 +2024,6 @@ void main() {
     });
   });
 
-  group('ImagingService Frame Counter', () {
-    test('resetFrameCounter resets to zero', () {
-      final container = ProviderContainer(
-        overrides: [inMemoryDatabaseOverride()],
-      );
-      addTearDown(container.dispose);
-      final service = container.read(imagingServiceProvider);
-
-      service.resetFrameCounter();
-      // No assertion needed per se; if it doesn't throw, the method works.
-      // We verify behavior indirectly through captureImage frame numbering.
-      expect(service.isCapturing, isFalse);
-    });
-  });
-
   group('ImagingService Loop Capture', () {
     late ProviderContainer container;
     late MockBackend mockBackend;

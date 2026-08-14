@@ -4,9 +4,12 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' show Size;
 
+import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
+import 'package:nightshade_core/src/database/database.dart';
+import 'package:nightshade_core/src/providers/database_provider.dart';
 import 'package:nightshade_core/src/providers/framing_image_cache_provider.dart';
 import 'package:nightshade_core/src/providers/framing_provider.dart';
 import 'package:nightshade_core/src/services/framing_image_cache_service.dart';
@@ -65,12 +68,21 @@ void main() {
       meta['fovHeightDeg'] = fovHeightDeg;
       await metaFile.writeAsString(jsonEncode(meta), flush: true);
 
+      // The real databaseProvider opens the shared on-disk file (with its
+      // open-time integrity check) — under a parallel full-suite run two
+      // test processes collide on it and sqlite reports 'database is
+      // locked'. Nothing here needs durable rows.
+      final database = NightshadeDatabase.forTesting(NativeDatabase.memory());
       final container = ProviderContainer(
         overrides: [
+          databaseProvider.overrideWithValue(database),
           framingImageCacheServiceProvider.overrideWithValue(cacheService),
         ],
       );
-      addTearDown(container.dispose);
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
 
       final notifier = container.read(framingProvider.notifier);
       notifier.setTargetCoordinates(raHours, decDegrees, name: 'Primed');

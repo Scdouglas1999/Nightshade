@@ -17,6 +17,7 @@ pub async fn execute_mosaic(
     config: &crate::MosaicConfig,
     ctx: &InstructionContext,
     progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
+    checkpoint_manager: Option<&crate::checkpoint::CheckpointManager>,
 ) -> InstructionResult {
-    crate::mosaic::run_mosaic_wizard(config, ctx, progress_callback).await
+    crate::mosaic::run_mosaic_wizard(config, ctx, progress_callback, checkpoint_manager).await
 }

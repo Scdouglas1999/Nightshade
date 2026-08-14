@@ -273,7 +273,10 @@ secrets.json
 # =============================================================================
 # Profiles and User Data
 # =============================================================================
-profiles/
+# Anchored to the repo root on purpose: the bare `profiles/` form also
+# matched packages/nightshade_core/lib/src/providers/profiles/ and silently
+# excluded three production source files from every commit.
+/profiles/
 
 # =============================================================================
 # Coverage and Test Reports

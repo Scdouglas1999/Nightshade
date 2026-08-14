@@ -35,6 +35,7 @@ import '../../models/backend/event_types.dart';
 import '../../models/notification/notification_categories.dart';
 import '../../providers/sequence/run_stop_classification.dart';
 import '../../utils/device_id.dart';
+import 'notification_template.dart';
 
 /// The result of classifying a single backend event: the semantic
 /// [NotificationCategory], the context key/value pairs the templates need,
@@ -66,6 +67,20 @@ class ClassifiedNotification {
 /// [PushNotificationService] call.
 class NotificationEventClassifier {
   const NotificationEventClassifier._();
+
+  /// The stop-authorship decision [event] carries, or `null` when it carries
+  /// none. The executor's decision rows raise no notification of their own —
+  /// they are the only thing on the wire that says WHOSE stop this was, which
+  /// is what the router needs before it may tell the phone anything about it.
+  static SequenceStopDecision? stopDecisionOf(NightshadeEvent event) {
+    if (event.category != EventCategory.sequencer) return null;
+    if (event.eventType != 'DecisionLogged') return null;
+    return sequenceStopDecision(
+      category: (event.data['category'] as String?) ?? '',
+      summary: (event.data['summary'] as String?) ?? '',
+      detailsJson: event.data['details_json'] as String?,
+    );
+  }
 
   /// Classify [event]. Returns `null` for events that do not map to a
   /// routed category.
@@ -112,6 +127,16 @@ class NotificationEventClassifier {
     }
   }
 
+  /// Context for a stop notification: the run it ended, when the wire carries
+  /// it. Run identity is what keeps two runs' stops from folding into one
+  /// episode (and one run's stop from splitting into two) in
+  /// [StopPushArbiter], however long the safing teardown stretched them.
+  static Map<String, String> _stopContext(NightshadeEvent event) {
+    final runId = event.data['sequence_run_id'];
+    if (runId is! int) return <String, String>{};
+    return <String, String>{kStopRunIdContextKey: '$runId'};
+  }
+
   /// The text a sequencer `Error` carries. The FFI mapper writes `message`;
   /// the remote/WebSocket envelope has been seen using `error` for the same
   /// field, so both are read before giving up.
@@ -129,7 +154,7 @@ class NotificationEventClassifier {
       case 'Completed':
         return (NotificationCategory.sequenceCompleted, <String, String>{});
       case 'Stopped':
-        return (NotificationCategory.sequenceStopped, <String, String>{});
+        return (NotificationCategory.sequenceStopped, _stopContext(event));
       case 'Error':
         // PRODUCER 1 of the stop pipeline (toast "Sequence failed / Sequence
         // aborted at …", and the phone push behind it).
@@ -145,9 +170,20 @@ class NotificationEventClassifier {
             'carrying the cancellation notice -> sequenceStopped',
             name: 'NotificationEventClassifier',
           );
-          return (NotificationCategory.sequenceStopped, <String, String>{});
+          return (NotificationCategory.sequenceStopped, _stopContext(event));
         }
         return (NotificationCategory.sequenceFailed, <String, String>{});
+      case 'DecisionLogged':
+        // The AF-trigger continuation row is the only decision that maps to
+        // its own push: the run continues on restored focus and the phone
+        // gets an INFO, not an alarm (owner decision 10). Stop-authorship
+        // decisions are consumed by [stopDecisionOf], not classified here.
+        if ((event.data['category'] as String?) == 'system_event' &&
+            (event.data['summary'] as String?) ==
+                'Autofocus failed — continuing with last-good focus') {
+          return (NotificationCategory.autofocusContinued, <String, String>{});
+        }
+        return null;
       case 'Paused':
         return (NotificationCategory.sequencePaused, <String, String>{});
       case 'Resumed':

@@ -58,8 +58,15 @@ TargetSuggestion _suggestion() {
       currentAzimuth: 90,
       airmass: 1.2,
       peakAltitude: 70,
-      riseTime: DateTime.now().subtract(const Duration(hours: 4)),
-      setTime: DateTime.now().add(const Duration(hours: 12)),
+      // Circumpolar on purpose (no crossings): the usable-window helper
+      // treats a target with neither rise nor set as up for the whole dark
+      // window, which is the semantics this test needs WITHOUT depending on
+      // when the suite runs. Concrete now()-relative crossings made the
+      // test time-of-day-flaky: the sidereal projection collapses an
+      // impossible 48h "up period" (or the original now+12h one, run
+      // mid-morning) to minutes of overlap → "no usable imaging window".
+      riseTime: null,
+      setTime: null,
       moonDistance: 90,
       hoursAboveMinAlt: 6,
     ),

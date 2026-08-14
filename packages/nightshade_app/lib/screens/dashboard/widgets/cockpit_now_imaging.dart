@@ -36,6 +36,15 @@ class CockpitNowImaging extends ConsumerWidget {
     final glance = ref.watch(glanceModeProvider);
 
     if (target == null) {
+      // The instruction half must not contradict the rest of the screen: a
+      // running sequence can legitimately have no TARGET NODE (free-form
+      // capture), and telling the operator to "load a sequence" while the
+      // toolbar offers Pause/Stop is the cry-wolf shape (live: waveM-close
+      // 30-run3.png).
+      final executionState = ref.watch(sequenceExecutionStateProvider);
+      final sequenceActive = executionState != SequenceExecutionState.idle &&
+          executionState != SequenceExecutionState.completed &&
+          executionState != SequenceExecutionState.failed;
       return _Shell(
         colors: colors,
         child: Row(
@@ -44,7 +53,9 @@ class CockpitNowImaging extends ConsumerWidget {
             const SizedBox(width: NightshadeTokens.spaceSm),
             Expanded(
               child: Text(
-                'No active target — load a sequence to begin.',
+                sequenceActive
+                    ? 'No target set — sequence running without a target node.'
+                    : 'No active target — load a sequence to begin.',
                 style: NightshadeTypography.glanceStyle(
                   TextStyle(
                     fontSize: NightshadeTypography.fontSize12_5,

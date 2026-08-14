@@ -78,6 +78,14 @@ class SchedulerCandidateLoader {
     // the replacement host's filter wheel to the previous host's targets.
     final availableFilters = _availableFilters();
     final goalService = ref.read(integrationGoalServiceProvider);
+    // Targets the operator removed from the queue. Read under the same
+    // authority as the catalog: this is the difference between "removed" and
+    // "goal-less", and a goal-less target is still an eligible free-form
+    // candidate, so without it "Remove from scheduler" changed nothing the
+    // autopilot could see (WF-N2).
+    final removedTargetIds = await ref
+        .read(schedulerQueueServiceProvider)
+        .removedTargetIds();
     requireAuthority();
 
     // On a remote SLAVE the catalog/targets/constraints/horizons/project
@@ -93,6 +101,7 @@ class SchedulerCandidateLoader {
         goalService: goalService,
         projectId: projectId,
         availableFilters: availableFilters,
+        removedTargetIds: removedTargetIds,
         requireAuthority: requireAuthority,
       );
     }
@@ -202,6 +211,7 @@ class SchedulerCandidateLoader {
       horizonProfiles: horizonProfiles,
       goalService: goalService,
       availableFilters: availableFilters,
+      removedTargetIds: removedTargetIds,
       requireAuthority: requireAuthority,
     );
   }
@@ -216,6 +226,7 @@ class SchedulerCandidateLoader {
     required IntegrationGoalService goalService,
     int? projectId,
     required List<String> availableFilters,
+    required Set<int> removedTargetIds,
     required void Function() requireAuthority,
   }) async {
     // Host catalog rows, indexed by id.
@@ -282,6 +293,7 @@ class SchedulerCandidateLoader {
       horizonProfiles: horizonProfiles,
       goalService: goalService,
       availableFilters: availableFilters,
+      removedTargetIds: removedTargetIds,
       requireAuthority: requireAuthority,
     );
   }
@@ -295,11 +307,17 @@ class SchedulerCandidateLoader {
     required Map<int, HorizonProfile> horizonProfiles,
     required IntegrationGoalService goalService,
     required List<String> availableFilters,
+    required Set<int> removedTargetIds,
     required void Function() requireAuthority,
   }) async {
     final out = <SchedulerCandidate>[];
     for (final target in targets) {
       final id = target.id;
+      // A removed target is not a candidate at all — not a candidate that
+      // scores badly. Dropping it here is what makes it disappear from the
+      // queue table as well, since that table renders the decision's scored
+      // candidates.
+      if (removedTargetIds.contains(id)) continue;
       final goals = await goalService.listForTarget(id);
       requireAuthority();
       final counts = <int>[];

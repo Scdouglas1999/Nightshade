@@ -6,7 +6,6 @@ import 'package:nightshade_bridge/nightshade_bridge.dart'
     hide
         BuiltinGuiderConfig,
         EventCategory,
-        Phd2GuideStats,
         Phd2StarImage,
         Phd2CalibrationData,
         NightshadeEvent;

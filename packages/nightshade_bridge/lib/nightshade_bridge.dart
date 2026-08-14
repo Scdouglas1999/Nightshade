@@ -37,15 +37,6 @@ export 'src/bridge_stub.dart'
         ShutterState;
 export 'src/api_barrel.dart';
 
-// Export Alpaca client for direct HTTP-based device communication
-export 'src/alpaca_client.dart';
-
-// Export ASCOM client for native Windows COM-based device communication
-export 'src/ascom_client.dart';
-
-// Export PHD2 client for autoguiding control
-export 'src/phd2_client.dart';
-
 // Export PHD2 utilities
 export 'src/rolling_rms_calculator.dart';
 

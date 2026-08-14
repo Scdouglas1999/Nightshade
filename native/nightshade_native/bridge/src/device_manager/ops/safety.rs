@@ -66,16 +66,10 @@ impl DeviceManager {
                     "ASCOM is only available on Windows",
                 ))
             }
-            Some(DriverType::Native) => {
-                let native_safety = self.native_safety_monitors.read().await;
-                if let Some(safety) = native_safety.get(device_id) {
-                    return safety.is_safe().await.map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    "Native safety monitor not connected",
-                ))
-            }
+            Some(DriverType::Native) => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                "Native safety monitor not connected",
+            )),
             Some(DriverType::Simulator) => {
                 let safety = crate::api::devices::simulation::get_sim_safety_monitor()
                     .read()

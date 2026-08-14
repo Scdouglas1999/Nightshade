@@ -1,5 +1,5 @@
 // PHD2 guider connection knobs surfaced in Settings → PHD2 Guiding. Owns
-// the binary path and TCP host/port the Phd2Client uses to connect.
+// the binary path and TCP host/port the native PHD2 client connects to.
 //
 // Owns:
 //   * phd2Path, phd2Host, phd2Port

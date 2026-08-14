@@ -251,6 +251,12 @@ pub enum FieldAvailability {
 /// up fields by exact key. Defined here so all writers/readers stay in sync.
 pub mod mount_status_field {
     pub const AT_HOME: &str = "at_home";
+    /// `MountStatus::parked` is not optional, so a backend that cannot read
+    /// park state at all (the Native `NotSupported` arm) must say so HERE —
+    /// the bool it fills in is fabricated, and `parked_from_status` refuses
+    /// to serve it. A mount that merely reports `can_park=false` while
+    /// reading `AtPark` honestly (ASCOM mandates this) does NOT mark it.
+    pub const PARKED: &str = "parked";
     pub const SIDE_OF_PIER: &str = "side_of_pier";
     pub const ALTITUDE: &str = "altitude";
     pub const AZIMUTH: &str = "azimuth";

@@ -99,6 +99,11 @@ void main() {
         targetsStarted.complete();
         return targetsGate.future;
       });
+      // Queue membership is read from the host before the catalog is (a target
+      // the operator removed from the scheduler must not be loaded at all).
+      when(
+        oldBackend.getSchedulerQueueRemovedTargets,
+      ).thenAnswer((_) async => <int>{});
 
       late _FixedBackendNotifier backendNotifier;
       final container = ProviderContainer(

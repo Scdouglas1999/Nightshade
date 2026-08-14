@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -34,23 +33,6 @@ import '../screens/tutorial/first_night_wizard_route.dart';
 import '../screens/onboarding/onboarding_screen.dart';
 import '../widgets/first_light/first_light_launcher.dart';
 import 'page_transitions.dart';
-
-/// Builder for the legacy ops-only companion dashboard route.
-///
-/// Default phones/tablets use `NightshadeApp(isMobile: true)` for full UI
-/// parity. When `NIGHTSHADE_COMPANION_UI=1`, `apps/mobile` can wire this
-/// builder so `/mobile-dashboard` resolves to the tabbed companion UI.
-WidgetBuilder mobileDashboardBuilder = (context) {
-  return const Scaffold(
-    body: Center(
-      child: Text(
-        'Companion dashboard is disabled.\n'
-        'Set NIGHTSHADE_COMPANION_UI=1 on mobile builds to enable it.',
-        textAlign: TextAlign.center,
-      ),
-    ),
-  );
-};
 
 /// Optional top-level routes registered by an app entry point (e.g. desktop
 /// dev screens). Defaults to empty so mobile/web builds are unaffected.

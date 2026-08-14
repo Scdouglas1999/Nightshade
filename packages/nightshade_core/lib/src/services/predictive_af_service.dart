@@ -455,73 +455,6 @@ class PredictiveAfService {
     return encoder.convert(model.toExportJson());
   }
 
-  /// Import a JSON blob previously produced by [exportModel]. Overwrites
-  /// any existing model with the same `(profile_id, filter_name)` key.
-  Future<FilterFocusModel> importModel({
-    required int? equipmentProfileId,
-    required String jsonBlob,
-  }) async {
-    final parsed = jsonDecode(jsonBlob) as Map<String, dynamic>;
-    final schema = parsed['schema'];
-    if (schema != 'nightshade.focus_model.v1') {
-      throw FormatException('Unsupported focus_model export schema: $schema');
-    }
-    final filterName = parsed['filter_name'] as String;
-    final filterIndex = parsed['filter_index'] as int?;
-    final slope = (parsed['slope_steps_per_c'] as num).toDouble();
-    final intercept = (parsed['intercept_at_reference_temp'] as num).toInt();
-    final refTemp = (parsed['reference_temp_celsius'] as num).toDouble();
-    final lastTrained = DateTime.parse(
-      parsed['last_trained_at'] as String,
-    ).toUtc();
-    final trainingRunCount = (parsed['training_run_count'] as num).toInt();
-    final confidence = (parsed['confidence_score'] as num).toDouble();
-    final maxSamples = (parsed['max_training_samples'] as num?)?.toInt() ?? 50;
-    final samples = (parsed['samples'] as List<dynamic>)
-        .map((s) => FocusTrainingSample.fromJson(s as Map<String, dynamic>))
-        .toList();
-
-    // Delete existing, then insert.
-    await _db.customStatement(
-      'DELETE FROM focus_models WHERE equipment_profile_id IS ? AND filter_name = ?',
-      <Object?>[equipmentProfileId, filterName],
-    );
-    final now = DateTime.now();
-    await _db.customStatement(
-      '''
-      INSERT INTO focus_models (
-        uuid, equipment_profile_id, filter_name, filter_index,
-        temperature_compensation_slope, focus_offset_relative_to_lum,
-        intercept_at_reference_temp, reference_temp_celsius,
-        last_trained_at, training_run_count, confidence_score,
-        last_used_at, training_samples_json, max_training_samples,
-        consecutive_bad_predictions, accumulated_drift_steps,
-        created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, NULL, ?, ?, 0, 0, ?, ?)
-      ''',
-      <Object?>[
-        parsed['uuid'] as String? ?? _generateUuid(),
-        equipmentProfileId,
-        filterName,
-        filterIndex,
-        slope,
-        intercept,
-        refTemp,
-        lastTrained.millisecondsSinceEpoch ~/ 1000,
-        trainingRunCount,
-        confidence,
-        jsonEncode(samples.map((s) => s.toJson()).toList()),
-        maxSamples,
-        now.millisecondsSinceEpoch ~/ 1000,
-        now.millisecondsSinceEpoch ~/ 1000,
-      ],
-    );
-    return (await getModel(
-      equipmentProfileId: equipmentProfileId,
-      filterName: filterName,
-    ))!;
-  }
-
   /// Wipe training samples for one (profile, filter) — the "Re-train"
   /// button in the model viewer. Keeps the lifetime counter intact so the
   /// UI can show "this model has been re-trained N times".
@@ -544,18 +477,6 @@ class PredictiveAfService {
       WHERE equipment_profile_id IS ? AND filter_name = ?
       ''',
       <Object?>[now, now, equipmentProfileId, filterName],
-    );
-  }
-
-  /// Delete the row entirely (full forget). Used when a profile is being
-  /// rebuilt from scratch.
-  Future<void> deleteModel({
-    required int? equipmentProfileId,
-    required String filterName,
-  }) async {
-    await _db.customStatement(
-      'DELETE FROM focus_models WHERE equipment_profile_id IS ? AND filter_name = ?',
-      <Object?>[equipmentProfileId, filterName],
     );
   }
 }

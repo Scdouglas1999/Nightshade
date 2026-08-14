@@ -169,6 +169,7 @@ class SchedulerEngine {
       _status.copyWith(
         state: SchedulerState.running,
         clearError: true,
+        pausedByOperatorStop: false,
         nextEvaluationAt: _clock().add(_config.tickInterval),
       ),
     );
@@ -187,19 +188,29 @@ class SchedulerEngine {
     // resume() would no-op against a non-existent run.
     await _sequenceSink.pauseSequence();
     _updateStatus(
-      _status.copyWith(state: SchedulerState.paused, clearNextEvaluation: true),
+      _status.copyWith(
+        state: SchedulerState.paused,
+        pausedByOperatorStop: false,
+        clearNextEvaluation: true,
+      ),
     );
   }
 
   Future<void> resume() async {
     if (_status.state != SchedulerState.paused) return;
+    // A pause the operator's Stop caused has no paused run behind it — they
+    // ended it. Resuming one would ask the executor to resume a sequence that
+    // is not paused, which throws; the re-evaluation below is what puts the
+    // rig back to work.
+    final resumeRun = !_status.pausedByOperatorStop;
     _updateStatus(
       _status.copyWith(
         state: SchedulerState.running,
+        pausedByOperatorStop: false,
         nextEvaluationAt: _clock().add(_config.tickInterval),
       ),
     );
-    await _sequenceSink.resumeSequence();
+    if (resumeRun) await _sequenceSink.resumeSequence();
     _restartTimer();
     await _evaluateWithReason('engine resume');
   }
@@ -217,6 +228,7 @@ class SchedulerEngine {
     _updateStatus(
       _status.copyWith(
         state: SchedulerState.idle,
+        pausedByOperatorStop: false,
         clearCurrentTarget: true,
         clearNextEvaluation: true,
       ),
@@ -281,6 +293,16 @@ class SchedulerEngine {
     return _dispatchedRunId != null;
   }
 
+  /// How the run the engine dispatched as [runId] ended. Only sinks that can
+  /// see the executor can answer; the fallback never reaches this method,
+  /// because a sink that cannot see the executor also never reports the run as
+  /// lost (see [_ownsDispatchedRun]).
+  SchedulerRunEnding _dispatchedRunEnding(String runId) {
+    final Object sink = _sequenceSink;
+    if (sink is SchedulerRunOwnership) return sink.endingFor(runId);
+    return SchedulerRunEnding.unknown;
+  }
+
   /// The `Sequence.id` of the run the autopilot last handed to the executor, or
   /// null when it has none out.
   ///
@@ -332,9 +354,18 @@ class SchedulerEngine {
     if (runId == null) return;
     if (_ownsDispatchedRun(runId)) return;
 
-    // The run we dispatched is over (or was taken from us) either way.
-    _dispatchedRunId = null;
-    if (_status.currentTargetId == null) return;
+    // Ask HOW it ended before dropping the id: the answer decides between
+    // re-arming the autopilot and standing it down, and the id is what names
+    // the run to ask about.
+    final ending = _dispatchedRunEnding(runId);
+    // The run we dispatched is over (or was taken from us) either way — unless
+    // the executor is still settling, in which case the next tick asks again
+    // rather than losing the question.
+    if (ending != SchedulerRunEnding.unknown) _dispatchedRunId = null;
+    if (_status.currentTargetId == null) {
+      _dispatchedRunId = null;
+      return;
+    }
 
     if (_executorHasActiveRun()) {
       _log(
@@ -343,6 +374,15 @@ class SchedulerEngine {
         'ours but another run is active — keeping hysteresis so the autopilot '
         "does not dispatch over the operator's sequence",
       );
+      return;
+    }
+
+    if (ending == SchedulerRunEnding.stoppedByOperator) {
+      // WF-N3: the operator stopped the run the autopilot had started. Taking
+      // the rig back ~44 s later — which is what clearing the target below
+      // does — overrules them silently. Stand down instead and say so, so the
+      // scheduler surface can offer "Autopilot paused — resume?".
+      _pauseForOperatorStop(reason, runId);
       return;
     }
 
@@ -356,6 +396,32 @@ class SchedulerEngine {
       'eligible evaluation dispatches again',
     );
     _updateStatus(_status.copyWith(clearCurrentTarget: true));
+  }
+
+  /// Park the autopilot in `paused` after somebody else stopped its run.
+  ///
+  /// Deliberately NOT [pause]: there is nothing left to pause on the executor,
+  /// and `pauseSequence()` throws against a settled run. The tick loop stops so
+  /// no evaluation can dispatch until the operator resumes.
+  void _pauseForOperatorStop(String reason, String runId) {
+    _tickTimer?.cancel();
+    _tickTimer = null;
+    _reevaluationDebounceTimer?.cancel();
+    _reevaluationDebounceTimer = null;
+    _log(
+      SchedulerLogLevel.info,
+      'Scheduler reconcile ($reason): dispatched run $runId was stopped by the '
+      'operator — pausing the autopilot instead of re-dispatching '
+      '${_status.currentTargetName ?? _status.currentTargetId}',
+    );
+    _updateStatus(
+      _status.copyWith(
+        state: SchedulerState.paused,
+        pausedByOperatorStop: true,
+        clearCurrentTarget: true,
+        clearNextEvaluation: true,
+      ),
+    );
   }
 
   /// Wait until no evaluation is in flight.

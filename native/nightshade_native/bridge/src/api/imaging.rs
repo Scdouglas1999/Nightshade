@@ -4642,6 +4642,43 @@ pub fn api_stacking_add_frame_from_data(
     Ok(convert_result(result))
 }
 
+/// What was written when the stacked master was saved.
+pub struct ApiLiveStackingMaster {
+    pub file_path: String,
+    pub stacked_frame_count: u32,
+    /// The master's `EXPTIME`: Σ of the exposures the stacked frames reported.
+    /// `0.0` means no frame reported one (an in-memory stack has no headers to
+    /// read); the FITS card comment says so.
+    pub total_integration_secs: f64,
+    /// The master's `DATE-OBS`: the earliest stacked frame's stamp, or the
+    /// moment the stack started when no frame carried one.
+    pub date_obs: String,
+}
+
+/// Save the accumulated stack as a FITS master.
+///
+/// This is the session's data product — a PNG of the same pixels carries no
+/// header, no WCS and no integration time.
+pub async fn api_stacking_save_master_fits(
+    file_path: String,
+) -> Result<ApiLiveStackingMaster, NightshadeError> {
+    // The write is blocking (and a full-frame master is tens of megabytes), so
+    // it runs off the async executor like the other FITS writers here.
+    let result = tokio::task::spawn_blocking(move || {
+        crate::stacking_api::stacking_save_master_fits(file_path)
+    })
+    .await
+    .map_err(|e| NightshadeError::OperationFailed(format!("Task join error: {}", e)))?
+    .map_err(NightshadeError::ImageError)?;
+
+    Ok(ApiLiveStackingMaster {
+        file_path: result.file_path,
+        stacked_frame_count: result.stacked_frame_count,
+        total_integration_secs: result.total_integration_secs,
+        date_obs: result.date_obs,
+    })
+}
+
 /// Get the current stacked result without adding a frame.
 pub fn api_stacking_get_result() -> Result<ApiLiveStackingResult, NightshadeError> {
     let result =

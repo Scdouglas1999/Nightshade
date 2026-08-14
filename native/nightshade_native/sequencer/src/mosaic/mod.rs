@@ -44,15 +44,22 @@
 //!
 //! ## Forward-compatibility
 //!
-//! The wizard scaffolding is dormant in production today, but it is
-//! NOT a stub. The plan/execute/checkpoint loop is real and tested
-//! end-to-end (see the resume_tests module below). When per-panel
+//! The wizard scaffolding is unused by today's Dart UI, but it is NOT
+//! a stub, and it is no longer wired to a null sink. `run_mosaic_wizard`
+//! takes the running session's `CheckpointManager` — the executor puts
+//! it on `ExecutionContext::checkpoint_manager` at start() and
+//! `MosaicInstruction` passes it down — and wraps it in
+//! `SessionWizardCheckpointSink`, so per-panel progress lands in the
+//! session checkpoint's `wizard_states` slot on disk. When per-panel
 //! slew/center/expose orchestration eventually moves into the Rust
 //! `Mosaic` instruction node (so the Dart side emits a single
 //! `Mosaic(MosaicConfig)` node instead of expanding into N×M
-//! TargetHeaders), the wizard checkpoint path is already wired
-//! through `SessionWizardCheckpointSink` and will pick up resume
-//! support without further work.
+//! TargetHeaders), resume is already persisted and needs no further
+//! wiring.
+//!
+//! ON-RIG VALIDATION IS OWED: the persistence path is covered by tests
+//! down to disk, but no mosaic has been killed and resumed against real
+//! hardware.
 //!
 //! The four invariants the test suite below pins down so that future
 //! migration cannot regress resume:
@@ -66,6 +73,10 @@
 //! * Round-trip through `SessionWizardCheckpointSink` (the production
 //!   sink, backed by an on-disk `SessionCheckpoint`) actually skips
 //!   completed panels on resume (`resume_round_trips_through_session_sink`).
+//! * The production entry point `run_mosaic_wizard` picks that same
+//!   sink whenever it is handed a `CheckpointManager`, and persists
+//!   nothing when it is not
+//!   (`production_entry_resumes_through_the_session_sink`).
 //!
 //! See `wizard/mod.rs` for the shared executor and trait, and
 //! `checkpoint.rs` for the on-disk persistence layer.
@@ -76,6 +87,7 @@ pub use panels::{
     calculate_mosaic_area, calculate_mosaic_panels, estimate_mosaic_time, MosaicPanel,
 };
 
+use crate::checkpoint::{CheckpointManager, SessionWizardCheckpointSink};
 use crate::instructions::{InstructionContext, InstructionResult};
 use crate::wizard::{
     BorrowedProgressReporter, NullCheckpointSink, Wizard, WizardCheckpointSink, WizardExecutor,
@@ -215,14 +227,27 @@ impl<'a> Wizard for MosaicWizardRun<'a> {
 /// Public entry remains [`crate::instructions::execute_mosaic`]; this
 /// is the implementation it delegates to. Observable behavior matches
 /// the pre-refactor implementation.
+/// `checkpoint_manager` is the running session's manager (the executor
+/// passes `ExecutionContext::checkpoint_manager`). When present, per-panel
+/// progress is written into the session checkpoint's `wizard_states` slot
+/// through [`SessionWizardCheckpointSink`], so a run killed mid-mosaic
+/// resumes at the first unfinished panel. When absent (no checkpoint
+/// directory, or a wizard run outside a session) nothing is persisted and
+/// every run starts at panel 0.
 pub async fn run_mosaic_wizard(
     config: &MosaicConfig,
     ctx: &InstructionContext,
     progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
+    checkpoint_manager: Option<&CheckpointManager>,
 ) -> InstructionResult {
-    let sink = NullCheckpointSink;
+    let session_sink = checkpoint_manager.map(SessionWizardCheckpointSink::new);
+    let null_sink = NullCheckpointSink;
+    let sink: &dyn WizardCheckpointSink = match session_sink {
+        Some(ref session) => session,
+        None => &null_sink,
+    };
     let visited = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
-    run_mosaic_wizard_inner(config, ctx, progress_callback, &sink, visited).await
+    run_mosaic_wizard_inner(config, ctx, progress_callback, sink, visited).await
 }
 
 /// Run the mosaic wizard with a caller-supplied checkpoint sink and a
@@ -546,6 +571,138 @@ mod resume_tests {
         // executor_state) are preserved.
         assert!(after.is_active);
         assert_eq!(after.executor_state, ExecutorState::Running);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Seed an on-disk session checkpoint whose mosaic wizard slot says
+    /// `completed_steps` panels are already done, as a killed run leaves it.
+    fn seed_session_checkpoint(dir: &std::path::Path, completed_steps: u32) {
+        use crate::checkpoint::{CheckpointManager, SessionCheckpoint};
+        use crate::{ExecutorState, SequenceDefinition};
+
+        std::fs::create_dir_all(dir).expect("test dir");
+        let manager = CheckpointManager::new(dir);
+        let mut checkpoint =
+            SessionCheckpoint::new(SequenceDefinition::new("Mosaic Sequence".to_string()));
+        checkpoint.is_active = true;
+        checkpoint.executor_state = ExecutorState::Running;
+        checkpoint.set_wizard_state(WizardCheckpoint {
+            checkpoint_key: "mosaic".to_string(),
+            completed_steps,
+            timestamp: chrono::Utc::now(),
+        });
+        manager.save(&checkpoint).expect("seed save");
+    }
+
+    /// Collects the 1-based panel numbers the wizard actually reported, in
+    /// order, from the "Mosaic panel N/M" progress messages.
+    fn panel_recorder(
+        seen: &std::sync::Mutex<Vec<u32>>,
+    ) -> impl Fn(f64, String) + Send + Sync + '_ {
+        move |_fraction, message| {
+            let Some(rest) = message.strip_prefix("Mosaic panel ") else {
+                return;
+            };
+            let Some((number, _total)) = rest.split_once('/') else {
+                return;
+            };
+            if let Ok(number) = number.parse::<u32>() {
+                seen.lock().expect("panel recorder mutex").push(number);
+            }
+        }
+    }
+
+    /// Mosaic-Resume (owner decision 7) — the PRODUCTION entry point, not a
+    /// test-only one, must resume through the session sink. `run_mosaic_wizard`
+    /// is handed the executor's `CheckpointManager`; with one present it wraps
+    /// it in `SessionWizardCheckpointSink`, so a seeded on-disk slot skips the
+    /// completed panels and the slot is cleared once the run finishes.
+    ///
+    /// Pre-fix this test sees all nine panels (production wired
+    /// `NullCheckpointSink`, which loads nothing and clears nothing).
+    #[tokio::test]
+    async fn production_entry_resumes_through_the_session_sink() {
+        use crate::checkpoint::CheckpointManager;
+
+        let dir = std::env::temp_dir().join(format!(
+            "nightshade_mosaic_production_entry_{}",
+            uuid::Uuid::new_v4()
+        ));
+        seed_session_checkpoint(&dir, 4);
+
+        // A fresh manager, as an app restart would build.
+        let manager = CheckpointManager::new(&dir);
+        let seen = std::sync::Mutex::new(Vec::new());
+        let recorder = panel_recorder(&seen);
+
+        let result = run_mosaic_wizard(
+            &three_by_three_config(),
+            &dummy_ctx(),
+            Some(&recorder),
+            Some(&manager),
+        )
+        .await;
+
+        assert_eq!(result.status, NodeStatus::Success);
+        assert_eq!(
+            seen.lock().expect("panel recorder mutex").clone(),
+            vec![5, 6, 7, 8, 9],
+            "the production entry must skip the four panels the checkpoint records"
+        );
+        let after = manager
+            .load()
+            .expect("load after wizard")
+            .expect("session checkpoint still present");
+        assert!(
+            after.wizard_state("mosaic").is_none(),
+            "the session sink clears the slot after a successful run"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The other half of the same wiring: no checkpoint manager (no
+    /// checkpoint directory configured) means no persistence at all — every
+    /// panel runs and nothing on disk is touched.
+    #[tokio::test]
+    async fn production_entry_without_a_manager_persists_nothing() {
+        use crate::checkpoint::CheckpointManager;
+
+        let dir = std::env::temp_dir().join(format!(
+            "nightshade_mosaic_no_manager_{}",
+            uuid::Uuid::new_v4()
+        ));
+        seed_session_checkpoint(&dir, 4);
+
+        let seen = std::sync::Mutex::new(Vec::new());
+        let recorder = panel_recorder(&seen);
+        let result = run_mosaic_wizard(
+            &three_by_three_config(),
+            &dummy_ctx(),
+            Some(&recorder),
+            None,
+        )
+        .await;
+
+        assert_eq!(result.status, NodeStatus::Success);
+        assert_eq!(
+            seen.lock().expect("panel recorder mutex").clone(),
+            (1..=9_u32).collect::<Vec<_>>(),
+            "without a manager the wizard cannot resume and runs every panel"
+        );
+        let after = CheckpointManager::new(&dir)
+            .load()
+            .expect("load after wizard")
+            .expect("session checkpoint still present");
+        assert_eq!(
+            after
+                .wizard_state("mosaic")
+                .expect("slot untouched")
+                .completed_steps,
+            4,
+            "a run with no manager must not write through to the on-disk slot"
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }

@@ -17,7 +17,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/guiding/guiding_screen.dart';
-import 'package:nightshade_bridge/nightshade_bridge.dart' show Phd2State;
 import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../harness/harness.dart';

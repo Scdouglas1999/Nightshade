@@ -2,29 +2,21 @@
 
 /// Nightshade Bridge - Dart FFI bindings to Rust native code
 ///
-/// This file provides the bridge to the Rust native library.
-/// The native DLL is loaded dynamically and provides real ASCOM/Alpaca
-/// device discovery and connection on Windows.
+/// This file provides the bridge to the Rust native library. The native
+/// library is loaded dynamically and is the ONLY device path: every ASCOM,
+/// Alpaca, INDI, native-vendor and PHD2 operation is executed in Rust.
 ///
-/// For Alpaca devices, we use direct HTTP communication from Dart,
-/// which works cross-platform without needing the native bridge.
-///
-/// When the native library is not available, this bridge will NOT fall back
-/// to simulator implementations. Instead, it will return empty device lists
-/// and throw errors for hardware operations. Use INDI/ASCOM/Alpaca external
-/// simulators for testing instead of built-in fallback adapters.
+/// When the native library is not available this bridge fails closed — it
+/// returns empty device lists and throws from every hardware operation. There
+/// is no Dart-side device implementation to fall back to and no built-in
+/// simulator. Use INDI/ASCOM/Alpaca external simulators for testing instead.
 library;
 
 import 'dart:async';
-import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:ffi';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:path/path.dart' as path;
-import 'alpaca_client.dart' as alpaca;
-import 'ascom_client.dart' as ascom;
-import 'phd2_client.dart' as phd2;
 import 'api_barrel.dart' as gen_api;
 import 'device.dart' as gen_device;
 import 'event.dart' as gen_event;
@@ -33,7 +25,6 @@ import 'storage.dart' as gen_storage;
 import 'frb_generated.dart' as frb;
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
     show ExternalLibrary;
-import 'utils/safe_cast.dart';
 
 part 'bridge_stub/native_bridge_state.dart';
 part 'bridge_stub/native_bridge_facade.dart';
@@ -46,25 +37,27 @@ part 'bridge_stub/sequencer_operations.dart';
 part 'bridge_stub/storage_and_image_operations.dart';
 
 // ============================================================================
-// Error Messages for Fallback Mode
+// Error Messages for the Native-Bridge-Absent Path
 // ============================================================================
 
-/// Error message thrown when fallback operations are called in production
-const _fallbackErrorMessage = '''
-Native bridge not available. This is the Dart fallback bridge.
+/// Error message thrown when a device operation is called without the native
+/// bridge. Rust is the only device path, so there is nothing to fall back to.
+const _nativeMissingErrorMessage = '''
+Native bridge not available.
 
 Possible causes:
 1. Native library failed to load - check build output
 2. Running on unsupported platform (web)
 3. DLL/dylib not found in expected location
 
-For development: Use INDI/ASCOM/Alpaca simulators instead of built-in fallback adapters.
-Simulators are disabled to prevent silent failures with fake data.
+For development: Use INDI/ASCOM/Alpaca simulators. There is no Dart-side device
+implementation and no built-in simulator, so this operation fails closed rather
+than reporting fake data.
 ''';
 
 Never _nativeBridgeRequired(String operation) {
   throw UnsupportedError(
-    'Operation "$operation" requires the native bridge.\n$_fallbackErrorMessage',
+    'Operation "$operation" requires the native bridge.\n$_nativeMissingErrorMessage',
   );
 }
 

@@ -41,6 +41,11 @@ enum NotificationCategory {
   autofocusCompleted('Autofocus Completed'),
   autofocusFailed('Autofocus Failed'),
 
+  /// The interval-autofocus trigger failed to converge and the run CONTINUES
+  /// on the restored last-good focus (owner decision 10, 2026-08-14). Info,
+  /// not error: the night goes on slightly soft — an alarm would cry wolf.
+  autofocusContinued('Autofocus Continued'),
+
   // ----- Imaging -----------------------------------------------------------
   frameCaptured('Frame Captured'),
   frameRejected('Frame Rejected'),
@@ -91,6 +96,7 @@ enum NotificationCategory {
       case NotificationCategory.targetCompleted:
       case NotificationCategory.meridianFlipPerformed:
       case NotificationCategory.autofocusCompleted:
+      case NotificationCategory.autofocusContinued:
       case NotificationCategory.frameCaptured:
       case NotificationCategory.recoveryRecovered:
       case NotificationCategory.guidingRecovered:
@@ -471,6 +477,17 @@ bool _systemPushByDefault(NotificationCategory c) {
     case NotificationCategory.sequenceCompleted:
     case NotificationCategory.targetCompleted:
     case NotificationCategory.meridianFlipPerformed:
+    // A run that stopped without the operator asking is the other way a night
+    // ends, and the person it matters to is asleep (owner decision 2,
+    // 2026-08-14). Their own press is withheld further down the pipeline —
+    // see [StopPushArbiter] — so this default cannot buzz for a deliberate
+    // Stop.
+    case NotificationCategory.sequenceStopped:
+    // A failed interval autofocus keeps the run going on the last good focus
+    // (owner decision 10, 2026-08-14) — the person asleep next to the rig
+    // must hear that the night continued degraded, or the decision row is
+    // invisible until morning.
+    case NotificationCategory.autofocusContinued:
       return true;
     default:
       return false;

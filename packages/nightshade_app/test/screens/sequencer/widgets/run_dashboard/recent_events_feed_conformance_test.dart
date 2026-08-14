@@ -627,4 +627,35 @@ void main() {
     expect(stopRows.single.message, isNot(kSequenceStoppedByRequestMessage));
     expect(stopRows.single.message, isNot(kSequenceStoppedByAutopilotMessage));
   });
+
+  test('D19 one completed run shows ONE unbadged completion row', () {
+    // The wire carries a completed run twice (explicit terminal + the
+    // state-change echo). One row, repeatCount 1 — "x2" would claim two
+    // completions that never happened.
+    final c = makeContainer();
+    final h = c.read(eventHistoryProvider.notifier);
+    h.addEvent(
+      be.NightshadeEvent(
+        eventId: BigInt.from(1),
+        timestamp: _t0.millisecondsSinceEpoch,
+        severity: be.EventSeverity.info,
+        category: be.EventCategory.sequencer,
+        payload: const be.EventPayload.sequencer(be.SequencerEvent.completed()),
+      ),
+    );
+    h.addEvent(
+      be.NightshadeEvent(
+        eventId: BigInt.from(2),
+        timestamp: _t0.millisecondsSinceEpoch,
+        severity: be.EventSeverity.info,
+        category: be.EventCategory.sequencer,
+        payload: const be.EventPayload.sequencer(be.SequencerEvent.completed()),
+      ),
+    );
+
+    final recent = c.read(runDashboardRecentEventsProvider(5));
+    final rows = recent.where((e) => e.title == 'Sequence complete').toList();
+    expect(rows, hasLength(1));
+    expect(rows.single.repeatCount, 1);
+  });
 }

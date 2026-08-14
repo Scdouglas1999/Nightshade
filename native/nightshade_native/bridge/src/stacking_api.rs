@@ -3,6 +3,7 @@
 //! Exposes the live stacking engine to Dart via flutter_rust_bridge.
 //! Uses a global singleton LiveStacker protected by a Mutex.
 
+use nightshade_imaging::stack_master::{write_stack_master, FrameProvenance};
 use nightshade_imaging::stacking::{
     debayer_cfa_to_rgb, LiveStackConfig, LiveStacker, SensorMode, StackingStats,
 };
@@ -285,6 +286,10 @@ pub fn stacking_start(
         SensorMode::Mono => None,
     };
 
+    // The reference frame's own EXPTIME/DATE-OBS start the master's
+    // integration: its pixels are in the stack, so its exposure is too.
+    let reference_provenance = FrameProvenance::from_header_map(&read_result.header);
+
     // Build the reference frame the stacker actually sees: debayered RGB for a
     // colour session, the raw frame for mono.
     let reference_image = match color {
@@ -293,8 +298,9 @@ pub fn stacking_start(
         None => read_result.image,
     };
 
-    let stacker = LiveStacker::new(&reference_image, native_config)
-        .map_err(|e| format!("Failed to initialize stacker: {}", e))?;
+    let stacker =
+        LiveStacker::new_with_provenance(&reference_image, native_config, &reference_provenance)
+            .map_err(|e| format!("Failed to initialize stacker: {}", e))?;
 
     let stats = stacker.get_stats();
 
@@ -398,13 +404,16 @@ pub fn stacking_add_frame(image_path: String) -> Result<LiveStackingAddFrameResu
     // for a colour session, the raw frame for mono. Mixing layouts would trip
     // the stacker's channel-count guard, which is exactly the loud failure we
     // want if a frame's geometry disagrees with the session.
+    let provenance = FrameProvenance::from_header_map(&read_result.header);
     let frame_image = match session.color {
         Some(ingest) => debayer_cfa_to_rgb(&read_result.image, ingest.pattern, ingest.algorithm)
             .map_err(|e| format!("Failed to debayer frame: {}", e))?,
         None => read_result.image,
     };
 
-    let result_image = session.stacker.add_frame(&frame_image)?;
+    let result_image = session
+        .stacker
+        .add_frame_with_provenance(&frame_image, &provenance)?;
 
     let result_u16 = result_image
         .as_u16()
@@ -493,6 +502,66 @@ pub fn stacking_get_result() -> Result<LiveStackingAddFrameResult, String> {
         channels: result_image.channels,
         data: result_u16,
         stats: session.stacker.get_stats().into(),
+    })
+}
+
+/// What was written when the stacked master was saved.
+#[derive(Debug, Clone)]
+pub struct LiveStackingMasterApi {
+    /// Where the master was written.
+    pub file_path: String,
+    /// Frames whose pixels are in the master.
+    pub stacked_frame_count: u32,
+    /// The master's `EXPTIME`: Σ of the exposures the stacked frames reported.
+    /// `0.0` means no frame reported one — the header says so in its comment.
+    pub total_integration_secs: f64,
+    /// The master's `DATE-OBS`, as written.
+    pub date_obs: String,
+}
+
+/// Save the accumulated stack as a FITS master.
+///
+/// The master is the session's data product, so it is written as FITS rather
+/// than a PNG: `EXPTIME` and `DATE-OBS` are synthesized from the frames the
+/// stacker actually folded (see [`nightshade_imaging::stack_master`]), which is
+/// the only place that metadata exists for an in-memory stack.
+pub fn stacking_save_master_fits(file_path: String) -> Result<LiveStackingMasterApi, String> {
+    let guard = acquire_stacker();
+
+    let session = guard
+        .as_ref()
+        .ok_or_else(|| "Live stacker not initialized".to_string())?;
+
+    let provenance = session.stacker.provenance();
+    if provenance.stacked_frames() == 0 {
+        return Err("There is no stacked master to save yet".to_string());
+    }
+
+    let image = session.stacker.get_current_stack();
+    let path = std::path::Path::new(&file_path);
+    write_stack_master(path, &image, provenance)
+        .map_err(|e| format!("Failed to write stacked master: {:?}", e))?;
+
+    let header = provenance.to_fits_header();
+    tracing::info!(
+        "Stacked master saved: {} ({} frames, {:.1} s integration)",
+        file_path,
+        provenance.stacked_frames(),
+        provenance.total_integration_secs()
+    );
+
+    Ok(LiveStackingMasterApi {
+        file_path,
+        stacked_frame_count: provenance.stacked_frames(),
+        total_integration_secs: provenance.total_integration_secs(),
+        // `to_fits_header` always sets DATE-OBS (it synthesizes one when no
+        // frame reported it), so a missing card here is an internal
+        // invariant break — surface it as the API error instead of quietly
+        // returning an empty stamp.
+        date_obs: header
+            .get_string("DATE-OBS")
+            .ok_or_else(|| "internal: stacked master header lacks DATE-OBS".to_string())?
+            .to_string(),
     })
 }
 
@@ -976,5 +1045,79 @@ mod tests {
 
             let _ = stacking_stop();
         }
+    }
+
+    // ---- FITS master ---------------------------------------------------------
+
+    /// Write a single-channel FITS light frame carrying the two keywords the
+    /// master's header is built from.
+    fn write_light_frame(path: &std::path::Path, exposure_secs: f64, date_obs: &str) {
+        let image = ImageData::from_u16(IMG_W, IMG_H, 1, &make_star_plane(IMG_W, IMG_H));
+        let mut header = nightshade_imaging::FitsHeader::new();
+        header.set_float("EXPTIME", exposure_secs);
+        header.set_string("DATE-OBS", date_obs);
+        header.set_string("IMAGETYP", "LIGHT");
+        nightshade_imaging::write_fits(path, &image, &header).expect("light frame written");
+    }
+
+    /// Owner decision 8: the master saves as FITS, and its `EXPTIME` /
+    /// `DATE-OBS` come from the frames the stacker really folded — including
+    /// the reference frame, which contributes pixels like any other.
+    #[test]
+    fn saved_master_sums_the_integration_of_the_frames_it_stacked() {
+        let _g = singleton_guard();
+        let _ = stacking_stop();
+
+        let dir = std::env::temp_dir().join("ns-bridge-stack-master");
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let reference = dir.join("reference.fits");
+        let second = dir.join("second.fits");
+        let master = dir.join("master.fits");
+        write_light_frame(&reference, 120.0, "2026-08-14T03:25:00");
+        // Earlier than the reference: DATE-OBS must follow the clock, not the
+        // order the frames were handed to the stacker.
+        write_light_frame(&second, 120.0, "2026-08-14T03:22:30");
+
+        stacking_start(
+            reference.to_string_lossy().to_string(),
+            base_config().clone(),
+        )
+        .expect("reference started the stack");
+        stacking_add_frame(second.to_string_lossy().to_string()).expect("second frame stacked");
+
+        let saved = stacking_save_master_fits(master.to_string_lossy().to_string())
+            .expect("master written");
+        assert_eq!(saved.stacked_frame_count, 2);
+        assert_eq!(saved.total_integration_secs, 240.0);
+        assert_eq!(saved.date_obs, "2026-08-14T03:22:30.000");
+
+        let (image, header) = nightshade_imaging::read_fits(&master).expect("master reads back");
+        assert_eq!(image.width, IMG_W);
+        assert_eq!(header.get_float("EXPTIME"), Some(240.0));
+        assert_eq!(
+            header.get_string("DATE-OBS"),
+            Some("2026-08-14T03:22:30.000")
+        );
+        assert_eq!(header.get_int("NFRAMES"), Some(2));
+
+        let _ = stacking_stop();
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Saving with no stack running fails loudly rather than writing an empty
+    /// file the operator would mistake for their integration.
+    #[test]
+    fn saving_a_master_without_a_stacker_is_an_error() {
+        let _g = singleton_guard();
+        let _ = stacking_stop();
+
+        let err = stacking_save_master_fits(
+            std::env::temp_dir()
+                .join("ns-no-stack-master.fits")
+                .to_string_lossy()
+                .to_string(),
+        )
+        .expect_err("no stacker means no master");
+        assert!(err.contains("not initialized"), "unexpected error: {err}");
     }
 }

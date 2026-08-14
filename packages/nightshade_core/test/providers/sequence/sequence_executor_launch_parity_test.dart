@@ -179,7 +179,9 @@ void main() {
     ) async {
       pushedRunIds.add(inv.positionalArguments.first as int);
     });
-    when(() => backend.sequencerStop(origin: any(named: 'origin'))).thenAnswer((_) async {
+    when(() => backend.sequencerStop(origin: any(named: 'origin'))).thenAnswer((
+      _,
+    ) async {
       scheduleMicrotask(() {
         if (!eventController.isClosed) {
           eventController.add(

@@ -350,9 +350,11 @@ impl DeviceManager {
                         .map_err(DeviceOpError::driver)?;
                     let tracking = mount.get_tracking().await.map_err(DeviceOpError::driver)?;
                     let slewing = mount.is_slewing().await.map_err(DeviceOpError::driver)?;
-                    let (parked, can_park) = match mount.is_parked().await {
-                        Ok(p) => (p, true),
-                        Err(nightshade_native::traits::NativeError::NotSupported) => (false, false),
+                    let (parked, can_park, parked_readable) = match mount.is_parked().await {
+                        Ok(p) => (p, true, true),
+                        Err(nightshade_native::traits::NativeError::NotSupported) => {
+                            (false, false, false)
+                        }
                         Err(e) => {
                             return Err(DeviceOpError::hardware(
                                 Some(device_id.to_string()),
@@ -365,6 +367,17 @@ impl DeviceManager {
                     };
 
                     let mut availability = Self::mount_status_availability_map();
+                    if !parked_readable {
+                        // The `parked: false` above is fabricated, not observed
+                        // — record that so consumers can refuse to trust it
+                        // (`parked_from_status`). Only this Native arm launders
+                        // NotSupported into a bool; every other backend either
+                        // reads `parked` genuinely or propagates the error.
+                        availability.insert(
+                            mount_status_field::PARKED.to_string(),
+                            FieldAvailability::Unsupported,
+                        );
+                    }
 
                     // get_side_of_pier on `NativeMount` returns Unknown rather than Err
                     // for unsupported mounts (e.g. SkyWatcher), so distinguish here:

@@ -60,6 +60,22 @@ List<HeadlessRoute> buildPlanningDataRoutes(PlanningDataHandlers h) =>
         '/api/target-constraints',
         h.handleDeleteTargetConstraint,
       ),
+      // Scheduler queue membership
+      HeadlessRoute(
+        HttpMethod.get,
+        '/api/scheduler/removed-targets',
+        h.handleGetSchedulerRemovedTargets,
+      ),
+      HeadlessRoute(
+        HttpMethod.post,
+        '/api/scheduler/removed-targets',
+        h.handleRemoveSchedulerTarget,
+      ),
+      HeadlessRoute(
+        HttpMethod.delete,
+        '/api/scheduler/removed-targets',
+        h.handleReadmitSchedulerTarget,
+      ),
       // Horizon profiles
       HeadlessRoute(
         HttpMethod.get,

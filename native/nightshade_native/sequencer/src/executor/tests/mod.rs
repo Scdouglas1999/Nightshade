@@ -43,6 +43,102 @@ fn a_failure_with_no_message_still_fails() {
     );
 }
 
+/// Owner decision (2026-08-14): a trigger-fired autofocus that misses its
+/// curve fit must not pause an unattended run. The run keeps the pre-sweep
+/// focus and the replay log says so, naming both positions.
+#[test]
+fn a_failed_autofocus_trigger_records_the_focus_the_run_kept() {
+    let continuation = autofocus_trigger_continuation(
+        "autofocus_interval",
+        "Autofocus Interval",
+        "curve fit R² 0.31 below minimum 0.80",
+        Some(21_400),
+        Some(21_400),
+        Some(true),
+    );
+
+    assert_eq!(
+        continuation.decision.category,
+        crate::decision::DecisionCategory::SystemEvent
+    );
+    assert_eq!(
+        continuation.decision.summary,
+        "Autofocus failed — continuing with last-good focus"
+    );
+    assert_eq!(
+        continuation.decision.details["focuser_position_before"],
+        serde_json::json!(21_400)
+    );
+    assert_eq!(
+        continuation.decision.details["focuser_position_after"],
+        serde_json::json!(21_400)
+    );
+    assert_eq!(
+        continuation.decision.details["reason"],
+        serde_json::json!("curve fit R² 0.31 below minimum 0.80")
+    );
+    assert!(
+        continuation.operator_message.contains("imaging continues"),
+        "the operator must be told the run carried on: {}",
+        continuation.operator_message
+    );
+}
+
+/// A failed RETURN move is a different night: the motor is parked somewhere
+/// on the sweep and the frames from here on may be badly soft. The run still
+/// continues, but the notice must not claim the focuser came home.
+#[test]
+fn a_failed_position_restore_is_called_out_not_smoothed_over() {
+    let continuation = autofocus_trigger_continuation(
+        "autofocus_interval",
+        "Autofocus Interval",
+        "focuser timed out",
+        Some(21_400),
+        Some(19_950),
+        Some(false),
+    );
+
+    assert!(
+        continuation
+            .operator_message
+            .contains("could NOT be returned"),
+        "a failed restore must be named: {}",
+        continuation.operator_message
+    );
+    assert!(continuation.operator_message.contains("19950"));
+    assert_eq!(
+        continuation.decision.details["pre_autofocus_position_restored"],
+        serde_json::json!(false)
+    );
+}
+
+/// An autofocus rejected at the admission gate never moved the focuser, so
+/// the marker is absent rather than `false`. Reading that as a failed
+/// restore would cry wolf about focus on a run whose focuser never moved.
+#[test]
+fn an_autofocus_that_never_moved_the_focuser_does_not_warn_about_restore() {
+    let continuation = autofocus_trigger_continuation(
+        "autofocus_interval",
+        "Autofocus Interval",
+        "Autofocus is already running on this equipment host",
+        Some(21_400),
+        Some(21_400),
+        None,
+    );
+
+    assert!(
+        !continuation
+            .operator_message
+            .contains("could NOT be returned"),
+        "an autofocus that never moved the focuser must not warn about the restore: {}",
+        continuation.operator_message
+    );
+    assert_eq!(
+        continuation.decision.details["pre_autofocus_position_restored"],
+        serde_json::Value::Null
+    );
+}
+
 #[test]
 fn a_successful_dither_is_performed() {
     assert_eq!(

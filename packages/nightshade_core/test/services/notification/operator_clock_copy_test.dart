@@ -62,10 +62,10 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(transport.sent, hasLength(1));
-      expect(
-        transport.sent.single.body,
-        'Sequence stopped by request at 00:13.',
-      );
+      // Cause-neutral: nothing on the wire named an author for this stop, and
+      // only the executor's decision row may (owner decision 2, 2026-08-14).
+      // The clock format is what this test pins.
+      expect(transport.sent.single.body, 'Sequence stopped at 00:13.');
       expect(transport.sent.single.body, isNot(matches(_isoTimestamp)));
     },
   );

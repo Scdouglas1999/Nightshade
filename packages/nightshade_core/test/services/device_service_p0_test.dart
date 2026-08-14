@@ -13,7 +13,6 @@ import 'package:nightshade_core/src/models/sequence/sequence_models.dart';
 import 'package:nightshade_core/src/providers/backend_provider.dart';
 import 'package:nightshade_core/src/providers/equipment_provider.dart';
 import 'package:nightshade_core/src/providers/sequence_provider.dart';
-import 'package:nightshade_core/src/services/device_exceptions.dart';
 import 'package:nightshade_core/src/services/device_service.dart';
 
 import '../mocks/mock_backend.dart';
@@ -300,37 +299,6 @@ void main() {
         expect(container.read(cameraStateProvider).deviceName, 'Known Camera');
       },
     );
-  });
-
-  group('connectProfile sequential abort', () {
-    test('stops after first failure and emits progress', () async {
-      const cameraId = TestFixtures.cameraId;
-      const mountId = TestFixtures.mountId;
-
-      when(
-        () => mockBackend.connectDevice(DeviceType.camera, cameraId),
-      ).thenThrow(Exception('camera unreachable'));
-      when(
-        () => mockBackend.connectDevice(DeviceType.mount, mountId),
-      ).thenAnswer((_) async {});
-
-      final progress = <DeviceConnectProgress>[];
-      final service = container.read(deviceServiceProvider);
-
-      await expectLater(
-        service.connectProfile(
-          cameraId: cameraId,
-          mountId: mountId,
-          onProgress: progress.add,
-        ),
-        throwsA(isA<Exception>()),
-      );
-
-      expect(progress, hasLength(2));
-      expect(progress.first.status, DeviceConnectProgressStatus.connecting);
-      expect(progress.last.status, DeviceConnectProgressStatus.failed);
-      verifyNever(() => mockBackend.connectDevice(DeviceType.mount, mountId));
-    });
   });
 
   group('critical disconnect checkpoints before pause', () {

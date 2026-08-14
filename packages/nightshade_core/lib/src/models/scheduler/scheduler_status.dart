@@ -241,12 +241,23 @@ class SchedulerStatus extends Equatable {
   /// when the operator successfully restarts the engine.
   final String? lastError;
 
+  /// True while [state] is [SchedulerState.paused] BECAUSE somebody outside
+  /// the autopilot ended the run it had dispatched — the operator's Stop.
+  ///
+  /// The autopilot used to notice the free rig on its next tick and dispatch
+  /// the same target again ~44 s later, silently overruling the person who had
+  /// just stopped it. It now stands down and says so: this flag is what lets
+  /// the scheduler surface offer "Autopilot paused — resume?" instead of
+  /// rendering an ordinary operator-commanded pause.
+  final bool pausedByOperatorStop;
+
   const SchedulerStatus({
     this.state = SchedulerState.idle,
     this.currentTargetId,
     this.currentTargetName,
     this.nextEvaluationAt,
     this.lastError,
+    this.pausedByOperatorStop = false,
   });
 
   Map<String, dynamic> toJson() => {
@@ -256,6 +267,7 @@ class SchedulerStatus extends Equatable {
     if (nextEvaluationAt != null)
       'nextEvaluationAt': nextEvaluationAt!.toIso8601String(),
     if (lastError != null) 'lastError': lastError,
+    if (pausedByOperatorStop) 'pausedByOperatorStop': true,
   };
 
   factory SchedulerStatus.fromJson(Map<String, dynamic> json) {
@@ -271,6 +283,7 @@ class SchedulerStatus extends Equatable {
         json['nextEvaluationAt'] as String? ?? '',
       ),
       lastError: json['lastError'] as String?,
+      pausedByOperatorStop: json['pausedByOperatorStop'] as bool? ?? false,
     );
   }
 
@@ -280,6 +293,7 @@ class SchedulerStatus extends Equatable {
     String? currentTargetName,
     DateTime? nextEvaluationAt,
     String? lastError,
+    bool? pausedByOperatorStop,
     bool clearCurrentTarget = false,
     bool clearNextEvaluation = false,
     bool clearError = false,
@@ -296,6 +310,7 @@ class SchedulerStatus extends Equatable {
           ? null
           : (nextEvaluationAt ?? this.nextEvaluationAt),
       lastError: clearError ? null : (lastError ?? this.lastError),
+      pausedByOperatorStop: pausedByOperatorStop ?? this.pausedByOperatorStop,
     );
   }
 
@@ -306,5 +321,6 @@ class SchedulerStatus extends Equatable {
     currentTargetName,
     nextEvaluationAt,
     lastError,
+    pausedByOperatorStop,
   ];
 }

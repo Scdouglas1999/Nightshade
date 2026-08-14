@@ -151,6 +151,19 @@ mixin _GuidingActions on ConsumerState<GuidingScreen>, _GuidingStateFields {
   String _starMetricText(double value, {int decimals = 1}) =>
       value > 0 ? value.toStringAsFixed(decimals) : '—';
 
+  /// The `Frame Count` readout, which counts whichever frames the guider is
+  /// currently taking.
+  ///
+  /// Looping takes no corrections, so `frameCount` — a count of guide STEPS —
+  /// sat at `0` for the whole of a Loop Exposures run while the SNR and Star
+  /// Mass rows directly above it updated per loop frame; all three read as
+  /// describing the same frames, so one of them was lying. While looping the
+  /// row reports the loop's own frames, counted from one per loop.
+  String _frameCountText(Phd2GuideStats stats, Phd2State phd2State) =>
+      phd2State == Phd2State.looping
+          ? stats.loopFrameCount.toString()
+          : stats.frameCount.toString();
+
   Color _getStateColor(Phd2State state) {
     final colors = NightshadeColors.of(context);
     switch (state) {

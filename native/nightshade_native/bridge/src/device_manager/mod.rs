@@ -27,8 +27,7 @@ pub(crate) mod ops;
 use crate::device::*;
 use crate::state::SharedAppState;
 use nightshade_native::traits::{
-    NativeCamera, NativeCoverCalibrator, NativeDevice, NativeDome, NativeFilterWheel,
-    NativeFocuser, NativeMount, NativeRotator, NativeSafetyMonitor, NativeSwitch, NativeWeather,
+    NativeCamera, NativeDevice, NativeFilterWheel, NativeFocuser, NativeMount,
 };
 // Vendor SDK imports moved to crate::dispatch::native (the only consumer of
 // the camera/mount/filter wheel/focuser constructors).
@@ -551,26 +550,6 @@ pub struct DeviceManager {
     /// Active Native SDK mounts (stored separately for typed access)
     pub(crate) native_mounts: RwLock<HashMap<String, Box<dyn NativeMount + Send + Sync>>>,
 
-    /// Active Native SDK rotators (stored separately for typed access)
-    pub(crate) native_rotators: RwLock<HashMap<String, Box<dyn NativeRotator + Send + Sync>>>,
-
-    /// Active Native SDK domes (stored separately for typed access)
-    pub(crate) native_domes: RwLock<HashMap<String, Box<dyn NativeDome + Send + Sync>>>,
-
-    /// Active Native SDK weather stations (stored separately for typed access)
-    pub(crate) native_weather: RwLock<HashMap<String, Box<dyn NativeWeather + Send + Sync>>>,
-
-    /// Active Native SDK safety monitors (stored separately for typed access)
-    pub(crate) native_safety_monitors:
-        RwLock<HashMap<String, Box<dyn NativeSafetyMonitor + Send + Sync>>>,
-
-    /// Active Native SDK switches (stored separately for typed access)
-    pub(crate) native_switches: RwLock<HashMap<String, Box<dyn NativeSwitch + Send + Sync>>>,
-
-    /// Active Native SDK cover calibrators (stored separately for typed access)
-    pub(crate) native_cover_calibrators:
-        RwLock<HashMap<String, Box<dyn NativeCoverCalibrator + Send + Sync>>>,
-
     /// Active heartbeat monitoring tasks (device_id -> join handle)
     heartbeat_tasks: RwLock<HashMap<String, tokio::task::JoinHandle<()>>>,
 
@@ -793,12 +772,6 @@ impl DeviceManager {
             native_focusers: RwLock::new(HashMap::new()),
             native_filter_wheels: RwLock::new(HashMap::new()),
             native_mounts: RwLock::new(HashMap::new()),
-            native_rotators: RwLock::new(HashMap::new()),
-            native_domes: RwLock::new(HashMap::new()),
-            native_weather: RwLock::new(HashMap::new()),
-            native_safety_monitors: RwLock::new(HashMap::new()),
-            native_switches: RwLock::new(HashMap::new()),
-            native_cover_calibrators: RwLock::new(HashMap::new()),
             heartbeat_tasks: RwLock::new(HashMap::new()),
             reconnect_cancel_tokens: RwLock::new(HashMap::new()),
             active_operations: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
@@ -865,12 +838,6 @@ impl DeviceManager {
             native_focusers: RwLock::new(HashMap::new()),
             native_filter_wheels: RwLock::new(HashMap::new()),
             native_mounts: RwLock::new(HashMap::new()),
-            native_rotators: RwLock::new(HashMap::new()),
-            native_domes: RwLock::new(HashMap::new()),
-            native_weather: RwLock::new(HashMap::new()),
-            native_safety_monitors: RwLock::new(HashMap::new()),
-            native_switches: RwLock::new(HashMap::new()),
-            native_cover_calibrators: RwLock::new(HashMap::new()),
             heartbeat_tasks: RwLock::new(HashMap::new()),
             reconnect_cancel_tokens: RwLock::new(HashMap::new()),
             active_operations: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),

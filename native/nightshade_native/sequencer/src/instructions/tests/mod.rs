@@ -107,6 +107,10 @@ struct ScriptedDomeRotatorOps {
     /// `false` (matching NullDeviceOps); the parked-rig gate test sets it
     /// `true` to prove a parked exposure is never daylight-gated.
     mount_parked: bool,
+    /// When `Some`, `mount_is_parked` fails with this message instead of
+    /// answering `mount_parked`.
+    mount_is_parked_error: Option<String>,
+    mount_unpark_calls: AtomicU32,
     // --- per-frame capture truth -----------------------------------
     /// Every `FrameContext` this ops layer was handed by `save_fits`, in
     /// order. This is the FITS writer's own input — recording it is the
@@ -165,6 +169,8 @@ impl ScriptedDomeRotatorOps {
             cooler_off_error: None,
             pause_flag_after_first_exposure: None,
             mount_parked: false,
+            mount_is_parked_error: None,
+            mount_unpark_calls: AtomicU32::new(0),
             focuser_moves: Mutex::new(Vec::new()),
             focuser_halt_calls: AtomicU32::new(0),
             filter_position: AtomicI32::new(1),
@@ -237,6 +243,11 @@ impl ScriptedDomeRotatorOps {
 
     fn with_mount_parked(mut self, parked: bool) -> Self {
         self.mount_parked = parked;
+        self
+    }
+
+    fn with_mount_is_parked_error(mut self, msg: &str) -> Self {
+        self.mount_is_parked_error = Some(msg.to_string());
         self
     }
 
@@ -365,6 +376,7 @@ impl DeviceOps for ScriptedDomeRotatorOps {
         self.inner.mount_park(id).await
     }
     async fn mount_unpark(&self, id: &str) -> DeviceResult<()> {
+        self.mount_unpark_calls.fetch_add(1, Ordering::SeqCst);
         self.inner.mount_unpark(id).await
     }
     async fn mount_is_slewing(&self, id: &str) -> DeviceResult<bool> {
@@ -373,6 +385,9 @@ impl DeviceOps for ScriptedDomeRotatorOps {
         Ok(Self::next_scripted(&self.mount_slewing_states))
     }
     async fn mount_is_parked(&self, _id: &str) -> DeviceResult<bool> {
+        if let Some(err) = &self.mount_is_parked_error {
+            return Err(err.clone());
+        }
         Ok(self.mount_parked)
     }
     async fn mount_can_flip(&self, id: &str) -> DeviceResult<bool> {
@@ -971,6 +986,7 @@ mod frame_metadata;
 mod grading;
 mod guiding;
 mod meridian_gate;
+mod park;
 mod pointing_gate;
 mod rotator;
 mod save_path;

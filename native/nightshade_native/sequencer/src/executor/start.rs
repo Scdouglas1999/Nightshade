@@ -482,6 +482,12 @@ impl SequenceExecutor {
         // path needs its own handle to the *same* manager (shared info_cache).
         let completion_checkpoint_manager: Option<Arc<crate::checkpoint::CheckpointManager>> =
             self.checkpoint_manager.clone();
+        // Third Arc clone for the ExecutionContext, so wizards that own
+        // step-level resume state (mosaic panels) write their slots
+        // through the SAME manager as the streaming task instead of
+        // discarding them into a NullCheckpointSink.
+        let context_checkpoint_manager: Option<Arc<crate::checkpoint::CheckpointManager>> =
+            self.checkpoint_manager.clone();
         let streaming_sequence = self.sequence.clone();
         let streaming_camera_id = self.camera_id.clone();
         let streaming_mount_id = self.mount_id.clone();
@@ -625,6 +631,10 @@ impl SequenceExecutor {
                 let skip_to_node_for_recovery = context.skip_to_node.clone();
                 context.is_cancelled = is_cancelled.clone();
                 context.is_paused = is_paused_clone;
+                // Wizard step-level resume (mosaic panels) persists through
+                // this manager; `None` when no checkpoint dir was set, in
+                // which case the wizard falls back to a null sink.
+                context.checkpoint_manager = context_checkpoint_manager;
                 context.recovery_generation = recovery_generation_clone;
                 // Dual-rig — pick up the process-wide dither barrier if a
                 // secondary capture loop is armed, so the primary's dither
@@ -2062,6 +2072,18 @@ impl SequenceExecutor {
                             let guard = streaming_smart_exposure_states.read().await;
                             guard.clone()
                         };
+
+                        // The wizard and scheduler slots live in no registry
+                        // this task holds — their owners write them straight
+                        // through the shared CheckpointManager (see
+                        // `SessionWizardCheckpointSink`). Building a fresh
+                        // SessionCheckpoint here would wipe a mosaic panel's
+                        // resume slot every 30 seconds, so carry both maps
+                        // forward from disk exactly as the public writer does.
+                        if let Ok(Some(existing)) = checkpoint_mgr.load() {
+                            checkpoint.wizard_states = existing.wizard_states;
+                            checkpoint.scheduler_states = existing.scheduler_states;
+                        }
 
                         match checkpoint_mgr.save(&checkpoint) {
                             Ok(()) => tracing::debug!(
@@ -3772,6 +3794,15 @@ impl SequenceExecutor {
                                                         ),
                                                     );
                                                 };
+                                            // Recorded so the decision row can
+                                            // name the focus the run kept when
+                                            // the sweep does not converge.
+                                            let position_before_af = read_focuser_position(
+                                                &device_ops_for_triggers,
+                                                trigger_action_context.focuser_id.as_ref(),
+                                            )
+                                            .await;
+
                                             let af_result = crate::instructions::execute_autofocus(
                                                 &af_config,
                                                 &af_ctx,
@@ -3840,9 +3871,17 @@ impl SequenceExecutor {
                                                     let mut ts =
                                                         trigger_state_for_actions.write().await;
                                                     ts.reset_baseline_hfr();
+                                                    // The run carries on from here on every
+                                                    // path that does not end it, so the cadence
+                                                    // anchor has to advance too: the interval
+                                                    // trigger carries no time cooldown, and an
+                                                    // unmoved anchor re-fires the sweep that
+                                                    // just failed after every single frame.
+                                                    ts.mark_autofocus_attempted();
                                                     tracing::warn!(
                                                     "Autofocus failed — HFR baseline reset to current value ({:?}) \
-                                                     to prevent repeated trigger firing with stale baseline",
+                                                     and the interval cadence anchor advanced so the failed sweep \
+                                                     does not re-fire on every subsequent frame",
                                                     ts.baseline_hfr
                                                 );
                                                 }
@@ -3925,31 +3964,71 @@ impl SequenceExecutor {
                                                     );
                                                 }
 
-                                                is_paused_for_triggers
-                                                    .store(true, Ordering::Relaxed);
-                                                *state_clone.write().await = ExecutorState::Paused;
-                                                // The status API is built from the progress snapshot, not from
-                                                // this lock. Stamping only the lock is what let a paused run
-                                                // keep reporting `running` — see mirror_paused_into_progress.
-                                                progress_for_triggers.write().state =
-                                                    ExecutorState::Paused;
-                                                let _ = event_tx_clone2.send(
-                                                    ExecutorEvent::StateChanged(
-                                                        ExecutorState::Paused,
-                                                    ),
-                                                );
-                                                let _ = event_tx_clone2.send(ExecutorEvent::Error {
-                                                // Why: autofocus result's
-                                                // `message` is Option<String> — only populated
-                                                // when the focus pipeline reports a specific
-                                                // diagnostic. The generic fallback message is
-                                                // surfaced to the user when no specific signal
-                                                // came back; the failure itself is already
-                                                // encoded in `af_result.success = false`.
-                                                message: af_result.message.unwrap_or_else(|| {
-                                                    "Autofocus trigger failed; sequence paused for intervention".to_string()
-                                                }),
-                                            });
+                                                // Owner decision (2026-08-14) — the unattended
+                                                // policy for a TRIGGER-fired autofocus that does
+                                                // not converge: keep imaging on the last-good
+                                                // focus. This arm used to latch the executor
+                                                // PAUSED, which on a rig nobody is sitting at
+                                                // spends the rest of a clear night parked on a
+                                                // missed curve fit — strictly worse than slightly
+                                                // soft subs the operator can cull in the morning.
+                                                // An operator who wants the harder answer still
+                                                // has `AutofocusFailureAction::AbortAndPark`
+                                                // above, which ends the run and safes the rig.
+                                                // `execute_autofocus` has already returned the
+                                                // focuser to its pre-sweep position; all this arm
+                                                // owes the operator is an honest record of what
+                                                // was kept. Explicit `Autofocus` NODES keep their
+                                                // own configured failure handling — this governs
+                                                // the trigger default only.
+                                                //
+                                                // `autofocus_origin_restored` is absent (not
+                                                // `false`) when the run bailed before it ever
+                                                // moved the focuser — e.g. admission rejected
+                                                // because another autofocus held the equipment —
+                                                // so only an explicit `false` means the motor was
+                                                // left off its origin.
+                                                let origin_restored = af_result
+                                                    .data
+                                                    .as_ref()
+                                                    .and_then(|data| {
+                                                        data.get("autofocus_origin_restored")
+                                                    })
+                                                    .and_then(|value| value.as_bool());
+                                                let position_after_af = read_focuser_position(
+                                                    &device_ops_for_triggers,
+                                                    trigger_action_context.focuser_id.as_ref(),
+                                                )
+                                                .await;
+                                                // Why: autofocus result's `message` is
+                                                // Option<String> — only populated when the focus
+                                                // pipeline reports a specific diagnostic. The
+                                                // generic fallback stands in when no specific
+                                                // signal came back; the failure itself is already
+                                                // encoded in the result's status.
+                                                let reason =
+                                                    af_result.message.unwrap_or_else(|| {
+                                                        "autofocus did not converge".to_string()
+                                                    });
+
+                                                let mut continuation =
+                                                    autofocus_trigger_continuation(
+                                                        &trigger_id,
+                                                        &trigger_name,
+                                                        &reason,
+                                                        position_before_af,
+                                                        position_after_af,
+                                                        origin_restored,
+                                                    );
+                                                continuation.decision.sequence_run_id =
+                                                    *active_run_id_for_decisions.read();
+                                                let _ = decision_tx_for_lifecycle
+                                                    .send(continuation.decision);
+                                                tracing::warn!("{}", continuation.operator_message);
+                                                let _ =
+                                                    event_tx_clone2.send(ExecutorEvent::Error {
+                                                        message: continuation.operator_message,
+                                                    });
                                             }
                                         }
                                         Some(missing) => {

@@ -37,7 +37,6 @@ import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/screens/guiding/guiding_screen.dart';
 import 'package:nightshade_app/widgets/phd2/guide_controls_panel.dart';
 import 'package:nightshade_app/widgets/tutorial_keys/guiding_keys.dart';
-import 'package:nightshade_bridge/nightshade_bridge.dart' show Phd2State;
 import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../harness/harness.dart';

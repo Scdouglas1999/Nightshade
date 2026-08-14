@@ -1548,6 +1548,20 @@ class SequenceExecutor {
       );
     }
 
+    // Remember HOW this run ended, for the autopilot's reconcile: an
+    // explicit stop carries its commander's origin ('operator' when the
+    // stop() caller passed none); a natural 'stopped' terminal that no
+    // stop() commanded is a native-side safety abort. The distinction is
+    // what keeps a weather abort from pausing the autopilot as if a human
+    // had asked it to stand down.
+    if (f.nativeStopRequired) {
+      _lastRunEndOrigin = f.stopOrigin ?? 'operator';
+    } else if (f.runStatus == 'stopped' || f.runStatus == 'paused-stopped') {
+      _lastRunEndOrigin = 'safety';
+    } else {
+      _lastRunEndOrigin = null;
+    }
+
     // The run is over: clear the native run-id stamp so a decision emitted
     // BETWEEN runs (an idle Pause press, a runtime-config change) is not
     // written into the finished run's replay timeline. Cleared BEFORE the
@@ -1804,6 +1818,12 @@ class SequenceExecutor {
   /// (the action service, the headless API, the scheduler) is updated in
   /// the same audit pass and the few remaining bare `stop()` invocations
   /// are deliberate hard-stops (e.g. reset()).
+  /// How the most recently settled run ended: 'operator' / 'scheduler' /
+  /// 'rollback' / 'safety' (native-side abort with no stop() commander) /
+  /// null (completed, failed, or nothing settled yet).
+  String? get lastRunEndOrigin => _lastRunEndOrigin;
+  String? _lastRunEndOrigin;
+
   Future<void> stop({bool preserveCheckpoint = false, String? origin}) {
     _ensureBackendAuthority();
     // Join an in-flight finalization — a natural terminal, another stop(), or a

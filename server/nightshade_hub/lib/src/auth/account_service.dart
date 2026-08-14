@@ -121,7 +121,8 @@ class AccountService {
     required String password,
   }) {
     final rows = _db.db.select(
-      'SELECT id, password_hash, is_admin FROM accounts WHERE public_key = ?;',
+      'SELECT id, password_hash, is_admin, suspended_at FROM accounts '
+      'WHERE public_key = ?;',
       <Object?>[publicKey.trim()],
     );
     if (rows.isEmpty) {
@@ -133,6 +134,12 @@ class AccountService {
     final row = rows.first;
     final stored = row['password_hash'] as String?;
     if (stored == null || !_hasher.verify(password, stored)) return null;
+    // A suspended account must not receive a fresh token: the resolve-time
+    // kill switch already fails its tokens closed, but a 200 here writes a
+    // false "successful login" audit row and grows the token table for an
+    // account moderation has locked out (hub-sweep finding H1). The password
+    // was still verified above so this path costs the same PBKDF2 work.
+    if (row['suspended_at'] != null) return null;
     final id = row['id'] as String;
     final isAdmin = (row['is_admin'] as int) != 0;
     final token = _tokens.issue(

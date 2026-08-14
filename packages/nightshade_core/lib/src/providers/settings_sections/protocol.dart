@@ -1,6 +1,6 @@
 // Device-protocol server settings (INDI / Alpaca) surfaced in
 // Settings → Connection. Owns the host / port / auto-connect knobs the
-// IndiClient and AlpacaClient consult when bootstrapping connections.
+// native INDI and Alpaca clients consult when bootstrapping connections.
 //
 // Owns:
 //   * indiServerHost, indiServerPort, indiAutoConnect

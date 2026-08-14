@@ -1491,6 +1491,13 @@ typedef struct wire_cst_list_star_crop_api {
   int32_t len;
 } wire_cst_list_star_crop_api;
 
+typedef struct wire_cst_api_live_stacking_master {
+  struct wire_cst_list_prim_u_8_strict *file_path;
+  uint32_t stacked_frame_count;
+  double total_integration_secs;
+  struct wire_cst_list_prim_u_8_strict *date_obs;
+} wire_cst_api_live_stacking_master;
+
 typedef struct wire_cst_api_live_stacking_stats {
   uint32_t stacked_frame_count;
   uint32_t total_frames_attempted;
@@ -3477,6 +3484,9 @@ WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__imaging__api_sta
 
 void frbgen_nightshade_bridge_wire__crate__api__imaging__api_stacking_reset(int64_t port_);
 
+void frbgen_nightshade_bridge_wire__crate__api__imaging__api_stacking_save_master_fits(int64_t port_,
+                                                                                       struct wire_cst_list_prim_u_8_strict *file_path);
+
 void frbgen_nightshade_bridge_wire__crate__api__imaging__api_stacking_start(int64_t port_,
                                                                             struct wire_cst_list_prim_u_8_strict *reference_image_path,
                                                                             struct wire_cst_api_live_stacking_config *config);
@@ -4261,6 +4271,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_stacking_get_stats);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_stacking_is_active);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_stacking_reset);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_stacking_save_master_fits);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_stacking_start);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_stacking_start_from_data);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_stacking_stop);

@@ -402,8 +402,11 @@ mixin _GuidingMobileSections
                     stats.starMass > 0 ? colors.textPrimary : colors.textMuted,
                     colors),
                 const SizedBox(height: 10),
-                _buildStatRow('Frame Count', stats.frameCount.toString(),
-                    colors.textPrimary, colors),
+                _buildStatRow(
+                    'Frame Count',
+                    _frameCountText(stats, ref.watch(phd2StateProvider)),
+                    colors.textPrimary,
+                    colors),
               ],
             ),
           ),

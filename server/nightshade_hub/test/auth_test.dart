@@ -348,6 +348,22 @@ void main() {
 
     tearDown(() => db.dispose());
 
+    test('a suspended account cannot log in for a fresh token (H1)', () {
+      // The resolve-time kill switch already fails old tokens closed, but a
+      // 200 login for a suspended account wrote a false "successful login"
+      // audit row and grew the token table (hub-sweep finding H1).
+      final signup = accounts.signup(
+        publicKey: 'pk-h1',
+        displayName: 'H1',
+        password: 'pw',
+      );
+      expect(accounts.login(publicKey: 'pk-h1', password: 'pw'), isNotNull);
+      moderation.suspend(targetAccountId: signup.account.id, reason: 'spam');
+      expect(accounts.login(publicKey: 'pk-h1', password: 'pw'), isNull);
+      moderation.reinstate(targetAccountId: signup.account.id);
+      expect(accounts.login(publicKey: 'pk-h1', password: 'pw'), isNotNull);
+    });
+
     test('a suspended account fails closed at resolve, reinstate restores', () {
       final signup = accounts.signup(publicKey: 'pk', displayName: 'A');
       // A fresh token resolves before suspension.

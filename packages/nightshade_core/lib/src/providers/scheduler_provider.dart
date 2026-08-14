@@ -29,6 +29,8 @@ import '../services/scheduler/horizon_profile.dart';
 import '../services/scheduler/integration_goal_service.dart';
 import '../services/scheduler/scheduler_engine.dart';
 import '../services/scheduler/scheduler_log.dart' show schedulerLogSinkFor;
+import '../services/scheduler/scheduler_queue_service.dart'
+    show schedulerQueueServiceProvider;
 import '../services/scheduler/target_constraint_service.dart';
 import '../services/smart_night_models.dart' show smartNightPlanningFilters;
 import 'backend_provider.dart';

@@ -66,6 +66,28 @@ pub async fn execute_unpark(ctx: &InstructionContext) -> InstructionResult {
         Err(e) => return e,
     };
 
+    // Owner decision (2026-08-14): unpark only when the mount actually reports
+    // PARKED. The autopilot puts an `Unpark` at the head of every dispatched
+    // sequence, so a mount that is already tracking a target gets the command
+    // mid-run; several drivers treat Unpark as "release the axes", which drops
+    // tracking (and on some ASCOM mounts re-homes) under an in-flight target.
+    // Not parked is not an error — there is simply nothing to do, and saying so
+    // in the log keeps the no-op visible instead of silent.
+    //
+    // A parked-state read that FAILS is not a licence to skip: an unpark on an
+    // already-unparked mount is the milder outcome, so fall through and issue
+    // it (this is the pre-decision behaviour).
+    match ctx.device_ops.mount_is_parked(&mount_id).await {
+        Ok(false) => {
+            tracing::info!("Unpark: mount already reports unparked; nothing to do");
+            return InstructionResult::success_with_message("Mount already unparked");
+        }
+        Ok(true) => {}
+        Err(e) => {
+            tracing::warn!("Unpark: is_parked read failed ({}); unparking anyway", e);
+        }
+    }
+
     tracing::info!("Unparking mount");
 
     match ctx.device_ops.mount_unpark(&mount_id).await {

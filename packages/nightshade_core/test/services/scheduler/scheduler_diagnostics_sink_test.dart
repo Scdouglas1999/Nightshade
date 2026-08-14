@@ -51,6 +51,11 @@ class _ExecutorSink implements SchedulerSequenceSink, SchedulerRunOwnership {
 
   @override
   bool get hasActiveRun => activeRunId != null;
+
+  /// The run died on its own, so the autopilot re-arms rather than standing
+  /// down — the reconcile branch this test reads the diagnostic from.
+  @override
+  SchedulerRunEnding endingFor(String sequenceId) => SchedulerRunEnding.failed;
 }
 
 const _site = SchedulerSite(

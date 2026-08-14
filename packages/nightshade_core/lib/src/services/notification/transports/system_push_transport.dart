@@ -168,6 +168,30 @@ class SystemPushTransport extends NotificationTransport {
           enabled: (c) => c.notifyMeridianFlip,
           priority: PushNotificationPriority.normal,
         );
+      // A run that ended without the operator asking — a safety abort, the
+      // autopilot's re-plan, a subsystem stop — is exactly what someone asleep
+      // needs to hear (owner decision 2, 2026-08-14). The operator's own press
+      // never gets here: the router's [StopPushArbiter] withholds it.
+      //
+      // No legacy per-event toggle ever existed for a stop, so the control is
+      // the routing matrix's own sequenceStopped row. Priority is the ordinary
+      // non-alarm tier the other run-lifecycle milestones use — the run ending
+      // is news, never an emergency.
+      case NotificationCategory.sequenceStopped:
+        return const _PushSpec(
+          enabled: _always,
+          priority: PushNotificationPriority.normal,
+        );
+      // A failed interval autofocus that CONTINUES the run (owner decision 10,
+      // 2026-08-14): the night went on at the last good focus, and the person
+      // asleep must hear it or the degradation stays invisible until morning.
+      // Same toggle as autofocusFailed — muting one mutes the family — but at
+      // the ordinary tier: the run surviving is news, not an emergency.
+      case NotificationCategory.autofocusContinued:
+        return _PushSpec(
+          enabled: (c) => c.notifyAutofocusFailed,
+          priority: PushNotificationPriority.normal,
+        );
 
       // ----- Custom (user-defined NotificationNode / forwarded errors) -----
       // Always allowed when push is enabled; the user explicitly opted a
@@ -186,7 +210,6 @@ class SystemPushTransport extends NotificationTransport {
       // autofocus-completed.
       case NotificationCategory.sequenceStarted:
       case NotificationCategory.sequencePaused:
-      case NotificationCategory.sequenceStopped:
       case NotificationCategory.sequenceResumed:
       case NotificationCategory.targetStarted:
       case NotificationCategory.autofocusCompleted:
@@ -217,6 +240,7 @@ class SystemPushTransport extends NotificationTransport {
       case NotificationCategory.targetCompleted:
       case NotificationCategory.meridianFlipPerformed:
       case NotificationCategory.autofocusCompleted:
+      case NotificationCategory.autofocusContinued:
       case NotificationCategory.autofocusFailed:
       case NotificationCategory.frameCaptured:
       case NotificationCategory.frameRejected:

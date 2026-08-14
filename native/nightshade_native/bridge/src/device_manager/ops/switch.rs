@@ -71,16 +71,10 @@ impl DeviceManager {
                 // any realistic device.
                 Ok(i32::try_from(switches.len()).unwrap_or(i32::MAX))
             }
-            DriverType::Native => {
-                let switches = self.native_switches.read().await;
-                if let Some(sw) = switches.get(device_id) {
-                    return sw.get_switch_count().await.map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    format!("Native switch {} not found", device_id),
-                ))
-            }
+            DriverType::Native => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                format!("Native switch {} not found", device_id),
+            )),
             DriverType::Simulator => sim::sim_switch_count().await.map_err(DeviceOpError::from),
         }
     }
@@ -132,19 +126,10 @@ impl DeviceManager {
                 let sw = self.indi_get_switch_at(device_id, switch_id).await?;
                 Ok(sw.state)
             }
-            DriverType::Native => {
-                let switches = self.native_switches.read().await;
-                if let Some(sw) = switches.get(device_id) {
-                    return sw
-                        .get_switch_state(switch_id)
-                        .await
-                        .map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    format!("Native switch {} not found", device_id),
-                ))
-            }
+            DriverType::Native => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                format!("Native switch {} not found", device_id),
+            )),
             DriverType::Simulator => sim::sim_switch_read(switch_id)
                 .await
                 .map(|reading| reading.state)
@@ -220,19 +205,10 @@ impl DeviceManager {
                     "INDI switch device not connected",
                 ))
             }
-            DriverType::Native => {
-                let mut switches = self.native_switches.write().await;
-                if let Some(sw) = switches.get_mut(device_id) {
-                    return sw
-                        .set_switch_state(switch_id, state)
-                        .await
-                        .map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    format!("Native switch {} not found", device_id),
-                ))
-            }
+            DriverType::Native => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                format!("Native switch {} not found", device_id),
+            )),
             DriverType::Simulator => sim::sim_switch_write_state(switch_id, state)
                 .await
                 .map_err(DeviceOpError::from),
@@ -286,19 +262,10 @@ impl DeviceManager {
                 let sw = self.indi_get_switch_at(device_id, switch_id).await?;
                 Ok(sw.element_name.clone())
             }
-            DriverType::Native => {
-                let switches = self.native_switches.read().await;
-                if let Some(sw) = switches.get(device_id) {
-                    return sw
-                        .get_switch_name(switch_id)
-                        .await
-                        .map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    format!("Native switch {} not found", device_id),
-                ))
-            }
+            DriverType::Native => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                format!("Native switch {} not found", device_id),
+            )),
             DriverType::Simulator => sim::sim_switch_read(switch_id)
                 .await
                 .map(|reading| reading.name)
@@ -354,19 +321,10 @@ impl DeviceManager {
                 // For INDI, description is "property_name / label"
                 Ok(format!("{} / {}", sw.property_name, sw.label))
             }
-            DriverType::Native => {
-                let switches = self.native_switches.read().await;
-                if let Some(sw) = switches.get(device_id) {
-                    return sw
-                        .get_switch_description(switch_id)
-                        .await
-                        .map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    format!("Native switch {} not found", device_id),
-                ))
-            }
+            DriverType::Native => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                format!("Native switch {} not found", device_id),
+            )),
             DriverType::Simulator => sim::sim_switch_read(switch_id)
                 .await
                 .map(|reading| reading.description)
@@ -441,19 +399,10 @@ impl DeviceManager {
                     "INDI switch device not connected",
                 ))
             }
-            DriverType::Native => {
-                let switches = self.native_switches.read().await;
-                if let Some(sw) = switches.get(device_id) {
-                    return sw
-                        .get_switch_value(switch_id)
-                        .await
-                        .map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    format!("Native switch {} not found", device_id),
-                ))
-            }
+            DriverType::Native => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                format!("Native switch {} not found", device_id),
+            )),
             DriverType::Simulator => sim::sim_switch_read(switch_id)
                 .await
                 .map(|reading| reading.value)
@@ -529,19 +478,10 @@ impl DeviceManager {
                     "INDI switch device not connected",
                 ))
             }
-            DriverType::Native => {
-                let mut switches = self.native_switches.write().await;
-                if let Some(sw) = switches.get_mut(device_id) {
-                    return sw
-                        .set_switch_value(switch_id, value)
-                        .await
-                        .map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    format!("Native switch {} not found", device_id),
-                ))
-            }
+            DriverType::Native => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                format!("Native switch {} not found", device_id),
+            )),
             DriverType::Simulator => sim::sim_switch_write_value(switch_id, value)
                 .await
                 .map_err(DeviceOpError::from),
@@ -595,19 +535,10 @@ impl DeviceManager {
                 // INDI boolean switches have min 0.0
                 Ok(0.0)
             }
-            DriverType::Native => {
-                let switches = self.native_switches.read().await;
-                if let Some(sw) = switches.get(device_id) {
-                    return sw
-                        .get_switch_min_value(switch_id)
-                        .await
-                        .map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    format!("Native switch {} not found", device_id),
-                ))
-            }
+            DriverType::Native => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                format!("Native switch {} not found", device_id),
+            )),
             DriverType::Simulator => sim::sim_switch_read(switch_id)
                 .await
                 .map(|reading| reading.min)
@@ -662,19 +593,10 @@ impl DeviceManager {
                 // INDI boolean switches have max 1.0
                 Ok(1.0)
             }
-            DriverType::Native => {
-                let switches = self.native_switches.read().await;
-                if let Some(sw) = switches.get(device_id) {
-                    return sw
-                        .get_switch_max_value(switch_id)
-                        .await
-                        .map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    format!("Native switch {} not found", device_id),
-                ))
-            }
+            DriverType::Native => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                format!("Native switch {} not found", device_id),
+            )),
             DriverType::Simulator => sim::sim_switch_read(switch_id)
                 .await
                 .map(|reading| reading.max)
@@ -723,16 +645,10 @@ impl DeviceManager {
                 let sw = self.indi_get_switch_at(device_id, switch_id).await?;
                 Ok(sw.writable)
             }
-            DriverType::Native => {
-                let switches = self.native_switches.read().await;
-                if let Some(sw) = switches.get(device_id) {
-                    return sw.can_write(switch_id).await.map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    format!("Native switch {} not found", device_id),
-                ))
-            }
+            DriverType::Native => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                format!("Native switch {} not found", device_id),
+            )),
             DriverType::Simulator => sim::sim_switch_read(switch_id)
                 .await
                 .map(|reading| reading.writable)

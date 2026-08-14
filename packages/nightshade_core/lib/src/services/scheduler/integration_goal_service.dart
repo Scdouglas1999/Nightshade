@@ -8,6 +8,7 @@ import '../../database/database.dart' as db;
 import '../../models/scheduler/integration_goal.dart';
 import '../../providers/backend_provider.dart';
 import '../../providers/database_provider.dart';
+import 'scheduler_queue_service.dart' show schedulerRemovedTargetsSchemaSql;
 import '../../utils/resilient_poll_stream.dart';
 
 /// SQL schema for the three scheduler tables.
@@ -92,6 +93,22 @@ class IntegrationGoalService {
     _schemaEnsured = true;
   }
 
+  /// Putting work on a target puts it back in the scheduler queue.
+  ///
+  /// An earlier "Remove from scheduler" left the target INELIGIBLE
+  /// (`SchedulerQueueService`), and a new goal on it is the operator asking for
+  /// it to be imaged again — otherwise the goal they just typed would sit there
+  /// while the autopilot went on ignoring the target. Enforced here, in the one
+  /// place goals are written, so the slave gets it too: its upsert runs on the
+  /// host through `/api/integration-goals`.
+  Future<void> _readmitToSchedulerQueue(int targetId) async {
+    await _db.customStatement(schedulerRemovedTargetsSchemaSql);
+    await _db.customStatement(
+      'DELETE FROM scheduler_removed_targets WHERE target_id = ?',
+      [targetId],
+    );
+  }
+
   /// Insert a new integration goal. The (target_id, filter, exposure)
   /// uniqueness constraint replaces an existing row with the same key so
   /// the operator can iteratively tune one filter's goal without leaving
@@ -104,6 +121,7 @@ class IntegrationGoalService {
       return id;
     }
     await _ensureSchema();
+    await _readmitToSchedulerQueue(goal.targetId);
     final existing = await _db
         .customSelect(
           'SELECT id FROM integration_goals WHERE target_id = ? AND filter = ? AND exposure_seconds = ?',

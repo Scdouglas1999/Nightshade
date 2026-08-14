@@ -26,6 +26,27 @@ Generated from `reports/coverage/status.json` and `inventory.json` on 2026-08-09
 > resolves because the basename-keyed sources key on basename, not path. (c) the
 > duplicate basename ids remain by design — and the C3 splits added a FOURTH
 > (`screen:sequencer/node_palette.dart`: widgets/ and sequencer_screen_parts/ collide).
+>
+> **Hub sweep EXECUTED (2026-08-14): 28/28 visited, 0 unreached.** A live hub was
+> driven through all 44 routes (auth/lockout, narrowed tokens, tile contribute→fuse→
+> retract, calibration incl. poison-422, mosaic broker incl. 409/eviction, co-imaging
+> SSE, moderation, the 429, the audit ledger); 89/90 driver checks passed. Two
+> findings, BOTH FIXED in-session: H1 — login handed a fresh bearer token to a
+> SUSPENDED account (false success audit row; now refused, pinned in auth_test); H2 —
+> the earlier "hub counted" claim was FALSE (the control filter dropped every
+> widget-less server file; inventory said 1182 with the hub contributing ZERO). The
+> tool now counts controlless server units: **1,211 units / 3,827 controls**, and all
+> 28 `hub:` status entries id-match the inventory. Findings file:
+> reports/coverage/hub-sweep-findings.md.
+>
+> ~~Hub sweep charter (recon 2026-08-14)~~: the 28 newly-counted `hub:` units are NOT
+> untested — the hub's own suite is 205/205 green (auth, coimaging, schema, fusion, DB
+> upgrade). What they lack is the campaign's per-unit exercise ledger. The right sweep
+> is API-driven, not GUI: stand the hub up locally, drive each service's endpoints the
+> way the Collaborative Sky clients do (account/token/consent flows, tile submit/fuse,
+> calibration share, mosaic broker claim/handoff, follow-the-night), and record each
+> `hub:` unit visited/unreached in status.json — the same shape as the desktop
+> `_apiUnits` sweep. One agent, one evening, no hardware.
 
 **68 units recorded unreached with a reason, 12 never claimed at all.**
 The inventory tool reports 390/402; that counts only the never-claimed. A unit whose sweeper

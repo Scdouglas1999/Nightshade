@@ -500,6 +500,11 @@ List<RunDashboardEvent> collapseRepeatedEvents(
         // A stop row is one press or one abort by construction of the fold
         // above; an xN badge would multiply the operator's action.
         event.title != 'Sequence stopped' &&
+        // One completed run reaches the wire twice (the executor's explicit
+        // SequenceCompleted AND the state-change arm), so completion rows
+        // fold below WITHOUT a badge — "Sequence complete x2" reads as two
+        // completions that never happened.
+        event.title != 'Sequence complete' &&
         last.category == event.category &&
         last.title == event.title &&
         last.message == event.message &&
@@ -588,26 +593,30 @@ bool isOperatorStopNotice(ns_events.NightshadeEvent event) {
 /// is_cancelled machinery), so claiming "Stopped by request" off them
 /// invents an operator action that never happened: the cry-wolf shape,
 /// inverted.
-bool _isOperatorStopEvidence(ns_events.NightshadeEvent event) {
+bool _isOperatorStopEvidence(ns_events.NightshadeEvent event) =>
+    _stopDecision(event)?.author == SequenceStopAuthor.operatorPress;
+
+/// The stop-authorship decision this bridge event carries, read through the
+/// SHARED vocabulary in `run_stop_classification.dart` — the same reader the
+/// notification router uses on the core-typed stream, so the feed row and the
+/// phone push can never disagree about whose stop it was.
+SequenceStopDecision? _stopDecision(ns_events.NightshadeEvent event) {
   final payload = event.payload;
-  if (payload is! ns_events.EventPayload_Sequencer) return false;
+  if (payload is! ns_events.EventPayload_Sequencer) return null;
   final sequencerEvent = payload.field0;
-  return sequencerEvent is ns_events.SequencerEvent_DecisionLogged &&
-      sequencerEvent.category == 'manual_intervention' &&
-      sequencerEvent.summary.startsWith('Operator: stop');
+  if (sequencerEvent is! ns_events.SequencerEvent_DecisionLogged) return null;
+  return sequenceStopDecision(
+    category: sequencerEvent.category,
+    summary: sequencerEvent.summary,
+    detailsJson: sequencerEvent.detailsJson,
+  );
 }
 
 /// The system decision the executor logs when the AUTOPILOT commanded the
 /// stop (origin `scheduler` on the stop API). Evidence of a cause — just
 /// not a human one.
-bool _isAutopilotStopEvidence(ns_events.NightshadeEvent event) {
-  final payload = event.payload;
-  if (payload is! ns_events.EventPayload_Sequencer) return false;
-  final sequencerEvent = payload.field0;
-  return sequencerEvent is ns_events.SequencerEvent_DecisionLogged &&
-      sequencerEvent.category == 'system_event' &&
-      sequencerEvent.summary == 'Autopilot: stop';
-}
+bool _isAutopilotStopEvidence(ns_events.NightshadeEvent event) =>
+    _stopDecision(event)?.author == SequenceStopAuthor.autopilot;
 
 /// The run this stop-family event belongs to, when the wire carries it.
 /// Episode identity: two events of DIFFERENT runs may never fold together,
@@ -658,14 +667,15 @@ String? _stopEvidenceKind(ns_events.NightshadeEvent event) {
   if (sequencerEvent.summary == kSequenceCancelledNotice) {
     return 'decision-notice';
   }
-  if (sequencerEvent.category == 'manual_intervention' &&
-      sequencerEvent.summary.startsWith('Operator: stop')) {
-    return 'manual-intervention';
+  switch (_stopDecision(event)?.author) {
+    case SequenceStopAuthor.operatorPress:
+      return 'manual-intervention';
+    case SequenceStopAuthor.autopilot:
+      return 'autopilot-decision';
+    case SequenceStopAuthor.system:
+    case null:
+      return null;
   }
-  if (_isAutopilotStopEvidence(event)) {
-    return 'autopilot-decision';
-  }
-  return null;
 }
 
 /// How far apart two members of ONE stop episode can plausibly land: the
@@ -711,6 +721,26 @@ class _StopGroup {
 /// only the message is copied in, so the feed stays newest-first and row
 /// identity is stable. Groups never wear an xN badge — that would say it
 /// happened N times.
+/// One run's completion arrives twice on the wire (explicit terminal +
+/// state-change echo). Keep ONE row, badge-free: a x2 would claim two
+/// completions, and two rows would too.
+List<RunDashboardEvent> _foldDuplicateCompletions(
+  List<RunDashboardEvent> rows,
+) {
+  final out = <RunDashboardEvent>[];
+  for (final row in rows) {
+    if (row.title == 'Sequence complete' &&
+        out.isNotEmpty &&
+        out.last.title == 'Sequence complete' &&
+        out.last.time.difference(row.time).abs() <=
+            const Duration(seconds: 10)) {
+      continue;
+    }
+    out.add(row);
+  }
+  return out;
+}
+
 List<RunDashboardEvent> _foldStopFamilyRows(
   Iterable<ns_events.NightshadeEvent> events,
 ) {
@@ -894,7 +924,9 @@ final runDashboardRecentEventsProvider =
   // frees slots for the different events behind it. Taking first would leave
   // the panel showing one collapsed row and four blanks' worth of lost history.
   return collapseRepeatedEvents(
-    _foldStopFamilyRows(history.where(isUserFacingRunEvent)),
+    _foldDuplicateCompletions(
+      _foldStopFamilyRows(history.where(isUserFacingRunEvent)),
+    ),
   ).take(limit).toList(growable: false);
 });
 

@@ -73,6 +73,7 @@ class GuideStatsNotifier extends StateNotifier<Phd2GuideStats> {
   final _rmsRaCalculator = RollingRmsCalculator(windowSize: 100);
   final _rmsDecCalculator = RollingRmsCalculator(windowSize: 100);
   int _frameCount = 0;
+  int _loopFrameCount = 0;
 
   GuideStatsNotifier(this.ref)
     : super(
@@ -87,6 +88,19 @@ class GuideStatsNotifier extends StateNotifier<Phd2GuideStats> {
       ) {
     _events = _BackendGuidingEventBinding(ref, _onBackendEvent);
     _events.start();
+
+    // Each Loop Exposures run counts its own frames from one. The count is
+    // armed and cleared off [phd2StateProvider] — the same provider the Star
+    // Statistics card reads to decide WHICH count to show — so the number on
+    // screen and the run it belongs to cannot disagree. Both producers of the
+    // looping state reach it (the `LoopingExposures` event and PHD2's polled
+    // AppState), which a flag set from the event stream alone would not.
+    ref.listen<Phd2State>(phd2StateProvider, (previous, next) {
+      if (next == Phd2State.looping && previous != Phd2State.looping) {
+        _loopFrameCount = 0;
+        state = state.copyWith(loopFrameCount: 0);
+      }
+    });
   }
 
   void _onBackendEvent(NightshadeEvent event) {
@@ -102,6 +116,13 @@ class GuideStatsNotifier extends StateNotifier<Phd2GuideStats> {
           'Received GuideStats: SNR=$snr, StarMass=$starMass',
           source: 'GuideStatsNotifier',
         );
+        // A looping guider publishes exactly one `GuideStats` per captured
+        // frame, so this event IS the loop's frame. Counted here and not in
+        // [updateStarData] because `Phd2Controller` calls that method for this
+        // same event — a count kept there would advance twice per frame.
+        if (ref.read(phd2StateProvider) == Phd2State.looping) {
+          _loopFrameCount++;
+        }
         updateStarData(snr, starMass);
       } else if (event.eventType == 'GuidingStopped') {
         _logger.debug('Received GuidingStopped', source: 'GuideStatsNotifier');
@@ -152,6 +173,7 @@ class GuideStatsNotifier extends StateNotifier<Phd2GuideStats> {
       snr: (json['SNR'] ?? 0).toDouble(),
       starMass: (json['StarMass'] ?? 0).toDouble(),
       frameCount: _frameCount,
+      loopFrameCount: _loopFrameCount,
     );
   }
 
@@ -159,6 +181,7 @@ class GuideStatsNotifier extends StateNotifier<Phd2GuideStats> {
     _rmsRaCalculator.clear();
     _rmsDecCalculator.clear();
     _frameCount = 0;
+    _loopFrameCount = 0;
     state = const Phd2GuideStats(
       rmsRa: 0,
       rmsDec: 0,
@@ -180,6 +203,7 @@ class GuideStatsNotifier extends StateNotifier<Phd2GuideStats> {
       snr: snr,
       starMass: starMass,
       frameCount: state.frameCount,
+      loopFrameCount: _loopFrameCount,
     );
   }
 

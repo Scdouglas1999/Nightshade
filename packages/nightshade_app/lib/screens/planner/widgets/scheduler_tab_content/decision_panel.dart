@@ -97,6 +97,14 @@ class _DecisionPanel extends ConsumerWidget {
               height: 1.35,
             ),
           ),
+          if (status.pausedByOperatorStop) ...[
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            _OperatorStopBanner(
+              colors: colors,
+              busy: controlsBusy,
+              onResume: onResume,
+            ),
+          ],
           const SizedBox(height: NightshadeTokens.spaceMd),
           _CurrentTargetSummary(
               status: status, decision: decision, colors: colors),
@@ -147,6 +155,80 @@ class _DecisionPanel extends ConsumerWidget {
             onWeightsChanged: onWeightsChanged,
             onMinAltitudeChanged: onMinAltitudeChanged,
             onHysteresisChanged: onHysteresisChanged,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Shown when the autopilot stood down because the operator stopped the run it
+/// had dispatched (WF-N3).
+///
+/// Without it the pause is indistinguishable from one the operator asked for,
+/// and the only clue that the night has halted is a Resume button among four
+/// other controls. The autopilot used to re-dispatch silently ~44 s after the
+/// Stop; standing down is only an improvement if the operator can see that it
+/// happened and take the night back in one press.
+class _OperatorStopBanner extends StatelessWidget {
+  final NightshadeColors colors;
+  final bool busy;
+  final Future<void> Function() onResume;
+
+  const _OperatorStopBanner({
+    required this.colors,
+    required this.busy,
+    required this.onResume,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const ValueKey('scheduler-operator-pause-banner'),
+      padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+      decoration: BoxDecoration(
+        color: colors.warning.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+        border: Border.all(color: colors.warning.withValues(alpha: 0.40)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(LucideIcons.pauseCircle,
+              size: NightshadeTokens.iconMd, color: colors.warning),
+          const SizedBox(width: NightshadeTokens.spaceSm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Autopilot paused — resume?',
+                  style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize13,
+                    fontWeight: FontWeight.w700,
+                    color: colors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'You stopped the run it had started, so it is leaving the rig '
+                  'alone instead of picking another target.',
+                  style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize12,
+                    color: colors.textSecondary,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: NightshadeTokens.spaceSm),
+                NightshadeButton(
+                  key: const ValueKey('scheduler-operator-pause-resume'),
+                  label: 'Resume autopilot',
+                  icon: LucideIcons.play,
+                  size: ButtonSize.small,
+                  onPressed: busy ? null : () => onResume(),
+                ),
+              ],
+            ),
           ),
         ],
       ),

@@ -2312,6 +2312,12 @@
       "controls": 1
     },
     {
+      "id": "api:/api/scheduler/removed-targets",
+      "kind": "api-route",
+      "area": "headless-api",
+      "controls": 1
+    },
+    {
       "id": "api:/api/scheduler/rise-set",
       "kind": "api-route",
       "area": "headless-api",
@@ -3534,6 +3540,230 @@
       }
     },
     {
+      "id": "hub:nightshade_hub.dart",
+      "kind": "hub",
+      "area": "hub-server",
+      "path": "server/nightshade_hub/lib/nightshade_hub.dart",
+      "controls": 0,
+      "control_kinds": {}
+    },
+    {
+      "id": "hub:src/auth/account_service.dart",
+      "kind": "hub",
+      "area": "hub-server",
+      "path": "server/nightshade_hub/lib/src/auth/account_service.dart",
+      "controls": 0,
+      "control_kinds": {}
+    },
+    {
+      "id": "hub:src/auth/moderation_service.dart",
+      "kind": "hub",
+      "area": "hub-server",
+      "path": "server/nightshade_hub/lib/src/auth/moderation_service.dart",
+      "controls": 0,
+      "control_kinds": {}
+    },
+    {
+      "id": "hub:src/auth/password_hasher.dart",
+      "kind": "hub",
+      "area": "hub-server",
+      "path": "server/nightshade_hub/lib/src/auth/password_hasher.dart",
+      "controls": 0,
+      "control_kinds": {}
+    },
+    {
+      "id": "hub:src/auth/secret_policy.dart",
+      "kind": "hub",
+      "area": "hub-server",
+      "path": "server/nightshade_hub/lib/src/auth/secret_policy.dart",
+      "controls": 0,
+      "control_kinds": {}
+    },
+    {
+      "id": "hub:src/auth/token_service.dart",
+      "kind": "hub",
+      "area": "hub-server",
+      "path": "server/nightshade_hub/lib/src/auth/token_service.dart",
+      "controls": 0,
+      "control_kinds": {}
+    },
+    {
+      "id": "hub:src/calibration/calibration_master_store.dart",
+      "kind": "hub",
+      "area": "hub-server",
+      "path": "server/nightshade_hub/lib/src/calibration/calibration_master_store.dart",
+      "controls": 0,
+      "control_kinds": {}
+    },
+    {
+      "id": "hub:src/calibration/fits_master_validation.dart",
+      "kind": "hub",
+      "area": "hub-server",
+      "path": "server/nightshade_hub/lib/src/calibration/fits_master_validation.dart",
+      "controls": 0,
+      "control_kinds": {}
+    },
+    {
+      "id": "hub:src/calibration/shared_calibration_service.dart",
+      "kind": "hub",
+      "area": "hub-server",
+      "path": "server/nightshade_hub/lib/src/calibration/shared_calibration_service.dart",
+      "controls": 0,
+      "control_kinds": {}
+    },
+    {
+      "id": "hub:src/collab/attribution_service.dart",
+      "kind": "hub",
+      "area": "hub-server",
+      "path": "server/nightshade_hub/lib/src/collab/attribution_service.dart",
+      "controls": 0,
+      "control_kinds": {}
+    },
+    {
+      "id": "hub:src/collab/consent_service.dart",
+      "kind": "hub",
+      "area": "hub-server",
+      "path": "server/nightshade_hub/lib/src/collab/consent_service.dart",
+      "controls": 0,
+      "control_kinds": {}
+    },
+    {
+      "id": "hub:src/db/hub_database.dart",
+      "kind": "hub",
+      "area": "hub-server",
+      "path": "server/nightshade_hub/lib/src/db/hub_database.dart",
+      "controls": 0,
+      "control_kinds": {}
+    },
+    {
+      "id": "hub:src/http/audit_log.dart",
+      "kind": "hub",
+      "area": "hub-server",
+      "path": "server/nightshade_hub/lib/src/http/audit_log.dart",
+      "controls": 0,
+      "control_kinds": {}
+    },
+    {
+      "id": "hub:src/http/error_envelope.dart",
+      "kind": "hub",
+      "area": "hub-server",
+      "path": "server/nightshade_hub/lib/src/http/error_envelope.dart",
+      "controls": 0,
+      "control_kinds": {}
+    },
+    {
+      "id": "hub:src/http/rate_limiter.dart",
+      "kind": "hub",
+      "area": "hub-server",
+      "path": "server/nightshade_hub/lib/src/http/rate_limiter.dart",
+      "controls": 0,
+      "control_kinds": {}
+    },
+    {
+      "id": "hub:src/hub_server.dart",
+      "kind": "hub",
+      "area": "hub-server",
+      "path": "server/nightshade_hub/lib/src/hub_server.dart",
+      "controls": 0,
+      "control_kinds": {}
+    },
+    {
+      "id": "hub:src/scheduler/coimaging_service.dart",
+      "kind": "hub",
+      "area": "hub-server",
+      "path": "server/nightshade_hub/lib/src/scheduler/coimaging_service.dart",
+      "controls": 0,
+      "control_kinds": {}
+    },
+    {
+      "id": "hub:src/scheduler/follow_the_night.dart",
+      "kind": "hub",
+      "area": "hub-server",
+      "path": "server/nightshade_hub/lib/src/scheduler/follow_the_night.dart",
+      "controls": 0,
+      "control_kinds": {}
+    },
+    {
+      "id": "hub:src/scheduler/handoff_service.dart",
+      "kind": "hub",
+      "area": "hub-server",
+      "path": "server/nightshade_hub/lib/src/scheduler/handoff_service.dart",
+      "controls": 0,
+      "control_kinds": {}
+    },
+    {
+      "id": "hub:src/scheduler/mosaic_broker_service.dart",
+      "kind": "hub",
+      "area": "hub-server",
+      "path": "server/nightshade_hub/lib/src/scheduler/mosaic_broker_service.dart",
+      "controls": 0,
+      "control_kinds": {}
+    },
+    {
+      "id": "hub:src/tiles/fusion_service.dart",
+      "kind": "hub",
+      "area": "hub-server",
+      "path": "server/nightshade_hub/lib/src/tiles/fusion_service.dart",
+      "controls": 0,
+      "control_kinds": {}
+    },
+    {
+      "id": "hub:src/tiles/mosaic_master_store.dart",
+      "kind": "hub",
+      "area": "hub-server",
+      "path": "server/nightshade_hub/lib/src/tiles/mosaic_master_store.dart",
+      "controls": 0,
+      "control_kinds": {}
+    },
+    {
+      "id": "hub:src/tiles/subframe_service.dart",
+      "kind": "hub",
+      "area": "hub-server",
+      "path": "server/nightshade_hub/lib/src/tiles/subframe_service.dart",
+      "controls": 0,
+      "control_kinds": {}
+    },
+    {
+      "id": "hub:src/tiles/subframe_store.dart",
+      "kind": "hub",
+      "area": "hub-server",
+      "path": "server/nightshade_hub/lib/src/tiles/subframe_store.dart",
+      "controls": 0,
+      "control_kinds": {}
+    },
+    {
+      "id": "hub:src/tiles/tile_builder.dart",
+      "kind": "hub",
+      "area": "hub-server",
+      "path": "server/nightshade_hub/lib/src/tiles/tile_builder.dart",
+      "controls": 0,
+      "control_kinds": {}
+    },
+    {
+      "id": "hub:src/tiles/tile_codec.dart",
+      "kind": "hub",
+      "area": "hub-server",
+      "path": "server/nightshade_hub/lib/src/tiles/tile_codec.dart",
+      "controls": 0,
+      "control_kinds": {}
+    },
+    {
+      "id": "hub:src/tiles/tile_quality.dart",
+      "kind": "hub",
+      "area": "hub-server",
+      "path": "server/nightshade_hub/lib/src/tiles/tile_quality.dart",
+      "controls": 0,
+      "control_kinds": {}
+    },
+    {
+      "id": "hub:src/tiles/tile_store.dart",
+      "kind": "hub",
+      "area": "hub-server",
+      "path": "server/nightshade_hub/lib/src/tiles/tile_store.dart",
+      "controls": 0,
+      "control_kinds": {}
+    },
+    {
       "id": "mobile:camera_tab.dart",
       "kind": "mobile",
       "area": "mobile",
@@ -4569,6 +4799,16 @@
       "id": "screen:equipment/helper_widgets.dart",
       "kind": "screen",
       "area": "equipment",
+      "path": "packages/nightshade_app/lib/screens/equipment/widgets/connected_device_card/helper_widgets.dart",
+      "controls": 2,
+      "control_kinds": {
+        "gesture": 2
+      }
+    },
+    {
+      "id": "screen:equipment/helper_widgets.dart",
+      "kind": "screen",
+      "area": "equipment",
       "path": "packages/nightshade_app/lib/screens/equipment/dialogs/profile_editor_dialog/helper_widgets.dart",
       "controls": 17,
       "control_kinds": {
@@ -4577,16 +4817,6 @@
         "menu": 1,
         "dialog": 2,
         "gesture": 6
-      }
-    },
-    {
-      "id": "screen:equipment/helper_widgets.dart",
-      "kind": "screen",
-      "area": "equipment",
-      "path": "packages/nightshade_app/lib/screens/equipment/widgets/connected_device_card/helper_widgets.dart",
-      "controls": 2,
-      "control_kinds": {
-        "gesture": 2
       }
     },
     {
@@ -5321,7 +5551,7 @@
       "id": "screen:imaging/status_widgets.dart",
       "kind": "screen",
       "area": "imaging",
-      "path": "packages/nightshade_app/lib/screens/imaging/widgets/annotation_panel_parts/status_widgets.dart",
+      "path": "packages/nightshade_app/lib/screens/imaging/widgets/stacking_panel/status_widgets.dart",
       "controls": 1,
       "control_kinds": {
         "button": 1
@@ -5331,7 +5561,7 @@
       "id": "screen:imaging/status_widgets.dart",
       "kind": "screen",
       "area": "imaging",
-      "path": "packages/nightshade_app/lib/screens/imaging/widgets/stacking_panel/status_widgets.dart",
+      "path": "packages/nightshade_app/lib/screens/imaging/widgets/annotation_panel_parts/status_widgets.dart",
       "controls": 1,
       "control_kinds": {
         "button": 1

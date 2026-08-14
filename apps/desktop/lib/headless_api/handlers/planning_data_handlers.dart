@@ -33,6 +33,9 @@ class PlanningDataHandlers {
 
   ProjectService get _projectService => container.read(projectServiceProvider);
 
+  SchedulerQueueService get _queueService =>
+      container.read(schedulerQueueServiceProvider);
+
   int? _intParam(Request request, String key) =>
       optionalQueryInt(request.url.queryParameters, key, min: 1);
 
@@ -137,6 +140,73 @@ class PlanningDataHandlers {
       return jsonOk({'success': true});
     } catch (e) {
       return jsonInternalServerError({'error': 'Failed to delete goal: $e'});
+    }
+  }
+
+  // ===========================================================================
+  // Scheduler queue membership
+  // ===========================================================================
+
+  /// GET /api/scheduler/removed-targets
+  Future<Response> handleGetSchedulerRemovedTargets(Request request) async {
+    _logInfo('[API] GET /api/scheduler/removed-targets');
+    try {
+      final ids = await _queueService.removedTargetIds();
+      return jsonOk({'targetIds': ids.toList()..sort()});
+    } catch (e) {
+      return jsonInternalServerError({
+        'error': 'Failed to list removed targets: $e',
+      });
+    }
+  }
+
+  /// POST /api/scheduler/removed-targets — `{"targetId": N}` removes one
+  /// target from the queue, `{"all": true}` empties it.
+  Future<Response> handleRemoveSchedulerTarget(Request request) async {
+    _logInfo('[API] POST /api/scheduler/removed-targets');
+    final body = await readJsonObject(request);
+    final removeAll = optionalBool(body, 'all') ?? false;
+    final targetId = removeAll ? null : requireInt(body, 'targetId', min: 1);
+    if (targetId != null) {
+      // Same FK pre-check the goal upsert does: a nonexistent id would
+      // otherwise surface as a raw SQLite foreign-key 500.
+      final db = container.read(databaseProvider);
+      if (await db.targetsDao.getTargetById(targetId) == null) {
+        throw BadRequestError(
+          field: 'targetId',
+          expected: 'an existing target id',
+        );
+      }
+    }
+    try {
+      if (removeAll) {
+        await _queueService.removeAll();
+      } else {
+        await _queueService.remove(targetId!);
+      }
+      return jsonOk({'success': true});
+    } catch (e) {
+      return jsonInternalServerError({
+        'error': 'Failed to remove target from the scheduler queue: $e',
+      });
+    }
+  }
+
+  /// DELETE /api/scheduler/removed-targets?targetId= — put one target back.
+  Future<Response> handleReadmitSchedulerTarget(Request request) async {
+    _logInfo('[API] DELETE /api/scheduler/removed-targets');
+    final targetId = requireQueryInt(
+      request.url.queryParameters,
+      'targetId',
+      min: 1,
+    );
+    try {
+      await _queueService.readmit(targetId);
+      return jsonOk({'success': true});
+    } catch (e) {
+      return jsonInternalServerError({
+        'error': 'Failed to readmit target into the scheduler queue: $e',
+      });
     }
   }
 

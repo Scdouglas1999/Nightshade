@@ -383,8 +383,12 @@ void main() {
 }
 
 Future<void> _pumpUntil(bool Function() condition) async {
-  for (var i = 0; i < 100 && !condition(); i++) {
-    await Future<void>.delayed(Duration.zero);
+  // Deadline-based, not turn-counted: under a loaded full-suite run the
+  // job's real async hops (path checks, isolate spawn) need wall-clock
+  // time, and 100 zero-delay turns expire before `running` is reached.
+  final deadline = DateTime.now().add(const Duration(seconds: 5));
+  while (!condition() && DateTime.now().isBefore(deadline)) {
+    await Future<void>.delayed(const Duration(milliseconds: 10));
   }
   expect(condition(), isTrue);
 }

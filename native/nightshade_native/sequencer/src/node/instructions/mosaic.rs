@@ -14,10 +14,13 @@
 //! This node is the forward-looking entry point for when the
 //! orchestration eventually moves into Rust (so the Dart side emits a
 //! single mosaic node with `MosaicConfig` and the wizard owns
-//! per-panel work). When that happens, the wizard's per-panel
-//! checkpoint will provide step-level resume support automatically —
-//! see the `resume_round_trips_through_session_sink_on_disk` test in
-//! [`crate::mosaic`].
+//! per-panel work). Its per-panel resume is already real: the node
+//! hands [`crate::mosaic::run_mosaic_wizard`] the session's
+//! `CheckpointManager` off `ExecutionContext`, which persists each
+//! completed panel through `SessionWizardCheckpointSink` — see
+//! `resume_round_trips_through_session_sink_on_disk` in
+//! [`crate::mosaic`] and `node_persists_panel_progress_through_the_session_sink`
+//! below. ON-RIG VALIDATION IS OWED.
 //!
 //! ## Progress reporting
 //!
@@ -53,6 +56,10 @@ impl InstructionNode for MosaicInstruction {
         };
 
         let ctx = context.to_instruction_context(node_id).await;
+        // Per-panel resume: hand the wizard the session's checkpoint
+        // manager so completed panels are recorded on disk. `None` (no
+        // checkpoint directory configured) runs without persistence.
+        let checkpoint_manager = context.checkpoint_manager.clone();
         let progress_cb = context.progress_callback.as_ref();
         let total_panels = config
             .panels_horizontal
@@ -94,9 +101,14 @@ impl InstructionNode for MosaicInstruction {
             }
         };
 
-        execute_mosaic(config, &ctx, Some(&progress_fn))
-            .await
-            .log_and_get_status_with_context("Mosaic", &ctx)
+        execute_mosaic(
+            config,
+            &ctx,
+            Some(&progress_fn),
+            checkpoint_manager.as_deref(),
+        )
+        .await
+        .log_and_get_status_with_context("Mosaic", &ctx)
     }
 }
 
@@ -116,5 +128,95 @@ fn extract_panel_index(detail: &str) -> Option<u32> {
         None
     } else {
         buf.parse::<u32>().ok()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::checkpoint::{CheckpointManager, SessionCheckpoint, WizardCheckpoint};
+    use crate::{ExecutorState, MosaicConfig, SequenceDefinition};
+    use std::sync::{Arc, Mutex};
+
+    fn three_by_three_config() -> MosaicConfig {
+        MosaicConfig {
+            center_ra: 12.0,
+            center_dec: 30.0,
+            panel_width_arcmin: 60.0,
+            panel_height_arcmin: 60.0,
+            overlap_percent: 10.0,
+            rotation: 0.0,
+            panels_horizontal: 3,
+            panels_vertical: 3,
+            panel_overhead_secs: 60.0,
+        }
+    }
+
+    /// Mosaic-Resume (owner decision 7) — the PRODUCTION wiring, end to end
+    /// from the node down to disk. `MosaicInstruction` reads the session's
+    /// `CheckpointManager` off `ExecutionContext` and hands it to the wizard,
+    /// which persists per-panel progress through
+    /// `SessionWizardCheckpointSink`. A checkpoint left by a killed run must
+    /// therefore make the node resume at the first unfinished panel, and the
+    /// slot must be cleared once the mosaic finishes.
+    ///
+    /// Pre-fix the node reported every panel from 1 and left the stale slot on
+    /// disk, because `execute_mosaic` always built a `NullCheckpointSink`.
+    #[tokio::test]
+    async fn node_persists_panel_progress_through_the_session_sink() {
+        let dir = std::env::temp_dir().join(format!(
+            "nightshade_mosaic_node_resume_{}",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&dir).expect("test dir");
+
+        // A previous run died after four of nine panels.
+        let manager = Arc::new(CheckpointManager::new(&dir));
+        let mut seeded =
+            SessionCheckpoint::new(SequenceDefinition::new("Mosaic Sequence".to_string()));
+        seeded.is_active = true;
+        seeded.executor_state = ExecutorState::Running;
+        seeded.set_wizard_state(WizardCheckpoint {
+            checkpoint_key: "mosaic".to_string(),
+            completed_steps: 4,
+            timestamp: chrono::Utc::now(),
+        });
+        manager.save(&seeded).expect("seed save");
+
+        let panels = Arc::new(Mutex::new(Vec::new()));
+        let recorded = panels.clone();
+        let mut context = ExecutionContext::new("mosaic-1".to_string());
+        // What the executor installs at start().
+        context.checkpoint_manager = Some(manager.clone());
+        context.progress_callback = Some(Arc::new(move |update: ProgressUpdate| {
+            if let Some(ProgressDetail::Mosaic { panel_index, .. }) = update.detail {
+                recorded.lock().expect("panel mutex").push(panel_index);
+            }
+        }));
+
+        let status = MosaicInstruction
+            .execute(
+                "mosaic-1",
+                &NodeType::Mosaic(three_by_three_config()),
+                &mut context,
+            )
+            .await;
+
+        assert_eq!(status, NodeStatus::Success);
+        let reported = panels.lock().expect("panel mutex").clone();
+        assert!(
+            reported.contains(&5) && !reported.contains(&1),
+            "the node must resume at panel 5, not restart at panel 1: {reported:?}"
+        );
+        let after = manager
+            .load()
+            .expect("load after run")
+            .expect("session checkpoint still present");
+        assert!(
+            after.wizard_state("mosaic").is_none(),
+            "the completed mosaic must clear its slot so the next run starts fresh"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

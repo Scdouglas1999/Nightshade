@@ -18,6 +18,16 @@
 
 import '../../models/sequence/interpolation_catalog.dart';
 
+/// Context key carrying the clause that names WHO ended a run (`by autopilot`,
+/// `by the disk-space watchdog`, or empty for a safety abort nobody
+/// commanded). The stop templates interpolate it; the router fills it from the
+/// stop decision on the wire.
+const String kStopCauseContextKey = 'stop.cause';
+
+/// Context key carrying the run id a stop notification belongs to. Not for
+/// display — it is how the router tells one run's stop episode from the next.
+const String kStopRunIdContextKey = 'stop.run_id';
+
 /// Build a per-event context map from a raw `NightshadeEvent.data` payload
 /// plus any extra values the router knows. Keys use the same dotted form
 /// as `interpolation_catalog.dart` (e.g. `target.name`, `time.now`).

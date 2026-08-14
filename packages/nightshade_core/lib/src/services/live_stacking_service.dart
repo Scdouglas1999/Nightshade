@@ -191,38 +191,51 @@ class LiveStackingResult {
   });
 }
 
-/// Pixel format a stacked master was written in.
+/// Format a stacked master was written in.
 enum LiveStackingMasterFormat {
+  /// The data product: a FITS master of the linear integration, carrying the
+  /// frame count plus an `EXPTIME` / `DATE-OBS` synthesized native-side from
+  /// the frames actually stacked.
+  fitsMaster,
+
   /// 16-bit single-channel PNG holding the linear stacked pixels verbatim —
-  /// the integration itself, re-stretchable in any processing tool.
+  /// the integration itself, re-stretchable in any processing tool, but with
+  /// no header at all.
   linearMono16,
 
-  /// 8-bit RGBA PNG of the auto-stretched colour integration. The 16-bit
-  /// writers in the imaging pipeline are single-plane, so an OSC master is
-  /// written as the display render rather than as a scrambled mono plane.
+  /// 8-bit RGBA PNG of the auto-stretched colour integration. The 16-bit PNG
+  /// writers in the imaging pipeline are single-plane, so an OSC render is
+  /// written as the display image rather than as a scrambled mono plane.
   stretchedColor8,
 }
 
-/// Thrown when a stacked master is asked for in a format the live stacker
-/// cannot write.
+/// Thrown when a stacked master is asked for in a format this stacker cannot
+/// write.
 ///
-/// The writer is PNG-only. It used to accept any name and quietly swap the
-/// extension, so typing `stack_master.fits` produced `stack_master.png` — the
-/// operator asked for a FITS master (header, WCS, integration metadata) and
-/// got a picture, with nothing on screen or on disk disclosing the swap.
+/// The writer used to be PNG-only, and it accepted any name and quietly swapped
+/// the extension: typing `stack_master.fits` produced `stack_master.png` — the
+/// operator asked for a FITS master (header, WCS, integration metadata) and got
+/// a picture, with nothing on screen or on disk disclosing the swap. The master
+/// is FITS now, and anything the writer cannot produce is refused with the
+/// reason instead of renamed.
 class LiveStackingMasterFormatUnsupported implements Exception {
   /// The extension the caller asked for, lower-cased and including the dot.
   final String requestedExtension;
 
-  const LiveStackingMasterFormatUnsupported(this.requestedExtension);
+  /// Why this destination cannot be written — a wrong format is not the same
+  /// problem as a stack that lives on another machine.
+  final String reason;
+
+  const LiveStackingMasterFormatUnsupported(
+    this.requestedExtension, {
+    required this.reason,
+  });
 
   @override
   String toString() =>
-      'Live-stack masters are written as PNG (16-bit linear for mono, '
-      'stretched RGBA for colour). "$requestedExtension" is not supported — '
-      'a PNG carries no FITS header, WCS or integration metadata, so it '
-      'cannot be saved under that name. Save the master as .png, or use '
-      'Stack & Share for a processed export.';
+      'A stacked master cannot be written as "$requestedExtension": $reason. '
+      'Save it as .fits for the FITS master, .png for the rendered image, or '
+      'use Stack & Share for a processed export.';
 }
 
 /// Where a stacked master was written, and in what form.
@@ -231,12 +244,27 @@ class LiveStackingMasterSave {
   final int stackedFrameCount;
   final LiveStackingMasterFormat format;
 
+  /// The master's `EXPTIME` in seconds — Σ of the exposures the stacked frames
+  /// reported. Null for a PNG (which carries no header); `0.0` for a FITS
+  /// master whose frames reported no exposure at all.
+  final double? totalIntegrationSecs;
+
+  /// The master's `DATE-OBS` as written. Null for a PNG.
+  final String? dateObs;
+
   const LiveStackingMasterSave({
     required this.filePath,
     required this.stackedFrameCount,
     required this.format,
+    this.totalIntegrationSecs,
+    this.dateObs,
   });
 }
+
+/// Writes the native stacker's accumulated master to `filePath` as FITS.
+/// Injectable so the format routing can be tested without the native library.
+typedef SaveStackMasterFits =
+    Future<bridge.ApiLiveStackingMaster> Function({required String filePath});
 
 /// Service that wraps the native live stacking bridge calls.
 ///
@@ -245,10 +273,15 @@ class LiveStackingMasterSave {
 class LiveStackingService {
   final NightshadeBackend _backend;
   final LoggingService _logger;
+  final SaveStackMasterFits _saveFitsMaster;
 
-  LiveStackingService(Ref ref, {NightshadeBackend? backend})
-    : _backend = backend ?? ref.read(backendProvider),
-      _logger = ref.read(loggingServiceProvider);
+  LiveStackingService(
+    Ref ref, {
+    NightshadeBackend? backend,
+    SaveStackMasterFits? saveFitsMaster,
+  }) : _backend = backend ?? ref.read(backendProvider),
+       _logger = ref.read(loggingServiceProvider),
+       _saveFitsMaster = saveFitsMaster ?? bridge.apiStackingSaveMasterFits;
 
   /// The active NetworkBackend when running as a remote client (tablet talking
   /// to a headless appliance), else null. When non-null the stacker runs on the
@@ -496,21 +529,53 @@ class LiveStackingService {
   /// must offer this: without it the only outcome of Stop is that the whole
   /// integration is destroyed.
   ///
-  /// The master is written as PNG — 16-bit linear for a mono stack, 8-bit RGBA
-  /// for the stretched colour render — and the extension is normalised to
-  /// `.png` to match the bytes. Ask for anything else and you get
-  /// [LiveStackingMasterFormatUnsupported] rather than a file whose name says
-  /// FITS and whose contents say PNG: a "stacked master" written as PNG has no
-  /// FITS header, no WCS and no integration metadata, and renaming it silently
-  /// hid exactly that.
+  /// A `.fits` / `.fit` / `.fts` destination — and a destination with no
+  /// extension at all — writes the FITS master: the native stacker writes its
+  /// own accumulated pixels, with `EXPTIME` and `DATE-OBS` synthesized from the
+  /// frames it folded. A `.png` destination still writes the rendered image
+  /// (16-bit linear for mono, stretched RGBA for colour), which is what the UI
+  /// preview shows. Anything else raises
+  /// [LiveStackingMasterFormatUnsupported] rather than producing a file whose
+  /// name says one format and whose contents say another.
   ///
-  /// The returned [LiveStackingMasterSave] carries the path actually written
-  /// and whether the master is the linear 16-bit integration (mono) or the
-  /// auto-stretched colour render (OSC).
+  /// The FITS master is written by the in-process stacker, so it is a local
+  /// path only: on a remote client the stack lives on the imaging host and only
+  /// its pixels come over the wire.
+  ///
+  /// The returned [LiveStackingMasterSave] carries the path actually written,
+  /// the form it took, and (for a FITS master) the integration and `DATE-OBS`
+  /// that went into the header.
   Future<LiveStackingMasterSave> saveMaster({required String filePath}) async {
-    final requested = p.extension(filePath.trim()).toLowerCase();
-    if (requested.isNotEmpty && requested != '.png') {
-      throw LiveStackingMasterFormatUnsupported(requested);
+    final trimmed = filePath.trim();
+    final requested = p.extension(trimmed).toLowerCase();
+    const fitsExtensions = {'.fits', '.fit', '.fts'};
+    final isFits = fitsExtensions.contains(requested);
+
+    if (requested.isNotEmpty && !isFits && requested != '.png') {
+      throw LiveStackingMasterFormatUnsupported(
+        requested,
+        reason:
+            'the live stacker writes a FITS master of the integration or a '
+            'PNG of the render, and nothing else',
+      );
+    }
+
+    // No extension means "the data product": the FITS master locally, and the
+    // render on a remote client, which is all a client can write.
+    final wantsFits = isFits || (requested.isEmpty && _remote == null);
+    if (wantsFits) {
+      if (_remote != null) {
+        throw LiveStackingMasterFormatUnsupported(
+          requested,
+          reason:
+              'the stack is accumulating on the imaging host, so only the '
+              'host can write its FITS master — this client has the pixels but '
+              'not the stack',
+        );
+      }
+      return _saveFitsMasterTo(
+        requested.isEmpty ? p.setExtension(trimmed, '.fits') : trimmed,
+      );
     }
 
     final result = await getCurrentResult();
@@ -556,6 +621,32 @@ class LiveStackingService {
       filePath: target,
       stackedFrameCount: result.stats.stackedFrameCount,
       format: LiveStackingMasterFormat.linearMono16,
+    );
+  }
+
+  /// Write the native stacker's accumulated master to [target] as FITS.
+  ///
+  /// The pixels never cross into Dart here: the stacker owns both the
+  /// accumulator and the provenance the header is built from, so it writes the
+  /// file itself.
+  Future<LiveStackingMasterSave> _saveFitsMasterTo(String target) async {
+    _logger.info(
+      'Saving stacked FITS master to $target',
+      source: 'LiveStackingService',
+    );
+    final master = await _saveFitsMaster(filePath: target);
+    _logger.info(
+      'Stacked FITS master written: ${master.filePath} '
+      '(${master.stackedFrameCount} frames, '
+      '${master.totalIntegrationSecs.toStringAsFixed(1)} s integration)',
+      source: 'LiveStackingService',
+    );
+    return LiveStackingMasterSave(
+      filePath: master.filePath,
+      stackedFrameCount: master.stackedFrameCount,
+      format: LiveStackingMasterFormat.fitsMaster,
+      totalIntegrationSecs: master.totalIntegrationSecs,
+      dateObs: master.dateObs,
     );
   }
 

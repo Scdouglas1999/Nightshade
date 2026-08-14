@@ -7,7 +7,6 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_bridge/nightshade_bridge.dart' show Phd2State;
 import 'package:nightshade_app/widgets/phd2_connection_dialog.dart';
 import 'package:nightshade_app/widgets/phd2/guide_controls_panel.dart';
 import 'package:nightshade_app/widgets/phd2/guide_target_display.dart';

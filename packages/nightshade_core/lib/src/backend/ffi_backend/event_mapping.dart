@@ -430,7 +430,17 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
     } else if (sequencerEvent is bridge.SequencerEvent_Resumed) {
       return ('Resumed', {});
     } else if (sequencerEvent is bridge.SequencerEvent_Stopped) {
-      return ('Stopped', {});
+      // The run id the bridge carries comes across too: it is what tells one
+      // run's stop episode from the next one's when the router decides the
+      // single phone push a stop earns (see `StopPushArbiter`). The dashboard
+      // fold already reads it off the bridge-typed event.
+      return (
+        'Stopped',
+        {
+          if (sequencerEvent.sequenceRunId != null)
+            'sequence_run_id': sequencerEvent.sequenceRunId,
+        },
+      );
     } else if (sequencerEvent is bridge.SequencerEvent_Completed) {
       return ('Completed', {});
     } else if (sequencerEvent is bridge.SequencerEvent_Failed) {

@@ -18,10 +18,10 @@ import 'dart:async';
 import 'dart:developer' as developer;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nightshade_bridge/nightshade_bridge.dart' show Phd2State;
 
 import '../../models/equipment/equipment_models.dart';
 import '../../models/notification/transport_configs.dart';
+import '../../models/phd2_models.dart';
 import '../../models/sequence/sequence_models.dart';
 import '../../providers/equipment_provider.dart';
 import '../../providers/guiding_provider.dart';

@@ -335,11 +335,6 @@ class ImagingService {
   /// Check if currently capturing
   bool get isCapturing => _isCapturing;
 
-  /// Reset frame counter
-  void resetFrameCounter() {
-    _frameNumber = 0;
-  }
-
   /// All naming-pattern variables this service recognises.
   ///
   /// Keep this in sync with [NamingPattern.availableVariables],

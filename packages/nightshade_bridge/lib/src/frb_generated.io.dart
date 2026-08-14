@@ -145,6 +145,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ApiLiveStackingConfig dco_decode_api_live_stacking_config(dynamic raw);
 
   @protected
+  ApiLiveStackingMaster dco_decode_api_live_stacking_master(dynamic raw);
+
+  @protected
   ApiLiveStackingResult dco_decode_api_live_stacking_result(dynamic raw);
 
   @protected
@@ -1013,6 +1016,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ApiLiveStackingConfig sse_decode_api_live_stacking_config(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ApiLiveStackingMaster sse_decode_api_live_stacking_master(
     SseDeserializer deserializer,
   );
 
@@ -3214,6 +3222,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     wireObj.sensor_mode = cst_encode_String(apiObj.sensorMode);
     wireObj.bayer_pattern = cst_encode_opt_String(apiObj.bayerPattern);
     wireObj.demosaic_quality = cst_encode_String(apiObj.demosaicQuality);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_api_live_stacking_master(
+    ApiLiveStackingMaster apiObj,
+    wire_cst_api_live_stacking_master wireObj,
+  ) {
+    wireObj.file_path = cst_encode_String(apiObj.filePath);
+    wireObj.stacked_frame_count = cst_encode_u_32(apiObj.stackedFrameCount);
+    wireObj.total_integration_secs = cst_encode_f_64(
+      apiObj.totalIntegrationSecs,
+    );
+    wireObj.date_obs = cst_encode_String(apiObj.dateObs);
   }
 
   @protected
@@ -6941,6 +6962,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_api_live_stacking_config(
     ApiLiveStackingConfig self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_api_live_stacking_master(
+    ApiLiveStackingMaster self,
     SseSerializer serializer,
   );
 
@@ -17009,6 +17036,33 @@ class RustLibWire implements BaseWire {
       _wire__crate__api__imaging__api_stacking_resetPtr
           .asFunction<void Function(int)>();
 
+  void wire__crate__api__imaging__api_stacking_save_master_fits(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> file_path,
+  ) {
+    return _wire__crate__api__imaging__api_stacking_save_master_fits(
+      port_,
+      file_path,
+    );
+  }
+
+  late final _wire__crate__api__imaging__api_stacking_save_master_fitsPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__imaging__api_stacking_save_master_fits',
+      );
+  late final _wire__crate__api__imaging__api_stacking_save_master_fits =
+      _wire__crate__api__imaging__api_stacking_save_master_fitsPtr
+          .asFunction<
+            void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)
+          >();
+
   void wire__crate__api__imaging__api_stacking_start(
     int port_,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> reference_image_path,
@@ -23162,6 +23216,18 @@ final class wire_cst_list_star_crop_api extends ffi.Struct {
 
   @ffi.Int32()
   external int len;
+}
+
+final class wire_cst_api_live_stacking_master extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> file_path;
+
+  @ffi.Uint32()
+  external int stacked_frame_count;
+
+  @ffi.Double()
+  external double total_integration_secs;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> date_obs;
 }
 
 final class wire_cst_api_live_stacking_stats extends ffi.Struct {

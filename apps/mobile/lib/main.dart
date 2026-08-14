@@ -14,8 +14,6 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'companion_ui_config.dart';
-import 'screens/dashboard/mobile_dashboard_screen.dart';
 import 'screens/qr_scanner_screen.dart';
 import 'screens/servers/saved_servers_screen.dart';
 import 'services/saved_servers_service.dart';
@@ -432,9 +430,7 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
       }
 
       // Full UI parity: phones and tablets both route through the shared
-      // GoRouter shell (`NightshadeApp(isMobile: true)`). The legacy
-      // tabbed companion dashboard remains available for ops when
-      // `NIGHTSHADE_COMPANION_UI=1`.
+      // GoRouter shell (`NightshadeApp(isMobile: true)`).
       return Consumer(
         builder: (context, ref, _) {
           // Activate location sync
@@ -487,29 +483,6 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
           // Check for checkpoint on first connection
           _checkForCheckpoint(context, ref);
 
-          final width = MediaQuery.sizeOf(context).width;
-          final isPhone = BreakpointTokens.isPhone(width);
-          final useCompanionUi = isPhone && isCompanionUiEnabled;
-
-          if (useCompanionUi) {
-            final settings = ref.watch(appSettingsProvider).valueOrNull;
-            final theme = resolveNightshadeThemeData(
-              themeSetting: settings?.theme ?? 'dark',
-              accentColorHex: settings?.accentColor,
-            );
-            return AnnotatedRegion<SystemUiOverlayStyle>(
-              value: systemUiOverlayStyleFor(theme),
-              child: MaterialApp(
-                title: 'Nightshade',
-                debugShowCheckedModeBanner: false,
-                theme: theme,
-                localizationsDelegates:
-                    NightshadeLocalizations.localizationsDelegates,
-                supportedLocales: NightshadeLocalizations.supportedLocales,
-                home: const MobileDashboardScreen(),
-              ),
-            );
-          }
           return const NightshadeApp(isMobile: true);
         },
       );

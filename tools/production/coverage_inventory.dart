@@ -115,7 +115,13 @@ Map<String, Object?> _buildInventory(String root) {
     ..._apiUnits(root),
     // Added 2026-08-14 (task #31 remainder): the hub server is a shipped
     // surface (Collaborative Sky) and was the last uncounted tree.
-    ..._treeUnits(root, 'server/nightshade_hub/lib', 'hub', 'hub-server'),
+    ..._treeUnits(
+      root,
+      'server/nightshade_hub/lib',
+      'hub',
+      'hub-server',
+      includeControlless: true,
+    ),
   ];
   units.sort((a, b) => (a['id']! as String).compareTo(b['id']! as String));
   _warnOnDuplicateIds(units);
@@ -230,8 +236,14 @@ List<Map<String, Object?>> _treeUnits(
   String root,
   String relDir,
   String kind,
-  String area,
-) {
+  String area, {
+  // Server code has no Flutter widgets, so the control filter silently
+  // dropped EVERY hub file and the tree contributed zero units while the
+  // ledger claimed it was counted (hub-sweep finding H2). A server unit's
+  // exercise is API-driven; it earns its ledger row with zero widget
+  // controls.
+  bool includeControlless = false,
+}) {
   final dir = Directory('$root/$relDir');
   if (!dir.existsSync()) return const [];
 
@@ -244,7 +256,7 @@ List<Map<String, Object?>> _treeUnits(
     final rel = file.path.substring(root.length + 1);
     if (rel.endsWith('.g.dart') || rel.endsWith('.freezed.dart')) continue;
     final controls = _countControls(file.readAsStringSync());
-    if (controls.isEmpty) continue;
+    if (controls.isEmpty && !includeControlless) continue;
     units.add({
       'id': '$kind:${rel.substring(relDir.length + 1)}',
       'kind': kind,

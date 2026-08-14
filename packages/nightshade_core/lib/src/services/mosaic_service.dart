@@ -427,7 +427,10 @@ class MosaicService {
   /// 3×3 mosaic killed mid-panel-5 resumes at panel 5. There is NO
   /// mosaic-specific resume code path on the Dart side and there
   /// does not need to be one — the Wizard checkpoint slot
-  /// `wizard_states["mosaic"]` is dormant under this path.
+  /// `wizard_states["mosaic"]` goes unused under this path. That slot
+  /// is written only when a sequence contains a Rust `Mosaic` node,
+  /// which persists its per-panel progress for real through
+  /// `SessionWizardCheckpointSink` (owner decision 7, 2026-08-14).
   /// [panelTargetId] optionally maps a panel's 0-based row-major
   /// [MosaicPanel.panelIndex] to the DB `targets.id` that the panel images,
   /// which is stamped onto that panel's [TargetHeaderNode.catalogTargetId].

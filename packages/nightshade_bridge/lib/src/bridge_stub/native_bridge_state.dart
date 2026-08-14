@@ -20,12 +20,6 @@ final class _NativeBridgeImplementation {
   DateTime? _discoveryCacheTime;
   final _discoveryCacheTtl = const Duration(seconds: 60);
   Completer<void>? _discoverySweepInProgress;
-  bool _ascomNotWindowsWarned = false;
-
-  final Map<String, alpaca.AlpacaClient> _alpacaClients = {};
-  final Map<String, alpaca.AlpacaDevice> _alpacaDevices = {};
-  final Map<String, ascom.AscomDeviceClient> _ascomClients = {};
-  phd2.Phd2Client? _phd2Client;
 
   SequencerState _sequencerState = SequencerState.idle;
   String? _loadedSequenceJson;

@@ -72,16 +72,10 @@ impl DeviceManager {
                     "INDI rotator not connected",
                 ))
             }
-            Some(DriverType::Native) => {
-                let native_rotators = self.native_rotators.read().await;
-                if let Some(rotator) = native_rotators.get(device_id) {
-                    return rotator.get_position().await.map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    "Native rotator not connected",
-                ))
-            }
+            Some(DriverType::Native) => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                "Native rotator not connected",
+            )),
             Some(DriverType::Simulator) => {
                 let sim = crate::device_manager::ops::sim_gate::read_rotator_status().await?;
                 Ok(sim.position)
@@ -154,19 +148,10 @@ impl DeviceManager {
                     "INDI rotator not connected",
                 ))
             }
-            Some(DriverType::Native) => {
-                let mut native_rotators = self.native_rotators.write().await;
-                if let Some(rotator) = native_rotators.get_mut(device_id) {
-                    return rotator
-                        .move_to(position)
-                        .await
-                        .map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    "Native rotator not connected",
-                ))
-            }
+            Some(DriverType::Native) => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                "Native rotator not connected",
+            )),
             Some(DriverType::Simulator) => {
                 let r = crate::api::devices::simulation::get_sim_rotator();
                 let mut r = r.write().await;
@@ -238,16 +223,10 @@ impl DeviceManager {
                     "INDI rotator not connected",
                 ))
             }
-            Some(DriverType::Native) => {
-                let mut native_rotators = self.native_rotators.write().await;
-                if let Some(rotator) = native_rotators.get_mut(device_id) {
-                    return rotator.halt().await.map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    "Native rotator not connected",
-                ))
-            }
+            Some(DriverType::Native) => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                "Native rotator not connected",
+            )),
             Some(DriverType::Simulator) => {
                 let r = crate::api::devices::simulation::get_sim_rotator();
                 let mut r = r.write().await;
@@ -328,16 +307,10 @@ impl DeviceManager {
                     "INDI rotator not connected",
                 ))
             }
-            Some(DriverType::Native) => {
-                let mut native_rotators = self.native_rotators.write().await;
-                if let Some(rotator) = native_rotators.get_mut(device_id) {
-                    return rotator.sync(position).await.map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    "Native rotator not connected",
-                ))
-            }
+            Some(DriverType::Native) => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                "Native rotator not connected",
+            )),
             Some(DriverType::Simulator) => {
                 let r = crate::api::devices::simulation::get_sim_rotator();
                 let mut r = r.write().await;
@@ -428,19 +401,10 @@ impl DeviceManager {
                     "INDI rotator not connected",
                 ))
             }
-            Some(DriverType::Native) => {
-                let mut native_rotators = self.native_rotators.write().await;
-                if let Some(rotator) = native_rotators.get_mut(device_id) {
-                    return rotator
-                        .set_reverse(reverse)
-                        .await
-                        .map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    "Native rotator not connected",
-                ))
-            }
+            Some(DriverType::Native) => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                "Native rotator not connected",
+            )),
             Some(DriverType::Simulator) => {
                 let r = crate::api::devices::simulation::get_sim_rotator();
                 let r = r.read().await;
@@ -520,16 +484,10 @@ impl DeviceManager {
                     "INDI rotator not connected",
                 ))
             }
-            Some(DriverType::Native) => {
-                let native_rotators = self.native_rotators.read().await;
-                if let Some(rotator) = native_rotators.get(device_id) {
-                    return rotator.is_moving().await.map_err(DeviceOpError::driver);
-                }
-                Err(DeviceOpError::not_connected(
-                    Some(device_id.to_string()),
-                    "Native rotator not connected",
-                ))
-            }
+            Some(DriverType::Native) => Err(DeviceOpError::not_connected(
+                Some(device_id.to_string()),
+                "Native rotator not connected",
+            )),
             Some(DriverType::Simulator) => {
                 let sim = crate::device_manager::ops::sim_gate::read_rotator_status().await?;
                 Ok(sim.moving)

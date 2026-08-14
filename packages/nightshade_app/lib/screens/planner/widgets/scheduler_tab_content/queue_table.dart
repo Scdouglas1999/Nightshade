@@ -20,6 +20,7 @@ class _QueueTable extends ConsumerWidget {
     final authority = ref.read(backendProvider);
     final goalsSvc = ref.read(integrationGoalServiceProvider);
     final constraintsSvc = ref.read(targetConstraintServiceProvider);
+    final queueSvc = ref.read(schedulerQueueServiceProvider);
     final colors = NightshadeColors.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
@@ -31,9 +32,9 @@ class _QueueTable extends ConsumerWidget {
             style: TextStyle(color: colors.textPrimary),
           ),
           content: Text(
-            'Remove $targetName from the scheduler? Integration goals and '
-            'constraints will be deleted; the target itself stays in your '
-            'catalog.',
+            'Remove $targetName from the scheduler? The autopilot will not '
+            'pick it again; its integration goals and constraints are '
+            'deleted, and the target itself stays in your catalog.',
             style: TextStyle(
                 color: colors.textSecondary,
                 fontSize: NightshadeTypography.fontSize13),
@@ -61,6 +62,11 @@ class _QueueTable extends ConsumerWidget {
       _showAuthorityChanged(context);
       return;
     }
+    // Take it OUT OF THE QUEUE, not merely off its goals: a goal-less target
+    // is still an eligible free-form candidate, so deleting the rows below is
+    // what used to let the autopilot re-pick the target the operator had just
+    // removed (WF-N2).
+    await queueSvc.remove(targetId);
     await goalsSvc.deleteForTarget(targetId);
     await constraintsSvc.deleteForTarget(targetId);
     if (!context.mounted || !identical(ref.read(backendProvider), authority)) {
@@ -84,6 +90,7 @@ class _QueueTable extends ConsumerWidget {
     final authority = ref.read(backendProvider);
     final goalsSvc = ref.read(integrationGoalServiceProvider);
     final constraintsSvc = ref.read(targetConstraintServiceProvider);
+    final queueSvc = ref.read(schedulerQueueServiceProvider);
     final colors = NightshadeColors.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
@@ -95,9 +102,9 @@ class _QueueTable extends ConsumerWidget {
             style: TextStyle(color: colors.textPrimary),
           ),
           content: Text(
-            'Clear all targets from the scheduler? Integration goals and '
-            'constraints will be deleted; targets themselves stay in your '
-            'catalog.',
+            'Clear all targets from the scheduler? The autopilot will have '
+            'nothing left to pick; integration goals and constraints are '
+            'deleted, and the targets themselves stay in your catalog.',
             style: TextStyle(
                 color: colors.textSecondary,
                 fontSize: NightshadeTypography.fontSize13),
@@ -125,6 +132,7 @@ class _QueueTable extends ConsumerWidget {
       _showAuthorityChanged(context);
       return;
     }
+    await queueSvc.removeAll();
     await goalsSvc.deleteAll();
     await constraintsSvc.deleteAll();
     if (!context.mounted || !identical(ref.read(backendProvider), authority)) {

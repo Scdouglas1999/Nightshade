@@ -44,7 +44,11 @@ class _HistoryColumn extends StatelessWidget {
             const SizedBox(width: 4),
             Expanded(
               child: Text(
-                'History',
+                // Scope named on purpose: this strip is SESSION-scoped while
+                // IMAGE QUALITY beside it is run-scoped, and two adjacent
+                // panels silently counting different things reads as a
+                // contradiction (waveM-close M-4).
+                'History — session',
                 style: TextStyle(
                   fontSize: NightshadeTypography.fontSize10,
                   fontWeight: FontWeight.w700,
