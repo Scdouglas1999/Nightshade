@@ -12,6 +12,16 @@ class _ExposureProgressPanel extends StatelessWidget {
   /// "0 / 4 frames" directly above the four thumbnails it had just captured.
   final bool isComplete;
 
+  /// The filter the run is imaging through, when the node itself names none.
+  ///
+  /// A node with `filter == null` does not image unfiltered — it images
+  /// through whatever is in the wheel, and every other surface said so: the
+  /// telemetry strip read `Filter: R`, the thumbnails `Filter R`, the files on
+  /// disk `M42-TEST_R_0001.fits`, the session report a single `R` row. Only
+  /// this header called it "No Filter", two rows under a target rollup reading
+  /// "R 180s" (Wave D, SEQ-19).
+  final String? runFilter;
+
   const _ExposureProgressPanel({
     required this.colors,
     required this.progressPercent,
@@ -19,7 +29,19 @@ class _ExposureProgressPanel extends StatelessWidget {
     this.structuredDetail,
     required this.node,
     this.isComplete = false,
+    this.runFilter,
   });
+
+  /// What to call the filter on this card. The node's own choice wins; the
+  /// run's filter is the fallback and is marked as inherited rather than
+  /// presented as if the node had asked for it.
+  String get _filterLabel {
+    final own = node.filter;
+    if (own != null && own.isNotEmpty) return own;
+    final live = runFilter;
+    if (live != null && live.isNotEmpty) return '$live (current)';
+    return 'No filter set';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,7 +85,7 @@ class _ExposureProgressPanel extends StatelessWidget {
               // row instead of truncating the title.
               Expanded(
                 child: Text(
-                  'Exposure: ${node.filter ?? 'No Filter'}',
+                  'Exposure: $_filterLabel',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   softWrap: false,

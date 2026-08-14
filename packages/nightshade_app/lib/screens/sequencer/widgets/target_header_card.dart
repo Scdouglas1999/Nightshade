@@ -349,36 +349,45 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
               BorderSide(color: widget.colors.border.withValues(alpha: 0.5)),
         ),
       ),
+      // The chips WRAP rather than sharing one rigid row. A fixed row of
+      // monospace coordinates plus a Spacer overflowed the card by 41px at a
+      // 900px window and 69px in the tighter builder pane (Wave D, WD-SEQ-N2),
+      // which paints the striped overflow bar over the pointing the operator
+      // came here to read.
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // RA
-          _CoordinateChip(
-            label: 'RA',
-            value: unset ? 'Not set' : _formatRA(node.raHours),
-            colors: widget.colors,
-            isPlaceholder: unset,
-          ),
-          const SizedBox(width: 16),
+          Expanded(
+            child: Wrap(
+              spacing: 16,
+              runSpacing: 4,
+              children: [
+                // RA
+                _CoordinateChip(
+                  label: 'RA',
+                  value: unset ? 'Not set' : _formatRA(node.raHours),
+                  colors: widget.colors,
+                  isPlaceholder: unset,
+                ),
 
-          // Dec
-          _CoordinateChip(
-            label: 'Dec',
-            value: unset ? 'Not set' : _formatDec(node.decDegrees),
-            colors: widget.colors,
-            isPlaceholder: unset,
-          ),
+                // Dec
+                _CoordinateChip(
+                  label: 'Dec',
+                  value: unset ? 'Not set' : _formatDec(node.decDegrees),
+                  colors: widget.colors,
+                  isPlaceholder: unset,
+                ),
 
-          // Rotation (if set)
-          if (node.rotation != null) ...[
-            const SizedBox(width: 16),
-            _CoordinateChip(
-              label: '↻',
-              value: '${node.rotation!.toStringAsFixed(1)}°',
-              colors: widget.colors,
+                // Rotation (if set)
+                if (node.rotation != null)
+                  _CoordinateChip(
+                    label: '↻',
+                    value: '${node.rotation!.toStringAsFixed(1)}°',
+                    colors: widget.colors,
+                  ),
+              ],
             ),
-          ],
-
-          const Spacer(),
+          ),
 
           // Priority badge
           if (node.priority > 0)
@@ -599,8 +608,15 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
     }
 
     // Live run: progress bar with counters above.
-    final completedMins = (stats.completedIntegrationSecs / 60).round();
-    final totalMins = (stats.totalIntegrationSecs / 60).round();
+    //
+    // Whole minutes are the wrong unit for the first minute of a run and for
+    // any short sequence: measured live, a 4x3s target read "0/4 done · 0m / 1m"
+    // seven seconds in, and "2/4 done · 1m / 1m" at forty — while the panel
+    // directly above it in the same card read "~34s". The estimate beside it
+    // uses the shared compact duration format, so this uses it too and the two
+    // halves of one card finally quote the same unit.
+    final completedElapsed = _formatDuration(stats.completedIntegrationSecs);
+    final totalElapsed = _formatDuration(stats.totalIntegrationSecs);
     final progressState = executionState == SequenceExecutionState.paused
         ? NightshadeProgressState.paused
         : NightshadeProgressState.normal;
@@ -631,7 +647,7 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
               const SizedBox(width: 6),
               Flexible(
                 child: Text(
-                  '${completedMins}m / ${totalMins}m',
+                  '$completedElapsed / $totalElapsed',
                   style: TextStyle(
                       fontSize: NightshadeTypography.fontSize11,
                       color: widget.colors.textMuted),

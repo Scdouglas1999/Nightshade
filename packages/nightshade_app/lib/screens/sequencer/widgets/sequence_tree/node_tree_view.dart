@@ -178,6 +178,9 @@ class _NodeTreeView extends ConsumerWidget {
                 progressDetail: progress.nodeProgressDetail[nodeId],
                 structuredProgressDetail:
                     progress.nodeProgressStructuredDetail[nodeId],
+                // The filter the run is actually imaging through — see
+                // [_NodeItem.runFilter].
+                runFilter: progress.currentFilter,
                 isMobile: isMobile,
                 onSelect: () {
                   _handleNodeSelect(ref, nodeId);

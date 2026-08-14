@@ -218,10 +218,14 @@ class DarkLibraryCoverageRule implements AsyncSequenceValidator {
           description:
               'No matching darks found for ${missing.length} exposure combination'
               '${missing.length == 1 ? "" : "s"}:\n$lines$tempSource',
+          // Name the destination the navigation actually has. There is no
+          // "Calibration" entry anywhere in the app: the dark library lives at
+          // Settings > Equipment > Dark Library, and a hint that names a screen
+          // the user cannot find is worse than no hint.
           resolutionHint:
-              'Capture darks for the missing combinations. Open Calibration → '
-              'Dark Library to schedule them, or run the "Capture missing darks" '
-              'action from the pre-flight dialog.',
+              'Capture darks for the missing combinations. Open Settings → '
+              'Equipment → Dark Library to schedule them, or run the '
+              '"Capture missing darks" action from the pre-flight dialog.',
         ),
       );
     }
@@ -243,7 +247,7 @@ class DarkLibraryCoverageRule implements AsyncSequenceValidator {
               'darks (below the configured quorum):\n$lines$tempSource',
           resolutionHint:
               'Capture additional darks to reach the quorum, then create a '
-              'master dark from Calibration → Dark Library.',
+              'master dark from Settings → Equipment → Dark Library.',
         ),
       );
     }

@@ -19,6 +19,15 @@ class _NodeItem extends ConsumerStatefulWidget {
   final InstructionProgressDetail? structuredProgressDetail;
   final bool isMobile;
 
+  /// The filter the RUN is using, from `SequenceProgress.currentFilter`.
+  ///
+  /// An exposure node with no filter of its own still images through whatever
+  /// is in the wheel, and the run names that filter everywhere else — the
+  /// telemetry strip, the thumbnails, the FITS filenames and the session
+  /// report all said `R` while this card's own header said "No Filter"
+  /// (Wave D, SEQ-19).
+  final String? runFilter;
+
   /// Whether this node is collapsed in the tree (children hidden). Drives the
   /// chevron rotation; kept in sync with [collapsedNodeIdsProvider] which the
   /// chevron tap toggles. Computed by [_NodeTreeView] so the two stay
@@ -43,6 +52,7 @@ class _NodeItem extends ConsumerStatefulWidget {
     this.progressPercent,
     this.progressDetail,
     this.structuredProgressDetail,
+    this.runFilter,
     this.isMobile = false,
     this.isCollapsed = false,
   });
@@ -72,6 +82,50 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
   Timer? _panelPersistTimer;
   static const _panelPersistDuration = Duration(seconds: 20);
 
+  // The last live progress this row was handed, kept for as long as its panel
+  // outlives the run.
+  //
+  // The panel is deliberately shown for 20s AFTER a node stops running, but it
+  // was rendered from whatever the progress maps held *at that moment*. On the
+  // success path those per-node entries are gone by then, so the card fell all
+  // the way back to its defaults and announced "0 / 4 frames" with four empty
+  // boxes directly above the four thumbnails it had just captured, while the
+  // Session Report on the same screen said "Frames accepted 4/4" (Wave D,
+  // SEQ-18). A run stopped at frame 1 kept its detail and read "1 / 4", which
+  // is what made the zeroing look specific to success.
+  //
+  // Remembering the last non-null value makes the card independent of WHEN the
+  // maps are cleared: it keeps showing the last thing that was true instead of
+  // inventing a zero. Cleared when the node starts running again so one run
+  // can never show the previous run's frames.
+  NodeStatus? _lastKnownStatus;
+  double? _lastKnownPercent;
+  String? _lastKnownDetail;
+  InstructionProgressDetail? _lastKnownStructuredDetail;
+  String? _lastKnownRunFilter;
+
+  void _rememberLiveProgress() {
+    if (widget.nodeStatus != null) _lastKnownStatus = widget.nodeStatus;
+    if (widget.progressPercent != null) {
+      _lastKnownPercent = widget.progressPercent;
+    }
+    if (widget.progressDetail != null) {
+      _lastKnownDetail = widget.progressDetail;
+    }
+    if (widget.structuredProgressDetail != null) {
+      _lastKnownStructuredDetail = widget.structuredProgressDetail;
+    }
+    if (widget.runFilter != null) _lastKnownRunFilter = widget.runFilter;
+  }
+
+  void _forgetLiveProgress() {
+    _lastKnownStatus = null;
+    _lastKnownPercent = null;
+    _lastKnownDetail = null;
+    _lastKnownStructuredDetail = null;
+    _lastKnownRunFilter = null;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -79,11 +133,18 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
       _showProgressPanel = true;
       _lastRunningTime = DateTime.now();
     }
+    _rememberLiveProgress();
   }
 
   @override
   void didUpdateWidget(_NodeItem oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.nodeStatus == NodeStatus.running &&
+        oldWidget.nodeStatus != NodeStatus.running) {
+      // A fresh pass over this node: last run's frames are no longer its story.
+      _forgetLiveProgress();
+    }
+    _rememberLiveProgress();
     if (widget.nodeStatus == NodeStatus.running) {
       _showProgressPanel = true;
       _lastRunningTime = DateTime.now();
@@ -259,10 +320,13 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
           getProgressPanelForNode(
                 node: widget.node,
                 colors: widget.colors,
-                progressPercent: widget.progressPercent ?? 0,
-                progressDetail: widget.progressDetail,
-                structuredProgressDetail: widget.structuredProgressDetail,
-                nodeStatus: widget.nodeStatus,
+                progressPercent:
+                    widget.progressPercent ?? _lastKnownPercent ?? 0,
+                progressDetail: widget.progressDetail ?? _lastKnownDetail,
+                structuredProgressDetail: widget.structuredProgressDetail ??
+                    _lastKnownStructuredDetail,
+                nodeStatus: widget.nodeStatus ?? _lastKnownStatus,
+                runFilter: widget.runFilter ?? _lastKnownRunFilter,
               ) ??
               const SizedBox.shrink(),
       ],

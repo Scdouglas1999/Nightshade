@@ -24,6 +24,7 @@ class _FixedBackendNotifier extends BackendNotifier {
 
 SessionReport _fakeReport({
   String name = 'M42 night 1',
+  String status = 'completed',
   List<SessionTargetReport>? targets,
   List<String> errors = const [],
   List<String> warnings = const [],
@@ -54,7 +55,7 @@ SessionReport _fakeReport({
   return SessionReport(
     sessionId: 42,
     sessionName: name,
-    status: 'completed',
+    status: status,
     startTime: DateTime.utc(2026, 1, 1, 22),
     endTime: DateTime.utc(2026, 1, 2, 1),
     wallClockDuration: const Duration(hours: 3),
@@ -316,5 +317,53 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Retry'), findsNWidgets(3));
+  });
+
+  // WD-SEQ-N1 — pressing Stop was reported as a failure in three places at
+  // once. The report titled itself "Stopped (resumable)" and carried a red
+  // "Errors - Sequence cancelled" section six inches to the left of that
+  // title. A deliberate user action is not a critical fault.
+  testWidgets('a run the operator stopped has no Errors section',
+      (tester) async {
+    await _pump(
+      tester,
+      _fakeReport(
+          status: 'paused-stopped', errors: const ['Sequence cancelled']),
+    );
+
+    expect(find.textContaining('Stopped (resumable)'), findsOneWidget);
+    expect(find.text('Errors'), findsNothing);
+    expect(find.text('Sequence cancelled'), findsNothing);
+    expect(
+      find.textContaining('You stopped this run'),
+      findsOneWidget,
+      reason: 'the stop is stated plainly instead of dressed as a failure',
+    );
+  });
+
+  testWidgets('a stopped run still reports faults that were not the stop',
+      (tester) async {
+    await _pump(
+      tester,
+      _fakeReport(
+        status: 'paused-stopped',
+        errors: const ['Sequence cancelled', 'Focuser lost communication'],
+      ),
+    );
+
+    expect(find.text('Errors'), findsOneWidget);
+    expect(find.text('Focuser lost communication'), findsOneWidget);
+    expect(find.text('Sequence cancelled'), findsNothing);
+  });
+
+  testWidgets('a run that failed on its own keeps every error message',
+      (tester) async {
+    await _pump(
+      tester,
+      _fakeReport(status: 'failed', errors: const ['Sequence cancelled']),
+    );
+
+    expect(find.text('Errors'), findsOneWidget);
+    expect(find.text('Sequence cancelled'), findsOneWidget);
   });
 }

@@ -42,3 +42,35 @@ String runStatusLabel(String status) {
   if (words.isEmpty) return 'Unknown';
   return words[0].toUpperCase() + words.substring(1);
 }
+
+/// True when [status] means the operator ended the run themselves.
+///
+/// A deliberate Stop is the one terminal state that is not a fault, and the
+/// surfaces that describe the run have to agree about that.
+bool runWasStoppedByOperator(String status) =>
+    status == 'stopped' || status == 'paused-stopped';
+
+/// True when [message] is the run-cancelled notice rather than a fault.
+///
+/// The executor records "Sequence cancelled" in the run's error list because
+/// that is how the native run ends on a Stop. Rendered verbatim under a red
+/// "Errors" heading — in a report whose own title reads "Stopped (resumable)" —
+/// it tells the operator their own button press was a critical failure
+/// (Wave D, WD-SEQ-N1). Recognised here so the outcome-aware surfaces can drop
+/// it; it is never dropped for a run that failed or aborted on its own.
+bool isRunCancellationNotice(String message) {
+  final m = message.toLowerCase();
+  return m.contains('cancelled') ||
+      m.contains('canceled') ||
+      m.contains('stopped by user') ||
+      m.contains('stopped by the user') ||
+      m.contains('stopped by operator');
+}
+
+/// The messages worth showing as errors for a run that ended with [status].
+///
+/// Identity in, identity out for every non-stop outcome.
+List<String> runErrorMessagesFor(String status, List<String> messages) {
+  if (!runWasStoppedByOperator(status)) return messages;
+  return messages.where((m) => !isRunCancellationNotice(m)).toList();
+}

@@ -737,18 +737,28 @@ class _RunCard extends ConsumerWidget {
 
               const SizedBox(width: 4),
 
-              // Status badge
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: NightshadeDecorations.tintedBadge(
-                  statusColor,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusInline4),
-                ),
-                child: Text(
-                  runStatusLabel(status),
-                  style: NightshadeTypography.labelStrongSm
-                      .copyWith(color: statusColor),
+              // Status badge. Declared as a live status rather than left as a
+              // bare coloured label: the AT-SPI tree published these as
+              // `Stopped (resumable) [DISABLED]` / `Completed [DISABLED]`,
+              // announcing every run outcome as if the row were dimmed out
+              // (Wave D, WD-SEQ-N3).
+              Semantics(
+                container: true,
+                enabled: true,
+                label: 'Run status: ${runStatusLabel(status)}',
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: NightshadeDecorations.tintedBadge(
+                    statusColor,
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline4),
+                  ),
+                  child: Text(
+                    runStatusLabel(status),
+                    style: NightshadeTypography.labelStrongSm
+                        .copyWith(color: statusColor),
+                  ),
                 ),
               ),
             ],

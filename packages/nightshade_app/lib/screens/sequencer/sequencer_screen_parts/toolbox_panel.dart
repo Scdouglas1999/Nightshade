@@ -72,8 +72,36 @@ class _ToolboxPanelState extends ConsumerState<_ToolboxPanel>
     super.dispose();
   }
 
+  /// Strip width (excluding the collapse button) below which the three tab
+  /// labels no longer fit at full size and the strip switches to equal shares.
+  static const double _compactStripWidth = 240.0;
+
+  /// A tab label that also states what it is to a screen reader.
+  ///
+  /// Flutter's [TabBar] wraps each tab in [MergeSemantics] and annotates it
+  /// with `selected` + "Tab n of m", but never with an enabled state — so the
+  /// AT-SPI tree published `panel: Nodes / Tab 1 of 3 [DISABLED]` for three
+  /// tabs that switch panes on click (Wave D, WD-SEQ-N3). Declaring the state
+  /// here merges it into that same node, the way the planner's filter chips
+  /// were fixed (a95a1d500).
+  Widget _tabLabel(int index, String label, int activeIndex) {
+    return Semantics(
+      enabled: true,
+      selected: activeIndex == index,
+      child: Text(
+        label,
+        maxLines: 1,
+        softWrap: false,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Watched (not read off the controller) so the tabs' selected-state
+    // announcement rebuilds with the pane it describes.
+    final activeIndex = ref.watch(sequencerToolboxTabProvider).index;
     return Container(
       decoration: BoxDecoration(
         color: widget.colors.surface,
@@ -87,74 +115,97 @@ class _ToolboxPanelState extends ConsumerState<_ToolboxPanel>
             decoration: BoxDecoration(
               border: Border(bottom: BorderSide(color: widget.colors.border)),
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TabBar(
-                    controller: _tabController,
-                    isScrollable: true,
-                    tabAlignment: TabAlignment.start,
-                    indicatorSize: TabBarIndicatorSize.tab,
-                    indicator: NightshadeDecorations.statusChip(
-                      widget.colors.primary,
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(8),
+            // The strip has to fit the width the PANEL actually got, which is
+            // not the width the screen has: at a 1000px window the palette is
+            // ~200px wide and the scrollable strip clipped its outer labels —
+            // "Nodes" rendered as "\odes" with the N cut off the left edge and
+            // "Queue" as "Queu" with the e cut off behind the collapse button
+            // (Wave D, NEW-C1). A scrollable strip in a too-small viewport
+            // hides labels instead of resizing, so below the threshold we hand
+            // the three tabs equal shares of the strip and shrink the type.
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                const collapseButtonWidth = 24.0;
+                final stripWidth = constraints.maxWidth -
+                    (widget.onCollapse != null ? collapseButtonWidth : 0);
+                final compact = stripWidth < _compactStripWidth;
+                final labelFontSize =
+                    compact ? 11.0 : Responsive.fontSize(context, 12);
+                final labelPadding =
+                    compact ? 4.0 : Responsive.spacing(context, 12);
+                final tabHeight = Responsive.spacing(context, 34);
+
+                return Row(
+                  children: [
+                    Expanded(
+                      child: TabBar(
+                        controller: _tabController,
+                        isScrollable: !compact,
+                        tabAlignment:
+                            compact ? TabAlignment.fill : TabAlignment.start,
+                        indicatorSize: TabBarIndicatorSize.tab,
+                        indicator: NightshadeDecorations.statusChip(
+                          widget.colors.primary,
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(8),
+                          ),
+                          bordered: false,
+                        ),
+                        dividerColor: Colors.transparent,
+                        labelColor: widget.colors.primary,
+                        unselectedLabelColor: widget.colors.textMuted,
+                        labelPadding:
+                            EdgeInsets.symmetric(horizontal: labelPadding),
+                        labelStyle: TextStyle(
+                          fontSize: labelFontSize,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        unselectedLabelStyle: TextStyle(
+                          fontSize: labelFontSize,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        tabs: [
+                          Tab(
+                            height: tabHeight,
+                            child: _tabLabel(0, 'Nodes', activeIndex),
+                          ),
+                          Tab(
+                            height: tabHeight,
+                            // §4: surface the Ctrl+T accelerator on the
+                            // Snippets tab so the keyboard toggle is
+                            // discoverable.
+                            child: Tooltip(
+                              message: 'Toggle snippets (Ctrl+T)',
+                              child: _tabLabel(1, 'Snippets', activeIndex),
+                            ),
+                          ),
+                          Tab(
+                            height: tabHeight,
+                            child: _tabLabel(2, 'Queue', activeIndex),
+                          ),
+                        ],
                       ),
-                      bordered: false,
                     ),
-                    dividerColor: Colors.transparent,
-                    labelColor: widget.colors.primary,
-                    unselectedLabelColor: widget.colors.textMuted,
-                    labelPadding: EdgeInsets.symmetric(
-                      horizontal: Responsive.spacing(context, 12),
-                    ),
-                    labelStyle: TextStyle(
-                      fontSize: Responsive.fontSize(context, 12),
-                      fontWeight: FontWeight.w600,
-                    ),
-                    unselectedLabelStyle: TextStyle(
-                      fontSize: Responsive.fontSize(context, 12),
-                      fontWeight: FontWeight.w500,
-                    ),
-                    tabs: [
-                      Tab(
-                        height: Responsive.spacing(context, 34),
-                        child: const Text('Nodes'),
-                      ),
-                      Tab(
-                        height: Responsive.spacing(context, 34),
-                        // §4: surface the Ctrl+T accelerator on the Snippets
-                        // tab so the keyboard toggle is discoverable.
-                        child: const Tooltip(
-                          message: 'Toggle snippets (Ctrl+T)',
-                          child: Text('Snippets'),
+                    if (widget.onCollapse != null)
+                      Tooltip(
+                        message: 'Collapse panel',
+                        child: InkWell(
+                          onTap: widget.onCollapse,
+                          borderRadius: BorderRadius.circular(
+                              NightshadeTokens.radiusInline4),
+                          child: Padding(
+                            padding: const EdgeInsets.all(4),
+                            child: Icon(
+                              LucideIcons.panelLeftClose,
+                              size: 16,
+                              color: widget.colors.textMuted,
+                            ),
+                          ),
                         ),
                       ),
-                      Tab(
-                        height: Responsive.spacing(context, 34),
-                        child: const Text('Queue'),
-                      ),
-                    ],
-                  ),
-                ),
-                if (widget.onCollapse != null)
-                  Tooltip(
-                    message: 'Collapse panel',
-                    child: InkWell(
-                      onTap: widget.onCollapse,
-                      borderRadius:
-                          BorderRadius.circular(NightshadeTokens.radiusInline4),
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Icon(
-                          LucideIcons.panelLeftClose,
-                          size: 16,
-                          color: widget.colors.textMuted,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
+                  ],
+                );
+              },
             ),
           ),
 

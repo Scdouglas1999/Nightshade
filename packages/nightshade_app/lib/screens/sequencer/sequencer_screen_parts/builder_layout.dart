@@ -55,6 +55,19 @@ class _DesktopBuilderLayout extends ConsumerWidget {
   static const double minCenterWidth = 300.0;
   static const double collapsedPanelWidth = 48.0;
 
+  /// The width the document pane needs before the side panels may keep theirs.
+  ///
+  /// Measured at a 900px window (Wave D, WD-SEQ-N2): the properties pane kept
+  /// its ~250px and the palette its ~200px while the canvas — the pane that
+  /// holds the thing being edited — was squeezed to ~180px. At that width the
+  /// node's inline editors broke to one control per line (a bare "x" alone on a
+  /// row), "Total 3.0" was clipped mid-value and the target rollup truncated to
+  /// "12 planne...". `minCenterWidth` alone never triggered because the rail
+  /// fallback only fires below palette+300+properties *collapsed*, which a
+  /// 900px window clears easily. The center is the document; it collapses the
+  /// side panels rather than being crushed by them.
+  static const double comfortableCenterWidth = 380.0;
+
   /// §7: bucket the raw available width to the nearest 64px before computing
   /// panel dimensions, so a continuous window-resize drag only steps the
   /// derived panel sizes occasionally instead of re-tweening every frame.
@@ -148,10 +161,26 @@ class _DesktopBuilderLayout extends ConsumerWidget {
               // the window restores the user's saved expanded preference.
               final spaceTight = availableWidth < bothExpandedWidth;
 
-              // Honor only the explicit user collapse prefs; tight space
-              // packs both panels to *Min instead of collapsing one.
-              final effectiveToolboxCollapsed = toolboxCollapsed;
-              final effectivePropertiesCollapsed = propertiesCollapsed;
+              // Honor the explicit user collapse prefs; tight space packs both
+              // panels to *Min instead of collapsing one — until even that
+              // leaves the document pane below [comfortableCenterWidth], at
+              // which point the side panels give way (toolbox first, then
+              // properties). Derived only: the user-pref providers are never
+              // written, so widening the window restores their saved state.
+              final centerWithBothOpen =
+                  availableWidth - dims.leftMin - dims.rightMin;
+              final autoCollapseToolbox =
+                  centerWithBothOpen < comfortableCenterWidth;
+              final centerWithToolboxCollapsed = availableWidth -
+                  (autoCollapseToolbox ? collapsedPanelWidth : dims.leftMin) -
+                  dims.rightMin;
+              final autoCollapseProperties =
+                  centerWithToolboxCollapsed < comfortableCenterWidth;
+
+              final effectiveToolboxCollapsed =
+                  toolboxCollapsed || autoCollapseToolbox;
+              final effectivePropertiesCollapsed =
+                  propertiesCollapsed || autoCollapseProperties;
 
               // Derived expanded widths. When space is tight, both panels use
               // their min width. Otherwise a panel may grow to its expanded

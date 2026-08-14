@@ -183,7 +183,10 @@ class _ReportBody extends ConsumerWidget {
             const SizedBox(height: 8),
             _TargetBlock(target: target, colors: colors),
           ],
-          if (report.errorMessages.isNotEmpty) ...[
+          // A run the operator stopped is not a failed run. The cancellation
+          // notice is dropped from Errors (and stated plainly instead) only for
+          // that outcome — a run that failed on its own keeps every message.
+          if (_errorMessages.isNotEmpty) ...[
             const SizedBox(height: 20),
             _SectionTitle(
                 title: 'Errors',
@@ -191,6 +194,12 @@ class _ReportBody extends ConsumerWidget {
                 colors: colors,
                 titleColor: colors.error),
             ..._buildErrorList(),
+          ],
+          if (_wasStoppedByOperator &&
+              _errorMessages.length != report.errorMessages.length) ...[
+            const SizedBox(height: 12),
+            _muted('You stopped this run. Everything captured before the stop '
+                'is saved.'),
           ],
           // Surface the live warningMessages we accumulated during
           // the run. Pre-patch these were collected by the
@@ -546,9 +555,16 @@ class _ReportBody extends ConsumerWidget {
         style: NightshadeTypography.bodySm.copyWith(color: colors.textMuted),
       );
 
+  bool get _wasStoppedByOperator => runWasStoppedByOperator(report.status);
+
+  /// The report's error messages minus, on an operator stop, the cancellation
+  /// notice that a Stop always produces. See [runErrorMessagesFor].
+  List<String> get _errorMessages =>
+      runErrorMessagesFor(report.status, report.errorMessages);
+
   List<Widget> _buildErrorList() {
     return [
-      for (final msg in report.errorMessages)
+      for (final msg in _errorMessages)
         Padding(
           padding: const EdgeInsets.only(bottom: 4),
           child: Text(

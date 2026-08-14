@@ -171,6 +171,31 @@ void main() {
     },
   );
 
+  // SCI-43 — the hint named a screen the app does not have. The primary
+  // navigation is Dashboard / Equipment / Imaging / Sequencer / Guiding /
+  // Weather / Plan Tonight / Analytics; there is no "Calibration" entry, and
+  // the dark library lives at Settings > Equipment > Dark Library. Reproduced
+  // on every pre-flight run of the Wave D drive.
+  test('the missing-dark hint names a destination that exists', () async {
+    final container = await _container(canSetCcdTemperature: false);
+    final issues = await _withRef(
+      container,
+      (ref) => rule.validate(_lightSequence(), ValidationContext(ref)),
+    );
+    expect(issues, isNotEmpty);
+    for (final issue in issues) {
+      final hint = issue.resolutionHint ?? '';
+      expect(
+        hint,
+        isNot(contains('Calibration →')),
+        reason: 'there is no Calibration screen to open',
+      );
+      if (hint.contains('Dark Library')) {
+        expect(hint, contains('Settings →'));
+      }
+    }
+  });
+
   test('a cooled camera still uses its setpoint', () async {
     final container = await _container(
       canSetCcdTemperature: true,
