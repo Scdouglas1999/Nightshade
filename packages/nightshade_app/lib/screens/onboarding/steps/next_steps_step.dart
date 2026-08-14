@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+// Outside the core barrel by design (name collision with
+// `cameraPresetsProvider`); imported by source path, as the optics step does.
+// ignore: implementation_imports
+import 'package:nightshade_core/src/providers/hardware_presets_provider.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+
+import 'optical_train_step.dart';
 
 /// Terminal "what's next" step shown after the equipment profile is created.
 ///
@@ -100,10 +106,15 @@ class OnboardingNextStepsStep extends ConsumerWidget {
                   // lucide_icons 0.257.0 has no `telescope` glyph.
                   icon: NightshadeIcons.aperture,
                   label: 'Telescope',
-                  value: draft.telescopeName ??
-                      (draft.focalLengthMm != null
-                          ? '${draft.focalLengthMm!.toStringAsFixed(0)} mm'
-                          : null),
+                  // The optics step marks a library scope whose numbers were
+                  // edited as "— edited". Dropping that marker here restated a
+                  // model name beside an image scale computed from a focal
+                  // length that model does not have — the wizard's closing
+                  // statement about the rig, and the one place it was untrue.
+                  value: telescopeSummaryLabel(
+                    draft,
+                    ref.watch(hardwarePresetsServiceProvider).allTelescopes(),
+                  ),
                 ),
                 _SummaryLine(
                   icon: NightshadeIcons.camera,

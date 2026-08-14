@@ -67,13 +67,14 @@ Future<void> _pumpRemoteAccess(
   WidgetTester tester, {
   required String? pairingCode,
   Duration? remaining,
+  Size size = const Size(900, 1600),
 }) async {
   final database = mockDatabase();
   addTearDown(database.close);
   await pumpAppScreen(
     tester,
     const RemoteAccessSettings(),
-    size: const Size(900, 1600),
+    size: size,
     database: database,
     extraOverrides: [
       appSettingsProvider.overrideWith(
@@ -143,5 +144,79 @@ void main() {
       find.widgetWithText(NightshadeButton, 'Stop pairing mode'),
       findsNothing,
     );
+  });
+
+  // WD-N4 — the phrase VALUE, not just its label, has to reach the
+  // accessibility tree. A SelectableText publishes its text as a semantic
+  // value; the live AT-SPI tree showed "panel: Pairing phrase" then "panel:
+  // Expires in 4:49" with nothing carrying ZENITH-NOVA-5610 between them, so a
+  // screen-reader user was told a phrase exists and never told what it is.
+  testWidgets('the phrase has an accessible NAME, not only a value',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+    await _pumpRemoteAccess(
+      tester,
+      pairingCode: 'ZENITH-NOVA-5610',
+      remaining: const Duration(minutes: 4, seconds: 49),
+    );
+
+    expect(
+      find.bySemanticsLabel(RegExp('ZENITH-NOVA-5610')),
+      findsOneWidget,
+      reason: 'the QR is an image, so this text is the only non-visual path '
+          'to pairing a phone',
+    );
+    handle.dispose();
+  });
+
+  // WD-N9 — the card shrink-wrapped to ~530 px of a ~1150 px column while idle
+  // and snapped to full width once pairing started.
+  group('WD-N9 — the card keeps one width', () {
+    Future<double> cardWidth(WidgetTester tester) async {
+      final card = find.ancestor(
+        of: find.text('Pair phones and tablets'),
+        matching: find.byType(Container),
+      );
+      return tester.getSize(card.first).width;
+    }
+
+    testWidgets('idle and pairing draw the same card', (tester) async {
+      await _pumpRemoteAccess(
+        tester,
+        pairingCode: null,
+        size: const Size(1600, 1200),
+      );
+      final idle = await cardWidth(tester);
+      // The full-width neighbour on the same leaf.
+      final browsersCard = tester
+          .getSize(
+            find
+                .ancestor(
+                  of: find.text('Pair Remote Browsers'),
+                  matching: find.byType(Container),
+                )
+                .first,
+          )
+          .width;
+
+      await _pumpRemoteAccess(
+        tester,
+        pairingCode: 'ZENITH-NOVA-5610',
+        remaining: const Duration(minutes: 4, seconds: 49),
+        size: const Size(1600, 1200),
+      );
+      final pairing = await cardWidth(tester);
+
+      expect(
+        idle,
+        pairing,
+        reason: 'the leaf reflowed under the operator when pairing started',
+      );
+      expect(
+        idle,
+        greaterThan(browsersCard * 0.8),
+        reason: 'every other card on this leaf runs the full content width',
+      );
+    });
   });
 }

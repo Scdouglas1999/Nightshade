@@ -252,6 +252,24 @@ class PairingNotifier extends StateNotifier<PairingState> {
     }
   }
 
+  /// Adopt a freshly-read device list, dropping a confirmation banner whose
+  /// device is no longer paired.
+  ///
+  /// "WaveD Test Phone paired" sat at the top of the page while the list below
+  /// it read "No paired devices" — the operator had just revoked that very
+  /// device, and the page told them both things at once. The banner is a
+  /// statement about a row; when the row goes, so does the statement.
+  PairingState _adoptDevices(List<PairedDevice> devices) {
+    final banner = state.lastPairedDevice;
+    final stillPaired =
+        banner != null && devices.any((d) => d.deviceId == banner.deviceId);
+    return state.copyWith(
+      pairedDevices: devices,
+      error: null,
+      lastPairedDevice: stillPaired ? banner : null,
+    );
+  }
+
   /// Dismiss the "device paired" confirmation.
   void clearLastPairedDevice() {
     if (!mounted) return;
@@ -299,10 +317,7 @@ class PairingNotifier extends StateNotifier<PairingState> {
       try {
         final devices = await _tokenManager.getActivePairedDevices();
         if (!mounted) return false;
-        state = state.copyWith(
-          pairedDevices: devices,
-          error: null,
-        );
+        state = _adoptDevices(devices);
         return true;
       } catch (_) {
         if (mounted) {
@@ -323,10 +338,7 @@ class PairingNotifier extends StateNotifier<PairingState> {
         await _tokenManager.revokeDevice(deviceId);
         final devices = await _tokenManager.getActivePairedDevices();
         if (!mounted) return false;
-        state = state.copyWith(
-          pairedDevices: devices,
-          error: null,
-        );
+        state = _adoptDevices(devices);
         return true;
       } catch (_) {
         if (mounted) {
@@ -354,10 +366,7 @@ class PairingNotifier extends StateNotifier<PairingState> {
         final revoked = await _tokenManager.revokeAllDevices();
         final devices = await _tokenManager.getActivePairedDevices();
         if (!mounted) return false;
-        state = state.copyWith(
-          pairedDevices: devices,
-          error: null,
-        );
+        state = _adoptDevices(devices);
         return revoked > 0;
       } catch (_) {
         if (mounted) {
@@ -394,10 +403,7 @@ class PairingNotifier extends StateNotifier<PairingState> {
         }
         final devices = await _tokenManager.getActivePairedDevices();
         if (!mounted) return false;
-        state = state.copyWith(
-          pairedDevices: devices,
-          error: null,
-        );
+        state = _adoptDevices(devices);
         return true;
       } catch (_) {
         if (mounted) {
@@ -418,10 +424,7 @@ class PairingNotifier extends StateNotifier<PairingState> {
         await _tokenManager.deleteDevice(deviceId);
         final devices = await _tokenManager.getActivePairedDevices();
         if (!mounted) return false;
-        state = state.copyWith(
-          pairedDevices: devices,
-          error: null,
-        );
+        state = _adoptDevices(devices);
         return true;
       } catch (_) {
         if (mounted) {

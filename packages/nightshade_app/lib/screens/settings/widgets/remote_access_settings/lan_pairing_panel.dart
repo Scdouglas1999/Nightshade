@@ -55,6 +55,12 @@ class _RemotePairingQrPanel extends StatelessWidget {
     final expired = timeRemaining != null && timeRemaining! <= Duration.zero;
 
     return Container(
+      // Full width, like every other card on this leaf. Sized to its content
+      // this card drew ~530 px in a ~1150 px column while idle and then snapped
+      // to full width the moment pairing started — the QR's [Center] is what
+      // was stretching it — so the page reflowed under the operator at exactly
+      // the moment they were reading a credential off it.
+      width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: colors.surface,
@@ -136,13 +142,24 @@ class _RemotePairingQrPanel extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
-            SelectableText(
-              pairingCode!,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize16,
-                fontWeight: FontWeight.w600,
-                fontFamily: 'monospace',
-                color: colors.textPrimary,
+            // The phrase is the one credential on this panel, and a
+            // [SelectableText] publishes its text as a semantic VALUE, not a
+            // name: the live accessibility tree gave "panel: Pairing phrase"
+            // followed by "panel: Expires in 4:49" and nothing in between — the
+            // QR is an image, so a screen-reader user was told a phrase exists
+            // and never told what it is. Name it explicitly.
+            Semantics(
+              container: true,
+              excludeSemantics: true,
+              label: 'Pairing phrase: $pairingCode',
+              child: SelectableText(
+                pairingCode!,
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize16,
+                  fontWeight: FontWeight.w600,
+                  fontFamily: 'monospace',
+                  color: colors.textPrimary,
+                ),
               ),
             ),
             const SizedBox(height: 6),

@@ -8,6 +8,7 @@
 
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/onboarding/steps/filter_wheel_step.dart';
@@ -90,8 +91,16 @@ NightshadeButton _addSlotButton(WidgetTester tester) =>
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('Add slot is dead once every wheel position is listed',
+  // SET-2 (a): the cap used to render the button DISABLED. Driven live on
+  // 2026-08-13 that was not what the operator got: the accessibility tree
+  // published a plain button with a tap action, pressing it produced no row, no
+  // toast and no message, and two tree dumps taken either side of the click
+  // were byte-identical. A wheel with seven positions has no eighth, ever — so
+  // there is nothing to press, and the reason is on screen instead of inside
+  // the removed button's tooltip.
+  testWidgets('no Add slot control exists once every wheel position is listed',
       (tester) async {
+    final handle = tester.ensureSemantics();
     await _pump(
       tester,
       draftNames: _sevenSlots,
@@ -100,15 +109,37 @@ void main() {
 
     expect(find.widgetWithText(TextField, 'SII'), findsOneWidget);
     expect(
-      _addSlotButton(tester).onPressed,
-      isNull,
+      find.widgetWithText(NightshadeButton, 'Add slot'),
+      findsNothing,
       reason: 'a 7-position wheel has no slot 8 to hold "Filter 8"',
     );
+
+    final tappableAddSlot = <String>[];
+    void visit(SemanticsNode node) {
+      final data = node.getSemanticsData();
+      if (data.label.contains('Add slot') &&
+          data.hasAction(SemanticsAction.tap)) {
+        tappableAddSlot.add(data.label);
+      }
+      node.visitChildren((child) {
+        visit(child);
+        return true;
+      });
+    }
+
+    visit(tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!);
     expect(
-      find.text('All 7 positions on this wheel are listed.'),
-      findsOneWidget,
-      reason: 'a disabled button with no explanation reads as a bug',
+      tappableAddSlot,
+      isEmpty,
+      reason: 'assistive tech was offered a press that does nothing',
     );
+
+    expect(
+      find.textContaining('no slot 8 to hold another filter'),
+      findsOneWidget,
+      reason: 'a control that vanishes without a reason reads as a bug',
+    );
+    handle.dispose();
   });
 
   testWidgets('Add slot still works below the wheel position count',
@@ -180,8 +211,13 @@ void main() {
       wheelSlots: const <String>[],
     );
 
-    expect(_addSlotButton(tester).onPressed, isNull);
+    expect(find.widgetWithText(NightshadeButton, 'Add slot'), findsNothing);
     expect(find.textContaining('positions on this wheel'), findsNothing);
+    expect(
+      find.text('A profile can hold at most 12 filters.'),
+      findsOneWidget,
+      reason: 'the generic bound has to say what it is, too',
+    );
   });
 
   testWidgets('removing a middle slot asks first, removing the last does not',

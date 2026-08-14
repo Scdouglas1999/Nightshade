@@ -354,8 +354,22 @@ class HelpTutorialsSettings extends ConsumerWidget {
               size: ButtonSize.small,
               failureMessage:
                   'Could not reset tutorial progress. Please try again.',
+              // Do the whole of what the sentence above promises.
+              //
+              // `resetProgress` deletes every tutorial_progress row — including
+              // the ones that record a dismissed coach mark — but nothing told
+              // the live app about it: the dismissed-prompt set is held in
+              // memory and the first-launch tour's status is a cached future.
+              // So "you will see the welcome tour again" produced no tour and
+              // no nudge for the rest of the session. Drop the in-memory
+              // dismissals and re-arm the welcome tour through the same path
+              // the "Re-run onboarding tour" row above uses.
               onPressed: () async {
                 await ref.read(tutorialProvider.notifier).resetProgress();
+                await ref
+                    .read(dismissedTourPromptsProvider.notifier)
+                    .resetAllDismissed();
+                await ref.read(onboardingTourProvider.notifier).reset();
                 if (ctx.mounted) Navigator.pop(ctx);
               },
             ),

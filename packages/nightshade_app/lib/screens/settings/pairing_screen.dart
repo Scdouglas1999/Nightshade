@@ -24,6 +24,17 @@ class PairingScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.text('pairingTitle')),
+        // The framework's back arrow carries a tooltip and no accessible NAME
+        // — read off the live tree, the only way off this page was an unnamed
+        // button. AccessibleIconButton publishes one node that says what it is
+        // and how to press it.
+        leading: Navigator.of(context).canPop()
+            ? AccessibleIconButton(
+                icon: NightshadeIcons.arrowLeft,
+                label: 'Back to Remote Access',
+                onPressed: () => Navigator.of(context).maybePop(),
+              )
+            : null,
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -117,13 +128,23 @@ class PairingScreen extends ConsumerWidget {
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 16),
-              SelectableText(
-                state.pairingCode!,
-                style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 4,
-                      fontFamily: 'monospace',
-                    ),
+              // Named for assistive tech, not just drawn. A [SelectableText]
+              // publishes its text as a semantic value; the live tree exposed
+              // "Enter this code on your device:" and "Expires in 04:55" with
+              // the code itself missing between them, so the only credential
+              // that has to be read aloud was the only thing that could not be.
+              Semantics(
+                container: true,
+                excludeSemantics: true,
+                label: 'Pairing code: ${state.pairingCode}',
+                child: SelectableText(
+                  state.pairingCode!,
+                  style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 4,
+                        fontFamily: 'monospace',
+                      ),
+                ),
               ),
               const SizedBox(height: 8),
               Row(
@@ -213,7 +234,7 @@ class PairingScreen extends ConsumerWidget {
                         : () => _showRevokeAllDialog(
                               context,
                               ref,
-                              state.pairedDevices.length,
+                              state.pairedDevices,
                             ),
                   ),
                   const SizedBox(width: 8),
@@ -605,15 +626,28 @@ class PairingScreen extends ConsumerWidget {
   /// The count is the whole point of the confirmation: the list is scrollable
   /// and inherited stores run to a dozen rows, so "revoke all" without a
   /// number is asking the operator to agree to something they cannot see.
-  void _showRevokeAllDialog(BuildContext context, WidgetRef ref, int count) {
+  ///
+  /// With exactly one device there is no "all" and no plural — the page said
+  /// "Revoke access for all 1 paired devices?" — so the single-device wording
+  /// is used, naming the device instead of counting it.
+  void _showRevokeAllDialog(
+    BuildContext context,
+    WidgetRef ref,
+    List<PairedDevice> devices,
+  ) {
+    final single = devices.length == 1 ? devices.single : null;
     _showConfirmDialog(
       context,
-      titleKey: 'pairingRevokeAllTitle',
-      body: context.l10n.text(
-        'pairingRevokeAllBody',
-        params: {'count': count.toString()},
-      ),
-      confirmKey: 'pairingRevokeAllConfirm',
+      titleKey: single != null ? 'pairingRevokeTitle' : 'pairingRevokeAllTitle',
+      body: single != null
+          ? context.l10n
+              .text('pairingRevokeBody', params: {'name': single.deviceName})
+          : context.l10n.text(
+              'pairingRevokeAllBody',
+              params: {'count': devices.length.toString()},
+            ),
+      confirmKey:
+          single != null ? 'pairingRevokeAccess' : 'pairingRevokeAllConfirm',
       errorKey: 'pairingErrorRevokeAll',
       variant: ButtonVariant.destructive,
       action: () => ref.read(pairingProvider.notifier).revokeAll(),

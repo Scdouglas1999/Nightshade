@@ -241,6 +241,23 @@ class _OnboardingFilterWheelStepState
     return wheel.filterNames.isEmpty ? null : wheel.filterNames.length;
   }
 
+  /// The line under the Filters header: what the wheel reports, and — at the
+  /// cap — why there is nothing left to add. The reason has to be on screen
+  /// rather than in a tooltip, because the control it explains is now gone.
+  String _slotCountCaption({
+    required OnboardingDraft draft,
+    required int? reportedSlots,
+    required bool atSlotCap,
+  }) {
+    final wheel = draft.filterWheelName ?? 'This wheel';
+    if (!atSlotCap) return '$wheel reports $reportedSlots positions.';
+    if (reportedSlots != null) {
+      return 'All $reportedSlots positions on this wheel are listed — '
+          '$wheel has no slot ${reportedSlots + 1} to hold another filter.';
+    }
+    return 'A profile can hold at most $_hardSlotCap filters.';
+  }
+
   @override
   Widget build(BuildContext context) {
     final draft = ref.watch(onboardingDraftProvider);
@@ -335,31 +352,45 @@ class _OnboardingFilterWheelStepState
                 ),
                 const SizedBox(width: 8),
               ],
-              Tooltip(
-                message: atSlotCap
-                    ? (reportedSlots != null
-                        ? '${draft.filterWheelName ?? 'This wheel'} reports '
-                            '$reportedSlots positions — it has no slot '
-                            '${_controllers.length + 1} to hold another filter.'
-                        : 'A profile can hold at most $_hardSlotCap filters.')
-                    : 'Add another filter slot',
-                child: NightshadeButton(
-                  icon: NightshadeIcons.add,
-                  label: 'Add slot',
-                  variant: ButtonVariant.outline,
-                  size: ButtonSize.small,
-                  onPressed: (_loadingSlots || atSlotCap) ? null : _addSlot,
+              // At the cap there is no button at all.
+              //
+              // It used to render disabled, which reads as a control — and the
+              // accessibility tree published it as a plain button with a tap
+              // action, so an operator (or a screen-reader user) pressed "Add
+              // slot" on a full 7-position wheel and got no row, no toast and
+              // no message: two tree dumps taken either side of the click were
+              // byte-identical. A wheel with seven positions has no eighth to
+              // add, ever. Say that, and offer nothing to press.
+              if (atSlotCap)
+                Text(
+                  reportedSlots != null
+                      ? 'Wheel is full'
+                      : 'Filter limit reached',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.textMuted,
+                  ),
+                )
+              else
+                Tooltip(
+                  message: 'Add another filter slot',
+                  child: NightshadeButton(
+                    icon: NightshadeIcons.add,
+                    label: 'Add slot',
+                    variant: ButtonVariant.outline,
+                    size: ButtonSize.small,
+                    onPressed: _loadingSlots ? null : _addSlot,
+                  ),
                 ),
-              ),
             ],
           ),
-          if (reportedSlots != null) ...[
+          if (atSlotCap || reportedSlots != null) ...[
             const SizedBox(height: 4),
             Text(
-              atSlotCap
-                  ? 'All $reportedSlots positions on this wheel are listed.'
-                  : '${draft.filterWheelName ?? 'This wheel'} reports '
-                      '$reportedSlots positions.',
+              _slotCountCaption(
+                draft: draft,
+                reportedSlots: reportedSlots,
+                atSlotCap: atSlotCap,
+              ),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colors.textMuted,
               ),

@@ -26,6 +26,49 @@ import '../../../widgets/hardware/hardware_preset_picker_dialog.dart';
 /// required, because the imaging stack needs them for plate solving, framing,
 /// and FOV calculations. We surface the computed image scale in real time so
 /// the user can sanity-check their numbers before moving on.
+/// True when the optics on record still describe the telescope [draft] names.
+///
+/// The badge beside the model name is a green tick, which reads as "validated
+/// against the library". Applying Askar FRA400 and then typing 1234 mm left
+/// that tick over 1234 mm / 72 mm / f/13.71 — a scope that does not exist. A
+/// preset that is no longer in the catalog (a user override that was deleted)
+/// cannot be checked against, so it is reported as edited rather than
+/// confirmed.
+///
+/// Shared with the wizard's closing step, which used to restate the bare model
+/// name after the numbers had been edited away from it.
+bool draftMatchesTelescopePreset(
+  OnboardingDraft draft,
+  List<TelescopePreset> presets,
+) {
+  final presetId = draft.telescopePresetId;
+  if (presetId == null) return false;
+  for (final preset in presets) {
+    if (preset.id != presetId) continue;
+    const tolerance = 0.05;
+    return (draft.focalLengthMm ?? -1) != -1 &&
+        (draft.apertureMm ?? -1) != -1 &&
+        (preset.focalLengthMm - draft.focalLengthMm!).abs() < tolerance &&
+        (preset.apertureMm - draft.apertureMm!).abs() < tolerance;
+  }
+  return false;
+}
+
+/// How the rig's telescope should be named on a summary: the library model when
+/// the optics still match it, that model marked `— edited` when they no longer
+/// do, and the bare focal length when no library entry was ever used.
+String? telescopeSummaryLabel(
+  OnboardingDraft draft,
+  List<TelescopePreset> presets,
+) {
+  final name = draft.telescopeName;
+  if (name == null) {
+    final focalLength = draft.focalLengthMm;
+    return focalLength == null ? null : '${focalLength.toStringAsFixed(0)} mm';
+  }
+  return draftMatchesTelescopePreset(draft, presets) ? name : '$name — edited';
+}
+
 class OnboardingOpticalTrainStep extends ConsumerStatefulWidget {
   const OnboardingOpticalTrainStep({super.key});
 
@@ -469,27 +512,11 @@ class _OnboardingOpticalTrainStepState
 
   /// True when the optics on screen still describe the telescope the badge
   /// names.
-  ///
-  /// The badge is a green tick beside a model name, which reads as "validated
-  /// against the library". Applying Askar FRA400 and then typing 1234 mm left
-  /// that tick over 1234 mm / 72 mm / f/13.71 — a scope that does not exist.
-  /// A preset that is no longer in the catalog (a user override that was
-  /// deleted) cannot be checked against, so it is reported as edited rather
-  /// than confirmed.
-  bool _matchesTelescopePreset(OnboardingDraft draft) {
-    final presetId = draft.telescopePresetId;
-    if (presetId == null) return false;
-    final presets = ref.read(hardwarePresetsServiceProvider).allTelescopes();
-    for (final preset in presets) {
-      if (preset.id != presetId) continue;
-      const tolerance = 0.05;
-      return (draft.focalLengthMm ?? -1) != -1 &&
-          (draft.apertureMm ?? -1) != -1 &&
-          (preset.focalLengthMm - draft.focalLengthMm!).abs() < tolerance &&
-          (preset.apertureMm - draft.apertureMm!).abs() < tolerance;
-    }
-    return false;
-  }
+  bool _matchesTelescopePreset(OnboardingDraft draft) =>
+      draftMatchesTelescopePreset(
+        draft,
+        ref.read(hardwarePresetsServiceProvider).allTelescopes(),
+      );
 
   /// One attribution line under the pixel-size field when the value on screen
   /// is the camera library's figure for the camera picked at the camera step.

@@ -98,7 +98,44 @@ class _OnboardingDevicePickerBodyState
 
     final isDiscovering = discovery.isDiscovering;
 
+    // The picker is handed a FIXED height by the steps that embed it (the
+    // filter-wheel step gives it 240 px so the slot editor has room). Its own
+    // chrome is not fixed: a backend that fails adds an explanation block, and
+    // on step 6 that pushed the header row straight through the footnote — two
+    // sentences painted over each other at 1600x900. Scroll instead of
+    // overflowing, and stretch to fill the box when there is room to.
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight:
+                constraints.maxHeight.isFinite ? constraints.maxHeight : 0,
+          ),
+          child: _buildBody(
+            context,
+            colors: colors,
+            theme: theme,
+            devices: devices,
+            selectedDrivers: selectedDrivers,
+            discovery: discovery,
+            isDiscovering: isDiscovering,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody(
+    BuildContext context, {
+    required NightshadeColors colors,
+    required ThemeData theme,
+    required List<UnifiedDevice> devices,
+    required Set<DriverType> selectedDrivers,
+    required UnifiedDiscoveryState discovery,
+    required bool isDiscovering,
+  }) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
@@ -156,8 +193,11 @@ class _OnboardingDevicePickerBodyState
 
         const SizedBox(height: 12),
 
-        // Device list
-        Expanded(
+        // Device list. A minimum, not a slot: the surrounding box is a fixed
+        // height that the chrome above can eat into, and a list laid out at
+        // zero height is what put two sentences on one line.
+        ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 96),
           child: _DeviceList(
             devices: devices,
             isDiscovering: isDiscovering,
@@ -186,6 +226,76 @@ class _OnboardingDevicePickerBodyState
       ],
     );
   }
+}
+
+/// Endpoint (`host:port`) named anywhere inside a backend error, or null.
+final RegExp _endpointPattern =
+    RegExp(r'\b((?:[A-Za-z0-9_-]+\.)*[A-Za-z0-9_-]+:\d{2,5})\b');
+
+/// Marks of a developer-facing dump rather than a sentence: an enum/constructor
+/// call, a Dart/Rust error type, an errno, a URL, or a stack frame.
+final RegExp _debugDebrisPattern = RegExp(
+  r'\w+\.\w+\(|\w+Error\b|\w+Exception\b|os error|://|package:|#\d',
+);
+
+/// What to tell the operator about a backend that did not answer.
+///
+/// The raw string here is a driver/transport error, and on the third screen of
+/// a first run it was rendered verbatim: four wrapped red lines reading
+/// `NightshadeError.connectionFailed(deviceId: localhost:11111, reason: Failed
+/// to connect to Alpaca server: error sending request for url (...): error
+/// trying to connect: tcp connect error: Connection refused (os error 111))`,
+/// twice over. An enum dump, a URL, a Rust error chain and an errno are not
+/// copy; they are what the log file is for.
+///
+/// So the raw text is never shown. Recognised transports get the sentence that
+/// says what to DO about them, keeping the endpoint (the one part of the dump
+/// the operator can act on); anything unrecognised falls back to a plain
+/// statement that the scan did not complete.
+@visibleForTesting
+String describeBackendFailure(String? rawError) {
+  final raw = rawError?.trim() ?? '';
+  if (raw.isEmpty) return 'the scan did not complete';
+  final lower = raw.toLowerCase();
+  final endpoint = _endpointPattern.firstMatch(raw)?.group(1);
+  final at = endpoint ?? 'that address';
+
+  if (lower.contains('connection refused') || lower.contains('os error 111')) {
+    return 'nothing is listening at $at';
+  }
+  if (lower.contains('timed out') || lower.contains('timeout')) {
+    return '$at did not answer in time';
+  }
+  if (lower.contains('no route to host') ||
+      lower.contains('network is unreachable') ||
+      lower.contains('unreachable')) {
+    return '$at could not be reached from this network';
+  }
+  if (lower.contains('name or service not known') ||
+      lower.contains('failed to lookup') ||
+      lower.contains('nodename nor servname') ||
+      lower.contains('dns')) {
+    return 'the address $at could not be resolved';
+  }
+  if (lower.contains('401') ||
+      lower.contains('unauthorized') ||
+      lower.contains('forbidden') ||
+      lower.contains('403')) {
+    return '$at refused the connection as unauthorised';
+  }
+  if (lower.contains('certificate') || lower.contains('handshake')) {
+    return 'the secure connection to $at could not be established';
+  }
+  // Unrecognised transport. A backend that already reports a sentence ("No
+  // Alpaca server answered on this network") keeps it — flattening that would
+  // throw away the only thing anyone knows. Anything carrying developer debris
+  // does not reach the operator at all.
+  if (raw.length > 140 || _debugDebrisPattern.hasMatch(raw)) {
+    return endpoint == null
+        ? 'the scan did not complete'
+        : 'the scan of $at did not complete';
+  }
+  return raw;
 }
 
 class _BackendStatusRow extends StatelessWidget {
@@ -249,8 +359,8 @@ class _BackendStatusRow extends StatelessWidget {
             icon = NightshadeIcons.warning;
             color = colors.error;
             label = '${driver.shortLabel} (0)';
-            final reason = state.error ?? 'the scan did not complete';
-            description = '${driver.shortLabel}: nothing answered — $reason';
+            description = '${driver.shortLabel}: nothing answered — '
+                '${describeBackendFailure(state.error)}';
             failures.add(description);
             break;
         }
@@ -368,6 +478,9 @@ class _DeviceList extends StatelessWidget {
 
     return ListView.separated(
       shrinkWrap: true,
+      // The picker body scrolls as one; a second scrollable inside it would
+      // fight the outer one for the same drag.
+      physics: const NeverScrollableScrollPhysics(),
       itemCount: devices.length,
       separatorBuilder: (_, __) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
