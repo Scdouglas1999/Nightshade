@@ -433,11 +433,18 @@ pub(super) fn camera_driving_trigger_action(action: &RecoveryAction) -> Option<&
     }
 }
 
+/// Returns the deadline (epoch ms) of the claim that was taken, or `None` when
+/// the wait ended without one because the sequence was cancelled.
+///
+/// The distinction matters: a cancelled wait never holds the token, so a caller
+/// that assumed "I waited, therefore I hold it" would go on to release a claim
+/// belonging to whoever took it next — the capture loop — and reopen the
+/// frame-destroying race this protocol exists to close.
 pub(super) async fn claim_camera_for_trigger_action(
     trigger_state: &Arc<RwLock<crate::triggers::TriggerState>>,
     is_cancelled: &Arc<AtomicBool>,
     action: &str,
-) {
+) -> Option<i64> {
     let mut announced = false;
     loop {
         if is_cancelled.load(Ordering::Relaxed) {
@@ -445,15 +452,15 @@ pub(super) async fn claim_camera_for_trigger_action(
                 "Trigger-fired {} released early: sequence cancelled",
                 action
             );
-            return;
+            return None;
         }
 
-        let remaining = {
+        let (remaining, deadline_ms) = {
             let mut state = trigger_state.write().await;
             if state.try_claim_camera_for(TRIGGER_CAMERA_CLAIM_SECS) {
-                None
+                (None, state.camera_busy_until_ms)
             } else {
-                state.camera_busy_remaining_secs()
+                (state.camera_busy_remaining_secs(), None)
             }
         };
 
@@ -461,7 +468,7 @@ pub(super) async fn claim_camera_for_trigger_action(
             if announced {
                 tracing::info!("Camera free; running trigger-fired {} now", action);
             }
-            return;
+            return deadline_ms;
         };
 
         if !announced {
@@ -474,6 +481,147 @@ pub(super) async fn claim_camera_for_trigger_action(
             );
         }
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
+}
+
+/// Which device is missing when a trigger-fired autofocus cannot run at all,
+/// or `None` when the rig has both the camera and the focuser it needs.
+///
+/// The autofocus arm branches on exactly this, and the branch it takes decides
+/// whether the arm reaches its release. Naming the decision here keeps the
+/// enumeration of "every exit" honest instead of buried in a match inside a
+/// closure that no test can reach.
+pub(super) fn autofocus_trigger_skip_reason(
+    camera_id: Option<&String>,
+    focuser_id: Option<&String>,
+) -> Option<&'static str> {
+    match (camera_id, focuser_id) {
+        (Some(_), Some(_)) => None,
+        (None, None) => Some("no camera and no focuser are"),
+        (None, Some(_)) => Some("no camera is"),
+        (Some(_), None) => Some("no focuser is"),
+    }
+}
+
+/// The capture loop's camera claim, held on behalf of a trigger recovery
+/// action and handed back on EVERY exit of the arm that took it.
+///
+/// Taking the claim was only half a protocol. The autofocus arm released it in
+/// exactly one place — after the sweep, inside the `(Some, Some)`
+/// camera+focuser branch. Its sibling branch (the rig whose focuser is absent
+/// or has disappeared mid-run) logs "skipping the refocus and continuing the
+/// run" and falls through with nothing released, so the hold sat until
+/// [`TRIGGER_CAMERA_CLAIM_SECS`] expired. For those ten minutes the capture
+/// loop's pre-frame gate in `instructions/expose.rs` blocked every frame while
+/// the run went on reporting itself as imaging: a night's worth of exposures
+/// lost to a recovery that never ran.
+///
+/// A guard rather than another `clear_camera_busy()` call site because the
+/// dispatch exits in three different ways — falling out of the match, a
+/// `continue` in the trigger loop, and several `return terminate_with(...)`
+/// early returns — and only `Drop` covers all of them, including the arms
+/// nobody has written yet. Callers that finish with the camera mid-arm still
+/// call [`TriggerCameraClaim::release`] explicitly, so the capture loop gets
+/// its next frame the moment the sweep is done rather than at the end of the
+/// dispatch.
+///
+/// Release is once-only and identity-checked: the token is a single shared
+/// deadline, so clearing it twice — or clearing it after the capture loop has
+/// taken it for its own frame — would destroy exactly the frame the claim
+/// protects.
+pub(super) struct TriggerCameraClaim {
+    trigger_state: Option<Arc<RwLock<crate::triggers::TriggerState>>>,
+    /// The deadline this guard installed. Only a claim still carrying it is
+    /// ours to clear.
+    deadline_ms: Option<i64>,
+    label: &'static str,
+}
+
+impl TriggerCameraClaim {
+    /// Take the claim if `action` drives the camera, waiting out any frame in
+    /// flight. A non-camera action (a dither, a park) returns an unheld guard
+    /// rather than waiting — holding those behind a ten-minute sub would be
+    /// its own defect.
+    pub(super) async fn acquire(
+        trigger_state: &Arc<RwLock<crate::triggers::TriggerState>>,
+        is_cancelled: &Arc<AtomicBool>,
+        action: &RecoveryAction,
+    ) -> Self {
+        let Some(label) = camera_driving_trigger_action(action) else {
+            return Self::unheld();
+        };
+        let deadline_ms = claim_camera_for_trigger_action(trigger_state, is_cancelled, label).await;
+        if deadline_ms.is_none() {
+            // Cancelled before the token was ours; there is nothing to give
+            // back and clearing anyway would steal someone else's claim.
+            return Self::unheld();
+        }
+        Self {
+            trigger_state: Some(trigger_state.clone()),
+            deadline_ms,
+            label,
+        }
+    }
+
+    pub(super) fn unheld() -> Self {
+        Self {
+            trigger_state: None,
+            deadline_ms: None,
+            label: "",
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn is_held(&self) -> bool {
+        self.trigger_state.is_some()
+    }
+
+    /// Hand the camera back now — the normal path, taken the moment the action
+    /// is done with the sensor. Idempotent.
+    pub(super) async fn release(&mut self) {
+        let (Some(state), Some(deadline_ms)) = (self.trigger_state.take(), self.deadline_ms.take())
+        else {
+            return;
+        };
+        let mut state = state.write().await;
+        if state.camera_busy_until_ms == Some(deadline_ms) {
+            state.clear_camera_busy();
+        }
+    }
+}
+
+impl Drop for TriggerCameraClaim {
+    fn drop(&mut self) {
+        let (Some(state), Some(deadline_ms)) = (self.trigger_state.take(), self.deadline_ms.take())
+        else {
+            return;
+        };
+        let label = self.label;
+        // The lock is only ever held for a field write or two, so the
+        // uncontended path is the normal one and the release is immediate.
+        if let Ok(mut guard) = state.try_write() {
+            if guard.camera_busy_until_ms == Some(deadline_ms) {
+                guard.clear_camera_busy();
+            }
+            return;
+        }
+        // Contended: hand the release to the runtime rather than blocking a
+        // drop. The identity check is what makes the delay safe.
+        match tokio::runtime::Handle::try_current() {
+            Ok(handle) => {
+                handle.spawn(async move {
+                    let mut guard = state.write().await;
+                    if guard.camera_busy_until_ms == Some(deadline_ms) {
+                        guard.clear_camera_busy();
+                    }
+                });
+            }
+            Err(_) => tracing::error!(
+                "Trigger-fired {} could not hand the camera back (no runtime at drop); the \
+                 capture loop will wait out the claim's expiry",
+                label
+            ),
+        }
     }
 }
 

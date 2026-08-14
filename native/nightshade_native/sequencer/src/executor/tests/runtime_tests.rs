@@ -1294,3 +1294,232 @@ async fn every_camera_driving_trigger_action_waits_for_the_frame_in_flight() {
         "the flip must start as soon as the frame lands, waited {waited:?}"
     );
 }
+
+/// Taking the claim is only half a protocol. Every exit of every
+/// camera-driving arm has to hand it back, and the autofocus arm had one that
+/// did not: the `(Some, Some)` camera+focuser branch released after the sweep,
+/// but its sibling `_ =>` branch — a rig whose focuser (or camera) is absent —
+/// logged "skipping the refocus and continuing the run" and fell straight
+/// through. Nothing released, so the hold sat there until
+/// `TRIGGER_CAMERA_CLAIM_SECS` expired, and for those ten minutes the capture
+/// loop's pre-frame gate (`instructions/expose.rs`) blocked EVERY frame. The
+/// run keeps saying it is imaging and takes no light for ten minutes.
+///
+/// This is the shape the refutation named, expressed as the invariant instead
+/// of as one branch: acquire, take any exit, camera free.
+#[tokio::test]
+async fn the_autofocus_skip_branch_hands_the_camera_back() {
+    let state = Arc::new(RwLock::new(crate::triggers::TriggerState::new()));
+    let cancelled = Arc::new(AtomicBool::new(false));
+
+    // The monitor takes the claim above the action match, for every
+    // camera-driving action.
+    let claim = TriggerCameraClaim::acquire(&state, &cancelled, &RecoveryAction::Autofocus).await;
+    assert!(
+        claim.is_held(),
+        "autofocus drives the camera, so it claims it"
+    );
+    assert!(
+        state.read().await.camera_busy_remaining_secs().is_some(),
+        "the claim must actually be held while the action runs"
+    );
+
+    // The skip branch: camera present, focuser gone mid-run. Its whole body is
+    // a warn, a latch reset and an Error event — it never touches the sensor
+    // and never reaches the sweep's release, so the exit itself has to.
+    assert_eq!(
+        autofocus_trigger_skip_reason(Some(&"cam".to_string()), None),
+        Some("no focuser is"),
+        "a rig with a camera and no focuser must take the skip branch"
+    );
+    {
+        let mut ts = state.write().await;
+        ts.clear_autofocus_invalidation();
+    }
+    drop(claim);
+    // Drop is synchronous; the uncontended try_write path releases inline.
+    tokio::task::yield_now().await;
+
+    assert!(
+        state.read().await.camera_busy_remaining_secs().is_none(),
+        "the skipped refocus must hand the camera back; a hold left to expire \
+         blocks every frame for TRIGGER_CAMERA_CLAIM_SECS while the run still \
+         reports itself as imaging"
+    );
+}
+
+/// The refutation enumerated the branches, so enumerate them here. Every
+/// (camera, focuser) combination the autofocus arm can see, and for the three
+/// non-runnable ones the claim must come back — the leak was not specific to
+/// the missing focuser, it was specific to "this branch does not reach the
+/// release".
+#[tokio::test]
+async fn every_autofocus_device_gap_hands_the_camera_back() {
+    let cam = "cam-1".to_string();
+    let focuser = "focuser-1".to_string();
+
+    assert_eq!(
+        autofocus_trigger_skip_reason(Some(&cam), Some(&focuser)),
+        None,
+        "camera + focuser is the only combination that can actually refocus"
+    );
+
+    for (camera_id, focuser_id, expected) in [
+        (None, None, "no camera and no focuser are"),
+        (None, Some(&focuser), "no camera is"),
+        (Some(&cam), None, "no focuser is"),
+    ] {
+        assert_eq!(
+            autofocus_trigger_skip_reason(camera_id, focuser_id),
+            Some(expected)
+        );
+
+        let state = Arc::new(RwLock::new(crate::triggers::TriggerState::new()));
+        let cancelled = Arc::new(AtomicBool::new(false));
+        let claim =
+            TriggerCameraClaim::acquire(&state, &cancelled, &RecoveryAction::Autofocus).await;
+        assert!(claim.is_held());
+        drop(claim);
+        tokio::task::yield_now().await;
+
+        assert!(
+            state.read().await.camera_busy_remaining_secs().is_none(),
+            "the {expected} branch left the claim held; the capture loop would \
+             block every frame until the ten-minute expiry"
+        );
+    }
+}
+
+/// The other two camera-driving actions have their own non-running exits — a
+/// flip whose mount or target coordinates are missing, a recenter with no
+/// target RA/Dec. None of them expose, all of them must hand the camera back.
+#[tokio::test]
+async fn every_camera_driving_action_hands_the_camera_back_on_a_silent_exit() {
+    for action in [
+        RecoveryAction::Autofocus,
+        RecoveryAction::MeridianFlip(crate::MeridianFlipConfig::default()),
+        RecoveryAction::Recenter,
+    ] {
+        let state = Arc::new(RwLock::new(crate::triggers::TriggerState::new()));
+        let cancelled = Arc::new(AtomicBool::new(false));
+
+        let mut claim = TriggerCameraClaim::acquire(&state, &cancelled, &action).await;
+        assert!(claim.is_held(), "{action:?} drives the camera");
+
+        // The arm exits without ever calling `release()` — the skip branch, a
+        // `continue`, a `return terminate_with(...)`.
+        drop(claim);
+        tokio::task::yield_now().await;
+        assert!(
+            state.read().await.camera_busy_remaining_secs().is_none(),
+            "{action:?} exited without releasing the camera claim"
+        );
+
+        // And the explicit release, which the arms that DO expose call the
+        // moment they are done, so the next frame starts immediately rather
+        // than waiting for the release after the match.
+        claim = TriggerCameraClaim::acquire(&state, &cancelled, &action).await;
+        claim.release().await;
+        assert!(
+            state.read().await.camera_busy_remaining_secs().is_none(),
+            "{action:?} did not release explicitly"
+        );
+    }
+}
+
+/// The token is one shared deadline, so a release that fires late must not
+/// clear a claim that is no longer its own. The capture loop takes the camera
+/// the instant the trigger action gives it back; a second, stale release would
+/// drop the loop's hold and reopen the mid-frame race the whole protocol
+/// exists to close.
+#[tokio::test]
+async fn a_stale_release_cannot_steal_the_capture_loops_claim() {
+    let state = Arc::new(RwLock::new(crate::triggers::TriggerState::new()));
+    let cancelled = Arc::new(AtomicBool::new(false));
+
+    let mut claim =
+        TriggerCameraClaim::acquire(&state, &cancelled, &RecoveryAction::Autofocus).await;
+    claim.release().await;
+
+    // The capture loop wins the free camera for its next 300 s light.
+    assert!(
+        state.write().await.try_claim_camera_for(300.0),
+        "the camera must be free once the trigger action releases"
+    );
+
+    // The guard falls out of scope at the end of the dispatch. It has nothing
+    // left to give back and must not touch the frame in flight.
+    claim.release().await;
+    drop(claim);
+    tokio::task::yield_now().await;
+    assert!(
+        state.read().await.camera_busy_remaining_secs().is_some(),
+        "a stale release cleared the capture loop's own claim, which is exactly \
+         how a light frame gets destroyed"
+    );
+}
+
+/// A wait that ends because the operator pressed Stop never held the token.
+/// Treating it as held would make the guard release a claim someone else owns.
+#[tokio::test]
+async fn a_cancelled_wait_never_claims_and_never_releases() {
+    let state = Arc::new(RwLock::new(crate::triggers::TriggerState::new()));
+    let cancelled = Arc::new(AtomicBool::new(true));
+    // The capture loop is mid-frame and keeps its claim throughout.
+    state.write().await.mark_camera_busy_for(300.0);
+
+    let claim = TriggerCameraClaim::acquire(&state, &cancelled, &RecoveryAction::Autofocus).await;
+    assert!(
+        !claim.is_held(),
+        "a cancelled wait returns without the token, so the guard holds nothing"
+    );
+    drop(claim);
+    tokio::task::yield_now().await;
+
+    assert!(
+        state.read().await.camera_busy_remaining_secs().is_some(),
+        "the cancelled action released a claim it never took"
+    );
+}
+
+/// Actions that never touch the sensor must not take the claim at all —
+/// holding a dither or a park behind a ten-minute sub would be its own defect.
+#[tokio::test]
+async fn non_camera_actions_take_no_claim() {
+    let state = Arc::new(RwLock::new(crate::triggers::TriggerState::new()));
+    let cancelled = Arc::new(AtomicBool::new(false));
+
+    for action in [
+        RecoveryAction::Pause,
+        RecoveryAction::ParkAndAbort,
+        RecoveryAction::Dither(crate::DitherConfig::default()),
+    ] {
+        let claim = TriggerCameraClaim::acquire(&state, &cancelled, &action).await;
+        assert!(!claim.is_held(), "{action:?} does not drive the camera");
+        assert!(
+            state.read().await.camera_busy_remaining_secs().is_none(),
+            "{action:?} claimed the camera it never uses"
+        );
+    }
+}
+
+/// The guard's coverage is only real while it is the ONLY way the trigger
+/// dispatch hands the camera back. The previous version of this fix was a
+/// hand-placed `clear_camera_busy()` per arm plus a comment claiming every
+/// exit was covered; one arm was not, and nothing caught it because the claim
+/// was a paragraph rather than a check.
+///
+/// So check it: a bare release inside the dispatch is a release that some
+/// future early exit will route around.
+#[test]
+fn the_trigger_dispatch_releases_the_camera_only_through_the_guard() {
+    let start_rs = include_str!("../start.rs");
+    let bare_releases = start_rs.matches("clear_camera_busy(").count();
+    assert_eq!(
+        bare_releases, 0,
+        "executor/start.rs releases the camera claim directly in {bare_releases} place(s). \
+         Route it through `camera_claim.release().await` instead: a per-arm release only \
+         covers the exits someone remembered, and the autofocus device-missing branch is \
+         what happens when one is forgotten — ten minutes of blocked frames per firing."
+    );
+}

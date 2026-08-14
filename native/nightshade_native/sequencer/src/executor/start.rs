@@ -3400,18 +3400,21 @@ impl SequenceExecutor {
                             // same sensor for its plate solve, and the burst
                             // then downloaded the solve frame and filed it as
                             // that light. See `camera_driving_trigger_action`.
-                            let camera_claim_taken = match camera_driving_trigger_action(&action) {
-                                Some(label) => {
-                                    claim_camera_for_trigger_action(
-                                        &trigger_state_for_actions,
-                                        &is_cancelled_clone,
-                                        label,
-                                    )
-                                    .await;
-                                    true
-                                }
-                                None => false,
-                            };
+                            //
+                            // The claim is a GUARD, not a flag, because the
+                            // dispatch below exits three different ways
+                            // (falling out of the match, `continue`, and
+                            // several `return terminate_with(...)`) and the
+                            // autofocus arm's device-missing branch used to
+                            // take one of them with nothing released — the
+                            // capture loop then blocked every frame until the
+                            // ten-minute expiry. See `TriggerCameraClaim`.
+                            let mut camera_claim = TriggerCameraClaim::acquire(
+                                &trigger_state_for_actions,
+                                &is_cancelled_clone,
+                                &action,
+                            )
+                            .await;
 
                             match &action {
                                 RecoveryAction::Pause => {
@@ -3680,16 +3683,17 @@ impl SequenceExecutor {
                                     // The claim is taken above the match now
                                     // (`camera_driving_trigger_action`), so
                                     // every camera-driving action inherits it
-                                    // rather than only this one.
-                                    debug_assert!(camera_claim_taken);
+                                    // rather than only this one, and
+                                    // `camera_claim` hands it back on whichever
+                                    // exit this arm takes.
                                     tracing::info!(
                                         "Executing autofocus as trigger recovery action"
                                     );
-                                    match (
+                                    match autofocus_trigger_skip_reason(
                                         trigger_action_context.camera_id.as_ref(),
                                         trigger_action_context.focuser_id.as_ref(),
                                     ) {
-                                        (Some(_), Some(_)) => {
+                                        None => {
                                             let (
                                                 target_name,
                                                 target_ra,
@@ -3778,12 +3782,9 @@ impl SequenceExecutor {
                                             // Hand the camera back the moment the sweep
                                             // is done — success or failure — so the
                                             // capture loop resumes on its next frame
-                                            // instead of waiting out the claim's
-                                            // ten-minute expiry.
-                                            trigger_state_for_actions
-                                                .write()
-                                                .await
-                                                .clear_camera_busy();
+                                            // instead of waiting for the release after
+                                            // the match.
+                                            camera_claim.release().await;
 
                                             // Publish the sweep's verdict.
                                             //
@@ -3951,7 +3952,7 @@ impl SequenceExecutor {
                                             });
                                             }
                                         }
-                                        _ => {
+                                        Some(missing) => {
                                             // No camera and/or no focuser: the autofocus
                                             // action is not merely failing, it is
                                             // IMPOSSIBLE, and nothing an operator does at
@@ -3984,14 +3985,14 @@ impl SequenceExecutor {
                                             // when there is no focuser; this arm is the
                                             // backstop for a device that disappears
                                             // mid-run.
-                                            let missing = match (
-                                                trigger_action_context.camera_id.as_ref(),
-                                                trigger_action_context.focuser_id.as_ref(),
-                                            ) {
-                                                (None, None) => "no camera and no focuser are",
-                                                (None, Some(_)) => "no camera is",
-                                                _ => "no focuser is",
-                                            };
+                                            //
+                                            // This branch is also where the camera claim
+                                            // used to leak: it takes no exposures and
+                                            // never reached the sweep's release, so the
+                                            // capture loop sat behind a ten-minute hold
+                                            // for a refocus that never ran. `camera_claim`
+                                            // covers it now, either here or after the
+                                            // match.
                                             tracing::warn!(
                                                 "Autofocus trigger '{}' fired but {} configured; \
                                                  skipping the refocus and continuing the run",
@@ -4099,12 +4100,7 @@ impl SequenceExecutor {
                                         // next frame instead of waiting out the
                                         // claim's ten-minute expiry. Mirrors
                                         // the autofocus arm.
-                                        if camera_claim_taken {
-                                            trigger_state_for_actions
-                                                .write()
-                                                .await
-                                                .clear_camera_busy();
-                                        }
+                                        camera_claim.release().await;
                                         // Snapshot the attempt count before the
                                         // match consumes the result — a flip that
                                         // only succeeded on retry #3 is DEGRADED
@@ -4302,12 +4298,7 @@ impl SequenceExecutor {
                                         // camera: hand the claim straight back
                                         // rather than holding the capture loop
                                         // for the claim's ten-minute expiry.
-                                        if camera_claim_taken {
-                                            trigger_state_for_actions
-                                                .write()
-                                                .await
-                                                .clear_camera_busy();
-                                        }
+                                        camera_claim.release().await;
                                     }
                                 }
                                 RecoveryAction::Dither(dither_config) => {
@@ -4456,12 +4447,7 @@ impl SequenceExecutor {
                                             ExecutorState::Paused,
                                         ));
                                         // Nothing exposed; release the claim.
-                                        if camera_claim_taken {
-                                            trigger_state_for_actions
-                                                .write()
-                                                .await
-                                                .clear_camera_busy();
-                                        }
+                                        camera_claim.release().await;
                                     } else {
                                         let recenter_ctx = build_trigger_autofocus_context(
                                             &trigger_action_context,
@@ -4493,12 +4479,7 @@ impl SequenceExecutor {
                                         // Solve exposures are done; release the
                                         // capture loop immediately rather than
                                         // sitting out the claim's expiry.
-                                        if camera_claim_taken {
-                                            trigger_state_for_actions
-                                                .write()
-                                                .await
-                                                .clear_camera_busy();
-                                        }
+                                        camera_claim.release().await;
                                         if result.status != NodeStatus::Success {
                                             tracing::warn!(
                                                 "[DRIFT] Recenter failed: {:?} - pausing sequence",
@@ -5019,6 +5000,17 @@ impl SequenceExecutor {
                                     continue;
                                 }
                             }
+
+                            // The single release point every arm that falls out
+                            // of the match reaches — including the autofocus
+                            // arm's device-missing branch, which exposes
+                            // nothing and used to leave the capture loop
+                            // blocked for the claim's ten-minute expiry. Arms
+                            // that finish with the camera earlier release above
+                            // so the next frame starts immediately; `Drop` is
+                            // the backstop for the `continue` and
+                            // `return terminate_with(...)` exits.
+                            camera_claim.release().await;
 
                             fired_triggers.push((trigger_id, action));
                         }
