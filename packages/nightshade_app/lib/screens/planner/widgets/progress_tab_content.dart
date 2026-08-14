@@ -529,8 +529,10 @@ class _PerFilterTable extends StatelessWidget {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: NightshadeTokens.spaceSm),
         child: Text(
+          // WE-EQ-N1: there is no "Target Queue" tab — it was merged into
+          // Schedule. Directions have to name a tab the operator can see.
           'No integration goals are defined for this target. Add filter '
-          'goals in the Target Queue tab to start tracking progress.',
+          'goals in the Schedule tab to start tracking progress.',
           style: TextStyle(
             fontSize: NightshadeTypography.fontSize12,
             color: colors.textSecondary,

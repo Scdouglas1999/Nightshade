@@ -556,12 +556,18 @@ class _Footer extends StatelessWidget {
 
     return Row(
       children: [
-        NightshadeButton(
-          icon: NightshadeIcons.arrowLeft,
-          label: 'Back',
-          variant: ButtonVariant.outline,
-          onPressed: onBack,
-        ),
+        // CON-49: on step 1 of 13 `onBack` is null, and this footer still drew
+        // the button — the accessibility tree published a plain `button: Back`
+        // with no disabled state, and clicking it did nothing. The phone footer
+        // above already omits it; the two footers now agree. A control that
+        // cannot act must not be on screen claiming it can.
+        if (onBack != null)
+          NightshadeButton(
+            icon: NightshadeIcons.arrowLeft,
+            label: 'Back',
+            variant: ButtonVariant.outline,
+            onPressed: onBack,
+          ),
         const Spacer(),
         if (onSkipStep != null) ...[
           NightshadeButton(

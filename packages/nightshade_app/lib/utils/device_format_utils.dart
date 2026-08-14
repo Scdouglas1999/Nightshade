@@ -19,8 +19,19 @@ String formatDeviceId(String id) {
 
   // Built-in multi-star guider has a fixed canonical ID. Recognize it before
   // the generic native:vendor:index path so the display name reads cleanly.
-  if (lowerId == 'native:builtin_guider:multi_star') {
-    return 'Built-in Multi-Star Guider';
+  // WD-EQ-2: the name is the constant nightshade_core and the Rust discovery
+  // record share, so the two Dart formatters cannot drift.
+  if (lowerId.startsWith(kBuiltinGuiderIdPrefix)) {
+    return kBuiltinGuiderDisplayName;
+  }
+
+  // Simulator ids (`sim_filterwheel_1`) are named by nightshade_core from the
+  // same table the backend's discovery uses. Without this the fallback
+  // `cleanupDeviceId` produced "Sim Filterwheel 1" here while the run
+  // dashboard said "Simulated Filter Wheel" — one device, two names.
+  if (lowerId.startsWith('sim_')) {
+    final simulator = friendlyNameFromDeviceId(id);
+    if (simulator != id) return simulator;
   }
 
   // Handle native device IDs: native:vendor:index or native:vendor_type:index

@@ -41,6 +41,14 @@ class _StatusPillButton extends StatefulWidget {
 class _StatusPillButtonState extends State<_StatusPillButton> {
   bool _isHovered = false;
 
+  /// Widest a dense pill's value may be (WE-EQ-N5).
+  ///
+  /// Chosen so four device pills plus the sequence indicator, the equipment
+  /// indicator and the save-path chip fit a 1000 px bar without the strip
+  /// overflowing into the fade. Long names still say they are truncated — with
+  /// an ellipsis, inside the pill, above their own state dot.
+  static const double _denseValueMaxWidth = 88.0;
+
   /// The one word a dense pill can afford: the device name while nothing is
   /// connected (every pill's value is "Disconnected" then), the live value
   /// once it is.
@@ -123,10 +131,18 @@ class _StatusPillButtonState extends State<_StatusPillButton> {
                       ],
                       ConstrainedBox(
                         constraints: BoxConstraints(
-                          maxWidth:
-                              ShellChromeMetrics.scaledStatusPillValueMaxWidth(
-                            context,
-                          ),
+                          // WE-EQ-N5: at 1000 px the pill strip overflows and
+                          // the scroll viewport's fade cut a pill THROUGH its
+                          // value — "Simulate" dissolving into the next pill's
+                          // icon, with no ellipsis and the state dot lost off
+                          // the edge. An ellipsis inside the pill is a truncation
+                          // the reader can see; a viewport slice is not. The
+                          // dense cap is tight enough that the whole strip fits
+                          // at that width, so the cut stops happening at all.
+                          maxWidth: widget.dense
+                              ? _denseValueMaxWidth
+                              : ShellChromeMetrics
+                                  .scaledStatusPillValueMaxWidth(context),
                         ),
                         child: Text(
                           _denseText,
@@ -189,5 +205,45 @@ class _InfoChip extends StatelessWidget {
     }
 
     return Tooltip(message: tooltip!, child: child);
+  }
+}
+
+/// The "there is more equipment this way" control at the right edge of the
+/// scrolling pill group.
+///
+/// WD-COL-N4: at 900 px the group scrolled silently. The last visible pill was
+/// cut mid-word against the temperature chip and Mount / Guider / Focus simply
+/// were not there, with nothing on screen saying they existed — a disconnected
+/// mount and no mount at all looked identical. The 24 px alpha fade was the
+/// only hint, and a fade is not a control: with a mouse there was nothing to
+/// click. This is.
+class _PillsOverflowAffordance extends StatelessWidget {
+  final NightshadeColors colors;
+  final VoidCallback onTap;
+
+  const _PillsOverflowAffordance({required this.colors, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      enabled: true,
+      label: 'More equipment status',
+      child: Tooltip(
+        message: 'More equipment status — scroll',
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: NightshadeTokens.borderRadiusMd,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            child: Icon(
+              NightshadeIcons.chevronRight,
+              size: NightshadeTokens.iconXs,
+              color: colors.textSecondary,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

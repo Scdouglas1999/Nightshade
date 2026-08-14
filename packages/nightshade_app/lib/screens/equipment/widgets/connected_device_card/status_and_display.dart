@@ -88,11 +88,26 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
                   letterSpacing: 0.5,
                 ),
               ),
-              Text(
-                deviceName,
-                style:
-                    NightshadeTypography.h5.copyWith(color: colors.textPrimary),
-                overflow: TextOverflow.ellipsis,
+              // WE-EQ-N6: at 1600x900 the FILTER WHEEL card read
+              // "Simulated Filter ..." while the camera, mount and focuser
+              // cards beside it — same column width — showed their full names,
+              // so one card looked like it had a different, mangled device.
+              // The name is a couple of characters over, not paragraphs: shrink
+              // it to fit before dropping any of it, and keep the ellipsis (and
+              // a tooltip) for a name that is genuinely too long.
+              Tooltip(
+                message: deviceName,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    deviceName,
+                    maxLines: 1,
+                    style: NightshadeTypography.h5
+                        .copyWith(color: colors.textPrimary),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ),
             ],
           ),

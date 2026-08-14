@@ -12,6 +12,7 @@ import '../widgets/notes_panel.dart';
 import '../widgets/post_session_stats_dialog.dart';
 import '../widgets/replay_debug_screen.dart';
 import '../widgets/sequence_diff_dialog.dart';
+import '../widgets/sequencer_tab_header.dart';
 
 /// One-shot "open this run on first paint" hint for the history tab.
 ///
@@ -146,17 +147,20 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
+          // Header. CON-52: this tab used an 18px title with the subtitle in a
+          // separate row below, while Templates and Sequence Library used 24px
+          // with the subtitle inside the title block — and only this one
+          // punctuated it. All four now share `SequencerTabTitle`.
           Row(
             children: [
               Icon(LucideIcons.history, size: 20, color: colors.primary),
               const SizedBox(width: 12),
-              Text(
-                'Execution History',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize18,
-                  fontWeight: FontWeight.w700,
-                  color: colors.textPrimary,
+              const Flexible(
+                child: SequencerTabTitle(
+                  title: 'Execution History',
+                  subtitle:
+                      'Past sequence runs with statistics and performance '
+                      'data.',
                 ),
               ),
               const Spacer(),
@@ -168,13 +172,6 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
                 onPressed: () => GlobalNotesDialog.show(context),
               ),
             ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Past sequence runs with statistics and performance data.',
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize13,
-                color: colors.textMuted),
           ),
           const SizedBox(height: 16),
 
@@ -317,33 +314,66 @@ class _HistoryFilterBarState extends ConsumerState<_HistoryFilterBar> {
       }
     });
 
+    // CON-51: on a screen whose own empty state says "No runs yet", seven live
+    // filter chips invite the operator to narrow a set with nothing in it. The
+    // UNFILTERED run list is the honest test — not `filteredRunsProvider`,
+    // which is empty whenever the current filter matches nothing and would
+    // disable the very chips needed to widen it again.
+    final hasAnyRuns =
+        ref.watch(sequenceRunsProvider).valueOrNull?.isNotEmpty ?? false;
+    const noRunsReason = 'No runs yet — there is nothing to filter.';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
             Expanded(
-              child: Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  for (final status in _HistoryFilterBar._statuses)
-                    FilterChip(
-                      label: Text(runStatusLabel(status)),
-                      selected: selected.contains(status),
-                      visualDensity: VisualDensity.compact,
-                      onSelected: (on) {
-                        final next = {...selected};
-                        if (on) {
-                          next.add(status);
-                        } else {
-                          next.remove(status);
-                        }
-                        ref.read(historyStatusFilterProvider.notifier).state =
-                            next;
-                      },
-                    ),
-                ],
+              child: Tooltip(
+                message: hasAnyRuns ? '' : noRunsReason,
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final status in _HistoryFilterBar._statuses)
+                      Tooltip(
+                        // One vocabulary, defined once in
+                        // run_status_presentation.dart: five of these chips
+                        // mean "did not finish" and nothing on screen said how
+                        // they differ.
+                        message: hasAnyRuns
+                            ? runStatusMeaning(status)
+                            : noRunsReason,
+                        child: Semantics(
+                          enabled: hasAnyRuns,
+                          label: hasAnyRuns
+                              ? null
+                              : '${runStatusLabel(status)}, unavailable. '
+                                  '$noRunsReason',
+                          excludeSemantics: !hasAnyRuns,
+                          child: FilterChip(
+                            label: Text(runStatusLabel(status)),
+                            selected: selected.contains(status),
+                            visualDensity: VisualDensity.compact,
+                            onSelected: hasAnyRuns
+                                ? (on) {
+                                    final next = {...selected};
+                                    if (on) {
+                                      next.add(status);
+                                    } else {
+                                      next.remove(status);
+                                    }
+                                    ref
+                                        .read(historyStatusFilterProvider
+                                            .notifier)
+                                        .state = next;
+                                  }
+                                : null,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -351,8 +381,11 @@ class _HistoryFilterBarState extends ConsumerState<_HistoryFilterBar> {
               width: 220,
               child: TextField(
                 controller: _searchController,
+                enabled: hasAnyRuns,
                 decoration: InputDecoration(
-                  hintText: 'Search by sequence / target',
+                  hintText: hasAnyRuns
+                      ? 'Search by sequence / target'
+                      : 'No runs to search',
                   isDense: true,
                   prefixIcon: Icon(LucideIcons.search,
                       size: 16, color: colors.textMuted),

@@ -134,27 +134,44 @@ class FramingEquipmentWarningCard extends StatelessWidget {
           ),
           if (actionLabel != null && onAction != null) ...[
             const SizedBox(height: 12),
-            GestureDetector(
-              onTap: onAction,
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: colors.warning.withValues(alpha: 0.15),
+            // CON-55: this navigates to Equipment exactly like Plan Tonight →
+            // Recommendation's "Open Settings", but a bare GestureDetector
+            // publishes an action with no role, so assistive tech read one as
+            // `button: Open Settings` and this one as `panel: Edit Profile` —
+            // the same kind of control, one focusable and one not. Semantics +
+            // InkWell give it the button role, keyboard focus and the ink the
+            // sibling already had.
+            Semantics(
+              button: true,
+              enabled: true,
+              label: actionLabel,
+              excludeSemantics: true,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: onAction,
                   borderRadius: NightshadeTokens.borderRadiusMd,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      actionLabel!,
-                      style: NightshadeTypography.labelQuiet
-                          .copyWith(color: colors.warning),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: colors.warning.withValues(alpha: 0.15),
+                      borderRadius: NightshadeTokens.borderRadiusMd,
                     ),
-                    const SizedBox(width: 4),
-                    Icon(NightshadeIcons.arrowRight,
-                        size: 12, color: colors.warning),
-                  ],
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          actionLabel!,
+                          style: NightshadeTypography.labelQuiet
+                              .copyWith(color: colors.warning),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(NightshadeIcons.arrowRight,
+                            size: 12, color: colors.warning),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),

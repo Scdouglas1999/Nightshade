@@ -355,55 +355,67 @@ class _ControlButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // WE-EQ-N3: a bare Tooltip+InkWell publishes a node with a tap action but
+    // no role and no enabled flag, so the AT-SPI tree printed the Dashboard's
+    // two headline calls-to-action as `panel: Image tonight [DISABLED]` and
+    // `panel: Sequencer [DISABLED]` — dead non-controls, while clicking either
+    // navigated fine. `excludeSemantics` makes this the ONE node for the
+    // control so the InkWell underneath cannot re-describe it.
     return Tooltip(
       message: label,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: isEnabled ? onPressed : null,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-          child: Container(
-            height: 36,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            constraints: const BoxConstraints(minWidth: 36),
-            decoration: BoxDecoration(
-              color: isActive
-                  ? colors.success.withValues(alpha: 0.12)
-                  : isEnabled
-                      ? colors.surface
-                      : colors.surface.withValues(alpha: 0.5),
-              borderRadius:
-                  BorderRadius.circular(NightshadeTokens.radiusInline8),
-              border: Border.all(
+      child: Semantics(
+        button: true,
+        enabled: isEnabled,
+        label: label,
+        excludeSemantics: true,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: isEnabled ? onPressed : null,
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+            child: Container(
+              height: 36,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              constraints: const BoxConstraints(minWidth: 36),
+              decoration: BoxDecoration(
                 color: isActive
-                    ? colors.success.withValues(alpha: 0.5)
-                    : colors.border,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  icon,
-                  size: 16,
+                    ? colors.success.withValues(alpha: 0.12)
+                    : isEnabled
+                        ? colors.surface
+                        : colors.surface.withValues(alpha: 0.5),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline8),
+                border: Border.all(
                   color: isActive
-                      ? colors.success
-                      : isEnabled
-                          ? colors.textPrimary
-                          : colors.textMuted,
+                      ? colors.success.withValues(alpha: 0.5)
+                      : colors.border,
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: NightshadeTypography.h6.copyWith(
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    icon,
+                    size: 16,
                     color: isActive
                         ? colors.success
                         : isEnabled
                             ? colors.textPrimary
                             : colors.textMuted,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 6),
+                  Text(
+                    label,
+                    style: NightshadeTypography.h6.copyWith(
+                      color: isActive
+                          ? colors.success
+                          : isEnabled
+                              ? colors.textPrimary
+                              : colors.textMuted,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

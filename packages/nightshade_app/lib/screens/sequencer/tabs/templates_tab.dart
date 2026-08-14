@@ -9,6 +9,7 @@ import '../sequencer_screen.dart';
 import 'package:nightshade_app/utils/authority_bound_dialog.dart';
 import 'package:nightshade_app/utils/snackbar_helper.dart';
 import '../widgets/quick_start_wizard_dialog.dart';
+import '../widgets/sequencer_tab_header.dart';
 import '../../../utils/count_label.dart';
 import '../sequence_counts.dart';
 

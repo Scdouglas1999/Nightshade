@@ -76,13 +76,16 @@ class _DecisionPanel extends ConsumerWidget {
           ),
           const SizedBox(height: NightshadeTokens.spaceXs),
           Text(
-            // CON-53: this card LIVES on Plan Tonight, so "use Plan Tonight
-            // instead" sent the reader to the screen they were already on. The
-            // choice it is really describing is between this card and the
-            // Target Queue tab beside it, so it names that.
+            // CON-53 / WE-EQ-N1: this card LIVES on Plan Tonight, so "use Plan
+            // Tonight instead" sent the reader to the screen they were already
+            // on. The first repair then named a "Target Queue tab" that this
+            // build does not have — it was merged into Schedule (see
+            // planner_screen_parts/_schedule_tab.dart). Name the thing that is
+            // actually on screen: the Scheduler queue is rendered directly
+            // below this card, on this same tab.
             'Runs hands-off and re-picks the best target all night as the sky '
             'changes. For a plan you can see and edit before it runs, build '
-            'one in the Target Queue tab.',
+            'one in the Scheduler queue below.',
             style: TextStyle(
               fontSize: NightshadeTypography.fontSize12,
               color: colors.textSecondary,

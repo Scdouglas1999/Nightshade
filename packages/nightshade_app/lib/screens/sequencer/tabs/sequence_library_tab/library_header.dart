@@ -103,31 +103,12 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
     );
   }
 
+  // CON-52: one shared Sequencer tab heading; see
+  // `widgets/sequencer_tab_header.dart` for the rule it enforces.
   Widget _buildTitle() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Sequence Library',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize24,
-            fontWeight: FontWeight.w700,
-            color: widget.colors.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Browse and load your saved imaging sequences',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize13,
-            color: widget.colors.textMuted,
-          ),
-        ),
-      ],
+    return const SequencerTabTitle(
+      title: 'Sequence Library',
+      subtitle: 'Browse and load your saved imaging sequences.',
     );
   }
 

@@ -192,8 +192,9 @@ void main() {
       reason: 'precondition: the draft is dirty before the reset',
     );
 
-    // The replay row's button is labelled "Re-run"; there are two ("Re-run
-    // equipment setup" and "Re-run onboarding tour"). Target the one inside
+    // CON-62: every row in this list starts something, so every row's button
+    // is labelled "Start" — three verbs for one action was the defect. The row
+    // TITLE is what distinguishes them, so target the button inside
     // the equipment-setup row via its SettingRow ancestor title.
     final equipmentRow = find.ancestor(
       of: find.text('Re-run equipment setup'),
@@ -202,7 +203,7 @@ void main() {
     expect(equipmentRow, findsOneWidget);
     final rerunButton = find.descendant(
       of: equipmentRow,
-      matching: find.widgetWithText(NightshadeButton, 'Re-run'),
+      matching: find.widgetWithText(NightshadeButton, 'Start'),
     );
     expect(rerunButton, findsOneWidget);
 
@@ -240,7 +241,7 @@ void main() {
     );
     final rerunButton = find.descendant(
       of: equipmentRow,
-      matching: find.widgetWithText(NightshadeButton, 'Re-run'),
+      matching: find.widgetWithText(NightshadeButton, 'Start'),
     );
 
     await tester.tap(rerunButton);
@@ -302,7 +303,7 @@ void main() {
     );
     final rerunButton = find.descendant(
       of: tourRow,
-      matching: find.widgetWithText(NightshadeButton, 'Re-run'),
+      matching: find.widgetWithText(NightshadeButton, 'Start'),
     );
     await tester.tap(rerunButton);
     await tester.pumpAndSettle();

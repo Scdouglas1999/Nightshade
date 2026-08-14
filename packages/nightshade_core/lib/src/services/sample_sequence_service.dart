@@ -48,6 +48,11 @@ class SampleSequence {
   final SampleSequenceSkillLevel skillLevel;
 
   /// Human-readable expected total run time (e.g. "1 hr 15 min", "16 hr").
+  ///
+  /// CON-59: this is a DURATION and nothing else. Two entries used to append
+  /// "capture" ("~3 min capture") so one column mixed a length of time with a
+  /// claim about what the time is spent on, and the two readings were not
+  /// comparable at a glance.
   final String expectedTotalTime;
 
   /// Path of the JSON asset under the `nightshade_core` package's
@@ -103,7 +108,7 @@ class SampleSequenceService {
       id: 'lunar_terminator',
       iconName: 'moon',
       skillLevel: SampleSequenceSkillLevel.beginner,
-      expectedTotalTime: '~3 min capture',
+      expectedTotalTime: '~3 min',
       assetFileName: 'lunar_terminator.json',
     ),
     _SampleSequenceEntry(
@@ -117,7 +122,7 @@ class SampleSequenceService {
       id: 'planetary_jupiter',
       iconName: 'circle',
       skillLevel: SampleSequenceSkillLevel.intermediate,
-      expectedTotalTime: '~10 min capture',
+      expectedTotalTime: '~10 min',
       assetFileName: 'planetary_jupiter.json',
     ),
     _SampleSequenceEntry(

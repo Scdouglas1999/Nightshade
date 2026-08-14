@@ -278,15 +278,59 @@ String canonicalGuiderId(String id) {
 /// `profile_sidebar`, and `equipment_screen`.
 bool isPhd2DeviceId(String id) => isPhd2WireToken(id.trim().toLowerCase());
 
+/// Canonical id of the built-in multi-star guider, as minted by
+/// `bridge/src/builtin_guider/config.rs`.
+const String kBuiltinGuiderIdPrefix = 'native:builtin_guider:';
+
+/// Display name the backend itself advertises for the built-in guider
+/// (`bridge/src/api/discovery.rs`, the Guider arm). Kept identical here so a
+/// device id and a discovery record never produce two different names for the
+/// same guider.
+const String kBuiltinGuiderDisplayName = 'Built-in Multi-Star Guider';
+
+/// Display names for the built-in simulators, keyed by the type token of their
+/// `sim_<type>_<index>` id.
+///
+/// Verbatim from `bridge/src/api/discovery.rs` (`("sim_camera_1",
+/// "Simulated Camera")` …) — WD-EQ-2: the backend knew these names all along,
+/// but any surface that only had the id printed `sim_filterwheel_1` at the
+/// operator.
+const Map<String, String> kSimulatorDeviceDisplayNames = {
+  'camera': 'Simulated Camera',
+  'mount': 'Simulated Mount',
+  'focuser': 'Simulated Focuser',
+  'filterwheel': 'Simulated Filter Wheel',
+  'rotator': 'Simulated Rotator',
+  'dome': 'Simulated Dome',
+  'weather': 'Simulated Weather Station',
+  'safety_monitor': 'Simulated Safety Monitor',
+  'switch': 'Simulated Power Switch',
+  'cover_calibrator': 'Simulated Flat Panel',
+  'guider': 'Simulated Guider',
+};
+
 /// Derive a human-readable name from a device id WITHOUT running discovery.
 ///
 /// e.g. `native:zwo_efw:0` → `ZWO EFW 0`,
-///      `ascom:ASCOM.EFWmini.FilterWheel` → `EFWmini FilterWheel`.
+///      `ascom:ASCOM.EFWmini.FilterWheel` → `EFWmini FilterWheel`,
+///      `sim_filterwheel_1` → `Simulated Filter Wheel`.
 ///
 /// This is the id-pattern fallback used by `DeviceService` when neither the
 /// backend's connected list nor the discovery cache knows the device's model
-/// name. Ported verbatim from the old `DeviceService._friendlyNameFromId`.
+/// name, and by the run dashboard's event feed.
+///
+/// WD-EQ-2: the simulator and built-in-guider arms were missing, so every id
+/// an operator can actually produce without hardware fell through to
+/// `return deviceId` and the Dashboard's RECENT EVENTS read
+/// `Guider · native:builtin_guider:multi_star`. `device_display_name_test.dart`
+/// pins those ids AND cross-checks this against the app's richer
+/// `formatDeviceId`, so the two formatters cannot answer differently again.
 String friendlyNameFromDeviceId(String deviceId) {
+  if (deviceId.toLowerCase().startsWith(kBuiltinGuiderIdPrefix)) {
+    return kBuiltinGuiderDisplayName;
+  }
+  final simulator = _simulatorDisplayName(deviceId);
+  if (simulator != null) return simulator;
   if (deviceId.startsWith('native:zwo_efw:')) {
     final hwId = deviceId.split(':').last;
     return 'ZWO EFW $hwId';
@@ -326,6 +370,25 @@ String friendlyNameFromDeviceId(String deviceId) {
     return 'Alpaca $label';
   }
   return deviceId;
+}
+
+/// `sim_filterwheel_1` → `Simulated Filter Wheel`; `sim_camera_2` →
+/// `Simulated Camera 2`. Null when [deviceId] is not a simulator id we know.
+String? _simulatorDisplayName(String deviceId) {
+  final lower = deviceId.toLowerCase();
+  if (!lower.startsWith('sim_')) return null;
+  var rest = lower.substring(4);
+  var index = 1;
+  final indexMatch = RegExp(r'_(\d+)$').firstMatch(rest);
+  if (indexMatch != null) {
+    index = int.parse(indexMatch.group(1)!);
+    rest = rest.substring(0, indexMatch.start);
+  }
+  final name = kSimulatorDeviceDisplayNames[rest];
+  if (name == null) return null;
+  // The backend only ever mints index 1 today; number the rest rather than
+  // showing two identically-named devices if that ever changes.
+  return index == 1 ? name : '$name $index';
 }
 
 // =========================================================================

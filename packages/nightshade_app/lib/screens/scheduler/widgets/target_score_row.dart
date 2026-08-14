@@ -172,25 +172,17 @@ class TargetScoreRow extends StatelessWidget {
     );
   }
 
+  /// WD-SEQ-N4 (third strike): this method used to carry its own copy of the
+  /// engine's reason ladder, and its copy won on screen — a target at +9.8°
+  /// under a 30° site minimum got the chip "Below horizon" beside its own
+  /// correct sentence. The ladder now lives once, in nightshade_core's
+  /// `rejection_labels.dart`; render the reason we were given, do not
+  /// re-interpret it here. `target_score_row_status_test.dart` fails if a
+  /// second ladder reappears in this file.
   String _statusLabel() {
     if (score.hardConstraintFailed) {
-      final reason = score.rejectionReasons.isEmpty
-          ? 'rejected'
-          : score.rejectionReasons.first;
-      if (reason.contains('altitude') && reason.contains('below')) {
-        return 'Below horizon';
-      }
-      // Two different moon constraints can reject a target now, and they call
-      // for opposite operator responses (wait for a darker moon vs. wait for
-      // the moon to move). One shared 'Moon avoidance' chip hid which fired.
-      if (reason.contains('moon separation')) return 'Too close to moon';
-      if (reason.contains('moon illumination')) return 'Moon too bright';
-      if (reason.contains('moon')) return 'Moon avoidance';
-      if (reason.contains('time window')) return 'Outside window';
-      if (reason.contains('filter')) return 'Filter missing';
-      if (reason.contains('goals complete')) return 'Complete';
-      if (reason.contains('horizon profile')) return 'Behind horizon';
-      return 'Rejected';
+      if (score.rejectionReasons.isEmpty) return 'Rejected';
+      return schedulerRejectionChipLabel(score.rejectionReasons.first);
     }
     if (isCurrent) return 'Active';
     if (isWinner) return 'Selected';

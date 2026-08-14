@@ -206,30 +206,13 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
       children: [
         Row(
           children: [
-            // Title
-            Flexible(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Sequence Templates',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize24,
-                      fontWeight: FontWeight.w700,
-                      color: widget.colors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Start with a template or save your sequences for reuse',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize13,
-                      color: widget.colors.textMuted,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+            // Title (CON-52: the one Sequencer tab heading, shared by all four
+            // tabs so the type scale and the punctuation cannot drift again).
+            const Flexible(
+              child: SequencerTabTitle(
+                title: 'Sequence Templates',
+                subtitle:
+                    'Start with a template or save your sequences for reuse.',
               ),
             ),
 

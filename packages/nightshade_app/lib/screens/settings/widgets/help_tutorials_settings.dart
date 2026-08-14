@@ -34,6 +34,14 @@ class HelpTutorialsSettings extends ConsumerWidget {
         // once on the single startup spine; every one of them is replayable
         // here on demand. "Capture your first light" and "Re-run equipment
         // setup" are new replay entry points (Flow A previously had none).
+        // CON-62: five rows that all do the same kind of thing — "run this
+        // flow" — wore three verbs (Start / Re-run / Open) and two button
+        // treatments (one filled primary among four outlines) in a single
+        // column, so the list read as if the rows differed in kind. They do
+        // not: every one of them starts something. One verb, one treatment.
+        // (The Title Case / sentence case split in the ROW TITLES is left
+        // alone here: those strings are mirrored into the generated
+        // settings_search_index.g.dart, which this batch may not regenerate.)
         SettingsSection(
           title: 'Guided Flows',
           isMobile: isMobile,
@@ -46,7 +54,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
                   'connect, polar align, focus, frame, guide, sequence.',
               trailing: _AsyncActionButton(
                 label: 'Start',
-                variant: ButtonVariant.primary,
+                variant: ButtonVariant.outline,
                 size: ButtonSize.small,
                 icon: LucideIcons.play,
                 failureMessage:
@@ -73,7 +81,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
                   'camera is connected first.',
               trailing: NightshadeButton(
                 label: 'Start',
-                variant: ButtonVariant.primary,
+                variant: ButtonVariant.outline,
                 size: ButtonSize.small,
                 icon: LucideIcons.play,
                 // The first-light flow is camera-driven and self-contained:
@@ -91,10 +99,10 @@ class HelpTutorialsSettings extends ConsumerWidget {
                   'Walk back through the equipment onboarding wizard to scan '
                   'for gear, pick devices, and rebuild a profile from scratch.',
               trailing: _AsyncActionButton(
-                label: 'Re-run',
+                label: 'Start',
                 variant: ButtonVariant.outline,
                 size: ButtonSize.small,
-                icon: LucideIcons.refreshCw,
+                icon: LucideIcons.play,
                 failureMessage:
                     'Could not reset equipment setup. Please try again.',
                 // Clear the in-progress draft so the spine starts on the
@@ -120,10 +128,10 @@ class HelpTutorialsSettings extends ConsumerWidget {
                   'where Equipment, Sequencer, Scheduler, and Plate Solving '
                   'live in the app.',
               trailing: _AsyncActionButton(
-                label: 'Re-run',
+                label: 'Start',
                 variant: ButtonVariant.outline,
                 size: ButtonSize.small,
-                icon: LucideIcons.refreshCw,
+                icon: LucideIcons.play,
                 failureMessage:
                     'Could not restart the onboarding tour. Please try again.',
                 // Reset the DAO row + in-memory pointer. The first-launch
@@ -145,10 +153,10 @@ class HelpTutorialsSettings extends ConsumerWidget {
               subtitle:
                   'Package logs, settings, profile metadata, and system details for support.',
               trailing: NightshadeButton(
-                label: 'Open',
+                label: 'Start',
                 variant: ButtonVariant.outline,
                 size: ButtonSize.small,
-                icon: LucideIcons.archive,
+                icon: LucideIcons.play,
                 onPressed: () => context.push('/diagnostics/dump'),
               ),
               isLast: true,

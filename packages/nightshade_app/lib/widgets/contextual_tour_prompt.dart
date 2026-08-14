@@ -9,6 +9,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../utils/transient_bottom_inset.dart';
+
 // Note: dismissedTourPromptsProvider is now imported from nightshade_core
 // with database persistence for tracking dismissed prompts across app restarts.
 
@@ -85,6 +87,12 @@ class _ContextualTourPromptState extends ConsumerState<ContextualTourPrompt>
   bool _isStartingTour = false;
   final _overlayKey = GlobalKey();
   Timer? _showDelayTimer;
+
+  /// Distance from the prompt card's top edge to the window bottom, declared
+  /// to [TransientBottomInset] so floating snackbars clear the card (WE-EQ-N2).
+  /// Null until the card has been laid out once; nothing is published then, so
+  /// a host screen's own declaration is never clobbered by a zero.
+  double? _snackBarLift;
 
   /// Measured size of the prompt card, used to reserve the band it covers.
   Size? _promptSize;
@@ -264,7 +272,7 @@ class _ContextualTourPromptState extends ConsumerState<ContextualTourPrompt>
 
     // LayoutBuilder because the reserved band has to be capped against the
     // height actually available, which only the parent's constraints know.
-    return LayoutBuilder(
+    final body = LayoutBuilder(
       builder: (context, constraints) => Stack(
         key: _overlayKey,
         clipBehavior: Clip.none,
@@ -280,6 +288,17 @@ class _ContextualTourPromptState extends ConsumerState<ContextualTourPrompt>
         ],
       ),
     );
+
+    // Only declared while the card is actually on screen and anchored to the
+    // bottom. Publishing unconditionally would push a 0 over whatever the host
+    // screen had declared for its own bottom bar.
+    final lift = _snackBarLift;
+    final anchoredBottom = widget.alignment == Alignment.bottomLeft ||
+        widget.alignment == Alignment.bottomRight;
+    if (!_isVisible || !anchoredBottom || lift == null || lift <= 0) {
+      return body;
+    }
+    return TransientBottomInsetPublisher(inset: lift, child: body);
   }
 
   /// The largest share of the host's height this nudge may reserve.
@@ -339,19 +358,33 @@ class _ContextualTourPromptState extends ConsumerState<ContextualTourPrompt>
         opacity: _fadeAnimation,
         child: SlideTransition(
           position: _slideAnimation,
-          child: _MeasureSize(
-            onChange: (size) {
-              if (!mounted || _promptSize == size) return;
-              setState(() => _promptSize = size);
+          child: MeasuredBottomInsetReporter(
+            // WE-EQ-N2: two Wave D fixes met in the same 150 px band — one
+            // reserved the bottom-right corner for this card, the other lifted
+            // every floating snackbar into exactly that corner, and the toast
+            // covered the card's only two controls (Maybe Later / Start Tour).
+            // The snackbar helper already honours a declared bottom inset; the
+            // card now declares one, measured from its own top edge to the
+            // window bottom, so the toast clears it the same way it clears the
+            // Imaging screen's control strip.
+            onHeight: (lift) {
+              if (!mounted || _snackBarLift == lift) return;
+              setState(() => _snackBarLift = lift);
             },
-            child: _PromptCard(
-              title: widget.title ?? 'New to this screen?',
-              description: widget.description ??
-                  'Take a quick ${widget.durationMinutes}-minute tour.',
-              colors: colors,
-              onDismiss: _dismissPrompt,
-              onStartTour: _startTour,
-              isStartingTour: _isStartingTour,
+            child: _MeasureSize(
+              onChange: (size) {
+                if (!mounted || _promptSize == size) return;
+                setState(() => _promptSize = size);
+              },
+              child: _PromptCard(
+                title: widget.title ?? 'New to this screen?',
+                description: widget.description ??
+                    'Take a quick ${widget.durationMinutes}-minute tour.',
+                colors: colors,
+                onDismiss: _dismissPrompt,
+                onStartTour: _startTour,
+                isStartingTour: _isStartingTour,
+              ),
             ),
           ),
         ),

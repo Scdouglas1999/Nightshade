@@ -14,6 +14,7 @@ import '../../../utils/snackbar_helper.dart';
 import '../../../utils/count_label.dart';
 import '../../../utils/exported_file_reveal.dart';
 import '../plan_math.dart';
+import '../widgets/sequencer_tab_header.dart';
 
 part 'sequence_library_tab/library_header.dart';
 part 'sequence_library_tab/library_filter_row.dart';

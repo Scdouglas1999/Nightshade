@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -145,11 +146,18 @@ class _ProjectTrackingPanelState extends ConsumerState<ProjectTrackingPanel> {
     return progressAsync.when(
       data: (projects) {
         if (projects.isEmpty) {
+          // CON-58: two screens are called "Projects" and they told the
+          // operator opposite things about how a project comes into being —
+          // this one said "add targets and capture images", Plan Tonight →
+          // Projects offers a "New Project" button. There is exactly one
+          // creation path, so this names it and goes there.
           return AnalyticsEmptyState(
             icon: LucideIcons.target,
-            title: context.l10n.text('analyticsNoProjects'),
-            body: 'Add targets and capture images to track multi-night '
-                'progress.',
+            title: 'No projects yet',
+            body: 'Create a project in Plan Tonight → Projects, then the '
+                'frames you capture for its targets accrue here.',
+            actionLabel: 'New Project',
+            onAction: () => context.go('/planner?tab=projects'),
           );
         }
 

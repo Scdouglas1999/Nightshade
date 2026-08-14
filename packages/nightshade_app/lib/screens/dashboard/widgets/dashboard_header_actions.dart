@@ -19,6 +19,23 @@ const String standbyEditRefusalReason =
     'Nothing to arrange yet — the briefing has no tiles. Connect a device or '
     'load a sequence to arrange the session dashboard.';
 
+/// The accessible NAME the refusing control publishes.
+///
+/// WD-EQ-4, second strike. Wave D put the reason in a `Semantics(hint:)` and a
+/// widget test proved the merged node carried it — but the live AT-SPI probe of
+/// that exact node came back
+/// `button: 'Edit Dashboard\nEdit Dashboard'  desc=''  states=['sensitive', …]`:
+/// enabled, with no description at all, and byte-identical to the same button
+/// in its genuinely-enabled state. The Linux accessibility bridge does not
+/// carry the hint, and a descendant re-published `isEnabled`.
+///
+/// So the refusal is carried by the one field the bridge demonstrably does
+/// export — the name — and the button's own semantics are excluded so nothing
+/// underneath can contradict the state. Anything that only *decorates* the
+/// node (hint, tooltip, colour) is a bonus, never the disclosure.
+String standbyEditSemanticLabel(String editLabel) =>
+    '$editLabel, unavailable. $standbyEditRefusalReason';
+
 class DashboardHeaderActions extends ConsumerWidget {
   final bool isEditing;
   final VoidCallback onToggleEdit;
@@ -52,22 +69,32 @@ class DashboardHeaderActions extends ConsumerWidget {
       children: [
         Tooltip(
           message: canEdit ? '' : standbyEditRefusalReason,
-          // The refusal has to be legible to someone who cannot hover. A
-          // tooltip is pointer-only, so a keyboard or screen-reader user was
-          // told "Edit Dashboard, button" with no state and no reason, clicked
-          // it, and got silence. Publishing the disabled state and the reason
-          // here — rather than relying on the button component's own
-          // annotation — keeps this file's claim about the control true no
-          // matter what wraps it.
-          // MergeSemantics, because the button's own focus node forms a
-          // semantics node of its own: without the merge the hint lands on an
-          // ancestor node and the button node a screen reader actually lands
-          // on carries no reason at all.
-          child: MergeSemantics(
-            child: Semantics(
-              button: true,
-              enabled: canEdit,
-              hint: canEdit ? null : standbyEditRefusalReason,
+          // `excludeSemantics` is the whole point of the second attempt: the
+          // button publishes its own node (label + enabled), and a wrapper that
+          // merely wraps it gets contradicted — the live probe read `sensitive`
+          // on the refusing control and printed the label twice. Excluding the
+          // subtree makes this the ONE node for the control, so its state and
+          // its name are the only things exported.
+          child: Semantics(
+            button: true,
+            enabled: canEdit,
+            excludeSemantics: !canEdit,
+            label: canEdit ? null : standbyEditSemanticLabel(editLabel),
+            hint: canEdit ? null : standbyEditRefusalReason,
+            // A pointer user gets the reason too — the click used to land on a
+            // dead control and produce nothing at all.
+            //
+            // `Listener`, not `GestureDetector`: NightshadeButton registers its
+            // own tap recognizer even while disabled, so it wins the gesture
+            // arena and a parent GestureDetector never fires. Pointer events
+            // are delivered regardless of the arena.
+            child: Listener(
+              behavior: HitTestBehavior.deferToChild,
+              onPointerDown: canEdit
+                  ? null
+                  : (_) => ref.read(uiNotificationProvider.notifier).showInfo(
+                      standbyEditRefusalReason,
+                      title: 'Nothing to arrange'),
               child: NightshadeButton(
                 key: DashboardTutorialKeys.editButton,
                 label: editLabel,

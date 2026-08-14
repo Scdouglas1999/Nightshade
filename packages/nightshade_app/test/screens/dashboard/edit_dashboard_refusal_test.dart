@@ -1,77 +1,123 @@
 // WD-EQ-4: "Edit Dashboard" is silently inert in the standby briefing.
 //
-// Live evidence (waveD-equipment-shell.md): 0 devices connected, Dashboard
-// showing TONIGHT'S BRIEFING, click Edit Dashboard — the page does not change
-// and nothing explains why. The only disclosure was a Tooltip, which a
-// keyboard or screen-reader user never receives, so the control announced
-// itself as an ordinary live button that does nothing.
+// Wave D evidence: 0 devices connected, Dashboard showing TONIGHT'S BRIEFING,
+// click Edit Dashboard — the page does not change and nothing explains why.
+//
+// Wave E, second strike: the D-fix's `Semantics(hint:)` passed a widget test
+// but the LIVE AT-SPI probe of that node came back
+//   button: 'Edit Dashboard\nEdit Dashboard'  desc=''
+//   states=['sensitive','showing','visible']
+// — enabled, no description, and byte-identical to the same button when it is
+// genuinely enabled. Two things were wrong: a descendant re-published
+// `isEnabled`, and the Linux bridge does not carry `hint`.
+//
+// So these tests pin the refuter's exact counter-checks: the node must be the
+// ONLY one for the control (no doubled label), it must not be enabled, and the
+// reason must be in the accessible NAME, which the bridge demonstrably exports.
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/dashboard/dashboard_layout_provider.dart';
 import 'package:nightshade_app/screens/dashboard/widgets/dashboard_header_actions.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../harness/pump_app_screen.dart';
 
-Future<SemanticsNode> _pumpEditButton(
+Future<HarnessHandle> _pumpEditButton(
   WidgetTester tester, {
   required bool standby,
-}) async {
-  await pumpAppScreen(
+  VoidCallback? onToggleEdit,
+}) {
+  return pumpAppScreen(
     tester,
     DashboardHeaderActions(
       isEditing: false,
-      onToggleEdit: () {},
+      onToggleEdit: onToggleEdit ?? () {},
       onManageWidgets: () {},
       onResetLayout: () {},
     ),
     settle: false,
     extraOverrides: [dashboardStandbyProvider.overrideWithValue(standby)],
   );
-  await tester.pump(const Duration(milliseconds: 200));
-  return tester.getSemantics(find.text('Edit Dashboard'));
 }
 
 void main() {
-  testWidgets('in standby the control is disabled and says why',
-      (tester) async {
+  testWidgets('in standby the control is disabled and says why', (
+    tester,
+  ) async {
     final semantics = tester.ensureSemantics();
-    final node = await _pumpEditButton(tester, standby: true);
+    await _pumpEditButton(tester, standby: true);
+    await tester.pump(const Duration(milliseconds: 200));
+
+    final node = tester.getSemantics(find.text('Edit Dashboard'));
 
     expect(node.hasFlag(SemanticsFlag.hasEnabledState), isTrue);
-    expect(node.hasFlag(SemanticsFlag.isEnabled), isFalse,
-        reason: 'a control that refuses every click must say it is disabled');
-    expect(node.hint, contains('Nothing to arrange yet'),
-        reason: 'the reason must reach someone who cannot hover');
+    expect(
+      node.hasFlag(SemanticsFlag.isEnabled),
+      isFalse,
+      reason: 'a control that refuses every click must say it is disabled',
+    );
+    // The counter-check the live probe failed: the reason has to be in the
+    // NAME, because the Linux bridge dropped the hint entirely.
+    expect(
+      node.label,
+      contains('unavailable'),
+      reason: 'the refusal must survive a bridge that exports only the name',
+    );
+    expect(node.label, contains('Nothing to arrange yet'));
+    // And the name must not be the doubled 'Edit Dashboard\nEdit Dashboard'
+    // the probe printed — that doubling is the signature of a descendant node
+    // still publishing itself underneath the wrapper.
+    expect(node.label, isNot(contains('\n')));
     expect(standbyEditRefusalReason, contains('Connect a device'));
 
     semantics.dispose();
   });
 
-  testWidgets('with a live dashboard it is an ordinary enabled button',
-      (tester) async {
+  testWidgets('a click on the refusing control states the reason', (
+    tester,
+  ) async {
+    var toggles = 0;
+    final harness = await _pumpEditButton(
+      tester,
+      standby: true,
+      onToggleEdit: () => toggles++,
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+
+    await tester.tap(find.text('Edit Dashboard'), warnIfMissed: false);
+    await tester.pump();
+
+    expect(toggles, 0, reason: 'it must still refuse');
+    final notifications = harness.container.read(uiNotificationProvider);
+    expect(notifications, hasLength(1));
+    expect(notifications.single.message, standbyEditRefusalReason);
+  });
+
+  testWidgets('with a live dashboard it is an ordinary enabled button', (
+    tester,
+  ) async {
     final semantics = tester.ensureSemantics();
     var toggles = 0;
-    await pumpAppScreen(
+    final harness = await _pumpEditButton(
       tester,
-      DashboardHeaderActions(
-        isEditing: false,
-        onToggleEdit: () => toggles++,
-        onManageWidgets: () {},
-        onResetLayout: () {},
-      ),
-      settle: false,
-      extraOverrides: [dashboardStandbyProvider.overrideWithValue(false)],
+      standby: false,
+      onToggleEdit: () => toggles++,
     );
     await tester.pump(const Duration(milliseconds: 200));
 
     final node = tester.getSemantics(find.text('Edit Dashboard'));
     expect(node.hasFlag(SemanticsFlag.isEnabled), isTrue);
-    expect(node.hint, isEmpty);
+    expect(
+      node.label,
+      isNot(contains('unavailable')),
+      reason: 'the enabled and disabled names must be distinguishable',
+    );
 
     await tester.tap(find.text('Edit Dashboard'));
     await tester.pump();
     expect(toggles, 1);
+    expect(harness.container.read(uiNotificationProvider), isEmpty);
 
     semantics.dispose();
   });
