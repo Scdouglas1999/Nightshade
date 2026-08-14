@@ -13,6 +13,7 @@ import '../../models/scheduler/target_constraint.dart';
 import '../../models/sequence/sequence_models.dart';
 import 'horizon_profile.dart';
 import 'rejection_labels.dart';
+import 'scheduler_log.dart';
 import 'sky_calculations.dart';
 
 part 'scheduler_engine/contracts.dart';
@@ -36,10 +37,12 @@ class SchedulerEngine {
     Future<List<SchedulerCandidate>> Function()? candidateLoader,
     Stream<SchedulerTriggerEvent>? triggerStream,
     DateTime Function()? clock,
+    SchedulerLogSink? logSink,
   }) : _config = config,
        _sequenceSink = sequenceSink,
        _site = site,
        _candidateLoader = candidateLoader ?? (() async => const []),
+       _logSink = logSink,
        _clock = clock ?? DateTime.now {
     if (triggerStream != null) {
       _triggerSubscription = triggerStream.listen((evt) {
@@ -67,6 +70,10 @@ class SchedulerEngine {
   final SchedulerSequenceSink _sequenceSink;
   Future<List<SchedulerCandidate>> Function() _candidateLoader;
   final DateTime Function() _clock;
+
+  /// Where diagnostics go besides `dart:developer`. See `scheduler_log.dart`
+  /// for why a second destination exists at all (WF-N1).
+  final SchedulerLogSink? _logSink;
   StreamSubscription<SchedulerTriggerEvent>? _triggerSubscription;
   Timer? _tickTimer;
   bool _evaluating = false;
@@ -299,6 +306,27 @@ class SchedulerEngine {
   /// the target when the rig is FREE re-arms the next dispatch; leaving it alone
   /// when another run is active is what stops the autopilot slewing away from a
   /// sequence the operator started by hand.
+  /// Write one diagnostic to BOTH destinations.
+  ///
+  /// `dart:developer` keeps the line visible under a debugger; [_logSink] is
+  /// what makes it survive into the in-app Logs viewer, `/api/logs`, and the
+  /// exported diagnostic dump in a shipping build (WF-N1). Every scheduler
+  /// diagnostic goes through here — a bare `developer.log` in this engine is a
+  /// line nobody can read after the fact.
+  void _log(SchedulerLogLevel level, String message, {Object? error}) {
+    developer.log(
+      message,
+      name: kSchedulerLogSource,
+      level: switch (level) {
+        SchedulerLogLevel.trace => 500,
+        SchedulerLogLevel.info => 800,
+        SchedulerLogLevel.warning => 900,
+      },
+      error: error,
+    );
+    _logSink?.call(level, error == null ? message : '$message: $error');
+  }
+
   void _reconcileDispatchedRun(String reason) {
     final runId = _dispatchedRunId;
     if (runId == null) return;
@@ -309,24 +337,23 @@ class SchedulerEngine {
     if (_status.currentTargetId == null) return;
 
     if (_executorHasActiveRun()) {
-      developer.log(
+      _log(
+        SchedulerLogLevel.info,
         'Scheduler reconcile ($reason): dispatched run $runId is no longer '
         'ours but another run is active — keeping hysteresis so the autopilot '
         "does not dispatch over the operator's sequence",
-        name: 'SchedulerEngine',
-        level: 700, // INFO
       );
       return;
     }
 
-    developer.log(
+    // This is the line that proves WHICH engine instance re-armed the
+    // autopilot after a run ended.
+    _log(
+      SchedulerLogLevel.info,
       'Scheduler reconcile ($reason): dispatched run $runId has ended and the '
       'rig is free — clearing current target '
       '${_status.currentTargetName ?? _status.currentTargetId} so the next '
       'eligible evaluation dispatches again',
-      name: 'SchedulerEngine',
-      level: 800, // INFO/attention: this is the line that proves WHICH engine
-      // instance re-armed the autopilot after a run ended.
     );
     _updateStatus(_status.copyWith(clearCurrentTarget: true));
   }
@@ -393,10 +420,9 @@ class SchedulerEngine {
       // Teardown best-effort: ownership release can fail if the global owner
       // provider was disposed first. Resources below must still be released —
       // trace the swallowed error so the path is observable, not silent.
-      developer.log(
+      _log(
+        SchedulerLogLevel.trace,
         'Scheduler teardown: best-effort ownership release failed',
-        name: 'SchedulerEngine',
-        level: 500, // FINE / trace
         error: e,
       );
     }

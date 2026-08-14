@@ -251,6 +251,30 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
       // its state-update path before we push a new route.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
+        // WF-N5 — a report is only worth a modal when somebody is watching.
+        // While the autopilot holds the rig (or the run that just ended was
+        // its own dispatch) the next terminal result is minutes away, and
+        // stacking a dialog per run put a click-eating modal over whatever
+        // screen the operator was on. Those queue instead.
+        if (ref.read(sessionReportPresentationProvider) ==
+            SessionReportPresentation.queued) {
+          ref.read(pendingSessionReportsProvider.notifier).enqueue(
+                PendingSessionReport(
+                  sessionId: sessionId,
+                  runId: runId,
+                  endedAt: DateTime.now(),
+                ),
+              );
+          final waiting = ref.read(pendingSessionReportsProvider).length;
+          ref.read(uiNotificationProvider.notifier).showInfo(
+                waiting == 1
+                    ? 'Unattended run finished. Open it from Sequencer ▸ History.'
+                    : '$waiting unattended runs finished. Open them from '
+                        'Sequencer ▸ History.',
+                title: 'Session report ready',
+              );
+          return;
+        }
         SessionReportDialog.show(context, sessionId, runId: runId);
         // Fire the auto-prompt for a journal note
         // when the setting allows it (default true). We use the

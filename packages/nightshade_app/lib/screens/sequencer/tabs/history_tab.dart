@@ -9,6 +9,7 @@ import '../run_status_presentation.dart';
 import '../sequencer_screen.dart';
 import 'sequence_library_tab.dart';
 import '../widgets/notes_panel.dart';
+import '../widgets/pending_session_reports_card.dart';
 import '../widgets/post_session_stats_dialog.dart';
 import '../widgets/replay_debug_screen.dart';
 import '../widgets/sequence_diff_dialog.dart';
@@ -147,6 +148,9 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // WF-N5: reports an unattended night queued rather than opening as a
+          // modal. Renders nothing when the queue is empty.
+          const PendingSessionReportsCard(),
           // Header. CON-52: this tab used an 18px title with the subtitle in a
           // separate row below, while Templates and Sequence Library used 24px
           // with the subtitle inside the title block — and only this one

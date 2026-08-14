@@ -22,11 +22,13 @@ import '../services/planning/project_service.dart'
         projectTargetsProjectIndexSql,
         projectTargetsSchemaSql,
         projectsSchemaSql;
+import '../services/logging_service.dart' show loggingServiceProvider;
 import '../services/safe_rig_service.dart';
 import '../services/disk_space_guard.dart' show kSafetyMarginBytes;
 import '../services/scheduler/horizon_profile.dart';
 import '../services/scheduler/integration_goal_service.dart';
 import '../services/scheduler/scheduler_engine.dart';
+import '../services/scheduler/scheduler_log.dart' show schedulerLogSinkFor;
 import '../services/scheduler/target_constraint_service.dart';
 import '../services/smart_night_models.dart' show smartNightPlanningFilters;
 import 'backend_provider.dart';

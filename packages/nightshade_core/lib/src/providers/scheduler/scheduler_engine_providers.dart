@@ -190,6 +190,10 @@ final schedulerEngineProvider = Provider<SchedulerEngine>((ref) {
     candidateLoader: loaderFor(initialActiveId),
     triggerStream: ref.read(schedulerTriggerStreamProvider),
     clock: clock.nowUtc,
+    // WF-N1: without this the engine's diagnostics exist only in
+    // `dart:developer`, which a shipping build routes nowhere — the on-disk log
+    // is Rust-only and the in-app Logs viewer reads LoggingService's ring.
+    logSink: schedulerLogSinkFor(ref.read(loggingServiceProvider)),
   );
 
   // Hydrate a late settings/config read in place. Watching either async

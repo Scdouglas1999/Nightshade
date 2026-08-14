@@ -433,11 +433,11 @@ extension _SchedulerEngineEvaluation on SchedulerEngine {
         // (the mount may be tracking into the ground), so the gate is "somebody
         // else is running", not "not mine".
         if (!ownsRun && _executorHasActiveRun()) {
-          developer.log(
+          // WARNING: the night ended without a park.
+          _log(
+            SchedulerLogLevel.warning,
             'Scheduler dawn park declined: the active run is not the one the '
             'autopilot dispatched — leaving the rig to its owner',
-            name: 'SchedulerEngine',
-            level: 900, // WARNING: the night ended without a park.
           );
           return 'Dawn has arrived but the autopilot is not parking: the run on '
               'the rig is not the one it started. Stop that run to have the '

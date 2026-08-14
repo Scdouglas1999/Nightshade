@@ -174,7 +174,12 @@ void main() {
     );
     final router = NotificationRouter(transports: [t], matrix: matrix);
     for (var i = 0; i < 5; i++) {
-      router.route(NotificationCategory.frameCaptured, const {});
+      // Distinct frame numbers, so this measures the RATE LIMIT and not the
+      // router's content de-duplication (WF-N4): five notifications whose
+      // rendered body is character-for-character identical are one statement
+      // said five times, and the router now collapses those regardless of the
+      // per-hour cap.
+      router.route(NotificationCategory.frameCaptured, {'frame': '$i'});
     }
     await Future<void>.delayed(Duration.zero);
     expect(t.sent.length, 2);

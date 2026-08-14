@@ -48,25 +48,47 @@ class NotificationRouter {
   /// Per-category last fire time (for debouncing).
   final Map<NotificationCategory, DateTime> _lastFireTime = {};
 
-  /// Recently-emitted systemPush signatures, for cross-stream de-duplication.
+  /// Recently-emitted content signatures per transport kind, for
+  /// cross-producer de-duplication.
   ///
   /// After the architecture-unification collapse the router is the single
-  /// systemPush producer, but it can be driven from TWO converging inputs:
-  ///   * its own [attachEventStream] subscription (core event stream), and
-  ///   * an explicit [route]/[routeExplicit] call from the Run Dashboard
-  ///     critical-events bridge (which observes the bridge-typed event
-  ///     history — a different representation of the SAME backend events with
-  ///     no shared id to dedup on).
-  /// Without dedup a single critical event the classifier recognises would
-  /// fire two phone pushes (one per input). We suppress an identical
-  /// (category + title + body) systemPush within [_pushDedupeWindow].
-  final Map<String, DateTime> _recentPushSignatures = {};
+  /// producer for every transport, but it is driven from SEVERAL converging
+  /// inputs that describe one physical happening:
+  ///   * its own [attachEventStream] subscription (core event stream), which
+  ///     the classifier may map to the same category from more than one wire
+  ///     event — an operator Stop arrives as BOTH a sequencer `Error` carrying
+  ///     the "Sequence cancelled" notice AND the `Stopped` lifecycle event, and
+  ///   * an explicit [route] / [routeBridgeCriticalPush] call from the Run
+  ///     Dashboard critical-events bridge (which observes the bridge-typed
+  ///     event history — a different representation of the SAME backend events
+  ///     with no shared id to dedup on).
+  ///
+  /// Without dedup one operator Stop published THREE identical toasts and three
+  /// RECENT EVENTS rows, 86 microseconds apart (WF-N4 / WF-STOP-N3), and one
+  /// failed connect said the same refusal twice (WD-EQ-3). The router is the
+  /// one place every producer converges, so this is where the repetition is
+  /// collapsed — keyed on what the operator SEES, not on the producer.
+  ///
+  /// Per transport kind, never global: an at-idle external alert (webhook,
+  /// e-mail, MQTT) must not be swallowed because the UI already said it.
+  final Map<NotificationTransportKind, Map<String, DateTime>>
+  _recentSignatures = {};
 
   /// How long a systemPush content signature suppresses an identical repeat.
   /// Long enough to absorb the small skew between the core stream and the
   /// bridge's event-history update, short enough that a genuinely repeated
   /// alert minutes later still fires.
   static const Duration _pushDedupeWindow = Duration(seconds: 15);
+
+  /// The same window for every other transport. Shorter than the push window
+  /// because the converging producers fire in the same millisecond, and a
+  /// repeat the operator can plausibly read as new information should still
+  /// get through.
+  static const Duration _contentDedupeWindow = Duration(seconds: 5);
+
+  /// Injectable clock. Production uses `DateTime.now`; tests drive the dedupe
+  /// windows and the rendered clock time deterministically.
+  final DateTime Function() _now;
 
   /// Event stream subscription.
   StreamSubscription<NightshadeEvent>? _subscription;
@@ -84,7 +106,9 @@ class NotificationRouter {
     NotificationRoutingMatrix matrix = const NotificationRoutingMatrix(
       enabled: true,
     ),
+    DateTime Function()? clock,
   }) : _transports = {for (final t in transports) t.kind: t},
+       _now = clock ?? DateTime.now,
        _matrix = matrix.rules.isEmpty
            ? NotificationRoutingMatrix.defaults().copyWith(
                enabled: matrix.enabled,
@@ -169,17 +193,19 @@ class NotificationRouter {
     final eligible = _eligibleTransports(rule.transports);
     if (eligible.isEmpty) return;
 
-    _lastFireTime[category] = DateTime.now();
+    _lastFireTime[category] = _now();
     _recordRateHit(category);
 
     final ctx = NotificationContext(contextValues);
     final title = renderNotificationTemplate(
       rule.titleTemplate ?? _defaultTitleTemplate(category),
       ctx,
+      clock: _now,
     );
     final body = renderNotificationTemplate(
       rule.bodyTemplate ?? _defaultBodyTemplate(category),
       ctx,
+      clock: _now,
     );
 
     for (final transport in eligible) {
@@ -220,7 +246,7 @@ class NotificationRouter {
     // Cross-stream dedup: the classifier path keys the same phone push on its
     // rendered (title + body). The operator only ever sees title + body, so a
     // shared (title + body) signature is exactly what must not page twice.
-    if (_isDuplicatePush(title, body)) return;
+    if (_isDuplicate(NotificationTransportKind.systemPush, title, body)) return;
 
     transport.enqueueExplicit(
       title: title,
@@ -256,7 +282,7 @@ class NotificationRouter {
     );
     if (eligible.isEmpty) return;
 
-    _lastFireTime[NotificationCategory.custom] = DateTime.now();
+    _lastFireTime[NotificationCategory.custom] = _now();
     _recordRateHit(NotificationCategory.custom);
     for (final transport in eligible) {
       _dispatch(transport, NotificationCategory.custom, title, body);
@@ -409,8 +435,7 @@ class NotificationRouter {
     if (rule.debounceSeconds <= 0) return false;
     final last = _lastFireTime[category];
     if (last == null) return false;
-    return DateTime.now().difference(last) <
-        Duration(seconds: rule.debounceSeconds);
+    return _now().difference(last) < Duration(seconds: rule.debounceSeconds);
   }
 
   bool _isRateLimited(
@@ -422,7 +447,7 @@ class NotificationRouter {
       category,
       () => _RateWindow(maxAge: const Duration(hours: 1)),
     );
-    window.prune();
+    window.prune(now: _now());
     return window.count >= rule.maxPerHour;
   }
 
@@ -431,7 +456,7 @@ class NotificationRouter {
       category,
       () => _RateWindow(maxAge: const Duration(hours: 1)),
     );
-    window.record(DateTime.now());
+    window.record(_now());
   }
 
   void _dispatch(
@@ -440,16 +465,11 @@ class NotificationRouter {
     String title,
     String body,
   ) {
-    // Cross-stream de-duplication for the single systemPush producer: if an
-    // identical phone push (same category + title + body) was emitted within
-    // the dedupe window, suppress this one. This collapses the case where the
-    // router's own classifier path and the dashboard bridge's explicit path
-    // converge on the same backend event. Other transports (in-app, email,
-    // webhooks, …) are not deduped here — each has its own delivery semantics
-    // and an at-idle external alert must not be swallowed by a UI repeat.
-    if (transport.kind == NotificationTransportKind.systemPush) {
-      if (_isDuplicatePush(title, body)) return;
-    }
+    // Cross-producer de-duplication. Several converging inputs describe one
+    // physical happening (see [_recentSignatures]); the operator must be told
+    // once. The signature is per transport kind, so an external alert is never
+    // swallowed because the UI already said it.
+    if (_isDuplicate(transport.kind, title, body)) return;
 
     // Fire and forget — the transport's own timeout caps the wait. We
     // record the result so the settings UI can show the latest status.
@@ -497,23 +517,53 @@ class NotificationRouter {
     return eligible;
   }
 
-  /// True if an identical phone push (same rendered title + body) was emitted
-  /// within [_pushDedupeWindow]. Records the signature when not a duplicate so
-  /// the next identical push inside the window is suppressed. This is the one
-  /// place the single systemPush producer collapses its two converging inputs
-  /// (the classifier core-stream path and the dashboard-bridge explicit path)
-  /// keyed on the copy the operator actually sees.
-  bool _isDuplicatePush(String title, String body) {
-    final now = DateTime.now();
-    _recentPushSignatures.removeWhere(
-      (_, when) => now.difference(when) > _pushDedupeWindow,
-    );
-    final signature = '$title|$body';
-    final last = _recentPushSignatures[signature];
-    if (last != null && now.difference(last) < _pushDedupeWindow) return true;
-    _recentPushSignatures[signature] = now;
+  /// True if a notification with the same NORMALIZED (title + body) already
+  /// went out on [kind] inside its dedupe window. Records the signature when
+  /// it is not a duplicate so the next identical copy inside the window is
+  /// suppressed.
+  ///
+  /// ## Why the key is normalized
+  ///
+  /// The first version of this keyed on the exact rendered strings, and the
+  /// case it was written for defeated it by ONE CHARACTER: two producers of the
+  /// same guider refusal emitted
+  ///
+  ///   Built-in guider requires an active profile with a guide focal length
+  ///   Built-in guider requires an active profile with a guide focal length.
+  ///
+  /// so the operator read the identical sentence twice (WD-EQ-3, still open
+  /// after two waves). Trailing sentence punctuation and whitespace are
+  /// cosmetic differences between producers of ONE statement, never a
+  /// difference the operator can act on, so they are stripped before keying —
+  /// as is letter case, and internal whitespace runs.
+  ///
+  /// `?` is deliberately NOT stripped: a question and a statement are different
+  /// notifications.
+  bool _isDuplicate(NotificationTransportKind kind, String title, String body) {
+    final window = kind == NotificationTransportKind.systemPush
+        ? _pushDedupeWindow
+        : _contentDedupeWindow;
+    final now = _now();
+    final seen = _recentSignatures.putIfAbsent(kind, () => {});
+    seen.removeWhere((_, when) => now.difference(when) > window);
+    final signature =
+        '${_normalizeForSignature(title)}|${_normalizeForSignature(body)}';
+    final last = seen[signature];
+    if (last != null && now.difference(last) < window) return true;
+    seen[signature] = now;
     return false;
   }
+
+  static final RegExp _whitespaceRun = RegExp(r'\s+');
+  static final RegExp _trailingCosmetics = RegExp(r'[\s.,;:!…]+$');
+
+  /// Cosmetic-insensitive form of a rendered string, used ONLY as a
+  /// de-duplication key — never as the copy that is sent.
+  static String _normalizeForSignature(String value) => value
+      .trim()
+      .replaceAll(_whitespaceRun, ' ')
+      .replaceAll(_trailingCosmetics, '')
+      .toLowerCase();
 
   // ----- Default templates ------------------------------------------------
 
@@ -581,23 +631,28 @@ class NotificationRouter {
   static String _defaultBodyTemplate(NotificationCategory category) {
     switch (category) {
       case NotificationCategory.targetStarted:
-        return 'Starting target \${target.name} at \${time.local}.';
+        return 'Starting target \${target.name} at \${time.clock}.';
       case NotificationCategory.targetCompleted:
-        return 'Finished imaging \${target.name} at \${time.local}.';
+        return 'Finished imaging \${target.name} at \${time.clock}.';
       case NotificationCategory.sequenceStarted:
-        return 'Sequence started at \${time.local}.';
+        return 'Sequence started at \${time.clock}.';
       case NotificationCategory.sequenceCompleted:
-        return 'Sequence completed successfully at \${time.local}.';
+        return 'Sequence completed successfully at \${time.clock}.';
       case NotificationCategory.sequenceFailed:
-        return 'Sequence aborted at \${time.local}.';
+        return 'Sequence aborted at \${time.clock}.';
       case NotificationCategory.sequenceStopped:
-        return 'Sequence stopped by request at \${time.local}.';
+        return 'Sequence stopped by request at \${time.clock}.';
       case NotificationCategory.frameCaptured:
         return 'Frame \${frame} captured (\${exposure.duration}s).';
       case NotificationCategory.exposureFailed:
         return 'Exposure failed: \${frame.reason}.';
       case NotificationCategory.equipmentDisconnected:
-        return '\${equipment.device_type} \${equipment.device_id} disconnected.';
+        // WD-EQ-2a: names the device, never its wire id. The classifier
+        // resolves `equipment.device_name` through `friendlyNameFromDeviceId`
+        // and falls back to the device type, so this sentence always has a
+        // subject. The type is deliberately not repeated in front of the name
+        // ("Guider Built-in Multi-Star Guider disconnected.").
+        return '\${equipment.device_name} disconnected.';
       case NotificationCategory.weatherUnsafe:
         return 'Safety monitor reports unsafe conditions.';
       case NotificationCategory.weatherSafeAgain:
@@ -609,9 +664,9 @@ class NotificationRouter {
       case NotificationCategory.guidingRecovered:
         return 'Guiding recovered.';
       case NotificationCategory.recoveryStarted:
-        return 'Executor entered recovery at \${time.local}.';
+        return 'Executor entered recovery at \${time.clock}.';
       case NotificationCategory.recoveryRecovered:
-        return 'Executor recovered at \${time.local}.';
+        return 'Executor recovered at \${time.clock}.';
       case NotificationCategory.recoveryGaveUp:
         return 'Executor exhausted recovery attempts.';
       case NotificationCategory.meridianFlipPerformed:
@@ -632,9 +687,9 @@ class NotificationRouter {
         return 'First Light caught something at \${transient.coords} '
             '(SNR \${transient.snr}). Chase it before it fades.';
       case NotificationCategory.sequencePaused:
-        return 'Sequence paused at \${time.local}.';
+        return 'Sequence paused at \${time.clock}.';
       case NotificationCategory.sequenceResumed:
-        return 'Sequence resumed at \${time.local}.';
+        return 'Sequence resumed at \${time.clock}.';
       case NotificationCategory.custom:
         return 'Nightshade fired a custom notification.';
     }

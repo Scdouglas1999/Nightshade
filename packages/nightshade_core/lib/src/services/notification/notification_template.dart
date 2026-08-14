@@ -29,13 +29,14 @@ class NotificationContext {
   final Map<String, String> values;
   const NotificationContext(this.values);
 
-  NotificationContext withDefaults() {
+  NotificationContext withDefaults({DateTime Function()? clock}) {
     // Always populate clock fields. The router writes them too, but
     // callers that build a context manually still get sensible values.
     final m = Map<String, String>.from(values);
-    final now = DateTime.now();
+    final now = (clock ?? DateTime.now)();
     m.putIfAbsent('time.now', () => now.toUtc().toIso8601String());
     m.putIfAbsent('time.local', () => now.toIso8601String());
+    m.putIfAbsent('time.clock', () => formatOperatorClock(now));
     m.putIfAbsent(
       'time.date',
       () =>
@@ -45,16 +46,41 @@ class NotificationContext {
   }
 }
 
+/// Local wall-clock time as an operator reads it off a toast: `HH:mm`.
+///
+/// WF-STOP-N5: the built-in notification bodies used to interpolate
+/// `${time.local}`, so the stop toast read "Sequence stopped by request at
+/// 2026-08-14T00:13:25.206940." — a wire format in operator copy. They now
+/// interpolate `${time.clock}` instead.
+///
+/// This is deliberately NOT a new entry in `interpolationCatalog`: that catalog
+/// is Rust-canonical (`expressions/catalog.rs::variable_catalog`) with a
+/// CI-enforced drift test, and `time.local` keeps its documented ISO-8601
+/// meaning for user-authored templates. `time.clock` is populated by this
+/// resolver for the built-in defaults.
+///
+/// 24-hour, matching every other clock rendering in the app (see
+/// `sequence_time_estimator/node_durations.dart`, `pre_session_simulator.dart`):
+/// an imaging session runs through midnight and AM/PM is the wrong vocabulary
+/// for it.
+String formatOperatorClock(DateTime when) {
+  final local = when.isUtc ? when.toLocal() : when;
+  final hour = local.hour.toString().padLeft(2, '0');
+  final minute = local.minute.toString().padLeft(2, '0');
+  return '$hour:$minute';
+}
+
 /// Render a template, substituting `${name[:spec]}` placeholders with
 /// values from [context]. Unknown variables fall back to the catalog
 /// `example` so the rendered string always reads cleanly.
 String renderNotificationTemplate(
   String template,
-  NotificationContext context,
-) {
+  NotificationContext context, {
+  DateTime Function()? clock,
+}) {
   if (template.isEmpty) return '';
   final byName = {for (final v in interpolationCatalog) v.name: v};
-  final ctx = context.withDefaults();
+  final ctx = context.withDefaults(clock: clock);
 
   final buf = StringBuffer();
   var i = 0;
