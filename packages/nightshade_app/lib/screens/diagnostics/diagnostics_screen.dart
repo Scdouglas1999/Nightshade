@@ -8,6 +8,8 @@ import 'package:intl/intl.dart' hide TextDirection;
 
 import '../../localization/nightshade_localizations.dart';
 import '../accessible_dropdown.dart';
+import '../analytics/quick_capture_selection.dart';
+import '../analytics/widgets/analytics_empty_state.dart';
 import 'diagnostics_screen/psf_field_map_view.dart';
 part 'diagnostics_screen/header_widgets.dart';
 part 'diagnostics_screen/content_layout.dart';
@@ -26,8 +28,10 @@ part 'diagnostics_screen/issues_and_skeleton.dart';
 /// captures could not be diagnosed at all. This sentinel gives that bucket a
 /// selectable identity; the content switches to the `sessionless*` providers
 /// when it is chosen. It is negative so it can never collide with a real
-/// auto-increment session id.
-const int _kQuickCaptureSessionId = -1;
+/// auto-increment session id. Aliased to the shared
+/// [kQuickCaptureSessionSelection] so Diagnostics, Session and Science cannot
+/// drift onto three different sentinels for the same bucket.
+const int _kQuickCaptureSessionId = kQuickCaptureSessionSelection;
 
 /// Thin shell that hosts [DiagnosticsTabContent].
 ///
@@ -41,13 +45,20 @@ class DiagnosticsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const DiagnosticsTabContent();
+    // Standalone route: nothing else on screen names the page, so this one
+    // surface keeps the title the Analytics tab drops (CON-48).
+    return const DiagnosticsTabContent(showTitle: true);
   }
 }
 
 /// Optical-train diagnostics surface, embedded inside the Analytics screen.
 class DiagnosticsTabContent extends ConsumerStatefulWidget {
-  const DiagnosticsTabContent({super.key});
+  /// Whether to paint the page title. False inside Analytics: the tab strip
+  /// two rows above already says "Diagnostics", and none of the four sibling
+  /// tabs prints an H1 of its own.
+  final bool showTitle;
+
+  const DiagnosticsTabContent({super.key, this.showTitle = false});
 
   @override
   ConsumerState<DiagnosticsTabContent> createState() =>
@@ -140,8 +151,10 @@ class _DiagnosticsTabContentState extends ConsumerState<DiagnosticsTabContent> {
         children: [
           // Header
           if (isPhone) ...[
-            titleRow,
-            const SizedBox(height: 10),
+            if (widget.showTitle) ...[
+              titleRow,
+              const SizedBox(height: 10),
+            ],
             // Constrain so a long session name ellipsizes instead of forcing
             // the dropdown wider than the phone column.
             Align(
@@ -156,7 +169,10 @@ class _DiagnosticsTabContentState extends ConsumerState<DiagnosticsTabContent> {
           ] else
             Row(
               children: [
-                Expanded(child: titleRow),
+                if (widget.showTitle)
+                  Expanded(child: titleRow)
+                else
+                  const Spacer(),
                 const SizedBox(width: 12),
                 // Bounded width so the (isExpanded) dropdown has finite
                 // constraints and ellipsizes a long session label.
@@ -167,14 +183,13 @@ class _DiagnosticsTabContentState extends ConsumerState<DiagnosticsTabContent> {
               ],
             ),
           const SizedBox(height: 8),
-          // Users frequently confuse diagnostics with analytics; the audit
-          // (§4.19) called out that the prior single-line intro didn't make
-          // the scope obvious. Spell out the mechanical-health framing,
-          // contrast it with analytics, and tell people when to come here.
+          // CON-48: this was a 95-word essay on the one Analytics tab that had
+          // one — the scope contrast, the when-to-come-here advice and the
+          // score direction all now live in the guide the chip below opens,
+          // which is where a reader goes when they want them.
           Text(
-            'Optical-train mechanical health — collimation, tilt, sensor backfocus, and image-plane flatness — the hardware issues that show up as systematic PSF aberrations across the field. '
-            'Analytics tracks per-frame image quality and photometry; diagnostics aggregates anomaly patterns across the whole session to point at the underlying hardware cause. '
-            'Come here when imaging shows degraded HFR or eccentricity, or when analytics keeps flagging the same quality issue. Lower tilt and collimation scores are better.',
+            'Optical-train health across the whole session: collimation, tilt, '
+            'backfocus and field flatness. Lower scores are better.',
             style: TextStyle(
               fontSize: NightshadeTypography.fontSize12,
               color: colors.textSecondary,
@@ -195,8 +210,11 @@ class _DiagnosticsTabContentState extends ConsumerState<DiagnosticsTabContent> {
                       child: ConstrainedBox(
                         constraints:
                             BoxConstraints(minHeight: constraints.maxHeight),
-                        child: EmptyState(
-                          icon: LucideIcons.star,
+                        // CON-45: the star glyph and the shared EmptyState were
+                        // this tab's own dialect. Same widget as its four
+                        // siblings now, so one reader learns one pattern.
+                        child: AnalyticsEmptyState(
+                          icon: LucideIcons.stethoscope,
                           title: l10n.text('diagnosticsNoSessionTitle'),
                           body: l10n.text('diagnosticsNoSessionBody'),
                         ),

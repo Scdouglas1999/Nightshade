@@ -103,6 +103,42 @@ void main() {
     expect(_sliderWithValue(tester, 10.0), isNull);
   });
 
+  // COL2-13, re-opened by Wave D 2026-08-13: with the switch OFF the row still
+  // asserted a number it gave no control for. The adversarial half is the one
+  // that makes it a false claim rather than a stale caption — drag the display
+  // Magnitude Threshold to 8.0 and the app went on saying it auto-queues
+  // objects at mag 10, two magnitudes FAINTER than the ones it will show.
+  testWidgets('with auto-queue off the row states no threshold at all',
+      (tester) async {
+    await _openSettingsDialog(
+      tester,
+      autoQueueBright: false,
+      magnitudeThreshold: 8.0,
+    );
+
+    expect(
+      find.textContaining('mag 10'),
+      findsNothing,
+      reason: 'a number with no control, contradicting the visible 8.0 filter',
+    );
+    expect(
+      find.textContaining('Turn this on to set the cutoff.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('with auto-queue on the row states the threshold it acts on',
+      (tester) async {
+    await _openSettingsDialog(
+      tester,
+      autoQueueBright: true,
+      autoQueueMagnitude: 12.5,
+    );
+
+    expect(find.textContaining('brighter than mag 12.5'), findsOneWidget);
+    expect(find.text('<= 12.5'), findsOneWidget);
+  });
+
   testWidgets('enabling auto-queue exposes its magnitude and applies edits',
       (tester) async {
     await _openSettingsDialog(tester, autoQueueBright: true);

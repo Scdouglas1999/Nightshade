@@ -310,31 +310,34 @@ class _MiniButton extends StatelessWidget {
         : destructive
             ? colors.error
             : colors.textSecondary;
-    return InkWell(
-      onTap: onPressed,
-      borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: NightshadeTokens.spaceSm,
-          vertical: NightshadeTokens.spaceXs,
-        ),
-        decoration: BoxDecoration(
-          color: colors.surfaceAlt,
+    return Semantics(
+        button: true,
+        enabled: onPressed != null,
+        child: InkWell(
+          onTap: onPressed,
           borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
-          border: Border.all(color: colors.border),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 13, color: fg),
-            const SizedBox(width: NightshadeTokens.spaceXs),
-            Text(
-              label,
-              style: NightshadeTypography.labelSm.copyWith(color: fg),
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: NightshadeTokens.spaceSm,
+              vertical: NightshadeTokens.spaceXs,
             ),
-          ],
-        ),
-      ),
-    );
+            decoration: BoxDecoration(
+              color: colors.surfaceAlt,
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
+              border: Border.all(color: colors.border),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 13, color: fg),
+                const SizedBox(width: NightshadeTokens.spaceXs),
+                Text(
+                  label,
+                  style: NightshadeTypography.labelSm.copyWith(color: fg),
+                ),
+              ],
+            ),
+          ),
+        ));
   }
 }

@@ -155,21 +155,24 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
                 if (analysisState.result != null)
                   Tooltip(
                     message: 'Clear results',
-                    child: InkWell(
-                      onTap: () =>
-                          ref.read(periodAnalysisProvider.notifier).clear(),
-                      borderRadius: NightshadeTokens.borderRadiusLg,
-                      child: Container(
-                        constraints: const BoxConstraints(
-                          minWidth: NightshadeTokens.minTouchTarget,
-                          minHeight: NightshadeTokens.minTouchTarget,
-                        ),
-                        alignment: Alignment.center,
-                        child: Icon(LucideIcons.x,
-                            size: NightshadeTokens.iconXs,
-                            color: colors.textMuted),
-                      ),
-                    ),
+                    child: Semantics(
+                        button: true,
+                        enabled: true,
+                        child: InkWell(
+                          onTap: () =>
+                              ref.read(periodAnalysisProvider.notifier).clear(),
+                          borderRadius: NightshadeTokens.borderRadiusLg,
+                          child: Container(
+                            constraints: const BoxConstraints(
+                              minWidth: NightshadeTokens.minTouchTarget,
+                              minHeight: NightshadeTokens.minTouchTarget,
+                            ),
+                            alignment: Alignment.center,
+                            child: Icon(LucideIcons.x,
+                                size: NightshadeTokens.iconXs,
+                                color: colors.textMuted),
+                          ),
+                        )),
                   ),
               ],
             ),
@@ -226,42 +229,46 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
     Widget chip(
         String label, String detail, bool selected, VoidCallback onTap) {
       return Expanded(
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: NightshadeTokens.borderRadiusLg,
-          child: Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: NightshadeTokens.spaceMd,
-              vertical: NightshadeTokens.spaceSm,
-            ),
-            decoration: BoxDecoration(
-              color: selected
-                  ? colors.primary.withValues(alpha: 0.14)
-                  : Colors.transparent,
+        child: Semantics(
+            button: true,
+            enabled: true,
+            selected: selected,
+            child: InkWell(
+              onTap: onTap,
               borderRadius: NightshadeTokens.borderRadiusLg,
-              border: Border.all(
-                color: selected ? colors.primary : colors.border,
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  label,
-                  style: NightshadeTypography.labelSm.copyWith(
-                    color: selected ? colors.primary : colors.textPrimary,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: NightshadeTokens.spaceMd,
+                  vertical: NightshadeTokens.spaceSm,
+                ),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? colors.primary.withValues(alpha: 0.14)
+                      : Colors.transparent,
+                  borderRadius: NightshadeTokens.borderRadiusLg,
+                  border: Border.all(
+                    color: selected ? colors.primary : colors.border,
                   ),
                 ),
-                Text(
-                  detail,
-                  style: NightshadeTypography.caption
-                      .copyWith(color: colors.textMuted),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      label,
+                      style: NightshadeTypography.labelSm.copyWith(
+                        color: selected ? colors.primary : colors.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      detail,
+                      style: NightshadeTypography.caption
+                          .copyWith(color: colors.textMuted),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-        ),
+              ),
+            )),
       );
     }
 

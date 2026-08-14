@@ -138,28 +138,10 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
                 child: sessionsAsyncValue.when(
                   data: (sessions) {
                     if (sessions.isEmpty && quickCaptures.isEmpty) {
-                      return Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(LucideIcons.folderOpen,
-                                size: 48, color: colors.textMuted),
-                            const SizedBox(height: 16),
-                            Text(
-                              l10n.text('analyticsNoSessionHistory'),
-                              style: TextStyle(
-                                  fontSize: NightshadeTypography.fontSize14,
-                                  color: colors.textSecondary),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              l10n.text('analyticsNoSessionHistoryDesc'),
-                              style: TextStyle(
-                                  fontSize: NightshadeTypography.fontSize12,
-                                  color: colors.textMuted),
-                            ),
-                          ],
-                        ),
+                      return AnalyticsEmptyState(
+                        icon: LucideIcons.folderOpen,
+                        title: l10n.text('analyticsNoSessionHistory'),
+                        body: l10n.text('analyticsNoSessionHistoryDesc'),
                       );
                     }
 

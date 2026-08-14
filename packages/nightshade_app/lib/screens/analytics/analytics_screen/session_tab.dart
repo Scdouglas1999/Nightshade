@@ -11,7 +11,12 @@ class _SessionTab extends ConsumerStatefulWidget {
 
 class _SessionTabState extends ConsumerState<_SessionTab> {
   /// Session chosen in the review bar. Null follows the live session, or the
-  /// most recent one that actually holds light frames.
+  /// most recent one that actually holds light frames;
+  /// [kQuickCaptureSessionSelection] pins the frames shot outside any session.
+  ///
+  /// The third state is the point: with only "auto" and "a session", the first
+  /// completed run won the auto-pick forever and the quick captures could never
+  /// be asked for again.
   int? _selectedSessionId;
 
   @override
@@ -30,9 +35,16 @@ class _SessionTabState extends ConsumerState<_SessionTab> {
         allSessions.any((session) => session.id == _selectedSessionId)
             ? _selectedSessionId
             : null;
-    final reviewSessionId = pickedSessionId ??
-        sessionState.dbSessionId ??
+    // An explicit "Quick captures" pick outranks the auto-pick; without it the
+    // auto-pick reclaimed the tab on the very next build.
+    final quickCapturesPinned =
+        _selectedSessionId == kQuickCaptureSessionSelection;
+    // Watched unconditionally: a watch inside the ?? chain would come and go
+    // with the pick and silently drop the dependency.
+    final autoSessionId = sessionState.dbSessionId ??
         ref.watch(latestScienceSessionProvider).valueOrNull;
+    final reviewSessionId =
+        quickCapturesPinned ? null : (pickedSessionId ?? autoSessionId);
     final reviewSession = allSessions
         .cast<ImagingSession?>()
         .firstWhere((s) => s?.id == reviewSessionId, orElse: () => null);
@@ -43,9 +55,18 @@ class _SessionTabState extends ConsumerState<_SessionTab> {
     // Get session images when one is being reviewed, otherwise the standalone
     // captures that are all this tab has to show.
     final bool isStandaloneMode = reviewSessionId == null;
+    // Watched whether or not it is on screen: it is also what tells the picker
+    // whether there is a quick-capture bucket worth offering.
+    final standaloneAsync = ref.watch(standaloneImagesProvider);
     final imagesAsyncValue = reviewSessionId != null
         ? ref.watch(dbSessionImagesProvider(reviewSessionId))
-        : ref.watch(standaloneImagesProvider);
+        : standaloneAsync;
+    final offerQuickCaptures = quickCapturesPinned ||
+        (standaloneAsync.valueOrNull?.isNotEmpty ?? false);
+    // What the picker shows as chosen: the sentinel when the operator pinned
+    // the quick captures, otherwise whichever session is under review.
+    final reviewSelectionId =
+        quickCapturesPinned ? kQuickCaptureSessionSelection : reviewSessionId;
     void retryImages() {
       if (reviewSessionId != null) {
         ref.invalidate(dbSessionImagesProvider(reviewSessionId));
@@ -190,46 +211,26 @@ class _SessionTabState extends ConsumerState<_SessionTab> {
                   _SessionReviewBar(
                     colors: colors,
                     sessions: allSessions,
-                    selectedId: null,
+                    selectedId: reviewSelectionId,
+                    offerQuickCaptures: offerQuickCaptures,
                     onSelected: (id) => setState(() => _selectedSessionId = id),
                   ),
                   const SizedBox(height: 24),
                 ],
                 Expanded(
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(LucideIcons.folderOpen,
-                            size: 48, color: colors.textMuted),
-                        const SizedBox(height: 16),
-                        // Never the History tab's copy: this tab's subject is
-                        // the session in progress, so borrowing "No session
-                        // history / Complete an imaging session to see history
-                        // here" told the user to go do what they had just done.
-                        Text(
-                          allSessions.isEmpty
-                              ? 'Nothing captured yet'
-                              : 'No quick captures',
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize14,
-                            color: colors.textSecondary,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          allSessions.isEmpty
-                              ? 'Start a capture or a sequence and this tab '
-                                  'fills in as the frames arrive.'
-                              : 'Choose a session above to review it.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize12,
-                            color: colors.textMuted,
-                          ),
-                        ),
-                      ],
-                    ),
+                  // Never the History tab's copy: this tab's subject is the
+                  // session in progress, so borrowing "No session history /
+                  // Complete an imaging session to see history here" told the
+                  // user to go do what they had just done.
+                  child: AnalyticsEmptyState(
+                    icon: LucideIcons.folderOpen,
+                    title: allSessions.isEmpty
+                        ? 'Nothing captured yet'
+                        : 'No quick captures',
+                    body: allSessions.isEmpty
+                        ? 'Start a capture or a sequence and this tab fills in '
+                            'as the frames arrive.'
+                        : 'Choose a session above to review it.',
                   ),
                 ),
               ],
@@ -311,7 +312,8 @@ class _SessionTabState extends ConsumerState<_SessionTab> {
                 _SessionReviewBar(
                   colors: colors,
                   sessions: allSessions,
-                  selectedId: reviewSessionId,
+                  selectedId: reviewSelectionId,
+                  offerQuickCaptures: offerQuickCaptures,
                   onSelected: (id) => setState(() => _selectedSessionId = id),
                   onClear: _selectedSessionId == null
                       ? null
@@ -681,6 +683,11 @@ class _SessionReviewBar extends StatelessWidget {
   final NightshadeColors colors;
   final List<ImagingSession> sessions;
   final int? selectedId;
+
+  /// Whether to list [kQuickCaptureSessionSelection] — the frames shot outside
+  /// any session. Diagnostics has always offered it; leaving it off the other
+  /// two pickers is what made the quick captures a one-way door.
+  final bool offerQuickCaptures;
   final ValueChanged<int?> onSelected;
   final VoidCallback? onClear;
 
@@ -689,13 +696,16 @@ class _SessionReviewBar extends StatelessWidget {
     required this.sessions,
     required this.selectedId,
     required this.onSelected,
+    this.offerQuickCaptures = false,
     this.onClear,
   });
 
   @override
   Widget build(BuildContext context) {
     final format = DateFormat('MMM d, yyyy HH:mm');
-    final hasSelection = sessions.any((s) => s.id == selectedId);
+    final hasSelection =
+        (offerQuickCaptures && selectedId == kQuickCaptureSessionSelection) ||
+            sessions.any((s) => s.id == selectedId);
 
     return Container(
       padding: const EdgeInsets.symmetric(
@@ -735,6 +745,19 @@ class _SessionReviewBar extends StatelessWidget {
                     .copyWith(color: colors.textPrimary),
                 onChanged: onSelected,
                 items: [
+                  // First, and named exactly as Diagnostics names it: an
+                  // operator who learns the entry on one tab finds it on all.
+                  if (offerQuickCaptures)
+                    DropdownMenuItem<int>(
+                      value: kQuickCaptureSessionSelection,
+                      child: Text(
+                        kQuickCaptureSessionLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: NightshadeTypography.labelSm
+                            .copyWith(color: colors.textPrimary),
+                      ),
+                    ),
                   for (final session in sessions.take(60))
                     DropdownMenuItem<int>(
                       value: session.id,

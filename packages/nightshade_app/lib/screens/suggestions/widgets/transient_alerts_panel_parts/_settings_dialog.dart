@@ -211,8 +211,20 @@ class _TransientSettingsDialogState
                     color: colors.textPrimary,
                   ),
                 ),
+                // COL2-13: with the switch OFF this row still asserted a
+                // number — "brighter than mag 10" — while the control that
+                // sets it was hidden and the Magnitude Threshold slider two
+                // rows above read 8.0. The app was claiming it auto-queues
+                // objects two magnitudes fainter than the ones it will show.
+                // Off states the behaviour; on states the number, beside the
+                // slider that owns it.
                 subtitle: Text(
-                  'Automatically add transients brighter than mag ${settings.autoQueueMagnitude.toStringAsFixed(0)} to targets',
+                  settings.autoQueueBright
+                      ? 'Automatically adds transients brighter than mag '
+                          '${settings.autoQueueMagnitude.toStringAsFixed(1)} '
+                          'to targets'
+                      : 'Add bright new transients to your targets '
+                          'automatically. Turn this on to set the cutoff.',
                   style: TextStyle(
                       fontSize: NightshadeTypography.fontSize11,
                       color: colors.textMuted),

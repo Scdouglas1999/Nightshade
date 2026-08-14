@@ -246,50 +246,59 @@ class _LayerChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
 
-    return InkWell(
-      onTap: onTap,
-      onLongPress: () => ScienceOverlayLegend.show(context, legendKey),
-      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: active
-            ? NightshadeDecorations.selectedSurface(
-                colors.primary,
-                borderRadius:
-                    BorderRadius.circular(NightshadeTokens.radiusInline8),
-              )
-            : BoxDecoration(
-                borderRadius:
-                    BorderRadius.circular(NightshadeTokens.radiusInline8),
-                color: colors.surfaceElevated,
-                border: Border.all(color: colors.border),
-              ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-              ),
-            ),
-            const SizedBox(width: 6),
-            InkWell(
-              onTap: () => ScienceOverlayLegend.show(context, legendKey),
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-              child: Padding(
-                padding: const EdgeInsets.all(2),
-                child: Icon(
-                  LucideIcons.info,
-                  size: 11,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+    return Semantics(
+        button: true,
+        enabled: true,
+        selected: active,
+        child: InkWell(
+          onTap: onTap,
+          onLongPress: () => ScienceOverlayLegend.show(context, legendKey),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: active
+                ? NightshadeDecorations.selectedSurface(
+                    colors.primary,
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline8),
+                  )
+                : BoxDecoration(
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline8),
+                    color: colors.surfaceElevated,
+                    border: Border.all(color: colors.border),
+                  ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize11,
+                    fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                  ),
                 ),
-              ),
+                const SizedBox(width: 6),
+                Semantics(
+                    button: true,
+                    enabled: true,
+                    child: InkWell(
+                      onTap: () =>
+                          ScienceOverlayLegend.show(context, legendKey),
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusLg),
+                      child: Padding(
+                        padding: const EdgeInsets.all(2),
+                        child: Icon(
+                          LucideIcons.info,
+                          size: 11,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    )),
+              ],
             ),
-          ],
-        ),
-      ),
-    );
+          ),
+        ));
   }
 }

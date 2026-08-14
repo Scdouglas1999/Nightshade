@@ -92,31 +92,34 @@ class _DateButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-        decoration: BoxDecoration(
-          color: colors.surfaceAlt,
+    return Semantics(
+        button: true,
+        enabled: true,
+        child: InkWell(
+          onTap: onTap,
           borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-          border: Border.all(color: colors.border),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(LucideIcons.calendar, size: 14, color: colors.textMuted),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textSecondary,
-              ),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+            decoration: BoxDecoration(
+              color: colors.surfaceAlt,
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+              border: Border.all(color: colors.border),
             ),
-          ],
-        ),
-      ),
-    );
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(LucideIcons.calendar, size: 14, color: colors.textMuted),
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize12,
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ));
   }
 }

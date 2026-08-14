@@ -230,6 +230,22 @@ void main() {
           entry.key == 'Dark',
           reason: '${entry.key} reports the wrong selected state',
         );
+        // NEW-C4: a live tree dump of the open Theme / Frame Type / sort menus
+        // showed three bare `button:` entries and nothing marking the current
+        // one. AT-SPI's SELECTED is not what a menu consumer reads; CHECKED is,
+        // and it is the state a radio-style menu is meant to publish.
+        expect(
+          entry.value.hasFlag(SemanticsFlag.hasCheckedState),
+          isTrue,
+          reason:
+              '${entry.key} offers no checked state, so nothing in the '
+              'menu says which option is in force',
+        );
+        expect(
+          entry.value.hasFlag(SemanticsFlag.isChecked),
+          entry.key == 'Dark',
+          reason: '${entry.key} reports the wrong checked state',
+        );
       }
       handle.dispose();
     });

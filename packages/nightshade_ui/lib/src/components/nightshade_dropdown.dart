@@ -77,9 +77,18 @@ class NightshadeDropdown extends StatelessWidget {
             final item = items[index];
             return DropdownMenuItem<String>(
               value: item,
+              // `selected` alone was not enough: AT-SPI carries it as SELECTED,
+              // which no menu consumer reads and which never appeared in a live
+              // tree dump, so every option of an open Theme / Frame Type menu
+              // still announced as a bare button with nothing marking the one
+              // in force (NEW-C4). A menu of mutually exclusive options is a
+              // radio group, and CHECKED is the state that role publishes —
+              // set on every entry so the unchosen ones say "not checked"
+              // rather than saying nothing.
               child: Semantics(
                 enabled: isEnabled,
                 selected: item == value,
+                checked: item == value,
                 child: Text(_labelFor(index), overflow: TextOverflow.ellipsis),
               ),
             );

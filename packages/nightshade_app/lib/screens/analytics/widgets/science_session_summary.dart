@@ -102,155 +102,160 @@ class ScienceSessionSummary extends ConsumerWidget {
     );
 
     return NightshadeCard(
-      child: InkWell(
-        onTap: onOpenSciencePressed,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+      child: Semantics(
+          button: true,
+          enabled: true,
+          child: InkWell(
+            onTap: onOpenSciencePressed,
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(LucideIcons.flaskConical,
-                      size: 15, color: colors.primary),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      'Tonight\'s science',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: colors.textPrimary,
-                        fontWeight: FontWeight.w700,
-                        fontSize: NightshadeTypography.fontSize13,
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  if (activeTargetId != null)
-                    TextButton.icon(
-                      onPressed: () => CampaignRollupDialog.show(
-                        context,
-                        activeTargetId,
-                      ),
-                      icon: Icon(
-                        LucideIcons.history,
-                        size: 12,
-                        color: colors.textSecondary,
-                      ),
-                      label: Text(
-                        'Target campaign',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize11,
-                          color: colors.textSecondary,
-                          fontWeight: FontWeight.w600,
+                  Row(
+                    children: [
+                      Icon(LucideIcons.flaskConical,
+                          size: 15, color: colors.primary),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          'Tonight\'s science',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: colors.textPrimary,
+                            fontWeight: FontWeight.w700,
+                            fontSize: NightshadeTypography.fontSize13,
+                          ),
                         ),
                       ),
+                      const Spacer(),
+                      if (activeTargetId != null)
+                        TextButton.icon(
+                          onPressed: () => CampaignRollupDialog.show(
+                            context,
+                            activeTargetId,
+                          ),
+                          icon: Icon(
+                            LucideIcons.history,
+                            size: 12,
+                            color: colors.textSecondary,
+                          ),
+                          label: Text(
+                            'Target campaign',
+                            style: TextStyle(
+                              fontSize: NightshadeTypography.fontSize11,
+                              color: colors.textSecondary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      if (onOpenSciencePressed != null)
+                        Text(
+                          'Open Science tab →',
+                          style: TextStyle(
+                            fontSize: NightshadeTypography.fontSize11,
+                            color: colors.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                    ],
+                  ),
+                  if (errors.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    _SummaryLoadNotice(
+                      colors: colors,
+                      error: errors.first,
+                      additionalErrorCount: errors.length - 1,
+                      onRetry: () => _retrySources(ref, activeSessionId),
                     ),
-                  if (onOpenSciencePressed != null)
-                    Text(
-                      'Open Science tab →',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
-                        color: colors.primary,
-                        fontWeight: FontWeight.w600,
+                  ] else if (isLoading) ...[
+                    const SizedBox(height: 8),
+                    LinearProgressIndicator(
+                      minHeight: 2,
+                      color: colors.primary,
+                      backgroundColor: colors.border,
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _MetricTile(
+                          colors: colors,
+                          icon: LucideIcons.crosshair,
+                          label: 'Plate solves',
+                          value: solveStats.label,
+                          tone: solveStats.tone(colors),
+                          tooltip:
+                              'Fraction of frames this session that produced a WCS solution. '
+                              'Most science products require a plate solve.',
+                        ),
                       ),
-                    ),
-                ],
-              ),
-              if (errors.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                _SummaryLoadNotice(
-                  colors: colors,
-                  error: errors.first,
-                  additionalErrorCount: errors.length - 1,
-                  onRetry: () => _retrySources(ref, activeSessionId),
-                ),
-              ] else if (isLoading) ...[
-                const SizedBox(height: 8),
-                LinearProgressIndicator(
-                  minHeight: 2,
-                  color: colors.primary,
-                  backgroundColor: colors.border,
-                ),
-              ],
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _MetricTile(
-                      colors: colors,
-                      icon: LucideIcons.crosshair,
-                      label: 'Plate solves',
-                      value: solveStats.label,
-                      tone: solveStats.tone(colors),
-                      tooltip:
-                          'Fraction of frames this session that produced a WCS solution. '
-                          'Most science products require a plate solve.',
-                    ),
-                  ),
-                  _MetricDivider(colors: colors),
-                  Expanded(
-                    child: _MetricTile(
-                      colors: colors,
-                      icon: LucideIcons.gauge,
-                      label: 'Zero point',
-                      value: latestCal?.zeroPoint == null
-                          ? '—'
-                          : latestCal!.zeroPoint!.toStringAsFixed(2),
-                      sub: latestCal == null
-                          ? null
-                          : '${latestCal.matchedStarCount} stars',
-                      tone: latestCal == null || !latestCal.isCalibrated
-                          ? colors.textMuted
-                          : colors.success,
-                      tooltip:
-                          'Latest photometric zero-point. Higher numbers mean fainter detection limits for the same exposure.',
-                    ),
-                  ),
-                  _MetricDivider(colors: colors),
-                  Expanded(
-                    child: _MetricTile(
-                      colors: colors,
-                      icon: LucideIcons.cloud,
-                      label: 'Transparency',
-                      value: latestTransparency == null
-                          ? '—'
-                          : '${latestTransparency.transparencyPercent.toStringAsFixed(0)}%',
-                      sub: latestTransparency?.qualityBucket,
-                      tone: _toneForTransparency(latestTransparency, colors),
-                      tooltip:
-                          'Most recent atmospheric transparency estimate, based on calibrated frame brightness vs catalog.',
-                    ),
-                  ),
-                  _MetricDivider(colors: colors),
-                  Expanded(
-                    child: _MetricTile(
-                      colors: colors,
-                      icon: LucideIcons.layoutGrid,
-                      label: 'Uniformity CV',
-                      value: latestFrameQuality == null
-                          ? '—'
-                          : latestFrameQuality.uniformityCv.toStringAsFixed(3),
-                      sub: latestFrameQuality == null
-                          ? null
-                          : 'SNR ${latestFrameQuality.snr.toStringAsFixed(1)}',
-                      tone: latestFrameQuality == null
-                          ? colors.textMuted
-                          : latestFrameQuality.uniformityCv > 0.28
-                              ? colors.warning
+                      _MetricDivider(colors: colors),
+                      Expanded(
+                        child: _MetricTile(
+                          colors: colors,
+                          icon: LucideIcons.gauge,
+                          label: 'Zero point',
+                          value: latestCal?.zeroPoint == null
+                              ? '—'
+                              : latestCal!.zeroPoint!.toStringAsFixed(2),
+                          sub: latestCal == null
+                              ? null
+                              : '${latestCal.matchedStarCount} stars',
+                          tone: latestCal == null || !latestCal.isCalibrated
+                              ? colors.textMuted
                               : colors.success,
-                      tooltip:
-                          'Coefficient of variation of background brightness across the frame. Lower is flatter — values above 0.28 suggest gradients.',
-                    ),
+                          tooltip:
+                              'Latest photometric zero-point. Higher numbers mean fainter detection limits for the same exposure.',
+                        ),
+                      ),
+                      _MetricDivider(colors: colors),
+                      Expanded(
+                        child: _MetricTile(
+                          colors: colors,
+                          icon: LucideIcons.cloud,
+                          label: 'Transparency',
+                          value: latestTransparency == null
+                              ? '—'
+                              : '${latestTransparency.transparencyPercent.toStringAsFixed(0)}%',
+                          sub: latestTransparency?.qualityBucket,
+                          tone:
+                              _toneForTransparency(latestTransparency, colors),
+                          tooltip:
+                              'Most recent atmospheric transparency estimate, based on calibrated frame brightness vs catalog.',
+                        ),
+                      ),
+                      _MetricDivider(colors: colors),
+                      Expanded(
+                        child: _MetricTile(
+                          colors: colors,
+                          icon: LucideIcons.layoutGrid,
+                          label: 'Uniformity CV',
+                          value: latestFrameQuality == null
+                              ? '—'
+                              : latestFrameQuality.uniformityCv
+                                  .toStringAsFixed(3),
+                          sub: latestFrameQuality == null
+                              ? null
+                              : 'SNR ${latestFrameQuality.snr.toStringAsFixed(1)}',
+                          tone: latestFrameQuality == null
+                              ? colors.textMuted
+                              : latestFrameQuality.uniformityCv > 0.28
+                                  ? colors.warning
+                                  : colors.success,
+                          tooltip:
+                              'Coefficient of variation of background brightness across the frame. Lower is flatter — values above 0.28 suggest gradients.',
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
-          ),
-        ),
-      ),
+            ),
+          )),
     );
   }
 

@@ -375,26 +375,32 @@ class _PresetChip extends StatelessWidget {
     final bg = selected ? accent : colors.surfaceAlt;
     return Opacity(
       opacity: enabled ? 1 : NightshadeTokens.opacityMuted,
-      child: GestureDetector(
-        onTap: enabled ? onTap : null,
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: NightshadeTokens.spaceMd,
-            vertical: NightshadeTokens.spaceSm,
-          ),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusFull),
-            border: Border.all(
-              color: selected ? accent : colors.border.withValues(alpha: 0.75),
+      child: Semantics(
+          button: true,
+          enabled: enabled,
+          selected: selected,
+          child: GestureDetector(
+            onTap: enabled ? onTap : null,
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: NightshadeTokens.spaceMd,
+                vertical: NightshadeTokens.spaceSm,
+              ),
+              decoration: BoxDecoration(
+                color: bg,
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusFull),
+                border: Border.all(
+                  color:
+                      selected ? accent : colors.border.withValues(alpha: 0.75),
+                ),
+              ),
+              child: Text(
+                label,
+                style: NightshadeTypography.buttonSm.copyWith(color: fg),
+              ),
             ),
-          ),
-          child: Text(
-            label,
-            style: NightshadeTypography.buttonSm.copyWith(color: fg),
-          ),
-        ),
-      ),
+          )),
     );
   }
 }

@@ -16,6 +16,22 @@ import 'mosaic_project_screen.dart';
 class MosaicProjectsListScreen extends ConsumerWidget {
   const MosaicProjectsListScreen({super.key});
 
+  /// Open the wizard and re-read the list when it closes.
+  ///
+  /// WD-COL-N1: the wizard creates the project and pushes its detail screen,
+  /// but this list is still mounted underneath, so its `autoDispose` provider
+  /// is never disposed and never re-runs. Pressing Back therefore returned to
+  /// the state the list held before the create — on a first run, the
+  /// "No mosaic projects yet" empty state, one route above the 15-panel
+  /// project that had just been made.
+  static Future<void> _newMosaic(BuildContext context, WidgetRef ref) async {
+    await showDialog<void>(
+      context: context,
+      builder: (_) => const MosaicWizardDialog(),
+    );
+    ref.invalidate(mosaicProjectsListProvider);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
@@ -64,10 +80,7 @@ class MosaicProjectsListScreen extends ConsumerWidget {
                 label: 'New mosaic',
                 icon: NightshadeIcons.add,
                 size: ButtonSize.small,
-                onPressed: () => showDialog<void>(
-                  context: context,
-                  builder: (_) => const MosaicWizardDialog(),
-                ),
+                onPressed: () => _newMosaic(context, ref),
               ),
             ),
             Expanded(
@@ -104,10 +117,7 @@ class MosaicProjectsListScreen extends ConsumerWidget {
                               label: 'New mosaic',
                               icon: NightshadeIcons.add,
                               size: ButtonSize.small,
-                              onPressed: () => showDialog<void>(
-                                context: context,
-                                builder: (_) => const MosaicWizardDialog(),
-                              ),
+                              onPressed: () => _newMosaic(context, ref),
                             ),
                           ),
                         )
@@ -121,6 +131,11 @@ class MosaicProjectsListScreen extends ConsumerWidget {
                           ),
                           itemBuilder: (context, index) => _ProjectRow(
                             project: projects[index],
+                            // A project can be renamed, integrated or deleted
+                            // on its own screen; the list underneath must not
+                            // keep describing the state it was built with.
+                            onReturn: () =>
+                                ref.invalidate(mosaicProjectsListProvider),
                           ),
                         ),
                 ),
@@ -225,15 +240,19 @@ Widget _refreshableCenter(Widget child) {
 
 class _ProjectRow extends StatelessWidget {
   final MosaicProject project;
+  final VoidCallback onReturn;
 
-  const _ProjectRow({required this.project});
+  const _ProjectRow({required this.project, required this.onReturn});
 
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     return NightshadeCard(
       enableHover: true,
-      onTap: () => context.push('/mosaic/${project.id}'),
+      onTap: () async {
+        await context.push<void>('/mosaic/${project.id}');
+        onReturn();
+      },
       child: Row(
         children: [
           Icon(NightshadeIcons.grid,

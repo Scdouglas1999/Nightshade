@@ -710,52 +710,56 @@ class _DetectionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final name = detection.catalogMatch ?? 'Unnamed source';
     final kindLabel = TransientKind.fromWire(detection.kind).label;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: NightshadeTokens.spaceXs),
-        padding: const EdgeInsets.symmetric(
-          horizontal: NightshadeTokens.spaceSm,
-          vertical: NightshadeTokens.spaceSm,
-        ),
-        decoration: BoxDecoration(
-          color: selected ? colors.primary.withValues(alpha: 0.08) : null,
+    return Semantics(
+        button: true,
+        enabled: true,
+        child: InkWell(
+          onTap: onTap,
           borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-          border: Border.all(color: selected ? colors.primary : colors.border),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              selected ? LucideIcons.checkCircle : LucideIcons.circle,
-              size: NightshadeTokens.iconXs,
-              color: selected ? colors.primary : colors.textMuted,
+          child: Container(
+            margin: const EdgeInsets.only(bottom: NightshadeTokens.spaceXs),
+            padding: const EdgeInsets.symmetric(
+              horizontal: NightshadeTokens.spaceSm,
+              vertical: NightshadeTokens.spaceSm,
             ),
-            const SizedBox(width: NightshadeTokens.spaceSm),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    name,
-                    style: NightshadeTypography.labelStrongSm.copyWith(
-                      color: colors.textPrimary,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    '$kindLabel · SNR ${detection.snr.toStringAsFixed(1)}'
-                    '${detection.reviewed ? ' · confirmed' : ''}',
-                    style: NightshadeTypography.labelQuiet.copyWith(
-                      color: colors.textMuted,
-                    ),
-                  ),
-                ],
-              ),
+            decoration: BoxDecoration(
+              color: selected ? colors.primary.withValues(alpha: 0.08) : null,
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+              border:
+                  Border.all(color: selected ? colors.primary : colors.border),
             ),
-          ],
-        ),
-      ),
-    );
+            child: Row(
+              children: [
+                Icon(
+                  selected ? LucideIcons.checkCircle : LucideIcons.circle,
+                  size: NightshadeTokens.iconXs,
+                  color: selected ? colors.primary : colors.textMuted,
+                ),
+                const SizedBox(width: NightshadeTokens.spaceSm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: NightshadeTypography.labelStrongSm.copyWith(
+                          color: colors.textPrimary,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        '$kindLabel · SNR ${detection.snr.toStringAsFixed(1)}'
+                        '${detection.reviewed ? ' · confirmed' : ''}',
+                        style: NightshadeTypography.labelQuiet.copyWith(
+                          color: colors.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ));
   }
 }

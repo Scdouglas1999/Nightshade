@@ -298,30 +298,34 @@ class _SortBar extends StatelessWidget {
 
   Widget _sortChip(String label, ProjectSortMode mode) {
     final isSelected = currentSort == mode;
-    return GestureDetector(
-      onTap: () => onSortChanged(mode),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: isSelected
-            ? NightshadeDecorations.selectedSurface(
-                colors.primary,
-                borderRadius:
-                    BorderRadius.circular(NightshadeTokens.radiusInline8),
-              )
-            : BoxDecoration(
-                borderRadius:
-                    BorderRadius.circular(NightshadeTokens.radiusInline8),
-                border: Border.all(color: colors.border),
+    return Semantics(
+        button: true,
+        enabled: true,
+        selected: isSelected,
+        child: GestureDetector(
+          onTap: () => onSortChanged(mode),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: isSelected
+                ? NightshadeDecorations.selectedSurface(
+                    colors.primary,
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline8),
+                  )
+                : BoxDecoration(
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline8),
+                    border: Border.all(color: colors.border),
+                  ),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: NightshadeTypography.fontSize11,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                color: isSelected ? colors.primary : colors.textSecondary,
               ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize11,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-            color: isSelected ? colors.primary : colors.textSecondary,
+            ),
           ),
-        ),
-      ),
-    );
+        ));
   }
 }

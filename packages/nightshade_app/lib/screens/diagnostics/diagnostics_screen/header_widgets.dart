@@ -63,6 +63,14 @@ class _DocsInfoChip extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const _GuideParagraph(
+                  'Analytics tracks per-frame image quality and photometry; '
+                  'diagnostics aggregates anomaly patterns across the whole '
+                  'session to point at the underlying hardware cause. Come '
+                  'here when imaging shows degraded HFR or eccentricity, or '
+                  'when analytics keeps flagging the same quality issue.',
+                ),
+                const SizedBox(height: 12),
+                const _GuideParagraph(
                   'Nightshade compares solved light frames across the sensor. '
                   'Use several representative frames from one session; clouds, '
                   'guiding errors, and poor focus can distort a single-frame result.',
@@ -284,7 +292,7 @@ class _SessionSelector extends StatelessWidget {
   final ValueChanged<int?> onChanged;
   final NightshadeColors colors;
 
-  static const String quickCaptureLabel = 'Quick captures (no session)';
+  static const String quickCaptureLabel = kQuickCaptureSessionLabel;
 
   const _SessionSelector({
     required this.sessions,

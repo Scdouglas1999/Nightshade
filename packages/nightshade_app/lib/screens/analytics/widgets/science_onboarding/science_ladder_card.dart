@@ -248,64 +248,67 @@ class _RungChip extends StatelessWidget {
         ),
     };
 
-    return GestureDetector(
-      onTap: onTap,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: Container(
-          width: 132,
-          constraints: const BoxConstraints(
-            minHeight: NightshadeTokens.minTouchTarget,
-          ),
-          padding: const EdgeInsets.symmetric(
-            horizontal: NightshadeTokens.spaceMd,
-            vertical: NightshadeTokens.spaceSm + 2,
-          ),
-          decoration: state == RungState.ready
-              ? NightshadeDecorations.selectedSurface(colors.primary)
-              : BoxDecoration(
-                  color: colors.surfaceAlt,
-                  borderRadius: NightshadeTokens.borderRadiusMd,
-                  border: Border.all(color: colors.border),
-                ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 22,
-                height: 22,
-                alignment: Alignment.center,
-                decoration: NightshadeDecorations.statusChip(accent),
-                child: state == RungState.done
-                    ? Icon(LucideIcons.check, size: 12, color: accent)
-                    : Text(
-                        '$index',
-                        style: TextStyle(
-                          color: digit,
-                          fontSize: NightshadeTypography.fontSize12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
+    return Semantics(
+        button: true,
+        enabled: true,
+        child: GestureDetector(
+          onTap: onTap,
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: Container(
+              width: 132,
+              constraints: const BoxConstraints(
+                minHeight: NightshadeTokens.minTouchTarget,
               ),
-              const SizedBox(width: NightshadeTokens.spaceSm),
-              Flexible(
-                child: Text(
-                  spec.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: foreground,
-                    fontSize: NightshadeTypography.fontSize11_5,
-                    fontWeight: FontWeight.w600,
-                    height: 1.2,
+              padding: const EdgeInsets.symmetric(
+                horizontal: NightshadeTokens.spaceMd,
+                vertical: NightshadeTokens.spaceSm + 2,
+              ),
+              decoration: state == RungState.ready
+                  ? NightshadeDecorations.selectedSurface(colors.primary)
+                  : BoxDecoration(
+                      color: colors.surfaceAlt,
+                      borderRadius: NightshadeTokens.borderRadiusMd,
+                      border: Border.all(color: colors.border),
+                    ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 22,
+                    height: 22,
+                    alignment: Alignment.center,
+                    decoration: NightshadeDecorations.statusChip(accent),
+                    child: state == RungState.done
+                        ? Icon(LucideIcons.check, size: 12, color: accent)
+                        : Text(
+                            '$index',
+                            style: TextStyle(
+                              color: digit,
+                              fontSize: NightshadeTypography.fontSize12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                   ),
-                ),
+                  const SizedBox(width: NightshadeTokens.spaceSm),
+                  Flexible(
+                    child: Text(
+                      spec.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: foreground,
+                        fontSize: NightshadeTypography.fontSize11_5,
+                        fontWeight: FontWeight.w600,
+                        height: 1.2,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
-    );
+        ));
   }
 }
 

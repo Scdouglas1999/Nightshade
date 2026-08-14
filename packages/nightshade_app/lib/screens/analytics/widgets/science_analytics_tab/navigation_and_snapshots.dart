@@ -65,26 +65,29 @@ class _CardHubExportButton extends StatelessWidget {
     final colors = NightshadeColors.of(context);
     return Tooltip(
       message: tooltip,
-      child: InkWell(
-        onTap: () {
-          showDialog(
-            context: context,
-            builder: (_) => ScienceExportHub(
-              initialDataset: dataset,
-              mpcCandidates: mpcCandidates,
+      child: Semantics(
+          button: true,
+          enabled: true,
+          child: InkWell(
+            onTap: () {
+              showDialog(
+                context: context,
+                builder: (_) => ScienceExportHub(
+                  initialDataset: dataset,
+                  mpcCandidates: mpcCandidates,
+                ),
+              );
+            },
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: Icon(
+                LucideIcons.download,
+                size: 14,
+                color: colors.textMuted,
+              ),
             ),
-          );
-        },
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        child: Padding(
-          padding: const EdgeInsets.all(4),
-          child: Icon(
-            LucideIcons.download,
-            size: 14,
-            color: colors.textMuted,
-          ),
-        ),
-      ),
+          )),
     );
   }
 }
@@ -235,23 +238,30 @@ class _JumpChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: colors.primary),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: NightshadeTypography.labelSm.copyWith(
-                color: colors.textPrimary,
+    // A bare InkWell publishes a tap action and no role, and AT-SPI reads an
+    // absent enabled flag as "disabled" — which is how these four working jump
+    // chips came to announce themselves as `panel: Photometry [DISABLED]`.
+    return Semantics(
+      button: true,
+      enabled: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 14, color: colors.primary),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: NightshadeTypography.labelSm.copyWith(
+                  color: colors.textPrimary,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

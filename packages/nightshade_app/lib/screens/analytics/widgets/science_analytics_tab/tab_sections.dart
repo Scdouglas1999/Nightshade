@@ -60,8 +60,11 @@ extension _ScienceAnalyticsTabSections on _ScienceAnalyticsTabState {
     required List<ImagingSession> sessions,
     required int? activeSessionId,
     required bool isLive,
+    bool offerQuickCaptures = false,
   }) {
-    if (sessions.isEmpty) return const SizedBox.shrink();
+    if (sessions.isEmpty && !offerQuickCaptures) return const SizedBox.shrink();
+    final quickCapturesPinned =
+        offerQuickCaptures && activeSessionId == kQuickCaptureSessionSelection;
     final active = sessions
         .cast<ImagingSession?>()
         .firstWhere((s) => s?.id == activeSessionId, orElse: () => null);
@@ -93,7 +96,9 @@ extension _ScienceAnalyticsTabSections on _ScienceAnalyticsTabState {
           Expanded(
             child: DropdownButtonHideUnderline(
               child: AccessibleDropdown<int>(
-                value: active?.id,
+                value: quickCapturesPinned
+                    ? kQuickCaptureSessionSelection
+                    : active?.id,
                 isExpanded: true,
                 isDense: true,
                 dropdownColor: colors.surfaceElevated,
@@ -119,6 +124,20 @@ extension _ScienceAnalyticsTabSections on _ScienceAnalyticsTabState {
                   });
                 },
                 items: [
+                  // Same entry, same wording as Diagnostics and Session: the
+                  // sessionless photometry / field-quality products are a real
+                  // night's work and must stay reachable once a run exists.
+                  if (offerQuickCaptures)
+                    DropdownMenuItem<int>(
+                      value: kQuickCaptureSessionSelection,
+                      child: Text(
+                        kQuickCaptureSessionLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: NightshadeTypography.labelSm
+                            .copyWith(color: colors.textPrimary),
+                      ),
+                    ),
                   for (final session in sessions.take(60))
                     DropdownMenuItem<int>(
                       value: session.id,
@@ -260,6 +279,9 @@ extension _ScienceAnalyticsTabSections on _ScienceAnalyticsTabState {
     required bool isLoading,
     required List<Object> errors,
     required int storedFrameCount,
+    List<ImagingSession> sessions = const [],
+    bool offerQuickCaptures = false,
+    bool isLive = false,
   }) {
     return SingleChildScrollView(
       controller: _scrollController,
@@ -267,6 +289,18 @@ extension _ScienceAnalyticsTabSections on _ScienceAnalyticsTabState {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // The picker belongs here too: this branch is exactly when the
+          // operator most wants to point the tab at a different night, and
+          // dropping it meant a science query that was slow or failing took
+          // the only way out of that session with it.
+          _sessionBar(
+            colors: colors,
+            sessions: sessions,
+            activeSessionId: activeSessionId,
+            offerQuickCaptures: offerQuickCaptures,
+            isLive: isLive,
+          ),
+          const SizedBox(height: NightshadeTokens.spaceLg),
           ScienceStatusBanner(storedFrameCount: storedFrameCount),
           const SizedBox(height: NightshadeTokens.spaceLg),
           _buildScienceDataNotice(

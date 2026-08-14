@@ -115,22 +115,25 @@ class _AcceptToggle extends StatelessWidget {
     final color = accepted ? colors.success : colors.warning;
     return Tooltip(
       message: accepted ? 'Reject this sub' : 'Accept this sub',
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: Container(
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.9),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            accepted ? NightshadeIcons.check : NightshadeIcons.error,
-            size: 14,
-            color: colors.onPrimary,
-          ),
-        ),
-      ),
+      child: Semantics(
+          button: true,
+          enabled: true,
+          child: InkWell(
+            onTap: onTap,
+            customBorder: const CircleBorder(),
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.9),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                accepted ? NightshadeIcons.check : NightshadeIcons.error,
+                size: 14,
+                color: colors.onPrimary,
+              ),
+            ),
+          )),
     );
   }
 }

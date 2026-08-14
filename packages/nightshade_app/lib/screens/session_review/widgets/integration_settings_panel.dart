@@ -474,31 +474,35 @@ class _AdvancedToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: NightshadeTokens.spaceSm),
-        child: Row(
-          children: [
-            Icon(
-              expanded
-                  ? NightshadeIcons.chevronDown
-                  : NightshadeIcons.chevronRight,
-              size: 16,
-              color: colors.textSecondary,
+    return Semantics(
+        button: true,
+        enabled: true,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
+          child: Padding(
+            padding:
+                const EdgeInsets.symmetric(vertical: NightshadeTokens.spaceSm),
+            child: Row(
+              children: [
+                Icon(
+                  expanded
+                      ? NightshadeIcons.chevronDown
+                      : NightshadeIcons.chevronRight,
+                  size: 16,
+                  color: colors.textSecondary,
+                ),
+                const SizedBox(width: NightshadeTokens.spaceXs),
+                Text(
+                  'Advanced settings',
+                  style: NightshadeTypography.label.copyWith(
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: NightshadeTokens.spaceXs),
-            Text(
-              'Advanced settings',
-              style: NightshadeTypography.label.copyWith(
-                color: colors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+          ),
+        ));
   }
 }
 

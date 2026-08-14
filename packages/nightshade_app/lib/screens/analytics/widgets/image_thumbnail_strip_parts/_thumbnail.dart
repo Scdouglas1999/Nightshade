@@ -69,305 +69,312 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
 
     return Padding(
       padding: const EdgeInsets.only(right: 8.0),
-      child: InkWell(
-        onTap: _handleTap,
-        onLongPress: () => _showFrameMenu(context),
-        onSecondaryTap: () => _showFrameMenu(context),
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        child: Container(
-          width: 100,
-          decoration: BoxDecoration(
-            color: colors.surfaceAlt,
+      child: Semantics(
+          button: true,
+          enabled: true,
+          child: InkWell(
+            onTap: _handleTap,
+            onLongPress: () => _showFrameMenu(context),
+            onSecondaryTap: () => _showFrameMenu(context),
             borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-            border: Border.all(
-              color: qualityBorderColor,
-              width: qualityBorderWidth,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: colors.surface,
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(8),
-                      topRight: Radius.circular(8),
-                    ),
-                  ),
-                  child: Stack(
-                    children: [
-                      Center(
-                        child: FutureBuilder<FrameThumbnailPayload>(
-                          future: _thumbnailFuture,
-                          builder: (context, snapshot) {
-                            if (snapshot.connectionState ==
-                                    ConnectionState.waiting &&
-                                !snapshot.hasData) {
-                              return const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 1.8,
-                                ),
-                              );
-                            }
+            child: Container(
+              width: 100,
+              decoration: BoxDecoration(
+                color: colors.surfaceAlt,
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline8),
+                border: Border.all(
+                  color: qualityBorderColor,
+                  width: qualityBorderWidth,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: colors.surface,
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(8),
+                          topRight: Radius.circular(8),
+                        ),
+                      ),
+                      child: Stack(
+                        children: [
+                          Center(
+                            child: FutureBuilder<FrameThumbnailPayload>(
+                              future: _thumbnailFuture,
+                              builder: (context, snapshot) {
+                                if (snapshot.connectionState ==
+                                        ConnectionState.waiting &&
+                                    !snapshot.hasData) {
+                                  return const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 1.8,
+                                    ),
+                                  );
+                                }
 
-                            final payload = snapshot.data ??
-                                const FrameThumbnailPayload(fileExists: false);
+                                final payload = snapshot.data ??
+                                    const FrameThumbnailPayload(
+                                        fileExists: false);
 
-                            if (payload.bytes != null &&
-                                payload.bytes!.isNotEmpty) {
-                              return ClipRRect(
-                                borderRadius: const BorderRadius.only(
-                                  topLeft: Radius.circular(8),
-                                  topRight: Radius.circular(8),
-                                ),
-                                child: Image.memory(
-                                  payload.bytes!,
-                                  fit: BoxFit.cover,
-                                  width: double.infinity,
-                                  height: double.infinity,
-                                  errorBuilder: (_, __, ___) => Icon(
-                                    NightshadeIcons.imageOff,
-                                    size: 32,
-                                    color: colors.textMuted,
-                                  ),
-                                ),
-                              );
-                            }
+                                if (payload.bytes != null &&
+                                    payload.bytes!.isNotEmpty) {
+                                  return ClipRRect(
+                                    borderRadius: const BorderRadius.only(
+                                      topLeft: Radius.circular(8),
+                                      topRight: Radius.circular(8),
+                                    ),
+                                    child: Image.memory(
+                                      payload.bytes!,
+                                      fit: BoxFit.cover,
+                                      width: double.infinity,
+                                      height: double.infinity,
+                                      errorBuilder: (_, __, ___) => Icon(
+                                        NightshadeIcons.imageOff,
+                                        size: 32,
+                                        color: colors.textMuted,
+                                      ),
+                                    ),
+                                  );
+                                }
 
-                            if (payload.fileExists &&
-                                isDisplayableImagePath(widget.image.filePath) &&
-                                !isRemoteMode) {
-                              return ClipRRect(
-                                borderRadius: const BorderRadius.only(
-                                  topLeft: Radius.circular(8),
-                                  topRight: Radius.circular(8),
-                                ),
-                                child: Image.file(
-                                  File(widget.image.filePath),
-                                  fit: BoxFit.cover,
-                                  width: double.infinity,
-                                  height: double.infinity,
-                                  errorBuilder: (_, __, ___) => Icon(
+                                if (payload.fileExists &&
+                                    isDisplayableImagePath(
+                                        widget.image.filePath) &&
+                                    !isRemoteMode) {
+                                  return ClipRRect(
+                                    borderRadius: const BorderRadius.only(
+                                      topLeft: Radius.circular(8),
+                                      topRight: Radius.circular(8),
+                                    ),
+                                    child: Image.file(
+                                      File(widget.image.filePath),
+                                      fit: BoxFit.cover,
+                                      width: double.infinity,
+                                      height: double.infinity,
+                                      errorBuilder: (_, __, ___) => Icon(
+                                        NightshadeIcons.image,
+                                        size: 32,
+                                        color: colors.textMuted,
+                                      ),
+                                    ),
+                                  );
+                                }
+
+                                if (payload.fileExists) {
+                                  return Icon(
                                     NightshadeIcons.image,
                                     size: 32,
                                     color: colors.textMuted,
+                                  );
+                                }
+
+                                if (payload.errorMessage != null) {
+                                  return Tooltip(
+                                    message: payload.errorMessage!,
+                                    child: Icon(
+                                      NightshadeIcons.error,
+                                      size: 32,
+                                      color: colors.error,
+                                    ),
+                                  );
+                                }
+
+                                return Icon(
+                                  NightshadeIcons.imageOff,
+                                  size: 32,
+                                  color: colors.textMuted,
+                                );
+                              },
+                            ),
+                          ),
+                          // Quality badge (GOOD / NEEDS REVIEW / POOR) is added
+                          // AFTER the thumbnail so it paints ON TOP of it. As the
+                          // Stack's first child it was covered by every thumbnail
+                          // that loaded (Image.memory, BoxFit.cover, infinite
+                          // width/height), so the chip only ever appeared on frames
+                          // whose image FAILED to load — exactly inverting the cull
+                          // workflow it exists for.
+                          //
+                          // An unmeasured frame gets an explicit UNRATED chip
+                          // rather than a missing badge, so "no grade" reads as a
+                          // statement instead of as a rendering gap.
+                          Positioned(
+                            top: 4,
+                            left: 4,
+                            child: Tooltip(
+                              message: _qualityTooltip(),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: qualityColor.withValues(alpha: 0.92),
+                                  borderRadius: BorderRadius.circular(
+                                      NightshadeTokens.radiusInline4),
+                                ),
+                                child: Text(
+                                  widget.assessment?.label.toUpperCase() ??
+                                      'UNRATED',
+                                  style: const TextStyle(
+                                    fontSize: NightshadeTypography.fontSize8,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFFFFFFFF),
                                   ),
                                 ),
-                              );
-                            }
-
-                            if (payload.fileExists) {
-                              return Icon(
-                                NightshadeIcons.image,
-                                size: 32,
-                                color: colors.textMuted,
-                              );
-                            }
-
-                            if (payload.errorMessage != null) {
-                              return Tooltip(
-                                message: payload.errorMessage!,
-                                child: Icon(
-                                  NightshadeIcons.error,
-                                  size: 32,
-                                  color: colors.error,
+                              ),
+                            ),
+                          ),
+                          if (widget.image.hfr != null)
+                            Positioned(
+                              top: 4,
+                              right: 4,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                  vertical: 2,
                                 ),
-                              );
-                            }
-
-                            return Icon(
-                              NightshadeIcons.imageOff,
-                              size: 32,
-                              color: colors.textMuted,
-                            );
-                          },
-                        ),
-                      ),
-                      // Quality badge (GOOD / NEEDS REVIEW / POOR) is added
-                      // AFTER the thumbnail so it paints ON TOP of it. As the
-                      // Stack's first child it was covered by every thumbnail
-                      // that loaded (Image.memory, BoxFit.cover, infinite
-                      // width/height), so the chip only ever appeared on frames
-                      // whose image FAILED to load — exactly inverting the cull
-                      // workflow it exists for.
-                      //
-                      // An unmeasured frame gets an explicit UNRATED chip
-                      // rather than a missing badge, so "no grade" reads as a
-                      // statement instead of as a rendering gap.
-                      Positioned(
-                        top: 4,
-                        left: 4,
-                        child: Tooltip(
-                          message: _qualityTooltip(),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 4,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: qualityColor.withValues(alpha: 0.92),
-                              borderRadius: BorderRadius.circular(
-                                  NightshadeTokens.radiusInline4),
-                            ),
-                            child: Text(
-                              widget.assessment?.label.toUpperCase() ??
-                                  'UNRATED',
-                              style: const TextStyle(
-                                fontSize: NightshadeTypography.fontSize8,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFFFFFFFF),
+                                decoration: BoxDecoration(
+                                  color: _getHfrColor(widget.image.hfr!, colors)
+                                      .withValues(alpha: 0.9),
+                                  borderRadius: BorderRadius.circular(
+                                      NightshadeTokens.radiusInline4),
+                                ),
+                                child: Text(
+                                  widget.image.hfr!.toStringAsFixed(1),
+                                  style: const TextStyle(
+                                    fontSize: NightshadeTypography.fontSize9,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFFFFFFFF),
+                                  ),
+                                ),
                               ),
+                            ),
+                          // P2.3 science badges: small solve checkmark + optional
+                          // ZP chip. Sit bottom-right so they don't fight the HFR
+                          // and quality badges, and only appear when there is
+                          // something meaningful to report.
+                          Positioned(
+                            right: 4,
+                            bottom: 4,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (widget.calibration?.zeroPoint != null)
+                                  _ScienceBadge(
+                                    tooltip:
+                                        'Zero-point ${widget.calibration!.zeroPoint!.toStringAsFixed(2)} · '
+                                        '${widget.calibration!.matchedStarCount} stars',
+                                    color: colors.info,
+                                    label:
+                                        'ZP ${widget.calibration!.zeroPoint!.toStringAsFixed(1)}',
+                                  ),
+                                if (widget.calibration?.zeroPoint != null &&
+                                    widget.image.isPlateSolved)
+                                  const SizedBox(width: 3),
+                                if (widget.image.isPlateSolved)
+                                  _ScienceBadge(
+                                    tooltip: 'Plate solved',
+                                    color: colors.success,
+                                    icon: LucideIcons.crosshair,
+                                  ),
+                              ],
                             ),
                           ),
-                        ),
-                      ),
-                      if (widget.image.hfr != null)
-                        Positioned(
-                          top: 4,
-                          right: 4,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 4,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _getHfrColor(widget.image.hfr!, colors)
-                                  .withValues(alpha: 0.9),
-                              borderRadius: BorderRadius.circular(
-                                  NightshadeTokens.radiusInline4),
-                            ),
-                            child: Text(
-                              widget.image.hfr!.toStringAsFixed(1),
-                              style: const TextStyle(
-                                fontSize: NightshadeTypography.fontSize9,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFFFFFFFF),
-                              ),
-                            ),
-                          ),
-                        ),
-                      // P2.3 science badges: small solve checkmark + optional
-                      // ZP chip. Sit bottom-right so they don't fight the HFR
-                      // and quality badges, and only appear when there is
-                      // something meaningful to report.
-                      Positioned(
-                        right: 4,
-                        bottom: 4,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (widget.calibration?.zeroPoint != null)
-                              _ScienceBadge(
-                                tooltip:
-                                    'Zero-point ${widget.calibration!.zeroPoint!.toStringAsFixed(2)} · '
-                                    '${widget.calibration!.matchedStarCount} stars',
-                                color: colors.info,
-                                label:
-                                    'ZP ${widget.calibration!.zeroPoint!.toStringAsFixed(1)}',
-                              ),
-                            if (widget.calibration?.zeroPoint != null &&
-                                widget.image.isPlateSolved)
-                              const SizedBox(width: 3),
-                            if (widget.image.isPlateSolved)
-                              _ScienceBadge(
-                                tooltip: 'Plate solved',
-                                color: colors.success,
-                                icon: LucideIcons.crosshair,
-                              ),
-                          ],
-                        ),
-                      ),
-                      if (!widget.image.isAccepted)
-                        Positioned(
-                          bottom: 4,
-                          left: 4,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 4,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: colors.error,
-                              borderRadius: BorderRadius.circular(
-                                  NightshadeTokens.radiusInline4),
-                            ),
-                            child: Text(
-                              'REJECTED',
-                              style: TextStyle(
-                                fontSize: NightshadeTypography.fontSize8,
-                                fontWeight: FontWeight.w700,
-                                color: colors.background,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(4.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      filterLabel(widget.image.filter),
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize10,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      '${widget.image.exposureDuration.toInt()}s',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize9,
-                        color: colors.textSecondary,
-                      ),
-                    ),
-                    if (widget.assessment != null)
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              // "NN score" collided with the frame's recorded
-                              // quality_score, which is a different number for
-                              // the same frame. Name the one on the tile.
-                              'Advisory ${widget.assessment!.advisoryScore.toStringAsFixed(0)}',
-                              style: TextStyle(
-                                fontSize: NightshadeTypography.fontSize8,
-                                color: qualityColor,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (widget.assessment!.needsReview &&
-                              widget.assessment!.reasons.isNotEmpty)
-                            Tooltip(
-                              message: widget.assessment!.reasons.join('\n'),
-                              child: Icon(
-                                NightshadeIcons.info,
-                                size: 10,
-                                color: qualityColor,
+                          if (!widget.image.isAccepted)
+                            Positioned(
+                              bottom: 4,
+                              left: 4,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: colors.error,
+                                  borderRadius: BorderRadius.circular(
+                                      NightshadeTokens.radiusInline4),
+                                ),
+                                child: Text(
+                                  'REJECTED',
+                                  style: TextStyle(
+                                    fontSize: NightshadeTypography.fontSize8,
+                                    fontWeight: FontWeight.w700,
+                                    color: colors.background,
+                                  ),
+                                ),
                               ),
                             ),
                         ],
                       ),
-                  ],
-                ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(4.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          filterLabel(widget.image.filter),
+                          style: TextStyle(
+                            fontSize: NightshadeTypography.fontSize10,
+                            fontWeight: FontWeight.w600,
+                            color: colors.textPrimary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          '${widget.image.exposureDuration.toInt()}s',
+                          style: TextStyle(
+                            fontSize: NightshadeTypography.fontSize9,
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                        if (widget.assessment != null)
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  // "NN score" collided with the frame's recorded
+                                  // quality_score, which is a different number for
+                                  // the same frame. Name the one on the tile.
+                                  'Advisory ${widget.assessment!.advisoryScore.toStringAsFixed(0)}',
+                                  style: TextStyle(
+                                    fontSize: NightshadeTypography.fontSize8,
+                                    color: qualityColor,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (widget.assessment!.needsReview &&
+                                  widget.assessment!.reasons.isNotEmpty)
+                                Tooltip(
+                                  message:
+                                      widget.assessment!.reasons.join('\n'),
+                                  child: Icon(
+                                    NightshadeIcons.info,
+                                    size: 10,
+                                    color: qualityColor,
+                                  ),
+                                ),
+                            ],
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
-      ),
+            ),
+          )),
     );
   }
 

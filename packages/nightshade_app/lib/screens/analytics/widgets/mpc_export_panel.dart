@@ -442,59 +442,63 @@ class _ObservationGroupTile extends StatelessWidget {
         ),
         children: group.observations.map((obs) {
           final isSelected = selectedIds.contains(obs.id);
-          return InkWell(
-            onTap: () => onToggleObservation(obs.id),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: NightshadeCheckbox(
-                      value: isSelected,
-                      onChanged: (_) => onToggleObservation(obs.id),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      _formatTimestamp(obs.timestamp),
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
-                        color: colors.textSecondary,
-                        fontFeatures: const [FontFeature.tabularFigures()],
+          return Semantics(
+              button: true,
+              enabled: true,
+              selected: isSelected,
+              child: InkWell(
+                onTap: () => onToggleObservation(obs.id),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: NightshadeCheckbox(
+                          value: isSelected,
+                          onChanged: (_) => onToggleObservation(obs.id),
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          _formatTimestamp(obs.timestamp),
+                          style: TextStyle(
+                            fontSize: NightshadeTypography.fontSize11,
+                            color: colors.textSecondary,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                      ),
+                      Text(
+                        _formatRaBrief(obs.raDegrees),
+                        style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize10,
+                          color: colors.textMuted,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _formatDecBrief(obs.decDegrees),
+                        style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize10,
+                          color: colors.textMuted,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${obs.motionArcsecPerMinute.toStringAsFixed(1)}"/m',
+                        style: TextStyle(
+                            fontSize: NightshadeTypography.fontSize10,
+                            color: colors.textMuted),
+                      ),
+                    ],
                   ),
-                  Text(
-                    _formatRaBrief(obs.raDegrees),
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize10,
-                      color: colors.textMuted,
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    _formatDecBrief(obs.decDegrees),
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize10,
-                      color: colors.textMuted,
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${obs.motionArcsecPerMinute.toStringAsFixed(1)}"/m',
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize10,
-                        color: colors.textMuted),
-                  ),
-                ],
-              ),
-            ),
-          );
+                ),
+              ));
         }).toList(),
       ),
     );
@@ -541,30 +545,34 @@ class _SmallActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDisabled = onPressed == null;
-    return GestureDetector(
-      onTap: onPressed,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: isDisabled
-              ? colors.surfaceAlt.withValues(alpha: 0.5)
-              : colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
-          border: Border.all(
-            color: isDisabled
-                ? colors.border.withValues(alpha: 0.3)
-                : colors.border,
+    return Semantics(
+        button: true,
+        enabled: onPressed != null,
+        child: GestureDetector(
+          onTap: onPressed,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: isDisabled
+                  ? colors.surfaceAlt.withValues(alpha: 0.5)
+                  : colors.surfaceAlt,
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline4),
+              border: Border.all(
+                color: isDisabled
+                    ? colors.border.withValues(alpha: 0.3)
+                    : colors.border,
+              ),
+            ),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: NightshadeTypography.fontSize10,
+                fontWeight: FontWeight.w500,
+                color: isDisabled ? colors.textMuted : colors.textSecondary,
+              ),
+            ),
           ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize10,
-            fontWeight: FontWeight.w500,
-            color: isDisabled ? colors.textMuted : colors.textSecondary,
-          ),
-        ),
-      ),
-    );
+        ));
   }
 }

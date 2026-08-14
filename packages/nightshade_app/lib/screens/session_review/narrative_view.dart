@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../sequencer/widgets/run_dashboard/frame_detail_dialog.dart';
@@ -55,6 +56,7 @@ class NarrativeView extends ConsumerWidget {
             onEvidenceTap: (id) =>
                 FrameDetailDialog.showForFrame(context, imageId: id),
           ),
+          _GradedSubsDisagreement(subs: state.lights, report: report),
           const SizedBox(height: NightshadeTokens.spaceLg),
 
           // ── Proof it's optimal: integration-improvement curve. ───────────
@@ -370,4 +372,107 @@ class _ActionCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Reconciles the Night Doctor's verdict with the frame grader that the
+/// Workbench tab of this same screen renders.
+///
+/// WD-SCI-N5: a four-frame run scored **100 / 100 — "A clean night, no problems
+/// detected" — 0 findings** in this view while the Workbench badged every one of
+/// its four subs red POOR at HFR 5.7 against a cull line of 3.5. The two panels
+/// read different inputs: the night report is a session-level degradation score
+/// built from session-level findings, the badges come from
+/// [FrameQualityAssessmentService] per frame. Advisory badges never changing
+/// acceptance is documented policy; a night on which *every* frame is graded
+/// POOR being reported as having nothing wrong with it is not.
+///
+/// So the same grader the Workbench uses is read here, and when it disagrees
+/// with a clean verdict the disagreement is stated instead of being left for the
+/// operator to find on the other tab.
+class _GradedSubsDisagreement extends StatelessWidget {
+  final List<DbCapturedImage> subs;
+  final NightReport? report;
+
+  const _GradedSubsDisagreement({required this.subs, required this.report});
+
+  @override
+  Widget build(BuildContext context) {
+    final message = gradedSubsDisagreementMessage(subs: subs, report: report);
+    if (message == null) return const SizedBox.shrink();
+
+    final colors = NightshadeColors.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: NightshadeTokens.spaceMd),
+      child: Container(
+        padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+        decoration: BoxDecoration(
+          color: colors.warning.withValues(alpha: 0.10),
+          borderRadius: NightshadeTokens.borderRadiusLg,
+          border: Border.all(color: colors.warning.withValues(alpha: 0.45)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(NightshadeIcons.warning,
+                size: NightshadeTokens.iconSm, color: colors.warning),
+            const SizedBox(width: NightshadeTokens.spaceSm),
+            Expanded(
+              child: Text(
+                message,
+                style: NightshadeTypography.bodySm
+                    .copyWith(color: colors.textPrimary),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The sentence stating a clean Night-Doctor verdict's disagreement with the
+/// per-frame grader, or null when the two do not disagree.
+///
+/// Pure, and public, so the reconciliation can be pinned without driving the
+/// whole review screen: the defect it exists for (WD-SCI-N5) is a claim, and a
+/// claim is exactly what a unit test can hold.
+String? gradedSubsDisagreementMessage({
+  required List<DbCapturedImage> subs,
+  required NightReport? report,
+}) {
+  // Only a *clean graded* verdict can be contradicted. An ungraded night
+  // already says it could not judge, and a night that lists findings is not
+  // claiming there is nothing wrong.
+  if (report == null || !report.graded || report.findings.isNotEmpty)
+    return null;
+  if (subs.isEmpty) return null;
+
+  const assessor = FrameQualityAssessmentService();
+  final assessments = assessor.assessBatch(subs);
+  final poor =
+      assessments.values.where((a) => a.level == FrameQualityLevel.poor).length;
+  if (poor == 0) return null;
+
+  final hfrs = subs
+      .map((s) => s.hfr)
+      .whereType<double>()
+      .where((v) => v.isFinite && v > 0)
+      .toList()
+    ..sort();
+  final median = hfrs.isEmpty
+      ? null
+      : hfrs.length.isOdd
+          ? hfrs[hfrs.length ~/ 2]
+          : (hfrs[hfrs.length ~/ 2 - 1] + hfrs[hfrs.length ~/ 2]) / 2;
+  final hfrClause =
+      median == null ? '' : ' (median HFR ${median.toStringAsFixed(1)})';
+  final total = subs.length;
+
+  return poor == total
+      ? 'The verdict above found no session-level problem, but the frame '
+          'grader marks all $total subs POOR$hfrClause. Open Workbench before '
+          'treating this night as clean.'
+      : 'The verdict above found no session-level problem, but the frame '
+          'grader marks $poor of $total subs POOR$hfrClause. Open Workbench '
+          'to see which.';
 }

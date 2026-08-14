@@ -7,6 +7,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../localization/nightshade_localizations.dart';
 import '../../../utils/snackbar_helper.dart';
+import 'analytics_empty_state.dart';
 import 'campaign_rollup_dialog.dart';
 
 part 'project_tracking_panel_parts/_headers.dart';
@@ -144,30 +145,11 @@ class _ProjectTrackingPanelState extends ConsumerState<ProjectTrackingPanel> {
     return progressAsync.when(
       data: (projects) {
         if (projects.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(LucideIcons.target, size: 48, color: colors.textMuted),
-                const SizedBox(height: 16),
-                Text(
-                  context.l10n.text('analyticsNoProjects'),
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize16,
-                    fontWeight: FontWeight.w500,
-                    color: colors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Add targets and capture images to track multi-night progress.',
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize13,
-                      color: colors.textMuted),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
+          return AnalyticsEmptyState(
+            icon: LucideIcons.target,
+            title: context.l10n.text('analyticsNoProjects'),
+            body: 'Add targets and capture images to track multi-night '
+                'progress.',
           );
         }
 

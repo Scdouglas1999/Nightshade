@@ -150,68 +150,72 @@ class _SessionHistoryCard extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12.0),
       child: NightshadeCard(
-        child: InkWell(
-          onTap: () => _showSessionDetail(context, ref, session),
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final isPhone =
-                    constraints.maxWidth < BreakpointTokens.breakpointPhone;
+        child: Semantics(
+            button: true,
+            enabled: true,
+            child: InkWell(
+              onTap: () => _showSessionDetail(context, ref, session),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isPhone =
+                        constraints.maxWidth < BreakpointTokens.breakpointPhone;
 
-                if (isPhone) {
-                  return Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            titleRow,
-                            const SizedBox(height: 4),
-                            dateText,
-                            const SizedBox(height: 12),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: statChips,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Icon(LucideIcons.chevronRight,
-                          size: 20, color: colors.textMuted),
-                    ],
-                  );
-                }
-
-                return Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    if (isPhone) {
+                      return Row(
                         children: [
-                          titleRow,
-                          const SizedBox(height: 4),
-                          dateText,
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                titleRow,
+                                const SizedBox(height: 4),
+                                dateText,
+                                const SizedBox(height: 12),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: statChips,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Icon(LucideIcons.chevronRight,
+                              size: 20, color: colors.textMuted),
                         ],
-                      ),
-                    ),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 8,
-                      children: statChips,
-                    ),
-                    const SizedBox(width: 12),
-                    Icon(LucideIcons.chevronRight,
-                        size: 20, color: colors.textMuted),
-                  ],
-                );
-              },
-            ),
-          ),
-        ),
+                      );
+                    }
+
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              titleRow,
+                              const SizedBox(height: 4),
+                              dateText,
+                            ],
+                          ),
+                        ),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 8,
+                          children: statChips,
+                        ),
+                        const SizedBox(width: 12),
+                        Icon(LucideIcons.chevronRight,
+                            size: 20, color: colors.textMuted),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            )),
       ),
     );
   }

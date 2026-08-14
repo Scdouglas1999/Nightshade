@@ -624,11 +624,14 @@ class _EvidenceChip extends StatelessWidget {
       ),
     );
     if (onTap == null) return chip;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
-      child: chip,
-    );
+    return Semantics(
+        button: true,
+        enabled: true,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
+          child: chip,
+        ));
   }
 }
 

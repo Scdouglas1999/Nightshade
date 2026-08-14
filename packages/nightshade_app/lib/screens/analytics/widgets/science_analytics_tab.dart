@@ -16,6 +16,7 @@ import '../../../utils/exported_file_reveal.dart';
 import '../../accessible_dropdown.dart';
 import '../analytics_screen.dart'
     show dbSessionImagesProvider, standaloneImagesProvider;
+import '../quick_capture_selection.dart';
 import 'mpc_export_panel.dart';
 import 'period_analysis_panel.dart';
 import 'photometric_calibration_wizard.dart';
@@ -143,11 +144,23 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
         allSessions.any((session) => session.id == _selectedSessionId)
             ? _selectedSessionId
             : null;
-    final activeSessionId = pickedSessionId ??
-        liveSessionId ??
-        ref.watch(latestScienceProductSessionProvider).valueOrNull ??
-        ref.watch(latestScienceSessionProvider).valueOrNull ??
-        allSessions.firstOrNull?.id;
+    // An explicit "Quick captures" pick beats every fallback below. Without it
+    // the first session on record won the chain forever, and the sessionless
+    // photometry / field-quality products had no route back.
+    final quickCapturesPinned =
+        _selectedSessionId == kQuickCaptureSessionSelection;
+    // Hoisted out of the ?? chain so the watches are unconditional.
+    final latestProductSessionId =
+        ref.watch(latestScienceProductSessionProvider).valueOrNull;
+    final latestLightSessionId =
+        ref.watch(latestScienceSessionProvider).valueOrNull;
+    final activeSessionId = quickCapturesPinned
+        ? null
+        : pickedSessionId ??
+            liveSessionId ??
+            latestProductSessionId ??
+            latestLightSessionId ??
+            allSessions.firstOrNull?.id;
 
     final scienceErrors = <Object>[];
     var scienceLoading = false;
@@ -302,8 +315,15 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
     // Pull the underlying captured-image list so the solve-rate card and the
     // insights engine can report on plate-solve health. Same provider the
     // Session tab uses, so Drift only runs the query once.
+    // Watched unconditionally: it is both the quick-capture frame list and the
+    // signal for whether the picker has a quick-capture bucket to offer.
+    final standaloneAsync = ref.watch(standaloneImagesProvider);
+    final offerQuickCaptures = quickCapturesPinned ||
+        (standaloneAsync.valueOrNull?.isNotEmpty ?? false);
+    final sessionBarSelection =
+        quickCapturesPinned ? kQuickCaptureSessionSelection : activeSessionId;
     final imagesAsync = activeSessionId == null
-        ? ref.watch(standaloneImagesProvider)
+        ? standaloneAsync
         : ref.watch(dbSessionImagesProvider(activeSessionId));
     track(imagesAsync);
     final imageList = imagesAsync.valueOrNull ?? const [];
@@ -340,10 +360,13 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
     if (allEmpty && (scienceLoading || scienceErrors.isNotEmpty)) {
       return _buildScienceDataState(
         colors,
-        activeSessionId: activeSessionId,
+        activeSessionId: sessionBarSelection,
         isLoading: scienceLoading,
         errors: scienceErrors,
         storedFrameCount: lightFrames.length,
+        sessions: allSessions,
+        offerQuickCaptures: offerQuickCaptures,
+        isLive: liveSessionId != null && liveSessionId == activeSessionId,
       );
     }
     if (allEmpty) {
@@ -360,7 +383,8 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
             _sessionBar(
               colors: colors,
               sessions: allSessions,
-              activeSessionId: activeSessionId,
+              activeSessionId: sessionBarSelection,
+              offerQuickCaptures: offerQuickCaptures,
               isLive: liveSessionId != null && liveSessionId == activeSessionId,
             ),
             const SizedBox(height: NightshadeTokens.spaceLg),
@@ -424,7 +448,8 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
           _sessionBar(
             colors: colors,
             sessions: allSessions,
-            activeSessionId: activeSessionId,
+            activeSessionId: sessionBarSelection,
+            offerQuickCaptures: offerQuickCaptures,
             isLive: liveSessionId != null && liveSessionId == activeSessionId,
           ),
           const SizedBox(height: 12),

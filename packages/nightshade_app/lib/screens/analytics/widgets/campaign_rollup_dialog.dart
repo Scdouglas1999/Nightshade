@@ -608,75 +608,80 @@ class _SessionRow extends StatelessWidget {
         : '-';
     return Material(
       color: Colors.transparent,
-      child: InkWell(
-        onTap: onOpenReport,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: colors.surface,
+      child: Semantics(
+          button: true,
+          enabled: true,
+          child: InkWell(
+            onTap: onOpenReport,
             borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-            border: Border.all(color: colors.border),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _statusColor(),
-                ),
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline8),
+                border: Border.all(color: colors.border),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      session.sessionName ?? 'Session ${session.sessionId}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: NightshadeTypography.labelStrong.copyWith(
-                        color: colors.textPrimary,
-                      ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _statusColor(),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      // "captured", not "integration": this is the session's
-                      // own total across every frame it took, while the header
-                      // tile and the per-filter table above count only frames
-                      // that survived grading.
-                      '${formatDateTime(session.startTime)} | $durationLabel | ${(session.sessionIntegrationSecs / 3600.0).toStringAsFixed(2)}h captured',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize11,
-                          color: colors.textMuted),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          session.sessionName ?? 'Session ${session.sessionId}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: NightshadeTypography.labelStrong.copyWith(
+                            color: colors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          // "captured", not "integration": this is the session's
+                          // own total across every frame it took, while the header
+                          // tile and the per-filter table above count only frames
+                          // that survived grading.
+                          '${formatDateTime(session.startTime)} | $durationLabel | ${(session.sessionIntegrationSecs / 3600.0).toStringAsFixed(2)}h captured',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: NightshadeTypography.fontSize11,
+                              color: colors.textMuted),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                  if (session.avgHfr != null)
+                    _Chip(
+                      label: 'HFR',
+                      value: session.avgHfr!.toStringAsFixed(2),
+                      colors: colors,
+                    ),
+                  const SizedBox(width: 6),
+                  if (session.avgGuidingRms != null)
+                    _Chip(
+                      label: 'RMS',
+                      value: session.avgGuidingRms!.toStringAsFixed(2),
+                      colors: colors,
+                    ),
+                  const SizedBox(width: 6),
+                  Icon(LucideIcons.chevronRight,
+                      size: 16, color: colors.textMuted),
+                ],
               ),
-              if (session.avgHfr != null)
-                _Chip(
-                  label: 'HFR',
-                  value: session.avgHfr!.toStringAsFixed(2),
-                  colors: colors,
-                ),
-              const SizedBox(width: 6),
-              if (session.avgGuidingRms != null)
-                _Chip(
-                  label: 'RMS',
-                  value: session.avgGuidingRms!.toStringAsFixed(2),
-                  colors: colors,
-                ),
-              const SizedBox(width: 6),
-              Icon(LucideIcons.chevronRight, size: 16, color: colors.textMuted),
-            ],
-          ),
-        ),
-      ),
+            ),
+          )),
     );
   }
 }

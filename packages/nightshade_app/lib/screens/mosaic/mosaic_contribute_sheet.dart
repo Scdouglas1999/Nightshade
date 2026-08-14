@@ -386,28 +386,31 @@ class _ConsentRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    return InkWell(
-      onTap: onChanged == null ? null : () => onChanged!(!value),
-      borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-      child: Padding(
-        padding: const EdgeInsets.all(NightshadeTokens.spaceXs),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            NightshadeCheckbox(value: value, onChanged: onChanged),
-            const SizedBox(width: NightshadeTokens.spaceMd),
-            Expanded(
-              child: Text(
-                label,
-                style: NightshadeTypography.caption.copyWith(
-                  color: colors.textSecondary,
-                  height: 1.4,
+    return Semantics(
+        button: true,
+        enabled: onChanged != null,
+        child: InkWell(
+          onTap: onChanged == null ? null : () => onChanged!(!value),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+          child: Padding(
+            padding: const EdgeInsets.all(NightshadeTokens.spaceXs),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                NightshadeCheckbox(value: value, onChanged: onChanged),
+                const SizedBox(width: NightshadeTokens.spaceMd),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: NightshadeTypography.caption.copyWith(
+                      color: colors.textSecondary,
+                      height: 1.4,
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
-      ),
-    );
+          ),
+        ));
   }
 }
