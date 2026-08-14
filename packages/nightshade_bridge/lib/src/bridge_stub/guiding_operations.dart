@@ -518,9 +518,22 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
 
   /// Auto-select guide star in PHD2.
   ///
-  /// The native PHD2 client exposes no auto-select entry point, so this runs on
-  /// the Dart client in both modes.
+  /// Auto-select IS `find_star`: the Dart client's [phd2.Phd2Client.autoSelectStar]
+  /// sends the `find_star` RPC and ignores the coordinates PHD2 replies with,
+  /// which is exactly what `api_phd2_find_star` does natively (it returns the
+  /// selected star's position). So the native branch is the same command, not
+  /// an approximation of it.
+  ///
+  /// Routing it matters because `_phd2Client` is unconditionally null whenever
+  /// the native library loads — [phd2Connect]'s native branch nulls it and
+  /// returns before the only assignment. Without this branch, auto-select
+  /// refused with "PHD2 not connected" on precisely the builds users run,
+  /// while PHD2 was connected through the Rust client.
   Future<void> phd2AutoSelectStar() async {
+    if (_nativeAvailable) {
+      await gen_api.apiPhd2FindStar();
+      return;
+    }
     if (_phd2Client == null || !_phd2Client!.isConnected) {
       throw Exception('PHD2 not connected');
     }

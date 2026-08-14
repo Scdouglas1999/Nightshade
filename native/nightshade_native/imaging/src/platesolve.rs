@@ -552,6 +552,32 @@ pub fn verify_solver(path: &Path) -> Result<SolverInfo, SolverVerifyError> {
 /// image's filesystem differs from the temp filesystem *and* its own folder is
 /// not writable) the solve falls back to running in place, and the guard then
 /// removes only the artifacts that appeared during this solve.
+///
+/// NAXIS2 read straight off the primary FITS header blocks, so sizing the
+/// ASTAP `-fov` hint never decodes pixel data.
+fn fits_naxis2(path: &Path) -> Option<f64> {
+    use std::io::Read;
+    let mut file = std::fs::File::open(path).ok()?;
+    let mut block = [0u8; 2880];
+    // 64 blocks bounds the scan at 180 KiB of header, far beyond any real
+    // primary header, so a corrupt file cannot spin this loop forever.
+    for _ in 0..64 {
+        file.read_exact(&mut block).ok()?;
+        for card in block.chunks(80) {
+            let card = std::str::from_utf8(card).ok()?;
+            match card.get(..8).map(str::trim) {
+                Some("NAXIS2") => {
+                    let value = card.split('=').nth(1)?.split('/').next()?.trim();
+                    return value.parse::<f64>().ok();
+                }
+                Some("END") => return None,
+                _ => {}
+            }
+        }
+    }
+    None
+}
+
 struct SolveScratch {
     /// Directory created for this solve, removed wholesale on drop.
     dir: Option<PathBuf>,
@@ -673,10 +699,45 @@ impl Drop for SolveScratch {
     }
 }
 
-/// Remove the files a solve added to `dir` whose names start with `stem`,
-/// leaving everything that was already there (`existing`) alone. Used only by
-/// the in-place fallback: the operator's own sidecars are not ours to delete,
-/// and neither is the frame itself, which is in `existing` by construction.
+/// The extensions a solver actually writes beside the frame it was handed.
+/// ASTAP emits `.ini` and `.wcs`; `solve-field` emits `.axy`, `.corr`,
+/// `.match`, `.new`, `.rdls`, `.solved`, `.wcs` and the index cross-match
+/// `.xyls`. Anything else sharing the base name belongs to the operator.
+const SOLVER_ARTIFACT_EXTENSIONS: [&str; 9] = [
+    "axy", "corr", "ini", "match", "new", "rdls", "solved", "wcs", "xyls",
+];
+
+/// Is `name` an artifact this solve produced for the frame named `stem`?
+///
+/// The rule is BASE NAME plus known extension, never a string prefix. A bare
+/// `starts_with(stem)` has no separator or extension boundary, so solving
+/// `M31.fits` matched — and deleted — `M31_L_0008.fits`, `M31_session.log` and
+/// `M31_dark.ini`. That is not hypothetical: the in-place fallback only runs
+/// when `fs::hard_link` is unsupported, i.e. on exFAT / FAT32 capture drives
+/// and SMB shares, where the camera goes right on writing new lights into the
+/// folder being swept.
+///
+/// `solve-field` also names its index cross-match `<stem>-indx.xyls`, which is
+/// the one suffixed form a solver produces, so it is admitted explicitly
+/// rather than by loosening the base-name test.
+fn is_solve_artifact(name: &std::ffi::OsStr, stem: &str) -> bool {
+    let path = Path::new(name);
+    let Some(extension) = path.extension().map(|e| e.to_string_lossy().to_lowercase()) else {
+        return false;
+    };
+    if !SOLVER_ARTIFACT_EXTENSIONS.contains(&extension.as_str()) {
+        return false;
+    }
+    let Some(base) = path.file_stem().map(|s| s.to_string_lossy().into_owned()) else {
+        return false;
+    };
+    base == stem || base == format!("{stem}-indx")
+}
+
+/// Remove the files a solve added to `dir` for the frame named `stem`, leaving
+/// everything that was already there (`existing`) alone. Used only by the
+/// in-place fallback: the operator's own sidecars are not ours to delete, and
+/// neither is the frame itself, which is in `existing` by construction.
 fn reclaim_new_artifacts(dir: &Path, stem: &str, existing: &[std::ffi::OsString]) {
     let Ok(entries) = fs::read_dir(dir) else {
         return;
@@ -686,7 +747,7 @@ fn reclaim_new_artifacts(dir: &Path, stem: &str, existing: &[std::ffi::OsString]
         if existing.contains(&name) {
             continue;
         }
-        if !name.to_string_lossy().starts_with(stem) {
+        if !is_solve_artifact(&name, stem) {
             continue;
         }
         if !entry
@@ -794,12 +855,22 @@ impl AstapSolver {
             }
         }
 
-        // hint_scale: ASTAP expects -fov in degrees (field of view), not
-        // arcsec/pixel. We don't have sensor pixel size here, so skip it.
-        if hint_scale.is_some() {
-            tracing::debug!(
-                "Plate-solve scale hint provided without pixel size; skipping ASTAP -fov hint"
-            );
+        // hint_scale is arcsec/pixel; ASTAP wants the field HEIGHT in
+        // degrees. The height in pixels comes straight off the primary FITS
+        // header so nothing decodes pixel data just to size a hint.
+        if let Some(scale) = hint_scale {
+            if scale > 0.0 {
+                if let Some(naxis2) = fits_naxis2(image_path) {
+                    let fov_deg = scale * naxis2 / 3600.0;
+                    if fov_deg.is_finite() && fov_deg > 0.0 {
+                        cmd.arg("-fov").arg(format!("{:.4}", fov_deg));
+                    }
+                } else {
+                    tracing::debug!(
+                        "Plate-solve scale hint provided but NAXIS2 unreadable; skipping ASTAP -fov hint"
+                    );
+                }
+            }
         }
 
         // Downsample: 0 means auto; send explicit value when configured > 1
@@ -2721,6 +2792,103 @@ mod tests {
         let _ = std::fs::remove_dir_all(dir);
     }
 
+    /// The sparing rule is a BASE NAME rule, not a string prefix.
+    ///
+    /// A bare `starts_with(stem)` deletes any new file whose name merely
+    /// begins with the solved frame's stem — and the in-place fallback only
+    /// fires on exFAT / FAT32 capture drives and SMB shares, where the camera
+    /// is still writing new lights into that same folder while the solve runs.
+    /// Solving `M31.fits` there reclaimed `M31_L_0008.fits` (a light that had
+    /// just landed) and `M31_session.log` along with the real debris.
+    #[test]
+    fn reclaim_spares_files_that_merely_share_the_stem_as_a_prefix() {
+        use super::reclaim_new_artifacts;
+
+        let dir = std::env::temp_dir().join(format!(
+            "nightshade-reclaim-prefix-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).expect("create fixture dir");
+        let image = dir.join("M31.fits");
+        std::fs::write(&image, b"pre-existing").expect("write the frame being solved");
+        let existing: Vec<std::ffi::OsString> = std::fs::read_dir(&dir)
+            .expect("snapshot fixture dir")
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.file_name())
+            .collect();
+
+        // Real debris from this solve.
+        let ini = dir.join("M31.ini");
+        let wcs = dir.join("M31.wcs");
+        // Not debris: written during the solve, sharing only the prefix.
+        let new_light = dir.join("M31_L_0008.fits");
+        let session_log = dir.join("M31_session.log");
+        let operator_dark = dir.join("M31_dark.ini");
+        for path in [&ini, &wcs, &new_light, &session_log, &operator_dark] {
+            std::fs::write(path, b"x").expect("write fixture file");
+        }
+
+        reclaim_new_artifacts(&dir, "M31", &existing);
+
+        assert!(!ini.exists(), ".ini debris was left behind");
+        assert!(!wcs.exists(), ".wcs debris was left behind");
+        assert!(image.exists(), "the capture itself was deleted");
+        assert!(
+            new_light.exists(),
+            "a light the camera wrote during the solve was deleted"
+        );
+        assert!(session_log.exists(), "the session log was deleted");
+        assert!(
+            operator_dark.exists(),
+            "another frame's sidecar was deleted on a prefix match"
+        );
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// An unknown extension on an exact base-name match is still not ours.
+    /// Only the extensions solvers actually emit are reclaimed.
+    #[test]
+    fn reclaim_only_touches_known_solver_extensions() {
+        use super::reclaim_new_artifacts;
+
+        let dir = std::env::temp_dir().join(format!(
+            "nightshade-reclaim-ext-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).expect("create fixture dir");
+        let existing: Vec<std::ffi::OsString> = Vec::new();
+
+        let axy = dir.join("M31_L_0007.axy");
+        let corr = dir.join("M31_L_0007.corr");
+        let rdls = dir.join("M31_L_0007.rdls");
+        let solved = dir.join("M31_L_0007.solved");
+        let renamed = dir.join("M31_L_0007.new");
+        let notes = dir.join("M31_L_0007.txt");
+        let sidecar_xisf = dir.join("M31_L_0007.xisf");
+        for path in [&axy, &corr, &rdls, &solved, &renamed, &notes, &sidecar_xisf] {
+            std::fs::write(path, b"x").expect("write fixture file");
+        }
+
+        reclaim_new_artifacts(&dir, "M31_L_0007", &existing);
+
+        for path in [&axy, &corr, &rdls, &solved, &renamed] {
+            assert!(!path.exists(), "solve-field debris {:?} was left", path);
+        }
+        assert!(notes.exists(), "an operator note was deleted");
+        assert!(sidecar_xisf.exists(), "an image sidecar was deleted");
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
     #[cfg(unix)]
     #[test]
     fn explicit_astrometry_choice_does_not_run_available_astap() {
@@ -2926,3 +3094,24 @@ mod tests {
 #[cfg(test)]
 #[path = "platesolve_wcs_conformance_tests.rs"]
 mod wcs_conformance;
+
+#[cfg(test)]
+mod fits_naxis2_tests {
+    use super::fits_naxis2;
+    use crate::{write_fits, FitsHeader, ImageData, PixelType};
+
+    #[test]
+    fn reads_the_height_without_decoding_pixels() {
+        let dir = std::env::temp_dir().join("ns_fits_naxis2_test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("frame.fits");
+        let image = ImageData::new(16, 12, 1, PixelType::U16);
+        write_fits(&path, &image, &FitsHeader::new()).unwrap();
+        assert_eq!(fits_naxis2(&path), Some(12.0));
+    }
+
+    #[test]
+    fn a_missing_file_reads_as_none() {
+        assert_eq!(fits_naxis2(std::path::Path::new("/nonexistent.fits")), None);
+    }
+}

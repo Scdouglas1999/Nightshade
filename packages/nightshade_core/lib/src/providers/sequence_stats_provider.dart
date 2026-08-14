@@ -137,6 +137,19 @@ class SequenceRunStats {
 
   double get overheadSecs => wallClockSecs - integrationSecs;
 
+  /// Record one completed exposure and the grader's verdict on it.
+  ///
+  /// [integrationSecs] counts only ACCEPTED exposure time. A rejected sub was
+  /// still captured (so it advances [framesCaptured] and [framesRejected]) but
+  /// it is not usable data, and the time it consumed is overhead — which is
+  /// exactly how the native executor's integration budget treats it (see the
+  /// `FrameRejected` contract in
+  /// `native/nightshade_native/sequencer/src/node/progress.rs`: "the
+  /// integration budget tracker listens for this and skips counting the
+  /// exposure time"). Crediting it unconditionally made the run record
+  /// contradict itself in one sentence — "2 of 3 rejected" printed beside
+  /// "900 s integrated" on a night with 300 s of usable data — in the Session
+  /// Report, the cockpit vitals and the morning recap alike.
   void recordFrame({
     required String target,
     required String filter,
@@ -145,7 +158,7 @@ class SequenceRunStats {
   }) {
     framesCaptured++;
     if (!accepted) framesRejected++;
-    integrationSecs += exposureSecs;
+    if (accepted) integrationSecs += exposureSecs;
 
     targetBreakdown.putIfAbsent(target, () => {});
     final filterStats = targetBreakdown[target]!.putIfAbsent(
@@ -154,7 +167,7 @@ class SequenceRunStats {
     );
     filterStats.captured++;
     if (!accepted) filterStats.rejected++;
-    filterStats.integrationSecs += exposureSecs;
+    if (accepted) filterStats.integrationSecs += exposureSecs;
   }
 
   void recordTriggerFire() => triggerFires++;

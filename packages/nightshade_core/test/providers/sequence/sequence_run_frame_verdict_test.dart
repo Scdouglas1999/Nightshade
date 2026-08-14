@@ -313,6 +313,118 @@ void main() {
     });
   });
 
+  group('the integration total agrees with the verdicts beside it', () {
+    // The counters learned the grader's verdict but the integration total did
+    // not: `recordFrame` credited `integrationSecs` unconditionally, so a run
+    // that rejected 2 of 3 subs printed "2 of 3 rejected" and "900 s
+    // integrated" in the same Session Report. Native has always excluded
+    // rejected exposure time from the integration budget
+    // (native/nightshade_native/sequencer/src/node/progress.rs, FrameRejected:
+    // "the integration budget tracker ... skips counting the exposure time"),
+    // so the run record contradicted both the operator and the executor.
+    test('rejected exposure time is not credited as integration', () async {
+      final (container, executor) = build(sequence: exposureSequence());
+
+      executor.handleSequencerEventForTest(
+        sequencerEvent('NodeStarted', {'node_id': 'expo1'}),
+      );
+      for (final (frame, verdict) in const [
+        (1, 'FrameAccepted'),
+        (2, 'FrameRejected'),
+        (3, 'FrameRejected'),
+      ]) {
+        executor.handleSequencerEventForTest(
+          sequencerEvent(verdict, {
+            ...frameData(frame: frame),
+            if (verdict == 'FrameAccepted')
+              'save_path': '/tmp/light_000$frame.fits'
+            else
+              'reason': 'HFR 6.2 above threshold 4.0',
+          }),
+        );
+        executor.handleSequencerEventForTest(
+          sequencerEvent('ExposureCompleted', {
+            'frame': frame,
+            'total': 4,
+            'duration_secs': 300.0,
+          }),
+        );
+      }
+      await pumpEventQueue();
+
+      final stats = container.read(liveSequenceStatsProvider)!;
+      expect(stats.framesCaptured, 3);
+      expect(stats.framesRejected, 2);
+      expect(
+        stats.integrationSecs,
+        300.0,
+        reason:
+            'only the one accepted 300 s sub is usable data; 900 s would '
+            'contradict the "2 of 3 rejected" printed beside it',
+      );
+      expect(
+        stats.targetBreakdown['M31']!['Unknown']!.integrationSecs,
+        300.0,
+        reason: 'the per-filter breakdown shares the same sentence',
+      );
+      expect(stats.targetBreakdown['M31']!['Unknown']!.captured, 3);
+      expect(stats.targetBreakdown['M31']!['Unknown']!.rejected, 2);
+    });
+
+    test('an all-rejected node integrates nothing', () async {
+      final (container, executor) = build(sequence: exposureSequence());
+
+      executor.handleSequencerEventForTest(
+        sequencerEvent('NodeStarted', {'node_id': 'expo1'}),
+      );
+      executor.handleSequencerEventForTest(
+        sequencerEvent('FrameRejected', {
+          ...frameData(frame: 1),
+          'reason': 'clouds',
+        }),
+      );
+      executor.handleSequencerEventForTest(
+        sequencerEvent('ExposureCompleted', {
+          'frame': 1,
+          'total': 4,
+          'duration_secs': 300.0,
+        }),
+      );
+      await pumpEventQueue();
+
+      final stats = container.read(liveSequenceStatsProvider)!;
+      expect(stats.framesRejected, 1);
+      expect(stats.integrationSecs, 0.0);
+    });
+
+    test('the persisted run record carries the accepted-only total', () {
+      final stats = SequenceRunStats();
+      stats.recordFrame(
+        target: 'M31',
+        filter: 'L',
+        exposureSecs: 300,
+        accepted: true,
+      );
+      stats.recordFrame(
+        target: 'M31',
+        filter: 'L',
+        exposureSecs: 300,
+        accepted: false,
+      );
+
+      final parsed = ParsedRunStats.fromJson(stats.toJson());
+      expect(parsed.framesCaptured, 2);
+      expect(parsed.framesRejected, 1);
+      expect(parsed.integrationSecs, 300.0);
+      expect(parsed.targetBreakdown['M31']!['L']!['integrationSecs'], 300.0);
+      expect(
+        parsed.overheadSecs,
+        parsed.wallClockSecs - 300.0,
+        reason: 'rejected exposure time is overhead, not integration',
+      );
+    });
+  });
+
   group('the run record counts dithers', () {
     test('a completed dither is counted', () async {
       final (container, executor) = build(sequence: exposureSequence());

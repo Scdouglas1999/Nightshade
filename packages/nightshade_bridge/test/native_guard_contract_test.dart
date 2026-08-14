@@ -62,16 +62,61 @@ void main() {
     });
   });
 
+  group('no PHD2 call is stranded on the Dart client in native mode', () {
+    // `phd2Connect`'s native branch NULLS `_phd2Client` and returns before the
+    // only line that ever assigns it, and `phd2Disconnect` nulls it again. So
+    // on every build where the native library loads — the shipped desktop and
+    // headless configuration — `_phd2Client` is unconditionally null. A method
+    // that reaches for it without a `_nativeAvailable` branch first therefore
+    // cannot work on the builds users run, and it refuses with "PHD2 not
+    // connected" on a rig whose PHD2 IS connected through the Rust client:
+    // the same cry-wolf shape as the "requires the native bridge" refusal it
+    // replaced. `phd2AutoSelectStar` was that method; the RPC it sends
+    // (`find_star`) is exactly `api_phd2_find_star`.
+    test('every _phd2Client user has a native branch', () {
+      final source = File('lib/src/bridge_stub/guiding_operations.dart');
+      expect(source.existsSync(), isTrue, reason: 'run from the package root');
+      final lines = source.readAsLinesSync();
+
+      // Method declarations sit at exactly two spaces of indent inside the
+      // extension, so they bound each other.
+      final starts = <int>[];
+      final decl = RegExp(r'^  (?:Future|Stream)<');
+      for (var i = 0; i < lines.length; i++) {
+        if (decl.hasMatch(lines[i])) starts.add(i);
+      }
+      expect(starts, isNotEmpty, reason: 'the method scan found nothing');
+
+      final stranded = <String>[];
+      for (var m = 0; m < starts.length; m++) {
+        final end = m + 1 < starts.length ? starts[m + 1] : lines.length;
+        final body = lines.sublist(starts[m], end);
+        if (!body.any((l) => l.contains('_phd2Client'))) continue;
+        if (body.any((l) => l.contains('if (_nativeAvailable)'))) continue;
+        stranded.add('${source.path}:${starts[m] + 1}: ${body.first.trim()}');
+      }
+
+      expect(
+        stranded,
+        isEmpty,
+        reason:
+            '_phd2Client is always null when the native library loads, so '
+            'these methods refuse "PHD2 not connected" on exactly the builds '
+            'where PHD2 is connected via Rust',
+      );
+    });
+  });
+
   group('phd2AutoSelectStar', () {
     setUpAll(() async {
       await NativeBridge.init();
     });
 
     test('reports PHD2 connectivity, never a missing bridge', () async {
-      // No PHD2 client has been connected, so the only truthful failure is
-      // that PHD2 is not connected. There is no `apiPhd2AutoSelectStar` in the
-      // generated API, so the Dart client is the sole implementation in either
-      // native mode and this contract holds in both.
+      // The fallback (no native library, which is what `flutter test` gets)
+      // has no PHD2 client connected, so the only truthful failure is that
+      // PHD2 is not connected. The native half is pinned by the source
+      // contract above.
       await expectLater(
         NativeBridge.phd2AutoSelectStar(),
         throwsA(
