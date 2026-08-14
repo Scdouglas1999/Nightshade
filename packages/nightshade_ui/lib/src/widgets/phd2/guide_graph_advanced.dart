@@ -320,35 +320,45 @@ class GuideGraphAdvanced extends StatelessWidget {
           // interactive targets in the app. Same platform rule as
           // NightshadeButton._minInteractiveExtent: grow on touch only, so the
           // dense desktop graph header does not reflow.
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              minWidth: _touchTargetFloor(context),
-              minHeight: _touchTargetFloor(context),
-            ),
-            child: Center(
-              widthFactor: 1,
-              child: Container(
-                padding: padding,
-                decoration: BoxDecoration(
-                  color: colors.surfaceHover,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      value,
-                      style: TextStyle(
-                        color: colors.textPrimary,
-                        fontSize: fontSize,
+          // A PopupMenuButton with a custom child publishes no role of its
+          // own, so without this the selector reads as inert static text to
+          // assistive tech.
+          child: Semantics(
+            button: true,
+            enabled: true,
+            label: label,
+            value: value,
+            excludeSemantics: true,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minWidth: _touchTargetFloor(context),
+                minHeight: _touchTargetFloor(context),
+              ),
+              child: Center(
+                widthFactor: 1,
+                child: Container(
+                  padding: padding,
+                  decoration: BoxDecoration(
+                    color: colors.surfaceHover,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        value,
+                        style: TextStyle(
+                          color: colors.textPrimary,
+                          fontSize: fontSize,
+                        ),
                       ),
-                    ),
-                    Icon(
-                      Icons.arrow_drop_down,
-                      color: colors.textPrimary,
-                      size: compact ? 14 : 16,
-                    ),
-                  ],
+                      Icon(
+                        Icons.arrow_drop_down,
+                        color: colors.textPrimary,
+                        size: compact ? 14 : 16,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

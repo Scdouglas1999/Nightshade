@@ -525,6 +525,8 @@ class NotificationRouter {
         return 'Sequence complete';
       case NotificationCategory.sequenceFailed:
         return 'Sequence failed';
+      case NotificationCategory.sequenceStopped:
+        return 'Sequence stopped';
       case NotificationCategory.sequencePaused:
         return 'Sequence paused';
       case NotificationCategory.sequenceResumed:
@@ -588,6 +590,8 @@ class NotificationRouter {
         return 'Sequence completed successfully at \${time.local}.';
       case NotificationCategory.sequenceFailed:
         return 'Sequence aborted at \${time.local}.';
+      case NotificationCategory.sequenceStopped:
+        return 'Sequence stopped by request at \${time.local}.';
       case NotificationCategory.frameCaptured:
         return 'Frame \${frame} captured (\${exposure.duration}s).';
       case NotificationCategory.exposureFailed:

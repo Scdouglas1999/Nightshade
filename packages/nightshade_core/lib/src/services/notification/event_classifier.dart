@@ -117,6 +117,7 @@ class NotificationEventClassifier {
       case 'Completed':
         return (NotificationCategory.sequenceCompleted, <String, String>{});
       case 'Stopped':
+        return (NotificationCategory.sequenceStopped, <String, String>{});
       case 'Error':
         return (NotificationCategory.sequenceFailed, <String, String>{});
       case 'Paused':

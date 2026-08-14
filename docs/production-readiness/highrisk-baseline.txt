@@ -100,14 +100,17 @@ native/nightshade_native/bridge/src/lib.rs:456:            write!(output, "{}", 
 native/nightshade_native/bridge/src/sim_sky.rs:644:                let home = std::env::var("HOME").unwrap_or_default();
 native/nightshade_native/bridge/src/util/supervisor.rs:269:            GLOBAL_WRITER.set(writer.clone()).ok();
 native/nightshade_native/imaging/src/background_extraction.rs:947:        image.as_u16().unwrap_or_default()
-native/nightshade_native/imaging/src/platesolve.rs:1680:        stdout: stdout_reader.join().unwrap_or_default(),
-native/nightshade_native/imaging/src/platesolve.rs:1681:        stderr: stderr_reader.join().unwrap_or_default(),
-native/nightshade_native/imaging/src/platesolve.rs:2687:                .unwrap_or_default()
-native/nightshade_native/imaging/src/platesolve.rs:2815:        let combined = auto_result.error.unwrap_or_default();
-native/nightshade_native/imaging/src/platesolve.rs:2848:            .unwrap_or_default()
-native/nightshade_native/imaging/src/platesolve.rs:2908:                .unwrap_or_default()
-native/nightshade_native/imaging/src/platesolve.rs:917:        let stdout_bytes = stdout_reader.join().unwrap_or_default();
-native/nightshade_native/imaging/src/platesolve.rs:918:        let stderr_bytes = stderr_reader.join().unwrap_or_default();
+native/nightshade_native/imaging/src/platesolve.rs:1751:        stdout: stdout_reader.join().unwrap_or_default(),
+native/nightshade_native/imaging/src/platesolve.rs:1752:        stderr: stderr_reader.join().unwrap_or_default(),
+native/nightshade_native/imaging/src/platesolve.rs:2758:                .unwrap_or_default()
+native/nightshade_native/imaging/src/platesolve.rs:2812:                .unwrap_or_default()
+native/nightshade_native/imaging/src/platesolve.rs:2864:                .unwrap_or_default()
+native/nightshade_native/imaging/src/platesolve.rs:2983:        let combined = auto_result.error.unwrap_or_default();
+native/nightshade_native/imaging/src/platesolve.rs:3016:            .unwrap_or_default()
+native/nightshade_native/imaging/src/platesolve.rs:3076:                .unwrap_or_default()
+native/nightshade_native/imaging/src/platesolve.rs:571:                    return value.parse::<f64>().ok();
+native/nightshade_native/imaging/src/platesolve.rs:988:        let stdout_bytes = stdout_reader.join().unwrap_or_default();
+native/nightshade_native/imaging/src/platesolve.rs:989:        let stderr_bytes = stderr_reader.join().unwrap_or_default();
 native/nightshade_native/imaging/src/raw.rs:13://! * The remaining sites (`user_sat.unwrap_or_default()`,
 native/nightshade_native/imaging/src/raw.rs:15://!   `max_memory_mb.unwrap_or_default()`) are all paired with a
 native/nightshade_native/imaging/src/raw.rs:527:            user_sat: params.user_sat.unwrap_or_default(),

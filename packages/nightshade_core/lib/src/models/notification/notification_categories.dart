@@ -28,6 +28,7 @@ enum NotificationCategory {
   sequenceStarted('Sequence Started'),
   sequenceCompleted('Sequence Completed'),
   sequenceFailed('Sequence Failed'),
+  sequenceStopped('Sequence Stopped'),
   sequencePaused('Sequence Paused'),
   sequenceResumed('Sequence Resumed'),
 
@@ -97,6 +98,9 @@ enum NotificationCategory {
       case NotificationCategory.cloudOpening:
       case NotificationCategory.triggerFired:
       case NotificationCategory.custom:
+      // An operator (or safety trigger) chose to stop: worth telling a phone,
+      // never worth an alarm.
+      case NotificationCategory.sequenceStopped:
         return EventSeverity.info;
       case NotificationCategory.sequenceCompleted:
         return EventSeverity.info;

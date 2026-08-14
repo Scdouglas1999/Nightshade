@@ -186,6 +186,7 @@ class SystemPushTransport extends NotificationTransport {
       // autofocus-completed.
       case NotificationCategory.sequenceStarted:
       case NotificationCategory.sequencePaused:
+      case NotificationCategory.sequenceStopped:
       case NotificationCategory.sequenceResumed:
       case NotificationCategory.targetStarted:
       case NotificationCategory.autofocusCompleted:
@@ -210,6 +211,7 @@ class SystemPushTransport extends NotificationTransport {
       case NotificationCategory.sequenceCompleted:
       case NotificationCategory.sequenceFailed:
       case NotificationCategory.sequencePaused:
+      case NotificationCategory.sequenceStopped:
       case NotificationCategory.sequenceResumed:
       case NotificationCategory.targetStarted:
       case NotificationCategory.targetCompleted:

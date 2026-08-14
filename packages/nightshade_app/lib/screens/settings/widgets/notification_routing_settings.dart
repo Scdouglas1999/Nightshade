@@ -218,6 +218,8 @@ class NotificationRoutingSettings extends ConsumerWidget {
         return LucideIcons.alertOctagon;
       case NotificationCategory.sequencePaused:
         return LucideIcons.pause;
+      case NotificationCategory.sequenceStopped:
+        return LucideIcons.square;
       case NotificationCategory.targetStarted:
       case NotificationCategory.targetCompleted:
         return LucideIcons.crosshair;
