@@ -7,6 +7,7 @@ import '../../models/sequence/instruction_progress_detail.dart';
 import '../../models/sequence/sequence_models.dart';
 import '../equipment/camera_state_provider.dart';
 import '../sequence_stats_provider.dart' show currentRunIdProvider;
+import 'node_exposure_tally.dart';
 import 'run_stop_classification.dart';
 
 // =============================================================================
@@ -271,6 +272,16 @@ void applySequencerEventToSequenceProviders(
   final progressNotifier = read(sequenceProgressProvider.notifier);
   final data = event.data;
   final executorOwnsRun = _localExecutorOwnsRun(read);
+
+  // SEQ-18 — the per-node captured-frame tally. This pump is the ONLY writer on
+  // a headless host (no executor subscribes there), so it has to feed the tally
+  // as well as `SequenceExecutor`'s own handler; the tally's writes are
+  // monotonic per node, so both firing for the same event is a no-op.
+  applySequencerEventToNodeExposureTally(
+    read(nodeExposureTallyProvider.notifier),
+    event,
+    currentNodeId: read(sequenceProgressProvider).currentNodeId,
+  );
 
   switch (event.eventType) {
     case 'Started':

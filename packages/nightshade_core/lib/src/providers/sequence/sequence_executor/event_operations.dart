@@ -2,10 +2,20 @@ part of '../sequence_executor.dart';
 
 extension _SequenceExecutorEventOperations on SequenceExecutor {
   void _handleSequencerEvent(NightshadeEvent event) {
-    _logger.debug(
+    // WF-N1 — this line used to be logged unconditionally, once per backend
+    // event. At ~5 events/s it consumed LoggingService's whole 1000-entry ring
+    // in about three minutes, so Settings ▸ Advanced ▸ Logs showed nothing but
+    // SequenceExecutor DBG rows and offered no other source at all. Rate-limited
+    // PER EVENT TYPE so a chatty type (InstructionProgress) collapses while a
+    // rare one (Stopped, Error) is still traced the moment it arrives, and the
+    // suppressed count rides along on the next admitted line.
+    final trace = _eventTraceLimiter.admit(
+      '${event.category.name}/${event.eventType}',
       'Received event: type=${event.eventType}, category=${event.category}',
-      source: 'SequenceExecutor',
     );
+    if (trace != null) {
+      _logger.debug(trace, source: 'SequenceExecutor');
+    }
 
     // A dither that actually settled. This is the only event emitted when the
     // mount is dithered, and it covers both a Dither node and the far more
@@ -25,6 +35,16 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     if (event.category != EventCategory.sequencer) return;
 
     final progressNotifier = _ref.read(sequenceProgressProvider.notifier);
+
+    // SEQ-18 — the frames a node captured live in their own slot, which no
+    // other instruction reporting against the same node can overwrite. See
+    // [applySequencerEventToNodeExposureTally]; the display strings below are
+    // still written, but they are no longer what the card counts with.
+    applySequencerEventToNodeExposureTally(
+      _ref.read(nodeExposureTallyProvider.notifier),
+      event,
+      currentNodeId: _ref.read(sequenceProgressProvider).currentNodeId,
+    );
 
     switch (event.eventType) {
       case 'NodeStarted':

@@ -31,6 +31,13 @@ use crate::meridian_events::{FlipEventEmitter, FlipStep, MeridianFlipEvent, Pier
 use crate::triggers::TriggerState;
 use crate::{AutofocusConfig, FlipFailureAction, MeridianFlipConfig};
 
+/// Synthetic node id the flip's run-stream progress is published under.
+///
+/// A trigger-fired flip is not a sequence node, so it has no id of its own; the
+/// autofocus trigger uses the same `trigger:` shape. Consumers key per-node
+/// progress on this string, so it must stay stable.
+pub const MERIDIAN_FLIP_RUN_PROGRESS_NODE_ID: &str = "trigger:meridian_flip";
+
 // AUDIT-FIX-5B: the formerly-constant defaults
 // FLIP_COORDINATE_TOLERANCE_DEG / SAFETY_ACTION_RETRY_COUNT /
 // SAFETY_ACTION_RETRY_DELAY_SECS / MIN_POST_FLIP_ALTITUDE_DEG have moved to
@@ -1713,6 +1720,45 @@ impl MeridianFlipExecutor {
     fn emit_event(&self, event: MeridianFlipEvent) {
         self.event_emitter.emit(event.clone());
 
+        // WF-STOP-N4 — a flip in its retry ladder is the run standing still,
+        // and nothing on the Sequencer screen said so. `event_tx` below is the
+        // flip DIALOG's channel, which a trigger-fired flip never has (only the
+        // node-driven flip sets it), so a retry ladder that held a run for two
+        // and a half minutes produced: status chip "Running", `Progress 4/8 ·
+        // 50%`, `Mount: Tracking`, and a finish time that came and went. The
+        // only honest account of the flip appeared after the operator's Stop,
+        // in the Session Report.
+        //
+        // The run's own event stream reaches every operator surface, so the
+        // retry goes there too. `MeridianFlipOutcome` already carries the
+        // verdict, so only the mid-ladder notice is forwarded — a completed or
+        // failed flip must not be announced twice.
+        if let Some(tx) = &self.executor_event_tx {
+            if let MeridianFlipEvent::RetryScheduled {
+                attempt,
+                max_attempts,
+                delay_secs,
+            } = &event
+            {
+                let _ = tx.send(ExecutorEvent::NodeProgress {
+                    node_id: MERIDIAN_FLIP_RUN_PROGRESS_NODE_ID.to_string(),
+                    instruction: "MeridianFlip".to_string(),
+                    // Attempts made out of attempts allowed. The flip is not
+                    // "N% done"; this is the only percentage that is true.
+                    progress_percent: if *max_attempts > 0 {
+                        100.0 * f64::from(*attempt) / f64::from(*max_attempts)
+                    } else {
+                        0.0
+                    },
+                    detail: format!(
+                        "attempt {}/{} failed, retrying in {:.0}s",
+                        attempt, max_attempts, delay_secs
+                    ),
+                    structured_detail: None,
+                });
+            }
+        }
+
         // try_send drops the event on a full channel rather than blocking;
         // the emitter has already logged it so the record is preserved, and
         // a blocking send could deadlock the executor against a slow subscriber.
@@ -3227,5 +3273,61 @@ mod tests {
         assert!(!crate::device_ops::is_no_guider_configured(
             "Settle timed out after 60s"
         ));
+    }
+    /// WF-STOP-N4 — a flip in its retry ladder must say so on the RUN's event
+    /// stream, not only on the flip dialog's channel.
+    ///
+    /// The waveF drive: the flip's plate solve failed at 04:10:43 and the
+    /// executor entered `Retry 2/4 scheduled in 60 seconds...`, then
+    /// `Retry 3/4 scheduled in 120 seconds...`. For two and a half minutes the
+    /// Sequencer screen said status **Running**, `Progress 4/8 · 50%`,
+    /// `Mount: Tracking`, and `~1m 8s · done ~00:12:13` — a finish time that
+    /// came and went while no frame had been captured. Nothing anywhere
+    /// mentioned a flip, a failed solve or a retry; the first honest account
+    /// arrived after the operator's Stop, in the Session Report.
+    ///
+    /// A trigger-fired flip has no `event_tx` (only the node-driven flip sets
+    /// one), which is why the retry was invisible: the run's broadcast is the
+    /// channel every operator surface actually listens to.
+    #[tokio::test]
+    async fn a_scheduled_retry_reaches_the_runs_event_stream() {
+        let (tx, mut rx) = tokio::sync::broadcast::channel(8);
+        let flip = MeridianFlipExecutor::new(
+            MeridianFlipConfig::default(),
+            Arc::new(crate::device_ops::NullDeviceOps),
+        )
+        .with_executor_event_tx(tx);
+
+        flip.emit_event(MeridianFlipEvent::RetryScheduled {
+            attempt: 2,
+            max_attempts: 4,
+            delay_secs: 60.0,
+        });
+
+        let event = rx.try_recv().expect("the retry must reach the run stream");
+        match event {
+            ExecutorEvent::NodeProgress {
+                node_id,
+                instruction,
+                detail,
+                ..
+            } => {
+                assert_eq!(node_id, MERIDIAN_FLIP_RUN_PROGRESS_NODE_ID);
+                assert_eq!(instruction, "MeridianFlip");
+                assert_eq!(detail, "attempt 2/4 failed, retrying in 60s");
+            }
+            other => panic!("expected NodeProgress, got {other:?}"),
+        }
+
+        // The verdict is already carried by `MeridianFlipOutcome`; announcing a
+        // finished flip twice would put the same event in the feed twice.
+        flip.emit_event(MeridianFlipEvent::Completed {
+            new_pier_side: PierSide::East,
+            duration_secs: 12.0,
+        });
+        assert!(
+            rx.try_recv().is_err(),
+            "only the mid-ladder notice belongs on the run stream"
+        );
     }
 }

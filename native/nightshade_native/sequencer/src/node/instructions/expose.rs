@@ -223,7 +223,7 @@ impl InstructionNode for ExposeInstruction {
                 &ctx,
                 Some(path_renderer),
                 &control,
-                |current, total| {
+                |current, total, recorded_secs| {
                     if let Some(cb) = progress_cb {
                         let percent = if total > 0 {
                             100.0 * f64::from(current) / f64::from(total)
@@ -234,6 +234,12 @@ impl InstructionNode for ExposeInstruction {
                         // total_frames must remain populated because the executor's
                         // progress callback uses them to synthesize ExposureStarted
                         // / ExposureCompleted events.
+                        //
+                        // The detail names the seconds the frame was RECORDED
+                        // as, not the seconds it was asked for: an adaptive or
+                        // truncated frame really did expose for something else,
+                        // and every integration total downstream sums this
+                        // (WF-STOP-N2).
                         let mut upd = ProgressUpdate::instruction_progress(
                             node_id.to_string(),
                             "Exposure",
@@ -241,11 +247,12 @@ impl InstructionNode for ExposeInstruction {
                             ProgressDetail::Exposure {
                                 frame: current,
                                 total,
-                                duration_secs,
+                                duration_secs: recorded_secs,
                             },
                         );
                         upd.current_frame = Some(current);
                         upd.total_frames = Some(total);
+                        upd.frame_exposure_secs = Some(recorded_secs);
                         cb(upd);
                     }
                 },

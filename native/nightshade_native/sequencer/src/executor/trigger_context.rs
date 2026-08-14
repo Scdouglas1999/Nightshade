@@ -401,6 +401,38 @@ pub(super) fn skip_to_node_accepted_event(node_id: NodeId) -> ExecutorEvent {
 /// [`TriggerState::camera_busy_until_ms`]), so a hold that is never released
 /// expires rather than blocking autofocus for the rest of the night. A cancel
 /// releases immediately: an operator Stop must not wait out an exposure.
+/// Which trigger actions drive the camera themselves, and the label each waits
+/// under. `None` means the action never touches the sensor.
+///
+/// WF-STOP-N1. Only autofocus used to take the claim, on the reasoning that the
+/// meridian flip "already runs only after the capture loop's own pre-frame gate
+/// has held the next frame". That gate holds the NEXT frame; it cannot hold the
+/// one already exposing. The waveF log caught the gap to the millisecond — the
+/// burst opened frame 1's 15 s shutter at `04:09:10.792627` and the flip
+/// trigger fired at `04:09:10.793593`, so the flip's plate-solve exposure
+/// restarted the same camera one second later:
+///
+/// ```text
+/// 04:09:10.792638  DeviceManager: camera_start_exposure for sim_camera_1 duration=15
+/// 04:09:11.795844  Starting 5.0s exposure on camera sim_camera_1   <- the flip's solve frame
+/// 04:09:17.133044  Saving FITS … New Target_nofilter_0001.fits (New Target frame 1 (5.0s, …))
+/// ```
+///
+/// The burst then downloaded the SOLVE frame and filed it under the target as
+/// light frame 1 — a third of the requested integration, accepted, with the
+/// card reading `Frame 1/4 (15.0s)` while it happened.
+///
+/// `Recenter` is on this list for the same reason: it plate-solves, and a plate
+/// solve is an exposure.
+pub(super) fn camera_driving_trigger_action(action: &RecoveryAction) -> Option<&'static str> {
+    match action {
+        RecoveryAction::Autofocus => Some("autofocus"),
+        RecoveryAction::MeridianFlip(_) => Some("meridian flip"),
+        RecoveryAction::Recenter => Some("recenter"),
+        _ => None,
+    }
+}
+
 pub(super) async fn claim_camera_for_trigger_action(
     trigger_state: &Arc<RwLock<crate::triggers::TriggerState>>,
     is_cancelled: &Arc<AtomicBool>,

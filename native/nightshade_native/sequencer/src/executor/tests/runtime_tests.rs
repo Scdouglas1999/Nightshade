@@ -1218,3 +1218,79 @@ fn checkpoint_manager_is_arc_shared() {
 // -----------------------------------------------------------------
 // calculate_totals must recognise SmartExposure.
 // -----------------------------------------------------------------
+
+/// WF-STOP-N1 — the meridian flip drives the camera too, and firing it on top
+/// of an in-flight light destroys that light.
+///
+/// The waveF drive caught it to the millisecond: the burst opened frame 1's
+/// 15 s shutter at `04:09:10.792627`, the flip trigger fired at
+/// `04:09:10.793593`, and its plate-solve restarted the same sensor at
+/// `04:09:11.795844` with a 5.0 s exposure. The burst then downloaded the SOLVE
+/// frame and saved it as `New Target frame 1 (5.0s)` — a light frame a third of
+/// its requested length, filed under the target as accepted, while the node
+/// card read `Frame 1/4 (15.0s)`.
+///
+/// The claim protocol that already serialised autofocus against the capture
+/// loop is the fix; only autofocus was on the list, on the reasoning that the
+/// flip "already runs after the capture loop's pre-frame gate". That gate holds
+/// the NEXT frame. It cannot hold the one already exposing.
+#[tokio::test]
+async fn every_camera_driving_trigger_action_waits_for_the_frame_in_flight() {
+    // The list itself is the contract: an action that exposes and is missing
+    // here silently regains the ability to stomp a light frame.
+    assert_eq!(
+        camera_driving_trigger_action(&RecoveryAction::Autofocus),
+        Some("autofocus")
+    );
+    assert_eq!(
+        camera_driving_trigger_action(&RecoveryAction::MeridianFlip(
+            crate::MeridianFlipConfig::default()
+        )),
+        Some("meridian flip"),
+        "a flip plate-solves, which is an exposure on the imaging camera"
+    );
+    assert_eq!(
+        camera_driving_trigger_action(&RecoveryAction::Recenter),
+        Some("recenter"),
+        "a recenter plate-solves, which is an exposure on the imaging camera"
+    );
+    // Actions that never touch the sensor must NOT wait — holding a dither or
+    // a park behind a 10-minute sub would be its own defect.
+    assert_eq!(camera_driving_trigger_action(&RecoveryAction::Pause), None);
+    assert_eq!(
+        camera_driving_trigger_action(&RecoveryAction::ParkAndAbort),
+        None
+    );
+    assert_eq!(
+        camera_driving_trigger_action(&RecoveryAction::Dither(crate::DitherConfig::default())),
+        None
+    );
+
+    // And the flip actually waits behind the capture loop's claim.
+    let state = Arc::new(RwLock::new(crate::triggers::TriggerState::new()));
+    let cancelled = Arc::new(AtomicBool::new(false));
+    // The capture loop takes the claim for the frame it is exposing.
+    state.write().await.mark_camera_busy_for(15.0);
+
+    let release_state = state.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        release_state.write().await.clear_camera_busy();
+    });
+
+    let label = camera_driving_trigger_action(&RecoveryAction::MeridianFlip(
+        crate::MeridianFlipConfig::default(),
+    ))
+    .expect("the flip must be a camera-driving action");
+    let started = tokio::time::Instant::now();
+    claim_camera_for_trigger_action(&state, &cancelled, label).await;
+    let waited = started.elapsed();
+    assert!(
+        waited >= std::time::Duration::from_millis(250),
+        "the flip must wait for the light frame in flight, waited {waited:?}"
+    );
+    assert!(
+        waited < std::time::Duration::from_secs(5),
+        "the flip must start as soon as the frame lands, waited {waited:?}"
+    );
+}

@@ -9,6 +9,32 @@ use super::*;
 // FRAME CONTEXT BUILDER (Image Grading)
 // =============================================================================
 
+/// The seconds a frame is RECORDED as: the camera's own report of how long it
+/// exposed, bounded by what the sequencer actually waited for.
+///
+/// This is the number that lands in the FITS `EXPTIME` card and in the NOT NULL
+/// `captured_images.exposure_duration` every Session Report integration total
+/// sums — so it is also the only honest source for the run's own integration
+/// total (WF-STOP-N2). The run vitals, the checkpoint and every downstream
+/// surface used to credit `frames x the node's PLANNED duration` instead: the
+/// waveF run of 5 + 15 + 15 + 15 s across four frames was reported as `50s` by
+/// the Session Report (which sums the rows) and as `1m 0s` by the Dashboard
+/// "Last night" card, the Execution History row and the Recover Sequence dialog
+/// (which multiply). Four frames that cannot total one minute is provable from
+/// two screens without opening the database.
+///
+/// The bound is deliberately one-sided; see the caller's DECISION note. Over-
+/// reporting is a driver fault and keeps the commanded value; under-reporting
+/// is physically real (an aborted or truncated exposure) and is kept.
+pub(crate) fn recorded_exposure_secs(commanded_secs: f64, reported_secs: f64) -> f64 {
+    let longest_believable = commanded_secs * 1.05 + 1.0;
+    if reported_secs > 0.0 && reported_secs <= longest_believable {
+        reported_secs
+    } else {
+        commanded_secs
+    }
+}
+
 /// Build the per-frame FITS-header bundle for the current capture.
 ///
 /// Reads everything the FITS writer needs:
@@ -81,9 +107,8 @@ pub(crate) async fn build_frame_context_for_save(
     let commanded_secs = frame_ctx.duration_secs;
     let reported_secs = image_data.exposure_secs;
     let longest_believable = commanded_secs * 1.05 + 1.0;
-    if reported_secs > 0.0 && reported_secs <= longest_believable {
-        frame_ctx.duration_secs = reported_secs;
-    } else if reported_secs > longest_believable {
+    frame_ctx.duration_secs = recorded_exposure_secs(commanded_secs, reported_secs);
+    if reported_secs > longest_believable {
         tracing::warn!(
             "[CAPTURE] Camera reported a {:.3}s exposure for a commanded {:.3}s frame — \
              impossible, so the commanded value is recorded instead. This driver's \

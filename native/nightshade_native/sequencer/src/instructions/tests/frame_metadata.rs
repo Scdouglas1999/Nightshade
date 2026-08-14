@@ -159,7 +159,7 @@ async fn frame_event_is_stamped_from_the_context_save_fits_received() {
     let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(64);
     let ctx = saving_expose_ctx(ops.clone(), scratch.0.clone(), event_tx).await;
 
-    let result = execute_exposure(&one_dark(2), &ctx, |_, _| {}).await;
+    let result = execute_exposure(&one_dark(2), &ctx, |_, _, _| {}).await;
     assert_eq!(
         result.status,
         NodeStatus::Success,
@@ -263,7 +263,7 @@ async fn frame_altitude_is_derived_at_the_exposure_midpoint() {
         frame_type: "Light".to_string(),
         ..ExposureConfig::default()
     };
-    let result = execute_exposure(&config, &ctx, |_, _| {}).await;
+    let result = execute_exposure(&config, &ctx, |_, _, _| {}).await;
     assert_eq!(
         result.status,
         NodeStatus::Success,
@@ -322,7 +322,7 @@ async fn sequenced_frames_carry_the_sensor_pixel_pitch() {
     let (event_tx, _event_rx) = tokio::sync::broadcast::channel(16);
     let ctx = saving_expose_ctx(ops.clone(), scratch.0.clone(), event_tx).await;
 
-    let result = execute_exposure(&one_dark(1), &ctx, |_, _| {}).await;
+    let result = execute_exposure(&one_dark(1), &ctx, |_, _, _| {}).await;
     assert_eq!(result.status, NodeStatus::Success, "{:?}", result.message);
 
     let saved = ops.saved_frame_contexts();
@@ -352,7 +352,7 @@ async fn a_camera_that_reports_no_pitch_leaves_the_keywords_absent() {
     let (event_tx, _event_rx) = tokio::sync::broadcast::channel(16);
     let ctx = saving_expose_ctx(ops.clone(), scratch.0.clone(), event_tx).await;
 
-    let result = execute_exposure(&one_dark(1), &ctx, |_, _| {}).await;
+    let result = execute_exposure(&one_dark(1), &ctx, |_, _, _| {}).await;
     assert_eq!(result.status, NodeStatus::Success, "{:?}", result.message);
 
     let saved = ops.saved_frame_contexts();
@@ -385,7 +385,7 @@ async fn plausible_driver_exposure_report_wins_over_the_commanded_value() {
         duration_secs: 60.0,
         ..one_dark(1)
     };
-    let result = execute_exposure(&config, &ctx, |_, _| {}).await;
+    let result = execute_exposure(&config, &ctx, |_, _, _| {}).await;
     assert_eq!(result.status, NodeStatus::Success, "{:?}", result.message);
 
     let saved = ops.saved_frame_contexts();
@@ -417,7 +417,7 @@ async fn nonsense_driver_exposure_report_cannot_inflate_integration_totals() {
         duration_secs: 60.0,
         ..one_dark(1)
     };
-    let result = execute_exposure(&config, &ctx, |_, _| {}).await;
+    let result = execute_exposure(&config, &ctx, |_, _, _| {}).await;
     assert_eq!(result.status, NodeStatus::Success, "{:?}", result.message);
 
     let saved = ops.saved_frame_contexts();
@@ -430,4 +430,69 @@ async fn nonsense_driver_exposure_report_cannot_inflate_integration_totals() {
         60.0,
         "nor the captured_images row every integration total sums"
     );
+}
+
+/// WF-STOP-N2 — the per-frame progress callback reports the seconds the frame
+/// was RECORDED as, so every integration total in the app sums the same number
+/// the FITS header and the `captured_images` row were written from.
+///
+/// The waveF run collected 5 + 15 + 15 + 15 = 50 s across four frames. The
+/// Session Report, which sums the rows, said `50s`. The Dashboard "Last night"
+/// card, the Execution History row and the Recover Sequence dialog all said
+/// `1m 0s` — `frames x the node's planned duration` — because the executor
+/// credited integration from the node's plan and the exposure events carried
+/// the plan too. Four frames that cannot total one minute, provable from two
+/// screens without opening the database.
+#[tokio::test]
+async fn the_frame_callback_reports_recorded_seconds_not_planned_ones() {
+    let scratch = scratch_dir("exposure-callback-recorded");
+    let ops = Arc::new(
+        ScriptedDomeRotatorOps::new()
+            // Commanded 15 s; the shutter was actually open 5 s — exactly the
+            // waveF frame 1, where a meridian-flip solve restarted the camera
+            // under the burst.
+            .with_reported_exposure_secs(5.0),
+    );
+    let (event_tx, _event_rx) = tokio::sync::broadcast::channel(16);
+    let ctx = saving_expose_ctx(ops.clone(), scratch.0.clone(), event_tx).await;
+
+    let config = ExposureConfig {
+        duration_secs: 15.0,
+        ..one_dark(1)
+    };
+
+    let reported = Arc::new(Mutex::new(Vec::<f64>::new()));
+    let sink = reported.clone();
+    let result = execute_exposure(&config, &ctx, move |_frame, _total, recorded_secs| {
+        sink.lock().unwrap().push(recorded_secs);
+    })
+    .await;
+    assert_eq!(result.status, NodeStatus::Success, "{:?}", result.message);
+
+    let saved = ops.saved_frame_contexts();
+    assert_eq!(
+        saved[0].duration_secs, 5.0,
+        "the row and the header record what the camera exposed"
+    );
+    assert_eq!(
+        reported.lock().unwrap().as_slice(),
+        &[5.0],
+        "the run's integration credit must sum the SAME number the row does, \
+         not the 15.0 s the node planned"
+    );
+}
+
+/// The bound the recorded value carries is the one the FITS writer already
+/// enforced, so a lying driver cannot inflate a night through this new path
+/// either.
+#[test]
+fn recorded_exposure_secs_keeps_the_command_when_the_report_is_impossible() {
+    // Believable: shutter latency, coarse exposure clocks.
+    assert_eq!(recorded_exposure_secs(60.0, 60.4), 60.4);
+    // Physically possible under-report: an aborted or truncated exposure.
+    assert_eq!(recorded_exposure_secs(15.0, 5.0), 5.0);
+    // Impossible: nothing kept the shutter open past the command.
+    assert_eq!(recorded_exposure_secs(60.0, 3600.0), 60.0);
+    // A driver that reports nothing at all leaves the command standing.
+    assert_eq!(recorded_exposure_secs(30.0, 0.0), 30.0);
 }

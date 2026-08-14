@@ -92,7 +92,7 @@ impl Drop for CameraExposureAbortGuard {
 pub async fn execute_exposure(
     config: &ExposureConfig,
     ctx: &InstructionContext,
-    progress_callback: impl Fn(u32, u32),
+    progress_callback: impl Fn(u32, u32, f64),
 ) -> InstructionResult {
     execute_exposure_with_renderer(
         config,
@@ -134,7 +134,11 @@ pub async fn execute_exposure_with_renderer(
     ctx: &InstructionContext,
     path_renderer: Option<FrameSavePathRenderer>,
     control: &BurstControl<'_>,
-    progress_callback: impl Fn(u32, u32),
+    // `(frame, total, recorded_secs)`. The third argument is the seconds the
+    // frame is RECORDED as — the camera's own report, bounded (see
+    // [`recorded_exposure_secs`]) — not the node's planned duration. Every
+    // integration total downstream rides on it (WF-STOP-N2).
+    progress_callback: impl Fn(u32, u32, f64),
 ) -> InstructionResult {
     let camera_id = match ctx.camera_id() {
         Ok(id) => id.to_string(),
@@ -920,7 +924,15 @@ pub async fn execute_exposure_with_renderer(
 
         completed_exposures += 1;
 
-        progress_callback(frame, config.count);
+        // The seconds this frame is recorded as — the same number the FITS
+        // header and the `captured_images` row were written from — so the run's
+        // integration total sums what was collected rather than what was
+        // planned.
+        let recorded_secs = crate::instructions::recorded_exposure_secs(
+            config.duration_secs,
+            image_data.exposure_secs,
+        );
+        progress_callback(frame, config.count, recorded_secs);
 
         // `frame < config.count` skips the dither after the final frame:
         // dithering after the last exposure of a burst leaves the mount

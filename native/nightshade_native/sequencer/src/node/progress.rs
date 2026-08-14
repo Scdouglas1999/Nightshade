@@ -694,6 +694,18 @@ pub struct ProgressUpdate {
     /// burst-completion event so the executor's global integration counter
     /// is incremented exactly once per burst.
     pub completed_exposure_secs: Option<f64>,
+    /// Seconds the frame named by [`ProgressUpdate::current_frame`] was
+    /// RECORDED as — the camera's own report, bounded (see
+    /// `instructions::recorded_exposure_secs`), which is the same number the
+    /// FITS `EXPTIME` card and the `captured_images` row were written from.
+    ///
+    /// `None` on any update that is not a per-frame sighting. The executor
+    /// credits integration and stamps the exposure events from this when it is
+    /// present, and falls back to the node's PLANNED duration when it is not.
+    /// Crediting the plan is what made the same run report `50s` on the Session
+    /// Report (which sums the rows) and `1m 0s` on the Dashboard, the Execution
+    /// History row and the Recover Sequence dialog (WF-STOP-N2).
+    pub frame_exposure_secs: Option<f64>,
 }
 
 impl ProgressUpdate {
@@ -735,6 +747,7 @@ impl ProgressUpdate {
             current_child: None,
             total_children: None,
             completed_exposure_secs: None,
+            frame_exposure_secs: None,
         }
     }
 
@@ -757,6 +770,7 @@ impl ProgressUpdate {
             current_child: None,
             total_children: None,
             completed_exposure_secs: None,
+            frame_exposure_secs: None,
         }
     }
 }

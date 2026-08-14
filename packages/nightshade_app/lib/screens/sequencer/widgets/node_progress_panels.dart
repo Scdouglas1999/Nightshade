@@ -25,6 +25,7 @@ Widget? getProgressPanelForNode({
   InstructionProgressDetail? structuredProgressDetail,
   NodeStatus? nodeStatus,
   String? runFilter,
+  NodeExposureTally? exposureTally,
 }) {
   // Parse progress detail to extract relevant info
   final detail = progressDetail ?? '';
@@ -54,7 +55,9 @@ Widget? getProgressPanelForNode({
       structuredDetail: structuredProgressDetail,
       node: node,
       isComplete: nodeStatus == NodeStatus.success,
+      isRunning: nodeStatus == NodeStatus.running,
       runFilter: runFilter,
+      tally: exposureTally,
     );
   }
 

@@ -43,7 +43,7 @@ async fn pause_stops_the_burst_before_the_next_frame_starts() {
         &ctx,
         None,
         &control,
-        |_, _| {}
+        |_, _, _| {}
     ));
     let mut burst = burst;
 
@@ -83,7 +83,7 @@ async fn dropped_exposure_instruction_aborts_camera() {
         ..ExposureConfig::default()
     };
 
-    let task = tokio::spawn(async move { execute_exposure(&config, &ctx, |_, _| {}).await });
+    let task = tokio::spawn(async move { execute_exposure(&config, &ctx, |_, _, _| {}).await });
     while ops.camera_exposure_calls.load(Ordering::SeqCst) == 0 {
         tokio::task::yield_now().await;
     }
@@ -115,7 +115,7 @@ async fn requested_filter_without_wheel_fails_before_capture() {
         ..ExposureConfig::default()
     };
 
-    let result = execute_exposure(&config, &ctx, |_, _| {}).await;
+    let result = execute_exposure(&config, &ctx, |_, _, _| {}).await;
 
     assert_eq!(result.status, NodeStatus::Failure);
     assert!(

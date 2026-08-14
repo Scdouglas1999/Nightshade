@@ -12,6 +12,24 @@ class _ExposureProgressPanel extends StatelessWidget {
   /// "0 / 4 frames" directly above the four thumbnails it had just captured.
   final bool isComplete;
 
+  /// The node is exposing right now — used only to decide whether a frame is
+  /// in flight above the frames already captured.
+  final bool isRunning;
+
+  /// Frames this node actually captured, from the ONE channel no other
+  /// instruction can overwrite (SEQ-18, fifth look).
+  ///
+  /// Everything below this was, until now, derived by parsing the node's
+  /// display string out of `SequenceProgress.nodeProgressDetail` — a single
+  /// slot shared with every other instruction that reports against the node.
+  /// The native `emit_budget_progress` writes an `IntegrationBudget` payload
+  /// into that slot one millisecond after a burst finishes, which erased the
+  /// count for a node whose four frames were on disk, in the database and in
+  /// the thumbnail strip six pixels below the four empty boxes. The next node
+  /// opened with an `AdaptiveExposure` payload, which read back identically —
+  /// so the card could not tell "captured everything" from "captured nothing".
+  final NodeExposureTally? tally;
+
   /// The filter the run is imaging through, when the node itself names none.
   ///
   /// A node with `filter == null` does not image unfiltered — it images
@@ -29,7 +47,9 @@ class _ExposureProgressPanel extends StatelessWidget {
     this.structuredDetail,
     required this.node,
     this.isComplete = false,
+    this.isRunning = false,
     this.runFilter,
+    this.tally,
   });
 
   /// What to call the filter on this card. The node's own choice wins; the
@@ -60,21 +80,42 @@ class _ExposureProgressPanel extends StatelessWidget {
     // The typed ExposureInstructionProgressDetail is still preferred when
     // present; it always describes a frame in flight.
     final parsedDetail = parseExposureProgressDetail(detail);
-    final totalFrames =
-        exposureDetail?.total ?? parsedDetail?.total ?? node.count;
+    final tallied = tally;
+    final totalFrames = tallied?.planned ??
+        exposureDetail?.total ??
+        parsedDetail?.total ??
+        node.count;
     final liveFrame = exposureDetail?.frame ?? parsedDetail?.frame ?? 0;
     final liveFrameIsDone =
         exposureDetail == null && (parsedDetail?.frameCompleted ?? false);
-    // A node is finished when its status says so OR when its own last line
-    // reports the final planned frame captured. The status is not always what
-    // reaches this card — that is precisely how SEQ-18 survived a fix keyed on
-    // it — so the line the run left behind is the second, independent witness.
-    final isDone = isComplete || (liveFrameIsDone && liveFrame >= totalFrames);
-    // A finished node — and a node between frames — has nothing in flight.
-    final currentFrame = (isDone || liveFrameIsDone) ? 0 : liveFrame;
-    final completedFrames =
-        isDone ? totalFrames : (liveFrameIsDone ? liveFrame : liveFrame - 1);
-    final headerFrames = isDone ? totalFrames : liveFrame;
+
+    final int completedFrames;
+    final int currentFrame;
+    final int headerFrames;
+    if (tallied != null) {
+      // The authoritative count. It survives the display string being
+      // overwritten by another instruction, so it is what the card counts with
+      // whenever it exists; the string paths below remain for hosts that emit
+      // no per-node exposure progress at all.
+      completedFrames = tallied.captured.clamp(0, totalFrames);
+      headerFrames = completedFrames;
+      currentFrame = (isRunning && completedFrames < totalFrames)
+          ? completedFrames + 1
+          : 0;
+    } else {
+      // A node is finished when its status says so OR when its own last line
+      // reports the final planned frame captured. The status is not always what
+      // reaches this card — that is precisely how SEQ-18 survived a fix keyed
+      // on it — so the line the run left behind is a second, independent
+      // witness.
+      final isDone =
+          isComplete || (liveFrameIsDone && liveFrame >= totalFrames);
+      // A finished node — and a node between frames — has nothing in flight.
+      currentFrame = (isDone || liveFrameIsDone) ? 0 : liveFrame;
+      completedFrames =
+          isDone ? totalFrames : (liveFrameIsDone ? liveFrame : liveFrame - 1);
+      headerFrames = isDone ? totalFrames : liveFrame;
+    }
     final durationSecs =
         exposureDetail != null && exposureDetail.durationSecs > 0
             ? exposureDetail.durationSecs

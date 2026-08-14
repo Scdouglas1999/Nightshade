@@ -25,6 +25,7 @@ import '../../services/safe_rig_service.dart';
 import '../../services/smart_night/guide_rms_collector.dart';
 import '../../services/capture_preview_loader.dart';
 import '../../services/logging_service.dart';
+import 'log_rate_limiter.dart';
 import '../thumbnail_sidecar_provider.dart';
 import '../backend_provider.dart';
 import '../database_provider.dart'
@@ -74,6 +75,7 @@ import '../science_provider.dart'
     show sessionPsfTilesProvider, sessionResidualVectorsProvider;
 import '../usb_disconnect_log_provider.dart';
 import 'exposure_progress_vocabulary.dart';
+import 'node_exposure_tally.dart';
 import 'run_stop_classification.dart';
 import 'sequence_validation.dart' as validation;
 import 'sequencer_defaults.dart';
@@ -420,6 +422,13 @@ class SequenceExecutor {
   /// next run).
   OpticalTrainBaseline? _sessionStartBaseline;
   LoggingService get _logger => _ref.read(loggingServiceProvider);
+
+  /// Rate limiter for the per-event debug trace in `_handleSequencerEvent`.
+  /// See `log_rate_limiter.dart` — one repetitive line used to consume the
+  /// entire in-app log ring (WF-N1).
+  final LogRateLimiter _eventTraceLimiter = LogRateLimiter(
+    window: const Duration(seconds: 5),
+  );
 
   SequenceExecutor(this._ref, {NightshadeBackend? backend})
     : _backend = backend ?? _ref.read(backendProvider);
@@ -939,6 +948,10 @@ class SequenceExecutor {
     // previous run's node badges on the canvas for a run that had not reached
     // those nodes yet.
     progressNotifier.reset();
+    // The per-node frame tally is deliberately NOT cleared when a run ENDS —
+    // that is what let four earlier SEQ-18 fixes fail — so run START is where
+    // the previous run's frames stop being this node's story.
+    _ref.read(nodeExposureTallyProvider.notifier).reset();
     progressNotifier.setTotals(
       sequence.totalExposures,
       sequence.totalIntegrationSecs,
@@ -1989,6 +2002,7 @@ class SequenceExecutor {
     }
 
     _ref.read(sequenceProgressProvider.notifier).reset();
+    _ref.read(nodeExposureTallyProvider.notifier).reset();
 
     final backend = _backend;
     try {

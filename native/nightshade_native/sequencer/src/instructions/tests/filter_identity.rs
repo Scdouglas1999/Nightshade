@@ -161,7 +161,7 @@ async fn flat_wizard_burst_records_the_filter_the_wheel_is_parked_on() {
         filter_index: None,
         ..ExposureConfig::default()
     };
-    let result = execute_exposure(&config, &ctx, |_, _| {}).await;
+    let result = execute_exposure(&config, &ctx, |_, _, _| {}).await;
     assert_eq!(result.status, NodeStatus::Success, "burst should complete");
 
     let saved = ops.saved_frame_contexts();
@@ -212,7 +212,8 @@ async fn flat_wizard_flats_are_named_by_the_save_path_renderer() {
         filter_index: None,
         ..crate::FlatWizardConfig::default()
     };
-    let result = crate::flat_wizard::capture_converged_flats(&config, &ctx, 0.01, |_, _| {}).await;
+    let result =
+        crate::flat_wizard::capture_converged_flats(&config, &ctx, 0.01, |_, _, _| {}).await;
     assert_eq!(
         result.status,
         NodeStatus::Success,
@@ -258,7 +259,7 @@ async fn direct_burst_never_pairs_its_filter_name_with_a_stale_slot() {
         filter_index: None,
         ..ExposureConfig::default()
     };
-    let result = execute_exposure(&config, &ctx, |_, _| {}).await;
+    let result = execute_exposure(&config, &ctx, |_, _, _| {}).await;
     assert_eq!(result.status, NodeStatus::Success, "burst should complete");
 
     let saved = ops.saved_frame_contexts();

@@ -324,8 +324,11 @@ impl<'a> FlatWizardRun<'a> {
                 tolerance,
                 self.current_brightness
             );
-            let capture_result =
-                capture_converged_flats(self.config, ctx, test_exposure, |frame, total| {
+            let capture_result = capture_converged_flats(
+                self.config,
+                ctx,
+                test_exposure,
+                |frame, total, _recorded_secs| {
                     let capture_fraction = if total == 0 {
                         1.0
                     } else {
@@ -338,8 +341,9 @@ impl<'a> FlatWizardRun<'a> {
                             frame, total, test_exposure
                         ),
                     );
-                })
-                .await;
+                },
+            )
+            .await;
 
             match capture_result.status {
                 NodeStatus::Success => {
@@ -471,7 +475,7 @@ pub(crate) async fn capture_converged_flats(
     config: &FlatWizardConfig,
     ctx: &InstructionContext,
     exposure_secs: f64,
-    progress_callback: impl Fn(u32, u32),
+    progress_callback: impl Fn(u32, u32, f64),
 ) -> InstructionResult {
     let capture_config = final_flat_exposure_config(config, ctx.current_binning, exposure_secs);
 

@@ -1024,8 +1024,20 @@ impl SequenceExecutor {
                             // That guard is what makes `completed_exposures`
                             // exactly-once under retries and batched bursts, so
                             // the integration riding on it is exactly-once too.
-                            if let Some((duration_secs, _)) = metadata.as_ref() {
-                                let credited = f64::from(current - previous) * *duration_secs;
+                            // WF-STOP-N2 — credit the seconds the frames were
+                            // RECORDED as, not the seconds the node planned.
+                            // The producer stamps `frame_exposure_secs` from the
+                            // camera's own bounded report — the same number the
+                            // FITS header and the `captured_images` row were
+                            // written from — so this total and the Session
+                            // Report's row sum are the same figure. Crediting
+                            // the plan is what let one run read `50s` on one
+                            // surface and `1m 0s` on three others.
+                            let recorded_secs = update
+                                .frame_exposure_secs
+                                .or_else(|| metadata.as_ref().map(|(planned, _)| *planned));
+                            if let Some(secs) = recorded_secs {
+                                let credited = f64::from(current - previous) * secs;
                                 prog.completed_integration_secs += credited;
                                 *node_integration_credited
                                     .write()
@@ -1033,7 +1045,8 @@ impl SequenceExecutor {
                                     .or_insert(0.0) += credited;
                             }
 
-                            if let Some((duration_secs, filter)) = metadata {
+                            if let Some((planned_secs, filter)) = metadata {
+                                let duration_secs = recorded_secs.unwrap_or(planned_secs);
                                 exposure_started_event = Some(ExecutorEvent::ExposureStarted {
                                     frame: current,
                                     total,
@@ -3380,6 +3393,26 @@ impl SequenceExecutor {
                                 &trigger_action_in_flight_for_triggers,
                             );
 
+                            // WF-STOP-N1 — every trigger action that drives the
+                            // camera takes the capture loop's claim BEFORE it
+                            // starts, not just autofocus. A flip that fires
+                            // one millisecond into a 15 s light restarted the
+                            // same sensor for its plate solve, and the burst
+                            // then downloaded the solve frame and filed it as
+                            // that light. See `camera_driving_trigger_action`.
+                            let camera_claim_taken = match camera_driving_trigger_action(&action) {
+                                Some(label) => {
+                                    claim_camera_for_trigger_action(
+                                        &trigger_state_for_actions,
+                                        &is_cancelled_clone,
+                                        label,
+                                    )
+                                    .await;
+                                    true
+                                }
+                                None => false,
+                            };
+
                             match &action {
                                 RecoveryAction::Pause => {
                                     // Recovery Mode — promote
@@ -3643,12 +3676,12 @@ impl SequenceExecutor {
                                     // failing the exposure node and — through
                                     // the sequential parent — the whole run, at
                                     // frame 25 of every run.
-                                    claim_camera_for_trigger_action(
-                                        &trigger_state_for_actions,
-                                        &is_cancelled_clone,
-                                        "autofocus",
-                                    )
-                                    .await;
+                                    //
+                                    // The claim is taken above the match now
+                                    // (`camera_driving_trigger_action`), so
+                                    // every camera-driving action inherits it
+                                    // rather than only this one.
+                                    debug_assert!(camera_claim_taken);
                                     tracing::info!(
                                         "Executing autofocus as trigger recovery action"
                                     );
@@ -4060,6 +4093,18 @@ impl SequenceExecutor {
                                         .with_executor_event_tx(event_tx_clone2.clone());
 
                                         let flip_result = flip_executor.execute(&flip_ctx).await;
+                                        // Hand the camera back the moment the
+                                        // flip is done — success or failure —
+                                        // so the capture loop resumes on its
+                                        // next frame instead of waiting out the
+                                        // claim's ten-minute expiry. Mirrors
+                                        // the autofocus arm.
+                                        if camera_claim_taken {
+                                            trigger_state_for_actions
+                                                .write()
+                                                .await
+                                                .clear_camera_busy();
+                                        }
                                         // Snapshot the attempt count before the
                                         // match consumes the result — a flip that
                                         // only succeeded on retry #3 is DEGRADED
@@ -4253,6 +4298,16 @@ impl SequenceExecutor {
                                             .store(true, Ordering::Release);
                                         let _ =
                                             event_tx_clone2.send(ExecutorEvent::Error { message });
+                                        // No flip ran, so nothing used the
+                                        // camera: hand the claim straight back
+                                        // rather than holding the capture loop
+                                        // for the claim's ten-minute expiry.
+                                        if camera_claim_taken {
+                                            trigger_state_for_actions
+                                                .write()
+                                                .await
+                                                .clear_camera_busy();
+                                        }
                                     }
                                 }
                                 RecoveryAction::Dither(dither_config) => {
@@ -4400,6 +4455,13 @@ impl SequenceExecutor {
                                         let _ = event_tx_clone2.send(ExecutorEvent::StateChanged(
                                             ExecutorState::Paused,
                                         ));
+                                        // Nothing exposed; release the claim.
+                                        if camera_claim_taken {
+                                            trigger_state_for_actions
+                                                .write()
+                                                .await
+                                                .clear_camera_busy();
+                                        }
                                     } else {
                                         let recenter_ctx = build_trigger_autofocus_context(
                                             &trigger_action_context,
@@ -4428,6 +4490,15 @@ impl SequenceExecutor {
                                             None,
                                         )
                                         .await;
+                                        // Solve exposures are done; release the
+                                        // capture loop immediately rather than
+                                        // sitting out the claim's expiry.
+                                        if camera_claim_taken {
+                                            trigger_state_for_actions
+                                                .write()
+                                                .await
+                                                .clear_camera_busy();
+                                        }
                                         if result.status != NodeStatus::Success {
                                             tracing::warn!(
                                                 "[DRIFT] Recenter failed: {:?} - pausing sequence",

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -23,9 +24,38 @@ class SequenceProgressBar extends ConsumerStatefulWidget {
 /// warning-tinted background instead of a strobing primary-tinted one.
 const double _kPausedBackgroundAlpha = 0.06;
 
+/// Slack added to the run's own frame cadence before the run is called stalled.
+///
+/// Covers the honest gaps between frames — download, dither and settle, a
+/// filter change, an autofocus sweep — so a healthy run is never accused of
+/// standing still. It is added to TWICE the average planned frame, so the
+/// threshold scales with the subs the operator actually chose: a 15 s sub is
+/// called stalled after 90 s of silence, a 10-minute sub after 21 minutes.
+const Duration _kStallSlack = Duration(seconds: 60);
+
+/// How long the run has gone without any progress before its finish time stops
+/// being a promise. `null` when the run's cadence is unknown (no planned
+/// integration), in which case nothing is claimed either way.
+@visibleForTesting
+Duration? runStallThreshold(SequenceProgress progress) {
+  if (progress.totalExposures <= 0 || progress.totalIntegrationSecs <= 0) {
+    return null;
+  }
+  final perFrameSecs = progress.totalIntegrationSecs / progress.totalExposures;
+  return Duration(milliseconds: (perFrameSecs * 2 * 1000).round()) +
+      _kStallSlack;
+}
+
 class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late AnimationController _pulseController;
+
+  /// Monotonic elapsed time for the stall detector below.
+  ///
+  /// A `Ticker` rather than `DateTime.now()` so the measurement is the same
+  /// clock the frames are painted on — and so a widget test can advance it.
+  Ticker? _elapsedTicker;
+  Duration _tickerElapsed = Duration.zero;
 
   /// Test-only accessor for the background-pulse `AnimationController`.
   ///
@@ -45,12 +75,55 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
     // Defer starting the pulse to build(), which knows the current
     // execution state. This keeps the controller idle if the widget
     // mounts while already paused.
+    _elapsedTicker = createTicker((elapsed) => _tickerElapsed = elapsed)
+      ..start();
   }
 
   @override
   void dispose() {
+    _elapsedTicker?.dispose();
     _pulseController.dispose();
     super.dispose();
+  }
+
+  // WF-STOP-N4 — when the run last actually moved.
+  //
+  // A meridian flip whose plate solve failed entered its retry ladder and held
+  // the run for two and a half minutes. Every surface stayed cheerful: status
+  // **Running**, `Progress 4/8 · 50%`, `Mount: Tracking`, and this row's
+  // `~1m 8s · done ~00:12:13` — a finish time still on screen at 00:12:53 and
+  // again at 00:13:24, long after it had passed, with no frame captured since
+  // 00:10. The estimate is fed by completed frames, so a run that stops
+  // capturing simply keeps its last one forever and it decays into a promise
+  // the run is not working toward.
+  //
+  // Fields the run advances when it is genuinely working. `message` is included
+  // because a run can legitimately be busy between frames (slewing, focusing,
+  // and — now — a flip announcing its retry).
+  Object? _lastProgressSignature;
+  Duration? _lastProgressChangeAt;
+
+  /// How long the run has been silent, or null when it is progressing (or when
+  /// there is no cadence to judge it against).
+  Duration? _stalledFor(SequenceProgress progress, {required bool isRunning}) {
+    final signature = Object.hash(
+      progress.completedExposures,
+      progress.completedIntegrationSecs,
+      progress.currentNodeId,
+      progress.message,
+      progress.elapsedSecs,
+    );
+    final now = _tickerElapsed;
+    if (signature != _lastProgressSignature) {
+      _lastProgressSignature = signature;
+      _lastProgressChangeAt = now;
+    }
+    if (!isRunning) return null;
+    final threshold = runStallThreshold(progress);
+    final since = _lastProgressChangeAt;
+    if (threshold == null || since == null) return null;
+    final quiet = now - since;
+    return quiet >= threshold ? quiet : null;
   }
 
   /// Sync the pulse controller with the current paused state.
@@ -73,8 +146,8 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
   @override
   Widget build(BuildContext context) {
     final progress = ref.watch(sequenceProgressProvider);
-    final isPaused = ref.watch(sequenceExecutionStateProvider) ==
-        SequenceExecutionState.paused;
+    final executionState = ref.watch(sequenceExecutionStateProvider);
+    final isPaused = executionState == SequenceExecutionState.paused;
 
     // React to isPaused flips by starting/stopping the pulse controller.
     // Doing this in build() keeps it in lockstep with the watched provider
@@ -84,6 +157,14 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
     return AnimatedBuilder(
       animation: _pulseController,
       builder: (context, child) {
+        // Recomputed inside the pulse builder, not in `build`: `build` only
+        // reruns when a provider changes, and a stalled run by definition
+        // changes nothing. The pulse ticks every frame, which is what lets the
+        // silence be noticed at all.
+        final stalledFor = _stalledFor(
+          progress,
+          isRunning: executionState == SequenceExecutionState.running,
+        );
         final backgroundColor = isPaused
             ? widget.colors.warning.withValues(alpha: _kPausedBackgroundAlpha)
             : widget.colors.primary.withValues(
@@ -366,7 +447,40 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
                       ),
                     ],
                   ),
-                  if (progress.estimatedRemainingSecs != null)
+                  if (stalledFor != null)
+                    // The run has not moved for longer than its own frame
+                    // cadence allows, so it has no finish time to offer. Say
+                    // what is true — how long it has been silent — and let the
+                    // run's own message (the flip retry, the wait, the failed
+                    // step) explain it on the left half of this bar.
+                    Tooltip(
+                      message: 'No frame has completed for longer than this '
+                          "run's own frame cadence, so its finish time is not "
+                          'shown. The current step is on the left.',
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            LucideIcons.alertTriangle,
+                            size: 12,
+                            color: widget.colors.warning,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'no progress for '
+                            '${DurationFormat.seconds(stalledFor.inSeconds.toDouble(), rounding: DurationRounding.truncate)}',
+                            style: TextStyle(
+                              fontSize: NightshadeTypography.fontSize11,
+                              color: widget.colors.warning,
+                              fontFeatures: const [
+                                FontFeature.tabularFigures()
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else if (progress.estimatedRemainingSecs != null)
                     Tooltip(
                       // The estimate is planned integration only — it does
                       // not include pending autofocus / dither / meridian-flip

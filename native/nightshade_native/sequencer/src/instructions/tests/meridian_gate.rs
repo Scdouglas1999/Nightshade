@@ -152,7 +152,7 @@ async fn overdue_meridian_flip_does_not_stall_the_exposure_burst() {
 
     let result = tokio::time::timeout(
         Duration::from_secs(20),
-        execute_exposure_with_renderer(&config, &ctx, None, &control, |_, _| {}),
+        execute_exposure_with_renderer(&config, &ctx, None, &control, |_, _, _| {}),
     )
     .await;
 
@@ -241,7 +241,7 @@ async fn gate_does_not_hold_when_the_mount_cannot_make_the_trigger_fire() {
 
     let result = tokio::time::timeout(
         Duration::from_secs(20),
-        execute_exposure_with_renderer(&config, &ctx, None, &control, |_, _| {}),
+        execute_exposure_with_renderer(&config, &ctx, None, &control, |_, _, _| {}),
     )
     .await;
 

@@ -206,6 +206,10 @@ export 'src/providers/sequence_stats_provider.dart';
 export 'src/providers/sequence/run_stop_classification.dart';
 // The one vocabulary for an exposure node's per-frame progress line.
 export 'src/providers/sequence/exposure_progress_vocabulary.dart';
+// Whether a finished run's report interrupts the operator or waits for them.
+export 'src/providers/sequence/session_report_presentation.dart';
+// The one channel only exposure-shaped progress can write (SEQ-18).
+export 'src/providers/sequence/node_exposure_tally.dart';
 // Thumbnail — inline frame thumbnails in the sequence tree.
 export 'src/providers/sequence/exposure_node_thumbnails_provider.dart';
 // Plugin-node dispatcher abstraction. The app entry
