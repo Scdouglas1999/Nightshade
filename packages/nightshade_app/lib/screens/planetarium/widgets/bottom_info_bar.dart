@@ -173,33 +173,48 @@ class InfoItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          '${compact ? (compactLabel ?? label.split(' ').first) : label}:',
-          style: TextStyle(
-            fontSize: compact
-                ? NightshadeTypography.fontSize10
-                : NightshadeTypography.fontSize11,
-            // absolute: HUD label over the planetarium sky canvas
-            color: Colors.white.withValues(alpha: 0.5),
+    final shown = compact ? (compactLabel ?? label.split(' ').first) : label;
+    // Its OWN accessible node, named label AND value together.
+    //
+    // Two bare Texts publish two label fragments with no boundary of their own,
+    // and Flutter merges compatible sibling fragments into the nearest
+    // enclosing node — which on the planetarium is the sky canvas, a node that
+    // carries a tap action. The whole HUD therefore arrived at AT-SPI as ONE
+    // focusable panel named "20:37:18 / 1x / Center RA: ... / Bortle: 5" and
+    // flagged interactive-but-disabled. `container: true` gives each readout a
+    // node; `excludeSemantics` stops the glyphs being read a second time.
+    return Semantics(
+      container: true,
+      label: '$shown $value',
+      excludeSemantics: true,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$shown:',
+            style: TextStyle(
+              fontSize: compact
+                  ? NightshadeTypography.fontSize10
+                  : NightshadeTypography.fontSize11,
+              // absolute: HUD label over the planetarium sky canvas
+              color: Colors.white.withValues(alpha: 0.5),
+            ),
           ),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: compact
-                ? NightshadeTypography.fontSize11
-                : NightshadeTypography.fontSize12,
-            fontWeight: FontWeight.w500,
-            // absolute: HUD value over the planetarium sky canvas
-            color: valueColor ?? Colors.white70,
-            fontFeatures: const [ui.FontFeature.tabularFigures()],
+          const SizedBox(width: 4),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: compact
+                  ? NightshadeTypography.fontSize11
+                  : NightshadeTypography.fontSize12,
+              fontWeight: FontWeight.w500,
+              // absolute: HUD value over the planetarium sky canvas
+              color: valueColor ?? Colors.white70,
+              fontFeatures: const [ui.FontFeature.tabularFigures()],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

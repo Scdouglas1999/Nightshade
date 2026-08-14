@@ -323,10 +323,20 @@ class GuideGraphAdvanced extends StatelessWidget {
           // A PopupMenuButton with a custom child publishes no role of its
           // own, so without this the selector reads as inert static text to
           // assistive tech.
+          //
+          // The selected scale goes in the NAME, not only in `value`. Naming
+          // it `label` alone and leaving the scale to `SemanticsProperties
+          // .value` published nothing at all on Linux: `excludeSemantics`
+          // drops the child `Text('5m')`, and an AT-SPI probe of the node
+          // reported no Value interface and an empty description, so the tree
+          // read `button: Time:` and a grep for `5m` / `15m` / `±2"` over the
+          // whole guiding screen returned zero — less than the merged
+          // `Time: 5m` node this replaced. `value` stays set for the platforms
+          // that do read it.
           child: Semantics(
             button: true,
             enabled: true,
-            label: label,
+            label: '$label $value',
             value: value,
             excludeSemantics: true,
             child: ConstrainedBox(

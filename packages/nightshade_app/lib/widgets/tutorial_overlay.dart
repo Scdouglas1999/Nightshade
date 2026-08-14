@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -145,6 +146,14 @@ enum TutorialDirection { forward, backward }
 /// Returns null at the ends of the tour and whenever the target is live, which
 /// is what makes the walk terminate.
 ///
+/// The WHOLE run of absent steps is passed over in one answer, not one step per
+/// call. Hopping a single step and re-entering from the next build walked the
+/// operator THROUGH the absent steps at one every 450 ms, and every one of them
+/// became the current step long enough to be announced: the live tree dump
+/// caught the dashboard tour parked on "step 6 of 12: Weather Status" and then
+/// "step 11 of 12: Active Sequence" on a dashboard that has neither panel. A
+/// step nobody should see must never become the current step.
+///
 /// One step being absent among present siblings is a layout that does not carry
 /// that panel. NOTHING in the tour resolving is a different situation — the
 /// screen has not finished building, or the operator is somewhere else
@@ -158,17 +167,30 @@ int? tutorialStepIndexPastMissingTarget({
   required bool Function(String targetKey) isTargetLive,
 }) {
   if (index < 0 || index >= steps.length) return null;
-  final targetKey = steps[index].targetKey;
-  if (targetKey == null || targetKey.isEmpty) return null;
-  if (isTargetLive(targetKey)) return null;
+
+  // A step is landable when it points at nothing (the centred welcome and
+  // completion cards) or at something that is on screen.
+  bool landable(int i) {
+    final key = steps[i].targetKey;
+    return key == null || key.isEmpty || isTargetLive(key);
+  }
+
+  if (landable(index)) return null;
   final anyLive = steps.any((step) {
     final key = step.targetKey;
     return key != null && key.isNotEmpty && isTargetLive(key);
   });
   if (!anyLive) return null;
-  final next = direction == TutorialDirection.forward ? index + 1 : index - 1;
-  if (next < 0 || next >= steps.length) return null;
-  return next;
+
+  final stride = direction == TutorialDirection.forward ? 1 : -1;
+  for (var next = index + stride;
+      next >= 0 && next < steps.length;
+      next += stride) {
+    if (landable(next)) return next;
+  }
+  // Every remaining step that way is absent too; there is nowhere to land, so
+  // the tour stays where it is rather than running off the end.
+  return null;
 }
 
 /// Tutorial overlay that displays coach marks with spotlight effect
@@ -342,11 +364,22 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
               TutorialKeys.getKey(key)?.currentContext != null,
         );
         if (target == null) return;
+        // One log line that names THIS overlay and the jump it made. The tour
+        // is narrated by two different widgets (this coach-mark overlay and
+        // the first-launch OnboardingOverlay), and a fix that changed nothing
+        // on screen is otherwise indistinguishable from a fix applied to the
+        // one that does not run.
+        developer.log(
+          'TutorialOverlay pass-over: ${category.name} '
+          '$index -> $target (absent target ${steps[index].targetKey})',
+          name: 'TutorialOverlay',
+        );
         final notifier = ref.read(tutorialProvider.notifier);
         try {
-          await (target > index
-              ? notifier.nextStep()
-              : notifier.previousStep());
+          // goToStep, not repeated next/previous: the run is crossed in one
+          // move so no absent step is ever the current step, and therefore
+          // none of them is announced to a screen reader.
+          await notifier.goToStep(target);
         } catch (_) {
           // Passing over an absent panel is a courtesy, not an instruction the
           // operator gave. A progress write that fails here leaves the tour

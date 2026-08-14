@@ -95,6 +95,44 @@ void main() {
     );
   });
 
+  // Wave E, SET-12 second strike. The D-fix made the walk hop ONE step per
+  // call and re-enter itself from the next build, 450 ms apart, so the live
+  // dump caught the tour parked on — and announcing — "step 6 of 12: Weather
+  // Status" and "step 11 of 12: Active Sequence" on a dashboard that carries
+  // neither panel. The refuter's exact counter-input: the real 12-step
+  // dashboard tour with `dashboard_edit_button` as the only live target.
+  test('a run of absent panels is passed over in ONE jump', () {
+    final dashboard =
+        TutorialDefinitions.getStepsForCategory(TutorialCategory.dashboardTour);
+    expect(dashboard.length, 12, reason: 'the tour the operator walked');
+    expect(dashboard[5].title, 'Weather Status');
+    expect(dashboard[10].title, 'Active Sequence');
+
+    expect(
+      tutorialStepIndexPastMissingTarget(
+        steps: dashboard,
+        index: 2,
+        direction: TutorialDirection.forward,
+        isTargetLive: _onlyEditButtonIsLive,
+      ),
+      11,
+      reason: 'the completion card is the next thing this dashboard HAS; '
+          'landing on 5 or 10 announces a panel that is not on screen',
+    );
+
+    // And from the far side: Back from the completion card lands on the one
+    // panel this dashboard really has, not on any of the nine it does not.
+    expect(
+      tutorialStepIndexPastMissingTarget(
+        steps: dashboard,
+        index: 10,
+        direction: TutorialDirection.backward,
+        isTargetLive: _onlyEditButtonIsLive,
+      ),
+      1,
+    );
+  });
+
   test('the walk stops at the ends rather than running off them', () {
     final trailing = [_step('absent', targetKey: 'dashboard_x', order: 0)];
     expect(

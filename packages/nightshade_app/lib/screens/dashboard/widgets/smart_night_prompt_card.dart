@@ -13,6 +13,16 @@ import 'glass_card.dart';
 const double _kDesktopPromptWidth = 480.0;
 const double _kBottomInset = 16.0;
 const double _kMobileHorizontalMargin = 16.0;
+
+/// Vertical space the dashboard's scroll view keeps clear while a floating
+/// prompt is on screen.
+///
+/// The nudge is drawn OVER the dashboard, so at the bottom of the scroll extent
+/// it covered the Moon card and hid the Moonrise time while leaving Moonset
+/// visible — measured on the live frame at x 537-920 / y 537-645 over a Moon
+/// card at x 258-722. Reserving its height (108 px measured, plus its bottom
+/// margin) lets the last card scroll clear of it.
+const double kFloatingPromptReservedHeight = 108.0 + _kBottomInset * 2;
 const Duration _kSlideInDuration = Duration(milliseconds: 240);
 
 final smartNightPromptGraceProvider =

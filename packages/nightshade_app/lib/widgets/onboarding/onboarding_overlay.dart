@@ -24,9 +24,10 @@ import 'onboarding_tooltip_card.dart';
 /// navigation. It only mounts when the persistence layer says the user
 /// hasn't completed or skipped the tour — the launcher handles that gate.
 ///
-/// Skip semantics: clicking Skip, pressing Escape, or tapping the dim
-/// scrim outside the cutout all call [OnboardingTourNotifier.skip], which
-/// persists a "dismissed" row distinct from "completed". Why distinct: so
+/// Skip semantics: clicking Skip or pressing Escape calls
+/// [OnboardingTourNotifier.skip], which persists a "dismissed" row distinct
+/// from "completed". Tapping the scrim does NOT — it is absorbed (see the
+/// scrim's own note). Why distinct: so
 /// a future "rerun on major version bump" feature can still target
 /// users who skipped the tour but never explicitly finished it, without
 /// re-prompting users who saw the full flow.
@@ -288,16 +289,21 @@ class _OnboardingOverlayState extends ConsumerState<OnboardingOverlay> {
             'Escape to skip',
         child: Stack(
           children: [
-            // The dim scrim + cutout. GestureDetector absorbs taps on the
-            // dim area and treats them as a Skip; the cutout itself is
-            // visually carved out but still under the scrim, so taps on
-            // the highlighted widget also skip (they don't pass through
-            // to the underlying control — every step must advance via the
-            // explicit buttons so the user reads the description).
+            // The dim scrim + cutout. The GestureDetector ABSORBS taps on the
+            // dim area — it does not treat them as a Skip.
+            //
+            // It used to skip, and that combination cost the operator a click
+            // AND the tour: "Reset All Progress" re-arms this tour, so the
+            // first click after confirming the reset (the nav rail, in the
+            // live drive) landed on a scrim the operator had not asked for.
+            // The click did nothing, the tour vanished before the next
+            // screenshot, and a second identical click was needed to navigate
+            // — leaving no trace of why. A modal that stays on screen explains
+            // itself; Escape and the explicit Skip button still leave it.
             Positioned.fill(
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTap: _terminalAction == null ? _skip : null,
+                onTap: () {},
                 child: CustomPaint(
                   painter: OnboardingCutoutPainter(
                     targetRect: targetRect,

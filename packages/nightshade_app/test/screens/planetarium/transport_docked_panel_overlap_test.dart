@@ -81,4 +81,67 @@ void main() {
       reason: 'the inset is load-bearing, not a constant shift',
     );
   });
+
+  // E-SKY-1: the D-4 inset moved the transport INTO the instruments it was
+  // supposed to clear. Live at 900x900 with the Layers drawer open: transport
+  // x 283-555, compass dial 240-315, minimap 500-620 — the transport covered
+  // the compass's `S` label with the 77/90 deg altitude ticks and the left
+  // third of the minimap including its `W`. The band arithmetic is pinned with
+  // those exact numbers (tablet form factor: compass 90 + 40 altitude bar,
+  // minimap 120, edge padding 16).
+  group('the transport clears the compass and the minimap', () {
+    test('at 900 px with a drawer open there is no room beside them', () {
+      final band = planetariumTransportBand(
+        stackWidth: 724, // 900 px window less the app nav rail
+        dockedWidth: 280,
+        edgePadding: 16,
+        compassExtent: 130,
+        minimapExtent: 120,
+        instrumentBottom: 56,
+        transportMinWidth: PlanetariumTransportSlot.minWidth,
+      );
+      // 724 - (16+130+8) - (280+16+120+8) = 146 px, half a transport.
+      expect(
+        band.bottom,
+        greaterThan(56 + 130),
+        reason: 'with nowhere to sit beside them it must clear them upward',
+      );
+      expect(band.left, 0);
+      expect(band.right, 280, reason: 'the docked panel still owns its width');
+    });
+
+    test('at 1600 px it still centres between them', () {
+      final band = planetariumTransportBand(
+        stackWidth: 1424,
+        dockedWidth: 380,
+        edgePadding: 16,
+        compassExtent: 120,
+        minimapExtent: 100,
+        instrumentBottom: 56,
+        transportMinWidth: PlanetariumTransportSlot.minWidth,
+      );
+      expect(band.bottom, 44, reason: 'the bottom band is where it belongs');
+      expect(band.left, 16 + 120 + 8);
+      expect(band.right, 380 + 16 + 100 + 8);
+      expect(
+        1424 - band.left - band.right,
+        greaterThanOrEqualTo(PlanetariumTransportSlot.minWidth),
+      );
+    });
+
+    test('with both instruments hidden it uses the whole band', () {
+      final band = planetariumTransportBand(
+        stackWidth: 724,
+        dockedWidth: 280,
+        edgePadding: 16,
+        compassExtent: 0,
+        minimapExtent: 0,
+        instrumentBottom: 56,
+        transportMinWidth: PlanetariumTransportSlot.minWidth,
+      );
+      expect(band.left, 0);
+      expect(band.right, 280);
+      expect(band.bottom, 44);
+    });
+  });
 }

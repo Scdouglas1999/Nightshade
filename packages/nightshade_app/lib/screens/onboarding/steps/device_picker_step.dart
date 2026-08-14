@@ -52,6 +52,16 @@ class _OnboardingDevicePickerBodyState
     extends ConsumerState<OnboardingDevicePickerBody> {
   bool _scanRequested = false;
 
+  /// Owned so the scrollbar can be pinned visible: `thumbVisibility` requires
+  /// a controller shared with exactly one scroll view.
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -104,21 +114,33 @@ class _OnboardingDevicePickerBodyState
     // on step 6 that pushed the header row straight through the footnote — two
     // sentences painted over each other at 1600x900. Scroll instead of
     // overflowing, and stretch to fill the box when there is room to.
+    // ...and a box that scrolls must SAY it scrolls. With the two backend
+    // failure lines present the just-selected device row was cut through the
+    // middle of its subtitle glyphs, with no scrollbar, no fade and no bottom
+    // border — it read as a rendering fault, on the one row the operator had
+    // just chosen. An always-visible thumb is the affordance; the tile scrolls
+    // itself into view (see [_DeviceTileState]) so the choice is never the
+    // thing hidden below the fold.
     return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            minHeight:
-                constraints.maxHeight.isFinite ? constraints.maxHeight : 0,
-          ),
-          child: _buildBody(
-            context,
-            colors: colors,
-            theme: theme,
-            devices: devices,
-            selectedDrivers: selectedDrivers,
-            discovery: discovery,
-            isDiscovering: isDiscovering,
+      builder: (context, constraints) => Scrollbar(
+        controller: _scrollController,
+        thumbVisibility: true,
+        child: SingleChildScrollView(
+          controller: _scrollController,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight:
+                  constraints.maxHeight.isFinite ? constraints.maxHeight : 0,
+            ),
+            child: _buildBody(
+              context,
+              colors: colors,
+              theme: theme,
+              devices: devices,
+              selectedDrivers: selectedDrivers,
+              discovery: discovery,
+              isDiscovering: isDiscovering,
+            ),
           ),
         ),
       ),
@@ -523,6 +545,35 @@ class _DeviceTile extends StatefulWidget {
 
 class _DeviceTileState extends State<_DeviceTile> {
   bool _focused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Re-entering the step with a device already picked put the chosen row
+    // below the fold of the fixed-height picker, half-drawn.
+    if (widget.isSelected) _revealSelf();
+  }
+
+  @override
+  void didUpdateWidget(_DeviceTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isSelected && !oldWidget.isSelected) _revealSelf();
+  }
+
+  /// Bring the chosen row fully inside the picker's viewport.
+  void _revealSelf() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final position = Scrollable.maybeOf(context)?.position;
+      if (position == null || !position.hasContentDimensions) return;
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        alignment: 0.5,
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

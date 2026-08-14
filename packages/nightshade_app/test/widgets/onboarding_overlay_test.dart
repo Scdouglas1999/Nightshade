@@ -14,6 +14,7 @@
 // overlay itself is unchanged and remains fully covered below.
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/widgets/onboarding/onboarding_overlay.dart';
@@ -294,6 +295,55 @@ void main() {
       await daoWrapper.reset();
       expect(
           await daoWrapper.getStatus(), equals(FirstLaunchTourStatus.pending));
+    });
+  });
+
+  // WE-SP-2: "Reset All Progress" re-arms this tour, so the very next click the
+  // operator makes lands on a scrim they did not ask for. It used to be read as
+  // a Skip — costing them the click AND the tour, which was gone before the
+  // next screenshot, so the only symptom was "the nav rail did nothing and a
+  // second identical click worked". A modal that stays up explains itself.
+  group('WE-SP-2 — a stray click on the scrim does not silently kill the tour',
+      () {
+    testWidgets('tapping the dim area leaves the tour on screen',
+        (tester) async {
+      final db = _newInMemoryDb();
+      addTearDown(() async => db.close());
+
+      await _pumpOverlayDirect(tester, db: db);
+      expect(find.text('Welcome to Nightshade'), findsOneWidget);
+
+      // Top-left corner: dim scrim, far from the card and any cutout — where
+      // the nav rail sits under the overlay.
+      await tester.tapAt(const Offset(40, 60));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Welcome to Nightshade'),
+        findsOneWidget,
+        reason: 'the click is absorbed by the modal, not turned into a Skip',
+      );
+      expect(
+        await FirstLaunchTourDao(TutorialProgressDao(db)).getStatus(),
+        isNot(FirstLaunchTourStatus.skipped),
+        reason: 'nothing may be persisted from a stray tap',
+      );
+    });
+
+    testWidgets('Escape still leaves the tour', (tester) async {
+      final db = _newInMemoryDb();
+      addTearDown(() async => db.close());
+
+      await _pumpOverlayDirect(tester, db: db);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+
+      // This harness mounts the overlay directly (the launcher is what tears
+      // it down in the app), so the pin is on the persisted intent.
+      expect(
+        await FirstLaunchTourDao(TutorialProgressDao(db)).getStatus(),
+        FirstLaunchTourStatus.skipped,
+      );
     });
   });
 }

@@ -164,49 +164,62 @@ class _SearchEntry extends StatelessWidget {
     return NightshadeTooltip(
       message: 'Search the sky',
       position: NightshadeTooltipPosition.bottom,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-        child: Container(
-          height: 32,
-          width: 200,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          decoration: BoxDecoration(
-            color: colors.surfaceAlt.withValues(alpha: 0.7),
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-            border: Border.all(color: colors.border.withValues(alpha: 0.6)),
-          ),
-          child: Row(
-            children: [
-              Icon(NightshadeIcons.search, size: 15, color: colors.textMuted),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Search',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize13,
-                    color: colors.textMuted,
+      // A bare InkWell publishes a focusable, tappable node with NO button role
+      // and no enabled state, and its two child Texts merge into it: the live
+      // tree read `panel: Search\nCtrl+K [DISABLED]` — the search box telling
+      // assistive tech it was interactive and dead at the same time. The
+      // keyboard shortcut goes in the name because `excludeSemantics` drops the
+      // chip that draws it.
+      child: Semantics(
+        button: true,
+        enabled: true,
+        label: 'Search the sky (${shortcutLabel('K')})',
+        excludeSemantics: true,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+          child: Container(
+            height: 32,
+            width: 200,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              color: colors.surfaceAlt.withValues(alpha: 0.7),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+              border: Border.all(color: colors.border.withValues(alpha: 0.6)),
+            ),
+            child: Row(
+              children: [
+                Icon(NightshadeIcons.search, size: 15, color: colors.textMuted),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Search',
+                    style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize13,
+                      color: colors.textMuted,
+                    ),
                   ),
                 ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                decoration: BoxDecoration(
-                  color: colors.surface.withValues(alpha: 0.8),
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusInline4),
-                  border:
-                      Border.all(color: colors.border.withValues(alpha: 0.5)),
-                ),
-                child: Text(
-                  shortcutLabel('K'),
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize10,
-                    color: colors.textMuted,
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: colors.surface.withValues(alpha: 0.8),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline4),
+                    border:
+                        Border.all(color: colors.border.withValues(alpha: 0.5)),
+                  ),
+                  child: Text(
+                    shortcutLabel('K'),
+                    style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize10,
+                      color: colors.textMuted,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -525,30 +538,40 @@ class _CommandBarIconButtonState extends State<CommandBarIconButton> {
             ? colors.surfaceAlt.withValues(alpha: 0.6)
             : Colors.transparent);
 
-    return NightshadeTooltip(
-      message: widget.tooltip,
-      position: NightshadeTooltipPosition.bottom,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 2),
-        child: MouseRegion(
-          cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
-          onEnter: (_) => setState(() => _hovered = true),
-          onExit: (_) => setState(() => _hovered = false),
-          child: GestureDetector(
-            onTap: enabled ? widget.onTap : null,
-            child: AnimatedContainer(
-              duration: NightshadeTokens.durationFast,
-              width: 34,
-              height: 34,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: bg,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-                border: widget.isActive
-                    ? Border.all(color: colors.accent.withValues(alpha: 0.45))
-                    : null,
+    // Same reason as the search box above: `GestureDetector` publishes a
+    // tappable node with no role and no enabled state, so every icon in this
+    // bar read as an inert panel. The tooltip is the control's name.
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: widget.tooltip,
+      child: NightshadeTooltip(
+        message: widget.tooltip,
+        position: NightshadeTooltipPosition.bottom,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: MouseRegion(
+            cursor:
+                enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+            onEnter: (_) => setState(() => _hovered = true),
+            onExit: (_) => setState(() => _hovered = false),
+            child: GestureDetector(
+              onTap: enabled ? widget.onTap : null,
+              child: AnimatedContainer(
+                duration: NightshadeTokens.durationFast,
+                width: 34,
+                height: 34,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: bg,
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusMd),
+                  border: widget.isActive
+                      ? Border.all(color: colors.accent.withValues(alpha: 0.45))
+                      : null,
+                ),
+                child: Icon(widget.icon, size: 17, color: fg),
               ),
-              child: Icon(widget.icon, size: 17, color: fg),
             ),
           ),
         ),

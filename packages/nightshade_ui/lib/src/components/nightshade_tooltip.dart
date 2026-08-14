@@ -78,6 +78,28 @@ class _NightshadeTooltipState extends State<NightshadeTooltip>
   Timer? _dismissTimer;
   Timer? _showTimer;
 
+  /// Retires the overlay once the fade-out has run.
+  ///
+  /// NOT `_animController.reverse().then(...)`: a `TickerFuture` whose ticker
+  /// is cancelled — which is what a second `reverse()`, a `forward()` or a
+  /// `stop()` does — never completes and never throws, so the callback that
+  /// calls `hide()` is silently dropped and the overlay stays mounted with its
+  /// opacity at zero. That is invisible on screen and fully present in the
+  /// accessibility tree, which is exactly how three planetarium toolbar labels
+  /// came to be listed as live panels over a demonstrably clean command bar.
+  Timer? _hideTimer;
+
+  /// Retires a hover tooltip that was never told the pointer left.
+  ///
+  /// `MouseRegion.onExit` does not arrive when the trigger is rebuilt or
+  /// removed under the cursor, or when the pointer leaves the window in one
+  /// jump; the live drive found a "Forward 1 hour" label still painted over the
+  /// sky 12 s after the pointer had been parked elsewhere. A tooltip is a
+  /// transient hint, so it retires on its own.
+  Timer? _lifetimeTimer;
+
+  static const Duration _maxVisible = Duration(seconds: 6);
+
   @override
   void initState() {
     super.initState();
@@ -101,6 +123,8 @@ class _NightshadeTooltipState extends State<NightshadeTooltip>
   void dispose() {
     _dismissTimer?.cancel();
     _showTimer?.cancel();
+    _hideTimer?.cancel();
+    _lifetimeTimer?.cancel();
     if (identical(_visibleTooltip, this)) _visibleTooltip = null;
     _animController.dispose();
     super.dispose();
@@ -126,8 +150,19 @@ class _NightshadeTooltipState extends State<NightshadeTooltip>
       _showTimer = null;
       if (!_isHovered || !mounted) return;
       _claimVisibility();
+      _hideTimer?.cancel();
+      _hideTimer = null;
       _overlayController.show();
       _animController.forward();
+      _armLifetime();
+    });
+  }
+
+  /// (Re)start the self-retirement clock for a tooltip that is on screen.
+  void _armLifetime() {
+    _lifetimeTimer?.cancel();
+    _lifetimeTimer = Timer(_maxVisible, () {
+      if (mounted && _overlayController.isShowing) _hideTooltip();
     });
   }
 
@@ -135,10 +170,15 @@ class _NightshadeTooltipState extends State<NightshadeTooltip>
     _dismissTimer?.cancel();
     _showTimer?.cancel();
     _showTimer = null;
+    _lifetimeTimer?.cancel();
+    _lifetimeTimer = null;
     _isHovered = false;
     if (identical(_visibleTooltip, this)) _visibleTooltip = null;
-    _animController.reverse().then((_) {
-      if (mounted && _overlayController.isShowing) {
+    _animController.reverse();
+    _hideTimer?.cancel();
+    _hideTimer = Timer(widget.animationDuration, () {
+      _hideTimer = null;
+      if (mounted && !_isHovered && _overlayController.isShowing) {
         _overlayController.hide();
       }
     });
@@ -154,10 +194,13 @@ class _NightshadeTooltipState extends State<NightshadeTooltip>
     _dismissTimer?.cancel();
     _showTimer?.cancel();
     _showTimer = null;
+    _hideTimer?.cancel();
+    _hideTimer = null;
     _isHovered = true;
     _claimVisibility();
     _overlayController.show();
     _animController.forward();
+    _armLifetime();
     _dismissTimer = Timer(const Duration(seconds: 3), _hideTooltip);
   }
 
@@ -166,6 +209,12 @@ class _NightshadeTooltipState extends State<NightshadeTooltip>
     return OverlayPortal(
       controller: _overlayController,
       overlayChildBuilder: (context) {
+        // The floating label publishes NO accessible node, ever. A tooltip
+        // belongs to its trigger in the accessibility model (below, as
+        // `Semantics.tooltip`), and an overlay that outlives its hover by even
+        // one frame otherwise leaves a free-floating panel in the tree naming
+        // a control that is not on screen — the D-2 defect, which reproduced
+        // with three planetarium toolbar labels listed over a clean bar.
         return _TooltipOverlay(
           targetKey: _childKey,
           message: widget.message,
@@ -179,10 +228,18 @@ class _NightshadeTooltipState extends State<NightshadeTooltip>
       },
       child: MouseRegion(
         onEnter: (_) => _showTooltip(),
+        // Pointer movement over the trigger is the proof that the hover is
+        // still live, so it pushes the self-retirement clock back.
+        onHover: (_) {
+          if (_overlayController.isShowing) _armLifetime();
+        },
         onExit: (_) => _hideTooltip(),
         child: GestureDetector(
           onLongPress: _toggleTooltipForTouch,
-          child: KeyedSubtree(key: _childKey, child: widget.child),
+          child: Semantics(
+            tooltip: widget.message,
+            child: KeyedSubtree(key: _childKey, child: widget.child),
+          ),
         ),
       ),
     );
@@ -286,30 +343,34 @@ class _TooltipOverlay extends StatelessWidget {
     // one-character sliver at the window edge. It affected every tooltip near any
     // edge, since this is the shared design-system component.
     return Positioned.fill(
-      child: CustomSingleChildLayout(
-        delegate: _TooltipLayoutDelegate(
-          anchor: Offset(left, top),
-          position: position,
-          padding: padding,
-          viewport: screenSize,
-        ),
-        child: AnimatedBuilder(
-          animation: fadeAnimation,
-          builder: (context, child) {
-            return Opacity(
-              opacity: fadeAnimation.value,
-              child: Transform.scale(
-                scale: scaleAnimation.value,
-                alignment: _getScaleAlignment(),
-                child: child,
-              ),
-            );
-          },
-          child: _buildTooltipContent(
-            colors,
-            position,
-            targetPosition,
-            targetSize,
+      // `Positioned` must stay a direct child of the Overlay's Stack, so the
+      // semantics exclusion goes here, around the content.
+      child: ExcludeSemantics(
+        child: CustomSingleChildLayout(
+          delegate: _TooltipLayoutDelegate(
+            anchor: Offset(left, top),
+            position: position,
+            padding: padding,
+            viewport: screenSize,
+          ),
+          child: AnimatedBuilder(
+            animation: fadeAnimation,
+            builder: (context, child) {
+              return Opacity(
+                opacity: fadeAnimation.value,
+                child: Transform.scale(
+                  scale: scaleAnimation.value,
+                  alignment: _getScaleAlignment(),
+                  child: child,
+                ),
+              );
+            },
+            child: _buildTooltipContent(
+              colors,
+              position,
+              targetPosition,
+              targetSize,
+            ),
           ),
         ),
       ),

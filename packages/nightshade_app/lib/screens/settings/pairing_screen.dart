@@ -123,9 +123,18 @@ class PairingScreen extends ConsumerWidget {
           ),
           child: Column(
             children: [
-              Text(
-                l10n.text('pairingEnterCode'),
-                style: Theme.of(context).textTheme.titleMedium,
+              // Its own node. Bare Texts open no semantics boundary, so
+              // Flutter merged this line, the expiry line and the Cancel
+              // button's label into ONE node carrying the card's role: the
+              // live tree read `button: Pair New Device / Enter this code on
+              // your device: / Expires in 04:53 / Cancel Pairing` — a single
+              // "button" whose name was four unrelated sentences.
+              Semantics(
+                container: true,
+                child: Text(
+                  l10n.text('pairingEnterCode'),
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
               ),
               const SizedBox(height: 16),
               // Named for assistive tech, not just drawn. A [SelectableText]
@@ -147,22 +156,12 @@ class PairingScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton(
-                    onPressed: () {
-                      Clipboard.setData(
-                          ClipboardData(text: state.pairingCode!));
-                      context.showSuccessSnackBar(
-                        l10n.text('pairingCodeCopied'),
-                      );
-                    },
-                    icon: const Icon(NightshadeIcons.copy),
-                    tooltip: l10n.text('pairingCopyCode'),
-                  ),
-                ],
-              ),
+              // The copy control published NO accessible node at all — a bare
+              // IconButton's tooltip is not a name — and pressing it changed
+              // nothing the operator could see: two screenshots taken 3 s
+              // apart across the click were identical. It is now a named
+              // button that confirms in place.
+              _CopyCodeButton(code: state.pairingCode!),
             ],
           ),
         ),
@@ -176,17 +175,20 @@ class PairingScreen extends ConsumerWidget {
               color: Theme.of(context).colorScheme.secondary,
             ),
             const SizedBox(width: 8),
-            Text(
-              l10n.text(
-                'pairingExpiresIn',
-                params: {
-                  'minutes': minutes.toString().padLeft(2, '0'),
-                  'seconds': seconds.toString().padLeft(2, '0'),
-                },
+            Semantics(
+              container: true,
+              child: Text(
+                l10n.text(
+                  'pairingExpiresIn',
+                  params: {
+                    'minutes': minutes.toString().padLeft(2, '0'),
+                    'seconds': seconds.toString().padLeft(2, '0'),
+                  },
+                ),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.secondary,
+                    ),
               ),
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.secondary,
-                  ),
             ),
           ],
         ),
@@ -268,10 +270,16 @@ class PairingScreen extends ConsumerWidget {
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 8),
+                      // `colorScheme.outline` is a BORDER colour. Used as
+                      // body text on this empty state it measured 1.31:1
+                      // against the card — rgb(43,49,59) on rgb(24,28,34) —
+                      // so the one sentence telling a new user how to pair a
+                      // device was effectively invisible. textSecondary is the
+                      // design system's body-secondary token and clears AA.
                       Text(
                         l10n.text('pairingNoDevicesDesc'),
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context).colorScheme.outline,
+                              color: NightshadeColors.of(context).textSecondary,
                             ),
                       ),
                     ],
@@ -728,6 +736,76 @@ class PairingScreen extends ConsumerWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Copy-the-pairing-code control.
+///
+/// A named button (so assistive tech can find and press it) that acknowledges
+/// itself where the operator is looking. The snack bar stays for the screen
+/// reader announcement, but it is no longer the only feedback: the label swaps
+/// to "Copied" for a few seconds, which is what a silent click needed.
+class _CopyCodeButton extends StatefulWidget {
+  const _CopyCodeButton({required this.code});
+
+  final String code;
+
+  @override
+  State<_CopyCodeButton> createState() => _CopyCodeButtonState();
+}
+
+class _CopyCodeButtonState extends State<_CopyCodeButton> {
+  static const Duration _confirmFor = Duration(seconds: 3);
+  Timer? _resetTimer;
+  bool _copied = false;
+
+  @override
+  void dispose() {
+    _resetTimer?.cancel();
+    super.dispose();
+  }
+
+  void _copy() {
+    // The confirmation is NOT gated on the platform round-trip. Awaiting
+    // `Clipboard.setData` before touching the UI is why the click looked dead:
+    // where the channel does not answer, the label never changed and no snack
+    // bar was ever posted. Acknowledge the press, then correct the record if
+    // the write actually fails.
+    setState(() => _copied = true);
+    _resetTimer?.cancel();
+    _resetTimer = Timer(_confirmFor, () {
+      if (mounted) setState(() => _copied = false);
+    });
+    context.showSuccessSnackBar(context.l10n.text('pairingCodeCopied'));
+
+    unawaited(
+      Clipboard.setData(ClipboardData(text: widget.code)).catchError((_) {
+        if (!mounted) return;
+        setState(() => _copied = false);
+        context.showErrorSnackBar(
+          'Could not copy the code — read it off the screen instead.',
+        );
+      }),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final label =
+        _copied ? l10n.text('pairingCodeCopied') : l10n.text('pairingCopyCode');
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        NightshadeButton(
+          label: label,
+          icon: _copied ? NightshadeIcons.success : NightshadeIcons.copy,
+          variant: ButtonVariant.ghost,
+          size: ButtonSize.small,
+          onPressed: _copy,
+        ),
+      ],
     );
   }
 }

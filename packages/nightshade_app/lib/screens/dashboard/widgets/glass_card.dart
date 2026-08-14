@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+
+import 'smart_night_prompt_card.dart'
+    show kFloatingPromptReservedHeight, smartNightAutoPromptShowingProvider;
 
 /// Shared visual constants for dashboard cards.
 ///
@@ -212,7 +216,7 @@ class DashboardStatusChip extends StatelessWidget {
 /// cards, lands the thumb directly on top of the cards. This widget owns a
 /// [ScrollController], reserves [gutter] pixels of trailing padding on the
 /// content, and draws the [Scrollbar] inside that reserved strip.
-class DashboardScrollView extends StatefulWidget {
+class DashboardScrollView extends ConsumerStatefulWidget {
   final Widget child;
   final EdgeInsets padding;
 
@@ -230,10 +234,11 @@ class DashboardScrollView extends StatefulWidget {
   });
 
   @override
-  State<DashboardScrollView> createState() => _DashboardScrollViewState();
+  ConsumerState<DashboardScrollView> createState() =>
+      _DashboardScrollViewState();
 }
 
-class _DashboardScrollViewState extends State<DashboardScrollView> {
+class _DashboardScrollViewState extends ConsumerState<DashboardScrollView> {
   final ScrollController _controller = ScrollController();
 
   @override
@@ -246,8 +251,16 @@ class _DashboardScrollViewState extends State<DashboardScrollView> {
   Widget build(BuildContext context) {
     // Reserve the gutter on the trailing edge by adding it to the content's
     // right padding; the cards therefore stop short of where the thumb draws.
+    // Reserve the floating prompt's band at the bottom while it is up. It is
+    // drawn over this scroll view, so without the reserve the last card in the
+    // extent cannot be scrolled out from under it — live, the "Build tonight's
+    // plan?" nudge sat over the Moon card and hid the Moonrise time.
+    final promptShowing = ref.watch(smartNightAutoPromptShowingProvider);
     final contentPadding = widget.padding.add(
-      const EdgeInsets.only(right: DashboardScrollView.gutter),
+      EdgeInsets.only(
+        right: DashboardScrollView.gutter,
+        bottom: promptShowing ? kFloatingPromptReservedHeight : 0,
+      ),
     ) as EdgeInsets;
 
     return ScrollbarTheme(

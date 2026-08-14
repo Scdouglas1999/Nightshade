@@ -269,6 +269,7 @@ extension _PlanetariumShell on _PlanetariumScreenState {
                     colors: colors,
                     compact: isPhone,
                     dockedWidth: dockedWidth,
+                    stackWidth: constraints.maxWidth,
                   ),
 
                   // --- Info bar (slim, bottom) ---
@@ -572,6 +573,51 @@ class _SearchCommandTargetState extends State<_SearchCommandTarget> {
   Widget build(BuildContext context) => widget.child;
 }
 
+/// Where the time transport sits in the bottom band of the sky stack.
+///
+/// The bottom band holds four things: the compass HUD (left), the horizon
+/// minimap (right, inset by any docked panel), the info bar (full width) and
+/// the transport, centred. Insetting the transport by the docked panel's width
+/// alone — the D-4 fix — moved it INTO the two instruments at 900 px: the
+/// transport spanned x 283–555 across a compass at 240–315 and a minimap at
+/// 500–620, hiding the compass's `S` label, the altitude ticks and the
+/// minimap's `W`. One overlap had simply replaced another.
+///
+/// So the band the transport may centre in excludes whatever instrument is on
+/// screen; and when what remains is too narrow to hold the panel, the transport
+/// moves UP over the sky instead of being squeezed into them. Pure so the two
+/// live geometries (900 px with a drawer, 1600 px with a drawer) are pinned by
+/// arithmetic rather than by a screenshot.
+@visibleForTesting
+({double left, double right, double bottom}) planetariumTransportBand({
+  required double stackWidth,
+  required double dockedWidth,
+  required double edgePadding,
+  required double compassExtent,
+  required double minimapExtent,
+  required double instrumentBottom,
+  required double transportMinWidth,
+  double baseBottom = 44,
+  double gap = 8,
+}) {
+  final left = compassExtent > 0 ? edgePadding + compassExtent + gap : 0.0;
+  final right = dockedWidth +
+      (minimapExtent > 0 ? edgePadding + minimapExtent + gap : 0.0);
+  final band = stackWidth - left - right;
+  if (band >= transportMinWidth) {
+    return (left: left, right: right, bottom: baseBottom);
+  }
+  // Not enough sky between the instruments: clear them vertically instead. The
+  // instruments are square-ish, so their own extent is their height.
+  final instrumentHeight =
+      compassExtent > minimapExtent ? compassExtent : minimapExtent;
+  return (
+    left: 0.0,
+    right: dockedWidth,
+    bottom: instrumentBottom + instrumentHeight + gap,
+  );
+}
+
 /// The time transport, centred over the sky the user can actually see.
 ///
 /// [dockedWidth] is how much of the stack's right edge a docked panel owns. It
@@ -579,32 +625,68 @@ class _SearchCommandTargetState extends State<_SearchCommandTarget> {
 /// transport slid under an open Layers drawer at 900 px — the clock rendered as
 /// `18:46:` with the seconds behind the panel, and the fast-forward button was
 /// unreachable because the drawer took the clicks.
-class PlanetariumTransportSlot extends StatelessWidget {
+class PlanetariumTransportSlot extends ConsumerWidget {
   const PlanetariumTransportSlot({
     super.key,
     required this.colors,
     required this.compact,
     required this.dockedWidth,
+    this.stackWidth,
   });
 
   final NightshadeColors colors;
   final bool compact;
   final double dockedWidth;
 
+  /// Width of the sky stack this transport is positioned in. Null keeps the
+  /// pre-instrument behaviour (centre in everything left of the docked panel),
+  /// which is what the standalone widget tests pump.
+  final double? stackWidth;
+
+  /// Narrowest the full transport lays out at, measured on the running app
+  /// (272 px), rounded up so a font change does not silently re-introduce the
+  /// squeeze.
+  static const double minWidth = 280;
+
   @override
-  Widget build(BuildContext context) {
-    return Positioned(
-      bottom: 44,
-      left: 0,
-      right: dockedWidth,
-      child: Center(
-        child: TimeControlPanel(
-          backgroundColor: colors.surface.withValues(alpha: 0.9),
-          textColor: colors.textPrimary,
-          accentColor: colors.accent,
-          compact: compact,
-        ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final panel = Center(
+      child: TimeControlPanel(
+        backgroundColor: colors.surface.withValues(alpha: 0.9),
+        textColor: colors.textPrimary,
+        accentColor: colors.accent,
+        compact: compact,
       ),
+    );
+
+    final width = stackWidth;
+    if (width == null) {
+      return Positioned(bottom: 44, left: 0, right: dockedWidth, child: panel);
+    }
+
+    final sizing = AdaptiveSizing.of(context);
+    final showCompass = ref.watch(showCompassHudProvider);
+    final showMinimap = ref.watch(showMinimapProvider);
+    final band = planetariumTransportBand(
+      stackWidth: width,
+      dockedWidth: dockedWidth,
+      edgePadding: sizing.edgePadding,
+      // The compass carries the altitude bar beside the dial when the HUD is
+      // not condensed — `CompassHud` is `size + 40` wide in that mode, which is
+      // exactly the strip the transport was covering.
+      compassExtent: showCompass
+          ? sizing.compassSize + (sizing.useCondensedHud ? 0 : 40)
+          : 0,
+      minimapExtent: showMinimap ? sizing.minimapSize : 0,
+      instrumentBottom: 56,
+      transportMinWidth: minWidth,
+    );
+
+    return Positioned(
+      bottom: band.bottom,
+      left: band.left,
+      right: band.right,
+      child: panel,
     );
   }
 }

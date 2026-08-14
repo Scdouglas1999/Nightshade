@@ -64,6 +64,31 @@ class _FailedBackendsDiscovery extends UnifiedDiscoveryNotifier {
   }) async {}
 }
 
+/// Same two failed backends, plus the simulated wheel the operator selects —
+/// the exact state of the live repro (WE-SP-1).
+class _FailedBackendsWithWheel extends _FailedBackendsDiscovery {
+  _FailedBackendsWithWheel(super.ref) {
+    const info = DeviceInfo(
+      id: 'sim-fw',
+      name: 'Simulated Filter Wheel',
+      deviceType: DeviceType.filterWheel,
+      driverType: DriverType.simulator,
+      description: 'Sim',
+      driverVersion: '1.0',
+    );
+    state = state.copyWith(
+      groupedDevices: const [
+        UnifiedDevice(
+          canonicalName: 'simulated filter wheel',
+          displayName: 'Simulated Filter Wheel',
+          type: DeviceType.filterWheel,
+          availableBackends: {DriverType.simulator: info},
+        ),
+      ],
+    );
+  }
+}
+
 class _WheelDraft extends OnboardingNotifier {
   _WheelDraft(super.ref) {
     // ignore: invalid_use_of_protected_member
@@ -72,7 +97,11 @@ class _WheelDraft extends OnboardingNotifier {
       filterWheelId: 'sim-fw',
       filterWheelName: 'Simulated Filter Wheel',
       filterNames: _sevenFilters,
-      selectedDrivers: {DriverType.alpaca, DriverType.indi},
+      selectedDrivers: {
+        DriverType.alpaca,
+        DriverType.indi,
+        DriverType.simulator,
+      },
     );
   }
 }
@@ -88,7 +117,11 @@ class _ConnectedWheel extends FilterWheelStateNotifier {
   }
 }
 
-Future<void> _pumpFilterWheelStep(WidgetTester tester, Size size) async {
+Future<void> _pumpFilterWheelStep(
+  WidgetTester tester,
+  Size size, {
+  bool withWheelListed = false,
+}) async {
   final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
   addTearDown(db.close);
   tester.view.devicePixelRatio = 1.0;
@@ -104,7 +137,9 @@ Future<void> _pumpFilterWheelStep(WidgetTester tester, Size size) async {
         databaseProvider.overrideWithValue(db),
         onboardingDraftProvider.overrideWith(_WheelDraft.new),
         filterWheelStateProvider.overrideWith(_ConnectedWheel.new),
-        unifiedDiscoveryProvider.overrideWith(_FailedBackendsDiscovery.new),
+        unifiedDiscoveryProvider.overrideWith(withWheelListed
+            ? _FailedBackendsWithWheel.new
+            : _FailedBackendsDiscovery.new),
         activeProfileProvider.overrideWith((ref) => Stream.value(null)),
         allProfilesProvider.overrideWith((ref) => Stream.value(const [])),
       ],
@@ -196,5 +231,54 @@ void main() {
         );
       });
     }
+  });
+
+  // WE-SP-1: the residual of the WD-N2 fix. With the two backend-failure lines
+  // present, the just-selected device card was cut through the middle of its
+  // subtitle — "Sim" drawn with its lower half missing, no bottom border, and
+  // nothing on screen saying the box scrolls (a mouse wheel revealed the rest).
+  // The row it truncated was the one the operator had just chosen.
+  group('WE-SP-1 — the picker says it scrolls, and shows what was picked', () {
+    testWidgets('the device list carries a permanently visible scrollbar', (
+      tester,
+    ) async {
+      await _pumpFilterWheelStep(
+        tester,
+        const Size(1600, 900),
+        withWheelListed: true,
+      );
+
+      final scrollbars = tester
+          .widgetList<Scrollbar>(find.byType(Scrollbar))
+          .where((s) => s.thumbVisibility == true);
+      expect(
+        scrollbars,
+        isNotEmpty,
+        reason: 'a box that scrolls with no affordance reads as a paint bug',
+      );
+    });
+
+    testWidgets('the selected device row is not left clipped', (tester) async {
+      await _pumpFilterWheelStep(
+        tester,
+        const Size(1600, 900),
+        withWheelListed: true,
+      );
+      await tester.pumpAndSettle();
+
+      final row = find.text('Simulated Filter Wheel');
+      expect(row, findsWidgets);
+
+      final viewport = tester.getRect(
+        find.byType(OnboardingDevicePickerBody).first,
+      );
+      final card = tester.getRect(row.first);
+      expect(
+        card.bottom,
+        lessThanOrEqualTo(viewport.bottom + 0.5),
+        reason: 'the chosen row was drawn half outside the picker box',
+      );
+      expect(card.top, greaterThanOrEqualTo(viewport.top - 0.5));
+    });
   });
 }

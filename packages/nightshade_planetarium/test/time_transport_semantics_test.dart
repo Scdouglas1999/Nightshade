@@ -87,7 +87,7 @@ void main() {
     for (final name in const [
       'Slower', // rewind / rate down
       'Back 1 hour',
-      'Pause',
+      'Pause time',
       'Forward 1 hour',
       'Faster', // fast forward / rate up
       'NOW',
@@ -107,20 +107,82 @@ void main() {
     handle.dispose();
   });
 
-  testWidgets('play/pause reports whether the sky is held', (tester) async {
+  // E-SKY-2: the control used to swap its NAME and its toggle state together —
+  // `label: running ? 'Pause' : 'Play'` with `toggled: !running` — so assistive
+  // tech announced "Play, toggle button, on" at the moment time was HELD and
+  // "Pause, toggle button, off" while it was running: the name and the state
+  // asserting opposite things about the same sky. The contract now is an action
+  // name with no toggle state, and the state published by the rate chip beside
+  // the clock, which is also where it is drawn.
+  testWidgets('play/pause names the action and never contradicts it', (
+    tester,
+  ) async {
     final handle = tester.ensureSemantics();
     final container = await _pumpTransport(tester);
 
-    expect(_namedButton(_tree(tester), 'Pause', toggled: false), isTrue);
+    var tree = _tree(tester);
+    expect(_namedButton(tree, 'Pause time'), isTrue);
+    expect(
+      tree.any(
+        (d) =>
+            d.label.contains('Pause time') &&
+            d.hasFlag(SemanticsFlag.hasToggledState),
+      ),
+      isFalse,
+      reason: 'an action name with a toggle state is the contradiction',
+    );
+    expect(
+      tree.any((d) => d.label.contains('Time running at')),
+      isTrue,
+      reason: 'the STATE of the sky is published, just not on the button',
+    );
 
     await tester.tap(find.byIcon(LucideIcons.pause));
     await tester.pump();
 
     expect(container.read(observationTimeProvider).isPaused, isTrue);
+    tree = _tree(tester);
     expect(
-      _namedButton(_tree(tester), 'Play', toggled: true),
+      _namedButton(tree, 'Play time'),
+      isTrue,
+      reason: 'pressing it now resumes, so that is what it must be called',
+    );
+    expect(
+      tree.any((d) => d.label == 'Time paused'),
       isTrue,
       reason: 'a screen reader must be able to tell that time is stopped',
+    );
+    expect(
+      tree.any((d) => d.label.contains('Time running at')),
+      isFalse,
+      reason: 'and must not be told both at once',
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    container.dispose();
+    handle.dispose();
+  });
+
+  // D-3's other half: the clock and the rate chip were absorbed into the sky
+  // canvas's node, arriving at AT-SPI as one focusable panel named
+  // "20:37:18 / 1x / Center RA: ... / Bortle: 5" and reported DISABLED. Each
+  // readout is now a node of its own.
+  testWidgets('the clock is its own named, non-interactive node', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    final container = await _pumpTransport(tester);
+
+    final clock = _tree(tester).where((d) => d.label.startsWith('Sky time'));
+    expect(clock, isNotEmpty, reason: 'the clock must name itself');
+    expect(
+      clock.every(
+        (d) =>
+            !d.hasFlag(SemanticsFlag.isFocusable) &&
+            !d.hasAction(SemanticsAction.tap),
+      ),
+      isTrue,
+      reason: 'a readout that publishes itself as interactive is a lie',
     );
 
     await tester.pumpWidget(const SizedBox.shrink());

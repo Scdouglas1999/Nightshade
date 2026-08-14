@@ -217,6 +217,25 @@ class _TimeControlPanelState extends ConsumerState<TimeControlPanel> {
     );
   }
 
+  /// A readout that is its OWN accessible node, named in full.
+  ///
+  /// Flutter merges compatible sibling label fragments into the nearest
+  /// enclosing node, and the nearest enclosing node on this screen is the sky
+  /// canvas — which carries a tap action. So the clock, the rate chip and the
+  /// whole bottom info bar arrived at AT-SPI as ONE focusable panel named
+  /// "20:37:18 / 1x / Center RA: ... / Bortle: 5", reported as
+  /// interactive-but-disabled. `container: true` makes each readout a node in
+  /// its own right; `excludeSemantics` stops the raw glyphs being read twice,
+  /// so the label carries the whole reading.
+  Widget _readoutNode(Widget child, {required String label}) {
+    return Semantics(
+      container: true,
+      label: label,
+      excludeSemantics: true,
+      child: child,
+    );
+  }
+
   Widget _buildTimeDisplay(
     ObservationTimeState timeState,
     Color txtColor, {
@@ -225,13 +244,16 @@ class _TimeControlPanelState extends ConsumerState<TimeControlPanel> {
     final timeFormat = DateFormat(showSeconds ? 'HH:mm:ss' : 'HH:mm');
     final displayTime = timeFormat.format(timeState.time);
 
-    return Text(
-      displayTime,
-      style: TextStyle(
-        color: txtColor,
-        fontSize: 18,
-        fontWeight: FontWeight.w500,
-        fontFamily: 'monospace',
+    return _readoutNode(
+      label: 'Sky time $displayTime',
+      Text(
+        displayTime,
+        style: TextStyle(
+          color: txtColor,
+          fontSize: 18,
+          fontWeight: FontWeight.w500,
+          fontFamily: 'monospace',
+        ),
       ),
     );
   }
@@ -276,18 +298,21 @@ class _TimeControlPanelState extends ConsumerState<TimeControlPanel> {
     // A held sky says so. Reporting "1×" while nothing moves is the same lie
     // the pause button used to tell.
     if (timeState.isPaused) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: Colors.orange.withValues(alpha: 0.2),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: const Text(
-          'PAUSED',
-          style: TextStyle(
-            color: Colors.orange,
-            fontSize: 11,
-            fontWeight: FontWeight.w500,
+      return _readoutNode(
+        label: 'Time paused',
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: Colors.orange.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: const Text(
+            'PAUSED',
+            style: TextStyle(
+              color: Colors.orange,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ),
       );
@@ -308,22 +333,27 @@ class _TimeControlPanelState extends ConsumerState<TimeControlPanel> {
       speedText = '${speed > 0 ? '+' : ''}${speed.round()}×';
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: speed != 1.0
-            ? (speed > 0 ? Colors.green : Colors.orange).withValues(alpha: 0.2)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        speedText,
-        style: TextStyle(
+    return _readoutNode(
+      label: 'Time running at $speedText',
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
           color: speed != 1.0
-              ? (speed > 0 ? Colors.green : Colors.orange)
-              : txtColor.withValues(alpha: 0.7),
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
+              ? (speed > 0 ? Colors.green : Colors.orange).withValues(
+                  alpha: 0.2,
+                )
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Text(
+          speedText,
+          style: TextStyle(
+            color: speed != 1.0
+                ? (speed > 0 ? Colors.green : Colors.orange)
+                : txtColor.withValues(alpha: 0.7),
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ),
     );
@@ -336,11 +366,18 @@ class _TimeControlPanelState extends ConsumerState<TimeControlPanel> {
   }) {
     final running = !timeState.isPaused;
 
-    // "Held" is the ON state of this toggle: the only other signal that time is
-    // stopped is the PAUSED chip, which merges into an unrelated text panel.
+    // Name the ACTION and publish no toggle state.
+    //
+    // Naming the action AND inverting a toggle state is the one combination
+    // that contradicts itself: with `label: running ? 'Pause' : 'Play'` and
+    // `toggled: !running`, assistive tech announced "Play, toggle button, on"
+    // at the moment time was held and "Pause, toggle button, off" while it ran
+    // — the name and the state saying opposite things about the same sky. The
+    // state now lives where it is also drawn, on the rate chip beside the
+    // clock (see [_buildSpeedIndicator]), which publishes "Time paused" /
+    // "Time running at 1×" as its own accessible node.
     return _accessibleControl(
-      label: running ? 'Pause' : 'Play',
-      toggled: !running,
+      label: running ? 'Pause time' : 'Play time',
       IconButton(
         icon: Icon(
           running ? LucideIcons.pause : LucideIcons.play,
