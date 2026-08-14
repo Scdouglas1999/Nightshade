@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-import 'smart_night_prompt_card.dart'
-    show kFloatingPromptReservedHeight, smartNightAutoPromptShowingProvider;
+import 'smart_night_prompt_card.dart' show floatingPromptReservedHeightProvider;
 
 /// Shared visual constants for dashboard cards.
 ///
@@ -255,11 +254,11 @@ class _DashboardScrollViewState extends ConsumerState<DashboardScrollView> {
     // drawn over this scroll view, so without the reserve the last card in the
     // extent cannot be scrolled out from under it — live, the "Build tonight's
     // plan?" nudge sat over the Moon card and hid the Moonrise time.
-    final promptShowing = ref.watch(smartNightAutoPromptShowingProvider);
+    final promptBand = ref.watch(floatingPromptReservedHeightProvider);
     final contentPadding = widget.padding.add(
       EdgeInsets.only(
         right: DashboardScrollView.gutter,
-        bottom: promptShowing ? kFloatingPromptReservedHeight : 0,
+        bottom: promptBand,
       ),
     ) as EdgeInsets;
 

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:nightshade_app/screens/dashboard/widgets/glass_card.dart'
+    show DashboardGlassCard;
 import 'package:nightshade_app/screens/dashboard/widgets/smart_night_prompt_card.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/database/database.dart' as db;
@@ -205,6 +207,73 @@ void main() {
     expect(find.text('Build Plan'), findsNothing);
   });
 
+  testWidgets(
+      'unmounting the showing card mid-frame releases its band claim '
+      'without a modify-during-build error', (tester) async {
+    // Wave I refutation I5: element unmount runs inside finalizeTree, where
+    // a synchronous provider write trips riverpod's modify-during-build
+    // guard. The release must land after the frame — and the claim must not
+    // leak (the reserve would stick under a card that is gone).
+    final database = db.NightshadeDatabase.forTesting(NativeDatabase.memory());
+    var now = DateTime(2026, 8, 3, 21);
+    final container = ProviderContainer(
+      overrides: [
+        databaseProvider.overrideWithValue(database),
+        smartNightPromptClockProvider.overrideWithValue(() => now),
+        smartNightPromptGraceProvider.overrideWithValue(Duration.zero),
+        activeEquipmentProfileProvider.overrideWithValue(
+          const EquipmentProfileModel(
+            id: 7,
+            name: 'Backyard rig',
+            focalLength: 600,
+            aperture: 80,
+            filterNames: ['L'],
+          ),
+        ),
+        appObserverLocationProvider.overrideWithValue(
+          const LocationSettings(latitude: 40, longitude: -75),
+        ),
+      ],
+    );
+    addTearDown(() async {
+      container.dispose();
+      await database.close();
+    });
+
+    final show = ValueNotifier(true);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: Scaffold(
+            body: ValueListenableBuilder<bool>(
+              valueListenable: show,
+              builder: (context, value, _) => value
+                  ? const SmartNightPromptCard(colors: NightshadeColors.dark)
+                  : const SizedBox.shrink(),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Build tonight\'s plan?'), findsOneWidget);
+    expect(container.read(smartNightAutoPromptShowingProvider), isTrue);
+
+    // Remove the card by an ordinary rebuild — the provider SCOPE stays.
+    show.value = false;
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull,
+        reason: 'dispose must not write a provider during finalizeTree');
+    expect(
+      container.read(floatingPromptOwnersProvider),
+      isEmpty,
+      reason: 'the band claim must not outlive the card',
+    );
+  });
+
   testWidgets('shows the prompt once the equipment-ready grace has elapsed',
       (tester) async {
     final database = db.NightshadeDatabase.forTesting(NativeDatabase.memory());
@@ -259,6 +328,19 @@ void main() {
     expect(find.text('Build tonight\'s plan?'), findsOneWidget);
     expect(find.text('Plan Tonight'), findsOneWidget);
     expect(container.read(smartNightAutoPromptShowingProvider), isTrue);
+
+    // Wave I refutation I6: the reserve must be the band the SHOWING card
+    // actually occupies — its rendered height plus the inset it floats
+    // above — no constant can cover a 108px card, a ~200px card, and a
+    // phone nav inset at once. Settled, the card sits flush above its
+    // inset, so the band equals viewport bottom minus the card's top edge.
+    final cardTop = tester.getTopLeft(find.byType(DashboardGlassCard)).dy;
+    final viewportBottom =
+        tester.view.physicalSize.height / tester.view.devicePixelRatio;
+    expect(
+      container.read(floatingPromptReservedHeightProvider),
+      moreOrLessEquals(viewportBottom - cardTop, epsilon: 1.0),
+    );
 
     // Nothing in this test connects a device — the gate is optics-only, which
     // is deliberate (planning indoors before the gear is powered on is a real

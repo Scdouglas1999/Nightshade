@@ -92,13 +92,32 @@ void main() {
     return container;
   }
 
-  /// The four events, in emission order (the notifier prepends, so the feed
-  /// ends up newest-first exactly as it does live).
+  /// The press's producers in emission order (the notifier prepends, so the
+  /// feed ends up newest-first exactly as it does live). The
+  /// manual-intervention decision is what distinguishes an operator press
+  /// from a safety abort — every cancellation path emits the other four.
   void pressStop(ProviderContainer container, {required int base}) {
     final history = container.read(eventHistoryProvider.notifier);
     history.addEvent(_error(base, kSequenceCancelledNotice, _stopAt));
     history.addEvent(
       _lifecycleDecision(base + 1, kSequenceCancelledNotice, _stopAt),
+    );
+    history.addEvent(
+      bridge_event.NightshadeEvent(
+        eventId: BigInt.from(base + 4),
+        timestamp: _stopAt.millisecondsSinceEpoch,
+        severity: bridge_event.EventSeverity.info,
+        category: bridge_event.EventCategory.sequencer,
+        payload: bridge_event.EventPayload.sequencer(
+          bridge_event.SequencerEvent.decisionLogged(
+            timestampIso: _stopAt.toUtc().toIso8601String(),
+            category: 'manual_intervention',
+            summary: 'Operator: stop requested',
+            detailsJson: '{}',
+            sequenceRunId: 15,
+          ),
+        ),
+      ),
     );
     history.addEvent(_stopped(base + 2, _stopAt));
     history.addEvent(_stopped(base + 3, _stopAt));

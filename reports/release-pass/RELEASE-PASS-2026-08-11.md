@@ -435,6 +435,56 @@ Order of execution from here:
    against a fresh bundle + the fixed a11y dump; verify no fix merely relocated its defect;
    reproduce the JD+0.5 planetarium suspect and the phd2 generic-connect route live; eyeball
    the stacked preview); loop map→fix→verify until a wave is dry.
+## Wave I verdict (2026-08-14 ~05:00) — driver 7/7 live PASS; refuter landed 7; response landed
+
+Run wf_657e6450-c9e over commit 6914d5a40 (driver report:
+reports/release-pass/gui/waveI-close.md; shots in gui/shots/waveI-close/). The DRIVER
+verified every chartered item live: one press = one "Stopped by request" row; two sibling
+nodes render as two identities (rename no longer cross-renames); the SEQ-18 comparison
+Wave H could not make (4/4 vs 0/4 on two nodes of one run); the 210px reserve measured
+exact by pixel scan; dismissal releases it (diff = the SAFETY clock only); the stood-down
+card leaves the other's claim; bundle provenance via git log -S. Driver also found the
+run toolbar single-fires Stop (mashing is GUI-unreachable — keep that), and the feed's
+5-row budget means storm cases live only in the conformance suite.
+
+The REFUTER refuted seven, all CONFIRMED on adjacent counter-inputs, and the response is
+in the follow-up commit:
+
+1. **I1 (ship-blocker): the cancel-notice pair is NOT operator evidence.** Every
+   cancellation path — weather/dome ParkAndAbort included — emits the same cancel-notice
+   Error + decision through the is_cancelled machinery, so the H-fold showed a safety
+   abort as "Stopped by request" with nobody present. Evidence is now ONLY the
+   manual-intervention "Operator: stop" decision (emitted solely by
+   SequencerExecutor::stop); the cancel pair folds cause-NEUTRAL.
+2. **I2/I4: time windows dropped entirely.** The api Stopped trails the press by the
+   whole safing teardown (unbounded), and `Stopped`/`Error` carry no run id — so the fold
+   now segments on `Started` run boundaries (a run stops at most once, so all family
+   members between two boundaries are one episode), joins the NEAREST group, and keeps
+   per-kind press capacity. Two runs' stops can never merge; a 20s-late Stopped folds in.
+3. **I3: the fold never rewrites a row.** Learning the cause copies the MESSAGE into the
+   emitted (newest) row; time, eventId, and position stay its own — newest-first order
+   and row identity survive, and the top row is no longer the empty one (I2's other
+   half).
+4. **I5: dispose releases the band claim via microtask** (element unmount runs inside
+   finalizeTree where a provider write trips riverpod's modify-during-build guard).
+5. **I6: the reserve constant is gone.** Cards publish the band they MEASURE after
+   layout (card height + the ShellChromeMetrics bottom inset) into
+   floatingPromptOwnersProvider (now tag → band); DashboardScrollView and the standby
+   briefing pad by floatingPromptReservedHeightProvider (max of published bands, 0 when
+   none). No constant covers a 108px card, a ~200px card, and a phone nav inset;
+   over-reserve under the short card is gone too. kFloatingPromptReservedHeight survives
+   only as the pre-measurement fallback.
+6. **I7: the conformance suite made honest.** pressStop now emits the REAL press set
+   (manual-intervention decision included); D5 is the REAL abort producer set and demands
+   a cause-neutral row + the weather error surviving; C2 pins the window on a collapsible
+   title; D6 demands exactly four; new D7/D8/D9 pin the late-Stopped fold-in, strict
+   newest-first order, and the run-boundary split. The triplication test's press gained
+   the manual-intervention decision too.
+
+Refuter also cleared: three-sibling/reorder/delete-both anchor paths, the guiding-screen
+static-key pattern (all branches mutually exclusive), no second live tree, no reserve
+leak on full-scope unmount, both-cards-showing unreachable.
+
 ## Wave H verdict (2026-08-14) — the final check refuted the closer commit; response landed
 
 Run: release-waveH-final.js (1 live driver + 1 refuter over the G-fix set + closer commit

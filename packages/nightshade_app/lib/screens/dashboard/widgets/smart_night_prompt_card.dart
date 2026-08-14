@@ -46,17 +46,28 @@ final smartNightPromptClockProvider =
 /// e.g. the cockpit standby header — can suppress a duplicate "Plan Tonight"
 /// affordance while the prompt occupies the screen. Defaults to false.
 /// The cards currently claiming the bottom-centre floating-prompt band, by
-/// owner tag. A card adds its tag when it shows and removes ONLY its own tag
-/// when it stands down, so one card's retraction can never clobber the
-/// other's claim (the post-frame publishes race in arbitrary order).
+/// owner tag, mapped to the band each one MEASURED after layout (viewport
+/// bottom to its own top edge, so the bottom-nav inset and the card's real
+/// height are both included — no constant can cover a 108px Smart Night
+/// card, a ~200px next-use step, and a phone's nav inset at once). A card
+/// adds its tag when it shows and removes ONLY its own tag when it stands
+/// down, so one card's retraction can never clobber the other's claim (the
+/// post-frame publishes race in arbitrary order).
 final floatingPromptOwnersProvider =
-    StateProvider<Set<String>>((ref) => const <String>{});
+    StateProvider<Map<String, double>>((ref) => const <String, double>{});
 
-/// True while any bottom-centre prompt is floating; DashboardScrollView and
-/// the standby header reserve the prompt band off this.
+/// True while any bottom-centre prompt is floating.
 final smartNightAutoPromptShowingProvider = Provider<bool>(
   (ref) => ref.watch(floatingPromptOwnersProvider).isNotEmpty,
 );
+
+/// The scroll extent DashboardScrollView and the standby header must reserve
+/// so content can clear the floating prompt: the tallest published band,
+/// zero when nothing is showing.
+final floatingPromptReservedHeightProvider = Provider<double>((ref) {
+  final bands = ref.watch(floatingPromptOwnersProvider).values;
+  return bands.isEmpty ? 0.0 : bands.reduce((a, b) => a > b ? a : b);
+});
 
 /// Whether the active profile carries enough OPTICS to plan a night: a focal
 /// length and an aperture, which is all Smart Night needs to derive field of
@@ -126,10 +137,20 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
   @override
   void dispose() {
     _graceTimer?.cancel();
-    if (_ownersController.state.contains(_promptOwnerTag)) {
-      _ownersController.state = {..._ownersController.state}
-        ..remove(_promptOwnerTag);
-    }
+    // Release the band claim OUTSIDE the frame: element unmount runs inside
+    // finalizeTree, where writing a provider trips riverpod's
+    // modify-during-build guard. A microtask lands after the frame; if the
+    // container itself is being torn down the claim dies with it.
+    final controller = _ownersController;
+    scheduleMicrotask(() {
+      try {
+        if (controller.state.containsKey(_promptOwnerTag)) {
+          controller.state = {...controller.state}..remove(_promptOwnerTag);
+        }
+      } on StateError {
+        // Container already disposed — nothing left to clean.
+      }
+    });
     _animController.dispose();
     super.dispose();
   }
@@ -139,19 +160,36 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
   /// state mid-build.
   static const _promptOwnerTag = 'smart-night';
 
-  late final StateController<Set<String>> _ownersController;
+  late final StateController<Map<String, double>> _ownersController;
 
-  void _publishShowing(bool showing) {
+  /// Anchors the measurable card box (below the Align/inset wrappers and the
+  /// slide/fade transforms, whose mid-animation position must not leak into
+  /// the measurement).
+  final _measureKey = GlobalKey();
+
+  void _publishShowing(bool showing, {double bottomInset = 0}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final owners = ref.read(floatingPromptOwnersProvider.notifier);
-      final next = <String>{...owners.state};
+      final next = <String, double>{...owners.state};
       if (showing) {
-        next.add(_promptOwnerTag);
+        // Publish the band this card actually occupies: its rendered height
+        // plus the inset it floats above (phone bottom nav included), so
+        // the reserve follows the real card instead of a constant that can
+        // cover neither a 108px card, a ~200px card, nor a nav inset at
+        // once. Falls back to the legacy constant until layout lands.
+        var band = kFloatingPromptReservedHeight;
+        final box = _measureKey.currentContext?.findRenderObject();
+        if (box is RenderBox && box.hasSize) {
+          band = box.size.height + bottomInset;
+        }
+        if (next[_promptOwnerTag] == band) return;
+        next[_promptOwnerTag] = band;
       } else {
+        if (!next.containsKey(_promptOwnerTag)) return;
         next.remove(_promptOwnerTag);
       }
-      if (next.length != owners.state.length) owners.state = next;
+      owners.state = next;
     });
   }
 
@@ -204,7 +242,6 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
       return const SizedBox.shrink();
     }
 
-    _publishShowing(true);
     if (!_animController.isAnimating && _animController.value < 1.0) {
       _animController.forward();
     }
@@ -218,16 +255,18 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
             : _kDesktopPromptWidth;
         final useBottomNav =
             ShellChrome.useBottomNavigation(constraints.maxWidth);
+        final bottomInset = ShellChromeMetrics.floatingOverlayBottomInset(
+          context,
+          useBottomNav: useBottomNav,
+          margin: _kBottomInset,
+        );
+        _publishShowing(true, bottomInset: bottomInset);
 
         return Align(
           alignment: Alignment.bottomCenter,
           child: Padding(
             padding: EdgeInsets.only(
-              bottom: ShellChromeMetrics.floatingOverlayBottomInset(
-                context,
-                useBottomNav: useBottomNav,
-                margin: _kBottomInset,
-              ),
+              bottom: bottomInset,
               left: _kMobileHorizontalMargin,
               right: _kMobileHorizontalMargin,
             ),
@@ -236,6 +275,7 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
               child: SlideTransition(
                 position: _slide,
                 child: SizedBox(
+                  key: _measureKey,
                   width: cardWidth,
                   child: _buildCard(context, lookup),
                 ),

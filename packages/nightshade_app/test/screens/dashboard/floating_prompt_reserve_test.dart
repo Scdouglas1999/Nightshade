@@ -11,7 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/dashboard/widgets/glass_card.dart';
 import 'package:nightshade_app/screens/dashboard/widgets/smart_night_prompt_card.dart'
-    show kFloatingPromptReservedHeight, smartNightAutoPromptShowingProvider;
+    show floatingPromptOwnersProvider, kFloatingPromptReservedHeight;
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 Future<double> _bottomPadding(WidgetTester tester,
@@ -19,7 +19,11 @@ Future<double> _bottomPadding(WidgetTester tester,
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        smartNightAutoPromptShowingProvider.overrideWith((_) => promptShowing),
+        floatingPromptOwnersProvider.overrideWith(
+          (_) => promptShowing
+              ? {'test-card': kFloatingPromptReservedHeight}
+              : const <String, double>{},
+        ),
       ],
       child: MaterialApp(
         theme: NightshadeTheme.dark,

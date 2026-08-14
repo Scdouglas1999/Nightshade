@@ -1,4 +1,11 @@
-// THROWAWAY refuter probe — RECENT EVENTS stop fold + time-windowed collapse.
+// RECENT EVENTS conformance: the stop-family fold + the time-windowed
+// collapse. Adopted from the Wave-H refuter, made honest by the Wave-I
+// refuter (I7): the press harness now emits the REAL producer set including
+// the manual-intervention decision (the only once-per-run-stop event that
+// proves an operator acted — sequencer/src/executor/lifecycle.rs), the abort
+// harness emits the REAL cancellation set (every cancel path publishes the
+// cancel-notice pair, weather/dome ParkAndAbort included), and the window
+// case pins a title the collapse may actually fold.
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -36,23 +43,39 @@ be.NightshadeEvent _decision(int id, String summary, DateTime at) =>
       ),
     );
 
+be.NightshadeEvent _manualStop(int id, DateTime at) => be.NightshadeEvent(
+      eventId: BigInt.from(id),
+      timestamp: at.millisecondsSinceEpoch,
+      severity: be.EventSeverity.info,
+      category: be.EventCategory.sequencer,
+      payload: be.EventPayload.sequencer(
+        be.SequencerEvent.decisionLogged(
+          timestampIso: at.toUtc().toIso8601String(),
+          category: 'manual_intervention',
+          summary: 'Operator: stop requested',
+          detailsJson: '{}',
+          sequenceRunId: 15,
+        ),
+      ),
+    );
+
 be.NightshadeEvent _stopped(int id, DateTime at) => be.NightshadeEvent(
-  eventId: BigInt.from(id),
-  timestamp: at.millisecondsSinceEpoch,
-  severity: be.EventSeverity.info,
-  category: be.EventCategory.sequencer,
-  payload: const be.EventPayload.sequencer(be.SequencerEvent.stopped()),
-);
+      eventId: BigInt.from(id),
+      timestamp: at.millisecondsSinceEpoch,
+      severity: be.EventSeverity.info,
+      category: be.EventCategory.sequencer,
+      payload: const be.EventPayload.sequencer(be.SequencerEvent.stopped()),
+    );
 
 be.NightshadeEvent _started(int id, DateTime at) => be.NightshadeEvent(
-  eventId: BigInt.from(id),
-  timestamp: at.millisecondsSinceEpoch,
-  severity: be.EventSeverity.info,
-  category: be.EventCategory.sequencer,
-  payload: be.EventPayload.sequencer(
-    be.SequencerEvent.started(sequenceName: 'Tonight'),
-  ),
-);
+      eventId: BigInt.from(id),
+      timestamp: at.millisecondsSinceEpoch,
+      severity: be.EventSeverity.info,
+      category: be.EventCategory.sequencer,
+      payload: be.EventPayload.sequencer(
+        be.SequencerEvent.started(sequenceName: 'Tonight'),
+      ),
+    );
 
 RunDashboardEvent _row(String title, String message, DateTime at) =>
     RunDashboardEvent(
@@ -80,7 +103,24 @@ void main() {
     return c;
   }
 
+  /// The REAL operator-press producer set: the cancel-notice pair, the
+  /// manual-intervention decision from SequencerExecutor::stop, and the
+  /// terminal Stopped pair.
   void pressStop(ProviderContainer c, {required int base, DateTime? at}) {
+    final when = at ?? _t0;
+    final h = c.read(eventHistoryProvider.notifier);
+    h.addEvent(_error(base, kSequenceCancelledNotice, when));
+    h.addEvent(_decision(base + 1, kSequenceCancelledNotice, when));
+    h.addEvent(_manualStop(base + 2, when));
+    h.addEvent(_stopped(base + 3, when));
+    h.addEvent(_stopped(base + 4, when));
+  }
+
+  /// The REAL safety-abort producer set: every cancellation path (weather,
+  /// dome, ParkAndAbort) runs the same is_cancelled machinery and publishes
+  /// the cancel-notice Error AND decision plus the Stopped pair — but NO
+  /// manual-intervention decision, because no operator acted.
+  void abortStop(ProviderContainer c, {required int base, DateTime? at}) {
     final when = at ?? _t0;
     final h = c.read(eventHistoryProvider.notifier);
     h.addEvent(_error(base, kSequenceCancelledNotice, when));
@@ -108,18 +148,19 @@ void main() {
     expect(
       out,
       hasLength(1),
-      reason:
-          'got ${out.length} rows: '
+      reason: 'got ${out.length} rows: '
           '${out.map((e) => '${e.time.toIso8601String()} x${e.repeatCount}').toList()}',
     );
   });
 
   test('C2 two identical rows 20 minutes apart stay two rows', () {
+    // Uses a collapsible title on purpose: stop rows are categorically
+    // exempt from the collapse, so they cannot pin the 10-minute window.
     final out = collapseRepeatedEvents([
-      _row('Sequence stopped', 'Stopped by request', _t0),
+      _row('Guider disconnected', 'Guider · reconnecting', _t0),
       _row(
-        'Sequence stopped',
-        'Stopped by request',
+        'Guider disconnected',
+        'Guider · reconnecting',
         _t0.subtract(const Duration(minutes: 20)),
       ),
     ]);
@@ -140,8 +181,7 @@ void main() {
     expect(
       recent.where((e) => e.title == 'Sequence stopped').length,
       2,
-      reason:
-          'two operator decisions five minutes apart. Got: '
+      reason: 'two operator decisions five minutes apart. Got: '
           '${recent.map((e) => '${e.title}/${e.message}/x${e.repeatCount}').toList()}',
     );
   });
@@ -167,6 +207,7 @@ void main() {
     final recent = c.read(runDashboardRecentEventsProvider(5));
     expect(recent, hasLength(1));
     expect(recent.single.title, 'Sequence stopped');
+    expect(recent.single.message, kSequenceStoppedByRequestMessage);
     expect(recent.single.repeatCount, 1);
   });
 
@@ -174,12 +215,12 @@ void main() {
     final c = makeContainer();
     pressStop(c, base: 1);
     c.read(eventHistoryProvider.notifier).addEvent(
-      _error(
-        50,
-        'Failed to park mount: limit switch',
-        _t0.add(const Duration(seconds: 3)),
-      ),
-    );
+          _error(
+            50,
+            'Failed to park mount: limit switch',
+            _t0.add(const Duration(seconds: 3)),
+          ),
+        );
     final recent = c.read(runDashboardRecentEventsProvider(5));
     expect(
       recent.any((e) => e.message.contains('limit switch')),
@@ -192,19 +233,20 @@ void main() {
   test('D3 a real error 3 s BEFORE the stop survives', () {
     final c = makeContainer();
     c.read(eventHistoryProvider.notifier).addEvent(
-      _error(
-        50,
-        'Guide star lost past the limit',
-        _t0.subtract(const Duration(seconds: 3)),
-      ),
-    );
+          _error(
+            50,
+            'Guide star lost past the limit',
+            _t0.subtract(const Duration(seconds: 3)),
+          ),
+        );
     pressStop(c, base: 1);
     final recent = c.read(runDashboardRecentEventsProvider(5));
     expect(recent.any((e) => e.message.contains('Guide star lost')), isTrue);
     expect(recent.where((e) => e.title == 'Sequence stopped'), hasLength(1));
   });
 
-  test('D4 a real error INSIDE the stop family (interleaved) — one stop row?', () {
+  test('D4 a real error INSIDE the stop family (interleaved) — one stop row?',
+      () {
     // Producers 3 and 4 are separated by the whole safing/park teardown, so a
     // device/park event landing between them is the normal live case.
     final c = makeContainer();
@@ -230,29 +272,34 @@ void main() {
     expect(
       recent.where((e) => e.title == 'Sequence stopped'),
       hasLength(1),
-      reason:
-          'one press of Stop. Got: '
+      reason: 'one press of Stop. Got: '
           '${recent.map((e) => '${e.title}/${e.message}').toList()}',
     );
   });
 
-  test('D5 a fault-driven abort must not read as "Stopped by request"', () {
-    // No operator Stop: a real fault ends the run, and the executor still
-    // publishes the Stopped state change.
+  test('D5 a REAL safety abort must not read as "Stopped by request"', () {
+    // Wave I refutation I1: a weather/dome ParkAndAbort cancels through the
+    // same machinery as an operator stop and therefore publishes the SAME
+    // cancel-notice Error and decision — but no manual-intervention
+    // decision, because nobody was at the keyboard. The stop row must stay
+    // cause-neutral and the weather error must survive as its own row.
     final c = makeContainer();
-    final h = c.read(eventHistoryProvider.notifier);
-    h.addEvent(_error(1, 'Mount tracking lost; sequence aborted', _t0));
-    h.addEvent(_stopped(2, _t0.add(const Duration(seconds: 1))));
+    c.read(eventHistoryProvider.notifier).addEvent(
+          _error(50, 'Weather unsafe: cloud sensor tripped', _t0),
+        );
+    abortStop(c, base: 1, at: _t0.add(const Duration(seconds: 1)));
 
     final recent = c.read(runDashboardRecentEventsProvider(5));
-    final stopRows = recent.where((e) => e.title == 'Sequence stopped');
+    final stopRows =
+        recent.where((e) => e.title == 'Sequence stopped').toList();
+    expect(stopRows, hasLength(1));
     expect(
-      stopRows.every((e) => e.message != 'Stopped by request'),
-      isTrue,
-      reason:
-          'rows: '
+      stopRows.single.message,
+      isEmpty,
+      reason: 'no operator acted; rows: '
           '${recent.map((e) => '${e.severity.name} ${e.title}/${e.message}').toList()}',
     );
+    expect(recent.any((e) => e.message.contains('cloud sensor')), isTrue);
   });
 
   test('D6 a genuine repeat storm of stops is not silently thinned', () {
@@ -269,10 +316,93 @@ void main() {
     final recent = c.read(runDashboardRecentEventsProvider(10));
     expect(
       recent.where((e) => e.title == 'Sequence stopped').length,
-      greaterThan(1),
-      reason:
-          'four presses in 9 s collapsed to '
+      4,
+      reason: 'four presses in 9 s must be four rows, got '
           '${recent.map((e) => '${e.title} x${e.repeatCount}').toList()}',
     );
+  });
+
+  test('D7 the api Stopped can trail the press by 20 s and still folds in', () {
+    // Wave I refutation I2: api_sequencer_stop publishes its Stopped only
+    // after the whole safing teardown, which can take arbitrarily long. One
+    // press stays ONE row, the emitted (newest) row keeps its OWN time and
+    // eventId, and it carries the cause.
+    final c = makeContainer();
+    final h = c.read(eventHistoryProvider.notifier);
+    h.addEvent(_error(1, kSequenceCancelledNotice, _t0));
+    h.addEvent(_decision(2, kSequenceCancelledNotice, _t0));
+    h.addEvent(_manualStop(3, _t0));
+    h.addEvent(_stopped(4, _t0));
+    h.addEvent(_stopped(5, _t0.add(const Duration(seconds: 20))));
+
+    final recent = c.read(runDashboardRecentEventsProvider(5));
+    final stopRows =
+        recent.where((e) => e.title == 'Sequence stopped').toList();
+    expect(
+      stopRows,
+      hasLength(1),
+      reason: 'one press. Got: '
+          '${recent.map((e) => '${e.time.toIso8601String()} ${e.title}/${e.message}').toList()}',
+    );
+    expect(stopRows.single.eventId, BigInt.from(5),
+        reason: 'the emitted row is the newest member, identity intact');
+    expect(stopRows.single.time, _t0.add(const Duration(seconds: 20)));
+    expect(stopRows.single.message, kSequenceStoppedByRequestMessage,
+        reason: 'the visible row must carry the cause, not sit empty');
+  });
+
+  test('D8 the fold never breaks the feed newest-first ordering', () {
+    // Wave I refutation I3: learning the cause must copy the MESSAGE into
+    // the emitted row, never swap in an older member's row wholesale.
+    final c = makeContainer();
+    final h = c.read(eventHistoryProvider.notifier);
+    h.addEvent(_error(1, kSequenceCancelledNotice, _t0));
+    h.addEvent(_decision(2, kSequenceCancelledNotice, _t0));
+    h.addEvent(_manualStop(3, _t0));
+    h.addEvent(_stopped(4, _t0));
+    h.addEvent(
+      _error(
+        5,
+        'Dome shutter failed to close',
+        _t0.add(const Duration(seconds: 4)),
+      ),
+    );
+    h.addEvent(_stopped(6, _t0.add(const Duration(seconds: 6))));
+
+    final recent = c.read(runDashboardRecentEventsProvider(5));
+    for (var i = 0; i + 1 < recent.length; i++) {
+      expect(
+        recent[i].time.isBefore(recent[i + 1].time),
+        isFalse,
+        reason: 'row $i is older than row ${i + 1}: '
+            '${recent.map((e) => '${e.time.toIso8601String()} ${e.title}').toList()}',
+      );
+    }
+    expect(recent.any((e) => e.message.contains('Dome shutter')), isTrue);
+  });
+
+  test('D9 an earlier run\'s bare Stopped survives a stop 4 s later', () {
+    // Wave I refutation I4: run 1 ends with only its terminal Stopped, the
+    // operator restarts, and stops run 2 four seconds later. The Started
+    // between them is the run boundary — the two stops must not merge.
+    final c = makeContainer();
+    final h = c.read(eventHistoryProvider.notifier);
+    h.addEvent(_error(1, 'Mount tracking lost', _t0));
+    h.addEvent(_stopped(2, _t0));
+    h.addEvent(_started(3, _t0.add(const Duration(seconds: 1))));
+    pressStop(c, base: 10, at: _t0.add(const Duration(seconds: 4)));
+
+    final recent = c.read(runDashboardRecentEventsProvider(10));
+    final stopRows =
+        recent.where((e) => e.title == 'Sequence stopped').toList();
+    expect(
+      stopRows,
+      hasLength(2),
+      reason: 'two runs ended. Got: '
+          '${recent.map((e) => '${e.time.toIso8601String()} ${e.title}/${e.message}').toList()}',
+    );
+    // Run 1's row is cause-neutral; run 2's carries the operator cause.
+    expect(stopRows.last.message, isEmpty);
+    expect(stopRows.first.message, kSequenceStoppedByRequestMessage);
   });
 }

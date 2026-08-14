@@ -25,7 +25,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/dashboard/widgets/cockpit_standby.dart';
 import 'package:nightshade_app/screens/dashboard/widgets/smart_night_prompt_card.dart'
-    show kFloatingPromptReservedHeight, smartNightAutoPromptShowingProvider;
+    show floatingPromptOwnersProvider, kFloatingPromptReservedHeight;
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 Future<ScrollPosition> _pumpStandby(
@@ -53,7 +53,11 @@ Future<ScrollPosition> _pumpStandby(
       // the second case silently measures the first case's container.
       key: ValueKey(promptShowing),
       overrides: [
-        smartNightAutoPromptShowingProvider.overrideWith((_) => promptShowing),
+        floatingPromptOwnersProvider.overrideWith(
+          (_) => promptShowing
+              ? {'test-card': kFloatingPromptReservedHeight}
+              : const <String, double>{},
+        ),
       ],
       child: MaterialApp(
         theme: NightshadeTheme.dark,

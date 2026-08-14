@@ -8,7 +8,9 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../../localization/nightshade_localizations.dart';
 import '../../sequencer/widgets/smart_night_dialog.dart';
 import 'smart_night_prompt_card.dart'
-    show kFloatingPromptReservedHeight, smartNightAutoPromptShowingProvider;
+    show
+        floatingPromptReservedHeightProvider,
+        smartNightAutoPromptShowingProvider;
 import 'standby/last_night_recap_card.dart';
 import 'standby/moon_card.dart';
 import 'standby/night_timeline.dart';
@@ -65,12 +67,10 @@ class CockpitStandby extends ConsumerWidget {
         // scrolls here, so max scroll was measurably unchanged by that fix.
         // A floating overlay has to be paid for in the scroll view it floats
         // above, and this is that scroll view.
-        final promptShowing = ref.watch(smartNightAutoPromptShowingProvider);
+        final promptBand = ref.watch(floatingPromptReservedHeightProvider);
         return SingleChildScrollView(
           padding: const EdgeInsets.all(NightshadeTokens.space2xl).add(
-            EdgeInsets.only(
-              bottom: promptShowing ? kFloatingPromptReservedHeight : 0,
-            ),
+            EdgeInsets.only(bottom: promptBand),
           ),
           child: Center(
             child: ConstrainedBox(

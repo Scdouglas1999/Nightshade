@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,7 +10,10 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'glass_card.dart';
 import 'smart_night_prompt_card.dart'
-    show floatingPromptOwnersProvider, smartNightOpticsReadyProvider;
+    show
+        floatingPromptOwnersProvider,
+        kFloatingPromptReservedHeight,
+        smartNightOpticsReadyProvider;
 
 const double _kDesktopPromptWidth = 480.0;
 const double _kBottomInset = 16.0;
@@ -93,29 +98,56 @@ class _NextUsePromptCardState extends ConsumerState<NextUsePromptCard>
 
   @override
   void dispose() {
-    if (_ownersController.state.contains(_promptOwnerTag)) {
-      _ownersController.state = {..._ownersController.state}
-        ..remove(_promptOwnerTag);
-    }
+    // Release the band claim OUTSIDE the frame: element unmount runs inside
+    // finalizeTree, where writing a provider trips riverpod's
+    // modify-during-build guard. A microtask lands after the frame; if the
+    // container itself is being torn down the claim dies with it.
+    final controller = _ownersController;
+    scheduleMicrotask(() {
+      try {
+        if (controller.state.containsKey(_promptOwnerTag)) {
+          controller.state = {...controller.state}..remove(_promptOwnerTag);
+        }
+      } on StateError {
+        // Container already disposed — nothing left to clean.
+      }
+    });
     _animController.dispose();
     super.dispose();
   }
 
   static const _promptOwnerTag = 'next-use';
 
-  late final StateController<Set<String>> _ownersController;
+  late final StateController<Map<String, double>> _ownersController;
 
-  void _publishShowing(bool showing) {
+  /// Anchors the measurable card box (below the Align/inset wrappers and the
+  /// slide/fade transforms, whose mid-animation position must not leak into
+  /// the measurement).
+  final _measureKey = GlobalKey();
+
+  void _publishShowing(bool showing, {double bottomInset = 0}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final owners = ref.read(floatingPromptOwnersProvider.notifier);
-      final next = <String>{...owners.state};
+      final next = <String, double>{...owners.state};
       if (showing) {
-        next.add(_promptOwnerTag);
+        // Publish the band this card actually occupies: its rendered height
+        // plus the inset it floats above (phone bottom nav included), so
+        // the reserve follows the real card instead of a constant that can
+        // cover neither a 108px card, a ~200px card, nor a nav inset at
+        // once. Falls back to the legacy constant until layout lands.
+        var band = kFloatingPromptReservedHeight;
+        final box = _measureKey.currentContext?.findRenderObject();
+        if (box is RenderBox && box.hasSize) {
+          band = box.size.height + bottomInset;
+        }
+        if (next[_promptOwnerTag] == band) return;
+        next[_promptOwnerTag] = band;
       } else {
+        if (!next.containsKey(_promptOwnerTag)) return;
         next.remove(_promptOwnerTag);
       }
-      if (next.length != owners.state.length) owners.state = next;
+      owners.state = next;
     });
   }
 
@@ -151,7 +183,6 @@ class _NextUsePromptCardState extends ConsumerState<NextUsePromptCard>
     // prompt band off it, and without this publish the next-use nudge sat
     // over the last card in the extent (live: RECENT EVENTS rows at 1000x800)
     // with no way to scroll them out from under it.
-    _publishShowing(true);
     if (!_animController.isAnimating && _animController.value < 1.0) {
       _animController.forward();
     }
@@ -165,16 +196,18 @@ class _NextUsePromptCardState extends ConsumerState<NextUsePromptCard>
             : _kDesktopPromptWidth;
         final useBottomNav =
             ShellChrome.useBottomNavigation(constraints.maxWidth);
+        final bottomInset = ShellChromeMetrics.floatingOverlayBottomInset(
+          context,
+          useBottomNav: useBottomNav,
+          margin: _kBottomInset,
+        );
+        _publishShowing(true, bottomInset: bottomInset);
 
         return Align(
           alignment: Alignment.bottomCenter,
           child: Padding(
             padding: EdgeInsets.only(
-              bottom: ShellChromeMetrics.floatingOverlayBottomInset(
-                context,
-                useBottomNav: useBottomNav,
-                margin: _kBottomInset,
-              ),
+              bottom: bottomInset,
               left: _kMobileHorizontalMargin,
               right: _kMobileHorizontalMargin,
             ),
@@ -183,6 +216,7 @@ class _NextUsePromptCardState extends ConsumerState<NextUsePromptCard>
               child: SlideTransition(
                 position: _slide,
                 child: SizedBox(
+                  key: _measureKey,
                   width: cardWidth,
                   child: _buildCard(context, step),
                 ),
