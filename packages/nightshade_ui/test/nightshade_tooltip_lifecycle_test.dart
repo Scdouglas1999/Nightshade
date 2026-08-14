@@ -27,20 +27,20 @@ void main() {
   const message = 'Reset view (zenith, FOV 60)';
 
   Widget host() => MaterialApp(
-        theme: NightshadeTheme.dark,
-        home: const Scaffold(
-          body: Center(
-            child: NightshadeTooltip(
-              message: message,
-              child: ColoredBox(
-                key: trigger,
-                color: Color(0xFF224466),
-                child: SizedBox(width: 34, height: 34),
-              ),
-            ),
+    theme: NightshadeTheme.dark,
+    home: const Scaffold(
+      body: Center(
+        child: NightshadeTooltip(
+          message: message,
+          child: ColoredBox(
+            key: trigger,
+            color: Color(0xFF224466),
+            child: SizedBox(width: 34, height: 34),
           ),
         ),
-      );
+      ),
+    ),
+  );
 
   Future<TestGesture> hover(WidgetTester tester) async {
     final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
