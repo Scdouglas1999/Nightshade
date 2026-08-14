@@ -19,6 +19,9 @@ extension _SkyViewHitTesting on _InteractiveSkyViewState {
     // Re-center the view on the tapped coordinate
     ref.read(skyViewStateProvider.notifier).setCenter(coord.ra, coord.dec);
 
+    // This gesture re-centres deliberately; a wheel anchor left over from an
+    // earlier notch would drag the centre straight back.
+    _clearZoomAnchor();
     _animateZoom(60.0);
   }
 

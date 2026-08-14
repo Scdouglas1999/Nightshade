@@ -277,7 +277,7 @@ class ViewControls extends ConsumerWidget {
               );
             },
             tooltip: viewState.viewMode == SkyViewMode.horizontal
-                ? 'Alt/Az view (horizon-up) — tap for equatorial'
+                ? 'Alt/Az view (horizon-up) — switch to equatorial'
                 : 'Switch to Alt/Az view (tonight from my site)',
           ),
           const SizedBox(height: 4),

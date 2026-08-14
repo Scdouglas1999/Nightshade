@@ -73,6 +73,10 @@ extension _SkyViewMotion on _InteractiveSkyViewState {
     if (_zoomAnimation != null) {
       final newFOV = _zoomAnimation!.value;
       ref.read(skyViewStateProvider.notifier).setFieldOfView(newFOV);
+      // Re-pin the anchor at the FOV this frame actually landed on, so the sky
+      // under the cursor is stationary throughout the 300 ms glide rather than
+      // only at its end.
+      _holdZoomAnchor();
 
       // Trigger star pop-in animation when zooming reveals fainter stars
       final qualityConfig = ref.read(fovAdaptiveQualityProvider);
@@ -193,10 +197,104 @@ extension _SkyViewMotion on _InteractiveSkyViewState {
   /// [factor] > 1 zooms out (widens the field), < 1 zooms in. The step size is
   /// picked from the pending FOV too, so a burst of notches crossing the
   /// coarse/fine boundary steps the same way it would one notch at a time.
-  void _zoomByStep({required bool zoomOut}) {
+  /// [focalPoint] is the local screen position the zoom must keep pointing at
+  /// the same sky — the mouse cursor for a wheel notch. Null zooms the view
+  /// centre, which is what a keyboard or programmatic zoom means.
+  void _zoomByStep({required bool zoomOut, Offset? focalPoint}) {
+    _setZoomAnchor(focalPoint);
     final baseFOV = _pendingFOV;
     final zoomFactor = baseFOV > 30 ? 1.2 : 1.15;
     _animateZoom(zoomOut ? baseFOV * zoomFactor : baseFOV / zoomFactor);
+  }
+
+  /// Remember which sky point sits under [point] right now, so the zoom can
+  /// keep it there. A null [point] — or a point that does not resolve to sky
+  /// (outside the projection disc) — drops the anchor and zooms the centre.
+  void _setZoomAnchor(Offset? point) {
+    final size = _lastViewSize;
+    if (point == null || size == null) {
+      _clearZoomAnchor();
+      return;
+    }
+    final anchor = _screenToCelestial(
+      point,
+      size,
+      ref.read(skyViewStateProvider),
+    );
+    if (anchor == null) {
+      _clearZoomAnchor();
+      return;
+    }
+    _zoomAnchorSky = anchor;
+    _zoomAnchorPoint = point;
+  }
+
+  void _clearZoomAnchor() {
+    _zoomAnchorSky = null;
+    _zoomAnchorPoint = null;
+  }
+
+  /// The projector for a given pose, built exactly as the hit-tester and the
+  /// painter build theirs.
+  SkyFovProjector _projectorFor(SkyViewState state, Size size) {
+    final location = ref.read(observerLocationProvider);
+    return SkyFovProjector.forSize(
+      state,
+      size,
+      latitude: location.latitude,
+      lstHours: state.viewMode == SkyViewMode.horizontal
+          ? AstronomyCalculations.localSiderealTime(
+              ref.read(observationTimeProvider).time,
+              location.longitude,
+            )
+          : null,
+    );
+  }
+
+  /// Move the view centre so the anchored sky point is back under the anchored
+  /// screen point at the CURRENT field of view.
+  ///
+  /// Solved by iteration rather than by inverting the projection: shifting the
+  /// image by `err` pixels means re-centring on whatever sky currently lies
+  /// `err` from the centre, which is exact for a translation and converges in
+  /// two or three passes for the spherical projections the view actually uses.
+  void _holdZoomAnchor() {
+    final anchor = _zoomAnchorSky;
+    final point = _zoomAnchorPoint;
+    final size = _lastViewSize;
+    if (anchor == null || point == null || size == null) return;
+
+    final notifier = ref.read(skyViewStateProvider.notifier);
+    for (var pass = 0; pass < 4; pass++) {
+      final state = ref.read(skyViewStateProvider);
+      final projector = _projectorFor(state, size);
+      final landed = projector.project(anchor);
+      if (landed == null) {
+        // The anchor rotated behind the projection plane — nothing to hold on
+        // to, and forcing it back would fling the view.
+        _clearZoomAnchor();
+        return;
+      }
+      final err = point - landed;
+      if (err.distance < 0.25) return;
+      final recentred = projector.unproject(projector.screenCenter - err);
+      if (recentred == null) return;
+      if (state.viewMode == SkyViewMode.horizontal) {
+        final location = ref.read(observerLocationProvider);
+        final (alt, az) = AstronomyCalculations.equatorialToHorizontal(
+          raDeg: recentred.ra * 15,
+          decDeg: recentred.dec,
+          latitudeDeg: location.latitude,
+          lstHours: AstronomyCalculations.localSiderealTime(
+            ref.read(observationTimeProvider).time,
+            location.longitude,
+          ),
+        );
+        notifier.setHorizontalCenter(az, alt);
+      } else {
+        notifier.setCenter(recentred.ra, recentred.dec);
+      }
+    }
   }
 
   /// Animate FOV to a new target value
@@ -235,6 +333,9 @@ extension _SkyViewMotion on _InteractiveSkyViewState {
   /// is not on the animated path, so an instant re-center is the honest result
   /// rather than a no-op).
   void _startFlyTo(CelestialCoordinate target) {
+    // A glide to somewhere else owns the centre; a stale wheel anchor would
+    // fight it frame by frame.
+    _clearZoomAnchor();
     final viewState = ref.read(skyViewStateProvider);
     if (viewState.viewMode == SkyViewMode.horizontal) {
       final location = ref.read(observerLocationProvider);

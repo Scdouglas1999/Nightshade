@@ -285,9 +285,29 @@ final moonInfoProvider = Provider<MoonTimes>((ref) {
   );
 });
 
-/// Current Local Sidereal Time
-/// Needs per-second precision for accurate clock display.
+/// Local Sidereal Time **now**, at the observing site.
+///
+/// Per-second precision, from the wall clock — not from
+/// [observationTimeProvider]. This is the value the shell status bar and the
+/// dashboard header render, and those chips sit inches from a real clock: while
+/// the planetarium's transport was scrubbed six hours forward, the status strip
+/// showed `18:39:23` beside `LST 11:15` when the true sidereal time was 15:12,
+/// with nothing saying one of the two was a preview. Sidereal time is exactly
+/// what an imager reads to decide what is transiting, so a simulated one has to
+/// stay inside the screen simulating it — see [observationSiderealTimeProvider].
 final localSiderealTimeProvider = Provider<double>((ref) {
+  final location = ref.watch(observerLocationProvider);
+  final now = ref.watch(wallClockProvider);
+
+  return AstronomyCalculations.localSiderealTime(now, location.longitude);
+});
+
+/// Local Sidereal Time at the planetarium's *observation* time, which the time
+/// transport can hold, accelerate or jump.
+///
+/// For readouts that belong to the simulated sky itself — the planetarium's own
+/// overlays — where following the scrub is the whole point.
+final observationSiderealTimeProvider = Provider<double>((ref) {
   final location = ref.watch(observerLocationProvider);
   final time = ref.watch(observationTimeProvider);
 

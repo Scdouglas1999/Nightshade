@@ -149,24 +149,30 @@ class _TimeControlPanelState extends ConsumerState<TimeControlPanel> {
             _buildSpeedButton(isForward: false, large: true, color: txtColor),
             const SizedBox(width: 4),
             // Step back
-            IconButton(
-              icon: Icon(LucideIcons.skipBack, color: txtColor, size: 18),
-              onPressed: () => _stepTime(-3600), // -1 hour
-              tooltip: 'Back 1 hour',
-              padding: const EdgeInsets.all(8),
-              constraints: const BoxConstraints(),
+            _accessibleControl(
+              label: 'Back 1 hour',
+              IconButton(
+                icon: Icon(LucideIcons.skipBack, color: txtColor, size: 18),
+                onPressed: () => _stepTime(-3600), // -1 hour
+                tooltip: 'Back 1 hour',
+                padding: const EdgeInsets.all(8),
+                constraints: const BoxConstraints(),
+              ),
             ),
             const SizedBox(width: 4),
             // Play/Pause
             _buildPlayPauseButton(timeState, accent, large: true),
             const SizedBox(width: 4),
             // Step forward
-            IconButton(
-              icon: Icon(LucideIcons.skipForward, color: txtColor, size: 18),
-              onPressed: () => _stepTime(3600), // +1 hour
-              tooltip: 'Forward 1 hour',
-              padding: const EdgeInsets.all(8),
-              constraints: const BoxConstraints(),
+            _accessibleControl(
+              label: 'Forward 1 hour',
+              IconButton(
+                icon: Icon(LucideIcons.skipForward, color: txtColor, size: 18),
+                onPressed: () => _stepTime(3600), // +1 hour
+                tooltip: 'Forward 1 hour',
+                padding: const EdgeInsets.all(8),
+                constraints: const BoxConstraints(),
+              ),
             ),
             const SizedBox(width: 4),
             // Fast forward
@@ -185,6 +191,29 @@ class _TimeControlPanelState extends ConsumerState<TimeControlPanel> {
           ],
         ),
       ],
+    );
+  }
+
+  /// Put a transport control's accessible NAME on the button node itself.
+  ///
+  /// `IconButton(tooltip: ...)` does not name anything: Flutter's `Tooltip`
+  /// publishes its message as `SemanticsProperties.tooltip`, a field separate
+  /// from the label, so the button node's name stays empty. A live AT-SPI dump
+  /// of the full transport showed exactly that — five bare `button:` entries
+  /// with empty names between `Aug 13, 2026` and `NOW`, and no toggle state on
+  /// the one that stops time, so the pause fix was invisible to assistive tech.
+  ///
+  /// [toggled] additionally gives the control an on/off state to report; used
+  /// by play/pause, whose whole job is to hold the sky still. `MergeSemantics`
+  /// collapses name, button role, enabled state and tap action onto one node —
+  /// the same idiom the Layers rows use.
+  Widget _accessibleControl(
+    Widget child, {
+    required String label,
+    bool? toggled,
+  }) {
+    return MergeSemantics(
+      child: Semantics(label: label, toggled: toggled, child: child),
     );
   }
 
@@ -210,25 +239,34 @@ class _TimeControlPanelState extends ConsumerState<TimeControlPanel> {
   Widget _buildDateButton(DateTime time, Color txtColor) {
     final dateFormat = DateFormat('MMM d, yyyy');
 
-    return InkWell(
-      onTap: () => _showDatePicker(time),
-      borderRadius: BorderRadius.circular(4),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          border: Border.all(color: txtColor.withValues(alpha: 0.3)),
+    // A bare InkWell carries no button role and no enabled state, so the chip
+    // that opens the date picker was reported as an inert, DISABLED panel.
+    return MergeSemantics(
+      child: Semantics(
+        button: true,
+        enabled: true,
+        hint: 'Choose a date',
+        child: InkWell(
+          onTap: () => _showDatePicker(time),
           borderRadius: BorderRadius.circular(4),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(LucideIcons.calendar, size: 14, color: txtColor),
-            const SizedBox(width: 4),
-            Text(
-              dateFormat.format(time),
-              style: TextStyle(color: txtColor, fontSize: 12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              border: Border.all(color: txtColor.withValues(alpha: 0.3)),
+              borderRadius: BorderRadius.circular(4),
             ),
-          ],
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(LucideIcons.calendar, size: 14, color: txtColor),
+                const SizedBox(width: 4),
+                Text(
+                  dateFormat.format(time),
+                  style: TextStyle(color: txtColor, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -298,19 +336,25 @@ class _TimeControlPanelState extends ConsumerState<TimeControlPanel> {
   }) {
     final running = !timeState.isPaused;
 
-    return IconButton(
-      icon: Icon(
-        running ? LucideIcons.pause : LucideIcons.play,
-        color: accent,
-        size: large ? 24 : 18,
-      ),
-      onPressed: _togglePlayPause,
-      tooltip: running ? 'Pause' : 'Play',
-      padding: EdgeInsets.all(large ? 12 : 8),
-      constraints: const BoxConstraints(),
-      style: IconButton.styleFrom(
-        backgroundColor: accent.withValues(alpha: 0.1),
-        shape: const CircleBorder(),
+    // "Held" is the ON state of this toggle: the only other signal that time is
+    // stopped is the PAUSED chip, which merges into an unrelated text panel.
+    return _accessibleControl(
+      label: running ? 'Pause' : 'Play',
+      toggled: !running,
+      IconButton(
+        icon: Icon(
+          running ? LucideIcons.pause : LucideIcons.play,
+          color: accent,
+          size: large ? 24 : 18,
+        ),
+        onPressed: _togglePlayPause,
+        tooltip: running ? 'Pause' : 'Play',
+        padding: EdgeInsets.all(large ? 12 : 8),
+        constraints: const BoxConstraints(),
+        style: IconButton.styleFrom(
+          backgroundColor: accent.withValues(alpha: 0.1),
+          shape: const CircleBorder(),
+        ),
       ),
     );
   }
@@ -320,16 +364,19 @@ class _TimeControlPanelState extends ConsumerState<TimeControlPanel> {
     bool large = false,
     required Color color,
   }) {
-    return IconButton(
-      icon: Icon(
-        isForward ? LucideIcons.fastForward : LucideIcons.rewind,
-        color: color,
-        size: large ? 20 : 16,
+    return _accessibleControl(
+      label: isForward ? 'Faster' : 'Slower',
+      IconButton(
+        icon: Icon(
+          isForward ? LucideIcons.fastForward : LucideIcons.rewind,
+          color: color,
+          size: large ? 20 : 16,
+        ),
+        onPressed: () => _changeSpeed(isForward),
+        tooltip: isForward ? 'Faster' : 'Slower',
+        padding: EdgeInsets.all(large ? 8 : 4),
+        constraints: const BoxConstraints(),
       ),
-      onPressed: () => _changeSpeed(isForward),
-      tooltip: isForward ? 'Faster' : 'Slower',
-      padding: EdgeInsets.all(large ? 8 : 4),
-      constraints: const BoxConstraints(),
     );
   }
 
@@ -349,13 +396,16 @@ class _TimeControlPanelState extends ConsumerState<TimeControlPanel> {
   }
 
   Widget _buildCompactNowButton(Color accent) {
-    return IconButton(
-      icon: Icon(LucideIcons.clock, size: 18, color: accent),
-      tooltip: 'Jump to now',
-      onPressed: _jumpToNow,
-      padding: const EdgeInsets.all(8),
-      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-      visualDensity: VisualDensity.compact,
+    return _accessibleControl(
+      label: 'Jump to now',
+      IconButton(
+        icon: Icon(LucideIcons.clock, size: 18, color: accent),
+        tooltip: 'Jump to now',
+        onPressed: _jumpToNow,
+        padding: const EdgeInsets.all(8),
+        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+        visualDensity: VisualDensity.compact,
+      ),
     );
   }
 

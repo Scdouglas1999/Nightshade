@@ -30,6 +30,18 @@ extension _PlanetariumShell on _PlanetariumScreenState {
         final isPhone = Responsive.isPhone(context) ||
             BreakpointTokens.isPhone(constraints.maxWidth);
 
+        // Canvas width the right-docked panel takes away, 0 when none is open.
+        //
+        // The bottom chrome used to be laid out across the FULL stack while the
+        // drawer floated over its right end. At 900 px that put the drawer over
+        // the time transport: the clock read `18:46:` with the seconds behind
+        // the panel and the fast-forward button could not be clicked at all.
+        // Insetting the overlays by the drawer's width is what makes "docked"
+        // true — the panel takes space rather than covering controls.
+        final dockedWidth = !isPhone && (_layersPanelOpen || _planPanelOpen)
+            ? _shellPanelWidth(constraints.maxWidth)
+            : 0.0;
+
         return Column(
           children: [
             PlanetariumCommandBar(
@@ -154,7 +166,9 @@ extension _PlanetariumShell on _PlanetariumScreenState {
                   Positioned(
                     top: 12,
                     left: 12,
-                    width: _fallbackBannerWidth(constraints.maxWidth),
+                    width: _fallbackBannerWidth(
+                      constraints.maxWidth - dockedWidth,
+                    ),
                     child: const Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -213,7 +227,7 @@ extension _PlanetariumShell on _PlanetariumScreenState {
 
                   // --- Mini-map ---
                   Positioned(
-                    right: AdaptiveSizing.of(context).edgePadding,
+                    right: AdaptiveSizing.of(context).edgePadding + dockedWidth,
                     bottom: 56,
                     child: Consumer(
                       builder: (context, ref, _) {
@@ -251,25 +265,17 @@ extension _PlanetariumShell on _PlanetariumScreenState {
                   ),
 
                   // --- Time-travel panel (bottom-center) ---
-                  Positioned(
-                    bottom: 44,
-                    left: 0,
-                    right: 0,
-                    child: Center(
-                      child: TimeControlPanel(
-                        backgroundColor: colors.surface.withValues(alpha: 0.9),
-                        textColor: colors.textPrimary,
-                        accentColor: colors.accent,
-                        compact: isPhone,
-                      ),
-                    ),
+                  PlanetariumTransportSlot(
+                    colors: colors,
+                    compact: isPhone,
+                    dockedWidth: dockedWidth,
                   ),
 
                   // --- Info bar (slim, bottom) ---
                   Positioned(
                     bottom: 0,
                     left: 0,
-                    right: 0,
+                    right: dockedWidth,
                     child: BottomInfoBar(colors: colors),
                   ),
 
@@ -564,6 +570,43 @@ class _SearchCommandTargetState extends State<_SearchCommandTarget> {
 
   @override
   Widget build(BuildContext context) => widget.child;
+}
+
+/// The time transport, centred over the sky the user can actually see.
+///
+/// [dockedWidth] is how much of the stack's right edge a docked panel owns. It
+/// is not decoration: laid out across the FULL stack (dockedWidth ignored) the
+/// transport slid under an open Layers drawer at 900 px — the clock rendered as
+/// `18:46:` with the seconds behind the panel, and the fast-forward button was
+/// unreachable because the drawer took the clicks.
+class PlanetariumTransportSlot extends StatelessWidget {
+  const PlanetariumTransportSlot({
+    super.key,
+    required this.colors,
+    required this.compact,
+    required this.dockedWidth,
+  });
+
+  final NightshadeColors colors;
+  final bool compact;
+  final double dockedWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      bottom: 44,
+      left: 0,
+      right: dockedWidth,
+      child: Center(
+        child: TimeControlPanel(
+          backgroundColor: colors.surface.withValues(alpha: 0.9),
+          textColor: colors.textPrimary,
+          accentColor: colors.accent,
+          compact: compact,
+        ),
+      ),
+    );
+  }
 }
 
 /// Right-docked panel container with an animated entrance.

@@ -84,9 +84,13 @@ class PlanetariumCommandBar extends ConsumerWidget {
           if (!compact) ...[
             CommandBarIconButton(
               icon: NightshadeIcons.layers,
+              // Names the action rather than the gesture: this bar is driven
+              // with a mouse on desktop, a finger on a tablet and the keyboard
+              // by anyone using a screen reader, and "tap" was true for exactly
+              // one of them.
               tooltip: viewState.viewMode == SkyViewMode.horizontal
-                  ? 'Alt/Az view — tap for Equatorial'
-                  : 'Equatorial view — tap for Alt/Az',
+                  ? 'Alt/Az view — switch to Equatorial'
+                  : 'Equatorial view — switch to Alt/Az',
               isActive: viewState.viewMode == SkyViewMode.horizontal,
               onTap: () {
                 final notifier = ref.read(skyViewStateProvider.notifier);

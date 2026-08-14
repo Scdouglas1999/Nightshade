@@ -130,6 +130,17 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
   double _targetFOV = 60.0;
   double _startFOV = 60.0;
 
+  /// Sky point the running zoom must keep under [_zoomAnchorPoint], and the
+  /// screen position to keep it at. Both null when the zoom has no anchor (the
+  /// double-tap reset, a keyboard zoom), in which case the view centre is what
+  /// stays put.
+  ///
+  /// Wheel zoom used to have no anchor at all: 23 notches took the field from
+  /// 60 deg to 2 deg with the centre byte-identical, so whatever the cursor was
+  /// over was thrown off screen and had to be dragged back after every step.
+  CelestialCoordinate? _zoomAnchorSky;
+  Offset? _zoomAnchorPoint;
+
   // Smooth fly-to (animated re-center) for search/GoTo actions.
   late AnimationController _flyToController;
   Animation<double>? _flyToRaAnimation;
@@ -413,13 +424,20 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
         return Listener(
           onPointerSignal: (event) {
             if (event is PointerScrollEvent) {
-              _zoomByStep(zoomOut: event.scrollDelta.dy > 0);
+              // The cursor is the anchor: every map UI (and Stellarium and
+              // SkySafari) zooms toward what the pointer is over.
+              _zoomByStep(
+                zoomOut: event.scrollDelta.dy > 0,
+                focalPoint: event.localPosition,
+              );
             }
           },
           child: GestureDetector(
             onScaleStart: (details) {
-              // A new touch always cancels any in-flight momentum glide.
+              // A new touch always cancels any in-flight momentum glide, and
+              // takes the centre back from any in-flight wheel zoom.
               _stopMomentum();
+              _clearZoomAnchor();
 
               // Measurement mode: begin a ruler at the touch point instead of
               // panning. The endpoint coincides with the start until the drag

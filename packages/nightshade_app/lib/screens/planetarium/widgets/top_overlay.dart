@@ -17,7 +17,11 @@ class TopOverlay extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final location = ref.watch(observerLocationProvider);
     final time = ref.watch(observationTimeProvider);
-    final lst = ref.watch(localSiderealTimeProvider);
+    // The planetarium's own readout follows the time transport, so it reads the
+    // SIMULATED sidereal time — beside the simulated clock it sits next to.
+    // `localSiderealTimeProvider` is the real one, for the chrome outside this
+    // screen that must keep stating the truth while the sky is scrubbed.
+    final lst = ref.watch(observationSiderealTimeProvider);
     final renderConfig = ref.watch(skyRenderConfigProvider);
     final settingsAsync = ref.watch(appSettingsProvider);
 

@@ -13,7 +13,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/screens/your_sky/widgets/name_region_sheet.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_ui/nightshade_ui.dart';
 
 class _MockNetworkBackend extends Mock implements NetworkBackend {}
 
@@ -63,19 +62,14 @@ void main() {
     expect(
         find.textContaining('No targets in your library yet'), findsOneWidget);
 
-    final button = tester.widget<NightshadeButton>(
-      find
-          .ancestor(
-            of: find.text('Create region'),
-            matching: find.byType(NightshadeButton),
-          )
-          .first,
-    );
-    expect(
-      button.onPressed,
-      isNull,
-      reason: 'enabling it only to explain afterwards is the original bug',
-    );
+    // Originally this asserted a PRESENT-but-disabled `Create region`. A live
+    // re-drive showed that state never reached the user: the accessibility
+    // tree reported the dim button as a plain actionable one and clicking it
+    // did nothing at all. The action is now absent in this state and the slot
+    // carries a live control instead — see
+    // `name_region_sheet_dead_action_test.dart`.
+    expect(find.text('Create region'), findsNothing);
+    expect(find.text('Switch to Custom RA/Dec'), findsOneWidget);
     expect(find.text('Pick a target first.'), findsNothing);
   });
 

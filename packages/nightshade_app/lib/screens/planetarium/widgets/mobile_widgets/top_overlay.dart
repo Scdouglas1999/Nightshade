@@ -16,7 +16,9 @@ class MobileTopOverlay extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final time = ref.watch(observationTimeProvider);
-    final lst = ref.watch(localSiderealTimeProvider);
+    // Simulated sidereal time, beside the simulated clock — see the desktop
+    // TopOverlay for why the shell chrome reads the real one instead.
+    final lst = ref.watch(observationSiderealTimeProvider);
     final screenWidth = MediaQuery.sizeOf(context).width;
     final isVeryNarrow = screenWidth < 360;
 

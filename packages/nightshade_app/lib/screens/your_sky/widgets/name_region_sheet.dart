@@ -96,6 +96,19 @@ class _NameRegionSheetState extends ConsumerState<NameRegionSheet> {
     super.dispose();
   }
 
+  /// The target library has loaded and is empty, so `From a target` can never
+  /// produce a region no matter what the user does in this mode.
+  ///
+  /// This is the state a live re-drive found still dead: the sheet rendered a
+  /// dim `Create region`, the accessibility tree reported it as a plain
+  /// actionable button, and clicking it produced nothing at all — no error, no
+  /// toast, no region. A control that cannot work in the state it is shown in
+  /// is not made honest by dimming it, so in this state the sheet offers the
+  /// only action that CAN work instead (see [_buildPrimaryAction]).
+  bool _libraryIsEmpty(AsyncValue<List<DbTarget>> targetsAsync) =>
+      _source == _RegionSource.target &&
+      (targetsAsync.valueOrNull?.isEmpty ?? false);
+
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
@@ -181,14 +194,7 @@ class _NameRegionSheetState extends ConsumerState<NameRegionSheet> {
                     ),
                   ),
                   const SizedBox(width: NightshadeTokens.spaceMd),
-                  Expanded(
-                    child: NightshadeButton(
-                      label: 'Create region',
-                      icon: LucideIcons.check,
-                      isLoading: _saving,
-                      onPressed: _saving || !_canSubmit ? null : _create,
-                    ),
-                  ),
+                  Expanded(child: _buildPrimaryAction(targetsAsync)),
                 ],
               ),
             ],
@@ -197,6 +203,36 @@ class _NameRegionSheetState extends ConsumerState<NameRegionSheet> {
       ),
     );
     return sheet;
+  }
+
+  /// The sheet's primary action.
+  ///
+  /// Normally `Create region`. With an empty library in `From a target` mode
+  /// there is nothing to create from, so the slot carries the escape hatch the
+  /// mode's own copy names — one live control instead of a dead one.
+  Widget _buildPrimaryAction(AsyncValue<List<DbTarget>> targetsAsync) {
+    if (_libraryIsEmpty(targetsAsync)) {
+      return NightshadeButton(
+        label: 'Switch to Custom RA/Dec',
+        icon: LucideIcons.arrowRight,
+        onPressed: () => setState(() {
+          _source = _RegionSource.custom;
+          _error = null;
+        }),
+      );
+    }
+    final blocked = !_canSubmit;
+    return Semantics(
+      // A disabled primary action has to say what is missing: the button's own
+      // label cannot, and the dimming alone carries no reason.
+      hint: blocked ? 'Choose a target first' : null,
+      child: NightshadeButton(
+        label: 'Create region',
+        icon: LucideIcons.check,
+        isLoading: _saving,
+        onPressed: _saving || blocked ? null : _create,
+      ),
+    );
   }
 
   Widget _buildTargetPicker(
