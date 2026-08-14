@@ -107,6 +107,7 @@ export 'src/providers/stack_and_share_provider.dart';
 export 'src/providers/project_tracking_provider.dart';
 export 'src/providers/equipment_health_provider.dart';
 export 'src/providers/device_heartbeat_health_provider.dart';
+export 'src/providers/device_last_contact_provider.dart';
 export 'src/providers/optical_train_diagnostics_provider.dart';
 export 'src/providers/session_handoff_provider.dart';
 export 'src/providers/session_optimizer_provider.dart';

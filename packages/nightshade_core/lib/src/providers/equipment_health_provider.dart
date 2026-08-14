@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/equipment/equipment_models.dart' show DeviceConnectionState;
 import '../services/equipment_health_service.dart';
 import 'database_provider.dart';
+import 'device_last_contact_provider.dart';
 import 'equipment/camera_state_provider.dart';
 import 'equipment/filter_wheel_state_provider.dart';
 import 'equipment/dome_state_provider.dart';
@@ -20,20 +21,15 @@ final equipmentHealthServiceProvider = Provider<EquipmentHealthService>((ref) {
   return const EquipmentHealthService();
 });
 
-/// Device health snapshots derived from the live equipment-state notifiers
-/// plus the rolling [UsbDisconnectLog]. A later change wired the production path
-/// so `disconnectCountLast24h` actually carries non-zero values; before
-/// this provider was a placeholder `StateProvider<[]>` that the UI never
-/// populated, leaving the pre-flight USB stability check inert.
+/// The devices we are currently connected to, as health descriptors.
 ///
-/// Tests can override this provider with a static list if they want to
-/// bypass the live wiring (e.g. preflight_rules_test does exactly that).
-final deviceHealthSnapshotsProvider = Provider<List<DeviceHealthSnapshot>>((
+/// Split out of [deviceHealthSnapshotsProvider] so the heartbeat poller
+/// ([deviceLastContactProvider]) can follow the connected set without
+/// depending on the snapshot list it feeds — the timestamps flow
+/// descriptors → poller → snapshots, never in a cycle.
+final connectedDeviceDescriptorsProvider = Provider<List<DeviceConnectionDescriptor>>((
   ref,
 ) {
-  final service = ref.watch(equipmentHealthServiceProvider);
-  final disconnectLog = ref.watch(usbDisconnectLogProvider);
-
   final descriptors = <DeviceConnectionDescriptor>[];
 
   // Camera carries an explicit health timer; the other notifiers only
@@ -139,11 +135,62 @@ final deviceHealthSnapshotsProvider = Provider<List<DeviceHealthSnapshot>>((
     safetyMonitor.hasError,
   );
 
+  return descriptors;
+});
+
+/// Device health snapshots derived from the live equipment-state notifiers
+/// plus the rolling [UsbDisconnectLog]. A later change wired the production path
+/// so `disconnectCountLast24h` actually carries non-zero values; before
+/// this provider was a placeholder `StateProvider<[]>` that the UI never
+/// populated, leaving the pre-flight USB stability check inert.
+///
+/// Tests can override this provider with a static list if they want to
+/// bypass the live wiring (e.g. preflight_rules_test does exactly that).
+final deviceHealthSnapshotsProvider = Provider<List<DeviceHealthSnapshot>>((
+  ref,
+) {
+  final service = ref.watch(equipmentHealthServiceProvider);
+  final disconnectLog = ref.watch(usbDisconnectLogProvider);
+  // Last-contact times for every device the backend heartbeat is polling.
+  // Only the camera notifier keeps a timestamp of its own, so without this
+  // every other device arrived with none and the panel could only ever say
+  // "last contact unknown" for them — see [deviceLastContactProvider].
+  final contacts = ref.watch(deviceLastContactProvider);
+
+  final descriptors = [
+    for (final descriptor in ref.watch(connectedDeviceDescriptorsProvider))
+      _withContact(descriptor, contacts[descriptor.deviceId]),
+  ];
+
   return service.buildSnapshots(
     connected: descriptors,
     disconnectLog: disconnectLog,
   );
 });
+
+/// Fold the backend's contact record into [descriptor].
+///
+/// The descriptor's own timestamp wins when it is the more recent of the two
+/// (the camera stamps itself on every successful call, which is finer-grained
+/// than the heartbeat poll), and an unresponsive verdict from the backend
+/// makes the device unhealthy so the score stops reading 100 while a device
+/// has gone quiet.
+DeviceConnectionDescriptor _withContact(
+  DeviceConnectionDescriptor descriptor,
+  DeviceContact? contact,
+) {
+  if (contact == null) return descriptor;
+  final own = descriptor.lastSuccessfulCommunication;
+  final lastContact = own != null && own.isAfter(contact.lastContact)
+      ? own
+      : contact.lastContact;
+  return DeviceConnectionDescriptor(
+    deviceId: descriptor.deviceId,
+    deviceLabel: descriptor.deviceLabel,
+    isHealthy: descriptor.isHealthy && contact.isResponsive,
+    lastSuccessfulCommunication: lastContact,
+  );
+}
 
 /// Reactive equipment health report built from session history and device
 /// heartbeats.

@@ -166,6 +166,16 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
       description: context.l10n.text('equipmentTourDescription'),
       durationMinutes: 3,
       alignment: Alignment.bottomRight,
+      // Equipment is the host the floating card cannot share a corner with.
+      // Measured at 1000x800 on a fresh install: the card (x 745-985,
+      // y 620-745) sat on the DISCOVERY panel header's Scan All / Collapse
+      // buttons and abutted the mount card's Unpark / Track / Home / Flip row;
+      // at 1600x900 it covered the STATUS rail's "Ready to image" blockers
+      // block. Those are live, non-scrollable controls in exactly the corner
+      // the nudge anchors to — the case
+      // [ContextualTourPrompt.reserveSpaceForCard] exists for. Every other
+      // screen keeps the floating default (see CON-44).
+      reserveSpaceForCard: true,
       child: LayoutBuilder(
         builder: (context, constraints) {
           // Structure decision is device-class, not viewport width: a phone

@@ -25,6 +25,46 @@ part 'settings_screen_parts/_search_index.dart';
 part 'settings_screen_parts/_desktop_layout.dart';
 part 'settings_screen_parts/_mobile_layout.dart';
 
+/// A deliberate request to show one Settings section, raised by chrome that
+/// deep-links into Settings.
+///
+/// The router cannot express this on its own. `/settings` is a keyless page, so
+/// navigating to `/settings?section=equipment-profiles` while Settings is
+/// already open UPDATES the existing element with an identical
+/// [SettingsScreen.initialSection] — indistinguishable, from inside
+/// [State.didUpdateWidget], from an ordinary parent rebuild. Comparing the key
+/// therefore made the title bar's profile icon dead the moment the operator
+/// picked any other section by hand: they clicked it, the pane stayed on
+/// Connection, and nothing said why.
+///
+/// The serial makes the *event* observable rather than the value: chrome bumps
+/// it on every click, a rebuild never does.
+abstract final class SettingsSectionRequest {
+  SettingsSectionRequest._();
+
+  /// Increments once per raised request. Listen to act on repeats.
+  static final ValueNotifier<int> serial = ValueNotifier<int>(0);
+
+  static String? _section;
+
+  /// The section key named by the most recent request.
+  static String? get section => _section;
+
+  /// Raise a request for [sectionKey]. Call immediately before the `context.go`
+  /// that carries the same key, so a cold open and a repeat click agree.
+  static void raise(String sectionKey) {
+    _section = sectionKey;
+    serial.value++;
+  }
+
+  /// Test hook: forget any pending request.
+  @visibleForTesting
+  static void reset() {
+    _section = null;
+    serial.value = 0;
+  }
+}
+
 class SettingsScreen extends ConsumerStatefulWidget {
   /// Optional stable section key (e.g. `'location'`) to open directly. Unknown
   /// or null keys fall back to the first section; merged-away keys
@@ -73,6 +113,29 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     // Start with the group containing the active section expanded.
     _expandedGroups.add(groupTitleForKey(_selectedKey));
     ShellBackDispatcher.register(_handleSystemBack);
+    SettingsSectionRequest.serial.addListener(_onSectionRequested);
+  }
+
+  /// Honour a repeat deep link raised while this screen is already open.
+  void _onSectionRequested() {
+    if (!mounted) return;
+    _showSection(SettingsSectionRequest.section);
+  }
+
+  /// Move the screen to [sectionKey] if it names a section we are not on.
+  void _showSection(String? sectionKey) {
+    final resolvedKey = resolveSectionKey(sectionKey);
+    if (resolvedKey == null || resolvedKey == _selectedKey) return;
+    _highlightTimer?.cancel();
+    setState(() {
+      _selectedKey = resolvedKey;
+      _highlightRow = null;
+      // The link named a destination, so on a phone the detail pane is the
+      // destination — not the grouped list the operator would otherwise land
+      // back on.
+      _mobileShowingDetail = true;
+      _expandedGroups.add(groupTitleForKey(resolvedKey));
+    });
   }
 
   /// A second `/settings?section=<key>` navigation while this screen is open.
@@ -89,22 +152,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void didUpdateWidget(SettingsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.initialSection == oldWidget.initialSection) return;
-    final resolvedKey = resolveSectionKey(widget.initialSection);
-    if (resolvedKey == null || resolvedKey == _selectedKey) return;
-    _highlightTimer?.cancel();
-    setState(() {
-      _selectedKey = resolvedKey;
-      _highlightRow = null;
-      // The link named a destination, so on a phone the detail pane is the
-      // destination — not the grouped list the operator would otherwise land
-      // back on.
-      _mobileShowingDetail = true;
-      _expandedGroups.add(groupTitleForKey(resolvedKey));
-    });
+    _showSection(widget.initialSection);
   }
 
   @override
   void dispose() {
+    SettingsSectionRequest.serial.removeListener(_onSectionRequested);
     ShellBackDispatcher.unregister(_handleSystemBack);
     _highlightTimer?.cancel();
     _searchController.dispose();
@@ -215,9 +268,46 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         );
     });
     final colors = Theme.of(context).extension<NightshadeColors>()!;
-    final l10n = context.l10n;
     final groups = buildSettingsGroups(context);
 
+    return FocusTraversalGroup(
+      policy: ReadingOrderTraversalPolicy(),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Phone tier (< 600 window): list -> full-screen detail navigation.
+          //
+          // The split view is also dropped whenever THIS screen — not the
+          // window — is too narrow to host it. The window can be 800 px wide
+          // while the settings body only gets ~580 px because the shell's
+          // navigation rail already ate 220 px; a 260 px sidebar then leaves
+          // ~320 px of detail, which is not enough for a settings row and
+          // made the accent-colour swatches, path pickers, autofocus filter
+          // table and calibration status cards overflow off-screen.
+          final singlePane = Responsive.isPhone(context) ||
+              (constraints.hasBoundedWidth &&
+                  constraints.maxWidth < _splitPaneMinWidth);
+          return singlePane
+              ? settingsTourPrompt(
+                  context,
+                  child: _buildMobileLayout(colors, groups),
+                )
+              : _buildDesktopLayout(colors, groups);
+        },
+      ),
+    );
+  }
+
+  /// The "Settings Tour" nudge, anchored over the pane it can safely cover.
+  ///
+  /// It used to wrap the WHOLE screen and float: at 1600x900 the card landed on
+  /// top of the Remote Access leaf's "Manage Pairing" button, which could not be
+  /// clicked until the card was dismissed with Maybe Later. Reserving the band
+  /// across the whole screen is what previously pushed the sidebar's ADVANCED
+  /// group off-screen, so the band is held inside the pane the card actually
+  /// sits over — the detail pane on desktop, the single pane on a phone — and
+  /// the section navigator keeps its full height either way.
+  Widget settingsTourPrompt(BuildContext context, {required Widget child}) {
+    final l10n = context.l10n;
     return ContextualTourPrompt(
       screenId: 'settings',
       tourCategory: TutorialCategory.settingsTour,
@@ -225,28 +315,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       description: l10n.text('settingsTourDescription'),
       durationMinutes: 3,
       alignment: Alignment.bottomRight,
-      child: FocusTraversalGroup(
-        policy: ReadingOrderTraversalPolicy(),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            // Phone tier (< 600 window): list -> full-screen detail navigation.
-            //
-            // The split view is also dropped whenever THIS screen — not the
-            // window — is too narrow to host it. The window can be 800 px wide
-            // while the settings body only gets ~580 px because the shell's
-            // navigation rail already ate 220 px; a 260 px sidebar then leaves
-            // ~320 px of detail, which is not enough for a settings row and
-            // made the accent-colour swatches, path pickers, autofocus filter
-            // table and calibration status cards overflow off-screen.
-            final singlePane = Responsive.isPhone(context) ||
-                (constraints.hasBoundedWidth &&
-                    constraints.maxWidth < _splitPaneMinWidth);
-            return singlePane
-                ? _buildMobileLayout(colors, groups)
-                : _buildDesktopLayout(colors, groups);
-          },
-        ),
-      ),
+      reserveSpaceForCard: true,
+      child: child,
     );
   }
 
@@ -405,9 +475,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
         ),
         Expanded(
-          child: SettingsRowHighlight(
-            rowTitle: _highlightRow,
-            child: _selectedSection(groups).build(false),
+          child: Builder(
+            builder: (context) => settingsTourPrompt(
+              context,
+              child: SettingsRowHighlight(
+                rowTitle: _highlightRow,
+                child: _selectedSection(groups).build(false),
+              ),
+            ),
           ),
         ),
       ],

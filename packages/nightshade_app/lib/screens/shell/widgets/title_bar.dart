@@ -8,6 +8,7 @@ import '../../../localization/nightshade_localizations.dart';
 import '../../../widgets/remote_connection_indicator.dart';
 import '../../../widgets/transient_alert_badge.dart';
 import '../../../widgets/tutorial_overlay.dart' show TutorialKeys;
+import '../../settings/settings_screen.dart' show SettingsSectionRequest;
 import '../shell_chrome.dart';
 
 // Conditional import for window_manager (desktop only)
@@ -122,6 +123,10 @@ class TitleBar extends ConsumerWidget {
                   try {
                     // Deep-link to the Equipment Profiles section so this
                     // shortcut opens where it says, not the generic root.
+                    // Raised as an event as well as a route, because a second
+                    // click while Settings is open carries an identical route
+                    // and would otherwise move nothing (WD-EQ-3b).
+                    SettingsSectionRequest.raise('equipment-profiles');
                     context.go('/settings?section=equipment-profiles');
                   } catch (e) {
                     // Fallback for when router is not available

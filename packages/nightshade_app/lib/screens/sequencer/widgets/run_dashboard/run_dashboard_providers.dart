@@ -557,9 +557,29 @@ RunDashboardEvent _toDashboardEvent(ns_events.NightshadeEvent event) {
     severity: isCritical ? RunDashboardEventSeverity.critical : severity,
     category: _categoryLabel(event.category),
     title: ns_events.nightshadeEventDisplayTitle(event),
-    message: ns_events.nightshadeEventDisplayDetail(event),
+    message: _humanizeDeviceIds(
+      ns_events.nightshadeEventDisplayDetail(event),
+      event,
+    ),
     isCritical: isCritical,
   );
+}
+
+/// Swap an internal device id out of a feed row for the name the rest of the
+/// app shows.
+///
+/// The bridge's display helper subtitles every equipment row with
+/// `<type> · <device_id>` — live, that reads `Camera · sim_camera_1`, and on
+/// the built-in guider `Guider · native:builtin_guider:multi_star`. A device id
+/// is a routing key, not something an astrophotographer recognises, and the
+/// same feed is what an operator scans to reconstruct their night.
+String _humanizeDeviceIds(String message, ns_events.NightshadeEvent event) {
+  final deviceId = event.deviceId;
+  if (deviceId == null || deviceId.isEmpty) return message;
+  if (!message.contains(deviceId)) return message;
+  final friendly = friendlyNameFromDeviceId(deviceId);
+  if (friendly.isEmpty || friendly == deviceId) return message;
+  return message.replaceAll(deviceId, friendly);
 }
 
 /// Whether [event] is something a user reads their night from.

@@ -9,6 +9,16 @@ import '../../../localization/nightshade_localizations.dart';
 import '../../../widgets/tutorial_keys/dashboard_keys.dart';
 import '../dashboard_layout_provider.dart';
 
+/// Why "Edit Dashboard" refuses in the standby briefing.
+///
+/// One string, used as the tooltip (pointer), the semantics hint (keyboard and
+/// screen reader) and the toast (a click that lands on the disabled control's
+/// row). A refusal the operator cannot read is indistinguishable from a broken
+/// button — that is precisely how it was reported.
+const String standbyEditRefusalReason =
+    'Nothing to arrange yet — the briefing has no tiles. Connect a device or '
+    'load a sequence to arrange the session dashboard.';
+
 class DashboardHeaderActions extends ConsumerWidget {
   final bool isEditing;
   final VoidCallback onToggleEdit;
@@ -34,24 +44,41 @@ class DashboardHeaderActions extends ConsumerWidget {
     // arranged those instead, which left the visible dashboard unconfigurable
     // and the editor describing a layout that was not on screen.
     final canEdit = !ref.watch(dashboardStandbyProvider);
+    final editLabel = l10n
+        .text(isEditing ? 'dbDone' : (compact ? 'dbEdit' : 'dbEditDashboard'));
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Tooltip(
-          message: canEdit
-              ? ''
-              : 'Nothing to arrange yet — the briefing has no tiles. Connect a '
-                  'device or load a sequence to arrange the session dashboard.',
-          child: NightshadeButton(
-            key: DashboardTutorialKeys.editButton,
-            label: l10n.text(isEditing
-                ? 'dbDone'
-                : (compact ? 'dbEdit' : 'dbEditDashboard')),
-            icon: isEditing ? LucideIcons.check : LucideIcons.layoutDashboard,
-            variant: isEditing ? ButtonVariant.primary : ButtonVariant.outline,
-            size: buttonSize,
-            onPressed: canEdit ? onToggleEdit : null,
+          message: canEdit ? '' : standbyEditRefusalReason,
+          // The refusal has to be legible to someone who cannot hover. A
+          // tooltip is pointer-only, so a keyboard or screen-reader user was
+          // told "Edit Dashboard, button" with no state and no reason, clicked
+          // it, and got silence. Publishing the disabled state and the reason
+          // here — rather than relying on the button component's own
+          // annotation — keeps this file's claim about the control true no
+          // matter what wraps it.
+          // MergeSemantics, because the button's own focus node forms a
+          // semantics node of its own: without the merge the hint lands on an
+          // ancestor node and the button node a screen reader actually lands
+          // on carries no reason at all.
+          child: MergeSemantics(
+            child: Semantics(
+              button: true,
+              enabled: canEdit,
+              hint: canEdit ? null : standbyEditRefusalReason,
+              child: NightshadeButton(
+                key: DashboardTutorialKeys.editButton,
+                label: editLabel,
+                icon:
+                    isEditing ? LucideIcons.check : LucideIcons.layoutDashboard,
+                variant:
+                    isEditing ? ButtonVariant.primary : ButtonVariant.outline,
+                size: buttonSize,
+                onPressed: canEdit ? onToggleEdit : null,
+              ),
+            ),
           ),
         ),
         if (isEditing) ...[

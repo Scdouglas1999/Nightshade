@@ -194,13 +194,21 @@ class _RemoteConnectionIndicatorState
 
   Widget _buildCompact(BuildContext context, RemoteConnectionStatus status) {
     final color = _colorFor(context, status);
+    // CON-63: in the title bar this sits beside three plain icon buttons, and
+    // the filled chip made the RESTING state — "not connected to a server",
+    // which is the normal state of a local install — read as the one selected
+    // control in the row. The tint is meaningful when something is actually
+    // happening (connected, retrying, offline, error), so it stays for those.
+    final isResting = status == RemoteConnectionStatus.notConnected;
     return Container(
       padding: const EdgeInsets.all(8),
-      decoration: NightshadeDecorations.statusChip(
-        color,
-        borderRadius: BorderRadius.circular(8),
-        bordered: false,
-      ),
+      decoration: isResting
+          ? const BoxDecoration()
+          : NightshadeDecorations.statusChip(
+              color,
+              borderRadius: BorderRadius.circular(8),
+              bordered: false,
+            ),
       child: Icon(_iconFor(status), size: 20, color: color),
     );
   }

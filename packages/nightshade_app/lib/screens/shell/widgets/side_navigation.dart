@@ -182,50 +182,62 @@ class _CollapseButtonState extends State<_CollapseButton> {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: _isHovered ? colors.surfaceAlt : Colors.transparent,
-            borderRadius: NightshadeTokens.borderRadiusInline8,
-            border: Border.all(
-              color: _isHovered ? colors.border : Colors.transparent,
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.max,
-            children: [
-              AnimatedRotation(
-                turns: widget.isExpanded ? 0 : 0.5,
-                duration: const Duration(milliseconds: 200),
-                child: Icon(
-                  LucideIcons.panelLeftClose,
-                  size: 16,
-                  color: colors.textMuted,
-                ),
+    // A bare GestureDetector contributes a tap action with no role and no
+    // name, and when the rail is collapsed there is no label text under the
+    // glyph either — so the one control that changes the shape of the whole
+    // shell announced itself as nothing at all. The label states what the tap
+    // does, not what the icon looks like.
+    return Semantics(
+      button: true,
+      enabled: true,
+      label: widget.isExpanded
+          ? '${context.l10n.text('collapse')} navigation'
+          : 'Expand navigation',
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              color: _isHovered ? colors.surfaceAlt : Colors.transparent,
+              borderRadius: NightshadeTokens.borderRadiusInline8,
+              border: Border.all(
+                color: _isHovered ? colors.border : Colors.transparent,
               ),
-              if (widget.isExpanded) ...[
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    context.l10n.text('collapse'),
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
-                      color: colors.textMuted,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.max,
+              children: [
+                AnimatedRotation(
+                  turns: widget.isExpanded ? 0 : 0.5,
+                  duration: const Duration(milliseconds: 200),
+                  child: Icon(
+                    LucideIcons.panelLeftClose,
+                    size: 16,
+                    color: colors.textMuted,
                   ),
                 ),
+                if (widget.isExpanded) ...[
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      context.l10n.text('collapse'),
+                      style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize12,
+                        color: colors.textMuted,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),

@@ -142,4 +142,73 @@ void main() {
         reason: 'Only a CHANGED section key is a navigation request; a plain '
             'rebuild must leave the operator where they are.');
   });
+
+  // WD-EQ-3b — the same link CLICKED AGAIN after the operator moved by hand.
+  //
+  // Wave D's counter-input to the fix above: click the person icon (lands on
+  // Equipment Profiles), click "Connection" in the sidebar, click the person
+  // icon again — the pane stayed on Connection. The route is unchanged, so the
+  // key comparison declines; but the operator is not looking at what the link
+  // names, so from the outside the icon is dead again.
+  testWidgets('a repeat click on the same deep link moves the screen back',
+      (tester) async {
+    _swallowKnownOverflows();
+    SettingsSectionRequest.reset();
+    addTearDown(SettingsSectionRequest.reset);
+    final hostKey = GlobalKey<_RouteHostState>();
+
+    await pumpAppScreen(
+      tester,
+      _RouteHost(key: hostKey, initialSection: 'help'),
+      size: const Size(1280, 800),
+      settle: false,
+    );
+    await tester.pump(const Duration(milliseconds: 16));
+
+    // The operator walks away from the section the link names.
+    await tester.tap(find.text('About').last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(find.byType(AboutSettings), findsOneWidget);
+
+    // The chrome raises the SAME link again. The route does not change, so
+    // the host is rebuilt unchanged exactly as go_router does.
+    SettingsSectionRequest.raise('help');
+    hostKey.currentState!.rebuildUnchanged();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+
+    expect(find.byType(HelpTutorialsSettings), findsOneWidget,
+        reason: 'clicking a deep link is a request even when the URL is '
+            'identical to the one already loaded');
+  });
+
+  testWidgets('a stale request is not replayed by a later rebuild',
+      (tester) async {
+    _swallowKnownOverflows();
+    SettingsSectionRequest.reset();
+    addTearDown(SettingsSectionRequest.reset);
+    final hostKey = GlobalKey<_RouteHostState>();
+
+    SettingsSectionRequest.raise('help');
+    await pumpAppScreen(
+      tester,
+      _RouteHost(key: hostKey, initialSection: 'help'),
+      size: const Size(1280, 800),
+      settle: false,
+    );
+    await tester.pump(const Duration(milliseconds: 16));
+
+    await tester.tap(find.text('About').last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(find.byType(AboutSettings), findsOneWidget);
+
+    // No new click: a rebuild alone must not resurrect the last request.
+    hostKey.currentState!.rebuildUnchanged();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+
+    expect(find.byType(AboutSettings), findsOneWidget);
+  });
 }

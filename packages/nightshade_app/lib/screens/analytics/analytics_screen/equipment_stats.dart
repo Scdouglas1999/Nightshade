@@ -77,6 +77,24 @@ class _EquipmentStatsTab extends ConsumerWidget {
         ),
       ),
       data: (images) {
+        // CON-45: this was the one Analytics tab with no empty state at all —
+        // a fresh profile got a grid of zeroes and "No data" and no hint that
+        // it was reading a night that had never happened.
+        // Gated on runs and sessions too, and on their having actually
+        // resolved: meridian flips and autofocus counts come from those rows
+        // rather than from frames, and a load that failed or is still in
+        // flight is not an empty history — claiming it is would be the same
+        // class of untruth CON-45 is about.
+        if (images.isEmpty &&
+            (runsAsync.valueOrNull?.isEmpty ?? false) &&
+            (sessionsAsync.valueOrNull?.isEmpty ?? false)) {
+          return const AnalyticsEmptyState(
+            icon: LucideIcons.wrench,
+            title: 'No equipment history yet',
+            body: 'Capture some frames and this tab reports what your camera, '
+                'mount and guider actually did.',
+          );
+        }
         final lights =
             images.where((i) => i.frameType.toLowerCase() == 'light').toList();
         // Accepted lights are the usable integration/quality population;
@@ -203,8 +221,13 @@ class _EquipmentStatsTab extends ConsumerWidget {
 
   /// Format a summed exposure time (seconds) as `Hh Mm`, or a clear empty
   /// marker when no frames have been captured yet.
+  /// The rule this grid follows, stated once: a COUNT or a SUM of nothing is
+  /// zero and prints as a number ("0", "0s"); a MEAN of nothing has no value
+  /// at all and prints "No data". Accepted Integration is a sum, and printing
+  /// it as "No data" beside "Total Exposures 0" was the only reason the two
+  /// tokens looked arbitrary.
   static String _formatIntegration(double seconds) {
-    if (!seconds.isFinite || seconds <= 0) return 'No data';
+    if (!seconds.isFinite || seconds <= 0) return '0s';
     final rounded = seconds.round();
     final h = rounded ~/ 3600;
     final m = (rounded % 3600) ~/ 60;

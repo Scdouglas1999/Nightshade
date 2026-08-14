@@ -76,9 +76,13 @@ class _DecisionPanel extends ConsumerWidget {
           ),
           const SizedBox(height: NightshadeTokens.spaceXs),
           Text(
+            // CON-53: this card LIVES on Plan Tonight, so "use Plan Tonight
+            // instead" sent the reader to the screen they were already on. The
+            // choice it is really describing is between this card and the
+            // Target Queue tab beside it, so it names that.
             'Runs hands-off and re-picks the best target all night as the sky '
-            'changes. For a plan you can see and edit before it runs, use '
-            'Plan Tonight instead.',
+            'changes. For a plan you can see and edit before it runs, build '
+            'one in the Target Queue tab.',
             style: TextStyle(
               fontSize: NightshadeTypography.fontSize12,
               color: colors.textSecondary,
@@ -189,8 +193,10 @@ class _CurrentTargetSummary extends StatelessWidget {
       return Text(
         status.state == SchedulerState.running
             ? 'No eligible target right now.'
-            : 'Autopilot is stopped. Run unattended all night to begin '
-                'evaluating targets every 60s.',
+            // CON-54: the 60s evaluation period is an implementation detail
+            // of the scheduler loop, not something the operator acts on.
+            : 'Autopilot is stopped. Start it and it will pick a target and '
+                'keep re-picking as the sky changes.',
         style: TextStyle(
             fontSize: NightshadeTypography.fontSize13,
             color: colors.textSecondary),
@@ -243,15 +249,17 @@ class _Countdown extends StatelessWidget {
     final next = status.nextEvaluationAt;
     if (next == null) {
       return Text(
-        'No tick scheduled.',
+        // CON-54: "No tick scheduled" is the scheduler's own vocabulary. What
+        // the operator needs to know is whether anything is going to happen.
+        'Not evaluating targets — start it to begin.',
         style: TextStyle(
             fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
       );
     }
     final delta = next.difference(DateTime.now());
     final label = delta.isNegative
-        ? 'evaluating...'
-        : 'next eval in ${_fmtDuration(delta)}';
+        ? 'Choosing a target now...'
+        : 'Next target check in ${_fmtDuration(delta)}';
     return Row(
       children: [
         Icon(LucideIcons.timer,

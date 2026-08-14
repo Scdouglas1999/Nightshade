@@ -140,4 +140,36 @@ void main() {
     expect(find.byKey(contextualTourPromptCardKey), findsNothing);
     expect(tester.getRect(find.byKey(_childKey)), full);
   });
+
+  // WD-EQ-5: the cost side of the float. A host whose bottom-right corner
+  // carries live controls (Equipment: the DISCOVERY header's Scan All /
+  // Collapse, the mount card's Unpark / Track / Home / Flip row, the STATUS
+  // rail's blockers block) opts into the band, and then the card must not
+  // touch the host's content at all.
+  testWidgets('a host that opts in keeps its content clear of the card',
+      (tester) async {
+    await pumpAppScreen(
+      tester,
+      ContextualTourPrompt(
+        screenId: 'tour-reserve-test',
+        tourCategory: TutorialCategory.equipmentTour,
+        title: 'Equipment Tour',
+        description: 'Learn about the equipment controls and status displays.',
+        reserveSpaceForCard: true,
+        child: const SizedBox.expand(
+          child: ColoredBox(color: Color(0xFF102030), key: _childKey),
+        ),
+      ),
+      size: const Size(1000, 800),
+      settle: false,
+    );
+    await tester.pumpAndSettle();
+    await _waitForPrompt(tester);
+
+    final childRect = tester.getRect(find.byKey(_childKey));
+    final cardRect = tester.getRect(find.byKey(contextualTourPromptCardKey));
+    expect(find.byKey(contextualTourPromptCardKey), findsOneWidget);
+    expect(childRect.overlaps(cardRect), isFalse,
+        reason: 'the reserved band exists so the card covers no control');
+  });
 }

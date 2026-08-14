@@ -54,10 +54,13 @@ void main() {
     final without = await _showAndMeasure(tester, inset: null);
     final with120 = await _showAndMeasure(tester, inset: 120);
 
+    // The undeclared case is no longer flush with the window bottom either:
+    // every snackbar now clears the shell's own 36 dp status bar (WD-EQ-6), so
+    // the extra lift a 120 dp bar buys is the difference between the two.
     expect(
       with120.bottom,
-      lessThan(without.bottom - 100),
-      reason: 'a 120 dp bar must push the snackbar at least that far up',
+      lessThan(without.bottom - 60),
+      reason: 'a 120 dp bar must push the snackbar clear of it',
     );
     final screenBottom =
         tester.view.physicalSize.height / tester.view.devicePixelRatio;
