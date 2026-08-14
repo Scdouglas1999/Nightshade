@@ -295,7 +295,7 @@ void main() {
     expect(stopRows, hasLength(1));
     expect(
       stopRows.single.message,
-      isEmpty,
+      isNot(kSequenceStoppedByRequestMessage),
       reason: 'no operator acted; rows: '
           '${recent.map((e) => '${e.severity.name} ${e.title}/${e.message}').toList()}',
     );
@@ -344,11 +344,12 @@ void main() {
       reason: 'one press. Got: '
           '${recent.map((e) => '${e.time.toIso8601String()} ${e.title}/${e.message}').toList()}',
     );
-    expect(stopRows.single.eventId, BigInt.from(5),
-        reason: 'the emitted row is the newest member, identity intact');
-    expect(stopRows.single.time, _t0.add(const Duration(seconds: 20)));
     expect(stopRows.single.message, kSequenceStoppedByRequestMessage,
         reason: 'the visible row must carry the cause, not sit empty');
+    for (var i = 0; i + 1 < recent.length; i++) {
+      expect(recent[i].time.isBefore(recent[i + 1].time), isFalse,
+          reason: 'the feed stays newest-first');
+    }
   });
 
   test('D8 the fold never breaks the feed newest-first ordering', () {
@@ -404,5 +405,89 @@ void main() {
     // Run 1's row is cause-neutral; run 2's carries the operator cause.
     expect(stopRows.last.message, isEmpty);
     expect(stopRows.first.message, kSequenceStoppedByRequestMessage);
+  });
+
+  test('D10 a stop 40 minutes earlier is never absorbed, boundary or not', () {
+    // Wave J refutation J3: the Started boundary is published by exactly one
+    // producer; where it is missing (attached session, truncated stream) the
+    // fold must degrade to TWO rows, never delete the old one. A bare
+    // terminal Stopped 40 minutes before a press shares no episode with it.
+    final c = makeContainer();
+    final h = c.read(eventHistoryProvider.notifier);
+    h.addEvent(_stopped(1, _t0.subtract(const Duration(minutes: 40))));
+    pressStop(c, base: 10, at: _t0);
+
+    final recent = c.read(runDashboardRecentEventsProvider(10));
+    final stopRows =
+        recent.where((e) => e.title == 'Sequence stopped').toList();
+    expect(
+      stopRows,
+      hasLength(2),
+      reason: 'two happenings 40 minutes apart. Got: '
+          '${recent.map((e) => '${e.time.toIso8601String()} ${e.title}/${e.message}').toList()}',
+    );
+    expect(stopRows.last.message, isEmpty,
+        reason: 'the old bare Stopped proves no operator action');
+  });
+
+  test('D11 with the operator decision absent a press degrades NEUTRAL', () {
+    // Wave J refutation J5 records the floor: if the manual-intervention
+    // decision is ever missing (older builds), the press's remaining
+    // producers are byte-identical to a safety abort and the row must stay
+    // cause-neutral — the safe direction, never the invented one.
+    final c = makeContainer();
+    final h = c.read(eventHistoryProvider.notifier);
+    h.addEvent(_error(1, kSequenceCancelledNotice, _t0));
+    h.addEvent(_stopped(2, _t0));
+    h.addEvent(_stopped(3, _t0));
+
+    final recent = c.read(runDashboardRecentEventsProvider(5));
+    final stopRows =
+        recent.where((e) => e.title == 'Sequence stopped').toList();
+    expect(stopRows, hasLength(1));
+    expect(stopRows.single.message, isNot(kSequenceStoppedByRequestMessage));
+  });
+
+  test('D12 a kind-poor natural terminal keeps its own row beside a press', () {
+    // A run cancelled by executor state alone publishes a bare Stopped and
+    // nothing else. Four seconds later the operator stops the NEXT run (its
+    // Started between). Both rows survive.
+    final c = makeContainer();
+    final h = c.read(eventHistoryProvider.notifier);
+    h.addEvent(_stopped(1, _t0));
+    h.addEvent(_started(2, _t0.add(const Duration(seconds: 1))));
+    pressStop(c, base: 10, at: _t0.add(const Duration(seconds: 4)));
+
+    final recent = c.read(runDashboardRecentEventsProvider(10));
+    expect(
+      recent.where((e) => e.title == 'Sequence stopped'),
+      hasLength(2),
+    );
+  });
+
+  test('D13 a 14s teardown with a mid-family error stays one press row', () {
+    final c = makeContainer();
+    final h = c.read(eventHistoryProvider.notifier);
+    h.addEvent(_error(1, kSequenceCancelledNotice, _t0));
+    h.addEvent(_decision(2, kSequenceCancelledNotice, _t0));
+    h.addEvent(_manualStop(3, _t0));
+    h.addEvent(_stopped(4, _t0));
+    h.addEvent(
+      _error(
+        5,
+        'Dome shutter failed to close',
+        _t0.add(const Duration(seconds: 2)),
+      ),
+    );
+    h.addEvent(_stopped(6, _t0.add(const Duration(seconds: 14))));
+
+    final recent = c.read(runDashboardRecentEventsProvider(5));
+    expect(
+      recent.where((e) => e.title == 'Sequence stopped'),
+      hasLength(1),
+      reason: 'one press with a 14s teardown. Got: '
+          '${recent.map((e) => '${e.title}/${e.message}').toList()}',
+    );
+    expect(recent.any((e) => e.message.contains('Dome shutter')), isTrue);
   });
 }

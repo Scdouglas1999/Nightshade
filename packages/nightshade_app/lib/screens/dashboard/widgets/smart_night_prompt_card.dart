@@ -56,6 +56,14 @@ final smartNightPromptClockProvider =
 final floatingPromptOwnersProvider =
     StateProvider<Map<String, double>>((ref) => const <String, double>{});
 
+/// Which card State instance currently owns each band tag. Implementation
+/// detail of the two prompt cards: a dispose-time release runs on a
+/// MICROTASK (after the frame), while a same-frame replacement instance
+/// publishes on a post-frame callback (inside the frame) — so a stale
+/// release would otherwise wipe the live instance's claim. A release may
+/// only act while its own instance is still the claimant.
+final floatingPromptClaimants = <String, Object>{};
+
 /// True while any bottom-centre prompt is floating.
 final smartNightAutoPromptShowingProvider = Provider<bool>(
   (ref) => ref.watch(floatingPromptOwnersProvider).isNotEmpty,
@@ -143,6 +151,11 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
     // container itself is being torn down the claim dies with it.
     final controller = _ownersController;
     scheduleMicrotask(() {
+      // A replacement instance publishing in the same frame has already
+      // taken the claim (post-frame runs before this microtask) — releasing
+      // then would wipe the LIVE card's band.
+      if (!identical(floatingPromptClaimants[_promptOwnerTag], this)) return;
+      floatingPromptClaimants.remove(_promptOwnerTag);
       try {
         if (controller.state.containsKey(_promptOwnerTag)) {
           controller.state = {...controller.state}..remove(_promptOwnerTag);
@@ -173,6 +186,10 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
       final owners = ref.read(floatingPromptOwnersProvider.notifier);
       final next = <String, double>{...owners.state};
       if (showing) {
+        // Claim BEFORE the no-change short-circuit: a replacement instance
+        // publishing the same band must still take ownership, or the old
+        // instance's dispose release wipes the live claim.
+        floatingPromptClaimants[_promptOwnerTag] = this;
         // Publish the band this card actually occupies: its rendered height
         // plus the inset it floats above (phone bottom nav included), so
         // the reserve follows the real card instead of a constant that can
@@ -186,6 +203,8 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
         if (next[_promptOwnerTag] == band) return;
         next[_promptOwnerTag] = band;
       } else {
+        if (!identical(floatingPromptClaimants[_promptOwnerTag], this)) return;
+        floatingPromptClaimants.remove(_promptOwnerTag);
         if (!next.containsKey(_promptOwnerTag)) return;
         next.remove(_promptOwnerTag);
       }
@@ -277,7 +296,19 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
                 child: SizedBox(
                   key: _measureKey,
                   width: cardWidth,
-                  child: _buildCard(context, lookup),
+                  // A text-scale bump, a longer localized string, or a font
+                  // change rewraps the card WITHOUT re-running this builder
+                  // (nothing up here depends on them), so the notifier is
+                  // what keeps the published band tracking the real height.
+                  child: NotificationListener<SizeChangedLayoutNotification>(
+                    onNotification: (_) {
+                      _publishShowing(true, bottomInset: bottomInset);
+                      return true;
+                    },
+                    child: SizeChangedLayoutNotifier(
+                      child: _buildCard(context, lookup),
+                    ),
+                  ),
                 ),
               ),
             ),

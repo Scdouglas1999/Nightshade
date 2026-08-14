@@ -207,6 +207,141 @@ void main() {
     expect(find.text('Build Plan'), findsNothing);
   });
 
+  testWidgets('the published band follows a text-scale rewrap', (tester) async {
+    // Wave J refutation J1: a text-scale bump rewraps the card taller
+    // WITHOUT re-running the positioning builder (nothing up there depends
+    // on the scaler), so the band must be republished from a size-change
+    // notification, not only from the builder.
+    final database = db.NightshadeDatabase.forTesting(NativeDatabase.memory());
+    var now = DateTime(2026, 8, 3, 21);
+    final container = ProviderContainer(
+      overrides: [
+        databaseProvider.overrideWithValue(database),
+        smartNightPromptClockProvider.overrideWithValue(() => now),
+        smartNightPromptGraceProvider.overrideWithValue(Duration.zero),
+        activeEquipmentProfileProvider.overrideWithValue(
+          const EquipmentProfileModel(
+            id: 7,
+            name: 'Backyard rig',
+            focalLength: 600,
+            aperture: 80,
+            filterNames: ['L'],
+          ),
+        ),
+        appObserverLocationProvider.overrideWithValue(
+          const LocationSettings(latitude: 40, longitude: -75),
+        ),
+      ],
+    );
+    addTearDown(() async {
+      container.dispose();
+      await database.close();
+    });
+
+    final scale = ValueNotifier(1.0);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: ValueListenableBuilder<double>(
+            valueListenable: scale,
+            builder: (context, value, child) => MediaQuery(
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: TextScaler.linear(value)),
+              child: child!,
+            ),
+            child: const Scaffold(
+              body: SmartNightPromptCard(colors: NightshadeColors.dark),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final bandAt1 = container.read(floatingPromptReservedHeightProvider);
+    expect(bandAt1, greaterThan(0));
+
+    scale.value = 1.3;
+    await tester.pumpAndSettle();
+    final bandAt13 = container.read(floatingPromptReservedHeightProvider);
+    expect(
+      bandAt13,
+      greaterThan(bandAt1),
+      reason: 'the card rewrapped taller; a frozen band leaves the last '
+          'dashboard row stuck under the prompt at accessibility scales',
+    );
+
+    scale.value = 1.0;
+    await tester.pumpAndSettle();
+    expect(
+      container.read(floatingPromptReservedHeightProvider),
+      moreOrLessEquals(bandAt1, epsilon: 1.0),
+    );
+  });
+
+  testWidgets('a same-frame remount keeps the live band claim', (tester) async {
+    // Wave J refutation J2: post-frame publishes run inside the frame,
+    // dispose microtasks after it — so a replacement instance claims first
+    // and the OLD instance's stale release must then be a no-op, or the
+    // reserve collapses to 0 under a card that is still floating.
+    final database = db.NightshadeDatabase.forTesting(NativeDatabase.memory());
+    var now = DateTime(2026, 8, 3, 21);
+    final container = ProviderContainer(
+      overrides: [
+        databaseProvider.overrideWithValue(database),
+        smartNightPromptClockProvider.overrideWithValue(() => now),
+        smartNightPromptGraceProvider.overrideWithValue(Duration.zero),
+        activeEquipmentProfileProvider.overrideWithValue(
+          const EquipmentProfileModel(
+            id: 7,
+            name: 'Backyard rig',
+            focalLength: 600,
+            aperture: 80,
+            filterNames: ['L'],
+          ),
+        ),
+        appObserverLocationProvider.overrideWithValue(
+          const LocationSettings(latitude: 40, longitude: -75),
+        ),
+      ],
+    );
+    addTearDown(() async {
+      container.dispose();
+      await database.close();
+    });
+
+    Widget shell(Key key) => UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: NightshadeTheme.dark,
+            home: Scaffold(
+              body: KeyedSubtree(
+                key: key,
+                child:
+                    const SmartNightPromptCard(colors: NightshadeColors.dark),
+              ),
+            ),
+          ),
+        );
+
+    await tester.pumpWidget(shell(const ValueKey('a')));
+    await tester.pumpAndSettle();
+    expect(
+        container.read(floatingPromptReservedHeightProvider), greaterThan(0));
+
+    // Re-key: the old State disposes and a fresh one mounts in one frame.
+    await tester.pumpWidget(shell(const ValueKey('b')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Build tonight\'s plan?'), findsOneWidget);
+    expect(
+      container.read(floatingPromptReservedHeightProvider),
+      greaterThan(0),
+      reason: 'the stale dispose release wiped the live claim',
+    );
+  });
+
   testWidgets(
       'unmounting the showing card mid-frame releases its band claim '
       'without a modify-during-build error', (tester) async {

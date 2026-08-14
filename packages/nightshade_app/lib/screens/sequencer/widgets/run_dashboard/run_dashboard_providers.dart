@@ -636,6 +636,11 @@ String? _stopEvidenceKind(ns_events.NightshadeEvent event) {
   return null;
 }
 
+/// How far apart two members of ONE stop episode can plausibly land: the
+/// api-published `Stopped` trails the press by the safing teardown
+/// (exposure abort + park + dome), which is minutes at the very worst.
+const _stopEpisodeSpan = Duration(minutes: 2);
+
 class _StopGroup {
   final DateTime anchor;
   final int outIndex;
@@ -688,6 +693,14 @@ List<RunDashboardEvent> _foldStopFamilyRows(
     for (final candidate in groups) {
       if (kind != null && candidate.kinds.contains(kind)) continue;
       final distance = candidate.anchor.difference(row.time).abs();
+      // The Started boundary is the primary separator, but it is published
+      // by exactly one producer — anywhere it is missing (an attached
+      // session, a truncated stream) an unbounded join would absorb an
+      // arbitrarily old stop row and DELETE it from the night's record. The
+      // bound is generous enough for the longest safing teardown between one
+      // press's producers, and past it the fold degrades to two rows, which
+      // is the honest direction.
+      if (distance > _stopEpisodeSpan) continue;
       if (bestDistance == null || distance < bestDistance) {
         group = candidate;
         bestDistance = distance;

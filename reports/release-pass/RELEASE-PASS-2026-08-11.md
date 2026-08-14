@@ -435,6 +435,47 @@ Order of execution from here:
    against a fresh bundle + the fixed a11y dump; verify no fix merely relocated its defect;
    reproduce the JD+0.5 planetarium suspect and the phd2 generic-connect route live; eyeball
    the stacked preview); loop map→fix→verify until a wave is dry.
+## Wave J verdict (2026-08-14 ~07:00) — driver 4/4 live PASS; refuter landed 7 (5 fixed, 1 by-design, 1 recorded); response landed
+
+Run wf_db2dcdef-d52 over commit 4120dc897 (driver report:
+reports/release-pass/gui/waveJ-close.md). The DRIVER passed every chartered live check:
+one press → one "Stopped by request" row via the new evidence source; the MEASURED
+reserve tracked the tall card, shrank for the short card (over-reserve gone), released to
+zero; restart-then-stop showed both runs' rows; siblings sane. The REFUTER also CLEARED
+eight hard cases (history truncation cannot orphan a Stopped past its own boundary;
+paused/failed-run shapes fold honestly; the copy-message step is
+unreachable-by-construction for non-empty neutrals; the fallback band cannot stick; the
+predicate matches the sole real producer).
+
+Refutations and the response (follow-up commit):
+
+1. **J1 (CONFIRMED): the measured band froze on text-scale/locale rewraps** — nothing
+   above the card depends on the scaler, so the positioning builder never re-ran. The
+   card body now sits under a SizeChangedLayoutNotifier; ANY size change republishes.
+   Regression: band follows 1.0→1.3→1.0 in smart_night_prompt_card_test.
+2. **J2 (CONFIRMED, latent): a same-frame remount lost the live claim** — post-frame
+   publishes run inside the frame, dispose microtasks after it, so the stale release
+   wiped the new instance's claim. A claimant registry (tag → State instance) makes every
+   release ownership-checked. Regression: re-key remount keeps the band.
+3. **J3 (CONFIRMED): the fold had no upper bound** — where the Started boundary is
+   missing (attached session, truncated stream) it absorbed and DELETED a 40-minute-old
+   stop row. A 2-minute episode span bounds every join; past it the fold degrades to two
+   rows (the honest direction). Regression: D10.
+4. **J4 (BY-DESIGN): two manual-intervention decisions → two rows.** The decision is
+   emitted once per stop INVOCATION, and a second invocation is a real second operator
+   action (the stopFailed retry path) — one row per action is exactly D6's contract.
+5. **J5 (CONFIRMED, fixed in Rust): the entire evidence path sat behind the
+   decisionLoggingEnabled toggle** — with logging off, an operator press rendered
+   byte-identical to a weather abort. emit_manual_intervention now bypasses the gate for
+   the "stop" action specifically: evidence of an operator action must not be
+   silenceable. D11 records the Dart-side floor (decision absent → neutral, never
+   invented) for older builds.
+6. **J6/J7 (CONFIRMED, test-quality): suite honesty round two** — D7 no longer pins the
+   fold's anchor choice (contract: one row, newest-first, carries the cause); D5 pins
+   isNot(requested) instead of a wording; _manualStop emits the producer's exact
+   "Operator: stop"; new D10-D13 cover the unbounded-absorption, decision-absent,
+   kind-poor-terminal, and 14s-teardown shapes.
+
 ## Wave I verdict (2026-08-14 ~05:00) — driver 7/7 live PASS; refuter landed 7; response landed
 
 Run wf_657e6450-c9e over commit 6914d5a40 (driver report:

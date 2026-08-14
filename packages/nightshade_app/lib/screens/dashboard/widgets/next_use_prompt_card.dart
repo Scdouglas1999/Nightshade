@@ -11,6 +11,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'glass_card.dart';
 import 'smart_night_prompt_card.dart'
     show
+        floatingPromptClaimants,
         floatingPromptOwnersProvider,
         kFloatingPromptReservedHeight,
         smartNightOpticsReadyProvider;
@@ -104,6 +105,11 @@ class _NextUsePromptCardState extends ConsumerState<NextUsePromptCard>
     // container itself is being torn down the claim dies with it.
     final controller = _ownersController;
     scheduleMicrotask(() {
+      // A replacement instance publishing in the same frame has already
+      // taken the claim (post-frame runs before this microtask) — releasing
+      // then would wipe the LIVE card's band.
+      if (!identical(floatingPromptClaimants[_promptOwnerTag], this)) return;
+      floatingPromptClaimants.remove(_promptOwnerTag);
       try {
         if (controller.state.containsKey(_promptOwnerTag)) {
           controller.state = {...controller.state}..remove(_promptOwnerTag);
@@ -131,6 +137,10 @@ class _NextUsePromptCardState extends ConsumerState<NextUsePromptCard>
       final owners = ref.read(floatingPromptOwnersProvider.notifier);
       final next = <String, double>{...owners.state};
       if (showing) {
+        // Claim BEFORE the no-change short-circuit: a replacement instance
+        // publishing the same band must still take ownership, or the old
+        // instance's dispose release wipes the live claim.
+        floatingPromptClaimants[_promptOwnerTag] = this;
         // Publish the band this card actually occupies: its rendered height
         // plus the inset it floats above (phone bottom nav included), so
         // the reserve follows the real card instead of a constant that can
@@ -144,6 +154,8 @@ class _NextUsePromptCardState extends ConsumerState<NextUsePromptCard>
         if (next[_promptOwnerTag] == band) return;
         next[_promptOwnerTag] = band;
       } else {
+        if (!identical(floatingPromptClaimants[_promptOwnerTag], this)) return;
+        floatingPromptClaimants.remove(_promptOwnerTag);
         if (!next.containsKey(_promptOwnerTag)) return;
         next.remove(_promptOwnerTag);
       }
@@ -218,7 +230,19 @@ class _NextUsePromptCardState extends ConsumerState<NextUsePromptCard>
                 child: SizedBox(
                   key: _measureKey,
                   width: cardWidth,
-                  child: _buildCard(context, step),
+                  // A text-scale bump, a longer localized string, or a font
+                  // change rewraps the card WITHOUT re-running this builder
+                  // (nothing up here depends on them), so the notifier is
+                  // what keeps the published band tracking the real height.
+                  child: NotificationListener<SizeChangedLayoutNotification>(
+                    onNotification: (_) {
+                      _publishShowing(true, bottomInset: bottomInset);
+                      return true;
+                    },
+                    child: SizeChangedLayoutNotifier(
+                      child: _buildCard(context, step),
+                    ),
+                  ),
                 ),
               ),
             ),

@@ -92,7 +92,14 @@ impl SequenceExecutor {
     /// `runtime_config.rs` emit their own `RuntimeConfigUpdated` event
     /// instead.
     pub(super) fn emit_manual_intervention(&self, action: &str, details: serde_json::Value) {
-        if !self.decision_logging_enabled() {
+        // The "stop" decision is the ONLY event that distinguishes an
+        // operator's stop from a safety abort (every cancellation path emits
+        // the same cancel-notice pair), and the dashboard's stop row claims
+        // "Stopped by request" solely off it. Evidence of an operator action
+        // must not be silenceable by the decision-logging preference, or a
+        // press with logging off renders byte-identical to an unattended
+        // weather abort.
+        if action != "stop" && !self.decision_logging_enabled() {
             return;
         }
         let summary = format!("Operator: {}", action);
