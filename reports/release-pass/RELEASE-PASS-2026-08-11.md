@@ -390,6 +390,45 @@ Order of execution from here:
    against a fresh bundle + the fixed a11y dump; verify no fix merely relocated its defect;
    reproduce the JD+0.5 planetarium suspect and the phd2 generic-connect route live; eyeball
    the stacked preview); loop map→fix→verify until a wave is dry.
+## Wave F verdict (2026-08-14 early) — CONVERGED TO THE TAIL; adjudicated
+
+47 verified, 13 refute-claims held; **7 still-broken (all with closer recipes), 25 new
+(2 P2, rest P3/P4), 5 refuted.** Full verdict: reports/release-pass/waveF-result.json.
+Convergence: D 37+48 → E 29+29 → F 7+25 with severity collapsing to polish.
+
+TERMINATION JUDGMENT (recorded): strict "zero new findings" is unreachable — adversarial
+sweeps of a 700k-line app will always find P4s. The doctrine's spirit is served when a
+wave returns nothing significant. F-fix therefore takes: the 7 recipe'd still-brokens, the
+2 P2s (WF-STOP-N1 first-frame-at-5s exposure bug; WF-STOP-N4 stalled-flip false Running),
+the tractable P3 tail, and the refutation follow-ups. A focused G spot-check verifies ONLY
+those items. The remaining P3/P4 residue and the policy questions below then constitute
+the documented handoff, and the campaign closes.
+
+PRODUCT CALLS surfaced by F (owner decides):
+- WF-N3: an operator Stop of an autopilot-dispatched run is silently re-dispatched ~44s
+  later. Probably should pause the autopilot with a visible "autopilot paused — resume?"
+  affordance; policy is the owner's.
+- WF-N2 + WD-SEQ-N5: "Remove from scheduler"/"Clear all" delete goals but goal-less
+  targets stay eligible (free-form imaging contract). Needs the queue-membership decision.
+- Unconditional UnparkNode in every autopilot plan (refuted as blunt): fine for most rigs,
+  wrong for rigs where unpark is consequential; consider gating on parked state.
+- sequenceStopped push copy (parked earlier, still open).
+
+## ~~Wave F dryness check — RUNNING as wf_20c973c5-59e~~ (completed, verdict above)
+
+Launched 2026-08-13 ~23:58 against the fresh 23:56 bundle (E-fix code). Script:
+reports/release-pass/scripts/release-waveF-dryness.js. E-fix committed through 4723ca202
+(55 fixes; the cleanest gate of the campaign — melos all-SUCCESS first try, cargo 23,
+quick gates first-pass). Known-open handoffs Wave F confirms without relitigating: the
+disconnect-toast device id (WD-EQ-2a, fix written+reverted mid-wave, shape in the
+equipment-chrome-3 impl log), ALL-CAPS NOW/TONIGHT (CON-56, two literals at
+time_control_panel.dart:396/:432), NEW-C2/C3 out-of-scope halves, CON-62 row-title case
+(needs settings_search_index regen), and the PARKED product call: what a sequenceStopped
+push should say (currently deleted rather than de-escalated — also silences dome-shutter
+and dawn ParkAndAbort stop notifications). A rogue mid-wave git stash was reconciled by
+content (one stranded file restored: the tooltip lifecycle test); see the
+stash-reconciliation memory.
+
 ## Wave E verdict (2026-08-13 night) — NOT DRY; adjudicated
 
 47 verified fixed, 18 refute-claims held; 29 still-broken, 29 new (1 P1, 4 P2), 6 refuted.
