@@ -294,8 +294,27 @@ pub(crate) async fn stop_locked() -> Result<(), NightshadeError> {
 pub async fn find_star() -> Result<(f64, f64), NightshadeError> {
     ensure_connected().await?;
     let guide_frame = ensure_frame_available().await?;
-    let selected = choose_lock_star(&guide_frame.stars, state().read().await.manual_lock, None)
-        .ok_or_else(|| NightshadeError::OperationFailed("No guide star found".to_string()))?;
+    let Some(selected) =
+        choose_lock_star(&guide_frame.stars, state().read().await.manual_lock, None)
+    else {
+        // The star count is what separates "the frame is empty" from "the
+        // frame is full of stars and none of them are usable" — the operator
+        // needs a longer exposure in one case and a different field in the
+        // other.
+        tracing::warn!(
+            "Auto Select: no usable guide star among {} detections in the guide frame",
+            guide_frame.stars.len()
+        );
+        return Err(NightshadeError::OperationFailed(
+            "No guide star found".to_string(),
+        ));
+    };
+    tracing::info!(
+        "Auto Select: chose a guide star at ({:.1}, {:.1}) px out of {} detections",
+        selected.x,
+        selected.y,
+        guide_frame.stars.len()
+    );
 
     let selected_pos = Vec2 {
         x: selected.x,

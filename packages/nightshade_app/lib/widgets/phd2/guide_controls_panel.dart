@@ -49,7 +49,8 @@ class GuideControlsPanel extends StatefulWidget {
   /// Callbacks for main controls.
   ///
   /// These are async on purpose: each issues a real hardware command. The panel
-  /// awaits them with its own busy/error handling (see [_runAction]) so a tap
+  /// awaits them with its own busy/error handling (see
+  /// [_runReportingAction]) so a tap
   /// stays busy until the command is accepted or fails, a second tap cannot
   /// duplicate the native call, and a thrown error is surfaced instead of
   /// escaping as an unhandled Future.
@@ -58,7 +59,16 @@ class GuideControlsPanel extends StatefulWidget {
   final Future<void> Function()? onPauseGuiding;
   final Future<void> Function()? onResumeGuiding;
   final Future<void> Function()? onLoop;
-  final Future<void> Function()? onFindStar;
+
+  /// Auto Select. Unlike the others this one RETURNS what happened, and the
+  /// panel puts it in its own notice banner.
+  ///
+  /// A snackbar was not enough: it renders on the app shell's messenger, sits
+  /// for four seconds and is gone, so a live drive that clicked Auto Select
+  /// three times and then read the screen found nothing at all and reported
+  /// the control dead for a third wave running. The banner stays until it is
+  /// dismissed, in the panel the operator just clicked.
+  final Future<String?> Function()? onFindStar;
   final Future<void> Function()? onDeselectStar;
 
   /// Why Pause cannot be used with the active guider, when it cannot.
@@ -177,7 +187,12 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
   /// (can run even while a positive command is in flight); everything else is
   /// serialised behind the positive lane. No-ops when the action is
   /// unavailable or the relevant lane is already occupied.
-  Future<void> _runAction(String id, Future<void> Function()? action) async {
+  /// An action that returns a message reports it in the notice banner — the
+  /// panel's own persistent surface. Actions with nothing to say return null.
+  Future<void> _runReportingAction(
+    String id,
+    Future<String?> Function()? action,
+  ) async {
     if (action == null) return;
     final isStop = id == 'stop';
     if (isStop) {
@@ -194,7 +209,10 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
       _errorText = null;
     });
     try {
-      await action();
+      final outcome = await action();
+      if (outcome != null && mounted) {
+        setState(() => _noticeText = outcome);
+      }
     } catch (e) {
       if (mounted) setState(() => _errorText = _messageFor(e));
     } finally {
@@ -557,7 +575,8 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
                 label: 'Auto Select',
                 color: colors.primary,
                 colors: colors,
-                onPressed: widget.isConnected ? widget.onFindStar : null,
+                onPressedReporting:
+                    widget.isConnected ? widget.onFindStar : null,
               ),
             ),
             const SizedBox(width: 10),
@@ -853,20 +872,31 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
     required Color color,
     required NightshadeColors colors,
     Future<void> Function()? onPressed,
+
+    /// An action that reports its outcome (see [_runReportingAction]). Exactly
+    /// one of this and [onPressed] is given.
+    Future<String?> Function()? onPressedReporting,
     bool isOutline = false,
     bool small = false,
     String? unavailableReason,
   }) {
+    final action = onPressedReporting ??
+        (onPressed == null
+            ? null
+            : () async {
+                await onPressed();
+                return null;
+              });
     // Stop rides its own lane so it stays tappable to abort a settling Start;
     // every other action is locked while any command is in flight so no second
     // native call can be issued until the current one settles.
     final isStop = id == 'stop';
     final isThisBusy = isStop ? _stopInFlight : _positiveInFlight == id;
     final laneBusy = isStop ? _stopInFlight : _positiveBusy;
-    final isDisabled = onPressed == null || laneBusy;
+    final isDisabled = action == null || laneBusy;
     // A reason only applies while the control is genuinely unavailable — never
     // over a control that is merely busy with its own command.
-    final reason = onPressed == null ? unavailableReason : null;
+    final reason = action == null ? unavailableReason : null;
 
     // These are the controls that start and stop guiding, so they must publish
     // a button role and their enabled state. Without this wrapper the bare
@@ -880,12 +910,12 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
       button: true,
       enabled: !isDisabled,
       label: reason == null ? label : '$label — $reason',
-      onTap: isDisabled ? null : () => _runAction(id, onPressed),
+      onTap: isDisabled ? null : () => _runReportingAction(id, action),
       excludeSemantics: true,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: isDisabled ? null : () => _runAction(id, onPressed),
+          onTap: isDisabled ? null : () => _runReportingAction(id, action),
           borderRadius: BorderRadius.circular(8),
           child: ConstrainedBox(
             // Ensure minimum 44px touch target height for accessibility

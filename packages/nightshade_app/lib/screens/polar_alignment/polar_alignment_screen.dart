@@ -31,6 +31,14 @@ part 'polar_alignment_screen_parts/_measurement_panel.dart';
 part 'polar_alignment_screen_parts/_completion_panel.dart';
 part 'polar_alignment_screen_parts/_right_panel.dart';
 
+/// The footer line that names why Start Alignment is refusing.
+///
+/// Present only while a prerequisite is unmet, so a widget test asserting on
+/// it is asserting the operator can read the refusal — the hover tooltip that
+/// used to be the only explanation is invisible to a click, to a screen
+/// reader and to a photograph of the screen.
+const Key startBlockedNoticeKey = Key('polar-alignment-start-blocked');
+
 class PolarAlignmentScreen extends ConsumerStatefulWidget {
   const PolarAlignmentScreen({super.key});
 
@@ -147,6 +155,20 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
       ref.read(polarAlignmentStateProvider.notifier).reset();
       context.showErrorSnackBar(
         'Mount not connected. Please connect a mount before starting polar alignment.',
+      );
+      return;
+    }
+
+    // The footer states this and the button is disabled for it, but a mount
+    // that parks between build and click must still be told, not silently
+    // obeyed: a parked mount cannot slew between the three measurement points
+    // and is not pointing at sky, so the run would expose, fail to solve, and
+    // report a solver timeout for a mount the app knew was parked.
+    if (mountState.isParked) {
+      ref.read(polarAlignmentStateProvider.notifier).reset();
+      context.showErrorSnackBar(
+        'Mount is parked — unpark it before aligning. A parked mount cannot '
+        'slew between the three measurement points.',
       );
       return;
     }

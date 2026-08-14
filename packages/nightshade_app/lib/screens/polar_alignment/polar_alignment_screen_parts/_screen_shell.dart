@@ -229,6 +229,16 @@ extension _ScreenShell on _PolarAlignmentScreenState {
     final String? disabledReason =
         blockers.isEmpty ? null : blockers.join(' · ');
 
+    // A disabled Start button explains itself on HOVER, which is no
+    // explanation to the operator who clicked it: a parked mount ate the
+    // click, the footer went on reading "Ready to start polar alignment", and
+    // nothing was written to the log. The blocker is stated where the operator
+    // is already looking — the footer — for as long as it applies.
+    final String? blockedNotice =
+        state.phase == PolarAlignPhase.idle && !isRunning
+            ? disabledReason
+            : null;
+
     final status = Row(
       children: [
         if (isRunning)
@@ -243,12 +253,25 @@ extension _ScreenShell on _PolarAlignmentScreenState {
               ),
             ),
           ),
+        if (blockedNotice != null)
+          Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: Icon(
+              NightshadeIcons.warning,
+              size: 14,
+              color: colors.warning,
+            ),
+          ),
         Expanded(
           child: Text(
-            state.statusMessage,
+            blockedNotice == null
+                ? state.statusMessage
+                : 'Cannot start: $blockedNotice',
+            key: blockedNotice == null ? null : startBlockedNoticeKey,
             style: TextStyle(
               fontSize: NightshadeTypography.fontSize12,
-              color: colors.textSecondary,
+              color:
+                  blockedNotice == null ? colors.textSecondary : colors.warning,
             ),
             overflow: TextOverflow.ellipsis,
           ),

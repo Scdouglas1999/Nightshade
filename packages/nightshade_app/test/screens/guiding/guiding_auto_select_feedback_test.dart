@@ -1,16 +1,17 @@
 // Auto Select has to report what it did.
 //
-// Live finding IMG-9 (residual): clicking **Auto Select** while the guider was
-// looping "produces no visible change and no dedicated log line — clicking it
-// while looping added only the loop's own [STAR_DETECT]/camera_start_exposure
-// lines, and nothing on screen moved". The command ran; the operator had no
-// way to know it had. The button handed the notifier's Future straight to the
-// panel, which only surfaces THROWN failures, so a success was indistinguishable
-// from a dead control.
+// Live finding IMG-9 (residual, THIRD strike): clicking **Auto Select** three
+// times on the built-in guider produced "no notice, no toast, no status text
+// anywhere in the a11y tree". The previous fix reported through a snackbar on
+// the app shell's messenger — which is gone four seconds later and was already
+// gone when the screen was read — so it passed a widget test and remained
+// invisible live. These now assert on the panel's OWN notice banner, which is
+// part of the panel and stays until dismissed.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/guiding/guiding_screen.dart';
+import 'package:nightshade_app/widgets/phd2/guide_controls_panel.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../harness/harness.dart';
@@ -105,8 +106,17 @@ void main() {
     await _drain(tester);
 
     expect(lock.called, isTrue, reason: 'the command must still be issued');
+    final banner = find.byKey(GuideControlsPanel.noticeBannerKey);
     expect(
-      find.textContaining('Guide star selected at (512.4, 384.6)'),
+      banner,
+      findsOneWidget,
+      reason: 'the outcome must live in the panel, not in a 4-second snackbar',
+    );
+    expect(
+      find.descendant(
+        of: banner,
+        matching: find.textContaining('Guide star selected at (512.4, 384.6)'),
+      ),
       findsOneWidget,
       reason: 'a successful Auto Select produced no visible response at all',
     );
@@ -121,7 +131,10 @@ void main() {
     await _drain(tester);
 
     expect(
-      find.textContaining('found no guide star'),
+      find.descendant(
+        of: find.byKey(GuideControlsPanel.noticeBannerKey),
+        matching: find.textContaining('found no guide star'),
+      ),
       findsOneWidget,
       reason: 'finding nothing is the outcome most worth reporting',
     );

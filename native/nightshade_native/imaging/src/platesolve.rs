@@ -556,26 +556,161 @@ pub fn verify_solver(path: &Path) -> Result<SolverInfo, SolverVerifyError> {
 /// NAXIS2 read straight off the primary FITS header blocks, so sizing the
 /// ASTAP `-fov` hint never decodes pixel data.
 fn fits_naxis2(path: &Path) -> Option<f64> {
-    use std::io::Read;
-    let mut file = std::fs::File::open(path).ok()?;
+    fits_header_floats(path, &["NAXIS2"])
+        .first()
+        .copied()
+        .flatten()
+}
+
+/// Read numeric cards off a FITS primary header without decoding pixel data.
+///
+/// Returns one slot per requested keyword, in the order asked for.
+fn fits_header_floats(path: &Path, keys: &[&str]) -> Vec<Option<f64>> {
+    let mut found = vec![None; keys.len()];
+    let Ok(mut file) = std::fs::File::open(path) else {
+        return found;
+    };
     let mut block = [0u8; 2880];
     // 64 blocks bounds the scan at 180 KiB of header, far beyond any real
     // primary header, so a corrupt file cannot spin this loop forever.
     for _ in 0..64 {
-        file.read_exact(&mut block).ok()?;
+        if file.read_exact(&mut block).is_err() {
+            return found;
+        }
         for card in block.chunks(80) {
-            let card = std::str::from_utf8(card).ok()?;
-            match card.get(..8).map(str::trim) {
-                Some("NAXIS2") => {
-                    let value = card.split('=').nth(1)?.split('/').next()?.trim();
-                    return value.parse::<f64>().ok();
+            let Ok(card) = std::str::from_utf8(card) else {
+                return found;
+            };
+            let Some(name) = card.get(..8).map(str::trim) else {
+                continue;
+            };
+            if name == "END" {
+                return found;
+            }
+            if let Some(slot) = keys.iter().position(|k| *k == name) {
+                found[slot] = card
+                    .split('=')
+                    .nth(1)
+                    .and_then(|v| v.split('/').next())
+                    .and_then(|v| v.trim().parse::<f64>().ok());
+                if found.iter().all(Option::is_some) {
+                    return found;
                 }
-                Some("END") => return None,
-                _ => {}
             }
         }
     }
-    None
+    found
+}
+
+/// The plate scale a frame declares about itself, in arcsec per pixel.
+///
+/// `FOCALLEN` (mm) and `XPIXSZ` (um, already scaled by binning — the same
+/// convention this app's own FITS writer uses) are what a solver turns into a
+/// field size. Reading them off the frame beats reading them off the active
+/// profile: an imported frame from another rig carries its own optics, and a
+/// confidently wrong scale hint is worse than no hint at all.
+///
+/// `None` when either card is missing or non-positive — a driver that reports
+/// 0.0 is saying "I don't know", not "zero microns".
+pub fn fits_scale_arcsec_per_px(path: &Path) -> Option<f64> {
+    let cards = fits_header_floats(path, &["FOCALLEN", "XPIXSZ"]);
+    let focal = cards[0].filter(|v| v.is_finite() && *v > 0.0)?;
+    let pitch = cards[1].filter(|v| v.is_finite() && *v > 0.0)?;
+    Some(206.264_806 * pitch / focal)
+}
+
+/// Build the exact argument vector an ASTAP solve runs with.
+///
+/// Flag reference: <https://www.hnsky.org/astap.htm#command_line>
+///   * `-f <file>`   input FITS file (required)
+///   * `-ra <hours>` hint RA in hours
+///   * `-spd <deg>`  hint south-pole distance = Dec + 90°
+///   * `-r <deg>`    search radius in degrees (only meaningful with -ra/-spd)
+///   * `-fov <deg>`  field HEIGHT in degrees — the scale hint
+///   * `-z <factor>` downsample factor (default 0 = auto)
+///   * `-d <dir>`    star catalog directory (REQUIRED when the catalog is not
+///                   co-located with the ASTAP binary)
+///   * `-wcs`        write the solution to a sibling `.wcs` FITS file. `-update`
+///                   is deliberately avoided: it writes only `.ini` and mutates
+///                   the operator's capture.
+///
+/// This lives outside `AstapSolver::solve` for one reason: the arguments a set
+/// of hints produces are then readable by a test with no ASTAP install, no
+/// catalog and no frame. Three waves in a row "fixed" the `-fov` hint in a
+/// *different* implementation (`PlateSolveService.astapArguments`, Dart, which
+/// production never calls) and the running solver kept solving blind. A test
+/// over this function fails if the hint stops reaching the process that runs.
+///
+/// `hint_scale` is arcsec/pixel; ASTAP wants degrees of field height, so it
+/// needs the frame height in pixels — `naxis2`, read straight off the primary
+/// FITS header by [`fits_naxis2`], so sizing a hint never decodes pixel data.
+pub(crate) fn build_astap_args(
+    config: &PlateSolverConfig,
+    input: &Path,
+    hint_ra: Option<f64>,
+    hint_dec: Option<f64>,
+    hint_scale: Option<f64>,
+    naxis2: Option<f64>,
+) -> Vec<std::ffi::OsString> {
+    use std::ffi::OsString;
+
+    let mut args: Vec<OsString> = Vec::new();
+    let mut push = |flag: &str, value: OsString| {
+        args.push(OsString::from(flag));
+        args.push(value);
+    };
+
+    push("-f", input.as_os_str().to_os_string());
+
+    // Position hint — only on a near solve.
+    if let (Some(ra), Some(dec)) = (hint_ra, hint_dec) {
+        push("-ra", format!("{:.6}", ra / 15.0).into()); // hours
+        push("-spd", format!("{:.6}", dec + 90.0).into()); // south-pole distance
+                                                           // A search radius only means anything alongside a position.
+        if config.search_radius > 0.0 {
+            push("-r", format!("{:.2}", config.search_radius).into());
+        }
+    }
+
+    // Field-scale hint.
+    if let Some(scale) = hint_scale.filter(|s| *s > 0.0 && s.is_finite()) {
+        match naxis2 {
+            Some(height) if height > 0.0 => {
+                let fov_deg = scale * height / 3600.0;
+                if fov_deg.is_finite() && fov_deg > 0.0 {
+                    // The one line that separates a hinted solve from a blind
+                    // scale sweep in the session log.
+                    tracing::info!(
+                        "ASTAP field-scale hint: {:.2}\"/px over {:.0} px = -fov {:.4} deg",
+                        scale,
+                        height,
+                        fov_deg
+                    );
+                    push("-fov", format!("{:.4}", fov_deg).into());
+                }
+            }
+            _ => tracing::debug!(
+                "Plate-solve scale hint provided but NAXIS2 unreadable; skipping ASTAP -fov hint"
+            ),
+        }
+    }
+
+    // Downsample: 0 means auto; send an explicit value when configured > 1.
+    if config.downsample > 1 {
+        push("-z", format!("{}", config.downsample).into());
+    }
+
+    // Catalog directory: without this ASTAP reports "no star database found"
+    // and PLTSOLVD=F whenever the catalog is not in its install directory.
+    if let Some(cat_dir) = &config.catalog_path {
+        push("-d", cat_dir.as_os_str().to_os_string());
+    }
+
+    // IMPORTANT: ASTAP exits 0 even on a failed solve. The result lives in
+    // PLTSOLVD inside the .ini file. Do NOT gate on exit status.
+    args.push(OsString::from("-wcs"));
+
+    args
 }
 
 struct SolveScratch {
@@ -818,84 +953,20 @@ impl AstapSolver {
             }
         };
 
-        // Build ASTAP command.
-        //
-        // Flag reference: https://www.hnsky.org/astap.htm#command_line
-        //   -f <file>        : input FITS file (required)
-        //   -r <deg>         : search radius in degrees (only with -ra/-spd)
-        //   -ra <hours>      : hint RA in hours
-        //   -spd <deg>       : hint south-pole distance = Dec + 90°
-        //   -z <factor>      : downsample factor (default 0 = auto)
-        //   -d <dir>         : star catalog directory (REQUIRED when catalog is
-        //                      not co-located with the ASTAP binary)
-        //   -wcs             : write WCS solution to a sibling .wcs FITS file
-        //                      (used instead of -update which modifies the
-        //                      input file and only writes .ini, not .wcs)
-        //
-        // IMPORTANT: ASTAP exits 0 even on a failed solve. The actual result
-        // is only in PLTSOLVD inside the .ini file. Do NOT gate on exit status.
         // ASTAP writes `.ini` / `.wcs` against the base name of the file it is
         // given, so it is given a link inside a directory we own instead of
         // the operator's capture. See `SolveScratch`.
         let scratch = SolveScratch::new(image_path);
 
         let mut cmd = Command::new(astap_path);
-
-        // Input file
-        cmd.arg("-f").arg(scratch.input());
-
-        // Hint coordinates — only add when provided (near solve)
-        if let (Some(ra), Some(dec)) = (hint_ra, hint_dec) {
-            cmd.arg("-ra").arg(format!("{:.6}", ra / 15.0)); // hours
-            cmd.arg("-spd").arg(format!("{:.6}", dec + 90.0)); // south-pole distance
-                                                               // Search radius only makes sense alongside a position hint
-            if self.config.search_radius > 0.0 {
-                cmd.arg("-r")
-                    .arg(format!("{:.2}", self.config.search_radius));
-            }
-        }
-
-        // hint_scale is arcsec/pixel; ASTAP wants the field HEIGHT in
-        // degrees. The height in pixels comes straight off the primary FITS
-        // header so nothing decodes pixel data just to size a hint.
-        if let Some(scale) = hint_scale {
-            if scale > 0.0 {
-                if let Some(naxis2) = fits_naxis2(image_path) {
-                    let fov_deg = scale * naxis2 / 3600.0;
-                    if fov_deg.is_finite() && fov_deg > 0.0 {
-                        cmd.arg("-fov").arg(format!("{:.4}", fov_deg));
-                    }
-                } else {
-                    tracing::debug!(
-                        "Plate-solve scale hint provided but NAXIS2 unreadable; skipping ASTAP -fov hint"
-                    );
-                }
-            }
-        }
-
-        // Downsample: 0 means auto; send explicit value when configured > 1
-        if self.config.downsample > 1 {
-            cmd.arg("-z").arg(format!("{}", self.config.downsample));
-        }
-
-        // Catalog directory: required when the catalog is not in the ASTAP
-        // install directory. Without this flag ASTAP reports "no star database
-        // found" and PLTSOLVD=F.
-        if let Some(cat_dir) = &self.config.catalog_path {
-            cmd.arg("-d").arg(cat_dir);
-        }
-
-        // Request a standalone WCS output file (.wcs) alongside the input.
-        // This does NOT modify the input FITS file (unlike -update which
-        // writes the solution into the FITS header). The .wcs file is a
-        // FITS file containing CRVAL1/2, CD-matrix keywords; our
-        // parse_wcs_file_inner parser reads exactly these.
-        //
-        // -update is explicitly avoided: it writes only .ini (not .wcs),
-        // and modifying the user's capture file as a side effect is
-        // undesirable. The .ini file is also produced alongside -wcs, so
-        // both parsers remain available.
-        cmd.arg("-wcs");
+        cmd.args(build_astap_args(
+            &self.config,
+            scratch.input(),
+            hint_ra,
+            hint_dec,
+            hint_scale,
+            fits_naxis2(image_path),
+        ));
 
         tracing::info!("Running ASTAP: {:?}", cmd);
 
@@ -1525,13 +1596,24 @@ pub fn blind_solve(image_path: &Path) -> PlateSolveResult {
 }
 
 /// Blind plate solve with a caller-selected subprocess timeout.
-pub fn blind_solve_with_timeout(image_path: &Path, timeout_secs: u32) -> PlateSolveResult {
+///
+/// "Blind" is about POSITION, not scale: `hint_scale` (arcsec/pixel of the
+/// frame as taken, i.e. binned) still reaches ASTAP as `-fov` and is what
+/// keeps a narrow field off the blind scale ladder. It is a required
+/// parameter rather than an optional builder step on purpose — a caller that
+/// knows the rig's scale and forgets to pass it is the exact failure this
+/// signature makes impossible to write.
+pub fn blind_solve_with_timeout(
+    image_path: &Path,
+    timeout_secs: u32,
+    hint_scale: Option<f64>,
+) -> PlateSolveResult {
     let start = std::time::Instant::now();
     let config = PlateSolverConfig {
         timeout_secs,
         ..PlateSolverConfig::default()
     };
-    solve_with_external_config(image_path, None, None, None, config, start)
+    solve_with_external_config(image_path, None, None, hint_scale, config, start)
 }
 
 /// Plate solve with hint coordinates
@@ -1558,12 +1640,18 @@ pub fn solve_near(
 }
 
 /// Plate solve near coordinates with a caller-selected subprocess timeout.
+///
+/// `hint_scale` is arcsec/pixel of the frame as taken (binned). Position and
+/// scale are independent hints: passing a position does not tell ASTAP how
+/// wide the field is, and a near solve with no scale still walks the blind
+/// field-of-view ladder.
 pub fn solve_near_with_timeout(
     image_path: &Path,
     hint_ra: f64,
     hint_dec: f64,
     search_radius: f64,
     timeout_secs: u32,
+    hint_scale: Option<f64>,
 ) -> PlateSolveResult {
     let start = std::time::Instant::now();
     let config = PlateSolverConfig {
@@ -1576,7 +1664,7 @@ pub fn solve_near_with_timeout(
         image_path,
         Some(hint_ra),
         Some(hint_dec),
-        None,
+        hint_scale,
         config,
         start,
     )
@@ -3095,6 +3183,115 @@ mod tests {
 #[path = "platesolve_wcs_conformance_tests.rs"]
 mod wcs_conformance;
 
+/// The `-fov` hint, pinned on the argument vector the ASTAP *process* is given.
+///
+/// IMG-14 was reported three waves running. Each time the fix landed in
+/// `PlateSolveService.astapArguments` (Dart) — a fallback the production app
+/// does not run — and every live solve still went out blind. These tests read
+/// the arguments this crate builds, which is the only argument vector ASTAP
+/// ever sees from the desktop app, the headless API and the sequencer alike.
+#[cfg(test)]
+mod astap_arg_tests {
+    use super::{build_astap_args, PlateSolverChoice, PlateSolverConfig};
+    use std::path::{Path, PathBuf};
+
+    fn config() -> PlateSolverConfig {
+        PlateSolverConfig {
+            astap_path: Some(PathBuf::from("/usr/bin/astap_cli")),
+            astrometry_path: None,
+            catalog_path: Some(PathBuf::from("/catalog")),
+            search_radius: 10.0,
+            downsample: 2,
+            timeout_secs: 60,
+            solver_choice: PlateSolverChoice::Astap,
+        }
+    }
+
+    fn args(
+        hint_ra: Option<f64>,
+        hint_dec: Option<f64>,
+        hint_scale: Option<f64>,
+        naxis2: Option<f64>,
+    ) -> Vec<String> {
+        build_astap_args(
+            &config(),
+            Path::new("/scratch/frame.fits"),
+            hint_ra,
+            hint_dec,
+            hint_scale,
+            naxis2,
+        )
+        .into_iter()
+        .map(|a| a.to_string_lossy().into_owned())
+        .collect()
+    }
+
+    fn value_after(args: &[String], flag: &str) -> Option<String> {
+        args.iter()
+            .position(|a| a == flag)
+            .map(|i| args[i + 1].clone())
+    }
+
+    /// The polar wizard's own rig: 600 mm at 3.76 um is 1.29"/px, and a
+    /// 2048-row frame is 0.7347° of field height.
+    #[test]
+    fn a_scale_hint_becomes_fov_degrees_of_field_height() {
+        let args = args(None, None, Some(1.2926), Some(2048.0));
+        assert_eq!(
+            value_after(&args, "-fov").as_deref(),
+            Some("0.7353"),
+            "scale hint did not reach the ASTAP argument vector: {args:?}"
+        );
+    }
+
+    /// A blind solve is a solve with no scale: nothing to convert, no flag.
+    #[test]
+    fn no_scale_hint_means_no_fov_flag() {
+        assert!(!args(None, None, None, Some(2048.0))
+            .iter()
+            .any(|a| a == "-fov"));
+    }
+
+    /// Position and scale are independent hints; a near solve carries both.
+    #[test]
+    fn a_near_solve_carries_position_and_scale_together() {
+        let args = args(Some(30.0), Some(45.0), Some(1.29), Some(1000.0));
+        assert_eq!(value_after(&args, "-ra").as_deref(), Some("2.000000"));
+        assert_eq!(value_after(&args, "-spd").as_deref(), Some("135.000000"));
+        assert_eq!(value_after(&args, "-r").as_deref(), Some("10.00"));
+        assert_eq!(value_after(&args, "-fov").as_deref(), Some("0.3583"));
+    }
+
+    /// Without the frame height there is no honest field size, so the hint is
+    /// dropped rather than guessed — never emitted as a bare or zero `-fov`.
+    #[test]
+    fn an_unreadable_frame_height_drops_the_hint_instead_of_guessing() {
+        assert!(!args(None, None, Some(1.29), None)
+            .iter()
+            .any(|a| a == "-fov"));
+        assert!(!args(None, None, Some(0.0), Some(2048.0))
+            .iter()
+            .any(|a| a == "-fov"));
+    }
+
+    /// The flags that were always there stay there.
+    #[test]
+    fn the_baseline_flags_are_unchanged() {
+        let args = args(None, None, None, None);
+        assert_eq!(
+            value_after(&args, "-f").as_deref(),
+            Some("/scratch/frame.fits")
+        );
+        assert_eq!(value_after(&args, "-z").as_deref(), Some("2"));
+        assert_eq!(value_after(&args, "-d").as_deref(), Some("/catalog"));
+        assert_eq!(args.last().map(String::as_str), Some("-wcs"));
+        assert!(
+            !args.iter().any(|a| a == "-r"),
+            "no radius without a position"
+        );
+    }
+}
+
 #[cfg(test)]
 mod fits_naxis2_tests {
     use super::fits_naxis2;
@@ -3113,5 +3310,36 @@ mod fits_naxis2_tests {
     #[test]
     fn a_missing_file_reads_as_none() {
         assert_eq!(fits_naxis2(std::path::Path::new("/nonexistent.fits")), None);
+    }
+
+    /// The frame's own optics are the scale hint of last resort, and the one
+    /// that stays right for an imported frame from somebody else's rig.
+    #[test]
+    fn the_frame_declares_its_own_plate_scale() {
+        let dir = std::env::temp_dir().join("ns_fits_scale_test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("scaled.fits");
+        let image = ImageData::new(16, 12, 1, PixelType::U16);
+        let mut header = FitsHeader::new();
+        header.set_float("FOCALLEN", 600.0);
+        header.set_float("XPIXSZ", 3.76);
+        write_fits(&path, &image, &header).unwrap();
+
+        let scale = super::super::fits_scale_arcsec_per_px(&path).unwrap();
+        assert!(
+            (scale - 1.292_59).abs() < 1e-4,
+            "600 mm at 3.76 um is 1.29\"/px, got {scale}"
+        );
+    }
+
+    /// A frame with no optics cards yields no hint — never a guess.
+    #[test]
+    fn a_frame_without_optics_cards_declares_no_scale() {
+        let dir = std::env::temp_dir().join("ns_fits_scale_test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("bare.fits");
+        let image = ImageData::new(16, 12, 1, PixelType::U16);
+        write_fits(&path, &image, &FitsHeader::new()).unwrap();
+        assert_eq!(super::super::fits_scale_arcsec_per_px(&path), None);
     }
 }

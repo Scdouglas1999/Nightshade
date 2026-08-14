@@ -39,6 +39,127 @@ fn plate_solve_gate() -> &'static Mutex<()> {
     PLATE_SOLVE_GATE.get_or_init(|| Mutex::new(()))
 }
 
+/// Solves currently running, keyed by the frame they are solving.
+///
+/// The admission gate above serialises solves; it does not stop two callers
+/// from solving the *same frame twice in a row*. Live evidence (ND-E2): a
+/// single snapshot produced a hinted solve and, 4 ms later, a second BLIND
+/// solve of the same file — two `astap_cli` processes counted concurrently by
+/// a 5 ms poller — and the blind one threw away the position hint the first
+/// one had. One frame has one answer, so the second caller waits for the
+/// first caller's result instead of launching a solver of its own.
+type SolveOutcome = Result<PlateSolveResult, String>;
+type SolveBroadcast = tokio::sync::broadcast::Sender<Arc<SolveOutcome>>;
+static IN_FLIGHT_SOLVES: OnceLock<std::sync::Mutex<HashMap<String, SolveBroadcast>>> =
+    OnceLock::new();
+
+fn in_flight_solves() -> &'static std::sync::Mutex<HashMap<String, SolveBroadcast>> {
+    IN_FLIGHT_SOLVES.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
+}
+
+/// Removes the in-flight entry even if the solve future is dropped or panics,
+/// so one abandoned solve cannot wedge every later solve of that frame.
+struct InFlightGuard(String);
+
+impl Drop for InFlightGuard {
+    fn drop(&mut self) {
+        if let Ok(mut map) = in_flight_solves().lock() {
+            map.remove(&self.0);
+        }
+    }
+}
+
+/// Run `solve` for `file_path`, or — if that exact frame is already being
+/// solved — wait for the running solve and return its result.
+///
+/// `label` names the caller in the log so the two callers of a coalesced pair
+/// are identifiable afterwards; that log line is the only way the double-solve
+/// showed up at all.
+pub(crate) async fn coalesced_solve<F, Fut>(
+    file_path: &str,
+    label: &str,
+    solve: F,
+) -> Result<PlateSolveResult, NightshadeError>
+where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = Result<PlateSolveResult, NightshadeError>>,
+{
+    // Canonicalise so `./frame.fits` and `/tmp/frame.fits` are one frame. A
+    // path that cannot be canonicalised (not yet written, odd mount) keys on
+    // its own spelling rather than failing the solve.
+    let key = std::fs::canonicalize(file_path)
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_else(|_| file_path.to_string());
+
+    let (leader_tx, follower_rx) = {
+        let mut map = in_flight_solves()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        match map.get(&key) {
+            Some(tx) => (None, Some(tx.subscribe())),
+            None => {
+                let (tx, _rx) = tokio::sync::broadcast::channel(1);
+                map.insert(key.clone(), tx.clone());
+                (Some(tx), None)
+            }
+        }
+    };
+
+    if let Some(mut rx) = follower_rx {
+        tracing::info!(
+            "Plate solve ({label}): {key} is already being solved; waiting for that \
+             result instead of starting a second solver process"
+        );
+        match rx.recv().await {
+            Ok(outcome) => return (*outcome).clone().map_err(NightshadeError::OperationFailed),
+            Err(e) => {
+                tracing::warn!(
+                    "Plate solve ({label}): the solve of {key} we were waiting on ended \
+                     without publishing a result ({e}); solving it here instead"
+                );
+                return solve().await;
+            }
+        }
+    }
+
+    let _guard = InFlightGuard(key);
+    let result = solve().await;
+    if let Some(tx) = leader_tx {
+        // Publish before the guard removes the entry: a follower that is
+        // already subscribed gets the answer, and any caller arriving after
+        // this starts a fresh solve.
+        let _ = tx.send(Arc::new(
+            result
+                .as_ref()
+                .map(Clone::clone)
+                .map_err(ToString::to_string),
+        ));
+    }
+    result
+}
+
+/// Take the admission gate, saying so when the caller has to wait.
+///
+/// A solve that queues behind another solve looks, from the outside, exactly
+/// like a slow solve. Naming the wait is what turns "the solver is slow"
+/// into "two callers are solving at once".
+async fn acquire_solve_gate(label: &str) -> tokio::sync::MutexGuard<'static, ()> {
+    let gate = plate_solve_gate();
+    match gate.try_lock() {
+        Ok(guard) => guard,
+        Err(_) => {
+            let waited = Instant::now();
+            let guard = gate.lock().await;
+            tracing::info!(
+                "Plate solve ({label}): waited {:.1}s for another solve to finish \
+                 (one solver process at a time)",
+                waited.elapsed().as_secs_f64()
+            );
+            guard
+        }
+    }
+}
+
 fn validate_solver_timeout(timeout_secs: Option<u32>) -> Result<u32, NightshadeError> {
     let timeout = timeout_secs.unwrap_or(DEFAULT_SOLVER_TIMEOUT_SECS);
     if timeout == 0 || timeout > MAX_SOLVER_TIMEOUT_SECS {
@@ -106,6 +227,23 @@ impl SolveHints {
         }
         header.set_int("XBINNING", i64::from(self.binning.0));
         header.set_int("YBINNING", i64::from(self.binning.1));
+    }
+
+    /// The plate scale these hints describe, in arcsec per pixel **of the
+    /// frame as taken** — pitch scaled by binning, which is the number a
+    /// solver turns into a field size.
+    ///
+    /// This is the value the solver is handed as `-fov`. It stayed unused for
+    /// three waves: the wizard computed it, logged it in [`log_scale`], and
+    /// then called a solve that took no scale argument.
+    ///
+    /// [`log_scale`]: SolveHints::log_scale
+    pub(crate) fn arcsec_per_px(&self) -> Option<f64> {
+        let focal = self.focal_length_mm.filter(|f| f.is_finite() && *f > 0.0)?;
+        let (pitch_x, _) = self.pixel_size_um?;
+        let binned_pitch = pitch_x * f64::from(self.binning.0.max(1));
+        let scale = 206.264_806 * binned_pitch / focal;
+        scale.is_finite().then_some(scale).filter(|s| *s > 0.0)
     }
 
     /// A blind scale sweep is not an error and logs no warning of its own, so
@@ -273,22 +411,82 @@ fn apply_saved_preference_to_imaging() {
     );
 }
 
+/// The field scale to hand a solve of `path`, in arcsec/pixel.
+///
+/// Order of authority:
+/// 1. what the caller measured for this exact frame (`explicit`),
+/// 2. what the frame's own header declares — right even for an imported frame
+///    shot on somebody else's rig,
+/// 3. the active profile's optics and the active camera's pitch.
+///
+/// A rig that supplies none of the three solves exactly as it did before: no
+/// `-fov`, blind scale ladder, and the warning [`SolveHints::log_scale`]
+/// already emits.
+pub(crate) async fn resolve_solve_scale(
+    path: &std::path::Path,
+    explicit: Option<f64>,
+) -> Option<f64> {
+    if let Some(scale) = explicit.filter(|s| s.is_finite() && *s > 0.0) {
+        return Some(scale);
+    }
+    if let Some(scale) = nightshade_imaging::fits_scale_arcsec_per_px(path) {
+        tracing::debug!(
+            "Plate solve: field scale {:.2}\"/px read from the frame's own header",
+            scale
+        );
+        return Some(scale);
+    }
+    let scale = gather_solve_hints().await.arcsec_per_px();
+    if let Some(scale) = scale {
+        tracing::debug!(
+            "Plate solve: field scale {:.2}\"/px from the active profile (the frame \
+             carries no FOCALLEN/XPIXSZ)",
+            scale
+        );
+    }
+    scale
+}
+
 /// Plate solve an image file (blind solve)
+///
+/// FFI entry point; its signature is fixed by the generated bridge. Rust
+/// callers that already measured the field scale call
+/// [`plate_solve_blind_scaled`] instead of re-deriving it.
 pub async fn api_plate_solve_blind(
     file_path: String,
     timeout_secs: Option<u32>,
 ) -> Result<PlateSolveResult, NightshadeError> {
+    plate_solve_blind_scaled(file_path, timeout_secs, None).await
+}
+
+/// Blind (position-unknown) solve that is still told the field scale.
+pub(crate) async fn plate_solve_blind_scaled(
+    file_path: String,
+    timeout_secs: Option<u32>,
+    hint_scale: Option<f64>,
+) -> Result<PlateSolveResult, NightshadeError> {
+    coalesced_solve(&file_path, "blind", || {
+        plate_solve_blind_inner(&file_path, timeout_secs, hint_scale)
+    })
+    .await
+}
+
+async fn plate_solve_blind_inner(
+    file_path: &str,
+    timeout_secs: Option<u32>,
+    hint_scale: Option<f64>,
+) -> Result<PlateSolveResult, NightshadeError> {
     use std::path::Path;
 
     tracing::info!("Blind plate solving: {}", file_path);
-    let _solve_guard = plate_solve_gate().lock().await;
+    let _solve_guard = acquire_solve_gate("blind").await;
 
     // Ensure the imaging crate sees the user's configured paths before
     // PlateSolverConfig::default() is called inside blind_solve.
     apply_saved_preference_to_imaging();
 
     let timeout_secs = validate_solver_timeout(timeout_secs)?;
-    let path = Path::new(&file_path);
+    let path = Path::new(file_path);
     if !path.exists() {
         return Err(NightshadeError::IoError(format!(
             "File not found: {}",
@@ -296,12 +494,15 @@ pub async fn api_plate_solve_blind(
         )));
     }
 
+    // Blind is about POSITION. The scale is still known and still sent.
+    let hint_scale = resolve_solve_scale(path, hint_scale).await;
+
     // External solvers are blocking subprocesses. Keep them off the async
     // runtime worker and pass the UI/headless timeout through to the process
     // runner, which kills and reaps the child on expiry.
     let owned_path = path.to_path_buf();
     let result = tokio::task::spawn_blocking(move || {
-        nightshade_imaging::blind_solve_with_timeout(&owned_path, timeout_secs)
+        nightshade_imaging::blind_solve_with_timeout(&owned_path, timeout_secs, hint_scale)
     })
     .await
     .map_err(|error| {
@@ -334,12 +535,56 @@ pub async fn api_plate_solve_blind(
 }
 
 /// Plate solve an image with hint coordinates
+///
+/// FFI entry point; its signature is fixed by the generated bridge. Rust
+/// callers with a measured field scale call [`plate_solve_near_scaled`].
 pub async fn api_plate_solve_near(
     file_path: String,
     hint_ra: f64,
     hint_dec: f64,
     search_radius: f64,
     timeout_secs: Option<u32>,
+) -> Result<PlateSolveResult, NightshadeError> {
+    plate_solve_near_scaled(
+        file_path,
+        hint_ra,
+        hint_dec,
+        search_radius,
+        timeout_secs,
+        None,
+    )
+    .await
+}
+
+/// Near solve that is told the field scale as well as the position.
+pub(crate) async fn plate_solve_near_scaled(
+    file_path: String,
+    hint_ra: f64,
+    hint_dec: f64,
+    search_radius: f64,
+    timeout_secs: Option<u32>,
+    hint_scale: Option<f64>,
+) -> Result<PlateSolveResult, NightshadeError> {
+    coalesced_solve(&file_path, "near", || {
+        plate_solve_near_inner(
+            &file_path,
+            hint_ra,
+            hint_dec,
+            search_radius,
+            timeout_secs,
+            hint_scale,
+        )
+    })
+    .await
+}
+
+async fn plate_solve_near_inner(
+    file_path: &str,
+    hint_ra: f64,
+    hint_dec: f64,
+    search_radius: f64,
+    timeout_secs: Option<u32>,
+    hint_scale: Option<f64>,
 ) -> Result<PlateSolveResult, NightshadeError> {
     use std::path::Path;
 
@@ -349,20 +594,24 @@ pub async fn api_plate_solve_near(
         hint_dec,
         file_path
     );
-    let _solve_guard = plate_solve_gate().lock().await;
+    let _solve_guard = acquire_solve_gate("near").await;
 
     // Ensure the imaging crate sees the user's configured paths before
     // PlateSolverConfig::default() is called inside solve_near.
     apply_saved_preference_to_imaging();
 
     let timeout_secs = validate_solver_timeout(timeout_secs)?;
-    let path = Path::new(&file_path);
+    let path = Path::new(file_path);
     if !path.exists() {
         return Err(NightshadeError::IoError(format!(
             "File not found: {}",
             file_path
         )));
     }
+
+    // A position hint says WHERE, not HOW WIDE: without this a near solve
+    // still climbs down ASTAP's blind field-of-view ladder.
+    let hint_scale = resolve_solve_scale(path, hint_scale).await;
 
     let owned_path = path.to_path_buf();
     let result = tokio::task::spawn_blocking(move || {
@@ -372,6 +621,7 @@ pub async fn api_plate_solve_near(
             hint_dec,
             search_radius,
             timeout_secs,
+            hint_scale,
         )
     })
     .await
@@ -600,6 +850,112 @@ pub fn api_platesolve_set_config(config: PlateSolverConfigPayload) -> Result<(),
     Ok(())
 }
 
+/// One frame, one solve (ND-E2).
+#[cfg(test)]
+mod solve_coalescing_tests {
+    use super::{coalesced_solve, PlateSolveResult};
+    use crate::error::NightshadeError;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+
+    fn result_at(ra: f64) -> PlateSolveResult {
+        PlateSolveResult {
+            success: true,
+            ra,
+            dec: 0.0,
+            pixel_scale: 1.29,
+            rotation: 0.0,
+            field_width: 0.0,
+            field_height: 0.0,
+            solve_time_secs: 0.0,
+            error: None,
+            cd1_1: 0.0,
+            cd1_2: 0.0,
+            cd2_1: 0.0,
+            cd2_2: 0.0,
+            sip_a_order: 0,
+            sip_b_order: 0,
+            sip_a_coeffs: Vec::new(),
+            sip_b_coeffs: Vec::new(),
+            sip_ap_order: 0,
+            sip_bp_order: 0,
+            sip_ap_coeffs: Vec::new(),
+            sip_bp_coeffs: Vec::new(),
+        }
+    }
+
+    /// The live shape: two callers hit the same snapshot 4 ms apart and two
+    /// `astap_cli` processes ran at once, the second one blind. The second
+    /// caller now waits for the first caller's answer.
+    #[tokio::test]
+    async fn two_callers_on_one_frame_run_one_solver() {
+        let runs = Arc::new(AtomicUsize::new(0));
+        let path = "/tmp/nightshade-coalesce-one-frame.fits";
+
+        let solve = |runs: Arc<AtomicUsize>| async move {
+            runs.fetch_add(1, Ordering::SeqCst);
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            Ok::<_, NightshadeError>(result_at(42.0))
+        };
+
+        let (first, second) = tokio::join!(
+            coalesced_solve(path, "near", || solve(runs.clone())),
+            async {
+                // The follower arrives while the leader is still solving.
+                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+                coalesced_solve(path, "blind", || solve(runs.clone())).await
+            }
+        );
+
+        assert_eq!(runs.load(Ordering::SeqCst), 1, "a second solver ran");
+        assert_eq!(first.unwrap().ra, 42.0);
+        assert_eq!(
+            second.unwrap().ra,
+            42.0,
+            "the follower must get the leader's answer, not a blind re-solve"
+        );
+    }
+
+    /// Coalescing is per frame, not a global one-solve-per-process rule.
+    #[tokio::test]
+    async fn two_frames_still_get_two_solves() {
+        let runs = Arc::new(AtomicUsize::new(0));
+        let solve = |runs: Arc<AtomicUsize>| async move {
+            runs.fetch_add(1, Ordering::SeqCst);
+            Ok::<_, NightshadeError>(result_at(1.0))
+        };
+
+        let _ = coalesced_solve("/tmp/nightshade-coalesce-a.fits", "near", || {
+            solve(runs.clone())
+        })
+        .await;
+        let _ = coalesced_solve("/tmp/nightshade-coalesce-b.fits", "near", || {
+            solve(runs.clone())
+        })
+        .await;
+
+        assert_eq!(runs.load(Ordering::SeqCst), 2);
+    }
+
+    /// A finished solve must release its frame, or the first solve of a file
+    /// would be the only solve of that file for the life of the process —
+    /// re-solving after a re-point would silently return the old answer.
+    #[tokio::test]
+    async fn a_finished_solve_releases_its_frame() {
+        let runs = Arc::new(AtomicUsize::new(0));
+        let path = "/tmp/nightshade-coalesce-sequential.fits";
+        let solve = |runs: Arc<AtomicUsize>| async move {
+            runs.fetch_add(1, Ordering::SeqCst);
+            Ok::<_, NightshadeError>(result_at(7.0))
+        };
+
+        let _ = coalesced_solve(path, "near", || solve(runs.clone())).await;
+        let _ = coalesced_solve(path, "near", || solve(runs.clone())).await;
+
+        assert_eq!(runs.load(Ordering::SeqCst), 2);
+    }
+}
+
 #[cfg(test)]
 mod solve_hint_tests {
     use super::SolveHints;
@@ -623,6 +979,50 @@ mod solve_hint_tests {
         assert_eq!(header.get_float("XPIXSZ"), Some(7.52));
         assert_eq!(header.get_float("YPIXSZ"), Some(7.52));
         assert_eq!(header.get_int("XBINNING"), Some(2));
+    }
+
+    /// The scale handed to the solver is the scale of the frame as taken.
+    /// 600 mm at 3.76 um is 1.29"/px unbinned and 2.59"/px at 2x2 — one of
+    /// those two numbers describes the pixels ASTAP is about to measure.
+    #[test]
+    fn the_solver_scale_is_the_binned_sampling() {
+        let unbinned = SolveHints {
+            focal_length_mm: Some(600.0),
+            pixel_size_um: Some((3.76, 3.76)),
+            binning: (1, 1),
+        };
+        assert!((unbinned.arcsec_per_px().unwrap() - 1.292_59).abs() < 1e-4);
+
+        let binned = SolveHints {
+            binning: (2, 2),
+            ..unbinned.clone()
+        };
+        assert!((binned.arcsec_per_px().unwrap() - 2.585_18).abs() < 1e-4);
+    }
+
+    /// A rig that reports no optics gets no hint — the solver searches, as it
+    /// always did. A fabricated scale would be worse than none.
+    #[test]
+    fn missing_optics_produce_no_scale_rather_than_a_guess() {
+        assert_eq!(SolveHints::default().arcsec_per_px(), None);
+        assert_eq!(
+            SolveHints {
+                focal_length_mm: Some(600.0),
+                pixel_size_um: None,
+                binning: (1, 1),
+            }
+            .arcsec_per_px(),
+            None
+        );
+        assert_eq!(
+            SolveHints {
+                focal_length_mm: Some(0.0),
+                pixel_size_um: Some((3.76, 3.76)),
+                binning: (1, 1),
+            }
+            .arcsec_per_px(),
+            None
+        );
     }
 
     /// The default must be *unbinned*, not zeroed: a derived `Default` would

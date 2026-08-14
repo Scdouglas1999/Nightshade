@@ -835,10 +835,29 @@ pub async fn api_guider_loop(device_id: String) -> Result<(), NightshadeError> {
 }
 
 pub async fn api_guider_find_star(device_id: String) -> Result<(f64, f64), NightshadeError> {
-    match resolve_guider_backend(&device_id)? {
+    // Which guider ran the command, and what it answered. Auto Select was
+    // reported three waves running as a control that does nothing: the click
+    // reached a guider, the guider picked a star, and the session log gained
+    // no line naming either — only the exposure loop's own noise. Two backends
+    // implement this call, so the line names the one that ran.
+    let backend = resolve_guider_backend(&device_id)?;
+    tracing::info!(
+        "Auto Select: asking the {} guider '{}' to pick a guide star",
+        match backend {
+            GuiderBackend::Phd2 => "PHD2",
+            GuiderBackend::Builtin => "built-in",
+        },
+        device_id
+    );
+    let result = match backend {
         GuiderBackend::Phd2 => api_phd2_find_star().await,
         GuiderBackend::Builtin => crate::builtin_guider::find_star().await,
+    };
+    match &result {
+        Ok((x, y)) => tracing::info!("Auto Select: locked guide star at ({x:.1}, {y:.1}) px"),
+        Err(e) => tracing::warn!("Auto Select: no guide star selected ({e})"),
     }
+    result
 }
 
 pub async fn api_guider_set_lock_position(

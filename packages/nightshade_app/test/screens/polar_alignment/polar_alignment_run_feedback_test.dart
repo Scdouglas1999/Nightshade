@@ -11,6 +11,7 @@
 //    and after a failure, reading as "your polar error is zero", while the
 //    numbers directly beneath it read "-- / -- / --".
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
@@ -180,6 +181,75 @@ void main() {
       isNull,
       reason: 'a parked mount cannot slew between the three points',
     );
+  });
+
+  // IMG-14(b), third strike. The refusal existed — the button was disabled and
+  // a Tooltip carried the reason — and the operator still got nothing: hover
+  // text is invisible to a click, the footer went on reading "Ready to start
+  // polar alignment", and the log gained no line. A tooltip assertion is not
+  // an assertion that anything is legible, so these pin the visible footer
+  // line and the published disabled state instead.
+  testWidgets('a parked mount says so in the footer, not only on hover',
+      (tester) async {
+    final semantics = tester.ensureSemantics();
+    await _pumpScreen(
+      tester,
+      mount: const MountState(
+        connectionState: DeviceConnectionState.connected,
+        deviceId: 'mount-1',
+        isParked: true,
+      ),
+    );
+
+    final notice = find.byKey(startBlockedNoticeKey);
+    expect(notice, findsOneWidget,
+        reason: 'the refusal must be readable without hovering');
+    expect(tester.widget<Text>(notice).data, contains('parked'));
+    expect(
+      find.text('Ready to start polar alignment'),
+      findsNothing,
+      reason: 'the footer cannot call itself ready while Start is refusing',
+    );
+
+    final node = tester.getSemantics(
+      find.byWidgetPredicate(
+        (w) => w is NightshadeButton && w.label == 'Start Alignment',
+      ),
+    );
+    expect(
+      node.hasFlag(SemanticsFlag.isEnabled),
+      isFalse,
+      reason: 'assistive tech must be told the control is unavailable',
+    );
+    semantics.dispose();
+  });
+
+  // The footer must name the blocker that actually applies. (This harness has
+  // no plate solver, so an unparked rig still has one unmet prerequisite —
+  // which is the point: the line tracks the real reason rather than being a
+  // permanent scold about the mount.)
+  testWidgets('the footer names the blocker that applies, not the mount',
+      (tester) async {
+    await _pumpScreen(
+      tester,
+      mount: const MountState(
+        connectionState: DeviceConnectionState.connected,
+        deviceId: 'mount-1',
+        isParked: false,
+        isTracking: true,
+        ra: 2,
+        dec: 80,
+      ),
+    );
+
+    final notice = find.byKey(startBlockedNoticeKey);
+    if (notice.evaluate().isNotEmpty) {
+      expect(
+        tester.widget<Text>(notice).data,
+        isNot(contains('parked')),
+        reason: 'the mount is not parked, so it cannot be the reason',
+      );
+    }
   });
 
   testWidgets('an unparked mount is not what blocks Start', (tester) async {

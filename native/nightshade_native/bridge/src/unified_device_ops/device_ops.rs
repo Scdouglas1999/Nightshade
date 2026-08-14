@@ -1104,6 +1104,13 @@ impl DeviceOps for UnifiedDeviceOps {
         let focal_length_mm = hints.focal_length_mm;
         let pixel_size = hints.pixel_size_um;
         let binning = hints.binning;
+        // The header is written for ASTAP to read; the same number also goes
+        // out as an explicit `-fov` argument, because a header card is a hope
+        // and an argument is an instruction. `hint_scale` from the caller wins
+        // when it is a real measurement.
+        let scale_hint = hint_scale
+            .filter(|s| s.is_finite() && *s > 0.0)
+            .or_else(|| hints.arcsec_per_px());
 
         // Save the image data to the temp file first
         let header = FitsWriteHeader {
@@ -1143,14 +1150,29 @@ impl DeviceOps for UnifiedDeviceOps {
         .await
         .map_err(|e| format!("Failed to save temp FITS for plate solve: {}", e))?;
 
-        // Use the near solve if we have hints, otherwise blind solve.
-        // Why: 5.0° search radius is the Nightshade
-        // default for "near solve" when the caller does not specify a
-        // scale hint — matches the plate-solve UI slider default.
+        // Use the near solve if we have a position, otherwise blind — and
+        // either way send the field scale.
+        //
+        // The 5.0° search radius is the Nightshade default for a near solve
+        // and matches the plate-solve UI slider default. It used to be taken
+        // from `hint_scale`, which is arcsec/pixel: a caller passing a real
+        // scale would have set a 1.3° search radius, and one caller was
+        // passing its solve TIMEOUT through that slot (30 → a 30° radius).
+        // Degrees of search and arcsec of sampling are not interchangeable.
+        const SEARCH_RADIUS_DEG: f64 = 5.0;
         let result = if let (Some(ra), Some(dec)) = (hint_ra, hint_dec) {
-            api_plate_solve_near(temp_path.clone(), ra, dec, hint_scale.unwrap_or(5.0), None).await
+            crate::api::plate_solve::plate_solve_near_scaled(
+                temp_path.clone(),
+                ra,
+                dec,
+                SEARCH_RADIUS_DEG,
+                None,
+                scale_hint,
+            )
+            .await
         } else {
-            api_plate_solve_blind(temp_path.clone(), None).await
+            crate::api::plate_solve::plate_solve_blind_scaled(temp_path.clone(), None, scale_hint)
+                .await
         };
 
         // Clean up temp file

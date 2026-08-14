@@ -184,6 +184,10 @@ pub(crate) async fn run_polar_alignment(
         solve_hints.binning = (binning, binning);
     }
     solve_hints.log_scale("Polar alignment solve");
+    // ...and the number that log line prints is the number the solver is
+    // handed. It was computed, logged, and then dropped on the floor for three
+    // release waves while every polar solve ran blind against a 0.4° field.
+    let solve_scale = solve_hints.arcsec_per_px();
 
     // Phase 1: Capture and solve 3 points
     for point in 1..=3 {
@@ -249,9 +253,10 @@ pub(crate) async fn run_polar_alignment(
         }
 
         // Plate solve with configurable timeout
-        let solve_future = api_plate_solve_blind(
+        let solve_future = crate::api::plate_solve::plate_solve_blind_scaled(
             temp_path_str.clone(),
             Some(solve_timeout_secs.ceil().clamp(1.0, 3600.0) as u32),
+            solve_scale,
         );
         let solve_result = match tokio::time::timeout(
             tokio::time::Duration::from_secs_f64(solve_timeout_secs),
@@ -504,7 +509,11 @@ pub(crate) async fn run_polar_alignment(
         emit_polar_status("Solving...", "adjusting", 0);
 
         // Plate solve with 30 second timeout (shorter for adjustment loop)
-        let solve_future = api_plate_solve_blind(temp_path_str.clone(), Some(30));
+        let solve_future = crate::api::plate_solve::plate_solve_blind_scaled(
+            temp_path_str.clone(),
+            Some(30),
+            solve_scale,
+        );
         let solve_result =
             match tokio::time::timeout(tokio::time::Duration::from_secs(30), solve_future).await {
                 Ok(Ok(result)) => {

@@ -461,6 +461,14 @@ class PlateSolveService {
   /// audit found the app computing `1.29"/px` during onboarding, printing it on
   /// the profile card, and then never telling the solver — `grep -i fov` over a
   /// whole session's log returned nothing.
+  ///
+  /// **This is the FALLBACK path, not the one production runs.** Every normal
+  /// solve goes through the backend to Rust and the argument vector is built by
+  /// `platesolve.rs::build_astap_args`; this local spawn only happens when the
+  /// backend call throws. IMG-14 was "fixed" here three waves running while
+  /// every live solve stayed blind, so a change to the solver's arguments has
+  /// to land in the Rust builder — and be pinned by its `astap_arg_tests` —
+  /// before it means anything on a rig.
   @visibleForTesting
   static List<String> astapArguments(
     String imagePath,

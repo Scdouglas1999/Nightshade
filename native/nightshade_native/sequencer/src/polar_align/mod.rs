@@ -302,7 +302,15 @@ where
 
         let solve_result = match ctx
             .device_ops
-            .plate_solve(&image_data, None, None, Some(self.config.solve_timeout))
+            .plate_solve(
+                &image_data,
+                None,
+                None,
+                // 4th argument is hint_scale (arcsec/pixel), NOT a timeout.
+                // This step has no measured scale of its own; the device
+                // layer derives it from the profile optics and the camera.
+                None,
+            )
             .await
         {
             Ok(res) if res.success => res,
@@ -427,7 +435,15 @@ where
 
             let solve_result = match ctx
                 .device_ops
-                .plate_solve(&image_data, None, None, Some(self.config.solve_timeout))
+                .plate_solve(
+                    &image_data,
+                    None,
+                    None,
+                    // 4th argument is hint_scale (arcsec/pixel), NOT a timeout.
+                    // This step has no measured scale of its own; the device
+                    // layer derives it from the profile optics and the camera.
+                    None,
+                )
                 .await
             {
                 Ok(res) if res.success => res,

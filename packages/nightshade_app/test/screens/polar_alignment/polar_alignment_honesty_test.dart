@@ -157,9 +157,12 @@ void main() {
       (tester) async {
     await _pumpScreen(tester, latitude: 0, longitude: 0);
 
+    // Two surfaces by design: the panel discloses the missing site, and the
+    // footer beside the refusing Start button names it as a blocker (IMG-14b —
+    // a disabled button whose only explanation was a hover tooltip).
     expect(
       find.textContaining('No observing location set'),
-      findsOneWidget,
+      findsWidgets,
     );
   });
 

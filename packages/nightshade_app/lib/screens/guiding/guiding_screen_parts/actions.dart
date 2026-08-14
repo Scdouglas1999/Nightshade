@@ -259,12 +259,14 @@ mixin _GuidingActions on ConsumerState<GuidingScreen>, _GuidingStateFields {
 
   /// Auto Select: ask the guider to pick a guide star, and SAY what happened.
   ///
-  /// The button used to hand the notifier's Future straight to the panel, so a
-  /// successful selection produced nothing at all: no message, no log line, and
-  /// on a frame where the star was already locked nothing on screen moved
-  /// either. The operator could not tell the command from a dead button. A
-  /// failure still propagates to the panel's inline error banner.
-  Future<void> _autoSelectStar() async {
+  /// Returns the outcome for the panel's own inline notice banner. Two earlier
+  /// attempts at this reported through a snackbar, and a live drive that
+  /// clicked Auto Select three times still found "no notice, no toast, no
+  /// status text anywhere in the a11y tree": the app-shell snackbar had
+  /// already timed out by the time the screen was read. The banner is part of
+  /// the panel and stays until dismissed. A failure still propagates to the
+  /// panel's inline error banner.
+  Future<String?> _autoSelectStar() async {
     final logger = ref.read(loggingServiceProvider);
     logger.info('Auto Select: asking the guider to pick a guide star',
         source: 'Guiding');
@@ -275,17 +277,14 @@ mixin _GuidingActions on ConsumerState<GuidingScreen>, _GuidingStateFields {
         'Auto Select: the guider reported no guide star',
         source: 'Guiding',
       );
-      _showActionNotice(
-        'Auto Select found no guide star — try a longer guide exposure or a '
-        'different part of the sky.',
-      );
-      return;
+      return 'Auto Select found no guide star — try a longer guide exposure '
+          'or a different part of the sky.';
     }
     final where =
         '(${position.x.toStringAsFixed(1)}, ${position.y.toStringAsFixed(1)})';
     logger.info('Auto Select: guide star selected at $where px',
         source: 'Guiding');
-    _showActionNotice('Guide star selected at $where');
+    return 'Guide star selected at $where';
   }
 
   /// Deselect the guide star. Returns the controller Future so the awaiting
@@ -294,14 +293,6 @@ mixin _GuidingActions on ConsumerState<GuidingScreen>, _GuidingStateFields {
   /// Future. Discarding it here left a Deselect tap silently failing.
   Future<void> _deselectStar() =>
       ref.read(lockPositionProvider.notifier).deselectStar();
-
-  /// Confirm that an action the operator triggered actually happened. Neutral
-  /// tone: nothing failed, there is simply an outcome to report.
-  void _showActionNotice(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
-  }
 
   /// Surface a guiding action failure inline instead of letting it escape as an
   /// unhandled Future (calibration ops issue real PHD2 RPCs that can fail).
