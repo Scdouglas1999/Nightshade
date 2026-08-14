@@ -284,10 +284,15 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
   void undo() {
     _ensureEditable('undo');
     if (_undoStack.isEmpty) return;
+    final outgoing = state;
     if (state != null) {
       _redoStack.add(state!);
     }
     state = _undoStack.removeLast();
+    // Undoing a re-point is a re-point. The scheduler scores the `targets`
+    // table, not the tree, so a snapshot swap has to follow through to the
+    // catalog exactly as [CurrentSequenceTreeEditing.updateNode] does.
+    _syncTargetsAfterSnapshotSwap(outgoing, state);
   }
 
   /// Re-apply the last undone mutation. Same trust-patch reasoning as
@@ -295,10 +300,12 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
   void redo() {
     _ensureEditable('redo');
     if (_redoStack.isEmpty) return;
+    final outgoing = state;
     if (state != null) {
       _undoStack.add(state!);
     }
     state = _redoStack.removeLast();
+    _syncTargetsAfterSnapshotSwap(outgoing, state);
   }
 
   /// Create a new sequence.
@@ -331,6 +338,14 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
     // the flag here so the prompt doesn't fire on a freshly-created
     // sequence; the next mutation will dirty it again.
     _dirty = false;
+    // Same reclaim [loadSequence] performs: building a new plan is a
+    // manual-owner action. Without it the slot stayed marked "autopilot" for
+    // the rest of the session after a single dispatch, and every question that
+    // asks WHO owns the plan answered for the scheduler — including the
+    // pre-flight warning that exists to say the scheduler is holding the rig,
+    // which then stayed silent in exactly the two-owner case it is for
+    // (WE-SEQ-N3).
+    _reclaimManualOwnership();
   }
 
   /// Load an existing sequence into the editor.
@@ -353,6 +368,18 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
     // automated planner had ownership, the operator opening another sequence
     // reclaims the slot; drop any stash so the next release doesn't resurrect
     // a now-irrelevant sequence.
+    _reclaimManualOwnership();
+  }
+
+  /// Take the editor slot back for the operator.
+  ///
+  /// Every way the operator puts their OWN plan in the editor — opening one,
+  /// creating one, clearing the canvas — has to end with the slot marked
+  /// `manual`, because that flag is what the rest of the app asks "whose plan
+  /// is this?". The stash goes with it: the sequence an automated planner
+  /// displaced is no longer what the operator is working on, so a later release
+  /// must not resurrect it over the top of this one.
+  void _reclaimManualOwnership() {
     _stashedManualSequence = null;
     _stashedManualDirty = false;
     _setOwner(ActivePlanOwner.manual);
@@ -481,6 +508,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
     _redoStack.clear();
     state = null;
     _dirty = false;
+    _reclaimManualOwnership();
   }
 
   void _guardUnsavedClobber({

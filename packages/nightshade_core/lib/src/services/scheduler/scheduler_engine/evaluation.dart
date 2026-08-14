@@ -57,6 +57,18 @@ extension _SchedulerEngineEvaluation on SchedulerEngine {
     final now = _clock();
     final loadedCandidates = candidates ?? await _candidateLoader();
 
+    // Ask the executor whether the run we dispatched is still ours BEFORE
+    // scoring against `_status.currentTargetId` — that field is the last thing
+    // dispatched, not an ownership token, and hysteresis reads it. A run that
+    // ended by any path the engine never hears about (failure, abort, operator
+    // Stop) otherwise pins it forever and no later tick ever dispatches again.
+    // Safe against the dispatch itself: evaluations are serialized by the
+    // in-flight lock, so this can never run between `dispatchSequence` being
+    // called and the executor starting the run.
+    if (_status.state == SchedulerState.running) {
+      _reconcileDispatchedRun(reason);
+    }
+
     // Pure, side-effect-free evaluation against the engine's CURRENT
     // hysteresis state (_status.currentTargetId). This computes the exact
     // decision the autopilot will act on; the side effects (publishing the
@@ -412,6 +424,25 @@ extension _SchedulerEngineEvaluation on SchedulerEngine {
       // stopSequence below is redundant on the park path but harmless — the
       // executor is idempotent on stop and parkForEndOfNight already pauses.
       if (!_parkedForEndOfNight) {
+        // The THIRD engine-initiated teardown, and the one SEQ-12's fix did not
+        // enumerate. parkForEndOfNight routes to SafeRigService.safeTheRig(
+        // park: true), which PAUSES the running sequence before parking — so an
+        // unowned dawn park ends the operator's exposure mid-frame with no
+        // ownership check and no warning, which is the exact reasoning that
+        // gated the other two. Parking an idle rig at sunrise is still right
+        // (the mount may be tracking into the ground), so the gate is "somebody
+        // else is running", not "not mine".
+        if (!ownsRun && _executorHasActiveRun()) {
+          developer.log(
+            'Scheduler dawn park declined: the active run is not the one the '
+            'autopilot dispatched — leaving the rig to its owner',
+            name: 'SchedulerEngine',
+            level: 900, // WARNING: the night ended without a park.
+          );
+          return 'Dawn has arrived but the autopilot is not parking: the run on '
+              'the rig is not the one it started. Stop that run to have the '
+              'mount parked.';
+        }
         _parkedForEndOfNight = true;
         _dispatchedRunId = null;
         await _sequenceSink.parkForEndOfNight();
@@ -499,46 +530,18 @@ extension _SchedulerEngineEvaluation on SchedulerEngine {
   }
 
   /// Map the first per-constraint failure into a compact operator-facing
-  /// chip. Falls back to the raw text when no shorter form fits.
+  /// summary. Falls back to the raw text when no shorter form fits.
+  ///
+  /// WD-SEQ-N4: the matching ladder lives in
+  /// `services/scheduler/rejection_labels.dart` so the queue row's STATUS chip
+  /// and this record cannot drift apart again. Do NOT re-add a local ladder
+  /// here — `scheduler_rejection_labels_test.dart` covers both renderings.
   String _summarizeRejection(List<String> reasons) {
     if (reasons.isEmpty) return 'rejected';
-    final first = reasons.first;
-    if (first.contains('altitude') && first.contains('below site minimum')) {
-      // Not "below horizon": a target at +9.8° with a 30° site minimum is up,
-      // it is just too low to image. The chip said one thing while the row's
-      // own message said the other, and only the row was right. Keep the two
-      // numbers so the chip agrees with the sentence beside it.
-      final altitude = _firstNumber(first);
-      if (altitude != null && altitude < 0) return 'below horizon';
-      return altitude == null
-          ? 'below site minimum altitude'
-          : 'too low (${altitude.toStringAsFixed(1)}° < site minimum '
-                '${_config.minAltitudeDegrees.toStringAsFixed(1)}°)';
-    }
-    if (first.contains('altitude') && first.contains('horizon profile')) {
-      return 'behind custom horizon';
-    }
-    if (first.contains('moon illumination')) {
-      return first; // already includes the "X% > Y%" detail
-    }
-    if (first.contains('outside time window')) {
-      return first;
-    }
-    if (first.contains('filter')) {
-      return 'required filter not in wheel';
-    }
-    if (first.contains('goals complete')) {
-      return 'all integration goals complete';
-    }
-    return first;
-  }
-
-  /// First signed decimal number in [text] (e.g. the `9.8` of
-  /// `altitude 9.8° below site minimum 30.0°`), or null when there is none.
-  double? _firstNumber(String text) {
-    final match = RegExp(r'-?\d+(\.\d+)?').firstMatch(text);
-    if (match == null) return null;
-    return double.tryParse(match.group(0)!);
+    return schedulerRejectionSummary(
+      reasons.first,
+      minAltitudeDegrees: _config.minAltitudeDegrees,
+    );
   }
 
   void _updateStatus(SchedulerStatus next) {

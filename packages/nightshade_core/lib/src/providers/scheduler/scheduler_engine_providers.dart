@@ -80,6 +80,28 @@ class _ExecutorSequenceSink
   }
 
   @override
+  bool get hasActiveRun {
+    // Deliberately NOT "is the plan the autopilot's": the question is whether
+    // the executor is driving hardware for ANYONE. `stopping` / `finalizing` /
+    // the failed-stop states count as active — a run whose teardown is still in
+    // flight must not be dispatched over or parked out from under.
+    switch (_ref.read(sequenceExecutionStateProvider)) {
+      case SequenceExecutionState.running:
+      case SequenceExecutionState.paused:
+      case SequenceExecutionState.recovering:
+      case SequenceExecutionState.stopping:
+      case SequenceExecutionState.stopFailed:
+      case SequenceExecutionState.finalizing:
+      case SequenceExecutionState.cleanupFailed:
+        return true;
+      case SequenceExecutionState.idle:
+      case SequenceExecutionState.completed:
+      case SequenceExecutionState.failed:
+        return false;
+    }
+  }
+
+  @override
   Future<void> releaseSequenceOwnership() async {
     // Autopilot disengaged: restore manual ownership and the operator's stashed
     // unsaved sequence (a no-op if the autopilot never owned the slot). Uses the

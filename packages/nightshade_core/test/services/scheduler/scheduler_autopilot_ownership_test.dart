@@ -84,6 +84,9 @@ class _ExecutorSink implements SchedulerSequenceSink, SchedulerRunOwnership {
 
   @override
   bool ownsRun(String sequenceId) => activeRunId == sequenceId;
+
+  @override
+  bool get hasActiveRun => activeRunId != null;
 }
 
 const _site = SchedulerSite(

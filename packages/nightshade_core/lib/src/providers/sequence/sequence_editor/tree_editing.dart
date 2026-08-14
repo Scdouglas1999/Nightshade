@@ -323,6 +323,28 @@ extension CurrentSequenceTreeEditing on CurrentSequenceNotifier {
     unawaited(ref.read(targetCatalogCoordinateSyncProvider).syncHeader(next));
   }
 
+  /// Same sync, for the edits that replace the WHOLE document instead of one
+  /// node: undo and redo.
+  ///
+  /// A Wave E refuter reached the identical two-copies divergence through
+  /// Ctrl+Z — the builder card showed the restored coordinates while the
+  /// scheduler kept scoring the ones that had just been undone, so the STALE
+  /// copy was the one the operator never confirmed. Hanging the sync off
+  /// `updateNode` alone was the "fixed one producer" shape; this is the other
+  /// producer of a re-point.
+  ///
+  /// Only headers whose coordinates actually differ between the two snapshots
+  /// are pushed (the per-node guard does that), so an undone rename or priority
+  /// edit writes nothing.
+  void _syncTargetsAfterSnapshotSwap(Sequence? before, Sequence? after) {
+    if (after == null) return;
+    if (_ref == null) return;
+    for (final node in after.nodes.values) {
+      if (node is! TargetHeaderNode) continue;
+      _syncRepointedTarget(before?.nodes[node.id], node);
+    }
+  }
+
   /// Toggle node enabled _currentSequence
   void toggleNodeEnabled(String nodeId) {
     if (_currentSequence == null) return;

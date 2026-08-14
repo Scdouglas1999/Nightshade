@@ -73,6 +73,8 @@ import '../recovery_provider.dart' show recoveryHistoryProvider;
 import '../science_provider.dart'
     show sessionPsfTilesProvider, sessionResidualVectorsProvider;
 import '../usb_disconnect_log_provider.dart';
+import 'exposure_progress_vocabulary.dart';
+import 'run_stop_classification.dart';
 import 'sequence_validation.dart' as validation;
 import 'sequencer_defaults.dart';
 import 'sequence_executor/frame_attribution.dart';
@@ -287,6 +289,23 @@ class SequenceExecutor {
   /// land after the final stats JSON and clobber it. Reset when a fresh run
   /// acquires its lifecycle.
   bool _statsSealed = false;
+
+  /// The run status a COMPLETED finalization already published for this run, or
+  /// null while no run has settled.
+  ///
+  /// The run's verdict is claimed once and belongs to whoever claimed it first.
+  /// The in-flight guards above cover a terminal that arrives DURING
+  /// finalization; this covers one that arrives after it finished, which is not
+  /// hypothetical: the native ends a stop-cancelled Slew with BOTH a `Stopped`
+  /// state change and the node tree's own `SequenceFailed`, and whichever
+  /// arrived second used to open a SECOND finalization — republishing the
+  /// operator's deliberate Stop as `failed` (Critical toast, "Failed" in
+  /// Execution History) while a stop during an exposure, which emits only
+  /// `Stopped`, was recorded honestly. One action, two verdicts, decided by
+  /// which instruction happened to be running (WE-SEQ-N6).
+  ///
+  /// Reset when a fresh run acquires its lifecycle.
+  String? _settledRunStatus;
 
   /// In-flight incremental `updateStats` writes, drained before the final
   /// `finishRun` so no stale write races the final stats JSON.
@@ -977,6 +996,7 @@ class SequenceExecutor {
     _terminalCleanupFuture = null;
     _nativeLaunchAttempted = false;
     _statsSealed = false;
+    _settledRunStatus = null;
     _pendingStatWrites.clear();
     // A fresh run has not terminated yet; clear any stale terminal result so the
     // sequencer screen observes a clean null -> result transition (and never
@@ -1139,6 +1159,23 @@ class SequenceExecutor {
     // events — including the `Stopped` echo emitted by a SUCCESSFUL explicit
     // stop, whose finalization context is still set.
     if (_finalization != null || _finalizationFuture != null) return;
+
+    // Exactly-once, part two: this run's verdict has already been published and
+    // its finalization dropped. A terminal arriving now is the SAME run's second
+    // wire event (a stop-cancelled Slew produces both `Stopped` and
+    // `SequenceFailed`), and re-finalizing would republish the operator's Stop
+    // as a failure. Logged with the shared stop-classification tag so a live log
+    // says which producer refused it.
+    final settled = _settledRunStatus;
+    if (settled != null) {
+      _logger.info(
+        '[$kStopClassificationLogTag] sequence_executor: late "$runStatus" '
+        'terminal ignored — this run already settled as "$settled"'
+        '${error == null ? '' : ' (reason: $error)'}',
+        source: 'SequenceExecutor',
+      );
+      return;
+    }
 
     if (error != null) {
       _recordTerminalRunError(error);
@@ -1488,6 +1525,10 @@ class SequenceExecutor {
       _publishTerminalResult(f);
     }
     _setExecutionState(f.finalUiState);
+    // This run now HAS a verdict. Any terminal that arrives from here on is a
+    // second event for a run that is over, not a new outcome (see
+    // [_settledRunStatus]).
+    _settledRunStatus = f.runStatus;
 
     // Transaction complete — drop the context so the next run starts clean and a
     // stray late event cannot resume a finished finalization.

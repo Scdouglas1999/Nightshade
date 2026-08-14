@@ -12,6 +12,7 @@ import '../../models/scheduler/scheduler_status.dart';
 import '../../models/scheduler/target_constraint.dart';
 import '../../models/sequence/sequence_models.dart';
 import 'horizon_profile.dart';
+import 'rejection_labels.dart';
 import 'sky_calculations.dart';
 
 part 'scheduler_engine/contracts.dart';
@@ -261,6 +262,75 @@ class SchedulerEngine {
     return _dispatchedRunId == runId;
   }
 
+  /// Whether SOMETHING is executing right now — the autopilot's run or the
+  /// operator's. See [SchedulerRunOwnership.hasActiveRun] for why this is a
+  /// separate question from [_ownsDispatchedRun].
+  ///
+  /// Sinks that cannot see the executor fall back to the engine's own belief:
+  /// it has a run out that it has not itself ended.
+  bool _executorHasActiveRun() {
+    final Object sink = _sequenceSink;
+    if (sink is SchedulerRunOwnership) return sink.hasActiveRun;
+    return _dispatchedRunId != null;
+  }
+
+  /// The `Sequence.id` of the run the autopilot last handed to the executor, or
+  /// null when it has none out.
+  ///
+  /// Exposed so pre-flight can tell the autopilot's OWN generated plan from a
+  /// plan the operator built afterwards — the editor-ownership flag alone said
+  /// "autopilot" for both, which suppressed the armed-autopilot warning in
+  /// exactly the case where two owners had already contended for the rig
+  /// (WE-SEQ-N3).
+  String? get dispatchedRunId => _dispatchedRunId;
+
+  /// Reconcile the engine's belief with the executor before an evaluation acts
+  /// on it.
+  ///
+  /// `_status.currentTargetId` records the last target DISPATCHED, not the run
+  /// the autopilot owns. Only a natural completion reaches the trigger stream,
+  /// so when the dispatched run ends any other way — a failed Center, an abort,
+  /// the operator's Stop — the field stays pinned, hysteresis reports
+  /// `isSwitch == false`, and the autopilot re-chooses the same target every
+  /// tick while dispatching nothing. One failed run ended the whole unattended
+  /// night, with every surface still reporting "Running / Active target".
+  ///
+  /// The distinction that makes this safe is [_executorHasActiveRun]: clearing
+  /// the target when the rig is FREE re-arms the next dispatch; leaving it alone
+  /// when another run is active is what stops the autopilot slewing away from a
+  /// sequence the operator started by hand.
+  void _reconcileDispatchedRun(String reason) {
+    final runId = _dispatchedRunId;
+    if (runId == null) return;
+    if (_ownsDispatchedRun(runId)) return;
+
+    // The run we dispatched is over (or was taken from us) either way.
+    _dispatchedRunId = null;
+    if (_status.currentTargetId == null) return;
+
+    if (_executorHasActiveRun()) {
+      developer.log(
+        'Scheduler reconcile ($reason): dispatched run $runId is no longer '
+        'ours but another run is active — keeping hysteresis so the autopilot '
+        "does not dispatch over the operator's sequence",
+        name: 'SchedulerEngine',
+        level: 700, // INFO
+      );
+      return;
+    }
+
+    developer.log(
+      'Scheduler reconcile ($reason): dispatched run $runId has ended and the '
+      'rig is free — clearing current target '
+      '${_status.currentTargetName ?? _status.currentTargetId} so the next '
+      'eligible evaluation dispatches again',
+      name: 'SchedulerEngine',
+      level: 800, // INFO/attention: this is the line that proves WHICH engine
+      // instance re-armed the autopilot after a run ended.
+    );
+    _updateStatus(_status.copyWith(clearCurrentTarget: true));
+  }
+
   /// Wait until no evaluation is in flight.
   ///
   /// Called by [stop] before it touches the executor so a dispatch that is
@@ -424,6 +494,7 @@ class SchedulerEngine {
 
     const uuid = Uuid();
     final targetId = uuid.v4();
+    final unparkId = uuid.v4();
     final slewId = uuid.v4();
     final centerId = uuid.v4();
 
@@ -472,6 +543,15 @@ class SchedulerEngine {
       }
     }
 
+    // Unpark FIRST. The autopilot is the one caller that routinely starts from
+    // a parked mount: its own dawn park, the weather watchdog and a manual park
+    // all leave the mount parked, and every dispatch afterwards died in 0 s on
+    // "Slew: Mount is parked. Please unpark the mount before slewing." The
+    // manual pre-start dialog offers exactly this step; an unattended plan has
+    // nobody to offer it to, so it carries it. Unparking an already-unparked
+    // mount is a no-op on every backend, which is why this is unconditional
+    // rather than a live is-parked read taken minutes before the slew.
+    nodes[unparkId] = UnparkNode(id: unparkId, name: 'Unpark Mount');
     nodes[slewId] = SlewNode(
       id: slewId,
       name: 'Slew to ${c.name}',
@@ -490,7 +570,7 @@ class SchedulerEngine {
       raHours: c.raHours,
       decDegrees: c.decDegrees,
       priority: c.userPriority,
-      childIds: [slewId, centerId, ...exposureIds],
+      childIds: [unparkId, slewId, centerId, ...exposureIds],
       // Attribute every captured frame to this DB target row so
       // IntegrationGoalService.capturedFrameCount (WHERE target_id = ?)
       // advances and goals complete — otherwise frames land with

@@ -1,75 +1,142 @@
-import 'package:flutter/gestures.dart';
+// D-2 (third look): planetarium tooltips never left the accessibility tree.
+//
+// Live evidence: hover the five command-bar icons for ~1.8 s each, park the
+// pointer over the star field, wait 12 s — the screenshot shows a completely
+// clean command bar while `tree --all` still lists
+// `panel: Reset view (zenith, FOV 60)`, `panel: Projection: Stereographic` and
+// `panel: Layers`.
+//
+// Two mechanisms, pinned separately:
+//
+//  1. the overlay was retired from `_animController.reverse().then(...)`, and a
+//     TickerFuture whose ticker is cancelled NEVER completes — so any second
+//     hide (or a show that interrupts a hide) silently dropped the `hide()`
+//     call and left the portal mounted at zero opacity;
+//  2. the floating label published its own accessible node, so any overlay that
+//     outlives its hover is a panel in the tree naming a control that is not on
+//     screen. The message now rides on the trigger, as `Semantics.tooltip`.
+
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-/// The hover show-delay must be cancellable.
-///
-/// It used to be a bare `Future.delayed`, so a tooltip disposed mid-delay left
-/// a live timer holding the state object. `flutter_test` fails a test that ends
-/// with a pending timer, which is what pins this.
 void main() {
-  Widget host(Widget child) => MaterialApp(
-    theme: NightshadeTheme.dark,
-    home: Scaffold(body: Center(child: child)),
-  );
-
   const trigger = Key('trigger');
-  const anchor = ColoredBox(
-    key: trigger,
-    color: Color(0xFF224466),
-    child: SizedBox(width: 60, height: 24),
-  );
+  const message = 'Reset view (zenith, FOV 60)';
+
+  Widget host() => MaterialApp(
+        theme: NightshadeTheme.dark,
+        home: const Scaffold(
+          body: Center(
+            child: NightshadeTooltip(
+              message: message,
+              child: ColoredBox(
+                key: trigger,
+                color: Color(0xFF224466),
+                child: SizedBox(width: 34, height: 34),
+              ),
+            ),
+          ),
+        ),
+      );
 
   Future<TestGesture> hover(WidgetTester tester) async {
     final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await gesture.addPointer(location: Offset.zero);
     addTearDown(gesture.removePointer);
+    await tester.pump();
     await gesture.moveTo(tester.getCenter(find.byKey(trigger)));
     await tester.pump();
+    // Past the 300 ms show delay, then through the fade.
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
     return gesture;
   }
 
-  testWidgets('disposing mid-delay leaves no pending timer', (tester) async {
-    await tester.pumpWidget(
-      host(const NightshadeTooltip(message: 'Stack & Share', child: anchor)),
-    );
-
-    await hover(tester);
-    // Part-way into the 300 ms wait, so the delay is still outstanding.
-    await tester.pump(const Duration(milliseconds: 100));
-
-    await tester.pumpWidget(host(const SizedBox()));
-    // Test teardown asserts there is no timer left running.
-  });
-
-  testWidgets('leaving before the delay elapses never shows the tooltip', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      host(const NightshadeTooltip(message: 'Stack & Share', child: anchor)),
-    );
-
+  testWidgets('the overlay is gone after the pointer leaves', (tester) async {
+    await tester.pumpWidget(host());
     final gesture = await hover(tester);
-    await tester.pump(const Duration(milliseconds: 100));
-    await gesture.moveTo(Offset.zero);
+    expect(find.text(message), findsOneWidget, reason: 'tooltip should show');
+
+    await gesture.moveTo(const Offset(5, 5));
     await tester.pump();
-
-    await tester.pump(const Duration(milliseconds: 500));
-    expect(find.text('Stack & Share'), findsNothing);
-  });
-
-  testWidgets('hovering past the delay still shows the tooltip', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      host(const NightshadeTooltip(message: 'Stack & Share', child: anchor)),
-    );
-
-    await hover(tester);
-    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(seconds: 1));
     await tester.pumpAndSettle();
 
-    expect(find.text('Stack & Share'), findsOneWidget);
+    expect(find.text(message), findsNothing);
+  });
+
+  testWidgets('a hide that interrupts a hide still retires the overlay', (
+    tester,
+  ) async {
+    await tester.pumpWidget(host());
+    final gesture = await hover(tester);
+    expect(find.text(message), findsOneWidget);
+
+    // Leave, and leave again a frame later: the second reverse() cancels the
+    // first one's TickerFuture. Under the old `.then()` retirement the hide
+    // scheduled by the first call was dropped and the second call's future
+    // completed against an already-dismissed controller, leaving the portal
+    // mounted forever.
+    await gesture.moveTo(const Offset(5, 5));
+    await tester.pump(const Duration(milliseconds: 40));
+    await gesture.moveTo(const Offset(6, 6));
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+
+    expect(find.text(message), findsNothing);
+  });
+
+  testWidgets('a tooltip whose onExit never arrives retires itself', (
+    tester,
+  ) async {
+    await tester.pumpWidget(host());
+    await hover(tester);
+    expect(find.text(message), findsOneWidget);
+
+    // No exit event at all — the shape that stranded "Forward 1 hour" over the
+    // sky for the rest of the session when the transport rebuilt under the
+    // cursor.
+    await tester.pump(const Duration(seconds: 7));
+    await tester.pumpAndSettle();
+
+    expect(find.text(message), findsNothing);
+  });
+
+  testWidgets('the floating label publishes no accessible node', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    await tester.pumpWidget(host());
+    await hover(tester);
+    expect(find.text(message), findsOneWidget, reason: 'it is on screen');
+
+    final labels = <String>[];
+    final tooltips = <String>[];
+    void visit(SemanticsNode node) {
+      final data = node.getSemanticsData();
+      if (data.label.isNotEmpty) labels.add(data.label);
+      if (data.tooltip.isNotEmpty) tooltips.add(data.tooltip);
+      node.visitChildren((child) {
+        visit(child);
+        return true;
+      });
+    }
+
+    visit(tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!);
+
+    expect(
+      labels.where((l) => l.contains('Reset view')),
+      isEmpty,
+      reason: 'a floating label must never become a panel in the tree',
+    );
+    expect(
+      tooltips,
+      contains(message),
+      reason: 'the message belongs to the trigger, which cannot outlive it',
+    );
+    handle.dispose();
   });
 }
