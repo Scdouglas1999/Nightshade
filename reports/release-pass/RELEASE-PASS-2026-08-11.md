@@ -1,5 +1,39 @@
 # Release Tightening Pass — 2026-08-11
 
+## CLOSEOUT (DRAFT — takes effect when Wave G verifies the F-fix batch)
+
+Campaign ledger, 2026-08-11 → 2026-08-14, all on `audit/end-to-end-campaign`:
+- **Wave A** map (16 mappers) → adjudicated work orders per subsystem.
+- **Wave B** adversarial GUI (8 clusters driving the real bundle) → 181 findings.
+- **Fix waves**: C1 (15 batches), B-fix (80 findings incl. 2 P0 + 18 P1), C2 (~100 call
+  sites consolidated, parity-pinned), stage-2 (17), C3 (118 files split), D-fix (61+3),
+  E-fix (55), F-fix (32) — every wave sealed by the full gate set before commit.
+- **Verification**: Waves D, E, F (live re-drives + refuters) + G (closing spot-check).
+  Between them: 160 fixes verified live, 16 plausible-but-wrong fix claims refuted before
+  they could ship as phantom fixes, and the two-implementations trap caught four times.
+- **Signature catches**: autopilot silently killing manual runs (and later: never
+  re-dispatching after its own run failed); the meridian flip's solve exposure stomping an
+  in-flight light frame; the stacked-preview linear stretch rendering every sky black;
+  pairing stores surviving reinstalls; the frame-count provider overwritten 43µs after
+  every completed burst; operator stops pushed as critical failures.
+- **Remaining, by design**: the owner-decision lists (Wave A's + the four Wave F product
+  calls), the parked platform item (title-bar AT-SPI export needs GTK embedder work), the
+  Windows-only file, and the documented P3/P4 residue in the wave verdict JSONs.
+- On-sky validation on the live rig remains owed, as always, and is the natural next
+  campaign (tasks #32/#34).
+
+### What remains is user-gated (recorded 2026-08-14, mid-final-gate)
+
+Everything still open outside the G-check pipeline needs the owner:
+1. **Live-rig session** (deploy to sean-laptop per the rig-deploy recipe, owner present):
+   validates the stop-pipeline family on hardware (L7 note in the live-rig findings), L2
+   camera model names, L4 phantom-device fix, L5 triple mount, L36/ProgID — none of these
+   can or should be driven unattended against the owner's physical equipment.
+2. **The four Wave F product calls** + Wave A owner-decision list + sequenceStopped push
+   copy + IMG-9 loop-count label + queue-membership semantics.
+3. **Windows build verification** (ascom_wrapper/camera.rs split skipped; goldens are
+   Windows-baselined) — needs the Windows host.
+
 Ground-truth document for the release-level quality campaign. All findings land here
 (or in files linked from here) before any fix wave launches. Nothing is fixed from memory.
 
