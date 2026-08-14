@@ -11,6 +11,7 @@ import '../models/backend/host_mutation_event.dart'
     show hostStateChangedEventType;
 import 'backend_provider.dart';
 import 'host_mutation_event_provider.dart';
+import 'sequence/run_stop_classification.dart';
 import 'ui_notification_provider.dart';
 
 /// Provider for the global event stream from the Rust native layer
@@ -209,6 +210,22 @@ final errorNotificationBridgeProvider = Provider<void>((ref) {
     (event) {
       if (event.severity == core.EventSeverity.info) return;
 
+      // PRODUCER 4 of the stop pipeline. Every other producer asks
+      // `isSequenceCancelledNotice` before calling a deliberate Stop a fault;
+      // this one did not, and it is the one the operator actually reads. It
+      // takes no part in the NotificationRouter, so neither the router's
+      // classification nor its content dedupe could ever reach it — which is
+      // why Wave F recorded the red card as gone and Wave G found it back
+      // (WF-N4 / WF-STOP-N3, shots/waveG-sequencer/g15-toasts.png).
+      if (_isOperatorStopNotice(event)) {
+        developer.log(
+          '[$kStopClassificationLogTag] error_notification_bridge: sequencer '
+          'Error carrying the cancellation notice -> no error toast',
+          name: 'ErrorNotificationBridge',
+        );
+        return;
+      }
+
       final message = _extractEventMessage(event);
       final title = _eventTitle(event);
 
@@ -248,6 +265,32 @@ final errorNotificationBridgeProvider = Provider<void>((ref) {
     subscription?.cancel();
   });
 });
+
+/// True when this backend event is the operator's Stop wearing an error's
+/// clothes.
+///
+/// The wire shape is fixed: the native executor's `NodeStatus::Cancelled` arm
+/// sends `ExecutorEvent::Error { message: "Sequence cancelled" }`
+/// (`sequencer/src/executor/start.rs`), the bridge stamps it
+/// `EventSeverity::Error` / `EventCategory::Sequencer`
+/// (`bridge/src/api/sequencer/event_bridge.rs`), and the FFI mapper delivers it
+/// as eventType `'Error'` with the notice under `message`
+/// (`backend/ffi_backend/event_mapping.dart`). The remote/WebSocket envelope has
+/// been seen using `error` for the same field, so both are read — the same pair
+/// `NotificationEventClassifier._sequencerErrorMessage` reads.
+///
+/// Only the exact notice is reclassified; a real fault whose text merely
+/// contains "cancelled" ("Temperature compensation cancelled") is still an
+/// error and still reaches the operator. See [isSequenceCancelledNotice].
+bool _isOperatorStopNotice(core.NightshadeEvent event) {
+  if (event.category != core.EventCategory.sequencer) return false;
+  if (event.eventType != 'Error') return false;
+  final message =
+      (event.data['message'] as String?) ??
+      (event.data['error'] as String?) ??
+      '';
+  return isSequenceCancelledNotice(message);
+}
 
 /// Extract a human-readable message from a NightshadeEvent's data map.
 String _extractEventMessage(core.NightshadeEvent event) {

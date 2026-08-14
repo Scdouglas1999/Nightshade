@@ -7,7 +7,8 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'glass_card.dart';
-import 'smart_night_prompt_card.dart' show smartNightOpticsReadyProvider;
+import 'smart_night_prompt_card.dart'
+    show smartNightAutoPromptShowingProvider, smartNightOpticsReadyProvider;
 
 const double _kDesktopPromptWidth = 480.0;
 const double _kBottomInset = 16.0;
@@ -92,6 +93,15 @@ class _NextUsePromptCardState extends ConsumerState<NextUsePromptCard>
   }
 
   @override
+  void _publishShowing(bool showing) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final notifier = ref.read(smartNightAutoPromptShowingProvider.notifier);
+      if (notifier.state != showing) notifier.state = showing;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final step = ref.watch(nextUsePromptProvider);
 
@@ -114,9 +124,16 @@ class _NextUsePromptCardState extends ConsumerState<NextUsePromptCard>
 
     if (step == null || smartNightEligible || sequenceActive) {
       _animController.value = 0.0;
+      _publishShowing(false);
       return const SizedBox.shrink();
     }
 
+    // The two bottom-centre prompts are mutually exclusive by construction,
+    // so they share one visibility signal: DashboardScrollView reserves the
+    // prompt band off it, and without this publish the next-use nudge sat
+    // over the last card in the extent (live: RECENT EVENTS rows at 1000x800)
+    // with no way to scroll them out from under it.
+    _publishShowing(true);
     if (!_animController.isAnimating && _animController.value < 1.0) {
       _animController.forward();
     }

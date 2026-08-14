@@ -28,6 +28,7 @@ import 'dart:developer' as developer;
 import '../../models/backend/event_types.dart';
 import '../../models/notification/notification_categories.dart';
 import 'event_classifier.dart';
+import 'notification_signature.dart';
 import 'notification_template.dart';
 import 'transports/notification_transport.dart';
 import 'transports/system_push_transport.dart';
@@ -546,24 +547,20 @@ class NotificationRouter {
     final now = _now();
     final seen = _recentSignatures.putIfAbsent(kind, () => {});
     seen.removeWhere((_, when) => now.difference(when) > window);
-    final signature =
-        '${_normalizeForSignature(title)}|${_normalizeForSignature(body)}';
+    // One shared rule, in `notification_signature.dart`. WD-EQ-3 outlived two
+    // fixes because each surface had its own copy of "same statement?"; the
+    // toast overlay's copy still keyed on the exact strings while this one
+    // normalized. There is now one implementation and both call it.
+    final signature = notificationContentSignature(
+      discriminator: kind.name,
+      title: title,
+      body: body,
+    );
     final last = seen[signature];
     if (last != null && now.difference(last) < window) return true;
     seen[signature] = now;
     return false;
   }
-
-  static final RegExp _whitespaceRun = RegExp(r'\s+');
-  static final RegExp _trailingCosmetics = RegExp(r'[\s.,;:!…]+$');
-
-  /// Cosmetic-insensitive form of a rendered string, used ONLY as a
-  /// de-duplication key — never as the copy that is sent.
-  static String _normalizeForSignature(String value) => value
-      .trim()
-      .replaceAll(_whitespaceRun, ' ')
-      .replaceAll(_trailingCosmetics, '')
-      .toLowerCase();
 
   // ----- Default templates ------------------------------------------------
 

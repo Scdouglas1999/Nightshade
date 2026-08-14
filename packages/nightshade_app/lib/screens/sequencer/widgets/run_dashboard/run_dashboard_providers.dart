@@ -478,6 +478,12 @@ class RunDashboardEvent {
 /// the run and the ordering stays truthful. The retained row keeps the NEWEST
 /// occurrence's identity and timestamp — "when did this last happen" is the
 /// useful question.
+/// Identical rows further apart than this are separate happenings, not a
+/// repeat: two stops of two different runs read the same but were two
+/// operator decisions twenty minutes apart, and folding them rewrites the
+/// night. Live repeat storms (a flapping condition) land within seconds.
+const _collapseWindow = Duration(minutes: 10);
+
 List<RunDashboardEvent> collapseRepeatedEvents(
   Iterable<RunDashboardEvent> events,
 ) {
@@ -488,7 +494,8 @@ List<RunDashboardEvent> collapseRepeatedEvents(
         last.category == event.category &&
         last.title == event.title &&
         last.message == event.message &&
-        last.severity == event.severity;
+        last.severity == event.severity &&
+        last.time.difference(event.time).abs() <= _collapseWindow;
     if (isRepeat) {
       out[out.length - 1] = last.withRepeatCount(last.repeatCount + 1);
     } else {
@@ -560,6 +567,45 @@ bool isOperatorStopNotice(ns_events.NightshadeEvent event) {
   return isSequenceCancelledNotice(sequencerEvent.message);
 }
 
+/// The whole family one press of Stop puts on the wire: the executor's
+/// cancel-notice Error, the lifecycle decision whose summary is that same
+/// notice, and the Stopped event published once by the state change and once
+/// by the stop API. The feed maps every member to one canonical row so the
+/// group fold below can tell the operator the one thing that happened.
+bool _isStopFamilyEvent(ns_events.NightshadeEvent event) {
+  if (isOperatorStopNotice(event)) return true;
+  final payload = event.payload;
+  if (payload is! ns_events.EventPayload_Sequencer) return false;
+  final sequencerEvent = payload.field0;
+  if (sequencerEvent is ns_events.SequencerEvent_Stopped) return true;
+  if (sequencerEvent is ns_events.SequencerEvent_DecisionLogged) {
+    return isSequenceCancelledNotice(sequencerEvent.summary);
+  }
+  return false;
+}
+
+/// Fold each run of consecutive stop-family rows that happened together into
+/// ONE row. Four producers fire on one press of Stop; a "x4" badge would say
+/// it happened four times, which is the same lie in smaller type — so the
+/// group keeps repeatCount 1. Stops of different runs sit well apart in time
+/// and stay their own rows.
+List<RunDashboardEvent> _coalesceStopGroups(Iterable<RunDashboardEvent> rows) {
+  const window = Duration(seconds: 10);
+  final out = <RunDashboardEvent>[];
+  DateTime? groupAnchor;
+  for (final row in rows) {
+    final isStop = row.title == 'Sequence stopped';
+    if (isStop &&
+        groupAnchor != null &&
+        groupAnchor.difference(row.time).abs() <= window) {
+      continue; // Same press of Stop; the group's first row already tells it.
+    }
+    groupAnchor = isStop ? row.time : null;
+    out.add(row);
+  }
+  return out;
+}
+
 /// Convert a freezed bridge event into the dashboard's compact model.
 ///
 /// Uses the exhaustive switch helpers in `event_display.dart` so a new
@@ -570,7 +616,7 @@ RunDashboardEvent _toDashboardEvent(ns_events.NightshadeEvent event) {
   // A stop is still worth a row in the feed — it is how the operator
   // reconstructs the night — but it is an INFO row that says what happened,
   // not a critical "Sequencer error".
-  if (isOperatorStopNotice(event)) {
+  if (_isStopFamilyEvent(event)) {
     return RunDashboardEvent(
       eventId: event.eventId,
       time: DateTime.fromMillisecondsSinceEpoch(ms),
@@ -655,7 +701,9 @@ final runDashboardRecentEventsProvider =
   // frees slots for the different events behind it. Taking first would leave
   // the panel showing one collapsed row and four blanks' worth of lost history.
   return collapseRepeatedEvents(
-    history.where(isUserFacingRunEvent).map(_toDashboardEvent),
+    _coalesceStopGroups(
+      history.where(isUserFacingRunEvent).map(_toDashboardEvent),
+    ),
   ).take(limit).toList(growable: false);
 });
 

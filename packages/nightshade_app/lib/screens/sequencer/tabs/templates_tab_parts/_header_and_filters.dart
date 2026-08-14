@@ -97,7 +97,13 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
   Widget build(BuildContext context) {
     final isMobile = Responsive.isMobile(context);
     final screenWidth = MediaQuery.sizeOf(context).width;
-    final isNarrow = screenWidth < 600;
+    // WF-EQ-N1, live-confirmed at 1000x800: the single-row desktop header
+    // packs the search box, the wizard and Save-as-Template beside the title,
+    // leaving it ~130px — below even the shrink floor's needs — so the tab
+    // stopped naming itself. The stacked header is the honest layout until the
+    // row genuinely fits: title needs ~260px beside ~570px of toolbar plus the
+    // nav rail, so the fork sits at 1100.
+    final isNarrow = screenWidth < 1100;
     final current = ref.watch(currentSequenceProvider);
     final editingTemplate =
         current?.isTemplate == true && current?.databaseId != null;
@@ -115,14 +121,14 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
         // Title row with save button
         Row(
           children: [
-            Expanded(
-              child: Text(
-                'Templates',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize20,
-                  fontWeight: FontWeight.w700,
-                  color: widget.colors.textPrimary,
-                ),
+            // The shared tab heading (CON-52) at every width, not only on
+            // the wide row — the stacked layout gives it the room the packed
+            // row could not.
+            const Expanded(
+              child: SequencerTabTitle(
+                title: 'Sequence Templates',
+                subtitle:
+                    'Start with a template or save your sequences for reuse.',
               ),
             ),
             // Quick-start wizard

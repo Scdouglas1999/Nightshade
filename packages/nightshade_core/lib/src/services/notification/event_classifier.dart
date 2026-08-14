@@ -292,7 +292,10 @@ class NotificationEventClassifier {
           // raw id. `friendlyNameFromDeviceId` is the same resolver the run
           // dashboard's feed uses, so a disconnect toast and the event feed
           // cannot name one device two ways.
-          'equipment.device_name': _disconnectedDeviceName(deviceId, deviceType),
+          'equipment.device_name': _disconnectedDeviceName(
+            deviceId,
+            deviceType,
+          ),
         },
       );
     }

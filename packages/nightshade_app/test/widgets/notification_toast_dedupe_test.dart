@@ -106,6 +106,79 @@ void main() {
     expect(find.text(_guiderRefusal), findsNothing);
   });
 
+  // WD-EQ-3, Wave G. Still live after two waves, because both earlier fixes
+  // landed somewhere these toasts do not flow: the NotificationRouter's
+  // normalized-key dedupe never sees them (the Dart connect path calls
+  // `ErrorService.log` and the backend event path calls
+  // `errorNotificationBridgeProvider`, and BOTH call
+  // `UiNotificationNotifier.showError` directly), while the overlay's own
+  // collapse keyed on the EXACT rendered strings — which the two producers
+  // defeat by one character, a trailing full stop.
+  //
+  // The G trap is in the timing: "a screenshot 3 s after the click shows only
+  // ONE card because the second producer lands between 3 s and 5 s". So this
+  // raises the second copy at +4 s, inside the band the driver measured, at the
+  // production `showError` duration rather than a convenient one.
+  testWidgets('the WD-EQ-3 pair, four seconds apart, is one toast', (
+    tester,
+  ) async {
+    final container = ProviderContainer(
+      overrides: [inMemoryDatabaseOverride()],
+    );
+    addTearDown(container.dispose);
+    final notifier = container.read(uiNotificationProvider.notifier);
+
+    // Verbatim from waveG-01/02/03: the two strings differ ONLY by the full
+    // stop the second producer appends.
+    notifier.showError(_guiderRefusal, title: 'Guider Error');
+    await _pumpOverlay(tester, container);
+    expect(find.text(_guiderRefusal), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 4));
+    notifier.showError('$_guiderRefusal.', title: 'Guider Error');
+    await tester.pump();
+
+    expect(
+      find.textContaining('requires an active profile with a guide focal '
+          'length'),
+      findsOneWidget,
+      reason: 'one refusal, one card — a trailing full stop is not a second '
+          'thing that happened',
+    );
+    expect(find.text('Guider Error (x2)'), findsOneWidget);
+
+    // The older copy's own timer must not retire the group out from under the
+    // newer one: at +9 s the first notification's 8 s duration has elapsed, and
+    // the card the operator is reading is the one raised at +4 s.
+    await tester.pump(const Duration(seconds: 5));
+    expect(find.text('Guider Error (x2)'), findsOneWidget);
+
+    // ...and the whole group goes together once the NEWEST member expires.
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.textContaining('guide focal length'), findsNothing);
+    expect(container.read(uiNotificationProvider), isEmpty);
+  });
+
+  testWidgets('a question and a statement stay two notifications', (
+    tester,
+  ) async {
+    final container = ProviderContainer(
+      overrides: [inMemoryDatabaseOverride()],
+    );
+    addTearDown(container.dispose);
+    final notifier = container.read(uiNotificationProvider.notifier);
+    notifier.showWarning('Park the mount',
+        title: 'Mount', duration: const Duration(minutes: 1));
+    notifier.showWarning('Park the mount?',
+        title: 'Mount', duration: const Duration(minutes: 1));
+
+    await _pumpOverlay(tester, container);
+
+    expect(find.text('Park the mount'), findsOneWidget);
+    expect(find.text('Park the mount?'), findsOneWidget);
+  });
+
   testWidgets('distinct notifications are never merged', (tester) async {
     final container = ProviderContainer(
       overrides: [inMemoryDatabaseOverride()],
