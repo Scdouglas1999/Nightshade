@@ -307,110 +307,127 @@ class OverlaysMenuButton extends ConsumerWidget {
         catalogEnabled ||
         scienceHudVisible;
 
-    return PopupMenuButton<int>(
-      tooltip: 'Overlays',
-      position: PopupMenuPosition.under,
-      offset: const Offset(0, 6),
-      color: colors.surfaceElevated,
-      surfaceTintColor: Colors.transparent,
-      elevation: 0,
-      constraints: const BoxConstraints(minWidth: 248, maxWidth: 296),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-        side: BorderSide(color: colors.border),
-      ),
-      // Each item handles its own onTap so the menu stays open is NOT desired —
-      // PopupMenu closes after a tap, which matches a quick "flip one overlay"
-      // interaction. Re-opening to flip a second overlay is one click.
-      itemBuilder: (context) {
-        return <PopupMenuEntry<int>>[
-          _overlayItem(
-            value: 0,
-            icon: NightshadeIcons.crosshair,
-            label: 'Crosshair',
-            active: showCrosshair,
-            onTap: onToggleCrosshair,
+    // NEW-C2: this published as `panel: Overlays [DISABLED]` — a live popup
+    // trigger announced as an inert panel, because PopupMenuButton's InkWell
+    // contributes a tap action but no button role or enabled state, and the
+    // pill inside contributed a second, separate named node. One control, one
+    // node, with the role and the state it actually has.
+    return MergeSemantics(
+      child: Semantics(
+        button: true,
+        enabled: true,
+        label: 'Overlays',
+        child: PopupMenuButton<int>(
+          tooltip: 'Overlays',
+          position: PopupMenuPosition.under,
+          offset: const Offset(0, 6),
+          color: colors.surfaceElevated,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          constraints: const BoxConstraints(minWidth: 248, maxWidth: 296),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+            side: BorderSide(color: colors.border),
           ),
-          _overlayItem(
-            value: 1,
-            icon: gridType == GridType.celestial
-                ? NightshadeIcons.globe
-                : NightshadeIcons.grid,
-            label: 'Grid',
-            subtitle: switch (gridType) {
-              GridType.none =>
-                annotationSettings == null ? 'Settings unavailable' : 'Off',
-              GridType.pixel => 'Pixel',
-              GridType.celestial => 'RA / Dec',
-            },
-            active: gridType != GridType.none,
-            onTap: annotationSettings == null
-                ? null
-                : () => ref
-                    .read(annotationSettingsProvider.notifier)
-                    .cycleGridType(),
-          ),
-          _overlayItem(
-            value: 2,
-            icon: NightshadeIcons.sparkle,
-            label: 'Star detection',
-            active: showStarOverlay,
-            onTap: onToggleStarOverlay,
-          ),
-          _overlayItem(
-            value: 3,
-            icon: NightshadeIcons.list,
-            label: 'Object annotations',
-            active: annotationPanelVisible,
-            onTap: () => ref
-                .read(annotationPanelVisibleProvider.notifier)
-                .state = !annotationPanelVisible,
-          ),
-          _overlayItem(
-            value: 4,
-            icon: NightshadeIcons.target,
-            label: 'Catalog overlay',
-            active: catalogEnabled,
-            onTap: () => ref
-                .read(catalogOverlayEnabledProvider.notifier)
-                .state = !catalogEnabled,
-          ),
-          _overlayItem(
-            value: 5,
-            icon: NightshadeIcons.science,
-            label: 'Science HUD',
-            active: scienceHudVisible,
-            onTap: () => ref.read(scienceModeStateProvider.notifier).state =
-                scienceMode.copyWith(
-              scienceHudVisible: !scienceHudVisible,
+          // Each item handles its own onTap so the menu stays open is NOT desired —
+          // PopupMenu closes after a tap, which matches a quick "flip one overlay"
+          // interaction. Re-opening to flip a second overlay is one click.
+          itemBuilder: (context) {
+            return <PopupMenuEntry<int>>[
+              _overlayItem(
+                value: 0,
+                icon: NightshadeIcons.crosshair,
+                label: 'Crosshair',
+                active: showCrosshair,
+                onTap: onToggleCrosshair,
+              ),
+              _overlayItem(
+                value: 1,
+                icon: gridType == GridType.celestial
+                    ? NightshadeIcons.globe
+                    : NightshadeIcons.grid,
+                label: 'Grid',
+                subtitle: switch (gridType) {
+                  GridType.none =>
+                    annotationSettings == null ? 'Settings unavailable' : 'Off',
+                  GridType.pixel => 'Pixel',
+                  GridType.celestial => 'RA / Dec',
+                },
+                active: gridType != GridType.none,
+                onTap: annotationSettings == null
+                    ? null
+                    : () => ref
+                        .read(annotationSettingsProvider.notifier)
+                        .cycleGridType(),
+              ),
+              _overlayItem(
+                value: 2,
+                icon: NightshadeIcons.sparkle,
+                label: 'Star detection',
+                active: showStarOverlay,
+                onTap: onToggleStarOverlay,
+              ),
+              _overlayItem(
+                value: 3,
+                icon: NightshadeIcons.list,
+                label: 'Object annotations',
+                active: annotationPanelVisible,
+                onTap: () => ref
+                    .read(annotationPanelVisibleProvider.notifier)
+                    .state = !annotationPanelVisible,
+              ),
+              _overlayItem(
+                value: 4,
+                icon: NightshadeIcons.target,
+                label: 'Catalog overlay',
+                active: catalogEnabled,
+                onTap: () => ref
+                    .read(catalogOverlayEnabledProvider.notifier)
+                    .state = !catalogEnabled,
+              ),
+              _overlayItem(
+                value: 5,
+                icon: NightshadeIcons.science,
+                label: 'Science HUD',
+                active: scienceHudVisible,
+                onTap: () => ref.read(scienceModeStateProvider.notifier).state =
+                    scienceMode.copyWith(
+                  scienceHudVisible: !scienceHudVisible,
+                ),
+              ),
+              // The measurement readouts used to vanish on a 2.5 s idle timer, so
+              // the numbers you check every frame were hidden whenever you weren't
+              // moving the mouse. They are now explicit and default on; this row is
+              // how you get the clean-frame view back.
+              _overlayItem(
+                value: 6,
+                icon: NightshadeIcons.activity,
+                label: 'Readouts',
+                subtitle: 'Histogram, HFR / stars, image stats',
+                active: readoutsVisible,
+                onTap: () => ref
+                    .read(previewReadoutsVisibleProvider.notifier)
+                    .state = !readoutsVisible,
+              ),
+            ];
+          },
+          // Excluded so the pill does not publish a SECOND "Overlays" node beside
+          // the one the wrapper above owns; PopupMenuButton's tap sits above this,
+          // so the action is unaffected.
+          child: ExcludeSemantics(
+            child: _LabeledToolbarToggle(
+              colors: colors,
+              icon: NightshadeIcons.layers,
+              label: 'Overlays',
+              // Tooltip is provided by PopupMenuButton itself; the pill is purely
+              // visual here so the popup owns the tap.
+              tooltip: null,
+              active: anyOverlayActive,
+              showChevron: true,
+              onTap: null,
             ),
           ),
-          // The measurement readouts used to vanish on a 2.5 s idle timer, so
-          // the numbers you check every frame were hidden whenever you weren't
-          // moving the mouse. They are now explicit and default on; this row is
-          // how you get the clean-frame view back.
-          _overlayItem(
-            value: 6,
-            icon: NightshadeIcons.activity,
-            label: 'Readouts',
-            subtitle: 'Histogram, HFR / stars, image stats',
-            active: readoutsVisible,
-            onTap: () => ref
-                .read(previewReadoutsVisibleProvider.notifier)
-                .state = !readoutsVisible,
-          ),
-        ];
-      },
-      child: _LabeledToolbarToggle(
-        colors: colors,
-        icon: NightshadeIcons.layers,
-        label: 'Overlays',
-        // Tooltip is provided by PopupMenuButton itself; the pill is purely
-        // visual here so the popup owns the tap.
-        tooltip: null,
-        active: anyOverlayActive,
-        showChevron: true,
-        onTap: null,
+        ),
       ),
     );
   }

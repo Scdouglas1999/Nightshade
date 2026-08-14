@@ -7,7 +7,8 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../localization/nightshade_localizations.dart';
 import '../../sequencer/widgets/smart_night_dialog.dart';
-import 'smart_night_prompt_card.dart' show smartNightAutoPromptShowingProvider;
+import 'smart_night_prompt_card.dart'
+    show kFloatingPromptReservedHeight, smartNightAutoPromptShowingProvider;
 import 'standby/last_night_recap_card.dart';
 import 'standby/moon_card.dart';
 import 'standby/night_timeline.dart';
@@ -56,8 +57,21 @@ class CockpitStandby extends ConsumerWidget {
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= _wideBreakpoint;
         final liveAstro = constraints.maxWidth >= _liveAstroBreakpoint;
+        // WE-SP-5: the floating "Build tonight's plan?" nudge is painted OVER
+        // this briefing, and at the bottom of the extent it covered the Moon
+        // card's Moonrise value. The reserve for it was originally added to
+        // `DashboardScrollView` — which is the OTHER branch of
+        // dashboard_screen (the zone cockpit shown during a run). Standby
+        // scrolls here, so max scroll was measurably unchanged by that fix.
+        // A floating overlay has to be paid for in the scroll view it floats
+        // above, and this is that scroll view.
+        final promptShowing = ref.watch(smartNightAutoPromptShowingProvider);
         return SingleChildScrollView(
-          padding: const EdgeInsets.all(NightshadeTokens.space2xl),
+          padding: const EdgeInsets.all(NightshadeTokens.space2xl).add(
+            EdgeInsets.only(
+              bottom: promptShowing ? kFloatingPromptReservedHeight : 0,
+            ),
+          ),
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: _maxContentWidth),

@@ -39,9 +39,17 @@ class HelpTutorialsSettings extends ConsumerWidget {
         // treatments (one filled primary among four outlines) in a single
         // column, so the list read as if the rows differed in kind. They do
         // not: every one of them starts something. One verb, one treatment.
-        // (The Title Case / sentence case split in the ROW TITLES is left
-        // alone here: those strings are mirrored into the generated
-        // settings_search_index.g.dart, which this batch may not regenerate.)
+        //
+        // Wave F found both remainders: the ROW TITLES still mixed Title Case
+        // and sentence case in one list, and the treatment split had merely
+        // MOVED (Tutorial Tours drew filled-primary "Start" buttons directly
+        // beneath the outline ones). Every row title on this page is now
+        // sentence case — the register the rest of Settings uses, and the one
+        // that keeps "Capture your first light" identical to the wording the
+        // onboarding Next Steps card already uses for the same flow. Section
+        // HEADERS stay Title Case, as they are app-wide. The titles are
+        // mirrored into settings_search_index.g.dart, regenerated with
+        // `dart run tools/production/settings_search_index_gen.dart`.
         SettingsSection(
           title: 'Guided Flows',
           isMobile: isMobile,
@@ -49,7 +57,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
             SettingRow(
               icon: LucideIcons.sparkles,
               iconColor: colors.primary,
-              title: 'First Night Walkthrough',
+              title: 'First night walkthrough',
               subtitle: '7-step guided wizard for your first imaging session — '
                   'connect, polar align, focus, frame, guide, sequence.',
               trailing: _AsyncActionButton(
@@ -149,7 +157,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
             SettingRow(
               icon: LucideIcons.archive,
               iconColor: colors.warning,
-              title: 'Generate Diagnostic Dump',
+              title: 'Generate diagnostic dump',
               subtitle:
                   'Package logs, settings, profile metadata, and system details for support.',
               trailing: NightshadeButton(
@@ -174,7 +182,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
             // different things under near-identical names.
             _TutorialRow(
               icon: LucideIcons.boxes,
-              title: 'Equipment Setup',
+              title: 'Equipment setup',
               category: TutorialCategory.equipmentSetup,
               completedSteps: notifier
                   .getCompletedStepsCount(TutorialCategory.equipmentSetup),
@@ -193,7 +201,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
             ),
             _TutorialRow(
               icon: LucideIcons.compass,
-              title: 'Target Planning',
+              title: 'Target planning',
               category: TutorialCategory.targetPlanning,
               completedSteps: notifier
                   .getCompletedStepsCount(TutorialCategory.targetPlanning),
@@ -212,7 +220,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
             ),
             _TutorialRow(
               icon: LucideIcons.listOrdered,
-              title: 'Automated Imaging',
+              title: 'Automated imaging',
               category: TutorialCategory.automatedImaging,
               completedSteps: notifier
                   .getCompletedStepsCount(TutorialCategory.automatedImaging),
@@ -231,7 +239,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
             ),
             _TutorialRow(
               icon: LucideIcons.sun,
-              title: 'Calibration Frames',
+              title: 'Calibration frames',
               category: TutorialCategory.calibrationFrames,
               completedSteps: notifier
                   .getCompletedStepsCount(TutorialCategory.calibrationFrames),
@@ -250,7 +258,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
             ),
             _TutorialRow(
               icon: LucideIcons.barChart3,
-              title: 'Advanced Features',
+              title: 'Advanced features',
               category: TutorialCategory.advancedFeatures,
               completedSteps: notifier
                   .getCompletedStepsCount(TutorialCategory.advancedFeatures),
@@ -277,7 +285,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
             SettingRow(
               icon: LucideIcons.refreshCw,
               iconColor: colors.error,
-              title: 'Reset All Progress',
+              title: 'Reset all progress',
               subtitle: 'Clear all tutorial progress and start fresh',
               trailing: NightshadeButton(
                 label: 'Reset',
@@ -571,9 +579,14 @@ class _TutorialRowState extends State<_TutorialRow> {
             // Action button
             NightshadeButton(
               label: _buttonText,
-              variant: widget.isCompleted
-                  ? ButtonVariant.outline
-                  : ButtonVariant.primary,
+              // CON-62(b): this row's button used to be a filled primary
+              // until the tour was completed, so five FILLED "Start" buttons
+              // rendered directly beneath the five OUTLINE "Start" buttons of
+              // Guided Flows — one page, one verb, two treatments. A page of
+              // equal-weight replay rows has no primary among them; the
+              // completion state is already published by the icon, the status
+              // line and the verb itself.
+              variant: ButtonVariant.outline,
               size: ButtonSize.small,
               isLoading: _isRunning,
               onPressed: _isRunning ? null : _runAction,

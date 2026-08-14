@@ -84,8 +84,16 @@ class _ToolboxPanelState extends ConsumerState<_ToolboxPanel>
   /// tabs that switch panes on click (Wave D, WD-SEQ-N3). Declaring the state
   /// here merges it into that same node, the way the planner's filter chips
   /// were fixed (a95a1d500).
+  ///
+  /// Wave F: the `[DISABLED]` is gone, but the node is still ROLE-LESS —
+  /// `panel: Nodes / Tab 1 of 3`. TabBar does wrap each tab in
+  /// `Semantics(role: SemanticsRole.tab)`, but that is an ANCESTOR node, and
+  /// the merged node carrying the label is the one an AT-SPI client reads.
+  /// Declaring `button` here puts a role the Linux bridge demonstrably
+  /// publishes on the node that actually carries the name.
   Widget _tabLabel(int index, String label, int activeIndex) {
     return Semantics(
+      button: true,
       enabled: true,
       selected: activeIndex == index,
       child: Text(

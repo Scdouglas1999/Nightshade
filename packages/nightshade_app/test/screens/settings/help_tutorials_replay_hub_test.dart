@@ -152,7 +152,7 @@ void main() {
     expect(find.text('Capture your first light'), findsOneWidget);
     expect(find.text('Re-run equipment setup'), findsOneWidget);
     // The replay hub still carries the first-night + tour replays.
-    expect(find.text('First Night Walkthrough'), findsOneWidget);
+    expect(find.text('First night walkthrough'), findsOneWidget);
     expect(find.text('Re-run onboarding tour'), findsOneWidget);
   });
 
@@ -166,8 +166,8 @@ void main() {
     // Superseded by the real, camera-driven "Capture your first light" flow.
     expect(find.text('Quick Start Tour'), findsNothing);
     // The other step tours are untouched.
-    expect(find.text('Equipment Setup'), findsOneWidget);
-    expect(find.text('Calibration Frames'), findsOneWidget);
+    expect(find.text('Equipment setup'), findsOneWidget);
+    expect(find.text('Calibration frames'), findsOneWidget);
   });
 
   testWidgets(
@@ -267,7 +267,7 @@ void main() {
     final tutorialRow = find.byWidgetPredicate(
       (widget) =>
           widget is Semantics &&
-          widget.properties.label == 'Equipment Setup tutorial, Not started',
+          widget.properties.label == 'Equipment setup tutorial, Not started',
     );
     final startButton = find.descendant(
       of: tutorialRow,
@@ -278,7 +278,7 @@ void main() {
 
     expect(result.router.routeInformationProvider.value.uri.path, '/help');
     expect(
-      find.text('Could not start Equipment Setup. Please try again.'),
+      find.text('Could not start Equipment setup. Please try again.'),
       findsOneWidget,
     );
     expect(

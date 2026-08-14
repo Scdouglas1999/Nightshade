@@ -34,6 +34,7 @@ import 'dart:developer' as developer;
 import '../../models/backend/event_types.dart';
 import '../../models/notification/notification_categories.dart';
 import '../../providers/sequence/run_stop_classification.dart';
+import '../../utils/device_id.dart';
 
 /// The result of classifying a single backend event: the semantic
 /// [NotificationCategory], the context key/value pairs the templates need,
@@ -280,15 +281,42 @@ class NotificationEventClassifier {
     NightshadeEvent event,
   ) {
     if (event.eventType == 'Disconnected' || event.eventType == 'Error') {
+      final deviceType = (event.data['device_type'] as String?) ?? '';
+      final deviceId = (event.data['device_id'] as String?) ?? '';
       return (
         NotificationCategory.equipmentDisconnected,
         <String, String>{
-          'equipment.device_type': (event.data['device_type'] as String?) ?? '',
-          'equipment.device_id': (event.data['device_id'] as String?) ?? '',
+          'equipment.device_type': deviceType,
+          'equipment.device_id': deviceId,
+          // WD-EQ-2a: the operator-facing template renders this, never the
+          // raw id. `friendlyNameFromDeviceId` is the same resolver the run
+          // dashboard's feed uses, so a disconnect toast and the event feed
+          // cannot name one device two ways.
+          'equipment.device_name': _disconnectedDeviceName(deviceId, deviceType),
         },
       );
     }
     return null;
+  }
+
+  /// The name a disconnect notification calls the device.
+  ///
+  /// Falls back down a chain rather than ever emitting an empty fragment:
+  /// friendly name -> the device id we could not humanize -> the device type
+  /// -> a generic noun. The empty-string case is real: some backend
+  /// disconnect events carry no `device_id` at all (see
+  /// `UsbDisconnectLog.recordDisconnect`, which synthesises `<unknown>` for
+  /// the same reason), and "` disconnected.`" was the resulting sentence.
+  static String _disconnectedDeviceName(String deviceId, String deviceType) {
+    if (deviceId.isNotEmpty) {
+      final friendly = friendlyNameFromDeviceId(deviceId);
+      if (friendly.isNotEmpty && friendly != deviceId) return friendly;
+      // Unhumanizable id: prefer the type over dumping a wire identifier.
+      if (deviceType.isNotEmpty) return deviceType;
+      return friendly;
+    }
+    if (deviceType.isNotEmpty) return deviceType;
+    return 'A device';
   }
 
   static (NotificationCategory, Map<String, String>)? _classifySystem(

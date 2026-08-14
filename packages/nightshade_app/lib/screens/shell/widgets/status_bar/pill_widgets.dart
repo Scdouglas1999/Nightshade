@@ -217,6 +217,38 @@ class _InfoChip extends StatelessWidget {
 /// mount and no mount at all looked identical. The 24 px alpha fade was the
 /// only hint, and a fade is not a control: with a mouse there was nothing to
 /// click. This is.
+/// The truncation mark drawn where the pill strip is cut by its viewport.
+///
+/// WE-EQ-N5 residual: the E-fix capped a dense pill's value so "the strip fits
+/// a 1000 px bar". It does not — Wave F drove exactly 1000x800 with four
+/// devices connected and the strip still scrolled, with the pill at the cut
+/// reading "Si", sliced mid-word and dissolved by the edge fade. A viewport
+/// slice is not a truncation the reader can recognise; an ellipsis is, and it
+/// is what every other truncation in this app uses.
+///
+/// It lives OUTSIDE the scroll viewport, flush against its right edge: inside,
+/// it would scroll away with the very text it describes. Decorative for
+/// assistive tech — the scroll affordance beside it carries the meaning as a
+/// real, named control.
+class _PillsCutMarker extends StatelessWidget {
+  final NightshadeColors colors;
+
+  const _PillsCutMarker({required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    return ExcludeSemantics(
+      child: Text(
+        '…',
+        style: TextStyle(
+          fontSize: NightshadeTypography.fontSize11,
+          color: colors.textSecondary,
+        ),
+      ),
+    );
+  }
+}
+
 class _PillsOverflowAffordance extends StatelessWidget {
   final NightshadeColors colors;
   final VoidCallback onTap;

@@ -90,4 +90,58 @@ void main() {
           'not render (tabs: ${_renderedTabLabels.join(", ")})',
     );
   });
+
+  // WF-EQ-N3: the second repair named a REAL surface but pointed the wrong way.
+  // "build one in the Scheduler queue below" is true only at a stacked width;
+  // at 1600x900 the Scheduler queue panel occupies the right-hand column,
+  // starting at the same y as the card (29-schedule.png, 37-queue.png). These
+  // layouts are responsive by design, so no string in them can own a direction.
+  test('no planner copy points the reader in a physical direction', () {
+    final dir = Directory('lib/screens/planner');
+    expect(dir.existsSync(), isTrue,
+        reason: 'run from packages/nightshade_app');
+
+    // A direction word immediately after a named surface: "… queue below",
+    // "… panel above", "… list on the right".
+    final direction = RegExp(
+      r'\b(below|above|beneath|underneath|to the (?:left|right)|'
+      r'on the (?:left|right))\b',
+      caseSensitive: false,
+    );
+
+    final offenders = <String>[];
+    for (final entity in dir.listSync(recursive: true)) {
+      if (entity is! File || !entity.path.endsWith('.dart')) continue;
+      final lines = entity.readAsLinesSync();
+      for (var i = 0; i < lines.length; i++) {
+        final line = lines[i];
+        if (_isComment(line)) continue;
+        // Only user-visible copy: a quoted string. Identifiers and parameter
+        // names that happen to contain "above" are not directions.
+        if (!line.contains("'") && !line.contains('"')) continue;
+        for (final match in direction.allMatches(line)) {
+          // "above/below the horizon|meridian" is astronomy, not layout.
+          // Copy strings wrap across concatenated literals, so the words
+          // may continue on the next source line ("…above the ' + 'horizon");
+          // join one line ahead and strip the quotes before exempting.
+          var rest = line.substring(match.end);
+          if (i + 1 < lines.length) {
+            rest = '$rest ${lines[i + 1]}';
+          }
+          final restText = rest.replaceAll(RegExp('["\']'), '');
+          if (RegExp(r'^\s*the\s+(?:horizon|meridian)').hasMatch(restText)) {
+            continue;
+          }
+          offenders.add('${entity.path}:${i + 1}: "${match.group(0)}"');
+        }
+      }
+    }
+
+    expect(
+      offenders,
+      isEmpty,
+      reason: 'a responsive layout cannot promise where another panel sits; '
+          'name the surface and the tab instead',
+    );
+  });
 }

@@ -81,11 +81,16 @@ class _DecisionPanel extends ConsumerWidget {
             // on. The first repair then named a "Target Queue tab" that this
             // build does not have — it was merged into Schedule (see
             // planner_screen_parts/_schedule_tab.dart). Name the thing that is
-            // actually on screen: the Scheduler queue is rendered directly
-            // below this card, on this same tab.
+            // actually on screen: the Scheduler queue, on this same tab.
+            //
+            // WF-EQ-N3: the second repair added "below", which is true only at
+            // a stacked width — at 1600x900 the queue is the right-hand column,
+            // level with this card. A responsive layout cannot promise a
+            // direction, so the copy names the surface and the tab and stops
+            // there.
             'Runs hands-off and re-picks the best target all night as the sky '
             'changes. For a plan you can see and edit before it runs, build '
-            'one in the Scheduler queue below.',
+            'one in the Scheduler queue on this tab.',
             style: TextStyle(
               fontSize: NightshadeTypography.fontSize12,
               color: colors.textSecondary,

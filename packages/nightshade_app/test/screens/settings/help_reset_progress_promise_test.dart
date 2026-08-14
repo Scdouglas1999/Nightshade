@@ -100,7 +100,7 @@ void main() {
     await tester.tap(
       find.descendant(
         of: find.ancestor(
-          of: find.text('Reset All Progress'),
+          of: find.text('Reset all progress'),
           matching: find.byType(SettingRow),
         ),
         matching: find.widgetWithText(NightshadeButton, 'Reset'),

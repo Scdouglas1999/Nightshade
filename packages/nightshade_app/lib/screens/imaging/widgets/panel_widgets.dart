@@ -24,8 +24,16 @@ Widget _panelRowLabel(
   required String label,
   required TextStyle style,
   required FieldHelpId? helpId,
+
+  /// The control beside this label already carries the label in its own
+  /// accessible name (see [DropdownRow]), so publishing it here too would
+  /// leave a stranded `panel: Frame Type` node next to `button: Frame Type
+  /// Light`. The help affordance keeps its own node either way.
+  bool excludeLabelSemantics = false,
 }) {
-  final text = Text(label, style: style);
+  final Widget text = excludeLabelSemantics
+      ? ExcludeSemantics(child: Text(label, style: style))
+      : Text(label, style: style);
   if (helpId == null) {
     return text;
   }
@@ -715,6 +723,15 @@ class DropdownRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final isEnabled = onChanged != null;
 
+    // NEW-C3: the label and the control published as two adjacent, unrelated
+    // nodes — `panel: Frame Type` followed by `button: Light` — so assistive
+    // tech announced "Light" with nothing saying what was Light.
+    //
+    // The control now carries BOTH: one merged node reading "Frame Type Light"
+    // with the button role and the tap action. The visible label text is
+    // excluded from semantics so it does not linger beside it as a second,
+    // valueless node; the help affordance keeps its own node, because it is a
+    // separate thing to reach.
     return Row(
       children: [
         Expanded(
@@ -727,15 +744,21 @@ class DropdownRow extends StatelessWidget {
               color: isEnabled ? colors.textSecondary : colors.textMuted,
             ),
             helpId: helpId,
+            excludeLabelSemantics: true,
           ),
         ),
         Expanded(
           flex: NightshadeTokens.panelRowControlFlex,
-          child: NightshadeDropdown(
-            value: items.contains(value) ? value : null,
-            items: items,
-            isExpanded: true,
-            onChanged: onChanged,
+          child: MergeSemantics(
+            child: Semantics(
+              label: label,
+              child: NightshadeDropdown(
+                value: items.contains(value) ? value : null,
+                items: items,
+                isExpanded: true,
+                onChanged: onChanged,
+              ),
+            ),
           ),
         ),
       ],

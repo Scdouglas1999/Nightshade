@@ -420,7 +420,8 @@ class _TimeControlPanelState extends ConsumerState<TimeControlPanel> {
   Widget _buildNowButton(Color accent, {bool expanded = false}) {
     final button = TextButton.icon(
       icon: Icon(LucideIcons.clock, size: 14, color: accent),
-      label: Text('NOW', style: TextStyle(color: accent, fontSize: 11)),
+      // CON-56: Title case, like every other button in the build.
+      label: Text('Now', style: TextStyle(color: accent, fontSize: 11)),
       onPressed: _jumpToNow,
       style: TextButton.styleFrom(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -456,7 +457,8 @@ class _TimeControlPanelState extends ConsumerState<TimeControlPanel> {
         color: hasDusk ? accent : accent.withValues(alpha: 0.5),
       ),
       label: Text(
-        'TONIGHT',
+        // CON-56: Title case, like every other button in the build.
+        'Tonight',
         style: TextStyle(
           color: hasDusk ? accent : accent.withValues(alpha: 0.5),
           fontSize: 11,

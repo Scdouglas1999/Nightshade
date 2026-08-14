@@ -10,7 +10,7 @@
 //   button:            <- play / pause
 //   button:            <- step forward 1 h
 //   button:            <- fast forward / rate up
-//   button: NOW
+//   button: NOW      <- CON-56 has since retitled these two 'Now' / 'Tonight'
 //   button: TONIGHT
 //
 // Five bare buttons with empty names, no toggle state on play/pause, and the
@@ -90,8 +90,8 @@ void main() {
       'Pause time',
       'Forward 1 hour',
       'Faster', // fast forward / rate up
-      'NOW',
-      'TONIGHT',
+      'Now',
+      'Tonight',
     ]) {
       expect(
         _namedButton(tree, name),

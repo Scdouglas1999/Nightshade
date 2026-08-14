@@ -225,7 +225,7 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
                     ? 'No matching candidates'
                     : 'Tonight’s candidates',
                 subtitle: candidates.isEmpty
-                    ? 'Adjust filters below to bring more targets back.'
+                    ? 'Adjust the filters on this tab to bring more targets back.'
                     : '${candidates.length} target${candidates.length == 1 ? '' : 's'} after filters',
               ),
               const SizedBox(height: NightshadeTokens.spaceMd),

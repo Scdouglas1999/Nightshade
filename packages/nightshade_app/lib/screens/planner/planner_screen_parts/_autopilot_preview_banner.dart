@@ -55,7 +55,8 @@ class _AutopilotPreviewBanner extends ConsumerWidget {
       title = 'No targets in your scheduler queue';
       subtitle =
           'The autopilot runs targets from the scheduler queue, which is '
-          'empty. The Night Outlook below is your object catalog — add targets '
+          'empty. The Night Outlook on this tab is your object catalog — add '
+          'targets '
           'to the scheduler queue (with integration goals) for the autopilot '
           'to run them. It is a different list from the builder\'s Target '
           'Queue.';
@@ -65,7 +66,8 @@ class _AutopilotPreviewBanner extends ConsumerWidget {
       subtitle =
           'The scheduler queue has targets, but none pass right now (e.g. '
           'still below the horizon, or their filters are not in the active '
-          'wheel). The outlook below shows when they become available tonight.';
+          'wheel). The Night Outlook shows when they become available '
+          'tonight.';
     }
 
     return Container(

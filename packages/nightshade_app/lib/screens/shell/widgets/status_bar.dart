@@ -332,6 +332,14 @@ class _StatusBarState extends ConsumerState<StatusBar> {
       // it and no separator, so the bar read as broken rather than scrolled.
       // The scrolling region always ends at a rule now, whatever it is showing.
       if (!widget.compact) ...[
+        // WE-EQ-N5 residual: the cap the E-fix added did NOT make the strip
+        // fit — at 1000 px it still scrolls, and the pill at the viewport
+        // edge was still sliced mid-word ("Si") and dissolved by the fade
+        // with nothing saying it had been cut. An ellipsis is how this app
+        // says "truncated" everywhere else, so the cut gets one; it is drawn
+        // OUTSIDE the viewport, flush against it, because inside it would be
+        // scrolled away with the text it describes.
+        if (_pillsCutRight) _PillsCutMarker(colors: colors),
         if (_pillsOverflow)
           _PillsOverflowAffordance(
             colors: colors,
@@ -422,34 +430,42 @@ class _StatusBarState extends ConsumerState<StatusBar> {
                 // all the slack — the job the old Spacer did — and scroll only
                 // once the slack runs out.
                 Expanded(
-                  child: NotificationListener<ScrollMetricsNotification>(
+                  child: NotificationListener<ScrollNotification>(
+                    // Layout changes arrive as ScrollMetricsNotification;
+                    // dragging arrives as ScrollNotification. Both change
+                    // whether anything is still hidden to the right, and the
+                    // fade and the cut mark are only honest if they track it.
                     onNotification: (notification) {
-                      _setPillsOverflow(
-                        notification.metrics.maxScrollExtent > 0,
-                      );
+                      _updatePillsOverflow(notification.metrics);
                       return false;
                     },
-                    // Even after the labels are shed, a narrow bar with a long
-                    // profile name can still hold more pills than fit. Scrolling
-                    // alone is silent — the bar simply ended and looked complete,
-                    // so a disconnected mount was indistinguishable from no mount
-                    // at all. The fade says "there is more this way"; it appears
-                    // only while the group actually overflows.
-                    child: _pillsOverflow
-                        ? ShaderMask(
-                            shaderCallback: _fadeRightEdge,
-                            blendMode: BlendMode.dstIn,
-                            child: SingleChildScrollView(
+                    child: NotificationListener<ScrollMetricsNotification>(
+                      onNotification: (notification) {
+                        _updatePillsOverflow(notification.metrics);
+                        return false;
+                      },
+                      // Even after the labels are shed, a narrow bar with a long
+                      // profile name can still hold more pills than fit. Scrolling
+                      // alone is silent — the bar simply ended and looked complete,
+                      // so a disconnected mount was indistinguishable from no mount
+                      // at all. The fade says "there is more this way"; it appears
+                      // only while the group actually overflows.
+                      child: _pillsCutRight
+                          ? ShaderMask(
+                              shaderCallback: _fadeRightEdge,
+                              blendMode: BlendMode.dstIn,
+                              child: SingleChildScrollView(
+                                controller: _pillsController,
+                                scrollDirection: Axis.horizontal,
+                                child: Row(children: leading),
+                              ),
+                            )
+                          : SingleChildScrollView(
                               controller: _pillsController,
                               scrollDirection: Axis.horizontal,
                               child: Row(children: leading),
                             ),
-                          )
-                        : SingleChildScrollView(
-                            controller: _pillsController,
-                            scrollDirection: Axis.horizontal,
-                            child: Row(children: leading),
-                          ),
+                    ),
                   ),
                 ),
                 ...trailing,
@@ -458,8 +474,15 @@ class _StatusBarState extends ConsumerState<StatusBar> {
     );
   }
 
-  /// True while the pill group has content past its right edge.
+  /// True while the pill group is wider than its viewport at all — i.e. some
+  /// pill is unreachable without scrolling. Drives the scroll affordance,
+  /// which stays offered even at the end of the strip (it wraps back).
   bool _pillsOverflow = false;
+
+  /// True while content is hidden PAST THE RIGHT EDGE right now. Drives the
+  /// edge fade and the truncation mark, both of which are claims about the
+  /// current scroll offset, not about the strip's total width.
+  bool _pillsCutRight = false;
 
   /// Drives the pill strip so the overflow affordance can actually move it —
   /// a fade alone told the operator there was more without offering any way to
@@ -488,13 +511,19 @@ class _StatusBarState extends ConsumerState<StatusBar> {
     );
   }
 
-  void _setPillsOverflow(bool value) {
-    if (_pillsOverflow == value) return;
+  void _updatePillsOverflow(ScrollMetrics metrics) {
+    final overflow = metrics.maxScrollExtent > 0;
+    final cutRight = overflow && metrics.pixels < metrics.maxScrollExtent - 0.5;
+    if (_pillsOverflow == overflow && _pillsCutRight == cutRight) return;
     // The notification arrives during layout; defer so this is not a setState
     // inside a build.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _pillsOverflow == value) return;
-      setState(() => _pillsOverflow = value);
+      if (!mounted) return;
+      if (_pillsOverflow == overflow && _pillsCutRight == cutRight) return;
+      setState(() {
+        _pillsOverflow = overflow;
+        _pillsCutRight = cutRight;
+      });
     });
   }
 

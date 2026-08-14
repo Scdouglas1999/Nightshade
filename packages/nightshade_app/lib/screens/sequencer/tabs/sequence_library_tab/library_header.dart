@@ -9,6 +9,12 @@ class _LibraryHeader extends ConsumerStatefulWidget {
   ConsumerState<_LibraryHeader> createState() => _LibraryHeaderState();
 }
 
+/// Width the desktop search field takes. Fixed rather than flexible so the
+/// heading beside it is the control that absorbs the row's slack (WF-EQ-N1);
+/// it is the width the old `maxWidth: 250` box reached at every desktop size
+/// anyway.
+const double _searchFieldWidth = 250;
+
 class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
   final _searchController = TextEditingController();
 
@@ -75,11 +81,15 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
 
     return Row(
       children: [
-        // Title
-        Flexible(child: _buildTitle()),
+        // Title. WF-EQ-N1: this was `Flexible` beside a `Spacer`, so the row's
+        // free space was split three ways and at 1000x800 the heading was left
+        // with "Sequenc…" — the tab no longer named itself. Expanded gives the
+        // heading every pixel the toolbar does not need, and the toolbar's
+        // widths are now fixed rather than competing for a flex share, so the
+        // controls stay right-aligned at any width.
+        Expanded(child: _buildTitle()),
 
         const SizedBox(width: 16),
-        const Spacer(),
 
         // Sort dropdown
         _buildSortControl(sortOrder),
@@ -87,7 +97,7 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
         const SizedBox(width: 16),
 
         // Search
-        Flexible(child: _buildSearch()),
+        SizedBox(width: _searchFieldWidth, child: _buildSearch()),
 
         const SizedBox(width: 16),
 

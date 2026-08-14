@@ -37,7 +37,8 @@ class _ActiveProjectProgress extends ConsumerWidget {
           return const EmptyState.compact(
             icon: LucideIcons.folderOpen,
             title: 'Select a project',
-            body: 'Choose a project above to see its targets and progress.',
+            body: 'Choose a project from the list to see its targets and '
+                'progress.',
           );
         }
 

@@ -68,7 +68,8 @@ class _NoTargetsEmptyStateState extends ConsumerState<_NoTargetsEmptyState> {
       case _EmptyQueueCause.awaitingFirstEval:
         headline = 'No decision yet';
         body = 'The scheduler has not evaluated any targets yet. Press Start '
-            'in the panel on the left, or tap Re-evaluate to compute an '
+            'in the Unattended Autopilot panel, or tap Re-evaluate to '
+            'compute an '
             'initial decision against the current target catalog.';
       case _EmptyQueueCause.activeProjectEmpty:
         headline = 'Project "$projectName" has no targets';

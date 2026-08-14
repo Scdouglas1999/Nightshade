@@ -208,7 +208,13 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
           children: [
             // Title (CON-52: the one Sequencer tab heading, shared by all four
             // tabs so the type scale and the punctuation cannot drift again).
-            const Flexible(
+            // WF-EQ-N1: Expanded, not Flexible. Two Flexible children split
+            // the row's free space evenly, so at 1000x800 the heading was left
+            // with "Sequence Te…" while the search box held its 250 px — the
+            // tab stopped naming itself so a filter field could keep its full
+            // width. The toolbar's width is fixed now; the heading takes the
+            // rest.
+            const Expanded(
               child: SequencerTabTitle(
                 title: 'Sequence Templates',
                 subtitle:
@@ -218,58 +224,54 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
 
             const SizedBox(width: 16),
 
-            // Search - flexible width based on available space
-            Flexible(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minWidth: 150, maxWidth: 250),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  decoration: BoxDecoration(
-                    color: widget.colors.surfaceAlt,
-                    borderRadius:
-                        BorderRadius.circular(NightshadeTokens.radiusLg),
-                    border: Border.all(color: widget.colors.border),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(LucideIcons.search,
-                          size: 16, color: widget.colors.textMuted),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: TextField(
-                          controller: _searchController,
-                          onChanged: (value) {
-                            ref.read(templateSearchProvider.notifier).state =
-                                value;
-                          },
-                          style: TextStyle(
+            SizedBox(
+              width: 250,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: BoxDecoration(
+                  color: widget.colors.surfaceAlt,
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusLg),
+                  border: Border.all(color: widget.colors.border),
+                ),
+                child: Row(
+                  children: [
+                    Icon(LucideIcons.search,
+                        size: 16, color: widget.colors.textMuted),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        onChanged: (value) {
+                          ref.read(templateSearchProvider.notifier).state =
+                              value;
+                        },
+                        style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize13,
+                          color: widget.colors.textPrimary,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Search...',
+                          hintStyle: TextStyle(
                             fontSize: NightshadeTypography.fontSize13,
-                            color: widget.colors.textPrimary,
+                            color: widget.colors.textMuted,
                           ),
-                          decoration: InputDecoration(
-                            hintText: 'Search...',
-                            hintStyle: TextStyle(
-                              fontSize: NightshadeTypography.fontSize13,
-                              color: widget.colors.textMuted,
-                            ),
-                            border: InputBorder.none,
-                            contentPadding:
-                                const EdgeInsets.symmetric(vertical: 12),
-                          ),
+                          border: InputBorder.none,
+                          contentPadding:
+                              const EdgeInsets.symmetric(vertical: 12),
                         ),
                       ),
-                      if (_searchController.text.isNotEmpty)
-                        GestureDetector(
-                          onTap: () {
-                            _searchController.clear();
-                            ref.read(templateSearchProvider.notifier).state =
-                                '';
-                          },
-                          child: Icon(LucideIcons.x,
-                              size: 16, color: widget.colors.textMuted),
-                        ),
-                    ],
-                  ),
+                    ),
+                    if (_searchController.text.isNotEmpty)
+                      GestureDetector(
+                        onTap: () {
+                          _searchController.clear();
+                          ref.read(templateSearchProvider.notifier).state = '';
+                        },
+                        child: Icon(LucideIcons.x,
+                            size: 16, color: widget.colors.textMuted),
+                      ),
+                  ],
                 ),
               ),
             ),
