@@ -6,6 +6,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../../localization/nightshade_localizations.dart';
+import '../../../sequencer/run_status_presentation.dart';
 import '../glass_card.dart';
 
 /// Recap of the most recent sequence run: status, name, relative time, and —
@@ -198,11 +199,15 @@ class LastNightRecapCard extends ConsumerWidget {
       case 'running':
         return l10n.text('dbRunRunning');
       default:
-        // An unrecognised status is data, not copy: show it rather than
-        // inventing a translated label for a state we do not know.
-        return status.isEmpty
-            ? l10n.text('dbRunUnknown')
-            : '${status[0].toUpperCase()}${status.substring(1)}';
+        // WE-SEQ-N4: this arm used to capitalise the raw token, so a run the
+        // operator stopped read "Paused-stopped · 1 hour ago" — the schema's
+        // vocabulary, and a false claim (nothing was paused; the token means
+        // "stopped with the checkpoint kept"). SEQ-6 replaced that wording on
+        // every OTHER surface, and this card had its own copy of the mapping.
+        // There is one mapping now: [runStatusLabel], which also owns the
+        // readable degradation for a status neither knows.
+        if (status.isEmpty) return l10n.text('dbRunUnknown');
+        return runStatusLabel(status);
     }
   }
 

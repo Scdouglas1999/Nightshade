@@ -101,6 +101,9 @@ class _DesktopBuilderLayout extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final toolboxCollapsed = ref.watch(sequencerToolboxCollapsedProvider);
     final propertiesCollapsed = ref.watch(sequencerPropertiesCollapsedProvider);
+    // WE-SEQ-N7: the operator's answer to the derived collapse below.
+    final toolboxForceOpen = ref.watch(sequencerToolboxForceOpenProvider);
+    final propertiesForceOpen = ref.watch(sequencerPropertiesForceOpenProvider);
     final persistedLeftWidth = ref.watch(sequencerLeftPanelWidthProvider);
     final persistedRightWidth = ref.watch(sequencerRightPanelWidthProvider);
 
@@ -116,6 +119,21 @@ class _DesktopBuilderLayout extends ConsumerWidget {
 
     return Column(
       children: [
+        // CON-52: Builder was the one Sequencer tab with no heading at all,
+        // while its three siblings each had a different one. It gets the same
+        // shared heading; the toolbar below still carries the live sequence's
+        // own name and actions.
+        const Padding(
+          padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: SequencerTabTitle(
+              title: 'Sequence Builder',
+              subtitle: 'Assemble the instructions tonight\'s run executes.',
+            ),
+          ),
+        ),
+
         // Top toolbar
         SequenceToolbar(key: SequencerTutorialKeys.toolbar, colors: colors),
 
@@ -177,10 +195,17 @@ class _DesktopBuilderLayout extends ConsumerWidget {
               final autoCollapseProperties =
                   centerWithToolboxCollapsed < comfortableCenterWidth;
 
-              final effectiveToolboxCollapsed =
-                  toolboxCollapsed || autoCollapseToolbox;
-              final effectivePropertiesCollapsed =
-                  propertiesCollapsed || autoCollapseProperties;
+              // The derived collapse is the DEFAULT at this width, not a
+              // verdict: an explicit "show me" always wins (WE-SEQ-N7). Without
+              // the override the toggle icons were inert at ~900px — the
+              // effective state was `pref || derived`, so flipping the pref
+              // changed nothing on screen and the operator could neither add
+              // nor edit a node. The operator's own collapse still wins over
+              // their own force-open, which is what the toggle writes.
+              final effectiveToolboxCollapsed = toolboxCollapsed ||
+                  (autoCollapseToolbox && !toolboxForceOpen);
+              final effectivePropertiesCollapsed = propertiesCollapsed ||
+                  (autoCollapseProperties && !propertiesForceOpen);
 
               // Derived expanded widths. When space is tight, both panels use
               // their min width. Otherwise a panel may grow to its expanded
@@ -218,12 +243,17 @@ class _DesktopBuilderLayout extends ConsumerWidget {
                     side: ResizeSide.right,
                     collapsedIcon: LucideIcons.layoutGrid,
                     collapsedTooltip: 'Show Toolbox',
+                    // Toggle from what the operator SEES, not from the pref:
+                    // when the pane is only collapsed because the layout
+                    // derived it, reading the pref made "open it" a no-op.
                     onToggle: () {
-                      final wasCollapsed =
-                          ref.read(sequencerToolboxCollapsedProvider);
+                      final opening = effectiveToolboxCollapsed;
                       ref
                           .read(sequencerToolboxCollapsedProvider.notifier)
-                          .state = !wasCollapsed;
+                          .state = !opening;
+                      ref
+                          .read(sequencerToolboxForceOpenProvider.notifier)
+                          .state = opening;
                     },
                     // §6: persist a drag so it survives the next layout pass
                     // instead of snapping back to the derived width.
@@ -237,6 +267,9 @@ class _DesktopBuilderLayout extends ConsumerWidget {
                         ref
                             .read(sequencerToolboxCollapsedProvider.notifier)
                             .state = true;
+                        ref
+                            .read(sequencerToolboxForceOpenProvider.notifier)
+                            .state = false;
                       },
                     ),
                   ),
@@ -267,11 +300,13 @@ class _DesktopBuilderLayout extends ConsumerWidget {
                     collapsedIcon: LucideIcons.settings2,
                     collapsedTooltip: 'Show Properties',
                     onToggle: () {
-                      final wasCollapsed =
-                          ref.read(sequencerPropertiesCollapsedProvider);
+                      final opening = effectivePropertiesCollapsed;
                       ref
                           .read(sequencerPropertiesCollapsedProvider.notifier)
-                          .state = !wasCollapsed;
+                          .state = !opening;
+                      ref
+                          .read(sequencerPropertiesForceOpenProvider.notifier)
+                          .state = opening;
                     },
                     onWidthChanged: (w) => ref
                         .read(sequencerRightPanelWidthProvider.notifier)
@@ -283,6 +318,9 @@ class _DesktopBuilderLayout extends ConsumerWidget {
                         ref
                             .read(sequencerPropertiesCollapsedProvider.notifier)
                             .state = true;
+                        ref
+                            .read(sequencerPropertiesForceOpenProvider.notifier)
+                            .state = false;
                       },
                     ),
                   ),

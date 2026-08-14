@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/backend/event_types.dart';
@@ -5,6 +7,7 @@ import '../../models/sequence/instruction_progress_detail.dart';
 import '../../models/sequence/sequence_models.dart';
 import '../equipment/camera_state_provider.dart';
 import '../sequence_stats_provider.dart' show currentRunIdProvider;
+import 'run_stop_classification.dart';
 
 // =============================================================================
 // EXECUTION STATE
@@ -418,6 +421,25 @@ void applySequencerEventToSequenceProviders(
 
     case 'Error':
       final message = data['message'] as String? ?? 'Unknown error';
+      // PRODUCER 2b of the stop pipeline — the SECOND implementation of the
+      // sequencer-Error handler. `SequenceExecutor._handleSequencerEvent` has
+      // the same `case 'Error'`, and on a desktop host BOTH are live for the
+      // same run (this pump is driven by DeviceService from app start, the
+      // executor's only while a run it owns is alive). Fixing one and not the
+      // other leaves the rollup still reading "Error: Sequence cancelled" —
+      // the exact trap this batch was chartered on, so the pin
+      // `run_stop_classification_producers_test.dart` asserts on both.
+      if (isSequenceCancelledNotice(message)) {
+        developer.log(
+          '[$kStopClassificationLogTag] sequence_progress pump: cancellation '
+          'notice treated as a stop, not an error',
+          name: 'SequenceProgress',
+        );
+        progressNotifier.updateProgress(
+          message: kSequenceStoppedByRequestMessage,
+        );
+        break;
+      }
       progressNotifier.updateProgress(message: 'Error: $message');
       break;
   }

@@ -202,6 +202,10 @@ export 'src/providers/imaging_viewer_state_provider.dart';
 export 'src/providers/sequence_provider.dart';
 export 'src/providers/sequence/remote_sequence_editor_sync.dart';
 export 'src/providers/sequence_stats_provider.dart';
+// The one predicate every surface asks before calling a run's end an error.
+export 'src/providers/sequence/run_stop_classification.dart';
+// The one vocabulary for an exposure node's per-frame progress line.
+export 'src/providers/sequence/exposure_progress_vocabulary.dart';
 // Thumbnail — inline frame thumbnails in the sequence tree.
 export 'src/providers/sequence/exposure_node_thumbnails_provider.dart';
 // Plugin-node dispatcher abstraction. The app entry
@@ -349,6 +353,9 @@ export 'src/utils/device_id.dart'
         isPhd2DeviceId,
         deviceIdsMatch,
         friendlyNameFromDeviceId,
+        kBuiltinGuiderDisplayName,
+        kBuiltinGuiderIdPrefix,
+        kSimulatorDeviceDisplayNames,
         kPhd2CanonicalId;
 export 'src/services/phd2_status_poll.dart';
 export 'src/services/phd2_probe.dart'
@@ -411,6 +418,9 @@ export 'src/services/scheduler/target_constraint_service.dart';
 // `show` import; we hide it from the barrel so the scheduler's profile is the
 // canonical public class.
 export 'src/services/scheduler/horizon_profile.dart';
+// The single rejection-reason ladder shared by the engine's decision record
+// and the queue row's STATUS chip (WD-SEQ-N4).
+export 'src/services/scheduler/rejection_labels.dart';
 export 'src/services/scheduler/sky_calculations.dart';
 export 'src/providers/scheduler_provider.dart';
 // Multi-Night & Forecast Planning (Roadmap #5) — services + Riverpod wiring.

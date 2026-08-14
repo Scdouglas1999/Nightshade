@@ -40,4 +40,39 @@ void main() {
     expect(classified?.category, NotificationCategory.sequenceFailed);
     expect(NotificationCategory.sequenceFailed.isCritical, isTrue);
   });
+
+  // Wave E: the Stop the operator presses does NOT reach this classifier as
+  // `Stopped`. The native executor emits `Error { message: "Sequence cancelled" }`
+  // first, and that is what produced the red "Sequence failed / Sequence
+  // aborted at …" toast at the same second as a Session Report titled
+  // "Stopped (resumable)".
+  test(
+    'the cancellation notice arriving as an Error classifies as stopped',
+    () {
+      final classified = NotificationEventClassifier.classify(
+        _sequencerWithData('Error', const {'message': 'Sequence cancelled'}),
+      );
+      expect(classified?.category, NotificationCategory.sequenceStopped);
+    },
+  );
+
+  test('a fault whose text contains "cancelled" is still a failure', () {
+    final classified = NotificationEventClassifier.classify(
+      _sequencerWithData('Error', const {
+        'message': 'Temperature compensation cancelled',
+      }),
+    );
+    expect(classified?.category, NotificationCategory.sequenceFailed);
+  });
 }
+
+NightshadeEvent _sequencerWithData(
+  String eventType,
+  Map<String, dynamic> data,
+) => NightshadeEvent(
+  timestamp: DateTime.now().millisecondsSinceEpoch,
+  severity: EventSeverity.error,
+  category: EventCategory.sequencer,
+  eventType: eventType,
+  data: data,
+);

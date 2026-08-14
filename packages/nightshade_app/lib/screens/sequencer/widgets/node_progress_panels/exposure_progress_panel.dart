@@ -48,20 +48,33 @@ class _ExposureProgressPanel extends StatelessWidget {
     final exposureDetail = structuredDetail is ExposureInstructionProgressDetail
         ? structuredDetail as ExposureInstructionProgressDetail
         : null;
-    // Compatibility fallback: older / remote backends that have not been
-    // upgraded to the typed ExposureInstructionProgressDetail still emit a
-    // plain "Frame 3/10" string. The typed path above is preferred; this
-    // regex only runs when it is absent. Kept (not deleted) until every
-    // shipped backend is confirmed to populate the typed detail.
-    final frameMatch = RegExp(r'Frame (\d+)/(\d+)').firstMatch(detail);
-    final totalFrames = exposureDetail?.total ??
-        int.tryParse(frameMatch?.group(2) ?? '') ??
-        node.count;
-    final liveFrame =
-        exposureDetail?.frame ?? int.tryParse(frameMatch?.group(1) ?? '') ?? 0;
-    // A finished node has no frame in flight; every planned frame is done.
-    final currentFrame = isComplete ? 0 : liveFrame;
-    final completedFrames = isComplete ? totalFrames : liveFrame - 1;
+    // The node's own progress line, in EITHER of the two wordings the executor
+    // writes: "Frame 3/4 (R)" while a frame is exposing, "Completed 3/4" once
+    // it lands. This card only understood the first, and the LAST line a
+    // successful run leaves behind is the second — so 4 captured frames parsed
+    // as none and the card read "0 / 4 frames" over four thumbnails (SEQ-18,
+    // three strikes). One vocabulary now: nightshade_core's
+    // [parseExposureProgressDetail], round-trip-tested against the formatters
+    // the executor uses.
+    //
+    // The typed ExposureInstructionProgressDetail is still preferred when
+    // present; it always describes a frame in flight.
+    final parsedDetail = parseExposureProgressDetail(detail);
+    final totalFrames =
+        exposureDetail?.total ?? parsedDetail?.total ?? node.count;
+    final liveFrame = exposureDetail?.frame ?? parsedDetail?.frame ?? 0;
+    final liveFrameIsDone =
+        exposureDetail == null && (parsedDetail?.frameCompleted ?? false);
+    // A node is finished when its status says so OR when its own last line
+    // reports the final planned frame captured. The status is not always what
+    // reaches this card — that is precisely how SEQ-18 survived a fix keyed on
+    // it — so the line the run left behind is the second, independent witness.
+    final isDone = isComplete || (liveFrameIsDone && liveFrame >= totalFrames);
+    // A finished node — and a node between frames — has nothing in flight.
+    final currentFrame = (isDone || liveFrameIsDone) ? 0 : liveFrame;
+    final completedFrames =
+        isDone ? totalFrames : (liveFrameIsDone ? liveFrame : liveFrame - 1);
+    final headerFrames = isDone ? totalFrames : liveFrame;
     final durationSecs =
         exposureDetail != null && exposureDetail.durationSecs > 0
             ? exposureDetail.durationSecs
@@ -95,8 +108,7 @@ class _ExposureProgressPanel extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                '${isComplete ? totalFrames : currentFrame} / $totalFrames '
-                'frames',
+                '$headerFrames / $totalFrames frames',
                 style: TextStyle(
                   fontSize: NightshadeTypography.fontSize10,
                   color: colors.textMuted,

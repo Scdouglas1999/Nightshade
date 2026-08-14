@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 // The typed bridge event union (`NightshadeEvent` / `EventCategory` /
@@ -536,6 +538,28 @@ bool _isAtLeastError(ns_events.NightshadeEvent event) =>
     event.severity == ns_events.EventSeverity.error ||
     event.severity == ns_events.EventSeverity.critical;
 
+/// True when this bridge event is the operator's Stop wearing an error's
+/// clothes.
+///
+/// PRODUCER 3 of the stop pipeline. The native executor ends a cancelled run
+/// with `SequencerEvent.Error(message: "Sequence cancelled")`, and that payload
+/// variant is on the `isCriticalEvent` allow-list — so a deliberate Stop
+/// produced a red "Critical · Sequencer" toast, a full-width red Dashboard
+/// banner titled "Sequencer error", and a RECENT EVENTS row saying the same,
+/// all at the same second as a Session Report titled "Stopped (resumable)".
+///
+/// The predicate itself lives in the core so the notification classifier, the
+/// executor's own handler and this bridge cannot disagree about what the notice
+/// is; only the exact notice is reclassified (a fault whose text merely
+/// contains "cancelled" is still an error).
+bool isOperatorStopNotice(ns_events.NightshadeEvent event) {
+  final payload = event.payload;
+  if (payload is! ns_events.EventPayload_Sequencer) return false;
+  final sequencerEvent = payload.field0;
+  if (sequencerEvent is! ns_events.SequencerEvent_Error) return false;
+  return isSequenceCancelledNotice(sequencerEvent.message);
+}
+
 /// Convert a freezed bridge event into the dashboard's compact model.
 ///
 /// Uses the exhaustive switch helpers in `event_display.dart` so a new
@@ -543,6 +567,20 @@ bool _isAtLeastError(ns_events.NightshadeEvent event) =>
 /// "Unknown event" row on the live rig.
 RunDashboardEvent _toDashboardEvent(ns_events.NightshadeEvent event) {
   final ms = event.timestamp.toInt();
+  // A stop is still worth a row in the feed — it is how the operator
+  // reconstructs the night — but it is an INFO row that says what happened,
+  // not a critical "Sequencer error".
+  if (isOperatorStopNotice(event)) {
+    return RunDashboardEvent(
+      eventId: event.eventId,
+      time: DateTime.fromMillisecondsSinceEpoch(ms),
+      severity: RunDashboardEventSeverity.info,
+      category: _categoryLabel(event.category),
+      title: 'Sequence stopped',
+      message: kSequenceStoppedByRequestMessage,
+      isCritical: false,
+    );
+  }
   final severity = _mapSeverity(event.severity);
   // `isCriticalEvent` classifies by PAYLOAD type, so on its own it will promote
   // a benign event to critical whenever a payload is reused for something
@@ -886,6 +924,19 @@ final runDashboardCriticalEventsBridgeProvider = Provider<void>((ref) {
         }
         if (event.severity == ns_events.EventSeverity.info) continue;
         if (!ns_events.isCriticalEvent(event)) continue;
+        // The operator's own Stop arrives here as a critical sequencer Error
+        // (see [isOperatorStopNotice]). It is not an alert: no red banner, no
+        // "Critical · Sequencer" toast, no audible alarm, no phone page for a
+        // button the operator just pressed. It still reaches the feed as an
+        // info row via [_toDashboardEvent].
+        if (isOperatorStopNotice(event)) {
+          developer.log(
+            '[$kStopClassificationLogTag] run_dashboard bridge: cancellation '
+            'notice not escalated',
+            name: 'RunDashboardCriticalEventsBridge',
+          );
+          continue;
+        }
         if (_isRestatedFailureReason(event, escalatedSequencerFailureReasons)) {
           continue;
         }

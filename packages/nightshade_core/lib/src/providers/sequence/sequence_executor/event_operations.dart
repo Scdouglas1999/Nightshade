@@ -109,8 +109,13 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         final frame = event.data['frame'] as int? ?? 0;
         final total = event.data['total'] as int? ?? 0;
         final filter = event.data['filter'] as String?;
-        final exposureDetail =
-            'Frame $frame/$total${filter != null ? ' ($filter)' : ''}';
+        // One vocabulary for the two wordings this node's progress line can
+        // take — see [exposure_progress_vocabulary.dart] and SEQ-18.
+        final exposureDetail = formatExposureStartedDetail(
+          frame,
+          total,
+          filter,
+        );
         progressNotifier.updateProgress(
           message: 'Exposing $exposureDetail',
           currentFilter: filter,
@@ -176,7 +181,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
           progressNotifier.updateNodeProgress(
             completedNodeId,
             completedPercent,
-            'Completed $frame/$total',
+            formatExposureCompletedDetail(frame, total),
           );
         }
 
@@ -233,6 +238,26 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         // Running -> Recovering for this compatibility event.
         if (message.startsWith('SkipToNode request accepted:')) {
           progressNotifier.updateProgress(message: message);
+          break;
+        }
+        // PRODUCER 2 of the stop pipeline (the Sequencer target rollup, which
+        // rendered a red "Error: Sequence cancelled", the red node badge, and
+        // the run's persisted error list — the Session Report then had to
+        // filter that entry back out).
+        //
+        // A cancelled run ends with `Error { message: "Sequence cancelled" }`
+        // from the native executor. It is a lifecycle notice, not a fault: it
+        // must not poison run stats, paint a node red, or push a stopping run
+        // into `recovering` as if something were being salvaged.
+        if (isSequenceCancelledNotice(message)) {
+          _logger.info(
+            '[$kStopClassificationLogTag] sequence_executor: cancellation '
+            'notice treated as a stop, not an error',
+            source: 'SequenceExecutor',
+          );
+          progressNotifier.updateProgress(
+            message: kSequenceStoppedByRequestMessage,
+          );
           break;
         }
         _recordRunError(message);

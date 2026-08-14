@@ -413,6 +413,17 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
   }
 
   Widget _buildAltitudeChart(TargetHeaderNode node) {
+    // WE-SEQ-N2: the same card said "RA Not set · Dec Not set · Needs
+    // coordinates" AND plotted a full curve with "Alt 44.7° / Airmass 1.42 /
+    // Rise 15:03 / Transit 21:06" — the numbers for the 0h/+0° placeholder a
+    // Target node is born with, presented as this target's night. An altitude
+    // curve for a pointing nobody chose is a fabricated observation plan: it is
+    // read as "this target transits at 21:06", and it is wrong for whatever
+    // object the operator has in mind.
+    //
+    // Same predicate as the coordinate row and the "Needs coordinates" footer,
+    // so the three cannot disagree.
+    final unset = targetCoordinatesUnset(node);
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
@@ -421,11 +432,30 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
               BorderSide(color: widget.colors.border.withValues(alpha: 0.5)),
         ),
       ),
-      child: AltitudeChart(
-        raHours: node.raHours,
-        decDegrees: node.decDegrees,
-        targetName: node.targetName,
-      ),
+      child: unset
+          ? Row(
+              children: [
+                Icon(
+                  LucideIcons.mapPin,
+                  size: 14,
+                  color: widget.colors.textMuted,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Set coordinates to see this target rise, transit and set.',
+                    style: NightshadeTypography.caption.copyWith(
+                      color: widget.colors.textMuted,
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : AltitudeChart(
+              raHours: node.raHours,
+              decDegrees: node.decDegrees,
+              targetName: node.targetName,
+            ),
     );
   }
 

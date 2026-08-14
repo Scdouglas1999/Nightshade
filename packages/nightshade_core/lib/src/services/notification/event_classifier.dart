@@ -29,8 +29,11 @@
 //
 // This classifier is intentionally pure and side-effect free.
 
+import 'dart:developer' as developer;
+
 import '../../models/backend/event_types.dart';
 import '../../models/notification/notification_categories.dart';
+import '../../providers/sequence/run_stop_classification.dart';
 
 /// The result of classifying a single backend event: the semantic
 /// [NotificationCategory], the context key/value pairs the templates need,
@@ -108,6 +111,14 @@ class NotificationEventClassifier {
     }
   }
 
+  /// The text a sequencer `Error` carries. The FFI mapper writes `message`;
+  /// the remote/WebSocket envelope has been seen using `error` for the same
+  /// field, so both are read before giving up.
+  static String _sequencerErrorMessage(NightshadeEvent event) =>
+      (event.data['message'] as String?) ??
+      (event.data['error'] as String?) ??
+      '';
+
   static (NotificationCategory, Map<String, String>)? _classifySequencer(
     NightshadeEvent event,
   ) {
@@ -119,6 +130,22 @@ class NotificationEventClassifier {
       case 'Stopped':
         return (NotificationCategory.sequenceStopped, <String, String>{});
       case 'Error':
+        // PRODUCER 1 of the stop pipeline (toast "Sequence failed / Sequence
+        // aborted at …", and the phone push behind it).
+        //
+        // A cancelled run reaches Dart as a sequencer ERROR carrying the notice
+        // "Sequence cancelled" — the `Stopped` lifecycle event arrives
+        // separately — so classifying the payload type alone told the operator
+        // their own Stop was a failure. Only the exact notice is reclassified;
+        // see [isSequenceCancelledNotice] for why the match is not a substring.
+        if (isSequenceCancelledNotice(_sequencerErrorMessage(event))) {
+          developer.log(
+            '[$kStopClassificationLogTag] event_classifier: sequencer Error '
+            'carrying the cancellation notice -> sequenceStopped',
+            name: 'NotificationEventClassifier',
+          );
+          return (NotificationCategory.sequenceStopped, <String, String>{});
+        }
         return (NotificationCategory.sequenceFailed, <String, String>{});
       case 'Paused':
         return (NotificationCategory.sequencePaused, <String, String>{});

@@ -28,6 +28,7 @@ import 'widgets/session_report_dialog.dart';
 import 'widgets/equipment_telemetry_strip.dart';
 import 'widgets/mobile_playback_bar.dart';
 import 'widgets/target_queue_panel.dart';
+import 'widgets/sequencer_tab_header.dart';
 import 'tabs/history_tab.dart';
 import 'tabs/sequence_library_tab.dart';
 import 'tabs/templates_tab.dart';
@@ -108,6 +109,24 @@ final sequencerToolboxCollapsedProvider = StateProvider<bool>((ref) => false);
 
 /// Whether the properties panel is collapsed (icon-only mode).
 final sequencerPropertiesCollapsedProvider =
+    StateProvider<bool>((ref) => false);
+
+/// "Show me the toolbox anyway", set when the operator opens a pane the narrow
+/// layout had auto-collapsed.
+///
+/// WE-SEQ-N7: the desktop builder derives a collapse when the canvas would be
+/// squeezed, and the effective state was `pref || derived`. At ~900px both
+/// panes derive collapsed, so the toggle icons flipped a preference that could
+/// never win: clicking the toolbox icon three times and the properties icon
+/// once left the tree with no palette and no Target Settings. A plan could be
+/// read but no node added or edited, with no escape hatch short of resizing the
+/// window. The derived collapse is a good DEFAULT and a bad verdict — these
+/// overrides are how the operator overrules it, and they are cleared the moment
+/// they collapse the pane again.
+final sequencerToolboxForceOpenProvider = StateProvider<bool>((ref) => false);
+
+/// "Show me the properties anyway" — see [sequencerToolboxForceOpenProvider].
+final sequencerPropertiesForceOpenProvider =
     StateProvider<bool>((ref) => false);
 
 /// Which toolbox sub-tab is active (Nodes / Snippets / Queue).

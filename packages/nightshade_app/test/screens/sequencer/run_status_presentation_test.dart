@@ -33,4 +33,42 @@ void main() {
     expect(runStatusLabel('half_way-there'), 'Half way there');
     expect(runStatusLabel(''), 'Unknown');
   });
+
+  // Wave E refutation of the first WD-SEQ-N1 fix: `isRunCancellationNotice`
+  // was a substring test on "cancelled", so pressing Stop after a night with a
+  // REAL fault whose text contains that word dropped the fault too — the
+  // Session Report then showed no Errors section at all. These four are the
+  // refuter's own inputs, each shaped like a message the stack really emits.
+  group('a stop drops the notice and NOTHING else', () {
+    const realFaults = <String>[
+      'Temperature compensation cancelled',
+      'Cancelled: Target',
+      'focuser move was canceled by the driver',
+      'slew canceled by the mount (limit switch)',
+    ];
+
+    test('real faults survive an operator stop', () {
+      final kept = runErrorMessagesFor('paused-stopped', [
+        'Sequence cancelled',
+        ...realFaults,
+      ]);
+      expect(kept, realFaults);
+    });
+
+    test('the notice itself is dropped, in either spelling', () {
+      expect(
+        runErrorMessagesFor('paused-stopped', const [
+          'Sequence cancelled',
+          'Sequence canceled',
+          'Stopped by request',
+        ]),
+        isEmpty,
+      );
+    });
+
+    test('a run that failed on its own keeps every message', () {
+      const messages = ['Sequence cancelled', 'Camera disconnected'];
+      expect(runErrorMessagesFor('failed', messages), messages);
+    });
+  });
 }
