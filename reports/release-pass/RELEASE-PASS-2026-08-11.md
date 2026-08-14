@@ -22,6 +22,17 @@ Campaign ledger, 2026-08-11 → 2026-08-14, all on `audit/end-to-end-campaign`:
 - On-sky validation on the live rig remains owed, as always, and is the natural next
   campaign (tasks #32/#34).
 
+### Simulator-fidelity gap exposed by Wave G (blocks the flip live-oracle)
+
+The simulator cannot be made to produce a meridian flip: the flip gate keys on the MOUNT's
+reported hour angle, and the sim mount's HA never crosses in a way the trigger accepts —
+four configured attempts (tracking the target 19-24 min past the meridian,
+enable_meridian_flip=true, minutes_past=5.0) captured 8/8 frames with zero flips and
+"Meridian flips 0" in the report. The new honest pre-frame warning ("the flip trigger
+cannot fire") is itself a win, but the camera-claim mechanism and the retry-ladder ETA fix
+can only be truly exercised on a rig (or after the sim mount models pier side + HA
+progression). Belongs on the simulator-fidelity backlog next to the July items.
+
 ### What remains is user-gated (recorded 2026-08-14, mid-final-gate)
 
 Everything still open outside the G-check pipeline needs the owner:

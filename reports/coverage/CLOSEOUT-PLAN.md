@@ -12,6 +12,15 @@ Generated from `reports/coverage/status.json` and `inventory.json` on 2026-08-09
 > should re-run the inventory against the wave reports before claiming any of these
 > unreached; the remaining genuinely-unreached residue is likely the remote-only gated
 > states, recovery/critical-event surfaces, and the session-handoff dialog.
+>
+> **Denominator status (task #31, assessed 2026-08-14)**: the extension this task asked
+> for LANDED on 2026-08-09 — coverage_inventory.dart now counts desktop-app, planetarium,
+> design-system, web and API trees (see the dated comment at its unit-collection block).
+> What remains: (a) server/nightshade_hub is still uncounted; (b) **the C3 file splits
+> (2026-08-13) renamed many files under the path-qualified trees, so their unit ids
+> changed and the pre-split status.json history is orphaned for those units** — the next
+> inventory run must reconcile old ids to the new module paths (or accept a reset for
+> those trees); (c) the three known duplicate basename ids remain by design.
 
 **68 units recorded unreached with a reason, 12 never claimed at all.**
 The inventory tool reports 390/402; that counts only the never-claimed. A unit whose sweeper
