@@ -11,7 +11,10 @@ use nightshade_sequencer::{
 };
 
 fn ctx_with_target() -> ExecutionContext {
-    let mut ctx = ExecutionContext::new("root".to_string());
+    let mut ctx = ExecutionContext::new(
+        "root".to_string(),
+        std::sync::Arc::new(nightshade_sequencer::NullDeviceOps),
+    );
     ctx.target_name = Some("M42".to_string());
     ctx.target_id = Some("tgt-42".to_string());
     ctx.target_ra = Some(5.59);
@@ -123,11 +126,11 @@ fn missing_data_returns_unresolvable_not_empty() {
 
 /// `${target.name}` is the ONE deliberate exception to the rule above.
 ///
-/// It used to be unresolvable too, which aborted the exposure *after the
-/// shutter had already opened* on any untargeted run — every calibration
-/// sequence — discarding real photons and finishing the run with zero frames.
-/// It now renders the explicit `untargeted` label, matching what the
-/// non-template filename path already writes. Note this still honours the
+/// Leaving it unresolvable aborts the exposure *after the shutter has already
+/// opened* on any untargeted run — every calibration sequence — discarding
+/// real photons and finishing the run with zero frames. It renders the
+/// explicit `untargeted` label instead, matching what the non-template
+/// filename path writes. Note this still honours the
 /// spirit of the test above: the result is a stated fact, never an empty
 /// string. Pinned here as well as in the resolver's own unit tests so the
 /// exception cannot be quietly widened to the strict fields.
@@ -143,7 +146,10 @@ fn missing_target_name_renders_untargeted_rather_than_aborting() {
 
     // The strict fields are unaffected by that exception.
     for strict in ["${target.id}", "${target.ra}", "${target.dec}"] {
-        let mut bare = ExecutionContext::new("root".to_string());
+        let mut bare = ExecutionContext::new(
+            "root".to_string(),
+            std::sync::Arc::new(nightshade_sequencer::NullDeviceOps),
+        );
         bare.target_name = None;
         let frame = frame_with_burst();
         interpolate(strict, &bare, &frame).expect_err(&format!(

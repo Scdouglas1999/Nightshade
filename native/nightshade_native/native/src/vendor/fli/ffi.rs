@@ -2,9 +2,7 @@
 
 use super::*;
 
-// =============================================================================
-// FLI SDK Types (from libfli.h)
-// =============================================================================
+// Types and constants from libfli.h.
 
 /// FLI device handle
 pub(crate) type FliDev = c_long;

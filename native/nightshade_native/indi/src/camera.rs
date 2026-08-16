@@ -189,8 +189,8 @@ impl IndiCamera {
     ///   undefined.
     /// * `Err(_)` — reserved for future error reporting.
     ///
-    /// Why: the previous implementation silently defaulted to `(0, 0, 0, 0)`,
-    /// a valid-looking but completely wrong ROI.
+    /// Why: defaulting to `(0, 0, 0, 0)` would be a valid-looking but
+    /// completely wrong ROI.
     pub async fn try_get_frame(&self) -> Result<Option<(i32, i32, i32, i32)>, IndiError> {
         let client = self.client.read().await;
         let x = client.get_number(&self.device_name, CCD_FRAME, "X").await;
@@ -216,8 +216,7 @@ impl IndiCamera {
     /// sensor dimensions are also unknown, return `IndiError::PropertyNotFound`
     /// rather than fabricating a 1×1 default.
     ///
-    /// Why: per "errors are a feature" — silent 0×0 ROIs were
-    /// crashing downstream image-pipeline math.
+    /// Why: a silent 0×0 ROI crashes downstream image-pipeline math.
     pub async fn get_frame_or_default(
         &self,
         timeout: Duration,
@@ -290,7 +289,7 @@ impl IndiCamera {
         client
             .get_switch(&self.device_name, CCD_COOLER, "COOLER_ON")
             .await
-            // Why: see module-level §4.3 policy — INDI switch absent → status probe returns false / Light.
+            // Why: see the module's `unwrap_or(false)` policy — INDI switch absent → status probe returns false / Light.
             .unwrap_or(false)
     }
 
@@ -341,9 +340,7 @@ impl IndiCamera {
         let mut client = self.client.write().await;
         client.enable_blob(&self.device_name).await
     }
-    // =========================================================================
-    // Sensor Information (CCD_INFO property)
-    // =========================================================================
+    // Sensor information (CCD_INFO property)
 
     /// Get sensor width in pixels
     pub async fn get_sensor_width(&self) -> Option<i32> {
@@ -393,9 +390,7 @@ impl IndiCamera {
             .map(|v| v as i32)
     }
 
-    // =========================================================================
-    // Binning Limits
-    // =========================================================================
+    // Binning limits
 
     /// Default maximum-bin used when the driver does not advertise one.
     ///
@@ -412,9 +407,9 @@ impl IndiCamera {
     /// * `Ok(None)` — driver has not (yet) defined that element. Caller must
     ///   decide whether to wait or apply a logged-default.
     ///
-    /// Why: the previous implementation silently substituted `4` for any
-    /// driver that didn't expose the property — a value pulled from thin air
-    /// and indistinguishable from a real `4`.
+    /// Why: substituting `4` for a driver that does not expose the property
+    /// would be a value pulled from thin air and indistinguishable from a
+    /// real `4`.
     pub async fn try_get_max_bin_x(&self) -> Result<Option<i32>, IndiError> {
         let client = self.client.read().await;
         Ok(client
@@ -471,9 +466,7 @@ impl IndiCamera {
         Ok(Self::DEFAULT_MAX_BIN)
     }
 
-    // =========================================================================
-    // Frame Type
-    // =========================================================================
+    // Frame type
 
     /// Set frame type (Light, Bias, Dark, Flat).
     ///
@@ -648,21 +641,21 @@ impl IndiCamera {
         if client
             .get_switch(&self.device_name, CCD_FRAME_TYPE, "FRAME_BIAS")
             .await
-            // Why: see module-level §4.3 policy — INDI switch absent → status probe returns false / Light.
+            // Why: see the module's `unwrap_or(false)` policy — INDI switch absent → status probe returns false / Light.
             .unwrap_or(false)
         {
             CcdFrameType::Bias
         } else if client
             .get_switch(&self.device_name, CCD_FRAME_TYPE, "FRAME_DARK")
             .await
-            // Why: see module-level §4.3 policy — INDI switch absent → status probe returns false / Light.
+            // Why: see the module's `unwrap_or(false)` policy — INDI switch absent → status probe returns false / Light.
             .unwrap_or(false)
         {
             CcdFrameType::Dark
         } else if client
             .get_switch(&self.device_name, CCD_FRAME_TYPE, "FRAME_FLAT")
             .await
-            // Why: see module-level §4.3 policy — INDI switch absent → status probe returns false / Light.
+            // Why: see the module's `unwrap_or(false)` policy — INDI switch absent → status probe returns false / Light.
             .unwrap_or(false)
         {
             CcdFrameType::Flat
@@ -671,9 +664,7 @@ impl IndiCamera {
         }
     }
 
-    // =========================================================================
-    // Exposure State
-    // =========================================================================
+    // Exposure state
 
     /// Check if camera is currently exposing
     pub async fn is_exposing(&self) -> bool {
@@ -691,9 +682,7 @@ impl IndiCamera {
             .await
     }
 
-    // =========================================================================
-    // Reset to Full Frame
-    // =========================================================================
+    // Reset to full frame
 
     /// Reset frame to full sensor size
     pub async fn reset_frame(&self) -> Result<(), String> {
@@ -710,9 +699,7 @@ impl IndiCamera {
             .map_err(|e| e.to_string())
     }
 
-    // =========================================================================
-    // Cooler Power
-    // =========================================================================
+    // Cooler power
 
     /// Get cooler power percentage (if available)
     pub async fn get_cooler_power(&self) -> Option<f64> {
@@ -885,7 +872,7 @@ mod tests {
     use super::*;
     use crate::IndiClient;
 
-    /// §5.10: when CCD_BINNING is undefined, try_get_binning returns Ok(None)
+    /// When CCD_BINNING is undefined, try_get_binning returns Ok(None)
     /// instead of fabricating (1, 1).
     #[tokio::test]
     async fn try_get_binning_returns_none_when_undefined() {
@@ -896,8 +883,8 @@ mod tests {
         assert!(matches!(result, Ok(None)));
     }
 
-    /// §5.10: try_get_frame returns Ok(None) when CCD_FRAME has not been
-    /// defined (rather than fabricating the (0, 0, 0, 0) ROI).
+    /// try_get_frame returns Ok(None) when CCD_FRAME has not been defined,
+    /// rather than fabricating the (0, 0, 0, 0) ROI.
     #[tokio::test]
     async fn try_get_frame_returns_none_when_undefined() {
         let client = Arc::new(RwLock::new(IndiClient::new("localhost", Some(7624))));
@@ -906,7 +893,7 @@ mod tests {
         assert!(matches!(result, Ok(None)));
     }
 
-    /// §5.10: try_get_max_bin_x/y return Ok(None) when CCD_INFO is undefined.
+    /// try_get_max_bin_x/y return Ok(None) when CCD_INFO is undefined.
     #[tokio::test]
     async fn try_get_max_bin_returns_none_when_undefined() {
         let client = Arc::new(RwLock::new(IndiClient::new("localhost", Some(7624))));
@@ -915,8 +902,8 @@ mod tests {
         assert!(matches!(camera.try_get_max_bin_y().await, Ok(None)));
     }
 
-    /// §5.10: get_binning_or_default returns the documented (1, 1) fallback
-    /// after timeout, with the warning emitted via `tracing::warn!`. The test
+    /// get_binning_or_default returns the documented (1, 1) fallback after
+    /// timeout, with the warning emitted via `tracing::warn!`. The test
     /// verifies the value path; warning emission is covered by the
     /// `tracing` infrastructure itself.
     #[tokio::test]
@@ -930,10 +917,9 @@ mod tests {
         assert_eq!(value, (1, 1));
     }
 
-    /// §5.10: get_frame_or_default surfaces an explicit
+    /// get_frame_or_default surfaces an explicit
     /// `IndiError::PropertyNotFound` when neither CCD_FRAME nor CCD_INFO is
-    /// defined, rather than fabricating a 1×1 frame. Per the CONTRIBUTING.md house rules, errors
-    /// are a feature.
+    /// defined, rather than fabricating a 1×1 frame.
     #[tokio::test]
     async fn get_frame_or_default_errors_when_no_sensor_info() {
         let client = Arc::new(RwLock::new(IndiClient::new("localhost", Some(7624))));
@@ -942,7 +928,7 @@ mod tests {
         assert!(matches!(result, Err(IndiError::PropertyNotFound { .. })));
     }
 
-    /// §5.10: get_max_bin_*_or_default returns DEFAULT_MAX_BIN with a logged
+    /// get_max_bin_*_or_default returns DEFAULT_MAX_BIN with a logged
     /// warning when the property is missing.
     #[tokio::test]
     async fn get_max_bin_or_default_falls_back_after_timeout() {

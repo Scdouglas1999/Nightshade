@@ -255,10 +255,8 @@ pub(crate) fn growth_impl(args: GrowthArgs) -> Result<GrowthResult, String> {
     })
 }
 
-// =============================================================================
-// Federation merge helper (contracts §2.3 — exposed here so the atlas surface is
-// self-contained for the hub/local merge the keystone's additivity enables).
-// =============================================================================
+// Federation merge helper, exposed here so the atlas surface is self-contained
+// for the hub/local merge the accumulator's additivity enables.
 
 /// Merge a contributor delta accumulator into a base accumulator (or retract it),
 /// the linear-additive federation operation the keystone proves exact:

@@ -2,10 +2,6 @@
 
 use super::*;
 
-// =============================================================================
-// SDK Function Pointers
-// =============================================================================
-
 pub(crate) type FLIOpen =
     unsafe extern "C" fn(dev: *mut FliDev, name: *const c_char, domain: c_long) -> c_long;
 pub(crate) type FLIClose = unsafe extern "C" fn(dev: FliDev) -> c_long;

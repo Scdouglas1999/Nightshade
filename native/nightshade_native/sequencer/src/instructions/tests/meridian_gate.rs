@@ -4,19 +4,16 @@
 
 use super::*;
 
-/// P1 regression for the pre-exposure meridian gate. A target EAST of the
-/// meridian cannot make a MinutesPastMeridian trigger fire (the trigger
-/// requires `hour_angle > 0` on the pre-flip / unreported pier side), yet
-/// the gate held anyway on a stale hour angle and logged "meridian flip
-/// fires in ~0s". Live: target RA 23.4h at LST 21:27 (HA -1.93h) sat at
-/// 0/3 frames for minutes with no UI explanation, and with a 30-minute
-/// bound PER EXPOSURE a normal sub sequence stalls for hours.
-///
-/// Pre-fix this test hangs on the gate and trips the timeout.
+/// The pre-exposure meridian gate must RELEASE for a target EAST of the
+/// meridian: such a target cannot make a MinutesPastMeridian trigger fire (the
+/// trigger requires `hour_angle > 0` on the pre-flip / unreported pier side),
+/// so holding on a stale hour angle logs "meridian flip fires in ~0s" and,
+/// with a 30-minute bound PER EXPOSURE, stalls a normal sub sequence for
+/// hours.
 #[tokio::test]
 async fn meridian_gate_does_not_hold_a_target_east_of_the_meridian() {
     let ops = Arc::new(ScriptedDomeRotatorOps::new());
-    let mut ec = crate::node::context::ExecutionContext::new("gate-node".to_string());
+    let mut ec = crate::node::context::ExecutionContext::new_for_test("gate-node".to_string());
     ec.device_ops = ops;
     ec.camera_id = Some("camera-1".to_string());
     ec.mount_id = Some("mount-1".to_string());
@@ -62,33 +59,22 @@ async fn meridian_gate_does_not_hold_a_target_east_of_the_meridian() {
     );
 }
 
-/// P1 regression, reproduced live 2026-08-09 against the Linux headless
-/// build (`--headless`, sim camera + sim mount): 12 x 5s LIGHT on a target
-/// at RA 12.5h / Dec +70 from a site at 40N 42E. Frame 1 was captured and
-/// the run then sat at `1/12  8%` indefinitely, state "running", status
+/// A flip that is hours OVERDUE must not stall the exposure burst.
 ///
-///   Waiting for the meridian flip before the next 5s exposure: the flip
-///   fires in ~0s (hour angle +9.88h, threshold 5 min past meridian) and
-///   would interrupt the frame
+/// `fire_in_secs` goes to about -35_000 for a target 9.9 hours past the
+/// meridian, and treating every negative value as "imminent" makes each frame
+/// pay the gate's full 30-minute bound: a 12 x 5 s run captures frame 1 and
+/// then sits at `1/12  8%`, state "running", reporting that the flip "fires in
+/// ~0s". Meanwhile the TRIGGER decides from the MOUNT's hour angle, so a mount
+/// parked at RA 0.0 with `sideOfPier: unknown` can never fire the flip the
+/// GATE is waiting for.
 ///
-/// No "Capturing frame 2/12" ever followed and no flip trigger ever fired:
-/// `/api/mount/status` showed the mount parked at RA 0.0 with
-/// `sideOfPier: unknown`, so the TRIGGER (which decides from the MOUNT's
-/// hour angle) saw a negative HA and could never fire, while the GATE
-/// (which predicts from the TARGET's hour angle) held for a flip that was
-/// 9.9 hours overdue. `fire_in_secs` was about -35_000, and every negative
-/// value counted as "imminent", so each frame paid the gate's full
-/// 30-minute bound — a routine target past the meridian cost the night.
-///
-/// The live rig tripped BOTH arms of this at once (overdue AND a mount the
-/// trigger could not fire from). This test isolates the OVERDUE arm — it
-/// gives the mount a tracking hour angle so the sibling
+/// This test isolates the OVERDUE arm: the mount is given a tracking hour
+/// angle so the sibling
 /// `gate_does_not_hold_when_the_mount_cannot_make_the_trigger_fire` guard
-/// cannot be what releases the burst, and severing the overdue hatch
-/// therefore still fails this test.
-///
-/// This drives the PRODUCTION call site (the exposure burst), not the gate
-/// helper. Pre-fix the burst never reaches frame 2 and trips the timeout.
+/// cannot be what releases the burst, and it drives the PRODUCTION call site
+/// (the exposure burst) rather than the gate helper — the burst must reach
+/// frame 2.
 #[tokio::test]
 async fn overdue_meridian_flip_does_not_stall_the_exposure_burst() {
     // Parked mount: keeps the daylight gate out of the way (a parked rig
@@ -98,7 +84,7 @@ async fn overdue_meridian_flip_does_not_stall_the_exposure_burst() {
     let dir = std::env::temp_dir().join(format!("ns-mer-overdue-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&dir).expect("temp dir");
 
-    let mut ec = crate::node::context::ExecutionContext::new("overdue-node".to_string());
+    let mut ec = crate::node::context::ExecutionContext::new_for_test("overdue-node".to_string());
     ec.device_ops = ops.clone();
     ec.camera_id = Some("camera-1".to_string());
     ec.mount_id = Some("mount-1".to_string());
@@ -193,7 +179,7 @@ async fn gate_does_not_hold_when_the_mount_cannot_make_the_trigger_fire() {
     let dir = std::env::temp_dir().join(format!("ns-mer-nofire-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&dir).expect("temp dir");
 
-    let mut ec = crate::node::context::ExecutionContext::new("nofire-node".to_string());
+    let mut ec = crate::node::context::ExecutionContext::new_for_test("nofire-node".to_string());
     ec.device_ops = ops.clone();
     ec.camera_id = Some("camera-1".to_string());
     ec.mount_id = Some("mount-1".to_string());
@@ -261,11 +247,11 @@ async fn gate_does_not_hold_when_the_mount_cannot_make_the_trigger_fire() {
 }
 
 /// The gate must still hold when a flip really is imminent, otherwise the
-/// fix above would just delete the feature.
+/// rule above would just delete the feature.
 #[tokio::test]
 async fn meridian_gate_still_holds_when_the_flip_is_imminent() {
     let ops = Arc::new(ScriptedDomeRotatorOps::new());
-    let mut ec = crate::node::context::ExecutionContext::new("gate-node".to_string());
+    let mut ec = crate::node::context::ExecutionContext::new_for_test("gate-node".to_string());
     ec.device_ops = ops;
     ec.camera_id = Some("camera-1".to_string());
     ec.mount_id = Some("mount-1".to_string());
@@ -308,12 +294,12 @@ async fn meridian_gate_still_holds_when_the_flip_is_imminent() {
     );
 }
 
-/// D4/R4: `MeridianFlipOutcome` is the only wire a flip travels to reach
-/// the run vitals' `meridianFlips` count and the session report. It was
-/// emitted by the TRIGGER call site alone, so a sequence that flipped via
-/// an explicit MeridianFlip node reported no flip at all — and a
-/// node-driven flip that FAILED left an empty error list on a run the
-/// operator saw reported as completed.
+/// `MeridianFlipOutcome` is the only wire a flip travels to reach the run
+/// vitals' `meridianFlips` count and the session report. Emitting it from the
+/// TRIGGER call site alone means a sequence that flips via an explicit
+/// MeridianFlip node reports no flip at all — and a node-driven flip that
+/// FAILS leaves an empty error list on a run the operator sees reported as
+/// completed.
 #[tokio::test]
 async fn a_node_driven_meridian_flip_reports_its_outcome_to_the_run() {
     let scratch = scratch_dir("node-flip-outcome");
@@ -362,12 +348,12 @@ async fn a_node_driven_meridian_flip_reports_its_outcome_to_the_run() {
     );
 }
 
-/// Regression: the pre-exposure meridian gate must apply to LIGHTS only.
+/// The pre-exposure meridian gate must apply to LIGHTS only.
 ///
-/// A calibration frame inside a TargetHeader used to be gated too — a 3s
-/// dark was held with "meridian flip fires in ~0s and would interrupt it",
-/// stalling the run for the gate's full 30-minute bound. Shutter-closed
-/// frames cannot be ruined by where the mount points.
+/// Gating a calibration frame inside a TargetHeader holds a 3s dark with
+/// "meridian flip fires in ~0s and would interrupt it", stalling the run for
+/// the gate's full 30-minute bound. Shutter-closed frames cannot be ruined by
+/// where the mount points.
 #[test]
 fn meridian_gate_applies_to_light_frames_only() {
     for gated in ["light", "Light", "LIGHT"] {

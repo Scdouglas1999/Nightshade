@@ -2,10 +2,6 @@
 
 use super::*;
 
-// =============================================================================
-// Atik Camera Implementation
-// =============================================================================
-
 /// Atik camera native driver
 pub struct AtikCamera {
     pub(crate) device_index: i32,

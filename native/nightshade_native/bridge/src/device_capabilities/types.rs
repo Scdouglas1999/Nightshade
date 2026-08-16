@@ -1,8 +1,6 @@
 use super::*;
 
-// =========================================================================
-// Mount Capabilities
-// =========================================================================
+// Mount capabilities
 
 /// Capabilities of a mount/telescope device
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -64,9 +62,7 @@ pub struct MountCapabilities {
 
 // TrackingRate is imported from crate::device
 
-// =========================================================================
-// Camera Capabilities
-// =========================================================================
+// Camera capabilities
 
 /// Capabilities of a camera device
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -199,9 +195,7 @@ impl From<nightshade_native::camera::CameraRecommendedSettings> for CameraRecomm
     }
 }
 
-// =========================================================================
-// Focuser Capabilities
-// =========================================================================
+// Focuser capabilities
 
 /// Capabilities of a focuser device
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -254,16 +248,15 @@ pub struct AscomFocuserReadings {
 
 /// Build the wire-facing focuser capabilities from raw ASCOM property reads.
 ///
-/// Extracted from the Windows-only capability probe so the mapping has a
-/// regression test: the probe previously filled everything after
-/// `temp_comp_available` from `Default::default()`, so
-/// `/api/equipment/focuser/capabilities` reported `isMoving: false`,
-/// `position: null`, `temperature: null` and `canHalt: false` regardless of
-/// what the driver said. On the rig that produced three consecutive samples
-/// claiming `isMoving: false` while the focuser was demonstrably travelling
-/// (`/api/equipment/focuser/status` reporting `moving: true` and a position
-/// stepping 46560 -> 44880 -> 43240), and a `canHalt: false` that contradicted
-/// a `POST /api/focuser/halt` which returned 200 and genuinely stopped the move.
+/// Every field is mapped from a driver read; none may fall back to
+/// `Default::default()`. Defaulted fields make
+/// `/api/equipment/focuser/capabilities` report `isMoving: false`,
+/// `position: null`, `temperature: null` and `canHalt: false` whatever the
+/// driver says — a focuser that is demonstrably travelling reported as idle,
+/// and a `canHalt: false` contradicted by a halt that works.
+///
+/// Separate from the Windows-only capability probe so the mapping has a
+/// regression test on every platform.
 pub fn focuser_capabilities_from_ascom(r: AscomFocuserReadings) -> FocuserCapabilities {
     FocuserCapabilities {
         // Why: ASCOM IFocuserV3.MaxStep — when the read returns None the
@@ -291,9 +284,7 @@ pub fn focuser_capabilities_from_ascom(r: AscomFocuserReadings) -> FocuserCapabi
     }
 }
 
-// =========================================================================
-// Filter Wheel Capabilities
-// =========================================================================
+// Filter wheel capabilities
 
 /// Capabilities of a filter wheel device
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -314,9 +305,7 @@ pub struct FilterWheelCapabilities {
     pub can_set_focus_offsets: bool,
 }
 
-// =========================================================================
-// Rotator Capabilities
-// =========================================================================
+// Rotator capabilities
 
 /// Capabilities of a rotator device
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -349,9 +338,7 @@ pub struct RotatorCapabilities {
     pub max_angle_deg: Option<f64>,
 }
 
-// =========================================================================
-// Dome Capabilities
-// =========================================================================
+// Dome capabilities
 
 /// Capabilities of a dome device
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -405,9 +392,7 @@ impl Default for ShutterStatus {
     }
 }
 
-// =========================================================================
-// Cover Calibrator Capabilities
-// =========================================================================
+// Cover calibrator capabilities
 
 /// Capabilities of a cover calibrator device
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -430,9 +415,7 @@ pub struct CoverCalibratorCapabilities {
 
 // CalibratorState is imported from crate::device
 
-// =========================================================================
-// Weather Capabilities
-// =========================================================================
+// Weather capabilities
 
 /// Capabilities of a weather/observing conditions device
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -467,9 +450,7 @@ pub struct WeatherCapabilities {
     pub average_period: Option<f64>,
 }
 
-// =========================================================================
-// Safety Monitor Capabilities
-// =========================================================================
+// Safety monitor capabilities
 
 /// Capabilities of a safety monitor device
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -480,9 +461,7 @@ pub struct SafetyMonitorCapabilities {
     pub safety_description: Option<String>,
 }
 
-// =========================================================================
-// Switch Capabilities
-// =========================================================================
+// Switch capabilities
 
 /// Capabilities of a switch device
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -553,8 +532,8 @@ mod ascom_focuser_capability_tests {
 
     #[test]
     fn live_state_is_reported_not_defaulted() {
-        // Regression: these four came from `Default::default()`, so a moving
-        // focuser reported isMoving false / position null / temperature null.
+        // These four must not come from `Default::default()`: that reports a
+        // moving focuser as isMoving false / position null / temperature null.
         let caps = focuser_capabilities_from_ascom(moving_focuser());
 
         assert!(caps.is_moving, "a travelling focuser must report is_moving");

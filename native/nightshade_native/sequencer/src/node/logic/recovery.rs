@@ -77,7 +77,7 @@ pub async fn execute_recovery(
                 RecoveryAction::NextTarget => NodeStatus::Skipped,
                 RecoveryAction::CustomBranch => execute_custom_branch_children(node, context).await,
                 RecoveryAction::ParkAndAbort => {
-                    // Trust-patch §8: both ParkAndAbort recovery paths
+                    // Both ParkAndAbort recovery paths
                     // (here and in executor.rs) route through
                     // `device_ops::try_park_with_retry` so park behaviour is
                     // consistent.
@@ -301,7 +301,7 @@ mod tests {
                 executions: executions.clone(),
                 children: Vec::new(),
             }));
-            let mut context = ExecutionContext::new(node.id().clone());
+            let mut context = ExecutionContext::new_for_test(node.id().clone());
 
             let status = execute_recovery(
                 &mut node,

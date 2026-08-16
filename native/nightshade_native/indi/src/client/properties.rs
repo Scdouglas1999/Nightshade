@@ -331,9 +331,7 @@ impl IndiClient {
         self.send_command(&cmd).await
     }
 
-    // =========================================================================
-    // HIGH-LEVEL DEVICE CONTROL METHODS
-    // =========================================================================
+    // High-level device control methods
 
     /// Connect to a device (turn on CONNECTION switch)
     pub async fn connect_device(&mut self, device: &str) -> IndiResult<()> {
@@ -396,9 +394,7 @@ impl IndiClient {
         Ok(Vec::new())
     }
 
-    // =========================================================================
-    // TIMEOUT AND RELIABILITY METHODS
-    // =========================================================================
+    // Timeout and reliability methods
 
     /// Wait for a property to reach a specific state with timeout
     pub async fn wait_for_property_state(

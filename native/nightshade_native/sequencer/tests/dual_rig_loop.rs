@@ -97,7 +97,7 @@ impl nightshade_sequencer::DeviceOps for RecordingOps {
         Ok(())
     }
 
-    // --- everything else delegates to NullDeviceOps -------------------------
+    // Everything else delegates to NullDeviceOps
     async fn mount_slew_to_coordinates(&self, m: &str, ra: f64, dec: f64) -> DeviceResult<()> {
         self.inner.mount_slew_to_coordinates(m, ra, dec).await
     }

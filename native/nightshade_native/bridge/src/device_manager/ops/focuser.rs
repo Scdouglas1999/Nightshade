@@ -15,9 +15,7 @@ use tracing::warn;
 use nightshade_native::traits::NativeFocuser;
 
 impl DeviceManager {
-    // =========================================================================
-    // Focuser Control
-    // =========================================================================
+    // Focuser control
 
     pub async fn focuser_move_abs(
         &self,

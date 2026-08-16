@@ -25,9 +25,7 @@ use tokio::sync::RwLock;
 use super::super::*;
 use super::*;
 
-// =============================================================================
-// Focuser Control
-// =============================================================================
+// Focuser control
 
 /// Move focuser to absolute position
 pub async fn focuser_move_abs(device_id: String, position: i32) -> Result<(), NightshadeError> {

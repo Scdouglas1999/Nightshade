@@ -3,11 +3,11 @@ use super::*;
 /// ToupTek-family cameras deliver **right-justified** samples, so the ADC
 /// range *is* the container ceiling.
 ///
-/// This is a regression guard, not a behaviour change: ZWO, SVBony and
-/// Player One all needed `((1 << bd) - 1) << (16 - bd)` because those SDKs
-/// left-justify, and it would be an easy and expensive mistake to propagate
-/// that here. See [`max_adu_from_bit_depth`] for the SDK and on-hardware
-/// evidence that ToupTek does not.
+/// This is a regression guard: ZWO, SVBony and Player One all need
+/// `((1 << bd) - 1) << (16 - bd)` because those SDKs left-justify, and it
+/// would be an easy and expensive mistake to propagate that here. See
+/// [`max_adu_from_bit_depth`] for the SDK and on-hardware evidence that
+/// ToupTek does not.
 #[test]
 fn max_adu_is_the_adc_range_because_touptek_is_right_justified() {
     // 12-bit (ATR3CMOS16000KPA / Orion G16 class) — measured 0..4095.
@@ -191,4 +191,44 @@ fn touptek_no_sdk_loaded_error_names_each_attempted_brand() {
         }
         other => panic!("expected SDK error, got {other:?}"),
     }
+}
+
+/// The gain range is whatever `get_ExpoAGainRange` reported at connect, in the
+/// SDK's percent-step units where 100 == 1x.
+#[tokio::test]
+async fn gain_range_reports_the_bounds_the_camera_gave() {
+    let mut camera = TouptekCamera::new(0, "OGMA");
+    camera.connected = true;
+    camera.gain_range = Some((100, 10000));
+
+    assert_eq!(camera.get_gain_range().await.unwrap(), (100, 10000));
+}
+
+/// A camera that never reported a gain range must surface that, not a range
+/// borrowed from another vendor.
+#[tokio::test]
+async fn gain_range_without_an_sdk_report_is_an_error_not_a_default() {
+    let mut camera = TouptekCamera::new(0, "OGMA");
+    camera.connected = true;
+    camera.gain_range = None;
+
+    match camera.get_gain_range().await {
+        Err(NativeError::SdkError(message)) => {
+            assert!(message.contains("did not report a gain range"));
+        }
+        other => panic!("expected an SDK error, got {other:?}"),
+    }
+}
+
+/// The ToupTek-family SDK exposes no offset control, so there is no range to
+/// report.
+#[tokio::test]
+async fn offset_range_reports_not_supported() {
+    let mut camera = TouptekCamera::new(0, "OGMA");
+    camera.connected = true;
+
+    assert!(matches!(
+        camera.get_offset_range().await,
+        Err(NativeError::NotSupported)
+    ));
 }

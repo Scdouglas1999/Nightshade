@@ -25,10 +25,6 @@ use tokio::sync::RwLock;
 // Sibling-module items via the parent's pub use re-exports.
 use super::*;
 
-// =============================================================================
-// Device Connection
-// =============================================================================
-
 /// Try to construct a DeviceInfo from a device ID string without running discovery.
 /// This avoids opening/closing hardware (e.g. ZWO EFW) which can interfere with
 /// subsequent position reads.
@@ -320,9 +316,7 @@ pub async fn api_get_connected_devices() -> Vec<DeviceInfo> {
     get_device_manager().get_connected_device_infos().await
 }
 
-// =============================================================================
-// ALPACA DEVICE CONNECTION (Cross-platform)
-// =============================================================================
+// Alpaca device connection (cross-platform)
 
 pub mod alpaca_connections {
     use super::*;
@@ -422,9 +416,7 @@ pub mod alpaca_connections {
     }
 }
 
-// =============================================================================
-// REAL ASCOM DEVICE CONNECTION
-// =============================================================================
+// Real ASCOM device connection
 
 #[cfg(windows)]
 pub mod ascom_connections {
@@ -581,9 +573,7 @@ pub mod ascom_connections {
     }
 }
 
-// =============================================================================
-// REAL ASCOM DEVICE CONNECTION — non-Windows
-// =============================================================================
+// Real ASCOM device connection — non-Windows
 //
 // ASCOM is a Windows-only standard built on COM; the `nightshade_ascom` crate
 // only defines the `AscomCamera`/`AscomMount`/`AscomFocuser` types on Windows.

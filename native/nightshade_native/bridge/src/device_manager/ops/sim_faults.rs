@@ -12,12 +12,10 @@
 //! than the one it reached.
 //!
 //! A simulator that can only succeed fails in the pass-making direction: the
-//! whole test suite stays green while every error path in the app above it goes
-//! unexercised. That is the most dangerous shape a test double can have,
-//! because green is read as evidence. Every fault below corresponds to a real
-//! failure observed against real hardware on this project (see
-//! `docs/` live-rig notes: rotator `VT_R4`, the aux heartbeat, ASCOM retry,
-//! gain-not-implemented, the INDI BLOB download timeout).
+//! suite stays green while every error path above it goes unexercised. Each
+//! fault below corresponds to a failure observed against real hardware —
+//! rotator `VT_R4`, the aux heartbeat, ASCOM retry, gain-not-implemented, the
+//! INDI BLOB download timeout.
 //!
 //! # What a fault is
 //!
@@ -383,9 +381,7 @@ pub async fn check(key: &str) -> Result<(), String> {
     }
 }
 
-// =============================================================================
 // Environment-variable arming
-// =============================================================================
 
 /// Parse `NIGHTSHADE_SIM_FAULTS` and arm everything it names.
 ///
@@ -577,18 +573,15 @@ mod tests {
     /// prefix and clears afterwards. Without this a leaked fault surfaces as an
     /// unrelated test failing elsewhere.
     ///
-    /// Clearing its own keys is NOT enough on its own. The simulator tests in
-    /// `sim_gate` and `cover` call [`clear_all`], which wipes the whole registry,
-    /// and they used to run concurrently with these — so a fault armed here could
-    /// be disarmed there between the `arm` and the `check`. That surfaced as
-    /// `every_nth_fires_on_the_nth_call` seeing six clean calls instead of a
-    /// fault on the 3rd and 6th, about one run in six, and as
-    /// `armed_keys_reports_what_is_armed` finding its own keys missing. The
-    /// global PRNG behind `Trigger::Probability` is shared the same way.
+    /// Clearing its own keys is not enough on its own: the simulator tests in
+    /// `sim_gate` and `cover` call [`clear_all`], which wipes the whole
+    /// registry, so a concurrent run can disarm a fault between the `arm` and
+    /// the `check`. The global PRNG behind `Trigger::Probability` is shared the
+    /// same way.
     ///
-    /// So the guard also holds the lock those tests already take. Acquiring it is
-    /// what actually serialises the registry; the per-key clear just keeps a
-    /// leaked fault from outliving the test that armed it.
+    /// The guard therefore also holds the lock those tests take. Acquiring it
+    /// is what serialises the registry; the per-key clear only keeps a leaked
+    /// fault from outliving the test that armed it.
     struct Guard {
         keys: &'static [&'static str],
         _serialized: tokio::sync::MutexGuard<'static, ()>,

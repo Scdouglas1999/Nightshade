@@ -13,9 +13,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::Notify;
 
-// =============================================================================
-// CONSTANTS
-// =============================================================================
+// Constants
 
 /// Default serial baud rate for SynScan protocol (older mounts, hand controller)
 const SYNSCAN_BAUD_RATE: u32 = 9600;
@@ -43,9 +41,7 @@ const STEPS_PER_REVOLUTION: f64 = 16777216.0; // 2^24
 const AXIS_RA: char = '1'; // RA or Azimuth
 const AXIS_DEC: char = '2'; // Dec or Altitude
 
-// =============================================================================
-// SYNSCAN COMMANDS
-// =============================================================================
+// SynScan commands
 
 /// SynScan motor controller commands
 mod commands {
@@ -69,9 +65,7 @@ mod commands {
     pub const RESPONSE_ERROR: char = '!';
 }
 
-// =============================================================================
-// MOTION MODE FLAGS
-// =============================================================================
+// Motion mode flags
 
 /// Motion mode byte construction.
 ///
@@ -102,9 +96,7 @@ fn build_motion_mode(is_tracking: bool, is_fast: bool, is_ccw: bool) -> u8 {
     mode
 }
 
-// =============================================================================
-// DATA ENCODING/DECODING
-// =============================================================================
+// Data encoding / decoding
 
 /// Encode a 24-bit value to SynScan hex format (reversed byte pairs)
 fn encode_24bit(value: i64) -> String {
@@ -198,9 +190,7 @@ fn query_motor_board_version(port: &mut dyn serialport::SerialPort, axis: char) 
     normalize_motor_board_version_response(&response)
 }
 
-// =============================================================================
-// CONNECTION TYPES
-// =============================================================================
+// Connection types
 
 /// Connection type for SynScan mount
 #[derive(Debug, Clone)]
@@ -220,9 +210,7 @@ impl Default for SynScanConnection {
     }
 }
 
-// =============================================================================
-// SKYWATCHER MOUNT IMPLEMENTATION
-// =============================================================================
+// Sky-Watcher mount implementation
 
 /// Sky-Watcher SynScan mount driver
 pub struct SkyWatcherMount {
@@ -843,9 +831,7 @@ impl NativeMount for SkyWatcherMount {
     }
 }
 
-// =============================================================================
-// DISCOVERY
-// =============================================================================
+// Discovery
 
 /// Sky-Watcher mount discovery info
 pub struct SkyWatcherMountInfo {
@@ -994,9 +980,9 @@ mod tests {
         }
     }
 
-    // Why: §5.5 of the v2.5.0 audit requires this driver to report
-    // "unavailable" for capabilities it cannot actually provide, instead of
-    // returning fake values that mislead the meridian-flip planner.
+    // Why: this driver reports "unavailable" for capabilities it cannot
+    // actually provide, instead of returning fake values that mislead the
+    // meridian-flip planner.
     #[tokio::test]
     async fn get_side_of_pier_returns_not_supported() {
         let mount = fake_connected_mount();
@@ -1018,7 +1004,7 @@ mod tests {
     #[tokio::test]
     async fn set_tracking_rate_sidereal_returns_not_supported() {
         let mut mount = fake_connected_mount();
-        // Sidereal previously returned a fake `Ok(())` no-op; it must now fail.
+        // Sidereal must report not-supported, never a fake `Ok(())` no-op.
         assert_not_supported(mount.set_tracking_rate(TrackingRate::Sidereal).await);
     }
 
@@ -1038,11 +1024,11 @@ mod tests {
     #[tokio::test]
     async fn get_tracking_rate_returns_not_supported() {
         let mount = fake_connected_mount();
-        // Previously returned hardcoded `Sidereal`; must now report unavailable.
+        // The rate must report unavailable, never a hardcoded `Sidereal`.
         assert_not_supported(mount.get_tracking_rate().await);
     }
 
-    // Why: §5.24 — the motion-mode byte intentionally overloads bit `0x02`
+    // Why: the motion-mode byte intentionally overloads bit `0x02`
     // with two meanings depending on bit `0x01`. Lock the encoding behavior
     // in tests so the protocol overload cannot be silently broken by a
     // refactor that "fixes" the apparent duplication.

@@ -2,9 +2,7 @@
 
 use super::*;
 
-// =============================================================================
-// DSLR/MIRRORLESS CAMERA DETECTION
-// =============================================================================
+// DSLR / mirrorless camera detection
 
 /// Detected DSLR/mirrorless camera info from autodetect
 #[derive(Debug, Clone)]

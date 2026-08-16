@@ -1,9 +1,5 @@
 use super::*;
 
-// =============================================================================
-// Switch and cover calibrator simulators
-// =============================================================================
-
 /// Why a simulated device refused an operation.
 ///
 /// A category rather than a formatted string for the same reason

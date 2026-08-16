@@ -91,9 +91,7 @@ pub struct GuidingCalibration {
 /// The sequencer calls these methods without knowing the implementation details.
 #[async_trait]
 pub trait DeviceOps: Send + Sync {
-    // =========================================================================
-    // MOUNT OPERATIONS
-    // =========================================================================
+    // Mount operations
 
     /// Slew mount to coordinates (RA in hours, Dec in degrees)
     async fn mount_slew_to_coordinates(
@@ -138,9 +136,7 @@ pub trait DeviceOps: Send + Sync {
     /// Set tracking on/off
     async fn mount_set_tracking(&self, mount_id: &str, enabled: bool) -> DeviceResult<()>;
 
-    // =========================================================================
-    // CAMERA OPERATIONS
-    // =========================================================================
+    // Camera operations
 
     /// Start an exposure and return the image data
     async fn camera_start_exposure(
@@ -263,9 +259,7 @@ pub trait DeviceOps: Send + Sync {
         Ok(None)
     }
 
-    // =========================================================================
-    // FOCUSER OPERATIONS
-    // =========================================================================
+    // Focuser operations
 
     /// Move focuser to absolute position
     async fn focuser_move_to(&self, focuser_id: &str, position: i32) -> DeviceResult<()>;
@@ -282,9 +276,7 @@ pub trait DeviceOps: Send + Sync {
     /// Halt focuser movement
     async fn focuser_halt(&self, focuser_id: &str) -> DeviceResult<()>;
 
-    // =========================================================================
-    // FILTER WHEEL OPERATIONS
-    // =========================================================================
+    // Filter wheel operations
 
     /// Set filter wheel position by index (1-based)
     async fn filterwheel_set_position(&self, fw_id: &str, position: i32) -> DeviceResult<()>;
@@ -298,9 +290,7 @@ pub trait DeviceOps: Send + Sync {
     /// Set filter by name (returns position used)
     async fn filterwheel_set_filter_by_name(&self, fw_id: &str, name: &str) -> DeviceResult<i32>;
 
-    // =========================================================================
-    // ROTATOR OPERATIONS
-    // =========================================================================
+    // Rotator operations
 
     /// Move rotator to angle (degrees)
     async fn rotator_move_to(&self, rotator_id: &str, angle: f64) -> DeviceResult<()>;
@@ -314,9 +304,7 @@ pub trait DeviceOps: Send + Sync {
     /// Halt rotator movement
     async fn rotator_halt(&self, rotator_id: &str) -> DeviceResult<()>;
 
-    // =========================================================================
-    // GUIDING / PHD2 OPERATIONS
-    // =========================================================================
+    // Guiding / PHD2 operations
 
     /// Start dithering
     async fn guider_dither(
@@ -349,9 +337,7 @@ pub trait DeviceOps: Send + Sync {
     /// Stop guiding
     async fn guider_stop(&self) -> DeviceResult<()>;
 
-    // =========================================================================
-    // PLATE SOLVING
-    // =========================================================================
+    // Plate solving
 
     /// Plate solve an image
     async fn plate_solve(
@@ -362,9 +348,7 @@ pub trait DeviceOps: Send + Sync {
         hint_scale: Option<f64>,
     ) -> DeviceResult<PlateSolveResult>;
 
-    // =========================================================================
-    // IMAGE SAVING
-    // =========================================================================
+    // Image saving
 
     /// Save image as FITS file.
     ///
@@ -383,9 +367,7 @@ pub trait DeviceOps: Send + Sync {
         frame_ctx: &crate::scheduling::FrameContext,
     ) -> DeviceResult<()>;
 
-    // =========================================================================
-    // NOTIFICATIONS
-    // =========================================================================
+    // Notifications
 
     /// Send a notification.
     ///
@@ -402,9 +384,7 @@ pub trait DeviceOps: Send + Sync {
         explicit_transports: Option<&[String]>,
     ) -> DeviceResult<()>;
 
-    // =========================================================================
-    // UTILITY
-    // =========================================================================
+    // Utility
 
     /// Query whether a specific device id is currently connected.
     ///
@@ -436,9 +416,7 @@ pub trait DeviceOps: Send + Sync {
     /// Get observer location
     fn get_observer_location(&self) -> Option<(f64, f64)>;
 
-    // =========================================================================
-    // POLAR ALIGNMENT
-    // =========================================================================
+    // Polar alignment
 
     /// Send polar alignment update
     async fn polar_align_update(
@@ -446,23 +424,18 @@ pub trait DeviceOps: Send + Sync {
         result: &crate::polar_align::PolarAlignResult,
     ) -> DeviceResult<()>;
 
-    // =========================================================================
-    // DOME OPERATIONS
-    // =========================================================================
+    // Dome operations
 
     /// Device id of the dome to command when the sequencer's execution context
     /// carries no dome role assignment.
     ///
-    /// Why this hook exists: the executor's dome/cover-calibrator role slots are
-    /// only ever filled by `SequenceExecutor::set_dome` /
-    /// `set_cover_calibrator`, and the Dart runtime-config path never calls
-    /// them — its `sequencerSetDevices` contract carries camera, mount, focuser,
-    /// filter wheel and rotator only. Without a fallback every dome and
-    /// cover-calibrator instruction fails with "No dome connected" even while
-    /// the device is connected and assigned to the active profile. The device
+    /// The executor's dome/cover-calibrator role slots are filled only by
+    /// `SequenceExecutor::set_dome` / `set_cover_calibrator`, and the Dart
+    /// runtime-config path never calls them — its `sequencerSetDevices` contract
+    /// carries camera, mount, focuser, filter wheel and rotator only. The device
     /// layer is the only component that knows what is actually connected, so it
-    /// answers the question — the same "resolve the active device for me"
-    /// contract `safety_is_safe(None)` already uses.
+    /// answers the question, on the same "resolve the active device for me"
+    /// contract `safety_is_safe(None)` uses.
     ///
     /// The default `None` means "this ops layer cannot enumerate devices"
     /// (`NullDeviceOps`, test doubles), which preserves the explicit
@@ -483,9 +456,7 @@ pub trait DeviceOps: Send + Sync {
     /// Get dome status (shutter status)
     async fn dome_get_shutter_status(&self, dome_id: &str) -> DeviceResult<String>;
 
-    // =========================================================================
-    // SAFETY MONITOR / WEATHER OPERATIONS
-    // =========================================================================
+    // Safety monitor / weather operations
 
     /// Check if conditions are safe for observing
     /// Returns true if safe, false if unsafe.
@@ -510,9 +481,7 @@ pub trait DeviceOps: Send + Sync {
         Ok(None)
     }
 
-    // =========================================================================
-    // IMAGE ANALYSIS
-    // =========================================================================
+    // Image analysis
 
     /// Calculate median HFR from an image
     async fn calculate_image_hfr(&self, image_data: &ImageData) -> DeviceResult<Option<f64>>;
@@ -542,9 +511,7 @@ pub trait DeviceOps: Send + Sync {
         Ok(None)
     }
 
-    // =========================================================================
-    // COVER CALIBRATOR (FLAT PANEL / DUST COVER) OPERATIONS
-    // =========================================================================
+    // Cover calibrator (flat panel / dust cover) operations
 
     /// Device id of the cover calibrator (flat panel) to command when the
     /// sequencer's execution context carries no cover-calibrator role
@@ -1025,7 +992,7 @@ impl DeviceOps for NullDeviceOps {
     }
 
     async fn cover_calibrator_get_cover_state(&self, _device_id: &str) -> DeviceResult<i32> {
-        // ASCOM CoverState::Open == 3; the pre-flip cover check (§1.19) treats
+        // ASCOM CoverState::Open == 3; the pre-flip cover check treats
         // anything ≠ Closed as "ok to slew", so Open is the safe stub default.
         Ok(3)
     }
@@ -1062,21 +1029,14 @@ pub struct ParkRetryResult {
 
 /// Try to park the mount, retrying with a fixed delay between attempts.
 ///
-/// Audit (trust-patch §8): the two pre-existing call sites (executor's
-/// `RecoveryAction::ParkAndAbort` and `Recovery::ParkAndAbort` in `node.rs`)
-/// previously diverged — one did a single retry with a hardcoded 2s wait, the
-/// other called park exactly once and ignored the result. This helper is the
-/// single source of truth so both paths report park-failure specifically in
-/// their failure events.
+/// The single source of truth for park retries, shared by the executor's
+/// `RecoveryAction::ParkAndAbort` and `Recovery::ParkAndAbort` in `node.rs`,
+/// so both report a park failure specifically in their failure events.
 ///
-/// # Arguments
-/// * `device_ops` - Shared device operations handle.
-/// * `mount_id` - The mount device ID.
-/// * `max_retries` - How many additional attempts to make after the initial
-///   call. `0` means try once with no retries; the total number of park calls
-///   is `1 + max_retries`.
-/// * `retry_delay_secs` - Seconds to sleep between attempts. Always uses
-///   `tokio::time::sleep` so the caller's runtime cancellation still works.
+/// `max_retries` counts attempts AFTER the initial call — `0` means try once —
+/// so the total number of park calls is `1 + max_retries`. `retry_delay_secs`
+/// is slept with `tokio::time::sleep` so the caller's runtime cancellation
+/// still works.
 pub async fn try_park_with_retry(
     device_ops: &SharedDeviceOps,
     mount_id: &str,
@@ -1155,8 +1115,8 @@ pub async fn try_park_with_retry(
 /// Outcome of a [`park_and_close_safe_state`] sweep.
 ///
 /// Each field captures the result of one safe-state step so the caller can
-/// preserve its own (historically divergent) event-stream wording while the
-/// *sequence of device calls* itself is centralised. A `None` cover/dome error
+/// word its own event-stream message while the *sequence of device calls*
+/// itself is centralised. A `None` cover/dome error
 /// means "that device was absent or closed cleanly"; `Some(err)` means the
 /// close was attempted and the driver returned an error.
 #[derive(Debug, Clone)]
@@ -1171,16 +1131,6 @@ pub struct SafeStateOutcome {
     /// Error returned by `dome_close`, if a dome was configured and the
     /// close failed.
     pub dome_close_error: Option<String>,
-}
-
-impl SafeStateOutcome {
-    /// True iff every attempted step succeeded (or was absent). A `false`
-    /// result means at least one piece of hardware may be in an unsafe
-    /// position and the operator needs to intervene.
-    pub fn fully_safe(&self) -> bool {
-        let park_ok = self.park.as_ref().map(|p| p.success).unwrap_or(true);
-        park_ok && self.cover_close_error.is_none() && self.dome_close_error.is_none()
-    }
 }
 
 /// Drive the rig into a SAFE end-state: park the mount, then close the
@@ -1209,9 +1159,8 @@ impl SafeStateOutcome {
 /// * `cover_id` - The cover-calibrator to close, or `None`.
 /// * `dome_id` - The dome to close, or `None`.
 /// * `park_max_retries` / `park_retry_delay_secs` - forwarded to
-///   [`try_park_with_retry`]. The give-up path historically used 2 retries; the
-///   ParkAndAbort path used 1. The caller passes its established value so this
-///   refactor changes no observable retry behaviour.
+///   [`try_park_with_retry`]; the give-up path passes 2 retries, the
+///   ParkAndAbort path 1.
 pub async fn park_and_close_safe_state(
     device_ops: &SharedDeviceOps,
     mount_id: Option<&str>,
@@ -1233,14 +1182,13 @@ pub async fn park_and_close_safe_state(
     };
 
     // Closing the dome is the most safety-critical step of the sweep: it is the
-    // last barrier between the optics and the open sky. A fire-and-forget
-    // `dome_close` (the previous behaviour) accepts the command and reports the
-    // rig "safe" even when the shutter jams half-open — exactly the failure the
-    // unattended give-up path exists to guard against. So: issue the close, then
-    // VERIFY the shutter actually reached "Closed" by polling (bounded timeout,
-    // mirroring `instructions::wait_for_dome_shutter_state`). Any outcome that is
-    // not a confirmed Closed records a `dome_close_error`, which forces
-    // `fully_safe()` to false so the caller pages the operator.
+    // last barrier between the optics and the open sky. Issuing `dome_close` and
+    // returning would report the rig "safe" while the shutter sits jammed
+    // half-open, so the close is followed by polling the shutter until it
+    // confirms "Closed" (bounded timeout, mirroring
+    // `instructions::wait_for_dome_shutter_state`). Any outcome that is not a
+    // confirmed Closed records a `dome_close_error`, which the give-up path
+    // surfaces to the operator.
     let dome_close_error = match dome_id {
         Some(id) => match device_ops.dome_close(id).await {
             Err(e) => Some(e),
@@ -1842,12 +1790,11 @@ mod tests {
         }
     }
 
-    /// v4 SHOULD-FIX — the unattended safe-state sweep must VERIFY the dome
-    /// shutter actually reached Closed. A shutter that accepts the close
-    /// command but jams half-open (reports "Open" forever) must record a
-    /// `dome_close_error` so `fully_safe()` is false. Without the fix the close
-    /// was fire-and-forget and `dome_close_error` was always `None` → the rig
-    /// was falsely reported safe while the scope sat under an open roof.
+    /// The unattended safe-state sweep VERIFIES the dome shutter actually
+    /// reached Closed: a shutter that accepts the close command but jams
+    /// half-open (reports "Open" forever) must record a `dome_close_error`,
+    /// otherwise the rig is reported safe while the scope sits under an open
+    /// roof.
     #[tokio::test(start_paused = true)]
     async fn park_and_close_safe_state_reports_unsafe_on_jammed_shutter() {
         let ops: SharedDeviceOps = Arc::new(StuckShutterOps::new("Open", false));
@@ -1878,10 +1825,6 @@ mod tests {
             "the error must explain the shutter never closed: {:?}",
             outcome.dome_close_error
         );
-        assert!(
-            !outcome.fully_safe(),
-            "a jammed shutter must make the sweep report NOT fully safe"
-        );
         // The park + cover steps still succeeded — only the dome is unsafe.
         assert!(outcome.park.as_ref().map(|p| p.success).unwrap_or(false));
         assert!(outcome.cover_close_error.is_none());
@@ -1900,7 +1843,6 @@ mod tests {
             outcome.dome_close_error.is_some(),
             "an unconfirmable shutter must record a dome_close_error"
         );
-        assert!(!outcome.fully_safe());
     }
 
     /// A shutter-status read fault during verification is also unsafe — we
@@ -1910,14 +1852,12 @@ mod tests {
         let ops: SharedDeviceOps = Arc::new(StuckShutterOps::new("", true));
         let outcome = park_and_close_safe_state(&ops, None, None, Some("dome-1"), 1, 0.0).await;
         assert!(outcome.dome_close_error.is_some());
-        assert!(!outcome.fully_safe());
     }
 
-    /// Control: a healthy shutter that reaches Closed reports fully safe and
-    /// records NO dome_close_error — the verification must not flag a working
-    /// dome.
+    /// Control: a healthy shutter that reaches Closed records NO
+    /// dome_close_error — the verification must not flag a working dome.
     #[tokio::test(start_paused = true)]
-    async fn park_and_close_safe_state_healthy_shutter_is_fully_safe() {
+    async fn park_and_close_safe_state_healthy_shutter_reports_no_error() {
         let ops: SharedDeviceOps = Arc::new(StuckShutterOps::new("Closed", false));
         let outcome = park_and_close_safe_state(
             &ops,
@@ -1933,7 +1873,8 @@ mod tests {
             "a healthy shutter that reaches Closed must not record an error: {:?}",
             outcome.dome_close_error
         );
-        assert!(outcome.fully_safe());
+        assert!(outcome.park.as_ref().is_some_and(|p| p.success));
+        assert!(outcome.cover_close_error.is_none());
     }
 
     #[tokio::test]

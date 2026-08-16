@@ -5,9 +5,7 @@
 
 use super::*;
 
-// =============================================================================
-// NOTIFICATION INSTRUCTION
-// =============================================================================
+// Notification instruction
 
 /// Execute notification
 pub async fn execute_notification(

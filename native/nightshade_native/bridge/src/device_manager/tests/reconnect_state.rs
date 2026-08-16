@@ -1,6 +1,5 @@
 use super::*;
 
-// -------------------------------------------------------------------------
 // Hot-plug reconnect: re-apply essential device state.
 //
 // After an *unplanned* reconnect (the device's connection_state was Error,
@@ -9,7 +8,6 @@ use super::*;
 // state — the driver comes back in power-on defaults and would otherwise
 // silently warm the sensor / leave the mount parked while the sequence
 // "resumes". A *fresh* connect (from Disconnected) must NOT re-apply.
-// -------------------------------------------------------------------------
 
 /// Setting tracking records `desired_tracking`; an Error->reconnect replays it.
 #[tokio::test]
@@ -187,16 +185,12 @@ async fn fresh_connect_does_not_reapply_state() {
     get_sim_mount().write().await.status.connected = false;
 }
 
-// =========================================================================
 // Cooler setpoint: what actually reaches the driver
-// =========================================================================
 
 /// A native camera that records every `set_cooler` argument it is handed.
 ///
 /// The point of the recording is the second element: whether a setpoint
-/// reached the driver at all. Nightshade used to substitute -10 C for a
-/// `None` target, so a "switch the cooler off" command arrived at the
-/// hardware carrying a temperature nobody asked for.
+/// reached the driver at all.
 #[derive(Debug, Clone, Default)]
 struct RecordingCoolerCamera {
     calls: Arc<std::sync::Mutex<Vec<(bool, Option<f64>)>>>,
@@ -366,14 +360,11 @@ fn build_native_camera_info(id: &str) -> DeviceInfo {
     }
 }
 
-/// L19, reproduced on the reference rig on 2026-08-09: `POST
-/// /api/camera/cooling {"enabled":false}` carries no setpoint, and the
-/// device layer used to substitute -10 C (`target_temp.unwrap_or(-10.0)`)
-/// before handing the command to the driver. On the rig that fabricated
-/// write is what threw — `SetCCDTemperature` on a camera reporting
-/// `CanSetCCDTemperature = False` — so the cooler could not be turned off
-/// at all, which is exactly what end-of-night warm-up and the safe-rig
-/// shutdown both do.
+/// `POST /api/camera/cooling {"enabled":false}` carries no setpoint, and the
+/// device layer must not substitute one. A fabricated `SetCCDTemperature`
+/// throws on a camera reporting `CanSetCCDTemperature = False`, so the cooler
+/// cannot be turned off at all — which is what end-of-night warm-up and the
+/// safe-rig shutdown both need to do.
 #[tokio::test]
 async fn turning_the_cooler_off_sends_no_setpoint_to_the_driver() {
     let manager = Arc::new(build_device_manager());

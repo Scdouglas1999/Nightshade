@@ -69,9 +69,7 @@ impl AlpacaSafetyMonitor {
         &self.client
     }
 
-    // ============================================================
-    // ASCOM Common Methods (all devices implement these)
-    // ============================================================
+    // ASCOM common methods, implemented by every device
 
     /// Connect to the device
     pub async fn connect(&self) -> Result<(), String> {
@@ -219,9 +217,7 @@ impl AlpacaSafetyMonitor {
             .await
     }
 
-    // ============================================================
-    // Safety Monitor Specific Methods
-    // ============================================================
+    // Safety monitor specific methods
 
     /// Indicates whether the monitored state is safe for use
     ///
@@ -236,9 +232,7 @@ impl AlpacaSafetyMonitor {
         self.client.get_typed("issafe").await
     }
 
-    // ============================================================
-    // Parallel Status Methods
-    // ============================================================
+    // Parallel status methods
 
     /// Get comprehensive safety monitor status in a single parallel query
     pub async fn get_status(&self) -> Result<SafetyMonitorStatus, String> {
@@ -288,20 +282,12 @@ impl AlpacaSafetyMonitor {
         })
     }
 
-    // ============================================================
-    // Utility Methods
-    // ============================================================
+    // Utility methods
 
-    /// Wait for safe conditions with polling
+    /// Poll the monitor every `poll_interval` until it reports safe.
     ///
-    /// # Arguments
-    /// * `poll_interval` - How often to check the safety status
-    /// * `timeout` - Maximum time to wait for safe conditions
-    ///
-    /// # Returns
-    /// Ok(true) if conditions became safe within the timeout
-    /// Ok(false) if timeout was reached while still unsafe
-    /// Err if there was a communication error
+    /// `Ok(false)` means the `timeout` elapsed while conditions were still
+    /// unsafe; a communication failure propagates instead of reading as unsafe.
     pub async fn wait_for_safe(
         &self,
         poll_interval: std::time::Duration,
@@ -323,16 +309,8 @@ impl AlpacaSafetyMonitor {
         }
     }
 
-    /// Monitor safety status with a callback
-    ///
-    /// This method continuously polls the safety status and calls the callback
-    /// whenever the status changes. It runs until the cancellation token is triggered
-    /// or an error occurs.
-    ///
-    /// # Arguments
-    /// * `poll_interval` - How often to check the safety status
-    /// * `on_change` - Callback function called with the new safety state
-    /// * `cancel` - A future that when resolved will stop the monitoring
+    /// Poll the monitor every `poll_interval` and call `on_change` only when
+    /// the safety state flips. Runs until an error occurs.
     pub async fn monitor_safety<F>(
         &self,
         poll_interval: std::time::Duration,

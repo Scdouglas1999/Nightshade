@@ -5,27 +5,22 @@
 
 use super::*;
 
-// =============================================================================
-// FRAME CONTEXT BUILDER (Image Grading)
-// =============================================================================
+// Frame context builder (Image Grading)
 
 /// The seconds a frame is RECORDED as: the camera's own report of how long it
 /// exposed, bounded by what the sequencer actually waited for.
 ///
 /// This is the number that lands in the FITS `EXPTIME` card and in the NOT NULL
 /// `captured_images.exposure_duration` every Session Report integration total
-/// sums — so it is also the only honest source for the run's own integration
-/// total (WF-STOP-N2). The run vitals, the checkpoint and every downstream
-/// surface used to credit `frames x the node's PLANNED duration` instead: the
-/// waveF run of 5 + 15 + 15 + 15 s across four frames was reported as `50s` by
-/// the Session Report (which sums the rows) and as `1m 0s` by the Dashboard
-/// "Last night" card, the Execution History row and the Recover Sequence dialog
-/// (which multiply). Four frames that cannot total one minute is provable from
-/// two screens without opening the database.
+/// sums, so it is also the only honest source for the run's own integration
+/// total. Crediting `frames x the node's PLANNED duration` instead makes the
+/// surfaces that sum rows disagree with the surfaces that multiply — four
+/// frames of 5 + 15 + 15 + 15 s reported as `50s` in one place and `1m 0s` in
+/// another.
 ///
-/// The bound is deliberately one-sided; see the caller's DECISION note. Over-
-/// reporting is a driver fault and keeps the commanded value; under-reporting
-/// is physically real (an aborted or truncated exposure) and is kept.
+/// The bound is one-sided: over-reporting is a driver fault and keeps the
+/// commanded value, while under-reporting is physically real (an aborted or
+/// truncated exposure) and is kept.
 pub(crate) fn recorded_exposure_secs(commanded_secs: f64, reported_secs: f64) -> f64 {
     let longest_believable = commanded_secs * 1.05 + 1.0;
     if reported_secs > 0.0 && reported_secs <= longest_believable {
@@ -45,7 +40,7 @@ pub(crate) fn recorded_exposure_secs(commanded_secs: f64, reported_secs: f64) ->
 /// - live device telemetry by querying the connected focuser / rotator /
 ///   guider via `DeviceOps`. Each query is best-effort: a device that fails
 ///   to report its state simply omits the corresponding FITS keyword. We
-///   never substitute sentinel values (the audit's silent-fallback rule).
+///   never substitute sentinel values.
 /// - the most recent plate-solve result, if CenterTarget ran for this target
 ///
 /// The live-telemetry reads are bounded: the focuser/rotator/guide queries
@@ -271,10 +266,9 @@ pub(crate) async fn build_frame_context_for_save(
     // Where the telescope actually WAS, which is what the FITS `RA`/`DEC`
     // cards and the `captured_images.mount_*` columns both mean — as opposed
     // to `target_ra_hours`/`target_dec_degrees`, which are where the sequence
-    // meant to be (an unedited "New Target" sits at 0h/0°). The bridge's FITS
-    // writer used to sample this itself at save time; reading it HERE, into
-    // the FrameContext that both surfaces are stamped from, is what stops the
-    // header and the row from being able to disagree.
+    // meant to be (an unedited "New Target" sits at 0h/0°). Read HERE, into
+    // the FrameContext both surfaces are stamped from, so the header and the
+    // row cannot disagree.
     if let Some(mount_id) = &ctx.mount_id {
         match ctx.device_ops.mount_get_coordinates(mount_id).await {
             Ok((ra_hours, dec_degrees)) => {

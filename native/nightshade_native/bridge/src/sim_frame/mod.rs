@@ -1,33 +1,33 @@
 //! Synthetic frame generation for the simulator camera.
 //!
-//! Extracted from the `DriverType::Simulator` download arm so the frame can be
-//! run through the REAL star detector in a unit test. That matters more than
-//! usual here: every focus, HFR and grading result an operator sees while
+//! The frame lives here, out of the `DriverType::Simulator` download arm, so it
+//! can be run through the REAL star detector in a unit test. That matters more
+//! than usual here: every focus, HFR and grading result an operator sees while
 //! evaluating Nightshade without hardware is measured against this buffer, so if
 //! it is not detectable-star-bearing, those subsystems silently report nothing
 //! and the simulator quietly teaches the wrong thing.
 //!
-//! History: the original buffer was all zeros, which `[IMAGE_VALIDATION]`
-//! correctly rejected as a dead frame, so no simulated sequence could run. That
-//! was replaced by a faint gradient plus four flat 6x6 blocks of 50,000 ADU —
-//! enough to pass validation, but the detector found NONE of them (every frame
-//! logged "no stars detected for HFR calculation", autofocus died with
-//! "Insufficient stars detected. Only 0 stars found (minimum: 10)", and the
-//! HFR-degradation / focus-drift triggers had nothing to measure). Hence the
-//! Gaussian field below, plus the tests that hold it to the detector's bar.
+//! Two shapes the buffer must not take. An all-zero buffer is what
+//! `[IMAGE_VALIDATION]` correctly rejects as a dead frame, so no simulated
+//! sequence can run. A faint gradient plus four flat 6x6 blocks of 50,000 ADU
+//! passes validation while the detector finds NONE of them (every frame logs
+//! "no stars detected for HFR calculation", autofocus dies with "Insufficient
+//! stars detected. Only 0 stars found (minimum: 10)", and the HFR-degradation /
+//! focus-drift triggers have nothing to measure). Hence the Gaussian field
+//! below, plus the tests that hold it to the detector's bar.
 //!
-//! The gradient that replaced the zeros was itself a defect: `200 + ((x+y)%400)`
-//! is a diagonal sawtooth, not noise, and nothing about it moved when exposure,
-//! gain or offset changed — an 8 s / gain 0 frame and a 2 s / gain 120 frame were
+//! A synthetic gradient is a defect in its own right: `200 + ((x+y)%400)` is a
+//! diagonal sawtooth, not noise, and nothing about it moves when exposure, gain
+//! or offset change — an 8 s / gain 0 frame and a 2 s / gain 120 frame come out
 //! 99.7% bit-identical, spanning 442 of 65,536 ADU. Saturation, clipping, well
-//! depth, calibration-frame quality and defect maps therefore could not fire at
-//! all, and subtracting such a frame as a master dark injected a diagonal ramp
+//! depth, calibration-frame quality and defect maps therefore cannot fire at
+//! all, and subtracting such a frame as a master dark injects a diagonal ramp
 //! into every calibrated light. The model below is instead built out of
 //! electrons: a bias pedestal, dark current and sky that accumulate with
 //! exposure, stars that accumulate only on light frames, shot and read noise,
 //! and a hard clip at the sensor's advertised ceiling. Charge is collected
 //! first and read out once, so binning sums WELLS rather than summing reads —
-//! see [`read_out`] for what the earlier ordering cost.
+//! see [`read_out`] for what the other ordering costs.
 
 use nightshade_native::camera::FrameType;
 
@@ -37,12 +37,9 @@ mod tests;
 /// Simulated sensor dimensions.
 ///
 /// This is THE sensor. `SimulatedCamera::default` and
-/// `device_capabilities::get_simulator_capabilities` both declare these numbers,
-/// so the frame a caller receives matches the geometry the camera advertised.
-/// They previously disagreed three ways — a 4144x2822 declaration, a 4144x2822
-/// randomised generator on the manual-capture path, and this 1920x1080
-/// deterministic one on the sequencer path — which meant no measurement taken
-/// through one path could be compared with the other.
+/// `device_capabilities::get_simulator_capabilities` declare these same numbers,
+/// so the frame a caller receives matches the geometry the camera advertised and
+/// a measurement taken through one capture path is comparable with the other.
 pub const SIM_W: usize = 1920;
 pub const SIM_H: usize = 1080;
 
@@ -151,7 +148,7 @@ pub struct SimFrameRequest {
     /// while successive frames still differ the way real reads do.
     pub seed: u64,
     /// When set, paint the real sky at this pointing instead of the pseudo-random
-    /// field. `None` is the default and reproduces the old frame byte for byte —
+    /// field. `None` is the default and keeps that field bit-for-bit stable —
     /// see [`add_stars`] for why that matters to the sim's own test suite.
     pub sky: Option<SimSkyView>,
 }
@@ -474,7 +471,7 @@ pub fn project_star(
 /// noise, the read, the offset pedestal and the well clip are all applied by
 /// [`collect_electrons`] and [`read_out`] afterwards, and the PSF width still
 /// comes from [`sim_star_sigma`], so a real-sky frame defocuses on the focuser
-/// and saturates at the ceiling exactly like the old one.
+/// and saturates at the ceiling exactly like the pseudo-random field.
 ///
 /// No RNG runs here: a given pointing and star list render a given frame, and
 /// only the seeded noise draw varies between frames.
@@ -567,14 +564,14 @@ fn add_sky_stars(
 /// sensor sums charge on chip, then apply ONE read per output pixel — one read
 /// noise draw and one offset pedestal — and clip at the ADC ceiling.
 ///
-/// The ordering is the whole point. While the pedestal and the read noise were
-/// applied per sensor pixel and then summed by the binning loop, both scaled
-/// with bin area: a bias frame read 499.5 ADU at bin 1 but 1999.5 ADU at bin 2,
-/// and read noise grew by sqrt(bin area) instead of staying put. No camera
-/// behaves that way — the offset is injected once at the amplifier — so a bias
-/// or dark master captured binned sat four pedestals high, calibration that
-/// subtracted an unbinned master from a binned light was wrong by 1500 ADU, and
-/// any offset-derived check that passed against the simulator passed for a
+/// The ordering is the whole point. Applying the pedestal and the read noise
+/// per sensor pixel and then summing them in the binning loop scales both with
+/// bin area: a bias frame reads 499.5 ADU at bin 1 but 1999.5 ADU at bin 2, and
+/// read noise grows by sqrt(bin area) instead of staying put. No camera behaves
+/// that way — the offset is injected once at the amplifier — so a bias or dark
+/// master captured binned would sit four pedestals high, calibration that
+/// subtracts an unbinned master from a binned light would be wrong by 1500 ADU,
+/// and any offset-derived check that passes against the simulator passes for a
 /// reason the hardware does not share.
 fn read_out(
     electrons: &[f64],

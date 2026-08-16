@@ -47,7 +47,7 @@
 //! contract exactly so the same prepared buffers feed either the one-shot batch
 //! integrator or the accumulating master.
 //!
-//! ## The accumulation/rejection tradeoff (made honest)
+//! ## The accumulation/rejection tradeoff
 //!
 //! Full batch rejection (Winsorized-σ, linear-fit-clip, …) needs the *entire*
 //! per-pixel sample column at once. An accumulating master, by construction,
@@ -81,9 +81,7 @@ pub const MASTER_STATE_VERSION: u32 = 1;
 /// rather than parsing garbage, exactly like [`crate::defect_map`]'s container.
 pub const MASTER_MAGIC: &[u8; 4] = b"NSM1";
 
-// =============================================================================
 // Public configuration + metadata types
-// =============================================================================
 
 /// How the accumulating master folds samples and whether it rejects outliers
 /// online as it goes.
@@ -245,9 +243,7 @@ impl PerPixelAccumulator {
     }
 }
 
-// =============================================================================
 // Configuration for creating a master
-// =============================================================================
 
 /// How to create a new [`IntegratedMaster`].
 #[derive(Debug, Clone, Default)]
@@ -274,9 +270,7 @@ pub struct AddReport {
     pub total_frames: usize,
 }
 
-// =============================================================================
 // Errors
-// =============================================================================
 
 /// Errors from the accumulating-master API. Every variant is a caller mistake
 /// (a degenerate reference, a mismatched sub, a corrupt sidecar) surfaced loudly
@@ -344,9 +338,7 @@ pub enum MasterError {
     InconsistentPayload,
 }
 
-// =============================================================================
 // The accumulating master
-// =============================================================================
 
 /// A resumable, multi-night accumulating master frame.
 ///
@@ -632,9 +624,7 @@ impl IntegratedMaster {
         )
     }
 
-    // -------------------------------------------------------------------------
     // Serialization (resumable sidecar)
-    // -------------------------------------------------------------------------
 
     /// Serialize the running accumulator state into a self-contained, versioned
     /// blob (the `.nsmaster` sidecar).
@@ -801,9 +791,7 @@ struct SerializedHeader {
     slot_count: usize,
 }
 
-// =============================================================================
 // Helpers
-// =============================================================================
 
 /// Read the reference frame into a flat f64 buffer (channel-interleaved). Only
 /// U16 and F32 references are supported; everything else is a caller error.
@@ -969,9 +957,7 @@ mod tests {
         AccumulationMode::RunningWeightedMean { clip: None }
     }
 
-    // -------------------------------------------------------------------------
     // Online-vs-batch parity (the headline correctness property)
-    // -------------------------------------------------------------------------
 
     #[test]
     fn incremental_two_batches_equals_single_batch_weighted_mean() {
@@ -1165,9 +1151,7 @@ mod tests {
         }
     }
 
-    // -------------------------------------------------------------------------
     // Serialize / deserialize round-trip
-    // -------------------------------------------------------------------------
 
     #[test]
     fn serialize_deserialize_round_trips_exactly() {
@@ -1256,9 +1240,7 @@ mod tests {
         assert_eq!(whole.metadata.total_frames, resumed.metadata.total_frames);
     }
 
-    // -------------------------------------------------------------------------
     // Mismatched-geometry rejection
-    // -------------------------------------------------------------------------
 
     #[test]
     fn create_rejects_zero_dimension_reference() {
@@ -1376,9 +1358,7 @@ mod tests {
         assert!(matches!(err, MasterError::GeometryMismatch { .. }));
     }
 
-    // -------------------------------------------------------------------------
     // Online clip behaviour
-    // -------------------------------------------------------------------------
 
     #[test]
     fn online_clip_rejects_a_late_transient() {
@@ -1425,7 +1405,7 @@ mod tests {
         assert_eq!(rej[0] as u32, 1);
     }
 
-    /// IMG-003: pin the online clip's Bessel-corrected weighted variance/σ at the
+    /// Pin the online clip's Bessel-corrected weighted variance/σ at the
     /// accept/reject boundary, so the late-transient path is characterized beyond
     /// the gross ~3000σ spike `online_clip_rejects_a_late_transient` exercises.
     /// The running σ is computed independently and the clip's decision is probed
@@ -1550,9 +1530,7 @@ mod tests {
         assert!((m - 200.0).abs() < 1e-4, "got {m}");
     }
 
-    // -------------------------------------------------------------------------
     // Coverage handling + maps
-    // -------------------------------------------------------------------------
 
     #[test]
     fn coverage_mask_limits_contribution_and_map() {
@@ -1616,9 +1594,7 @@ mod tests {
         assert!((m - 50.0).abs() < 1e-4, "got {m}");
     }
 
-    // -------------------------------------------------------------------------
     // Deserialize failure modes
-    // -------------------------------------------------------------------------
 
     #[test]
     fn deserialize_rejects_bad_magic() {

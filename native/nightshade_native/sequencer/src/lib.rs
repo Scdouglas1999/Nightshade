@@ -347,9 +347,7 @@ impl NodeType {
     }
 }
 
-// =============================================================================
 // Science: SciencePhotometry configuration
-// =============================================================================
 
 /// Configuration for the [`NodeType::SciencePhotometry`] instruction.
 ///
@@ -452,9 +450,9 @@ impl Default for SciencePhotometryConfig {
 impl SciencePhotometryConfig {
     /// True when the configured `filter` is one of the standard
     /// photometric bands. Used by validation and by the FITS header
-    /// writer to gate the `INSTRMAG`/`DIFFMAG` keywords (we refuse to
-    /// stamp photometric magnitudes on frames captured through a
-    /// non-photometric filter).
+    /// writer to gate the `INSTRMAG`/`DIFFMAG` keywords: photometric
+    /// magnitudes are never stamped on frames captured through a
+    /// non-photometric filter.
     pub fn is_photometric_filter(&self) -> bool {
         Self::is_photometric_filter_name(&self.filter)
     }
@@ -562,10 +560,8 @@ impl PhotometryQualityGates {
     /// Apply the gates to a measured frame. `snr`, `fwhm_arcsec`,
     /// `airmass`, and `refs_visible` are all `Option` because the
     /// extractor may not have produced the corresponding measurement
-    /// (e.g. no plate-solve => no airmass). Per the house rules'
-    /// "errors are a feature" rule: a missing measurement is treated
-    /// as a Reject when the corresponding gate is active, NOT silently
-    /// passed.
+    /// (e.g. no plate-solve => no airmass). A missing measurement is a
+    /// Reject when the corresponding gate is active, never a silent pass.
     pub fn evaluate(
         &self,
         snr: Option<f64>,
@@ -637,9 +633,7 @@ impl PhotometryQualityGates {
     }
 }
 
-// =============================================================================
 // LiveStacking configuration
-// =============================================================================
 
 /// Stacking method used by the LiveStacking node.
 ///
@@ -799,9 +793,7 @@ impl Default for LiveStackingConfig {
     }
 }
 
-// =============================================================================
 // SmartExposure configuration
-// =============================================================================
 
 /// Configuration for the SmartExposure container instruction.
 ///
@@ -851,19 +843,16 @@ pub struct SmartExposureConfig {
     /// per-plan `count`s entirely and takes exactly one sub per filter,
     /// round-robin, repeating indefinitely until EITHER the
     /// `integration_budget_secs` cap is met OR the surrounding target's
-    /// `end_when` window closes (or the sequence is stopped/skipped). This is
-    /// the "balanced result by dawn" mode: instead of draining fixed counts
-    /// and stopping early, it keeps every filter evenly sampled for the whole
-    /// available window.
+    /// `end_when` window closes (or the sequence is stopped/skipped), so every
+    /// filter stays evenly sampled across the whole available window.
     ///
     /// In this mode `batch_size` is forced to 1 and `rotate_filters` to true
     /// regardless of their stored values, because "1 sub per filter,
-    /// round-robin" is the whole point. Default false (today's
-    /// count-draining behaviour is preserved for existing sequences).
+    /// round-robin" is the whole point. Default false.
     ///
-    /// Errors-are-a-feature: entering this mode with NO integration budget
-    /// AND no detectable target-window/stop bound is a misconfiguration —
-    /// the executor returns Failure rather than spinning forever.
+    /// Entering this mode with NO integration budget AND no detectable
+    /// target-window/stop bound is a misconfiguration — the executor returns
+    /// Failure rather than spinning forever.
     #[serde(default)]
     pub loop_until_stopped: bool,
 }
@@ -974,17 +963,17 @@ pub fn smart_exposure_checkpoint_key(node_id: &NodeId) -> String {
 
 // TargetScheduler ----------------------------------------------
 
-/// how the scheduler should drive multi-filter cycling within a
+/// How the scheduler should drive multi-filter cycling within a
 /// single dispatch on a target whose subtree contains a [`SmartExposureConfig`]
 /// (typical for mosaic panels with LRGB / SHO plans).
 ///
-/// The pre-§15 behaviour was effectively `SingleFilter`: the scheduler picked
-/// a target, executed its subtree, and the SmartExposure node inside that
-/// subtree used whatever `rotate_filters` / `batch_size` it was authored with.
-/// In the mosaic + scheduler composition that meant one panel got one filter
-/// burst per dispatch — a 4-panel LRGB mosaic of 50/50/50/50 frames required
-/// 200 separate scheduler ticks instead of interleaving filters within the
-/// panel visit, wasting meridian-flip headroom and producing uneven coverage.
+/// Under `SingleFilter` the scheduler picks a target, executes its subtree, and
+/// the SmartExposure node inside that subtree uses whatever `rotate_filters` /
+/// `batch_size` it was authored with. In the mosaic + scheduler composition
+/// that gives one panel one filter burst per dispatch — a 4-panel LRGB mosaic
+/// of 50/50/50/50 frames needs 200 separate scheduler ticks instead of
+/// interleaving filters within the panel visit, wasting meridian-flip headroom
+/// and producing uneven coverage.
 ///
 /// `RoundRobin { frames_per_burst }` overrides each `SmartExposure` node in
 /// the picked subtree for the duration of that dispatch: the rotation flag is
@@ -993,9 +982,8 @@ pub fn smart_exposure_checkpoint_key(node_id: &NodeId) -> String {
 /// child executes and cleared on return, so it does NOT leak into sibling
 /// dispatches and does NOT mutate the saved sequence definition on disk.
 ///
-/// Default is `SingleFilter` to preserve backward compatibility with every
-/// existing sequence (the new field is `#[serde(default)]` so legacy JSON
-/// continues to deserialise unchanged).
+/// The default is `SingleFilter`, and the field is `#[serde(default)]` so
+/// existing sequence JSON deserialises unchanged.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Default)]
 #[serde(tag = "mode", rename_all = "snake_case")]
 pub enum FilterCycleMode {
@@ -1080,7 +1068,6 @@ pub struct TargetSchedulerConfig {
     #[serde(default)]
     pub min_moon_separation_deg: Option<f64>,
 
-    // -----------------------------------------------------------------------
     // Sky-conditions-aware adaptive target swap.
     //
     // When `swap_on_conditions_below` is `Some(threshold)`, the scheduler
@@ -1090,7 +1077,6 @@ pub struct TargetSchedulerConfig {
     // brightness_tier_hint no longer accepts the score, the scheduler swaps
     // to the highest-scoring brighter backup. `None` => adaptive swap is
     // disabled (the ordinary ranking runs unchanged).
-    // -----------------------------------------------------------------------
     /// Conditions-score floor below which adaptive swap engages. `None`
     /// disables the feature for this scheduler instance.
     #[serde(default)]
@@ -1261,7 +1247,6 @@ pub struct TargetHeaderConfig {
     /// Mosaic panel info if this target is part of a mosaic
     #[serde(default)]
     pub mosaic_panel: Option<MosaicPanelInfo>,
-    // -----------------------------------------------------------------------
     // per-target altitude crossings (SGP-style).
     //
     // `start_when` is a wait condition: TargetHeader doesn't begin executing
@@ -1278,7 +1263,6 @@ pub struct TargetHeaderConfig {
     // present, [`Self::effective_start_when`]/[`Self::effective_end_when`]
     // synthesise an equivalent trigger via
     // [`crate::scheduling::legacy_to_triggers`].
-    // -----------------------------------------------------------------------
     /// wait condition: target only starts once this becomes true.
     #[serde(default)]
     pub start_when: Option<crate::scheduling::TargetTrigger>,
@@ -1291,7 +1275,6 @@ pub struct TargetHeaderConfig {
     /// crossing.
     #[serde(default = "default_trigger_poll_interval_secs")]
     pub trigger_poll_interval_secs: u32,
-    // -----------------------------------------------------------------------
     // Per-target integration budget.
     // `scheduling::integration_budget`. `#[serde(default)]` keeps backward
     // compatibility with previously-saved sequences that lack the field.
@@ -1300,11 +1283,9 @@ pub struct TargetHeaderConfig {
     // nodes both read this struct via `TargetHeaderConfig::integration_budget()`
     // and consult the per-run `BudgetState` cache that `target_header.rs`
     // installs on the ExecutionContext.
-    // -----------------------------------------------------------------------
     #[serde(default)]
     pub integration_budget: Option<IntegrationBudget>,
 
-    // -----------------------------------------------------------------------
     // adaptive sky-conditions target swap.
     //
     // Brightness tier hint consulted by the TargetScheduler's adaptive-swap
@@ -1312,7 +1293,6 @@ pub struct TargetHeaderConfig {
     // object type / magnitude (currently treated as `Medium`); `Some(tier)`
     // pins the target to the user's choice. `#[serde(default)]` keeps the
     // field absent from existing JSON checkpoints (back-compat).
-    // -----------------------------------------------------------------------
     #[serde(default)]
     pub brightness_tier_hint: Option<crate::scheduling::BrightnessTier>,
 }
@@ -1576,9 +1556,7 @@ impl TargetHeaderConfig {
 /// Legacy type alias for backward compatibility
 pub type TargetGroupConfig = TargetHeaderConfig;
 
-// ============================================================================
-// PRIORITY 2: Advanced Features Configuration
-// ============================================================================
+// Priority 2: Advanced Features Configuration
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MosaicConfig {
@@ -1708,9 +1686,7 @@ pub enum TriggerAction {
     Abort,
 }
 
-// ============================================================================
 // Existing Configurations
-// ============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoopConfig {
@@ -1754,7 +1730,7 @@ pub struct ParallelConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConditionalConfig {
     pub condition: ConditionalCheck,
-    /// Audit C2 — target a specific safety monitor when the condition is
+    /// Target a specific safety monitor when the condition is
     /// [`ConditionalCheck::SafetyMonitorSafe`]. `None` falls back to the
     /// profile-default / aggregated safety monitor (current behaviour for
     /// single-monitor setups). When set, the value is passed through to
@@ -2038,23 +2014,18 @@ pub struct AutofocusConfig {
     /// How far above the reference HFR the frames may sit, as a multiple, and
     /// still be worth continuing to capture after autofocus has failed.
     ///
-    /// A failed autofocus is not automatically a ruined night. Focus can end
-    /// up slightly soft for reasons that leave the data perfectly usable —
-    /// thin cloud over the sweep, a star field too sparse to fit a curve, a
-    /// gust during a point — and slightly-soft frames stack and deconvolve
-    /// fine. A focuser that has run away to donuts is a different thing
-    /// entirely, and every further frame is wasted disk.
+    /// A failed autofocus is not automatically a ruined night: focus can end up
+    /// slightly soft for reasons that leave the data usable (thin cloud over the
+    /// sweep, a star field too sparse to fit a curve, a gust during a point),
+    /// while a focuser that has run away to donuts wastes every further frame.
+    /// The decision is therefore made on the measurement: at 1.6, a run whose
+    /// reference HFR is 2.5 keeps imaging at 3.8 (1.52x) and stops at 10 (4x).
+    /// It is a ratio rather than an absolute HFR because the same number means
+    /// different things at different focal lengths and pixel scales; the log
+    /// always prints the absolute limit it worked out.
     ///
-    /// So the decision is made on the measurement rather than on the fact of
-    /// the failure: at 1.6, a run whose reference HFR is 2.5 keeps imaging at
-    /// 3.8 (1.52x) and stops at 10 (4x). Expressed as a ratio rather than an
-    /// absolute HFR because the same number means different things at
-    /// different focal lengths and pixel scales; the log always prints the
-    /// absolute limit it worked out, so the operator can see both.
-    ///
-    /// Zero or negative disables the tolerance — every autofocus failure is
-    /// then treated as unrecoverable, which is the behaviour this setting
-    /// replaced.
+    /// Zero or negative disables the tolerance — every autofocus failure is then
+    /// unrecoverable.
     #[serde(default = "default_af_failure_hfr_tolerance_ratio")]
     pub failure_hfr_tolerance_ratio: f64,
     /// What to do when a failed autofocus leaves the frames outside
@@ -2257,7 +2228,7 @@ pub struct StartGuidingConfig {
     pub settle_timeout: f64,
     /// Whether to auto-select a guide star if none selected
     pub auto_select_star: bool,
-    /// P3-7 (calibration quality gate): maximum allowable deviation of
+    /// Maximum allowable deviation of
     /// `|ra_angle - dec_angle|` from 90° before we fail the StartGuiding
     /// instruction. A wildly off-perpendicular calibration is a strong
     /// signal that the mount pulse responses were wrong (mirror flip,
@@ -2265,7 +2236,7 @@ pub struct StartGuidingConfig {
     /// drift instead of correct.
     #[serde(default = "default_max_cal_axis_error_deg")]
     pub max_calibration_axis_error_deg: f64,
-    /// P3-7: ceiling on guiding RMS sampled over the post-settle window.
+    /// Ceiling on guiding RMS sampled over the post-settle window.
     /// Defaults to 3.0 pixels — well above any reasonable rig but low
     /// enough to catch outright broken calibrations that nevertheless
     /// passed settle (e.g. settle_pixels was set permissively high).
@@ -2476,67 +2447,56 @@ pub struct MeridianFlipConfig {
     pub retry_delays_secs: Vec<f64>,
     pub failure_action: FlipFailureAction,
 
-    // -----------------------------------------------------------------------
-    // AUDIT-FIX-5B: magic-number defaults promoted from
-    // const-in-executor to user-configurable settings. `#[serde(default = ...)]`
-    // keeps backward compatibility with previously-saved sequences that lack
-    // these fields.
-    // -----------------------------------------------------------------------
     /// Minimum altitude (degrees) the target must be at, after the flip, for
     /// the executor to proceed. Below ~10° atmospheric refraction makes
     /// plate-solve unreliable and most amateur mounts approach their lower
-    /// limit. Was `Self::MIN_POST_FLIP_ALTITUDE_DEG = 10.0` constant.
+    /// limit.
     #[serde(default = "default_min_post_flip_altitude_deg")]
     pub min_post_flip_altitude_deg: f64,
 
     /// Tolerance (degrees) for the RA/Dec coordinate-fallback pier-side
     /// verification used when the mount does not report pier side natively.
-    /// Was `FLIP_COORDINATE_TOLERANCE_DEG = 1.0/60.0` (1 arcminute).
+    /// Defaults to 1 arcminute.
     #[serde(default = "default_flip_coordinate_tolerance_deg")]
     pub flip_coordinate_tolerance_deg: f64,
 
     /// How many times to retry mount park / abort-slew / set-tracking calls
-    /// inside `execute_failure_action` before giving up. Was const u32 = 3.
+    /// inside `execute_failure_action` before giving up.
     #[serde(default = "default_safety_action_retry_count")]
     pub safety_action_retry_count: u32,
 
-    /// Delay (seconds) between safety-action retries. Was const f64 = 5.0.
+    /// Delay (seconds) between safety-action retries.
     #[serde(default = "default_safety_action_retry_delay_secs")]
     pub safety_action_retry_delay_secs: f64,
 
-    // -----------------------------------------------------------------------
-    // Post-flip guider re-lock settle. The `ResumingGuider` step previously
-    // hardcoded 1.5px / 10s / 60s and only checked `is_guiding`, so it ignored
-    // the user's guiding settle settings and accepted a poor re-lock that the
-    // normal Start Guiding path would reject. These mirror StartGuidingConfig
-    // and are `#[serde(default)]` so previously-saved sequences deserialize
-    // unchanged (defaults reproduce the old hardcoded values).
-    // -----------------------------------------------------------------------
+    // Post-flip guider re-lock settle. These mirror StartGuidingConfig and come
+    // from the user's guiding settle settings, so the re-lock is held to the same
+    // standard the normal Start Guiding path applies; `#[serde(default)]` keeps
+    // previously-saved sequences loading.
     /// Guider settle threshold (pixels) for the post-flip re-lock. Sourced from
-    /// the user's guiding settle settings; was hardcoded to 1.5px.
+    /// the user's guiding settle settings.
     #[serde(default = "default_guider_settle_pixels")]
     pub guider_settle_pixels: f64,
 
     /// Guider settle stabilisation time (seconds) for the post-flip re-lock —
-    /// how long guiding must stay under the threshold. Was hardcoded to 10s.
+    /// how long guiding must stay under the threshold.
     #[serde(default = "default_guider_settle_time")]
     pub guider_settle_time: f64,
 
-    /// Guider settle timeout (seconds) for the post-flip re-lock. Was hardcoded
-    /// to 60s.
+    /// Guider settle timeout (seconds) for the post-flip re-lock.
     #[serde(default = "default_guider_settle_timeout")]
     pub guider_settle_timeout: f64,
 
     /// Ceiling on post-settle guiding RMS (pixels) sampled after the re-lock
     /// before declaring guiding good. Mirrors StartGuidingConfig's gate so a
     /// poor post-flip re-lock fails (→ failure_action) instead of resuming
-    /// imaging on bad guiding. Was absent (only `is_guiding` was checked).
+    /// imaging on bad guiding.
     #[serde(default = "default_meridian_max_post_settle_rms_pixels")]
     pub max_post_settle_rms_pixels: f64,
 }
 
-// AUDIT-FIX-5B: exposed as `pub(crate)` so executor tests can reference the
-// canonical defaults without re-hardcoding them.
+// Exposed as `pub(crate)` so executor tests can reference the canonical
+// defaults without re-hardcoding them.
 pub(crate) fn default_min_post_flip_altitude_deg() -> f64 {
     10.0
 }
@@ -2553,9 +2513,9 @@ pub(crate) fn default_safety_action_retry_delay_secs() -> f64 {
     5.0
 }
 
-// Post-flip guider re-lock settle defaults. Numeric values match the
-// formerly-hardcoded executor constants (and StartGuidingConfig's defaults) so
-// behaviour is unchanged for users who do not override their guiding settle.
+// Post-flip guider re-lock settle defaults. Numeric values match the executor
+// constants and StartGuidingConfig's defaults, so a user who does not override
+// their guiding settle gets the same behaviour on both paths.
 pub(crate) fn default_guider_settle_pixels() -> f64 {
     1.5
 }
@@ -2588,9 +2548,7 @@ impl Default for MeridianFlipConfig {
             max_retries: 3,
             retry_delays_secs: vec![30.0, 60.0, 120.0],
             failure_action: FlipFailureAction::PauseAndAlert,
-            // AUDIT-FIX-5B defaults — keep numeric values
-            // identical to the formerly-constant executor defaults so behaviour
-            // is unchanged for users who do not override them.
+            // These defaults equal StartGuidingConfig's defaults.
             min_post_flip_altitude_deg: default_min_post_flip_altitude_deg(),
             flip_coordinate_tolerance_deg: default_flip_coordinate_tolerance_deg(),
             safety_action_retry_count: default_safety_action_retry_count(),
@@ -2664,7 +2622,7 @@ pub enum LoopCondition {
 
 /// Conditions for conditional nodes.
 ///
-/// Audit #24 — wire format:
+/// Wire format:
 ///
 /// The Dart sequence executor emits the conditional payload as
 /// `{"type": "<Variant>", "value": <data>}` (see
@@ -2673,19 +2631,19 @@ pub enum LoopCondition {
 /// non-unit variants (HfrBelow, GuidingRmsBelow, AltitudeAbove,
 /// MoonSeparationAbove, TimeAfter) failed to deserialize at the FFI
 /// boundary — Dart sent `{"type":"HfrBelow","value":1.5}` and serde
-/// expected `{"HfrBelow":1.5}`. Every non-`Always` conditional was
-/// silently broken at runtime.
+/// expects `{"HfrBelow":1.5}`, silently breaking every non-`Always`
+/// conditional at runtime.
 ///
-/// Resolution: adopt `#[serde(tag = "type", content = "value")]` so the
-/// Rust struct matches the Dart wire format. Unit variants serialise as
+/// So `#[serde(tag = "type", content = "value")]` makes the Rust struct match
+/// the Dart wire format. Unit variants serialise as
 /// `{"type":"Always"}` (the content tag is omitted for unit variants);
 /// tuple variants serialise as `{"type":"HfrBelow","value":1.5}`. The
 /// `#[serde(default)]` on `ConditionalConfig.safety_monitor_id` is
 /// unaffected — it lives on the containing struct.
 ///
 /// All Rust-side construction goes through the typed enum (grep:
-/// `ConditionalCheck::`); no JSON literal in the Rust tree depends on
-/// the previous externally-tagged shape outside the unit-tests below.
+/// `ConditionalCheck::`); no JSON literal in the Rust tree depends on the
+/// externally-tagged shape outside the unit tests below.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value")]
 pub enum ConditionalCheck {
@@ -2880,8 +2838,8 @@ pub fn default_guiding_rms_retention_secs() -> u64 {
 }
 
 /// Default focus-drift window size (samples) for the standard `FocusDrift`
-/// trigger. moved out of the magic-number site so config
-/// loaders and the standard-trigger builder share the same default.
+/// trigger. Named here so config loaders and the standard-trigger builder
+/// share the same default.
 pub fn default_focus_drift_window_size() -> usize {
     10
 }
@@ -2898,7 +2856,7 @@ pub fn default_focus_drift_min_total_increase() -> f64 {
     0.5
 }
 
-/// Trust-patch §3: default cadence (frames between autofocus runs) used by
+/// Default cadence (frames between autofocus runs) used by
 /// the standard `AutofocusInterval` trigger seeded by
 /// `TriggerManager::create_standard_triggers`. 25 frames matches a typical
 /// "autofocus every ~30 minutes" cadence for 60-90 s sub-exposures. Exposed
@@ -2911,17 +2869,17 @@ pub fn default_autofocus_interval_frames() -> u32 {
 
 /// Recovery action to take when a trigger fires or error occurs.
 ///
-/// - `Dither(DitherConfig)` was added so the standard `DitherInterval` trigger
-///   has a real action to run; without it the trigger would silently drop into
-///   the catch-all match arm.
+/// - `Dither(DitherConfig)` gives the standard `DitherInterval` trigger a real
+///   action to run; without it the trigger silently drops into the catch-all
+///   match arm.
 /// - `CustomBranch` is retained for serialised on-disk compatibility with
 ///   stored sequences but is rejected as a configuration error at runtime
 ///   (the executor emits an error event and pauses the sequence) until a
-///   child-node recovery branch is wired. Treating it as a no-op was the
-///   silent-drop bug §1.5 called out — refusing it loudly is the policy.
-/// - `Recenter` was added so the new `DriftLimit` trigger has
-///   a non-destructive recovery path: re-slew to the target and plate-solve
-///   instead of pausing the whole sequence.
+///   child-node recovery branch is wired. Treating it as a no-op is a silent
+///   drop — refusing it loudly is the policy.
+/// - `Recenter` gives the `DriftLimit` trigger a non-destructive recovery
+///   path: re-slew to the target and plate-solve instead of pausing the whole
+///   sequence.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub enum RecoveryAction {
     /// Continue execution (ignore error)
@@ -2963,16 +2921,12 @@ pub enum RecoveryAction {
     /// Uses `ExecutionContext::predicted_clear_sky_direction` (populated by
     /// the most recent `UpdateCloudMotion` command) to choose a (alt, az)
     /// destination. Falls back to `PauseAndWaitForClear` when no clear
-    /// direction is reported — silently ignoring the request would be the
-    /// "silent fallback" the house rules forbid.
+    /// direction is reported, rather than silently ignoring the request.
     SlewToGapAndContinue,
-    /// Science — transparency-adaptive sequence swap.
-    ///
-    /// Paired with [`TriggerType::TransparencyDropped`] to implement the
-    /// "switch from faint RGB target to a brighter Lum-tolerant backup
-    /// when the sky goes hazy" workflow. The runtime reads
-    /// `ExecutionContext::transparency_backup_plan` (populated by the
-    /// Dart layer at sequence start) and:
+    /// Transparency-adaptive sequence swap, paired with
+    /// [`TriggerType::TransparencyDropped`]. The runtime reads
+    /// `ExecutionContext::transparency_backup_plan` (populated by the Dart layer
+    /// at sequence start) and:
     ///   1. If a `backup_filter` is set, issues a single ChangeFilter to
     ///      that filter (the user typically picks Lum/Clear here because
     ///      those bands tolerate haze better than narrowband).
@@ -2983,7 +2937,7 @@ pub enum RecoveryAction {
     ///      target after the skip.
     ///   4. If NEITHER is set (no operator-configured fallback), the
     ///      action falls back to `PauseAndWaitForClear` rather than
-    ///      silently no-oping — the house rules forbid silent fallbacks.
+    ///      silently no-oping.
     SwitchTargetOrFilter,
 }
 
@@ -3038,7 +2992,7 @@ mod recovery_action_serde_tests {
     /// `RecoveryAction::Retry` is a STRUCT variant `Retry { max_attempts }`, so
     /// serde's externally-tagged default requires the object form
     /// `{"Retry": {"max_attempts": N}}`. The Dart serialiser
-    /// (`serialization_operations.dart` `_recoveryActionToRust`) now emits this
+    /// (`serialization_operations.dart` `_recoveryActionToRust`) emits this
     /// shape. This test pins the exact node-level JSON the bridge feeds to
     /// `serde_json::from_str::<NodeType>` (bridge/src/api/sequencer.rs:212) for
     /// a Recovery node whose action is Retry, so a regression that reverts to a
@@ -3089,8 +3043,7 @@ mod recovery_action_serde_tests {
         );
     }
 
-    /// Unit variants still use the bare-string form; this confirms the fix did
-    /// not disturb the common path.
+    /// Unit variants use the bare-string form; this pins the common path.
     #[test]
     fn unit_variant_recovery_action_still_deserializes() {
         let json = r#"{

@@ -1,8 +1,6 @@
 use super::*;
 
-// =============================================================================
 // Slew-to-pole start mode (start_from_current = false)
-// =============================================================================
 
 /// Max wall-clock for the pole-region slew to settle before we abort + fail.
 pub(crate) const POLE_SLEW_TIMEOUT_SECS: u64 = 120;

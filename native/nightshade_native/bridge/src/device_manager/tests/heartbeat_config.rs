@@ -40,9 +40,9 @@ fn test_heartbeat_config_for_safety_monitor() {
     let config = HeartbeatConfig::for_safety_monitor();
     // A safety monitor's heartbeat is only a LIVENESS ping — the real IsSafe
     // signal is read on separate paths — so it is treated like the auxiliary
-    // devices: tolerate transient misses and NEVER escalate to a disconnect
-    // (which previously flooded the UI with disconnect/error toasts on any
-    // flaky network hub). See for_safety_monitor().
+    // devices: tolerate transient misses and NEVER escalate to a disconnect,
+    // which on a flaky network hub would flood the UI with disconnect toasts.
+    // See for_safety_monitor().
     assert_eq!(config.base_interval_secs, 15);
     assert_eq!(config.failure_threshold, 4);
     assert!(!config.auto_reconnect);
@@ -94,8 +94,8 @@ fn test_heartbeat_config_non_critical_failure_thresholds_raised() {
     assert_eq!(switch.failure_threshold, 5);
     assert_eq!(switch.base_interval_secs, 20);
 
-    // Safety monitors are now non-escalating liveness (see for_safety_monitor):
-    // threshold raised 2 -> 4 and they no longer tear down on a missed ping.
+    // Safety monitors are non-escalating liveness (see for_safety_monitor):
+    // four missed pings tolerated, and never a teardown.
     assert_eq!(HeartbeatConfig::for_safety_monitor().failure_threshold, 4);
 
     // Critical/auto-reconnecting device types are intentionally unchanged.

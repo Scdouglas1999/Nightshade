@@ -183,7 +183,7 @@ impl Lx200Mount {
     /// Wait up to `duration_ms` or until the pulse-guide cancel is
     /// notified, whichever comes first. Returns `true` if cancelled.
     ///
-    /// Extracted from `pulse_guide` so the cancellation behaviour is
+    /// Separate from `pulse_guide` so the cancellation behaviour is
     /// unit-testable without a serial port.
     pub(crate) async fn pulse_guide_wait(&self, duration_ms: u32) -> bool {
         let cancel = Arc::clone(&self.pulse_guide_cancel);

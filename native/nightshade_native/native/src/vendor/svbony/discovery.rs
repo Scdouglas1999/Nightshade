@@ -2,10 +2,6 @@
 
 use super::*;
 
-// =============================================================================
-// Discovery
-// =============================================================================
-
 /// Discovered SVBony camera info
 #[derive(Debug, Clone)]
 pub struct SvbonyDiscoveryInfo {

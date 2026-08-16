@@ -2,10 +2,6 @@
 
 use super::*;
 
-// =============================================================================
-// FLI Camera Implementation
-// =============================================================================
-
 /// FLI camera native driver
 pub struct FliCamera {
     pub(crate) device_path: String,
@@ -132,11 +128,16 @@ impl NativeDevice for FliCamera {
                 .to_string();
         }
 
-        // Get pixel size
+        // Get pixel size. A zeroed pixel size zeroes the plate scale everywhere
+        // downstream, so a failed read must abort the connect, not pass 0.0 along.
         let mut pixel_x: c_double = 0.0;
         let mut pixel_y: c_double = 0.0;
         // SAFETY: fli_mutex held; self.handle was successfully opened above; both out-pointers are valid stack pointers.
-        let _ = unsafe { (sdk.get_pixel_size)(self.handle, &mut pixel_x, &mut pixel_y) };
+        let result = unsafe { (sdk.get_pixel_size)(self.handle, &mut pixel_x, &mut pixel_y) };
+        if let Err(error) = check_fli_error(result, "get pixel size") {
+            close_fli_handle(sdk, &mut self.handle);
+            return Err(error);
+        }
 
         // Get visible area (the actual image area)
         let mut ul_x: c_long = 0;
@@ -200,7 +201,37 @@ impl NativeDevice for FliCamera {
         self.visible_lr_x = visible_lr_x;
         self.visible_lr_y = visible_lr_y;
 
-        // Set sensor info
+        // Select 16-bit mode before publishing the sensor's bit depth. If this write
+        // fails the camera stays in 8-bit while the app advertises a 65535 full scale,
+        // so every subsequent frame would be scaled, stretched and written to FITS
+        // against a ceiling 256x too large. Fail the connect instead.
+        // SAFETY: fli_mutex held; self.handle is open; FLI_MODE_16BIT is a pass-by-value constant.
+        let result = unsafe { (sdk.set_bit_depth)(self.handle, FLI_MODE_16BIT) };
+        if let Err(error) = check_fli_error(result, "set 16-bit mode") {
+            close_fli_handle(sdk, &mut self.handle);
+            return Err(error);
+        }
+
+        // libfli has no cooler-presence flag, so the temperature channel is the only
+        // evidence available. It is one-directional: a body that cannot report a CCD
+        // temperature has no regulation to offer, but a body that can may still be
+        // uncooled, because libfli answers FLIGetTemperature on those too.
+        let mut probe_temp: c_double = 0.0;
+        // SAFETY: fli_mutex held; self.handle is open; `&mut probe_temp` is a valid stack out-pointer.
+        let temp_result = unsafe { (sdk.get_temperature)(self.handle, &mut probe_temp) };
+        let can_cool = temp_result == 0;
+        if !can_cool {
+            tracing::warn!(
+                "FLI camera '{}' did not report a CCD temperature (error code {}); reporting no cooling",
+                self.name,
+                temp_result
+            );
+        }
+
+        // Set sensor info. `bit_depth`/`max_adu` describe the 16-bit mode confirmed
+        // above. libfli reports no colour-filter-array information and delivers frames
+        // with no Bayer metadata, so frames are published as mono; a one-shot-colour
+        // FLI body is therefore not debayered.
         self.sensor_info = SensorInfo {
             width,
             height,
@@ -208,27 +239,26 @@ impl NativeDevice for FliCamera {
             pixel_size_y: pixel_y,
             max_adu: 65535,
             bit_depth: 16,
-            color: false, // FLI cameras are typically monochrome
+            color: false,
             bayer_pattern: None,
         };
 
-        // Set capabilities
+        // Set capabilities. libfli publishes no per-model capability table, so only
+        // the API's own documented limits and the probe above are asserted here:
+        // FLISetHBin/FLISetVBin accept 1..=16 (libfli.c:696, :857), and gain and
+        // offset have no SDK control at all.
         self.capabilities = CameraCapabilities {
-            can_cool: true,      // FLI cameras typically have cooling
-            can_set_gain: false, // FLI doesn't expose gain control
+            can_cool,
+            can_set_gain: false,
             can_set_offset: false,
             can_set_binning: true,
             can_subframe: true,
             has_shutter: true,
             has_guider_port: false,
-            max_bin_x: 16, // FLI typically supports up to 16x binning
+            max_bin_x: 16,
             max_bin_y: 16,
             supports_readout_modes: false,
         };
-
-        // Set 16-bit mode
-        // SAFETY: fli_mutex held; self.handle is open; FLI_MODE_16BIT is a pass-by-value constant.
-        let _ = unsafe { (sdk.set_bit_depth)(self.handle, FLI_MODE_16BIT) };
 
         // Set full frame
         // SAFETY: fli_mutex held; self.handle is open; ul_x/ul_y/lr_x/lr_y came from the SDK-reported visible area above so they are valid sensor coordinates.

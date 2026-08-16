@@ -2,9 +2,7 @@
 
 use super::*;
 
-// =============================================================================
-// NativeDevice IMPLEMENTATION
-// =============================================================================
+// NativeDevice implementation
 
 #[async_trait]
 impl NativeDevice for GPhoto2Camera {
@@ -157,9 +155,7 @@ impl NativeDevice for GPhoto2Camera {
     }
 }
 
-// =============================================================================
-// NativeCamera IMPLEMENTATION
-// =============================================================================
+// NativeCamera implementation
 
 #[async_trait]
 impl NativeCamera for GPhoto2Camera {

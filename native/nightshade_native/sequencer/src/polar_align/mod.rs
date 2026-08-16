@@ -16,9 +16,7 @@
 //! point 2 resumes by measuring point 2 again). The adjustment loop
 //! is unbounded by design and lives in a single non-resumable step.
 //! Mathematics and image preview helpers live in submodules so this
-//! file reads as a pure state machine. User-visible behavior
-//! (callbacks, log lines, return values) matches the pre-refactor
-//! implementation.
+//! file reads as a pure state machine.
 //!
 //! ## `unwrap_or` policy
 //!
@@ -244,8 +242,7 @@ where
             .await
         {
             tracing::warn!("Failed to slew to start position: {}", e);
-            // Continue anyway — user can manually position if needed
-            // (pre-refactor behavior).
+            // Continue anyway — the user can manually position if needed.
             return;
         }
 
@@ -447,7 +444,7 @@ where
                 .await
             {
                 Ok(res) if res.success => res,
-                _ => continue, // Pre-refactor: ignore solve failures and retry.
+                _ => continue, // Ignore solve failures and retry.
             };
 
             preview::emit_preview(

@@ -301,17 +301,9 @@ where
         Self::new(BufferPoolConfig::default())
     }
 
-    /// Get a buffer from the pool
-    ///
-    /// If a suitably-sized buffer is available in the pool, it will be returned.
-    /// Otherwise, a new buffer is allocated. The returned PooledBuffer will
-    /// automatically return to the pool when dropped.
-    ///
-    /// # Arguments
-    /// * `min_size` - Minimum number of elements needed in the buffer
-    ///
-    /// # Returns
-    /// A PooledBuffer that can be used like a Vec<T> and returns to pool on drop
+    /// Take a buffer of at least `min_size` elements from the pool, allocating
+    /// one if no bucket has a spare. The returned `PooledBuffer` is used like a
+    /// `Vec<T>` and returns itself to the pool on drop.
     pub fn get_buffer(&self, min_size: usize) -> PooledBuffer<T> {
         let (buffer, bucket_size, was_hit) = {
             // Why: unpoisonable-Mutex idiom — `std::sync::Mutex::lock`

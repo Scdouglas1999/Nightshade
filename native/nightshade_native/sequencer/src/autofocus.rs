@@ -189,7 +189,7 @@ impl VCurveAutofocus {
                     .iter()
                     .min_by(|a, b| {
                         a.hfr
-                            .partial_cmp(&b.hfr) /* §4.3: f64 NaN orders Equal — see module-level policy */
+                            .partial_cmp(&b.hfr) /* f64 NaN orders Equal — see module-level policy */
                             .unwrap_or(std::cmp::Ordering::Equal)
                     })
                     .ok_or_else(|| "No valid HFR values found".to_string())?;
@@ -210,7 +210,7 @@ impl VCurveAutofocus {
             .iter()
             .map(|p| p.hfr)
             .min_by(|a, b| {
-                a.partial_cmp(b) /* §4.3: f64 NaN orders Equal — see module-level policy */
+                a.partial_cmp(b) /* f64 NaN orders Equal — see module-level policy */
                     .unwrap_or(std::cmp::Ordering::Equal)
             })
             .ok_or_else(|| "No valid HFR values found".to_string())?;
@@ -238,7 +238,7 @@ impl VCurveAutofocus {
         // inflated by the very outliers we are trying to detect.
         let mut hfrs: Vec<f64> = points.iter().map(|p| p.hfr).collect();
         hfrs.sort_by(|a, b| {
-            a.partial_cmp(b) /* §4.3: f64 NaN orders Equal — see module-level policy */
+            a.partial_cmp(b) /* f64 NaN orders Equal — see module-level policy */
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
 
@@ -246,7 +246,7 @@ impl VCurveAutofocus {
 
         let mut deviations: Vec<f64> = hfrs.iter().map(|&h| (h - median).abs()).collect();
         deviations.sort_by(|a, b| {
-            a.partial_cmp(b) /* §4.3: f64 NaN orders Equal — see module-level policy */
+            a.partial_cmp(b) /* f64 NaN orders Equal — see module-level policy */
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
         let mad = deviations[deviations.len() / 2];
@@ -304,14 +304,14 @@ impl VCurveAutofocus {
                 .first()
                 // Why: i32 -> f64 is lossless (positions fit in 53-bit mantissa).
                 .map(|p| p.position as f64)
-                // Why (§4.3): empty branch → use the linear-regression intersection as the
+                // Why: empty branch → use the linear-regression intersection as the
                 // extrapolation target. See module-level policy.
                 .unwrap_or(intersection);
             let max_position = sorted
                 .last()
                 // Why: i32 -> f64 is lossless (positions fit in 53-bit mantissa).
                 .map(|p| p.position as f64)
-                // Why (§4.3): empty branch → use the linear-regression intersection as the
+                // Why: empty branch → use the linear-regression intersection as the
                 // extrapolation target. See module-level policy.
                 .unwrap_or(intersection);
             if !(min_position..=max_position).contains(&intersection) {
@@ -361,7 +361,7 @@ impl VCurveAutofocus {
             .min_by(|a, b| {
                 a.hfr
                     .partial_cmp(&b.hfr)
-                    /* §4.3: f64 NaN orders Equal — see module-level policy */
+                    /* f64 NaN orders Equal — see module-level policy */
                     .unwrap_or(std::cmp::Ordering::Equal)
             })
             .ok_or("No minimum found")?;
@@ -485,7 +485,7 @@ impl VCurveAutofocus {
             .iter()
             .map(|p| p.hfr)
             .min_by(|a, b| {
-                a.partial_cmp(b) /* §4.3: f64 NaN orders Equal — see module-level policy */
+                a.partial_cmp(b) /* f64 NaN orders Equal — see module-level policy */
                     .unwrap_or(std::cmp::Ordering::Equal)
             })
             .ok_or_else(|| "No valid HFR values found for hyperbolic fit".to_string())?;
@@ -579,15 +579,15 @@ impl VCurveAutofocus {
             let y = point.hfr;
             if y * y > b * b {
                 let term = (y * y - b * b).sqrt();
-                // Same magnitude-vs-magnitude regression as the iterative
-                // estimate above. With the previous signed-dx numerator, `a`
-                // came out ~0 on any near-symmetric sweep, so `predicted`
-                // flattened to the constant `b`, ss_res exceeded ss_tot, and the
-                // R² clamped to exactly 0.000 — every Hyperbolic autofocus then
-                // failed its own gate ("curve fit R² 0.000 is below the
-                // configured threshold 0.700"), no matter how clean the data.
-                // Measured on a real simulator sweep: 41 stars per point, HFR
-                // 4.09 → 2.35 → 3.02, variance 1.75, R² 0.000.
+                // Same magnitude-vs-magnitude fit as the iterative estimate
+                // above. A signed-dx numerator drives `a` to ~0 on any
+                // near-symmetric sweep, so `predicted` flattens to the constant
+                // `b`, ss_res exceeds ss_tot, and R² clamps to exactly 0.000 —
+                // every Hyperbolic autofocus then fails its own gate ("curve
+                // fit R² 0.000 is below the configured threshold 0.700"), no
+                // matter how clean the data. Measured on a real simulator
+                // sweep: 41 stars per point, HFR 4.09 → 2.35 → 3.02, variance
+                // 1.75.
                 sum_num += dx.abs() * term;
                 sum_den += dx * dx;
             }
@@ -943,15 +943,15 @@ mod tests {
         assert_eq!(positions[6], 5300);
     }
 
-    /// Regression: the DEFAULT method (`VCurve`) must return a usable R² for the
-    /// V-curve a real sweep produces, because the caller gates on
-    /// `r_squared_threshold` (0.7 by default) and aborts autofocus below it.
+    /// The DEFAULT method (`VCurve`) must return a usable R² for the V-curve a
+    /// real sweep produces, because the caller gates on `r_squared_threshold`
+    /// (0.7 by default) and aborts autofocus below it.
     ///
-    /// Measured live against the simulator's star field: a clean sweep
-    /// (HFR 4.09 down to 2.35 and back up to 3.02, variance 1.75) came back with
-    /// R² exactly 0.000 and autofocus failed with "curve fit R² 0.000 is below
-    /// the configured threshold 0.700" — with no "curve fit failed" warning,
-    /// i.e. the fit reported success while scoring itself zero.
+    /// Measured live against the simulator's star field: a clean sweep (HFR
+    /// 4.09 down to 2.35 and back up to 3.02, variance 1.75) that scores R²
+    /// exactly 0.000 fails autofocus with "curve fit R² 0.000 is below the
+    /// configured threshold 0.700" and no "curve fit failed" warning — the fit
+    /// reporting success while scoring itself zero.
     #[test]
     fn vcurve_fit_scores_a_realistic_sweep_above_the_default_threshold() {
         let engine = VCurveAutofocus::new(AutofocusConfig::default());

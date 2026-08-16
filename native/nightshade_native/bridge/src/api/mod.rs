@@ -33,9 +33,7 @@ pub fn get_device_manager() -> &'static Arc<DeviceManager> {
     DEVICE_MANAGER.get_or_init(|| DeviceManager::new(get_state().clone()))
 }
 
-// =============================================================================
-// Per-(DeviceType, DriverType) Discovery Cache
-// =============================================================================
+// Per-(DeviceType, DriverType) discovery cache
 
 /// Cached outcome of a single (DeviceType, DriverType) discovery scan.
 ///
@@ -44,9 +42,8 @@ pub fn get_device_manager() -> &'static Arc<DeviceManager> {
 ///   * An error in one backend (e.g. ASCOM) cannot poison another (e.g. Alpaca)
 ///     for the same device type — each entry holds its own `result`.
 ///   * Backends that errored still respect the TTL, preventing a tight
-///     hammer-the-broken-backend loop while still surfacing the failure to the
-///     caller (errors are a feature, — they are not silently
-///     swallowed).
+///     hammer-the-broken-backend loop; the failure is still surfaced to the
+///     caller rather than swallowed.
 pub(crate) struct DiscoveryCacheEntry {
     /// Outcome of the last discovery scan: either the discovered devices
     /// (possibly empty if the backend ran cleanly but found nothing) or the
@@ -61,9 +58,7 @@ pub(crate) type DiscoveryCacheMap = HashMap<(DeviceType, DriverType), DiscoveryC
 
 static DISCOVERY_CACHE: OnceLock<Mutex<DiscoveryCacheMap>> = OnceLock::new();
 
-// =============================================================================
-// Event Stream Overflow Tracking
-// =============================================================================
+// Event stream overflow tracking
 
 use std::sync::atomic::AtomicU64;
 
@@ -130,9 +125,7 @@ pub async fn api_invalidate_discovery_cache() {
     tracing::info!("Discovery cache invalidated");
 }
 
-// =============================================================================
 // Submodule declarations (api.rs decomposition).
-// =============================================================================
 
 pub(crate) mod api_version;
 pub(crate) mod connection;

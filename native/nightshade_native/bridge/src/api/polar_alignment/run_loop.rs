@@ -380,14 +380,14 @@ pub(crate) async fn run_polar_alignment(
     emit_polar_status("Adjustment mode - make corrections", "adjusting", 0);
 
     // Track the measured mount RA axis as the user physically adjusts the alt/az
-    // bolts. The axis was measured in Phase 1 from three ROTATED points. During
+    // bolts. The axis is measured in the three-point phase from ROTATED points.
+    // During
     // adjustment the mount is stationary (the user turns the bolts, not the RA
     // motor), so re-fitting the axis from the now-stationary frames is invalid —
-    // three near-identical points give a degenerate plane and the old code
-    // collapsed the axis toward the pole, reporting ~0 error from a badly
-    // misaligned mount.
+    // three near-identical points give a degenerate plane, which collapses the
+    // axis toward the pole and reports ~0 error from a badly misaligned mount.
     //
-    // Instead we hold the Phase-1 axis and apply the displacement of the
+    // Instead we hold the measured axis and apply the displacement of the
     // boresight (how far the current solved position has moved from the first
     // adjustment frame) to the axis. Any physical mount adjustment shifts the
     // whole sky-to-mount mapping by the same small rotation, so the boresight
@@ -581,7 +581,7 @@ pub(crate) async fn run_polar_alignment(
             );
 
             // Track the current mount axis by applying the boresight
-            // displacement (vs the first adjustment frame) to the Phase-1 axis.
+            // displacement (vs the first adjustment frame) to the measured axis.
             // This reflects the user's physical alt/az adjustments WITHOUT the
             // degenerate re-fit-from-stationary-points collapse.
             let (ref_ra, ref_dec) = *reference_solve.get_or_insert((ra_degrees, solve_result.dec));
@@ -604,10 +604,10 @@ pub(crate) async fn run_polar_alignment(
                 cur_axis_dec
             );
 
-            // Error in ARCSECONDS (Dart UI labels values with `"` and uses
-            // 30"/60" colour bands; the old code emitted arcMINUTES, so a real
-            // 5' error displayed as 5" — 60x too small — and the auto-complete
-            // fired ~60x too early).
+            // Error in ARCSECONDS: the Dart UI labels these values with `"` and
+            // uses 30"/60" colour bands, and the auto-complete threshold is in
+            // the same unit. Emitting arcminutes here shows a 5' error as 5" and
+            // fires the auto-complete ~60x too early.
             let (az_arcmin, alt_arcmin, total_arcmin) =
                 nightshade_sequencer::calculate_alignment_error_arcmin(
                     cur_axis_ra,

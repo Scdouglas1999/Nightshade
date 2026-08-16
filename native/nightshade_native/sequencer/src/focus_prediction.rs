@@ -624,8 +624,8 @@ impl PersistedFocusModel {
             if let Some(best) = points.iter().min_by(|a, b| {
                 a.hfr
                     .partial_cmp(&b.hfr)
-                    // Why (§4.3): f64 NaN orders Equal; outlier-rejection
-                    // happens at the regression layer.
+                    // Why: f64 NaN orders Equal; outlier-rejection happens
+                    // at the regression layer.
                     .unwrap_or(std::cmp::Ordering::Equal)
             }) {
                 best_points.push(*best);

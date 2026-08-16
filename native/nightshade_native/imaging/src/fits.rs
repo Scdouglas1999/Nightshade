@@ -853,8 +853,8 @@ pub fn write_fits(path: &Path, image: &ImageData, header: &FitsHeader) -> Result
         }
     }
 
-    // Emit COMMENT cards. Why: §6.5 — these have no `=` separator and the text
-    // body occupies columns 9..80, padded with spaces.
+    // Emit COMMENT cards. Why: these have no `=` separator and the text body
+    // occupies columns 9..80, padded with spaces.
     for text in &header.comments {
         write_text_card(&mut writer, "COMMENT", text)?;
     }
@@ -988,7 +988,7 @@ fn write_end_card<W: Write>(writer: &mut W) -> Result<(), FitsError> {
 /// keyword). Per FITS 4.4.2.4 these have no `=` separator; the text body fills
 /// columns 9..80 (1-indexed) and is padded with trailing spaces. Long text is
 /// split across multiple cards. Why: emitting a value-card for COMMENT/HISTORY
-/// (the previous behavior) produced malformed cards like `COMMENT = some text`.
+/// would produce malformed cards like `COMMENT = some text`.
 fn write_text_card<W: Write>(writer: &mut W, keyword: &str, text: &str) -> Result<(), FitsError> {
     if keyword.len() > 8 {
         return Err(FitsError::InvalidFormat(format!(
@@ -1223,15 +1223,8 @@ pub struct WcsInfo {
 }
 
 impl WcsInfo {
-    /// Create WCS info from plate solve result
-    ///
-    /// # Arguments
-    /// * `ra` - Right ascension in degrees
-    /// * `dec` - Declination in degrees
-    /// * `rotation` - Field rotation in degrees
-    /// * `pixel_scale` - Pixel scale in arcseconds per pixel
-    /// * `image_width` - Image width in pixels
-    /// * `image_height` - Image height in pixels
+    /// Build WCS info from a plate solve: `ra`/`dec`/`rotation` in degrees,
+    /// `pixel_scale` in arcseconds per pixel, image size in pixels.
     pub fn from_plate_solve(
         ra: f64,
         dec: f64,
@@ -1273,15 +1266,8 @@ impl WcsInfo {
     }
 }
 
-/// Add WCS (World Coordinate System) headers to a FITS header
-///
-/// This adds standard astrometry headers based on plate solve results.
-/// The WCS headers allow astronomical software to map pixel coordinates
-/// to sky coordinates (RA/Dec).
-///
-/// # Arguments
-/// * `header` - The FITS header to add WCS keywords to
-/// * `wcs` - WCS information from plate solving
+/// Add the standard WCS (World Coordinate System) keywords to `header`, which
+/// is what lets other astronomical software map pixel coordinates to RA/Dec.
 pub fn add_wcs_headers(header: &mut FitsHeader, wcs: &WcsInfo) {
     // Reference coordinates
     header.set_float("CRVAL1", wcs.crval1);
@@ -1370,20 +1356,14 @@ impl StandardKeywords {
 /// 10° down to the true horizon where Pickering's `1/sin(h + 244/(165+47*h^1.1))`
 /// term degrades sharply.
 ///
-/// # Arguments
-/// * `altitude_degrees` - True altitude angle in degrees (must be ≥ 0)
+/// `altitude_degrees` is a true altitude. The result is ≥ 1.0 at the zenith and
+/// increases toward the horizon (Young at h=0° gives ≈31.74). An altitude below
+/// 0° returns `FitsError::BelowHorizon`: airmass is physically undefined for a
+/// sub-horizon path, and clamping hides the scheduler or coordinate-transform
+/// bug that pointed the mount there. The caller decides what to do (skip,
+/// retry, alert).
 ///
-/// # Returns
-/// * `Ok(X)` — airmass value, ≥ 1.0 at the zenith and increasing toward the
-///   horizon (Young's formula evaluated at h=0° gives ≈31.74).
-/// * `Err(FitsError::BelowHorizon)` — for altitudes below 0°. Why: airmass is
-///   physically undefined for sub-horizon paths; silently clamping (the prior
-///   behavior) hides scheduler/coord-transform bugs that send the mount below
-///   the horizon. The caller decides how to handle (skip, retry, alert).
-///
-/// # Validity range
-/// - Pickering 2002: 10° ≤ h ≤ 90° (chosen here for matching that range)
-/// - Young 1994: 0° ≤ h ≤ 90° (used here for h < 10°)
+/// Validity: Pickering 2002 over 10° ≤ h ≤ 90°, Young 1994 over 0° ≤ h < 10°.
 ///
 /// # References
 /// * Pickering, K. A. 2002. "The Southern Limits of the Ancient Star Catalog."
@@ -1465,15 +1445,8 @@ impl ImageValidation {
     }
 }
 
-/// Validate image data for common issues
-///
-/// # Arguments
-/// * `image` - The image data to validate
-/// * `expected_width` - Expected image width (None to skip check)
-/// * `expected_height` - Expected image height (None to skip check)
-///
-/// # Returns
-/// Validation result with errors and warnings
+/// Validate image data, checking the dimensions against `expected_width` /
+/// `expected_height` when they are given.
 pub fn validate_image(
     image: &ImageData,
     expected_width: Option<u32>,
@@ -1568,14 +1541,6 @@ pub fn validate_image(
                 // it, and reducing the exposure. It captures through this same
                 // path, so a hard failure removes the very measurement the
                 // correction loop needs.
-                //
-                // This only became reachable for ordinary frames when the
-                // threshold started being derived from the sensor's real
-                // ceiling: a right-justified 12-bit frame clipped at 4095 was
-                // previously compared against a 16-bit threshold it could never
-                // meet, so it silently passed. Deriving the ceiling was correct;
-                // turning every over-exposed 12-bit frame into an aborted
-                // exposure was not.
                 validation.add_warning(
                     "Image is all-saturated (overexposed, or a stuck sensor) - \
                      lower the exposure, gain, or light level"
@@ -1673,11 +1638,8 @@ pub fn saturation_threshold_for_full_scale(full_scale: u32) -> Option<u16> {
 /// verdict is an *error*, and an error is not an annotation: the capture path
 /// returns Err on `!is_valid`, so the unscaled floor destroys the frame.
 ///
-/// This is the same defect the saturation threshold had, at the other end of
-/// the range; deriving the ceiling fixed only the bright end.
-///
-/// Scaling can only ever lower the floor, so no frame that passes today can
-/// start failing.
+/// The floor therefore scales with the container, exactly as the saturation
+/// ceiling does at the other end of the range.
 fn signal_floor_for_full_scale(floor_at_full_16bit: u16, full_scale: u32) -> u16 {
     let ceiling = u64::from(full_scale.min(u32::from(u16::MAX)));
     // At least 1 ADU: on an 8-bit container 0.15% is a fraction of a code, and
@@ -1767,8 +1729,7 @@ pub struct ImageValidationOptions {
     /// A normal deep-sky sub clips only star cores — hundredths of a percent.
     /// Once 5% of the sensor sits at the ceiling the exposure or gain is wrong
     /// (or the moon/twilight is washing the field) and the highlights of that
-    /// sub are gone. Reporting only above `max_saturation_percent` meant a frame
-    /// with half its pixels clipped passed silently.
+    /// sub are gone — a tier `max_saturation_percent` alone never reports.
     pub warn_saturation_percent: f64,
 }
 
@@ -1797,16 +1758,9 @@ impl ImageValidationOptions {
     }
 }
 
-/// Validate image data with bias frame option
-///
-/// # Arguments
-/// * `image` - The image data to validate
-/// * `expected_width` - Expected image width (None to skip check)
-/// * `expected_height` - Expected image height (None to skip check)
-/// * `is_bias_frame` - If true, allows uniform pixel values (bias frames naturally have this)
-///
-/// # Returns
-/// Validation result with errors and warnings
+/// Validate image data, checking the dimensions against `expected_width` /
+/// `expected_height` when they are given. `is_bias_frame` allows uniform pixel
+/// values, which a bias frame naturally has.
 pub fn validate_image_with_options(
     image: &ImageData,
     expected_width: Option<u32>,
@@ -1990,9 +1944,9 @@ pub fn validate_image_comprehensive(
             //                            Common in daylight testing and flats and
             //                            is NOT a hardware fault.
             //   * uniform mid-value   -> genuinely stuck/dead sensor.
-            // Reporting an over-exposed frame as "sensor failure" (the old
-            // behavior) is an alarming misdiagnosis, and on 12-/14-bit cameras
-            // Check 5 never fired at all because its threshold assumed 16-bit.
+            // Reporting an over-exposed frame as "sensor failure" is an
+            // alarming misdiagnosis, and a Check 5 threshold that assumes
+            // 16-bit never fires at all on 12-/14-bit cameras.
             let all_same = min_value == max_value;
             if all_same {
                 if options.is_bias_frame {
@@ -2074,10 +2028,10 @@ pub fn validate_image_comprehensive(
             }
 
             // Check 4: Saturation with tiered thresholds
-            // Excessive (>max_saturation_percent, default 90%) - severe overexposure
-            // Heavy (>warn_saturation_percent, default 5%) - the sub's highlights
-            // are already gone; the old single 90% tier let a frame with half its
-            // pixels clipped pass without saying anything.
+            // Excessive (>max_saturation_percent, default 90%) - severe
+            // overexposure. Heavy (>warn_saturation_percent, default 5%) - the
+            // sub's highlights are already gone, which a single 90% tier never
+            // reports.
             if saturation_percent > options.max_saturation_percent {
                 validation.add_warning(format!(
                     "Excessive saturation: {:.1}% of pixels are saturated (>{}%) - \
@@ -2191,21 +2145,10 @@ pub fn validate_fits_header(header: &FitsHeader) -> ImageValidation {
     validation
 }
 
-/// Calculate image quality score
-///
-/// Quality score is a 0-100 metric based on:
+/// Score a frame 0-100 (100 is best) from three terms:
 /// - HFR (smaller is better, below 3.0 is excellent)
-/// - Star count (more stars indicate better data)
-/// - Background uniformity (lower stddev relative to mean is better)
-///
-/// # Arguments
-/// * `hfr` - Half-flux radius (arc-seconds or pixels)
-/// * `star_count` - Number of detected stars
-/// * `mean` - Image mean value
-/// * `std_dev` - Image standard deviation
-///
-/// # Returns
-/// Quality score from 0-100 (100 is best)
+/// - star count (more stars indicate better data)
+/// - background uniformity (lower `std_dev` relative to `mean` is better)
 pub fn calculate_quality_score(
     hfr: Option<f64>,
     star_count: Option<i32>,
@@ -2378,8 +2321,7 @@ mod tests {
 
     #[test]
     fn test_calculate_airmass_horizon_uses_young_1994() {
-        // Why: Young 1994 evaluated at z=90° (h=0°) gives airmass ≈ 31.74. This
-        // replaces the old sentinel-clamp value of 40.0.
+        // Why: Young 1994 evaluated at z=90° (h=0°) gives airmass ≈ 31.74.
         let airmass = calculate_airmass(0.0).expect("h=0° must succeed via Young 1994");
         assert!(
             (airmass - 31.74).abs() < 0.5,
@@ -2707,9 +2649,8 @@ mod tests {
             "expected an all-saturated warning at the 12-bit ceiling, got {:?}",
             v.warnings
         );
-        // Detected without failing the capture: before the ceiling was derived
-        // this frame was compared against a 16-bit threshold it could never
-        // reach and passed in silence, but the cure must not be an aborted run.
+        // Detected without failing the capture: the frame is clipped against
+        // its own 12-bit ceiling, and an over-exposed frame is still a frame.
         assert!(
             v.is_valid,
             "a clipped 12-bit flat must still return a frame"
@@ -2718,8 +2659,8 @@ mod tests {
 
     #[test]
     fn test_half_clipped_frame_is_reported() {
-        // Half the pixels at the ceiling is a ruined sub. Reporting only above
-        // 90% meant this passed in silence.
+        // Half the pixels at the ceiling is a ruined sub, and a 90%-only tier
+        // never says so.
         let mut pixels = vec![12000u16; 128 * 128];
         for p in pixels.iter_mut().take(128 * 128 / 2) {
             *p = 65535;
@@ -2951,7 +2892,7 @@ mod tests {
         // A frame uniformly at the 14-bit sensor ceiling (16382 << 2 = 65528)
         // is over-exposed, NOT a dead sensor. It must be rejected as saturated
         // with "reduce exposure" guidance, never as "sensor failure or dead
-        // frame" (the pre-fix misdiagnosis surfaced live on a real ASI178MM).
+        // frame" — the misdiagnosis a 14-bit ASI178MM frame invites.
         let image = ImageData::from_u16(64, 64, 1, &vec![65528u16; 64 * 64]);
         let v = validate_image_comprehensive(&image, ImageValidationOptions::default());
         assert!(
@@ -3441,7 +3382,7 @@ mod tests {
         bytes
     }
 
-    // -------------------- §6.3 BSCALE/BZERO round-trip --------------------
+    // BSCALE/BZERO round-trip
 
     #[test]
     fn test_decode_strips_bscale_bzero_from_header() {
@@ -3531,8 +3472,8 @@ mod tests {
 
     #[test]
     fn test_bzero_32768_honours_nonunit_bscale() {
-        // Regression: the BZERO==32768 fast path must not swallow a non-unit
-        // BSCALE. With BSCALE=2 the physical value is v*2 + 32768, not v + 32768.
+        // The BZERO==32768 fast path must not swallow a non-unit BSCALE. With
+        // BSCALE=2 the physical value is v*2 + 32768, not v + 32768.
         let cards = [
             "SIMPLE  =                    T",
             "BITPIX  =                   16",
@@ -3558,9 +3499,9 @@ mod tests {
 
     #[test]
     fn test_u32_bzero_round_trip_above_2_31() {
-        // Regression: u32 values above 2^31-1 must survive a write/read cycle.
-        // Without the BZERO=2147483648 offset they wrapped to negative i32 on
-        // disk and were clamped to zero on read.
+        // u32 values above 2^31-1 must survive a write/read cycle. Without the
+        // BZERO=2147483648 offset they wrap to negative i32 on disk and are
+        // clamped to zero on read.
         let values: Vec<u32> = vec![0, 2_000_000_000, 3_000_000_000, u32::MAX];
         let data: Vec<u8> = values.iter().flat_map(|&v| v.to_le_bytes()).collect();
         let image = ImageData {
@@ -3588,7 +3529,7 @@ mod tests {
         assert_eq!(pix, values);
     }
 
-    // -------------------- §6.5 header invariants --------------------
+    // Header invariants
 
     #[test]
     fn test_format_fits_string_value_pads_short_strings() {
@@ -3737,7 +3678,7 @@ mod tests {
         );
     }
 
-    // -------------------- §6.6 XBAYROFF/YBAYROFF composition --------------------
+    // XBAYROFF/YBAYROFF composition
 
     #[test]
     fn test_effective_bayer_pattern_zero_offset_identity() {

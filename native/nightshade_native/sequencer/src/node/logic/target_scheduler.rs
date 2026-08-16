@@ -64,9 +64,9 @@ pub async fn execute_target_scheduler(
     }
 
     // Guard: every child must be a TargetHeader variant. The Dart-side
-    // validator surfaces this as an error before the user can save, but the
+    // validator surfaces this as an error before the user can save, and the
     // executor double-checks at runtime so a hand-edited JSON cannot smuggle
-    // a non-target child past the front door. "Errors are a feature."
+    // a non-target child past the front door.
     for (i, child) in node.children.iter().enumerate() {
         if !matches!(
             child.node_type(),
@@ -82,8 +82,8 @@ pub async fn execute_target_scheduler(
         }
     }
 
-    // Observer must be present; refusing to fall back to "lat=0, lon=0" is
-    // the fail-closed policy from the CONTRIBUTING.md house rules.
+    // Observer must be present: falling back to "lat=0, lon=0" would schedule
+    // against a site nobody is observing from.
     let (Some(lat), Some(lon)) = (context.latitude, context.longitude) else {
         tracing::error!(
             "[SCHEDULER] observer location missing (latitude={:?}, longitude={:?}); cannot schedule targets",
@@ -126,8 +126,7 @@ pub async fn execute_target_scheduler(
         let now = context.clock.now_utc();
         // feed the scheduler a real moon position + illumination and a
         // twilight bracket. These drive ~40% of the scoring weight (moon
-        // avoidance + darkness) and were previously hardcoded to dead inputs,
-        // so the "self-driving" scheduler ignored the moon and sky darkness.
+        // avoidance + darkness).
         let observer = ObserverContext {
             latitude_deg: lat,
             longitude_deg: lon,
@@ -157,21 +156,20 @@ pub async fn execute_target_scheduler(
                 let already_done = completed_children.contains(child.id().as_str());
 
                 // filter by EXPLICIT start_when / end_when
-                // crossings. We deliberately do NOT consult the legacy
-                // `min_altitude` / `start_after` / `end_before` fields here
-                // because `score_target` (called downstream via
-                // `score_targets`) already evaluates them via the existing
-                // `runnable=false` + `skip_reason` path. Routing those
-                // through the new filter as well would change the
-                // observable contract: a target the user marks
-                // `min_altitude: 40°` previously surfaced as a Skipped
-                // pick with a reason, not an invisible exclusion.
+                // crossings. The legacy `min_altitude` / `start_after` /
+                // `end_before` fields are deliberately NOT consulted here:
+                // `score_target` (called downstream via `score_targets`)
+                // already evaluates them through the `runnable=false` +
+                // `skip_reason` path, so routing them through this filter
+                // too would turn a target the user marks `min_altitude: 40°`
+                // from a visible Skipped pick with a reason into an
+                // invisible exclusion.
                 //
-                // Only the explicit fields (which are Wave-4-new and have
-                // no `score_target` representation) gate the candidate
-                // list here. The TargetHeader runtime then re-checks both
-                // fields when it starts the picked subtree, so we still
-                // can't pick a target whose start gate hasn't fired.
+                // Only the explicit fields, which have no `score_target`
+                // representation, gate the candidate list here. The
+                // TargetHeader runtime re-checks both when it starts the
+                // picked subtree, so a target whose start gate has not fired
+                // still cannot run.
                 let trig_obs = TriggerObserverContext {
                     latitude_deg: lat,
                     longitude_deg: lon,
@@ -852,7 +850,7 @@ mod tests {
             enabled: true,
             children: vec![],
         });
-        let mut ctx = ExecutionContext::new("sched".into());
+        let mut ctx = ExecutionContext::new_for_test("sched".into());
         ctx.latitude = Some(40.0);
         ctx.longitude = Some(-74.0);
         let rt = tokio::runtime::Builder::new_current_thread()
@@ -879,7 +877,7 @@ mod tests {
         node.add_child(Box::new(RuntimeNode::from_definition(header(
             "m42", "M42", 5.59, -5.39, 0,
         ))));
-        let mut ctx = ExecutionContext::new("sched".into());
+        let mut ctx = ExecutionContext::new_for_test("sched".into());
         // No latitude/longitude → fail closed.
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -909,7 +907,7 @@ mod tests {
             enabled: true,
             children: vec![],
         })));
-        let mut ctx = ExecutionContext::new("sched".into());
+        let mut ctx = ExecutionContext::new_for_test("sched".into());
         ctx.latitude = Some(40.0);
         ctx.longitude = Some(-74.0);
         let rt = tokio::runtime::Builder::new_current_thread()
@@ -958,7 +956,7 @@ mod tests {
         // enough in wall time; that's true in practice but unnecessarily
         // racy.
         let clock = crate::scheduling::MockClock::at("2026-01-15T06:00:00Z");
-        let mut ctx = ExecutionContext::new("sched".into()).with_clock(clock.clone());
+        let mut ctx = ExecutionContext::new_for_test("sched".into()).with_clock(clock.clone());
         ctx.latitude = Some(40.0);
         ctx.longitude = Some(-74.0);
 
@@ -1074,7 +1072,7 @@ mod tests {
             "backup", "Backup", 5.59, -5.39, 0,
         ))));
 
-        let mut ctx = ExecutionContext::new("sched".into()).with_clock(clock.clone());
+        let mut ctx = ExecutionContext::new_for_test("sched".into()).with_clock(clock.clone());
         ctx.latitude = Some(40.0);
         ctx.longitude = Some(-74.0);
 
@@ -1122,9 +1120,6 @@ mod tests {
     fn no_runnable_target_returns_skipped() {
         // pin the wall clock with MockClock so this test is
         // deterministic regardless of when the CI runner happens to fire it.
-        // (Previously the test used a synthetic Antarctic target to dodge
-        // time-of-day dependence; now we can simply pin the clock and the
-        // intent reads cleanly.)
         let clock = crate::scheduling::MockClock::at("2026-07-01T18:00:00Z");
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -1153,7 +1148,7 @@ mod tests {
             enabled: true,
             children: vec![],
         })));
-        let mut ctx = ExecutionContext::new("sched".into()).with_clock(clock);
+        let mut ctx = ExecutionContext::new_for_test("sched".into()).with_clock(clock);
         ctx.latitude = Some(40.0);
         ctx.longitude = Some(-74.0);
 
@@ -1201,7 +1196,7 @@ mod tests {
             enabled: true,
             children: vec![],
         })));
-        let mut ctx = ExecutionContext::new("sched".into()).with_clock(clock);
+        let mut ctx = ExecutionContext::new_for_test("sched".into()).with_clock(clock);
         ctx.latitude = Some(40.0);
         ctx.longitude = Some(-74.0);
 
@@ -1251,7 +1246,7 @@ mod tests {
             enabled: true,
             children: vec![],
         })));
-        let mut ctx = ExecutionContext::new("sched".into()).with_clock(clock);
+        let mut ctx = ExecutionContext::new_for_test("sched".into()).with_clock(clock);
         ctx.latitude = Some(40.0);
         ctx.longitude = Some(-74.0);
 
@@ -1340,7 +1335,6 @@ mod tests {
         assert!(score.current_altitude_deg > 0.0);
     }
 
-    // =============================================================
     // multi-filter cycle dispatch tests.
     //
     // These tests exercise the cycle override mechanics directly
@@ -1361,7 +1355,6 @@ mod tests {
     //   * Prior override value is restored on exit
     //   * `frames_per_burst=0` is clamped up to 1 (rotating after zero
     //     frames would be an infinite loop)
-    // =============================================================
 
     use crate::node::context::ExecutionContext as _Ctx;
     use crate::{FilterCycleMode, FilterPlan, SmartExposureCheckpoint, SmartExposureConfig};
@@ -1482,7 +1475,7 @@ mod tests {
 
     #[test]
     fn cycle_override_slot_starts_empty_and_round_trips() {
-        let ctx = _Ctx::new("sched".into());
+        let ctx = _Ctx::new_for_test("sched".into());
         // Default — no override installed.
         assert!(ctx.scheduler_filter_cycle_override().is_none());
 
@@ -1688,7 +1681,7 @@ mod tests {
         }));
         node.add_child(Box::new(target));
 
-        let mut ctx = ExecutionContext::new("sched".into()).with_clock(clock);
+        let mut ctx = ExecutionContext::new_for_test("sched".into()).with_clock(clock);
         ctx.latitude = Some(40.0);
         ctx.longitude = Some(-74.0);
 
@@ -1751,7 +1744,7 @@ mod tests {
         ))));
 
         let clock = crate::scheduling::MockClock::at("2026-01-15T06:00:00Z");
-        let mut ctx = ExecutionContext::new("sched".into()).with_clock(clock);
+        let mut ctx = ExecutionContext::new_for_test("sched".into()).with_clock(clock);
         ctx.latitude = Some(40.0);
         ctx.longitude = Some(-74.0);
         // Sentinel: pretend an outer scheduler already installed

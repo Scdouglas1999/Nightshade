@@ -26,9 +26,7 @@ fn normalize_rotator_angle_wraps_into_unit_circle() {
     assert_eq!(normalize_rotator_angle(f64::INFINITY), 0.0);
 }
 
-// ---------------------------------------------------------------------
 // dome-rotator-verify: rotator move is MOVE-AND-VERIFY
-// ---------------------------------------------------------------------
 
 /// The rotator move polls the achieved angle until it is within
 /// tolerance of the target. The driver `rotator_move_to` only ISSUES
@@ -38,8 +36,8 @@ fn normalize_rotator_angle_wraps_into_unit_circle() {
 /// polls and only arrives on the third — success must therefore have
 /// required at least two verifying polls.
 ///
-/// Fails WITHOUT the verify loop (fire-and-forget returns success after
-/// the single move call, polling `rotator_get_angle` zero times).
+/// A fire-and-forget move returns success after the single move call,
+/// polling `rotator_get_angle` zero times.
 ///
 /// `start_paused = true` drives the verify loop's `tokio::time::sleep`
 /// off the test's virtual clock (auto-advanced when all tasks are idle)

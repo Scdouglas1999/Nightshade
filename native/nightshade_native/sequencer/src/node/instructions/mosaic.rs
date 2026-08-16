@@ -74,7 +74,7 @@ impl InstructionNode for MosaicInstruction {
                 // The mosaic plan emits panels in row-major order
                 // (`calculate_mosaic_panels` enforces this), so
                 // `row = idx / cols`, `col = idx % cols`. `panel_index`
-                // here is 1-based when extracted from the progress
+                // here is 1-based when parsed out of the progress
                 // string ("panel 5/9"); we convert to 0-based for the
                 // row/col arithmetic, then keep `panel_index` as 1-based
                 // in the payload (matches the existing wire shape).
@@ -152,16 +152,14 @@ mod tests {
         }
     }
 
-    /// Mosaic-Resume (owner decision 7) — the PRODUCTION wiring, end to end
-    /// from the node down to disk. `MosaicInstruction` reads the session's
-    /// `CheckpointManager` off `ExecutionContext` and hands it to the wizard,
-    /// which persists per-panel progress through
-    /// `SessionWizardCheckpointSink`. A checkpoint left by a killed run must
-    /// therefore make the node resume at the first unfinished panel, and the
-    /// slot must be cleared once the mosaic finishes.
-    ///
-    /// Pre-fix the node reported every panel from 1 and left the stale slot on
-    /// disk, because `execute_mosaic` always built a `NullCheckpointSink`.
+    /// The PRODUCTION wiring, end to end from the node down to disk.
+    /// `MosaicInstruction` reads the session's `CheckpointManager` off
+    /// `ExecutionContext` and hands it to the wizard, which persists per-panel
+    /// progress through `SessionWizardCheckpointSink`. A checkpoint left by a
+    /// killed run must make the node resume at the first unfinished panel, and
+    /// the slot must be cleared once the mosaic finishes — a
+    /// `NullCheckpointSink` here reports every panel from 1 and leaves the stale
+    /// slot on disk.
     #[tokio::test]
     async fn node_persists_panel_progress_through_the_session_sink() {
         let dir = std::env::temp_dir().join(format!(
@@ -185,7 +183,7 @@ mod tests {
 
         let panels = Arc::new(Mutex::new(Vec::new()));
         let recorded = panels.clone();
-        let mut context = ExecutionContext::new("mosaic-1".to_string());
+        let mut context = ExecutionContext::new_for_test("mosaic-1".to_string());
         // What the executor installs at start().
         context.checkpoint_manager = Some(manager.clone());
         context.progress_callback = Some(Arc::new(move |update: ProgressUpdate| {

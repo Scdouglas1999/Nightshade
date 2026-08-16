@@ -16,15 +16,8 @@ pub enum PierSide {
     Unknown,
 }
 
-/// Calculate when a target crosses the meridian
-///
-/// # Arguments
-/// * `ra_hours` - Target's Right Ascension in hours (0-24)
-/// * `longitude` - Observer's longitude in degrees (west is negative)
-/// * `current_time` - Current UTC time
-///
-/// # Returns
-/// The UTC DateTime when the target will cross the meridian
+/// Calculate the UTC time at which a target crosses the meridian for an
+/// observer at `longitude` (west-negative).
 pub fn calculate_meridian_crossing(
     ra_hours: f64,
     longitude: f64,
@@ -61,16 +54,9 @@ pub fn calculate_meridian_crossing(
     current_time + chrono::Duration::seconds(seconds)
 }
 
-/// Calculate the hour angle for a target
-///
-/// # Arguments
-/// * `ra_hours` - Target's Right Ascension in hours
-/// * `lst_hours` - Local Sidereal Time in hours
-///
-/// # Returns
-/// Hour angle in hours, normalized to the range -12 to +12
-/// Negative values indicate the target is east of the meridian (approaching)
-/// Positive values indicate the target is west of the meridian (past meridian)
+/// Calculate a target's hour angle in hours from its RA and the Local Sidereal
+/// Time, normalized to -12..+12: negative is east of the meridian
+/// (approaching), positive is west of it (past the meridian).
 pub fn hour_angle(ra_hours: f64, lst_hours: f64) -> f64 {
     let mut ha = lst_hours - ra_hours;
 
@@ -85,16 +71,9 @@ pub fn hour_angle(ra_hours: f64, lst_hours: f64) -> f64 {
     ha
 }
 
-/// Calculate when a meridian flip should occur based on a trigger threshold
-///
-/// # Arguments
-/// * `ra_hours` - Target's Right Ascension in hours
-/// * `longitude` - Observer's longitude in degrees
-/// * `current_time` - Current UTC time
-/// * `minutes_past_meridian` - How many minutes past the meridian to wait before flipping
-///
-/// # Returns
-/// The UTC DateTime when the flip should be triggered
+/// Calculate the UTC time at which a meridian flip should be triggered, given
+/// how many minutes past the meridian the flip waits for. Longitude is
+/// west-negative.
 pub fn calculate_flip_time(
     ra_hours: f64,
     longitude: f64,
@@ -109,16 +88,9 @@ pub fn calculate_flip_time(
     meridian_crossing + chrono::Duration::seconds((minutes_past_meridian * 60.0) as i64)
 }
 
-/// Check if a mount needs to flip based on hour angle and flip threshold
-///
-/// # Arguments
-/// * `ra_hours` - Target's Right Ascension in hours
-/// * `longitude` - Observer's longitude in degrees
-/// * `current_time` - Current UTC time
-/// * `minutes_past_meridian` - Threshold in minutes past meridian to trigger flip
-///
-/// # Returns
-/// `true` if the mount should flip now, `false` otherwise
+/// Check whether a mount needs to flip now, given the target, the observer's
+/// longitude (west-negative) and how many minutes past the meridian the flip
+/// waits for.
 pub fn should_flip_now(
     ra_hours: f64,
     longitude: f64,
@@ -137,15 +109,8 @@ pub fn should_flip_now(
 /// Determine which side of the pier a German equatorial should be on for a
 /// given hour angle, following the ASCOM `SideOfPier` convention: `pierEast`
 /// is the mount body on the EAST side of the pier looking WEST, `pierWest` is
-/// the body on the WEST side looking EAST.
-///
-/// # Arguments
-/// * `hour_angle_hours` - Hour angle in hours
-///
-/// # Returns
-/// The pier side a mount would naturally be placed on by a slew to that hour
-/// angle. Hour angle 0 counts as past the meridian, which is the side a flip
-/// lands on.
+/// the body on the WEST side looking EAST. Hour angle 0 counts as past the
+/// meridian, which is the side a flip lands on.
 pub fn expected_pier_side(hour_angle_hours: f64) -> PierSide {
     if hour_angle_hours < 0.0 {
         // Target has not reached the meridian yet: the mount is on the west
@@ -158,17 +123,8 @@ pub fn expected_pier_side(hour_angle_hours: f64) -> PierSide {
     }
 }
 
-/// Calculate altitude for a target at a given time
-///
-/// # Arguments
-/// * `ra_hours` - Right Ascension in hours
-/// * `dec_degrees` - Declination in degrees
-/// * `latitude` - Observer's latitude in degrees
-/// * `longitude` - Observer's longitude in degrees
-/// * `time` - UTC time
-///
-/// # Returns
-/// Altitude in degrees above the horizon
+/// Calculate a target's altitude in degrees above the horizon at a given time.
+/// Longitude is west-negative.
 pub fn calculate_altitude(
     ra_hours: f64,
     dec_degrees: f64,
@@ -192,18 +148,8 @@ pub fn calculate_altitude(
 }
 
 /// Convert equatorial coordinates to horizontal (altitude/azimuth) for an
-/// observer at a given time.
-///
-/// # Arguments
-/// * `ra_hours` - Right Ascension in hours
-/// * `dec_degrees` - Declination in degrees
-/// * `latitude` - Observer's latitude in degrees
-/// * `longitude` - Observer's longitude in degrees (west is negative)
-/// * `time` - UTC time
-///
-/// # Returns
-/// `(altitude_degrees, azimuth_degrees)` with azimuth measured from north
-/// through east, in `[0, 360)`.
+/// observer at a given time. Longitude is west-negative; the returned azimuth
+/// is measured from north through east, in `[0, 360)`.
 pub fn calculate_alt_az(
     ra_hours: f64,
     dec_degrees: f64,
@@ -516,7 +462,7 @@ mod tests {
         assert!((jd - 2451545.0).abs() < 0.01);
     }
 
-    // --- Consolidation parity (release pass, Wave C2) --------------------
+    // Consolidation parity (release pass, Wave C2)
     //
     // `bridge/src/unified_device_ops.rs` carried private `julian_day` /
     // `local_sidereal_time` copies and now imports these. The retired bodies

@@ -1,6 +1,6 @@
 use super::*;
 
-// --- action "tilePng" -----------------------------------------------------
+// action "tilePng"
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -97,7 +97,7 @@ pub(crate) fn iso_is_after(label: &str, anchor: &str) -> bool {
     looks_iso && l > anchor.trim()
 }
 
-// --- action "coverage" ----------------------------------------------------
+// action "coverage"
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -158,7 +158,7 @@ pub(crate) fn coverage_impl(args: CoverageArgs) -> Result<CoverageResult, String
     Ok(CoverageResult { ok: true, tiles })
 }
 
-// --- action "exportDelta" -------------------------------------------------
+// action "exportDelta"
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -264,7 +264,7 @@ pub(crate) fn looks_dated(label: &str) -> bool {
     l.len() >= 7 && l.as_bytes().get(4) == Some(&b'-') && l[..4].chars().all(|c| c.is_ascii_digit())
 }
 
-// --- action "info" --------------------------------------------------------
+// action "info"
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]

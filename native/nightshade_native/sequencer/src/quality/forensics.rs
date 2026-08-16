@@ -8,11 +8,9 @@
 //! or simply a satellite trail clipping the corner.
 //!
 //! This module produces a structured cause + evidence list every time a
-//! frame is rejected. The classifier is heuristic — we don't have ground
-//! truth, so we explicitly report `Unknown` when the evidence is weak rather
-//! than pick a default category. ("errors are a feature": a
-//! silent fallback to "always SeeingSpike" would mask the genuinely
-//! interesting cases.)
+//! frame is rejected. The classifier is heuristic — there is no ground truth
+//! — so it reports `Unknown` when the evidence is weak rather than picking a
+//! default category, which would mask the genuinely interesting cases.
 //!
 //! ## Classification overview
 //!
@@ -217,10 +215,8 @@ pub fn analyze_rejection(inputs: &ForensicInputs<'_>) -> ForensicVerdict {
             .filter_map(|s| s.wind_kph),
     );
 
-    // -----------------------------------------------------------------
     // 1) Cloud passage — sky brightness drop AND cloud cover spike, OR
     //    star-count-floor reject with concurrent cluster.
-    // -----------------------------------------------------------------
     let cloud_signals = {
         let mut score = 0;
         if let Some(drop) = brightness_drop_mag {
@@ -269,9 +265,7 @@ pub fn analyze_rejection(inputs: &ForensicInputs<'_>) -> ForensicVerdict {
         };
     }
 
-    // -----------------------------------------------------------------
-    // 2) Guiding failure — RMS at capture > 2× prior median.
-    // -----------------------------------------------------------------
+    // 2) Guiding failure — rms at capture > 2× prior median.
     if let (Some(at_capture), Some(prior)) = (env.guide_rms_arcsec, prior_guide_rms_median) {
         if prior > 0.0 && at_capture >= prior * 2.0 && at_capture >= 1.0 {
             evidence.push(format!(
@@ -285,12 +279,10 @@ pub fn analyze_rejection(inputs: &ForensicInputs<'_>) -> ForensicVerdict {
         }
     }
 
-    // -----------------------------------------------------------------
     // 3) Wind gust — wind > threshold + a small cluster of nearby
     //    rejects. Uses a fixed 30 km/h floor as the gust threshold
     //    when no historical wind is available (matches the default
     //    weather safety max_wind_speed_kph).
-    // -----------------------------------------------------------------
     if let Some(wind) = env.wind_kph {
         let high_wind = match prior_wind_median {
             Some(prior) if prior > 0.0 => wind >= prior * 1.5 && wind >= 20.0,
@@ -312,11 +304,9 @@ pub fn analyze_rejection(inputs: &ForensicInputs<'_>) -> ForensicVerdict {
         }
     }
 
-    // -----------------------------------------------------------------
     // 4) Focus drift — monotonic upward HFR trend across last 5-10
     //    frames. We require at least 4 successive non-decreasing HFR
     //    samples AND a meaningful total rise (>=15%) before naming this.
-    // -----------------------------------------------------------------
     if let Some(rise) = monotonic_hfr_rise(recent, inputs.hfr) {
         evidence.push(format!(
             "HFR trend up {:.0}% over last {} frames",
@@ -335,12 +325,10 @@ pub fn analyze_rejection(inputs: &ForensicInputs<'_>) -> ForensicVerdict {
         };
     }
 
-    // -----------------------------------------------------------------
     // 5) Seeing spike — HFR > 2× baseline AND last 3 frames also showed
     //    HFR creep relative to baseline (but no monotonic drift, which
     //    would have been caught above). The "spike" framing distinguishes
     //    this from gradual focus drift.
-    // -----------------------------------------------------------------
     if let (Some(hfr), Some(baseline)) = (inputs.hfr, inputs.hfr_baseline) {
         if baseline > 0.0 && hfr >= baseline * 2.0 {
             let elevated_neighbours = recent
@@ -369,11 +357,9 @@ pub fn analyze_rejection(inputs: &ForensicInputs<'_>) -> ForensicVerdict {
         }
     }
 
-    // -----------------------------------------------------------------
     // 6) Single-frame isolated reject — distinguish satellite trail
     //    (HFR or eccentricity elevated, no neighbours bad) from a hot
     //    pixel / cosmic event (no HFR elevation, no neighbours bad).
-    // -----------------------------------------------------------------
     let nearby_bad = recent.iter().rev().take(3).filter(|s| !s.accepted).count();
     if nearby_bad == 0 {
         // Look at the rejected frame's own metrics to decide the flavour.
@@ -412,10 +398,8 @@ pub fn analyze_rejection(inputs: &ForensicInputs<'_>) -> ForensicVerdict {
         }
     }
 
-    // -----------------------------------------------------------------
     // 7) Unknown — emit raw metrics so the user still has *something* to
     //    look at instead of a blank panel.
-    // -----------------------------------------------------------------
     if let Some(h) = inputs.hfr {
         evidence.push(format!("HFR {:.2} px", h));
     }
@@ -602,12 +586,10 @@ mod tests {
         }
     }
 
-    // -----------------------------------------------------------------
     // Cloud passage — the "production-finished" scenario from the brief:
     // 9 rejects between 02:30 and 02:42, sky brightness drop of 0.7 mag
     // in 30s, cloud cover spike from 12% to 78%, 8 other frames in the
     // same window also rejected.
-    // -----------------------------------------------------------------
     #[test]
     fn cloud_passage_full_signature_classifies_correctly() {
         let now = 1_700_000_000.0;

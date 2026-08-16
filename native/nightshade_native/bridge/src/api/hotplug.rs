@@ -29,12 +29,9 @@ use crate::hotplug;
 /// Returns when the diff finishes. The UI uses this as the await-target for
 /// its spinner / "Rescanning..." label.
 ///
-/// Errors: individual backend scan failures are surfaced via `tracing` from
-/// inside `poll_once` and do not propagate here. We do NOT bubble them as a
-/// `Result` because the diff itself is total — a single backend erroring
-/// out must not cancel the other backends' arrival events, and a user
-/// pressing Rescan does not want to debug an ASI SDK error from a Dart
-/// snackbar. Real failures show up in the rolling log.
+/// Individual backend scan failures are logged by `poll_once` and do not
+/// propagate: the diff is total, so one backend erroring out must not cancel
+/// the other backends' arrival events.
 pub async fn api_rescan_devices() {
     tracing::info!("Manual hot-plug rescan triggered from UI");
     // Invalidate first so the diff's "fresh observed set" comes from a

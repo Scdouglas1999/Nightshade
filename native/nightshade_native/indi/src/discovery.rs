@@ -111,24 +111,8 @@ pub async fn discover_common_hosts() -> Vec<IndiServer> {
     servers
 }
 
-/// Discover INDI servers via mDNS/Bonjour
-///
-/// Searches for INDI servers advertising themselves via mDNS with service type "_indi._tcp.local."
-/// Returns discovered servers with their host and port information.
-///
-/// # Arguments
-/// * `timeout` - How long to listen for mDNS responses
-///
-/// # Example
-/// ```no_run
-/// use std::time::Duration;
-/// # async fn example() {
-/// let servers = nightshade_indi::discover_mdns(Duration::from_secs(5)).await;
-/// for server in servers {
-///     println!("Found INDI server at {}:{}", server.host, server.port);
-/// }
-/// # }
-/// ```
+/// Listen for `timeout` on mDNS/Bonjour for servers advertising
+/// `_indi._tcp.local.`, and return each one's host and port.
 pub async fn discover_mdns(timeout: Duration) -> Vec<IndiServer> {
     let mut discovered_servers = Vec::new();
 

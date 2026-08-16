@@ -1,9 +1,5 @@
 use super::*;
 
-// =============================================================================
-// Focuser Control (Simulator implementation)
-// =============================================================================
-
 /// Simulated focuser state
 pub(crate) static SIM_FOCUSER: OnceLock<Arc<RwLock<SimulatedFocuser>>> = OnceLock::new();
 

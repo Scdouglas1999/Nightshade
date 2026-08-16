@@ -1,13 +1,9 @@
-// =============================================================================
-// UNIT TESTS
-// =============================================================================
-
 use super::*;
 
 /// `max_adu` must be the RAW16 container ceiling, not the ADC range.
 ///
-/// `(1 << bit_depth) - 1` — what this used to publish — is the ADC range and
-/// is 16x too small for a 12-bit Player One (Mars/Neptune/Uranus/Ceres/
+/// `(1 << bit_depth) - 1` is the ADC range and is 16x too small for a 12-bit
+/// Player One (Mars/Neptune/Uranus/Ceres/
 /// Artemis class). PlayerOneCamera.h:51 documents the delivered RAW16 sample
 /// range as `[0, 65535]` while :137 documents `bitDepth` as the "ADC depth
 /// of CMOS sensor" — two different quantities.
@@ -45,8 +41,8 @@ pub(crate) fn raw16_container_max_adu_is_a_reachable_u16_sample() {
 
 /// An unpopulated / nonsensical `bitDepth` must fall back to the container
 /// ceiling, never to 0 — a 0 ceiling would tell every percent-of-full-scale
-/// consumer that the camera cannot produce any signal at all, and the old
-/// `(1 << bit_depth) - 1` also overflowed for `bit_depth >= 32`.
+/// consumer that the camera cannot produce any signal at all, and a plain
+/// `(1 << bit_depth) - 1` overflows for `bit_depth >= 32`.
 #[test]
 pub(crate) fn raw16_container_max_adu_unknown_bit_depth_falls_back_to_container() {
     assert_eq!(raw16_container_max_adu(0), 65535);
@@ -58,8 +54,8 @@ pub(crate) fn raw16_container_max_adu_unknown_bit_depth_falls_back_to_container(
 ///
 /// `nightshade_imaging::fits` uses `saturation_threshold: 65024` documented
 /// as "4064 << 4" — 99.2% of a left-justified 12-bit ceiling. That threshold
-/// is unreachable under the old `(1 << 12) - 1 = 4095` ceiling, which is what
-/// made flat calibration impossible on ZWO before the same fix landed there.
+/// is unreachable under a `(1 << 12) - 1 = 4095` ceiling, which is what makes
+/// flat calibration impossible.
 #[test]
 pub(crate) fn raw16_container_max_adu_agrees_with_pipeline_saturation_threshold() {
     const PIPELINE_SATURATION_THRESHOLD: u32 = 65024;
@@ -92,9 +88,9 @@ pub(crate) fn cooler_state_defaults_to_off() {
 ///
 /// We exercise the same code path the production `set_cooler` uses to
 /// update `cooler_state` (after the SDK accepted the change) and the same
-/// fallback path `get_status` uses when the SDK read-back is unavailable.
-/// This covers the regression in §5.7 — the old hardcoded `cooler_on:
-/// false` is no longer possible because the cached value is the floor.
+/// fallback path `get_status` uses when the SDK read-back is unavailable:
+/// the cached `cooler_state` is the floor, so a failed read-back can never
+/// report the cooler as off.
 #[test]
 pub(crate) fn set_cooler_then_status_reports_enabled() {
     let cam = PlayerOneCamera::new(0);
@@ -141,4 +137,46 @@ pub(crate) fn set_cooler_then_disable_reports_off() {
     let snap = *cam.cooler_state.lock().unwrap();
     assert!(!snap.enabled);
     assert_eq!(snap.target_c, 20.0);
+}
+
+/// `POAConfigAttributes` is hand-transcribed from PlayerOneCamera.h, and the
+/// SDK writes the real gain/offset bounds into `min_value`/`max_value`. A field
+/// added or reordered here reads the wrong eight bytes as a control bound, so
+/// the layout is pinned against the header's field order.
+#[test]
+pub(crate) fn poa_config_attributes_matches_the_sdk_layout() {
+    use std::mem::{align_of, size_of};
+
+    // POABool x3, then POAConfig and POAValueType (both C enums == c_int).
+    assert_eq!(
+        std::mem::offset_of!(POAConfigAttributes, is_support_auto),
+        0
+    );
+    assert_eq!(std::mem::offset_of!(POAConfigAttributes, is_writable), 4);
+    assert_eq!(std::mem::offset_of!(POAConfigAttributes, is_readable), 8);
+    assert_eq!(std::mem::offset_of!(POAConfigAttributes, config_id), 12);
+    assert_eq!(std::mem::offset_of!(POAConfigAttributes, value_type), 16);
+
+    // The three POAConfigValue unions are 8-aligned, so the header's implicit
+    // 4 bytes of padding after `value_type` must be reproduced.
+    assert_eq!(align_of::<POAConfigValue>(), 8);
+    assert_eq!(size_of::<POAConfigValue>(), 8);
+    assert_eq!(std::mem::offset_of!(POAConfigAttributes, max_value), 24);
+    assert_eq!(std::mem::offset_of!(POAConfigAttributes, min_value), 32);
+    assert_eq!(std::mem::offset_of!(POAConfigAttributes, default_value), 40);
+
+    // char szConfName[64], szDescription[128], reserved[64].
+    assert_eq!(std::mem::offset_of!(POAConfigAttributes, conf_name), 48);
+    assert_eq!(std::mem::offset_of!(POAConfigAttributes, description), 112);
+    assert_eq!(std::mem::offset_of!(POAConfigAttributes, reserved), 240);
+    assert_eq!(size_of::<POAConfigAttributes>(), 304);
+}
+
+/// `VAL_INT` is the discriminant the gain and offset controls report, and
+/// `config_int_bounds` reads the union's int variant only after matching it.
+#[test]
+pub(crate) fn poa_value_type_discriminants_match_the_header() {
+    assert_eq!(POAValueType::Int as i32, 0);
+    assert_eq!(POAValueType::Float as i32, 1);
+    assert_eq!(POAValueType::Bool as i32, 2);
 }

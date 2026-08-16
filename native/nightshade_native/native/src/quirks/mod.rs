@@ -66,19 +66,9 @@ impl QuirkRegistry {
     }
 }
 
-/// Get all quirks that apply to a specific device.
-///
-/// This function checks:
-/// 1. Runtime overrides (highest priority)
-/// 2. Device-specific quirks (by full device ID)
-/// 3. Model-specific quirks (by model name pattern)
-/// 4. Vendor-wide quirks (by vendor)
-///
-/// # Arguments
-/// * `device_id` - The device identifier (e.g., "native:zwo:ASI294MC Pro")
-///
-/// # Returns
-/// A vector of quirks that should be applied to this device
+/// Every quirk that applies to `device_id` (e.g. `native:zwo:ASI294MC Pro`), in
+/// descending priority: a runtime override wins outright, otherwise the built-in
+/// database is consulted device ID first, then model pattern, then vendor.
 pub fn get_quirks_for_device(device_id: &str) -> Vec<Quirk> {
     let registry = get_registry().read().unwrap_or_else(|e| e.into_inner());
 
@@ -104,27 +94,13 @@ pub fn get_quirks_for_device(device_id: &str) -> Vec<Quirk> {
     database::get_device_quirks(device_id)
 }
 
-/// Get all quirks that apply to a vendor.
-///
-/// These are vendor-wide quirks that apply to all devices from that vendor.
-///
-/// # Arguments
-/// * `vendor` - The vendor enum
-///
-/// # Returns
-/// A vector of quirks that should be applied to all devices from this vendor
+/// Vendor-wide quirks, applying to every device from that vendor.
 pub fn get_quirks_for_vendor(vendor: &NativeVendor) -> Vec<Quirk> {
     database::get_vendor_quirks(vendor)
 }
 
-/// Set runtime quirk overrides for a device.
-///
-/// This allows testing different quirk configurations without code changes.
-/// Overrides take precedence over built-in quirks.
-///
-/// # Arguments
-/// * `device_id` - The device identifier
-/// * `quirks` - The quirks to apply (replaces any existing overrides)
+/// Replace a device's quirks at runtime, taking precedence over the built-in
+/// database so a configuration can be tried without a code change.
 pub fn set_quirk_overrides(device_id: &str, quirks: Vec<Quirk>) {
     let mut registry = get_registry().write().unwrap_or_else(|e| e.into_inner());
     tracing::info!(
@@ -160,16 +136,7 @@ pub fn enable_quirks_for_device(device_id: &str) {
     registry.disabled_devices.remove(device_id);
 }
 
-/// Apply temperature quirks to a raw temperature reading.
-///
-/// This is a convenience function that applies all relevant temperature quirks.
-///
-/// # Arguments
-/// * `device_id` - The device identifier
-/// * `raw_temp` - The raw temperature value from the SDK
-///
-/// # Returns
-/// The corrected temperature value
+/// Correct a raw SDK temperature by every temperature quirk the device carries.
 pub fn apply_temperature_quirks(device_id: &str, raw_temp: f64) -> f64 {
     let quirks = get_quirks_for_device(device_id);
     let mut temp = raw_temp;
@@ -296,14 +263,8 @@ pub fn get_position_delay_after_move_ms(device_id: &str) -> Option<u64> {
     None
 }
 
-/// Check if a device has a specific timing quirk.
-///
-/// # Arguments
-/// * `device_id` - The device identifier
-/// * `operation` - The operation to check for timing requirements
-///
-/// # Returns
-/// Optional delay in milliseconds that should be applied after the operation
+/// Delay in milliseconds a device requires after `operation`, or `None` when it
+/// declares no timing quirk for that operation.
 pub fn get_timing_delay(device_id: &str, operation: &str) -> Option<u64> {
     let quirks = get_quirks_for_device(device_id);
 
@@ -335,15 +296,8 @@ pub fn get_timing_delay(device_id: &str, operation: &str) -> Option<u64> {
     None
 }
 
-/// Check if discovery should skip certain operations for a vendor.
-///
-/// Some SDKs can crash during discovery if certain operations are performed.
-///
-/// # Arguments
-/// * `vendor` - The vendor to check
-///
-/// # Returns
-/// List of operations that should be skipped during discovery
+/// Discovery operations to skip for a vendor, because some SDKs crash when they
+/// are performed during enumeration.
 pub fn get_discovery_skip_operations(vendor: &NativeVendor) -> Vec<String> {
     let quirks = get_quirks_for_vendor(vendor);
     let mut skip_ops = Vec::new();
@@ -371,18 +325,10 @@ mod tests {
     use std::sync::Mutex;
 
     /// Serializes tests that read or mutate the process-global `QUIRK_REGISTRY`
-    /// using the shared `native:zwo:ASI294MC Pro` device key.
-    ///
-    /// `test_disable_quirks` temporarily inserts that key into the global
-    /// `disabled_devices` set (so `get_quirks_for_device` returns an empty
-    /// vector) before re-enabling it, while `test_get_zwo_quirks` reads the same
-    /// key and asserts the result is non-empty. Without serialization the cargo
-    /// test harness can interleave these on separate threads and the reader
-    /// observes the transient disabled window, producing a non-deterministic
-    /// failure. Holding this guard for the duration of each affected test
-    /// removes that ordering dependency. Poisoning is recovered from because the
-    /// guarded state is process-global and a panic in one test must not wedge
-    /// the others.
+    /// under the shared `native:zwo:ASI294MC Pro` key: one test disables quirks
+    /// for that key while another asserts they are non-empty, so unserialized
+    /// they race on the transient disabled window. Poisoning is recovered from
+    /// because a panic in one test must not wedge the rest.
     static REGISTRY_GUARD: Mutex<()> = Mutex::new(());
 
     fn registry_guard() -> std::sync::MutexGuard<'static, ()> {

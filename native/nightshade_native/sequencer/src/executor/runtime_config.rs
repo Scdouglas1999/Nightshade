@@ -1,8 +1,7 @@
 //! Mid-flight `update_*` configuration mutators on the [`SequenceExecutor`].
 //!
-//!8 axis: every value the bridge / Dart UI can change WHILE A
-//! SEQUENCE IS RUNNING lives here. Each method follows the same
-//! contract:
+//! Every value the bridge / Dart UI can change WHILE A SEQUENCE IS
+//! RUNNING lives here. Each method follows the same contract:
 //!
 //!   1. Write through `self.runtime_config` (the
 //!      [`super::RuntimeConfig`] handle the spawned executor task reads
@@ -15,12 +14,11 @@
 //!   3. Emit `ExecutorEvent::RuntimeConfigUpdated { what: "..." }` so
 //!      UI subscribers can invalidate any cached display.
 //!
-//! The original audit-flagged silent-fallback was an executor that
-//! `let _ = (pixels, ...)`-ignored UpdateDitherConfig etc.; this file
-//! is what fixed it. The two-step write-then-forward pattern is what
-//! makes the fix robust against future "I only need to update one of
-//! the two places" mistakes — the runtime config IS the truth, the
-//! command channel only exists to wake the task.
+//! The two-step write-then-forward pattern is what keeps a mid-flight
+//! update from becoming a silent fallback: an executor that
+//! `let _ = (pixels, ...)`-ignores `UpdateDitherConfig` accepts the call
+//! and changes nothing. The runtime config IS the truth; the command
+//! channel only exists to wake the task.
 //!
 //! What is deliberately NOT here:
 //!   * `set_*` pre-start setters — they live in [`super::setup`] because
@@ -54,12 +52,12 @@ impl SequenceExecutor {
     /// Reads from the trigger manager state (the canonical home of
     /// pushed data) so the dashboard sees the same value the evaluator
     /// does. Uses try-lock so an in-flight write doesn't stall the
-    /// dashboard tick — we'd rather show "stale" than block the UI.
+    /// dashboard tick: a stale reading beats blocking the UI.
     /// Returns `None` when no data has ever been pushed (distinguishes
     /// "no data yet" from "data says everything is clear").
     pub fn current_cloud_motion_json(&self) -> Option<String> {
         // Try-lock so an in-flight write doesn't stall the dashboard tick;
-        // we'd rather show "stale" than block the UI.
+        // a stale reading beats blocking the UI.
         let manager = self.trigger_manager.try_read().ok()?;
         let state_lock = manager.state();
         let state = state_lock.try_read().ok()?;
@@ -155,20 +153,18 @@ impl SequenceExecutor {
         }
     }
 
-    /// Full-night audit 2026-06-04 (defense-in-depth) — push the Dart-side
-    /// weather-safety verdict into the executor.
+    /// Push the Dart-side weather-safety verdict into the executor.
     ///
     /// The in-sequencer `WeatherUnsafe` trigger keys off the hardware
-    /// `safety_is_safe` poll only; a rig WITHOUT a hardware safety device
-    /// never aborts via that trigger even when `weatherSafetyProvider`
-    /// computed UNSAFE from the user's configured thresholds + API/cloud
-    /// sources. This carries the Dart verdict as an additional unsafe
-    /// source. `unsafe_override = Some(true)` => UNSAFE, `Some(false)` =>
-    /// SAFE, `None` => abstain (provider disabled / no data). When the
-    /// executor is idle the verdict is stashed directly on the trigger
-    /// manager state so a subsequent `start()` (which builds a fresh
-    /// ExecutionContext) sees it immediately rather than waiting for the
-    /// next Dart push.
+    /// `safety_is_safe` poll only, so a rig WITHOUT a hardware safety device
+    /// never aborts via that trigger even when `weatherSafetyProvider` computed
+    /// UNSAFE from the user's configured thresholds + API/cloud sources. This
+    /// carries the Dart verdict as an additional unsafe source.
+    /// `unsafe_override = Some(true)` => UNSAFE, `Some(false)` => SAFE, `None` =>
+    /// abstain (provider disabled / no data). When the executor is idle the
+    /// verdict is stashed directly on the trigger manager state so a subsequent
+    /// `start()` (which builds a fresh ExecutionContext) sees it immediately
+    /// rather than waiting for the next Dart push.
     pub async fn update_weather_verdict(&self, unsafe_override: Option<bool>) {
         tracing::debug!(
             "[SEQ] update_weather_verdict: unsafe_override={:?}",
@@ -268,21 +264,17 @@ impl SequenceExecutor {
         });
     }
 
-    /// Remediation 2026-06-09 (finding #2) — runtime override for the W1 native
-    /// daylight gate's maximum Sun altitude. The gate is already safe by default:
-    /// when this is never called, `start()` resolves the unset (`None`) field to
+    /// Runtime override for the native daylight gate's maximum Sun altitude.
+    ///
+    /// The gate is safe without it: when this is never called, `start()` resolves
+    /// the unset (`None`) field to
     /// [`crate::instructions::DEFAULT_MAX_SUN_ALTITUDE_DEGREES`] (-12°, nautical
     /// darkness), which equals the Dart `SchedulerConfig.maxSunAltitudeDegrees`
-    /// default — so the native backstop never blocks weaker than the Dart W1 gate.
-    ///
-    /// This setter exists so that a custom darkness limit (e.g. a future
-    /// user-facing setting, or a non-default `SchedulerConfig`) can be pushed in
-    /// to keep the native gate aligned with the Dart one. It is exercised by the
-    /// executor tests today; no Dart caller is wired yet because the darkness
-    /// limit is not user-configurable (it is always the -12° default the gate
-    /// already uses), so exposing it across the FFI would only transmit a
-    /// constant equal to that default. Wire it (and the FFI export) the day a
-    /// configurable darkness limit lands.
+    /// default, so the native backstop never blocks weaker than the Dart gate.
+    /// The setter is what a custom darkness limit — a future user-facing setting,
+    /// or a non-default `SchedulerConfig` — is pushed through. No Dart caller is
+    /// wired today because the darkness limit is not user-configurable, so an FFI
+    /// export would only transmit a constant equal to the default.
     ///
     /// Follows the two-step write-then-forward contract: writes through
     /// `runtime_config` (canonical, honoured by the next `start()`), patches the
@@ -423,27 +415,23 @@ impl SequenceExecutor {
         });
     }
 
-    /// update the autofocus-interval cadence at runtime.
+    /// Push the operator's autofocus tuning so trigger-fired refocus uses it,
+    /// and update the autofocus-interval cadence, at runtime.
+    ///
+    /// Without this the only source of trigger-autofocus config is an Autofocus
+    /// node inside the sequence — and a sequence without one is exactly the
+    /// sequence whose interval trigger fires unattended, running every refocus on
+    /// library defaults rather than the operator's step size, exposure, backlash,
+    /// failure tolerance and failure action. A node still wins at `start()`,
+    /// because a node is a per-sequence decision and this is a global one.
     ///
     /// When a sequence is running the change is forwarded as an
-    /// `ExecutorCommand::UpdateAutofocusInterval` so the live trigger
-    /// manager is patched in-place; otherwise the value is recorded in
-    /// the runtime config and applied to the seeded standard trigger
-    /// on the next `start()` (see `start()`'s trigger-priming
-    /// section). This method patches the trigger directly too so an
-    /// idle (loaded but not running) executor also picks up the
-    /// change immediately — that path can't go through the command
-    /// channel because no spawn exists.
-    /// Push the operator's autofocus tuning so trigger-fired refocus uses it.
-    ///
-    /// Until this existed the ONLY source of trigger-autofocus config was an
-    /// Autofocus node inside the sequence, so a sequence without one — which
-    /// is exactly the sequence whose interval trigger fires unattended — ran
-    /// every refocus on library defaults: not the operator's step size,
-    /// exposure, backlash, or (once they existed) their failure tolerance and
-    /// failure action. The executor logged a warning about it and carried on.
-    /// A node still wins at `start()`, because a node is a per-sequence
-    /// decision and this is a global one.
+    /// `ExecutorCommand::UpdateAutofocusInterval` so the live trigger manager is
+    /// patched in place; otherwise the value is recorded in the runtime config
+    /// and applied to the seeded standard trigger on the next `start()`. This
+    /// method also patches the trigger directly, so an idle (loaded but not
+    /// running) executor picks the change up immediately — that path cannot go
+    /// through the command channel because no task is spawned.
     pub async fn update_autofocus_config(&mut self, config: crate::AutofocusConfig) {
         tracing::info!(
             "Updating trigger-autofocus config from operator settings (attempts={}, \

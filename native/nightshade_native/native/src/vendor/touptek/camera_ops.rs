@@ -35,7 +35,7 @@ impl NativeDevice for TouptekCamera {
         // Refresh device metadata, but select and open by the stable SDK ID captured during
         // discovery. The legacy index is used only when callers construct a camera directly
         // without first running discovery; even then it is resolved to an ID before Open().
-        let (device_info, serial_number, bayer_pattern, raw_bit_depth) = {
+        let (device_info, serial_number, bayer_pattern, raw_bit_depth, sdk_size, gain_range) = {
             // Acquire global SDK mutex for thread safety
             let _lock = touptek_mutex().lock().await;
 
@@ -83,7 +83,7 @@ impl NativeDevice for TouptekCamera {
 
             // Get serial number, resolution, gain range, and raw Bayer pattern
             // (all synchronous).
-            let (serial_number, bayer_pattern, raw_bit_depth) = {
+            let (serial_number, bayer_pattern, raw_bit_depth, sdk_size, gain_range) = {
                 let handle_val = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
                 with_sdk(&brand, |sdk| {
@@ -103,13 +103,28 @@ impl NativeDevice for TouptekCamera {
                     let mut width: c_int = 0;
                     let mut height: c_int = 0;
                     // SAFETY: touptek_mutex held; `handle_val` valid (just opened); `&mut width` and `&mut height` are valid stack out-pointers to distinct c_int locals.
-                    let _ = unsafe { (sdk.get_size)(handle_val, &mut width, &mut height) };
+                    let size_result =
+                        unsafe { (sdk.get_size)(handle_val, &mut width, &mut height) };
+                    // The camera's own current output size supersedes the model table's
+                    // resolution list; a failed read leaves it unknown, not zero.
+                    let sdk_size = if size_result < 0 || width <= 0 || height <= 0 {
+                        tracing::warn!(
+                            "Touptek get_Size() gave no usable frame size for '{}' (SDK result {}, {}x{}); falling back to the model resolution",
+                            device_info.name,
+                            size_result,
+                            width,
+                            height
+                        );
+                        None
+                    } else {
+                        Some((width as u32, height as u32))
+                    };
 
-                    let mut gain_min: u16 = 100;
-                    let mut gain_max: u16 = 10000;
-                    let mut gain_def: u16 = 100;
+                    let mut gain_min: u16 = 0;
+                    let mut gain_max: u16 = 0;
+                    let mut gain_def: u16 = 0;
                     // SAFETY: touptek_mutex held; `handle_val` valid; the three `&mut u16` out-pointers reference distinct stack locals; Ogmacam_get_ExpoAGainRange writes (min, max, def) values per the SDK header.
-                    let _ = unsafe {
+                    let gain_result = unsafe {
                         (sdk.get_expo_again_range)(
                             handle_val,
                             &mut gain_min,
@@ -117,9 +132,28 @@ impl NativeDevice for TouptekCamera {
                             &mut gain_def,
                         )
                     };
-                    // Why: gain_def is u16 (gain steps, 100..=10000 per Touptek SDK).
-                    // u16 -> i32 is widening and value-preserving.
-                    self.current_gain = gain_def as i32;
+                    // Gain is reported in percent-steps where 100 == 1x. Widening
+                    // u16 -> i32 is value-preserving.
+                    let gain_range = if gain_result < 0 || gain_min > gain_max {
+                        tracing::warn!(
+                            "Touptek get_ExpoAGainRange() failed for '{}' (SDK result {}); gain bounds stay unknown",
+                            device_info.name,
+                            gain_result
+                        );
+                        None
+                    } else {
+                        self.current_gain = i32::from(gain_def);
+                        Some((i32::from(gain_min), i32::from(gain_max)))
+                    };
+                    if gain_range.is_none() {
+                        // Without a range the default gain is unknown too; the live
+                        // value is the only thing the camera can still be asked for.
+                        let mut gain: u16 = 0;
+                        // SAFETY: touptek_mutex held; `handle_val` valid; `&mut gain` is a valid stack out-pointer for the SDK's unsigned-short gain value.
+                        if unsafe { (sdk.get_expo_again)(handle_val, &mut gain) } >= 0 {
+                            self.current_gain = i32::from(gain);
+                        }
+                    }
 
                     let (raw_bayer_pattern, raw_bit_depth) =
                         read_touptek_raw_format(sdk, handle_val, &device_info.name);
@@ -129,19 +163,30 @@ impl NativeDevice for TouptekCamera {
                         None
                     };
 
-                    Ok((serial, bayer_pattern, raw_bit_depth))
+                    Ok((serial, bayer_pattern, raw_bit_depth, sdk_size, gain_range))
                 })?
             };
 
-            (device_info, serial_number, bayer_pattern, raw_bit_depth)
+            (
+                device_info,
+                serial_number,
+                bayer_pattern,
+                raw_bit_depth,
+                sdk_size,
+                gain_range,
+            )
         };
 
         self.sdk_device_id = Some(device_info.camera_id.clone());
         self.model_flags = device_info.model_flags;
+        self.max_fan_speed = device_info.max_fan_speed;
+        self.gain_range = gain_range;
         let bit_depth = raw_bit_depth.unwrap_or(16);
+        let (sensor_width, sensor_height) =
+            sdk_size.unwrap_or((device_info.width, device_info.height));
         self.sensor_info = SensorInfo {
-            width: device_info.width,
-            height: device_info.height,
+            width: sensor_width,
+            height: sensor_height,
             pixel_size_x: device_info.pixel_size_x as f64,
             pixel_size_y: device_info.pixel_size_y as f64,
             max_adu: max_adu_from_bit_depth(bit_depth),
@@ -1103,7 +1148,43 @@ impl NativeCamera for TouptekCamera {
     }
 
     async fn get_vendor_features(&self) -> Result<VendorFeatures, NativeError> {
-        Ok(VendorFeatures::default())
+        if !self.connected {
+            return Err(NativeError::NotConnected);
+        }
+
+        let _lock = touptek_mutex().lock().await;
+        let handle_val = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
+
+        with_sdk(&self.brand, |sdk| {
+            // Each probe leaves its field `None` when the camera declines it, so an
+            // unreported control is never rendered as a measured zero.
+            let read_option = |option: c_uint| -> Option<c_int> {
+                let mut value: c_int = 0;
+                // SAFETY: touptek_mutex held above; `handle_val` belongs to this connected camera; `&mut value` is a valid stack out-pointer for the SDK's get_Option signature.
+                let result = unsafe { (sdk.get_option)(handle_val, option, &mut value) };
+                (result >= 0).then_some(value)
+            };
+
+            let mut features = VendorFeatures {
+                hardware_binning: (self.model_flags & OGMACAM_FLAG_BINSKIP_SUPPORTED) != 0,
+                ..VendorFeatures::default()
+            };
+
+            features.usb_bandwidth = read_option(OGMACAM_OPTION_BANDWIDTH).map(f64::from);
+
+            if (self.model_flags & OGMACAM_FLAG_HEAT) != 0 {
+                features.anti_dew_heater = read_option(OGMACAM_OPTION_HEAT).map(|level| level > 0);
+            }
+
+            // Fan speed is a step on the closed interval [0, max_fan_speed]; a
+            // percentage is only meaningful once the model reports that ceiling.
+            if (self.model_flags & OGMACAM_FLAG_FAN) != 0 && self.max_fan_speed > 0 {
+                features.fan_power = read_option(OGMACAM_OPTION_FAN)
+                    .map(|speed| f64::from(speed) * 100.0 / f64::from(self.max_fan_speed));
+            }
+
+            Ok(features)
+        })
     }
 
     async fn get_gain_range(&self) -> Result<(i32, i32), NativeError> {
@@ -1111,10 +1192,14 @@ impl NativeCamera for TouptekCamera {
             return Err(NativeError::NotConnected);
         }
 
-        // Touptek cameras typically support gain ranges similar to ZWO cameras.
-        // Most CMOS sensors support 0-500 or similar range.
-        // The actual range is camera-dependent; SDK should ideally provide this.
-        Ok((0, 500))
+        // Bounds captured from get_ExpoAGainRange at connect, in the SDK's percent-step
+        // units where 100 == 1x.
+        self.gain_range.ok_or_else(|| {
+            NativeError::SdkError(format!(
+                "Touptek camera '{}' did not report a gain range at connect",
+                self.name
+            ))
+        })
     }
 
     async fn get_offset_range(&self) -> Result<(i32, i32), NativeError> {
@@ -1122,7 +1207,8 @@ impl NativeCamera for TouptekCamera {
             return Err(NativeError::NotConnected);
         }
 
-        // Touptek cameras typically support offset in a similar range to ZWO.
-        Ok((0, 256))
+        // The ToupTek-family SDK exposes no offset control, so there is no range to
+        // report — black level is set through put_Option, not a gain-style bound.
+        Err(NativeError::NotSupported)
     }
 }

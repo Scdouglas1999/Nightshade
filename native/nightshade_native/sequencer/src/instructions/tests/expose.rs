@@ -4,15 +4,12 @@
 
 use super::*;
 
-/// P0 SAFETY regression. Pause was cosmetic inside a burst: the node tree
-/// only checks `is_paused` between instructions, and a burst is N frames
-/// inside ONE instruction. Live evidence — Take Exposures 3x8s, Pause
-/// pressed during frame 2: the UI showed a PAUSED badge, a Resume button
-/// and "Paused 33%", the log went `Pausing sequence execution` ->
-/// `Capturing frame 3/3 (8.0s)` five seconds later, and the run recorded
-/// `status=completed, framesCaptured=3` without Resume ever being pressed.
-///
-/// Pre-fix this test sees 3 exposures and a completed burst.
+/// Pause must stop a burst mid-flight. The node tree only checks `is_paused`
+/// between instructions and a burst is N frames inside ONE instruction, so
+/// without an in-burst check a Pause pressed during frame 2 of a 3x8s Take
+/// Exposures shows a PAUSED badge and "Paused 33%" while the log goes
+/// `Pausing sequence execution` -> `Capturing frame 3/3 (8.0s)` and the run
+/// records `status=completed, framesCaptured=3` with Resume never pressed.
 #[tokio::test]
 async fn pause_stops_the_burst_before_the_next_frame_starts() {
     let paused = Arc::new(AtomicBool::new(false));
@@ -20,7 +17,7 @@ async fn pause_stops_the_burst_before_the_next_frame_starts() {
     let dir = std::env::temp_dir().join(format!("ns-pause-burst-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&dir).expect("temp dir");
 
-    let mut ec = crate::node::context::ExecutionContext::new("pause-node".to_string());
+    let mut ec = crate::node::context::ExecutionContext::new_for_test("pause-node".to_string());
     ec.device_ops = ops.clone();
     ec.camera_id = Some("camera-1".to_string());
     ec.save_path = Some(dir.clone());

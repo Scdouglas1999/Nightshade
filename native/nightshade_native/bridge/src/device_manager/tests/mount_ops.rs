@@ -23,10 +23,10 @@ async fn register_sim_mount(manager: &DeviceManager, device_id: &str) {
 /// A DISCONNECTED simulated mount must refuse motion commands and refuse to
 /// report a status, exactly as a real driver that lost its handle does.
 ///
-/// The HTTP API used to short-circuit `sim_` ids ahead of this gate, so a
-/// disconnected mount accepted slews and then reported itself simultaneously
-/// tracking and parked at coordinates it had taken while disconnected. Every
-/// "device disconnected mid-run" assertion on that surface was vacuous.
+/// Nothing may short-circuit `sim_` ids ahead of this gate: a disconnected
+/// mount that accepts slews goes on to report itself simultaneously tracking
+/// and parked, at coordinates it took while disconnected, which makes every
+/// "device disconnected mid-run" assertion on that surface vacuous.
 #[tokio::test]
 async fn disconnected_simulated_mount_refuses_motion_and_status() {
     let _guard = simulator_singleton_test_lock().lock().await;

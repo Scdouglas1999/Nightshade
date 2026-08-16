@@ -288,13 +288,12 @@ async fn exposure_polling_times_out_when_driver_never_completes() {
     );
 }
 
-/// regression: the live `UnifiedDeviceOps` must OVERRIDE
-/// `device_is_connected` / `connect_device`. The `DeviceOps` trait
-/// defaults return `Err("… not supported by this driver")`, which made
-/// every device-disconnect recovery attempt fail instantly on the live
-/// path (the single most common unattended-night failure mode was
-/// unrecoverable). This asserts the overrides delegate to the
-/// `DeviceManager` rather than inheriting the defaults.
+/// The live `UnifiedDeviceOps` must OVERRIDE `device_is_connected` /
+/// `connect_device`. The `DeviceOps` trait defaults return `Err("… not
+/// supported by this driver")`, which makes every device-disconnect recovery
+/// attempt fail instantly on the live path — the single most common
+/// unattended-night failure mode, unrecoverable. This asserts the overrides
+/// delegate to the `DeviceManager` rather than inheriting the defaults.
 #[tokio::test]
 async fn reconnect_overrides_are_wired_not_trait_default() {
     let ops = UnifiedDeviceOps::new(crate::api::get_state().clone());

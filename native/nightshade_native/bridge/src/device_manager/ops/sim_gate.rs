@@ -1,15 +1,10 @@
-//! Simulator connection-gate helpers (DEV-P3-3 follow-up).
+//! Simulator connection-gate helpers.
 //!
 //! `device_manager::connection::connect_simulator` flips the matching
-//! `simulation.rs` singleton's `connected` flag, but the per-op dispatchers
-//! in `ops/{camera,mount,focuser,filter_wheel,rotator,...}.rs` previously
-//! ignored that flag and returned hardcoded `Ok(value)` constants for every
-//! `DriverType::Simulator` arm. That made the singleton's `connected`
-//! state essentially decorative — a "disconnected" simulator still answered
-//! every read with synthetic data, hiding bugs where the UI thought it
-//! had an attached device when it did not.
-//!
-//! This module funnels every simulator op through one of two policies:
+//! `simulation.rs` singleton's `connected` flag. Every simulator op goes
+//! through one of two policies here so that flag governs what the op answers,
+//! rather than each dispatcher returning a constant a disconnected simulator
+//! has no business producing:
 //!
 //! 1. **Gated read** (`with_*_status`): consult the singleton; if
 //!    `connected == true`, hand the caller a snapshot of the status
@@ -22,16 +17,14 @@
 //!    but which still need to refuse to "succeed" when the simulator
 //!    isn't connected. Returns `Ok(())` on connected, `Err` otherwise.
 //!
-//! Device types without a singleton (dome, cover, safety monitor, switch,
-//! weather) are NOT served by this module — those ops emit the existing
-//! "Simulator devices are disabled" fail-loud error (camera.rs:1591 style)
-//! directly. Adding singletons for those device types is tracked separately
-//! and intentionally out of scope here (no stubs).
+//! The gates cover the device types whose singleton exposes a status struct:
+//! camera, mount, focuser, filter wheel and rotator. Dome, cover calibrator,
+//! safety monitor, switch and weather have singletons of their own and their
+//! `DriverType::Simulator` arms read them directly.
 //!
-//! Errors are a feature. Every error returned from this module
-//! names the simulator device type so the failure message points the user
-//! at "connect first" rather than at an opaque `Ok(0)` that misled them
-//! about whether the call succeeded.
+//! Every error returned from this module names the simulator device type, so
+//! the message says "connect first" rather than leaving the caller with an
+//! `Ok(0)` it cannot distinguish from a real reading.
 
 use crate::api::devices::simulation::{
     get_sim_camera, get_sim_filterwheel, get_sim_focuser, get_sim_mount, get_sim_rotator,
@@ -164,15 +157,12 @@ pub(crate) async fn require_camera_connected() -> Result<(), String> {
 ///
 /// Altitude, azimuth and sidereal time are DERIVED from the mount's stored
 /// RA/Dec, the configured observer location and the current time rather than
-/// reported from storage. Stored values are stale the moment the sky moves:
-/// they were left at `0.0` after an equatorial slew and became sticky leftovers
-/// after an alt/az one, while `availability` still advertised `Available`. A
-/// mount that claims +45° altitude for a target 30° below the horizon makes
-/// horizon limits and altitude safety-park untestable, which is exactly the
-/// failure `FieldAvailability` exists to prevent.
+/// reported from storage: a stored value is stale the moment the sky moves, and
+/// a mount that claims +45° altitude for a target 30° below the horizon makes
+/// horizon limits and altitude safety-park untestable.
 ///
-/// Pier side is deliberately NOT in that list: it is mechanical state a slew
-/// leaves the mount in, not a projection of where it is pointing. See
+/// Pier side is NOT derived: it is mechanical state a slew leaves the mount in,
+/// not a projection of where it is pointing. See
 /// `simulation::pier_side_after_slew_to`.
 ///
 /// With no site configured there is no honest answer, so the horizon-frame
@@ -381,15 +371,12 @@ pub(crate) async fn require_rotator_connected() -> Result<(), String> {
     Ok(())
 }
 
-/// Loud-error helper for simulator device types that have NO matching
-/// singleton in `api::devices::simulation` (dome, cover calibrator,
-/// safety monitor, switch, weather). The error mirrors `camera.rs:1591`
-/// so the policy reads identically across files.
+/// Loud-error helper for a simulator device type with no matching singleton in
+/// `api::devices::simulation`.
 ///
-/// Adding a `SimulatedDome` etc. is tracked separately (see DEV-P3-3
-/// follow-ups); this helper keeps the fail-loud wording consistent so
-/// when a singleton is eventually added the call site only needs to
-/// swap helpers, not rewrite the error message.
+/// Centralising the wording keeps the refusal identical across device types,
+/// so a call site that gains a singleton swaps helpers rather than rewriting
+/// its error message.
 pub(crate) fn unsupported_simulator_device(kind: &'static str) -> String {
     format!(
         "Simulator {} devices are disabled (no simulator implementation). \
@@ -524,10 +511,10 @@ mod fault_injection_tests {
 /// not just when someone reads its status.
 ///
 /// These drive the mount through the device manager rather than calling the
-/// gate directly, because the whole defect lives in the wiring: the gate,
-/// `mount.rs`'s simulator arms and `simulation::advance_sim_slew` were each
-/// individually correct and still produced a mount that could only ever be found
-/// at one of the two endpoints of a slew.
+/// gate directly. The gate, `mount.rs`'s simulator arms and
+/// `simulation::advance_sim_slew` can each be correct on their own and still
+/// wire up to a mount only ever findable at the two endpoints of a slew, so
+/// only the assembled path proves the behaviour.
 #[cfg(test)]
 mod mount_motion_tests {
     use crate::api::devices::simulation::{get_sim_mount, sim_singleton_test_lock, SimulatedMount};
@@ -665,10 +652,10 @@ mod mount_motion_tests {
     /// A real driver refuses a pointing command issued mid-motion.
     ///
     /// ASCOM raises `InvalidOperationException` and INDI rejects the property
-    /// set; the simulator used to accept slew, sync and park while the axes
-    /// were turning and silently discard the in-flight slew, so the app's own
-    /// abort-then-retry handling (`meridian_flip_executor`,
-    /// `try_park_with_retry`) had nothing to react to on a no-hardware run.
+    /// set, so the simulator must refuse slew, sync and park while the axes are
+    /// turning too — otherwise the app's abort-then-retry handling
+    /// (`meridian_flip_executor`, `try_park_with_retry`) has nothing to react
+    /// to on a no-hardware run.
     #[tokio::test]
     async fn a_slew_sync_or_park_is_refused_while_the_mount_is_moving() {
         let _serialized = sim_singleton_test_lock().lock().await;
@@ -710,10 +697,10 @@ mod mount_motion_tests {
 
     /// The axes arrive before the driver reports idle.
     ///
-    /// `slewing` used to fall to false in the same status read that first
-    /// reported the target coordinates, so "arrived" and "stopped moving" were
-    /// one event. Every wait-for-motion path in the app was satisfied on its
-    /// first poll and no settle ordering bug could reproduce without hardware.
+    /// `slewing` must hold through a settle after the target coordinates first
+    /// read back, so "arrived" and "stopped moving" stay separate events. Fuse
+    /// them and every wait-for-motion path is satisfied on its first poll, and
+    /// no settle-ordering bug can reproduce without hardware.
     #[tokio::test]
     async fn the_mount_holds_slewing_through_a_settle_after_it_arrives() {
         let _serialized = sim_singleton_test_lock().lock().await;

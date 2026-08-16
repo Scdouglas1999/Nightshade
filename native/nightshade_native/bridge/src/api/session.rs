@@ -24,10 +24,6 @@ use tokio::sync::RwLock;
 // Sibling-module items via the parent's pub use re-exports.
 use super::*;
 
-// =============================================================================
-// Session Management
-// =============================================================================
-
 /// Get current session state
 pub async fn api_get_session_state() -> SessionState {
     get_state().get_session().await

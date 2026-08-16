@@ -31,9 +31,7 @@
 use std::sync::OnceLock;
 use tokio::sync::Mutex;
 
-// =============================================================================
-// ZWO SDK MUTEXES
-// =============================================================================
+// ZWO SDK mutexes
 
 /// Mutex for ZWO ASI Camera SDK operations.
 /// Protects all ASICamera2.dll function calls.
@@ -62,9 +60,7 @@ pub fn zwo_efw_mutex() -> &'static Mutex<()> {
     ZWO_EFW_MUTEX_CELL.get_or_init(|| Mutex::new(()))
 }
 
-// =============================================================================
-// QHY SDK MUTEX
-// =============================================================================
+// QHY SDK mutex
 
 /// Mutex for QHY Camera SDK operations.
 /// Protects all qhyccd.dll function calls.
@@ -77,9 +73,7 @@ pub fn qhy_mutex() -> &'static Mutex<()> {
     QHY_MUTEX_CELL.get_or_init(|| Mutex::new(()))
 }
 
-// =============================================================================
-// PLAYER ONE SDK MUTEX
-// =============================================================================
+// Player One SDK mutex
 
 /// Mutex for Player One Camera SDK operations.
 /// Protects all PlayerOneCamera.dll function calls.
@@ -90,9 +84,7 @@ pub fn player_one_mutex() -> &'static Mutex<()> {
     PLAYER_ONE_MUTEX_CELL.get_or_init(|| Mutex::new(()))
 }
 
-// =============================================================================
-// SVBONY SDK MUTEX
-// =============================================================================
+// SVBony SDK mutex
 
 /// Mutex for SVBony Camera SDK operations.
 /// Protects all SVBCameraSDK.dll function calls.
@@ -103,9 +95,7 @@ pub fn svbony_mutex() -> &'static Mutex<()> {
     SVBONY_MUTEX_CELL.get_or_init(|| Mutex::new(()))
 }
 
-// =============================================================================
-// ATIK SDK MUTEX
-// =============================================================================
+// Atik SDK mutex
 
 /// Mutex for Atik Camera SDK operations.
 static ATIK_MUTEX_CELL: OnceLock<Mutex<()>> = OnceLock::new();
@@ -115,9 +105,7 @@ pub fn atik_mutex() -> &'static Mutex<()> {
     ATIK_MUTEX_CELL.get_or_init(|| Mutex::new(()))
 }
 
-// =============================================================================
-// FLI SDK MUTEX
-// =============================================================================
+// FLI SDK mutex
 
 /// Mutex for FLI (Finger Lakes Instrumentation) SDK operations.
 static FLI_MUTEX_CELL: OnceLock<Mutex<()>> = OnceLock::new();
@@ -127,9 +115,7 @@ pub fn fli_mutex() -> &'static Mutex<()> {
     FLI_MUTEX_CELL.get_or_init(|| Mutex::new(()))
 }
 
-// =============================================================================
-// TOUPTEK SDK MUTEX
-// =============================================================================
+// ToupTek SDK mutex
 
 /// Mutex for Touptek/OGMA Camera SDK operations.
 static TOUPTEK_MUTEX_CELL: OnceLock<Mutex<()>> = OnceLock::new();
@@ -139,9 +125,7 @@ pub fn touptek_mutex() -> &'static Mutex<()> {
     TOUPTEK_MUTEX_CELL.get_or_init(|| Mutex::new(()))
 }
 
-// =============================================================================
-// MORAVIAN SDK MUTEX
-// =============================================================================
+// Moravian SDK mutex
 
 /// Mutex for Moravian Instruments Camera SDK operations.
 static MORAVIAN_MUTEX_CELL: OnceLock<Mutex<()>> = OnceLock::new();
@@ -151,9 +135,7 @@ pub fn moravian_mutex() -> &'static Mutex<()> {
     MORAVIAN_MUTEX_CELL.get_or_init(|| Mutex::new(()))
 }
 
-// =============================================================================
-// FUJIFILM SDK MUTEX
-// =============================================================================
+// Fujifilm SDK mutex
 
 /// Mutex for Fujifilm X Acquire SDK operations.
 /// Protects all XAPI.dll function calls.
@@ -165,9 +147,7 @@ pub fn fujifilm_mutex() -> &'static Mutex<()> {
     FUJIFILM_MUTEX_CELL.get_or_init(|| Mutex::new(()))
 }
 
-// =============================================================================
-// GPHOTO2 MUTEX
-// =============================================================================
+// gPhoto2 mutex
 
 /// Mutex for libgphoto2 operations.
 /// Protects all libgphoto2 function calls.

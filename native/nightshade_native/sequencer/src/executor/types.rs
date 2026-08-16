@@ -58,8 +58,8 @@ impl std::fmt::Debug for DefectMapApplyState {
 /// Observer / equipment-identification payload pushed from Dart at
 /// sequencer start. Drives the FITS `OBSERVER`, `SITEELEV`, `TELESCOP`,
 /// `FOCALLEN`, `APTDIA`, `INSTRUME` keywords. All fields are `Option`
-/// because in headless / no-profile runs we'd rather emit an absent
-/// keyword than a sentinel — silent fallbacks are bugs.
+/// so a headless / no-profile run emits an absent keyword rather than a
+/// sentinel.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ObserverProfile {
     pub observer_name: Option<String>,
@@ -72,12 +72,10 @@ pub struct ObserverProfile {
 }
 
 /// Runtime-mutable configuration shared between the executor task,
-/// instruction nodes, and the trigger-action handlers. these
-/// values used to be cloned at sequence load and any in-flight
-/// `UpdateDitherConfig`/`UpdateLocation`/`UpdateFilterOffsets` commands
-/// were silently dropped (`let _ = (pixels, ...)`). Stored in
-/// `Arc<RwLock<RuntimeConfig>>` so updates take effect on the next
-/// dither/capture/autofocus invocation without requiring a sequence reload.
+/// instruction nodes, and the trigger-action handlers. Stored in
+/// `Arc<RwLock<RuntimeConfig>>` so an `UpdateDitherConfig` / `UpdateLocation`
+/// / `UpdateFilterOffsets` command takes effect on the next
+/// dither/capture/autofocus invocation without a sequence reload.
 #[derive(Debug, Clone, Default)]
 pub struct RuntimeConfig {
     /// Default dither configuration used by trigger-driven dithers
@@ -93,7 +91,7 @@ pub struct RuntimeConfig {
     /// tuning (step size, exposure, backlash, method, filter) instead of
     /// library defaults. `None` means the sequence has no Autofocus node to
     /// copy tuning from; the trigger path then falls back to defaults AND logs
-    /// a warning (never a silent fallback — "errors are a feature").
+    /// a warning rather than falling back silently.
     pub autofocus: Option<crate::AutofocusConfig>,
     /// Observer location (degrees). `None` means location is not configured.
     pub latitude: Option<f64>,
@@ -108,35 +106,30 @@ pub struct RuntimeConfig {
     /// still ticks every second; only expensive safety/weather driver calls
     /// are throttled by this interval.
     pub safety_check_interval_secs: u64,
-    /// Architecture-unification 2026-06-07 (W1 native daylight gate): the
-    /// maximum Sun altitude (degrees above the horizon) at which an on-sky
-    /// LIGHT capture is permitted. Mirrors the Dart scheduler's
-    /// `maxSunAltitudeDegrees`. The structural native daylight START gate in
-    /// `instructions::execute_slew` / `execute_exposure` blocks a
-    /// slew-to-science-target or a LIGHT-frame exposure while the Sun is above
-    /// this altitude, so a raw sequence started via `api_sequencer_start`
-    /// (including a mosaic) cannot slew + expose lights in full daylight.
-    /// Flats/darks/bias/park and a parked rig are unaffected. Seeded into both
-    /// the `ExecutionContext` and the shared `TriggerState` at `start()`.
+    /// Maximum Sun altitude (degrees above the horizon) at which an on-sky LIGHT
+    /// capture is permitted; mirrors the Dart scheduler's `maxSunAltitudeDegrees`.
+    /// The native gate in `instructions::execute_slew` / `execute_exposure`
+    /// refuses a slew to a science target or a LIGHT exposure above it, so a raw
+    /// sequence started through `api_sequencer_start` (a mosaic included) cannot
+    /// expose lights in daylight. Flats, darks, bias and park are unaffected.
+    /// Seeded into both the `ExecutionContext` and the shared `TriggerState` at
+    /// `start()`.
     ///
-    /// Remediation 2026-06-09 (finding #2): this is now `Option<f64>` so the
-    /// `#[derive(Default)]` value is `None` ("never pushed") rather than a
-    /// fabricated `0.0`. The Dart side pushes its `SchedulerConfig
-    /// .maxSunAltitudeDegrees` via
+    /// `None` means nothing has been pushed: the Dart side sends its
+    /// `SchedulerConfig.maxSunAltitudeDegrees` through
     /// [`SequenceExecutor::update_max_sun_altitude`]
-    /// ([`ExecutorCommand::UpdateMaxSunAltitude`]); when nothing was pushed the
-    /// seed at `start()` resolves `None` (and any non-finite value) to
+    /// ([`ExecutorCommand::UpdateMaxSunAltitude`]), and `None` — like any
+    /// non-finite value — resolves at `start()` to
     /// [`crate::instructions::DEFAULT_MAX_SUN_ALTITUDE_DEGREES`] (-12°), so the
-    /// native gate is never weaker than the Dart W1 gate it backstops.
+    /// native gate is never weaker than the Dart gate it backstops.
     pub max_sun_altitude_degrees: Option<f64>,
-    /// Architecture-unification 2026-06-05 (Subsystem 2 step 3 — stale-verdict
-    /// observability): how long (seconds) a pushed `Some(true)` (UNSAFE) Dart
-    /// weather verdict may go un-refreshed before the safety poll emits a loud
-    /// "verdict feed stale; holding paused fail-closed" warning. The unsafe
-    /// verdict is NEVER auto-cleared on staleness — this only governs WHEN the
-    /// indefinite hold stops being silent. `0` falls back to
-    /// [`DEFAULT_WEATHER_VERDICT_STALENESS_SECS`]; otherwise clamped to a sane
-    /// floor so a misconfiguration cannot make every tick warn.
+    /// How long (seconds) a pushed `Some(true)` (UNSAFE) Dart weather verdict may
+    /// go un-refreshed before the safety poll emits a loud "verdict feed stale;
+    /// holding paused fail-closed" warning. The unsafe verdict is NEVER
+    /// auto-cleared on staleness — this governs only WHEN the indefinite hold
+    /// stops being silent. `0` falls back to
+    /// [`DEFAULT_WEATHER_VERDICT_STALENESS_SECS`]; any other value is clamped to a
+    /// sane floor so a misconfiguration cannot make every tick warn.
     pub weather_verdict_staleness_secs: u64,
     /// user override for the standard `AutofocusInterval`
     /// trigger's `every_n_frames`. The Rust default is 25 frames, which is
@@ -267,8 +260,8 @@ pub enum ExecutorCommand {
         latitude: Option<f64>,
         longitude: Option<f64>,
     },
-    /// Remediation 2026-06-09 (finding #2) — push the W1 native daylight gate's
-    /// maximum Sun altitude (the Dart `SchedulerConfig.maxSunAltitudeDegrees`)
+    /// Push the native daylight gate's maximum Sun altitude (the Dart
+    /// `SchedulerConfig.maxSunAltitudeDegrees`)
     /// into the running executor so the native gate threshold equals the Dart
     /// one. Writes `RuntimeConfig::max_sun_altitude_degrees` AND patches the
     /// live trigger state so the gate (read through the trigger-state handle)
@@ -366,8 +359,8 @@ pub enum ExecutorCommand {
     /// (`CloudArrivingIn`, `CloudOpeningIn`, `CloudCoverThreshold`) have
     /// current data. All fields are `Option` because the analyzer may not
     /// yet have enough radar history to produce every quantity; `None`
-    /// fields disable the corresponding evaluator branch rather than
-    /// firing spuriously ("errors are a feature").
+    /// fields disable the corresponding evaluator branch rather than firing on a
+    /// default.
     UpdateCloudMotion {
         /// Current cloud cover percentage (0-100). Open-Meteo merged with
         /// the analyzer.
@@ -418,18 +411,15 @@ pub enum ExecutorCommand {
     UpdateConditionsScore {
         score: Option<crate::scheduling::ConditionsScore>,
     },
-    /// Full-night audit 2026-06-04 (defense-in-depth) — push the Dart-side
-    /// `weatherSafetyProvider` overall verdict into the executor's trigger
-    /// state. The hardware `safety_is_safe` poll only knows what a connected
-    /// safety/weather device reports; a rig WITHOUT such a device never aborts
-    /// via the in-sequencer `WeatherUnsafe` trigger even when the Dart side
-    /// computed UNSAFE from the user's configured thresholds + API/cloud
-    /// sources. This carries that verdict so the trigger has a redundant
-    /// non-hardware unsafe source. `unsafe_override = Some(true)` => Dart
-    /// computed UNSAFE; `Some(false)` => Dart computed SAFE; `None` => Dart
-    /// abstains (provider disabled / no data) and this layer is inert. Folded
-    /// as an OR-of-unsafe into `weather_safe` evaluation — it can only make the
-    /// rig safer, never less safe than the hardware verdict.
+    /// Push the Dart-side `weatherSafetyProvider` overall verdict into the
+    /// executor's trigger state. The hardware `safety_is_safe` poll only knows
+    /// what a connected safety/weather device reports, so a rig without one needs
+    /// this second unsafe source: the Dart side computes UNSAFE from the user's
+    /// configured thresholds plus API/cloud data. `unsafe_override = Some(true)`
+    /// => Dart computed UNSAFE; `Some(false)` => Dart computed SAFE; `None` =>
+    /// Dart abstains (provider disabled / no data) and this layer is inert.
+    /// Folded as an OR-of-unsafe into `weather_safe` evaluation, so it can only
+    /// make the rig safer than the hardware verdict, never less safe.
     UpdateWeatherVerdict {
         unsafe_override: Option<bool>,
     },
@@ -591,14 +581,10 @@ pub enum ExecutorEvent {
     /// A meridian flip finished — successfully, degraded (it needed retries),
     /// aborted, or failed outright.
     ///
-    /// The flip used to be COMPLETELY invisible to the Dart run vitals: the
-    /// `MeridianFlipEvent` stream is log-only unless a caller wires
-    /// `with_event_channel`, and nothing on the trigger path did. A flip that
-    /// slewed the mount to the other side of the pier therefore left
-    /// `meridianFlips: 0`, and a flip that FAILED its post-flip plate-solve
-    /// recenter left `errorMessages: []` on a run reported as `completed` —
-    /// the worst failure this app can have (silent mis-framing reported as a
-    /// clean night). This event is the wire that carries the verdict.
+    /// `MeridianFlipEvent` is log-only unless a caller wires
+    /// `with_event_channel`, and the trigger path does not, so this variant is
+    /// what carries the flip verdict — a failed post-flip recenter included —
+    /// into the run vitals.
     MeridianFlipOutcome {
         /// `"success"`, `"failed"`, or `"aborted"`.
         outcome: String,
@@ -666,14 +652,9 @@ pub enum ExecutorEvent {
     },
     /// An instruction returned `Failure` and this is the reason it gave.
     ///
-    /// The reason used to exist only in the log: a run killed by the daylight
-    /// gate carried "Daylight gate: refusing light-frame exposure — Sun
-    /// altitude 66.9° is above the maximum -12.0°" in its log while the toast,
-    /// the Session Report Errors section and the persisted
-    /// `stats_json.errorMessages` all said only "Sequence failed". The
-    /// executor consumes this to fill [`SequenceFailed::error`], and the
-    /// bridge surfaces it as a mid-run error so the operator reads the real
-    /// cause at the moment it happens.
+    /// The executor consumes it to fill [`SequenceFailed::error`] and the bridge
+    /// surfaces it as a mid-run error, so the operator reads the real cause
+    /// rather than a bare "Sequence failed".
     InstructionFailed {
         node_name: String,
         message: String,

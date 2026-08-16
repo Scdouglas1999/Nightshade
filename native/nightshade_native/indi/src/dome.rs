@@ -54,9 +54,7 @@ impl IndiDome {
         &self.device_name
     }
 
-    // =========================================================================
     // Connection
-    // =========================================================================
 
     /// Connect to the dome
     pub async fn connect(&self) -> IndiResult<()> {
@@ -76,9 +74,7 @@ impl IndiDome {
         client.is_device_connected(&self.device_name).await
     }
 
-    // =========================================================================
     // Position
-    // =========================================================================
 
     /// Get the current dome azimuth position in degrees (0-360)
     pub async fn get_azimuth(&self) -> Result<f64, String> {
@@ -149,9 +145,7 @@ impl IndiDome {
             .await
     }
 
-    // =========================================================================
-    // Shutter Control
-    // =========================================================================
+    // Shutter control
 
     /// Open the dome shutter
     pub async fn open_shutter(&self) -> IndiResult<()> {
@@ -240,14 +234,14 @@ impl IndiDome {
         let is_open = client
             .get_switch(&self.device_name, "DOME_SHUTTER", "SHUTTER_OPEN")
             .await
-            // Why: see module-level §4.3 policy — INDI switch absent → status probe returns Unknown.
+            // Why: see the module's `unwrap_or(false)` policy — INDI switch absent → status probe returns Unknown.
             .unwrap_or(false);
 
         // Check if shutter is closed
         let is_closed = client
             .get_switch(&self.device_name, "DOME_SHUTTER", "SHUTTER_CLOSE")
             .await
-            // Why: see module-level §4.3 policy — INDI switch absent → status probe returns Unknown.
+            // Why: see the module's `unwrap_or(false)` policy — INDI switch absent → status probe returns Unknown.
             .unwrap_or(false);
 
         let shutter_state = client
@@ -283,9 +277,7 @@ impl IndiDome {
         }
     }
 
-    // =========================================================================
-    // Motion Control
-    // =========================================================================
+    // Motion control
 
     /// Check if dome is currently slewing
     pub async fn is_slewing(&self) -> bool {
@@ -320,9 +312,7 @@ impl IndiDome {
             .await
     }
 
-    // =========================================================================
     // Home & Park
-    // =========================================================================
 
     /// Go to home position
     pub async fn find_home(&self) -> IndiResult<()> {
@@ -355,7 +345,7 @@ impl IndiDome {
         client
             .get_switch(&self.device_name, "DOME_GOTO", "DOME_HOME")
             .await
-            // Why: see module-level §4.3 policy — INDI switch absent → status probe returns false.
+            // Why: see the module's `unwrap_or(false)` policy — INDI switch absent → status probe returns false.
             .unwrap_or(false)
     }
 
@@ -365,13 +355,11 @@ impl IndiDome {
         client
             .get_switch(&self.device_name, "DOME_PARK", "PARK")
             .await
-            // Why: see module-level §4.3 policy — INDI switch absent → status probe returns false.
+            // Why: see the module's `unwrap_or(false)` policy — INDI switch absent → status probe returns false.
             .unwrap_or(false)
     }
 
-    // =========================================================================
     // Slaving
-    // =========================================================================
 
     /// Enable/disable mount slaving
     pub async fn set_slaved(&self, slaved: bool) -> IndiResult<()> {
@@ -403,13 +391,11 @@ impl IndiDome {
         client
             .get_switch(&self.device_name, "DOME_AUTOSYNC", "DOME_AUTOSYNC_ENABLE")
             .await
-            // Why: see module-level §4.3 policy — INDI switch absent → status probe returns false.
+            // Why: see the module's `unwrap_or(false)` policy — INDI switch absent → status probe returns false.
             .unwrap_or(false)
     }
 
-    // =========================================================================
     // Configuration
-    // =========================================================================
 
     /// Set home position
     pub async fn set_home_position(&self, azimuth: f64) -> IndiResult<()> {

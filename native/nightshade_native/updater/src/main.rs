@@ -44,9 +44,8 @@ const POST_INSTALL_HASH_FILE: &str = "post_install_hashes.json";
 
 // File where rollback metadata is persisted while apply is in progress.
 // Lives under install_dir so an updater crash doesn't leave the install in
-// a half-migrated state — next-launch recovery can read this file and finish
-// rolling back. (NB: full crash-recovery on next launch is owned by W1B-UPD-DART;
-// we just leave the artifact on disk.)
+// a half-migrated state — next-launch recovery reads this file and finishes
+// rolling back. The updater's job is only to leave the artifact on disk.
 const ROLLBACK_LOG_FILE: &str = "rollback_log.json";
 
 // Lock file path is `<install_dir>/updates/.updater.lock`
@@ -54,7 +53,7 @@ const LOCK_FILE_NAME: &str = ".updater.lock";
 
 // Subdirectory of `--backup-dir` where a successful apply parks the originals
 // it replaced, so a later `updater --rollback` can restore the previous
-// version (RUNBOOK §3 case B). The `.nightshade-bak` files are MOVED here on
+// version (docs/RUNBOOK.md §3 case B). The `.nightshade-bak` files are MOVED here on
 // success rather than deleted; the Dart boot-verifier wipes `--backup-dir`
 // once the new build is confirmed healthy, so the restore point lives exactly
 // as long as a rollback is meaningful.
@@ -119,8 +118,8 @@ struct ExpectedHashes {
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct RollbackLog {
-    /// Files that existed in the install before apply; the destination has
-    /// been renamed to `dst + BAK_SUFFIX` and a new file written in its place.
+    /// Files that existed in the install before apply; the destination is
+    /// renamed to `dst + BAK_SUFFIX` and a new file written in its place.
     /// Rollback: rename the bak back over the new file.
     moved: Vec<MovedEntry>,
     /// Files that did NOT exist in the install before apply; they were
@@ -244,10 +243,11 @@ fn run() -> Result<()> {
     // recovery.
     let rollback_log_path = args.backup_dir.join(ROLLBACK_LOG_FILE);
     if let Err(e) = persist_rollback_log(&rollback_log_path, &rollback_log) {
-        // Why: if we can't even write the rollback log, do not proceed —
-        // we'd be flying blind on failure.
-        let _ = rollback_in_place(&args.install_dir, &rollback_log);
-        return Err(e.context("Failed to persist rollback log"));
+        return Err(finalize_unlogged_rollback(
+            &args.install_dir,
+            &rollback_log,
+            e,
+        ));
     }
 
     if let Err(apply_err) = apply_result {
@@ -308,6 +308,34 @@ fn run() -> Result<()> {
 
     println!("\nUpdate complete!");
     Ok(())
+}
+
+/// Handle a failure to persist the rollback log: roll the install back
+/// immediately and return an error that names every failure that occurred.
+///
+/// This is the one branch with no on-disk safety net — the rollback log could
+/// not be written, so next-launch recovery has nothing to retry from. If the
+/// rollback also fails, the install directory is left partially updated and the
+/// returned error must say so.
+fn finalize_unlogged_rollback(
+    install_dir: &Path,
+    rollback_log: &RollbackLog,
+    persist_error: anyhow::Error,
+) -> anyhow::Error {
+    eprintln!("\nFailed to persist rollback log: {:?}", persist_error);
+    eprintln!("Rolling back to pre-apply state...");
+    match rollback_in_place(install_dir, rollback_log) {
+        Ok(()) => persist_error.context(
+            "Failed to persist rollback log; the previous installation was restored from in-place backup",
+        ),
+        Err(rollback_error) => anyhow::anyhow!(
+            "Failed to persist rollback log: {}. Rollback also failed: {}. \
+             The installation at {:?} is partially updated and needs manual recovery.",
+            persist_error,
+            rollback_error,
+            install_dir
+        ),
+    }
 }
 
 /// Finalize a failure: roll the install back to its pre-apply state, delete
@@ -734,14 +762,14 @@ fn rollback_in_place(install_dir: &Path, log: &RollbackLog) -> Result<()> {
 }
 
 /// After a successful apply, move each `.nightshade-bak` original (the bytes
-/// the previous version had) into `<backup_dir>/restore_point/<rel>` so a later
-/// `updater --rollback` can restore the predecessor build. The
-/// `rollback_log.json` already persisted under `backup_dir` is left in place;
-/// rollback reads it to know which files to restore and which to delete.
+/// the installed predecessor had) into `<backup_dir>/restore_point/<rel>` so a
+/// later `updater --rollback` can restore that build. The `rollback_log.json`
+/// already persisted under `backup_dir` is left in place; rollback reads it to
+/// know which files to restore and which to delete.
 ///
-/// This replaces the old "delete the baks" cleanup: the install dir is left
-/// clean (no stray `.nightshade-bak` files), but the originals survive under
-/// the backup dir until the Dart boot-verifier wipes it on a healthy boot.
+/// The install dir is left clean (no stray `.nightshade-bak` files) while the
+/// originals survive under the backup dir until the Dart boot-verifier wipes
+/// it on a healthy boot.
 fn retain_restore_point(install_dir: &Path, backup_dir: &Path, log: &RollbackLog) -> Result<()> {
     let mut errors: Vec<String> = Vec::new();
     let restore_root = backup_dir.join(RESTORE_POINT_DIR);
@@ -1135,9 +1163,7 @@ fn launch_app(install_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -1253,8 +1279,68 @@ mod tests {
     }
 
     #[test]
+    fn unlogged_rollback_restores_install_and_says_so() {
+        // The rollback log could not be written, so the rollback happens now.
+        // When it succeeds the caller learns the install is back to its
+        // pre-apply bytes.
+        let tmp = tempdir().unwrap();
+        let install = tmp.path().join("install");
+        let staging = tmp.path().join("staging");
+        fs::create_dir_all(&install).unwrap();
+        write(&install.join("nightshade_bridge.dll"), b"original");
+        write(&staging.join("nightshade_bridge.dll"), b"replacement");
+
+        let mut log = RollbackLog::default();
+        apply_update(&staging, &install, &mut log).unwrap();
+
+        let err = finalize_unlogged_rollback(
+            &install,
+            &log,
+            anyhow::anyhow!("disk full writing rollback_log.json"),
+        );
+        let text = format!("{:?}", err);
+        assert!(text.contains("disk full"), "{}", text);
+        assert!(text.contains("restored from in-place backup"), "{}", text);
+        assert_eq!(
+            fs::read(install.join("nightshade_bridge.dll")).unwrap(),
+            b"original"
+        );
+    }
+
+    #[test]
+    fn unlogged_rollback_double_failure_names_both_and_demands_manual_recovery() {
+        // Worst case: the log write failed AND the rollback failed. Nothing on
+        // disk can recover the install, so the error must name both failures
+        // and the directory that needs manual attention.
+        let tmp = tempdir().unwrap();
+        let install = tmp.path().join("install");
+        let staging = tmp.path().join("staging");
+        fs::create_dir_all(&install).unwrap();
+        write(&install.join("nightshade_bridge.dll"), b"original");
+        write(&staging.join("nightshade_bridge.dll"), b"replacement");
+
+        let mut log = RollbackLog::default();
+        apply_update(&staging, &install, &mut log).unwrap();
+
+        // Destroy the backup the rollback would restore from.
+        let bak = backup_path_for(&install.join("nightshade_bridge.dll"));
+        fs::remove_file(&bak).unwrap();
+
+        let err = finalize_unlogged_rollback(
+            &install,
+            &log,
+            anyhow::anyhow!("disk full writing rollback_log.json"),
+        );
+        let text = format!("{:?}", err);
+        assert!(text.contains("disk full"), "{}", text);
+        assert!(text.contains("Rollback also failed"), "{}", text);
+        assert!(text.contains("manual recovery"), "{}", text);
+        assert!(text.contains("install"), "{}", text);
+    }
+
+    #[test]
     fn manual_rollback_restores_previous_version_from_retained_restore_point() {
-        // The `updater --rollback` window (RUNBOOK §3 case B): after a healthy
+        // The `updater --rollback` window (docs/RUNBOOK.md §3 case B): after a healthy
         // apply, the retained restore point must let us revert the install to
         // its predecessor — replaced files come back, created files go away.
         let tmp = tempdir().unwrap();

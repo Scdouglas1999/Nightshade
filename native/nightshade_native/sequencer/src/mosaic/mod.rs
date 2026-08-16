@@ -4,82 +4,43 @@
 //! the per-panel iteration through the shared [`crate::wizard::Wizard`]
 //! infrastructure.
 //!
-//! ## Architectural decision (Mosaic-Resume)
+//! ## How a mosaic runs today
 //!
-//! Today's canonical path for mosaic execution is **Dart-side static
-//! expansion**, not the Rust `Mosaic` instruction node:
+//! The canonical path is Dart-side static expansion, not the Rust `Mosaic`
+//! instruction node: `MosaicService.createMosaicSequence` expands an N×M
+//! mosaic into N×M `TargetHeaderNode` children, each carrying its own
+//! `MosaicPanelInfo`, and the executor walks those headers like any other
+//! targets. The panel info flows into `ExecutionContext` at target-header
+//! entry, and the per-frame FITS save path stamps `MOSAIC=1`, `PANELIDX`,
+//! `PANELROW`, `PANELCOL` and the `NS-*` private keywords (see
+//! `bridge/src/api/imaging.rs` `api_save_fits_file`).
 //!
-//! 1. The Dart `MosaicService.createMosaicSequence` expands an N×M
-//!    mosaic into N×M `TargetHeaderNode` children, each carrying its
-//!    own `MosaicPanelInfo` (mosaic name, panel index, row, column,
-//!    total panel count).
-//! 2. The executor walks those headers like any other targets —
-//!    slewing, centering, exposing — and the `MosaicPanelInfo` flows
-//!    into `ExecutionContext` at target-header entry (see
-//!    `node/logic/target_header.rs` work).
-//! 3. Per-frame FITS save paths read `ExecutionContext.mosaic_panel`
-//!    and stamp `MOSAIC=1`, `PANELIDX`, `PANELROW`, `PANELCOL` plus the
-//!    `NS-MOSNM` / `NS-PIDX` / `NS-PROW` / `NS-PCOL` / `NS-NPAN`
-//!    private keywords (see `bridge/src/api/imaging.rs`
-//!    `api_save_fits_file`).
-//! 4. **Resume is provided by the node-level checkpoint** — each
-//!    panel's `TargetHeaderNode` has a unique NodeId, and the
-//!    executor's `SessionCheckpoint::node_statuses` map records each
-//!    one's `Success`/`Failure`/`Running` state. On reload the
-//!    executor skips already-`Success` nodes, so a 3×3 mosaic killed
-//!    mid-panel-5 resumes at panel 5 with no special mosaic handling
-//!    required.
+//! Resume comes from the node-level checkpoint: each panel's
+//! `TargetHeaderNode` has a unique NodeId and the executor's
+//! `SessionCheckpoint::node_statuses` map records its state, so a 3×3 mosaic
+//! killed mid-panel-5 resumes at panel 5 with no mosaic-specific handling.
 //!
-//! ## What this module does today
+//! ## What this module does
 //!
-//! `execute_mosaic` (the entry point invoked when a sequence DOES
-//! contain a `NodeType::Mosaic` node — currently the registry node
-//! palette permits it but Dart's UI never emits one) calculates panel
-//! positions, drives the [`crate::wizard::WizardExecutor`] through one
-//! step per panel, and returns a metadata payload describing the
-//! grid. The wizard step body looks up panel coordinates and records
-//! the panel index — it does NOT itself slew/center/expose. That
-//! responsibility currently belongs to the surrounding tree (the
-//! static-expansion path described above).
+//! `execute_mosaic` runs when a sequence contains a `NodeType::Mosaic` node —
+//! the registry palette permits one, but Dart's UI does not emit one today.
+//! It calculates panel positions, drives the [`crate::wizard::WizardExecutor`]
+//! through one step per panel, and returns a metadata payload describing the
+//! grid. The wizard step body looks up panel coordinates and records the panel
+//! index; slew/center/expose belong to the surrounding tree.
 //!
-//! ## Forward-compatibility
-//!
-//! The wizard scaffolding is unused by today's Dart UI, but it is NOT
-//! a stub, and it is no longer wired to a null sink. `run_mosaic_wizard`
-//! takes the running session's `CheckpointManager` — the executor puts
-//! it on `ExecutionContext::checkpoint_manager` at start() and
+//! `run_mosaic_wizard` takes the running session's `CheckpointManager` — the
+//! executor puts it on `ExecutionContext::checkpoint_manager` at start() and
 //! `MosaicInstruction` passes it down — and wraps it in
-//! `SessionWizardCheckpointSink`, so per-panel progress lands in the
-//! session checkpoint's `wizard_states` slot on disk. When per-panel
-//! slew/center/expose orchestration eventually moves into the Rust
-//! `Mosaic` instruction node (so the Dart side emits a single
-//! `Mosaic(MosaicConfig)` node instead of expanding into N×M
-//! TargetHeaders), resume is already persisted and needs no further
-//! wiring.
+//! `SessionWizardCheckpointSink`, so per-panel progress lands in the session
+//! checkpoint's `wizard_states` slot on disk. When per-panel orchestration
+//! moves into the Rust `Mosaic` node, resume is already persisted.
 //!
-//! ON-RIG VALIDATION IS OWED: the persistence path is covered by tests
-//! down to disk, but no mosaic has been killed and resumed against real
-//! hardware.
+//! ON-RIG VALIDATION IS OWED: the persistence path is covered by tests down to
+//! disk, but no mosaic has been killed and resumed against real hardware.
 //!
-//! The four invariants the test suite below pins down so that future
-//! migration cannot regress resume:
-//!
-//! * Fresh 3×3 run visits all nine panels in order (0..9).
-//! * Resume from `completed_steps=4` visits only panels 4..8.
-//! * Resume from `completed_steps=8` visits only panel 8.
-//! * A checkpoint slot under a different key is ignored (resume from
-//!   0).
-//! * Checkpoint sink sees a save after each successful step (1..=9).
-//! * Round-trip through `SessionWizardCheckpointSink` (the production
-//!   sink, backed by an on-disk `SessionCheckpoint`) actually skips
-//!   completed panels on resume (`resume_round_trips_through_session_sink`).
-//! * The production entry point `run_mosaic_wizard` picks that same
-//!   sink whenever it is handed a `CheckpointManager`, and persists
-//!   nothing when it is not
-//!   (`production_entry_resumes_through_the_session_sink`).
-//!
-//! See `wizard/mod.rs` for the shared executor and trait, and
-//! `checkpoint.rs` for the on-disk persistence layer.
+//! See `wizard/mod.rs` for the shared executor and trait, and `checkpoint.rs`
+//! for the on-disk persistence layer.
 
 mod panels;
 
@@ -179,7 +140,7 @@ impl<'a> Wizard for MosaicWizardRun<'a> {
         );
 
         // Mid-panel progress (between the executor's per-step "Panel X/N"
-        // emission). Same scaling as pre-refactor (overall 0..100%).
+        // emission), scaled to overall 0..100%.
         // Why: usize <= u32::MAX in realistic mosaics; widening to f64
         // is exact for u32.
         let total = self.panels.len();
@@ -224,9 +185,8 @@ impl<'a> Wizard for MosaicWizardRun<'a> {
 /// Execute the mosaic instruction (validate grid, iterate panel
 /// checkpoints, emit progress, return the summary payload).
 ///
-/// Public entry remains [`crate::instructions::execute_mosaic`]; this
-/// is the implementation it delegates to. Observable behavior matches
-/// the pre-refactor implementation.
+/// The public entry is [`crate::instructions::execute_mosaic`]; this is the
+/// implementation it delegates to.
 /// `checkpoint_manager` is the running session's manager (the executor
 /// passes `ExecutionContext::checkpoint_manager`). When present, per-panel
 /// progress is written into the session checkpoint's `wizard_states` slot
@@ -280,8 +240,7 @@ async fn run_mosaic_wizard_inner(
         callback: progress_callback,
     };
 
-    // Pre-refactor: "Starting mosaic" at 0%, then "Calculating panel
-    // positions" at 30%. Preserve both messages.
+    // "Starting mosaic" at 0%, then "Calculating panel positions" at 30%.
     reporter.report(0.0, "Starting mosaic".to_string());
 
     tracing::info!(
@@ -305,7 +264,7 @@ async fn run_mosaic_wizard_inner(
     };
     let (result, _status) = executor.run(wizard, ctx).await;
 
-    // Pre-refactor: final progress "Mosaic configured: N panels" at 100%.
+    // Final progress: "Mosaic configured: N panels" at 100%.
     if result.status == NodeStatus::Success {
         reporter.report(1.0, format!("Mosaic configured: {} panels", total_panels));
     }
@@ -411,7 +370,7 @@ mod resume_tests {
 
         assert_eq!(result.status, NodeStatus::Success);
         assert_eq!(visited, (0..9_u32).collect::<Vec<_>>());
-        // Result payload preserves pre-refactor shape.
+        // Result payload shape.
         let data = result.data.expect("result.data");
         assert_eq!(data["total_panels"], serde_json::json!(9));
         // Sink is cleared on success.
@@ -464,9 +423,8 @@ mod resume_tests {
 
     #[tokio::test]
     async fn legacy_checkpoint_without_mosaic_slot_resumes_from_zero() {
-        // A pre-v3 checkpoint (or one without a wizard_states entry for
-        // mosaic) should resume from panel 0 — matching pre-refactor
-        // behavior where mosaic had no internal resume support.
+        // A checkpoint without a wizard_states entry for mosaic resumes
+        // from panel 0.
         let sink = MemoryCheckpointSink::default();
         // Insert a slot under a DIFFERENT key so the mosaic lookup misses.
         sink.save(&WizardCheckpoint {
@@ -613,14 +571,11 @@ mod resume_tests {
         }
     }
 
-    /// Mosaic-Resume (owner decision 7) — the PRODUCTION entry point, not a
-    /// test-only one, must resume through the session sink. `run_mosaic_wizard`
-    /// is handed the executor's `CheckpointManager`; with one present it wraps
-    /// it in `SessionWizardCheckpointSink`, so a seeded on-disk slot skips the
+    /// The PRODUCTION entry point, not a test-only one, must resume through the
+    /// session sink: `run_mosaic_wizard` is handed the executor's
+    /// `CheckpointManager` and with one present wraps it in
+    /// `SessionWizardCheckpointSink`, so a seeded on-disk slot skips the
     /// completed panels and the slot is cleared once the run finishes.
-    ///
-    /// Pre-fix this test sees all nine panels (production wired
-    /// `NullCheckpointSink`, which loads nothing and clears nothing).
     #[tokio::test]
     async fn production_entry_resumes_through_the_session_sink() {
         use crate::checkpoint::CheckpointManager;

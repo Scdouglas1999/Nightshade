@@ -86,9 +86,8 @@ impl SequenceExecutor {
     /// save-path fields onto the executor, and stash a clone in
     /// `current_checkpoint` for the spawned task in `start()` to read.
     ///
-    /// Errors when no checkpoint manager is configured — silent
-    /// fallback would let the operator press "Resume" and get a
-    /// freshly-zeroed executor instead, which the house rules forbid.
+    /// Errors when no checkpoint manager is configured: a silent fallback would
+    /// let the operator press "Resume" and get a freshly-zeroed executor.
     pub fn load_checkpoint(
         &mut self,
     ) -> Result<Option<crate::checkpoint::SessionCheckpoint>, String> {

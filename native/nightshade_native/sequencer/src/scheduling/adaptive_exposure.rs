@@ -568,10 +568,9 @@ mod tests {
         let d = compute_adaptive_exposure(Some(&cfg), 60.0, Some("L"), Some(19.2));
         let expected = 60.0 * 10f64.powf(2.3 / 2.5);
         assert!(close(d.adapted_secs, expected, 1e-6));
-        // Pin the actual value (≈ 499.211) so a regression in the math
-        // is caught. The brief's "~142s" assumed a different scaling
-        // law; document and pin the real Pogson result here so the
-        // physics is the source of truth, not the brief's mental math.
+        // Pin the actual value (≈ 499.211) so a change in the math is
+        // caught. The Pogson result is the source of truth here, not a
+        // mental-math estimate of "~142s" from a different scaling law.
         assert!(
             close(d.adapted_secs, 499.21, 0.5),
             "actual = {}",

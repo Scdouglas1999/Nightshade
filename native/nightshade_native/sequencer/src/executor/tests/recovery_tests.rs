@@ -138,9 +138,7 @@ fn calculate_totals_smart_exposure_inside_loop_multiplies() {
     );
 }
 
-// ------------------------------------------------------------------
 // Recovery Mode tests
-// ------------------------------------------------------------------
 
 #[test]
 fn executor_state_recovering_round_trips_through_serde() {
@@ -290,13 +288,12 @@ fn run_recovery_attempt_weather_unsafe_with_null_ops_succeeds_when_safe() {
     assert_eq!(outcome, crate::recovery::AttemptOutcome::Succeeded);
 }
 
-/// Architecture-unification 2026-06-05 (Subsystem 2 step 4): a weather
-/// recovery MUST NOT clear/resume on a hardware-only re-poll while the
-/// Dart-side verdict still reports unsafe (`weather_verdict_unsafe ==
-/// Some(true)`). NullDeviceOps.safety_is_safe returns Ok(true) (hardware
-/// reads safe), so the OLD code would have declared Succeeded and resumed
-/// the sequence into API-unsafe weather. With the verdict gate the attempt
-/// must Fail until the Dart verdict also clears.
+/// A weather recovery MUST NOT clear/resume on a hardware-only re-poll while
+/// the Dart-side verdict still reports unsafe (`weather_verdict_unsafe ==
+/// Some(true)`). NullDeviceOps.safety_is_safe returns Ok(true) (hardware reads
+/// safe), so without the verdict gate the attempt would report Succeeded and
+/// resume the sequence into API-unsafe weather; with it the attempt must Fail
+/// until the Dart verdict also clears.
 #[test]
 fn run_recovery_attempt_weather_unsafe_blocked_by_dart_verdict() {
     let rt = tokio::runtime::Builder::new_current_thread()
@@ -436,7 +433,7 @@ fn run_recovery_attempt_consecutive_rejects_escalates_to_operator_pause() {
     }
 }
 
-/// v4 BLOCKER #1 — the disposition that gates how a `PauseForOperator`
+/// The disposition that gates how a `PauseForOperator`
 /// escalation is handled. The SAFE default is "unattended": a rig nobody is
 /// watching MUST be abandoned safely (park + close), never passively frozen
 /// dome-open with safety triggers disabled until dawn. Only an explicitly
@@ -461,7 +458,7 @@ fn recovery_escalation_unattended_is_safe_abandon_attended_is_passive_pause() {
     );
 }
 
-/// v4 BLOCKER #2 — recovery entry stops tracking; any resume / operator-
+/// Recovery entry stops tracking; any resume / operator-
 /// handoff path must restore it. The shared helper both branches use must
 /// command `mount_set_tracking(true)` and report no error on success.
 #[tokio::test]
@@ -746,14 +743,11 @@ async fn plugin_node_e2e_completes_via_executor_round_trip() {
     );
 }
 
-// =====================================================================
-// GuideStarLost recovery — re-acquisition tests (P0 fix).
+// GuideStarLost recovery — re-acquisition tests.
 //
-// The previous recovery arm only *queried* is_guiding and could never
-// re-acquire a lost star. These tests assert the new behaviour: the
-// recovery actively calls guider_start (re-acquire) and only succeeds
-// once guiding re-locks.
-// =====================================================================
+// A recovery arm that only *queries* is_guiding can never re-acquire a lost
+// star. These tests assert the recovery actively calls guider_start
+// (re-acquire) and only succeeds once guiding re-locks.
 
 #[tokio::test]
 async fn guide_star_lost_recovery_actively_reacquires() {
@@ -766,7 +760,7 @@ async fn guide_star_lost_recovery_actively_reacquires() {
         matches!(outcome, crate::recovery::AttemptOutcome::Succeeded),
         "recovery should succeed once the guider re-locks after re-acquire"
     );
-    // The re-acquire MUST have been issued (the old code never did this).
+    // The re-acquire MUST have been issued.
     assert!(
         started.load(Ordering::Relaxed),
         "guider_start (re-acquisition) must be called during recovery"

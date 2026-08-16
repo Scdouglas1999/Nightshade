@@ -99,9 +99,8 @@ impl NativeMount for Lx200Mount {
             .lock()
             .map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = Some(true);
         if let Err(e) = write_persisted_park_state(&self.device_id, true) {
-            // Persistence failure must not silently mask a real park —
-            // log loudly and propagate so the operator knows the cache
-            // is broken (errors are a feature).
+            // Persistence failure must not silently mask a real park — log
+            // loudly and propagate so the operator knows the cache is broken.
             tracing::error!(
                 "Failed to persist LX200 park state for {}: {}",
                 self.device_id,

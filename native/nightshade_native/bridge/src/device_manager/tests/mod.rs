@@ -108,9 +108,7 @@ fn build_device_manager() -> DeviceManager {
     }
 }
 
-// =========================================================================
 // Device identity: a positional id must not silently re-bind
-// =========================================================================
 
 /// A connected vendor-SDK device whose reported identity the test controls.
 ///
@@ -177,17 +175,14 @@ async fn install_fake_device(manager: &DeviceManager, id: &str, model: &str, ser
     );
 }
 
-// -------------------------------------------------------------------------
-// DEV-P3-3: `connect_simulator` / `disconnect_simulator` must actually flip
-// the matching `simulation.rs` singleton's `connected` flag, and the
-// heartbeat path for `DriverType::Simulator` must read that flag instead
-// of trivially reporting healthy. Previously `connect_simulator` was a
-// no-op and the heartbeat returned `Ok(true)` unconditionally — so a
-// "connected" simulator had no real driver state behind it.
+// `connect_simulator` / `disconnect_simulator` must flip the matching
+// `simulation.rs` singleton's `connected` flag, and the heartbeat path for
+// `DriverType::Simulator` must read that flag rather than report healthy
+// unconditionally — otherwise a "connected" simulator has no driver state
+// behind it.
 //
 // Tests use distinct device_type prefixes to avoid cross-test interference
 // through the process-wide simulation.rs singletons.
-// -------------------------------------------------------------------------
 fn build_sim_info(id: &str, device_type: DeviceType) -> DeviceInfo {
     DeviceInfo {
         id: id.to_string(),

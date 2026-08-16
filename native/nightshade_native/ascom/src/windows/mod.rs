@@ -4,7 +4,6 @@
 //!
 //! This module provides robust, production-quality ASCOM driver support with:
 //! - Proper error types with detailed COM and ASCOM error information
-//! - Operation timeouts to prevent hangs
 //! - Connection health monitoring
 //! - RAII-based resource cleanup
 
@@ -21,7 +20,6 @@ pub mod observing_conditions;
 pub mod rotator;
 pub mod safety_monitor;
 pub mod switch;
-pub mod timeout;
 pub mod variant;
 
 pub use camera::{
@@ -52,4 +50,3 @@ pub use observing_conditions::{
 pub use rotator::{AscomRotator, RotatorFullStatus};
 pub use safety_monitor::{AscomSafetyMonitor, SafetyMonitorFullStatus};
 pub use switch::{AscomSwitch, SwitchChannelState, SwitchFullStatus};
-pub use timeout::{get_timeout_config, set_timeout_config, TimeoutConfig};

@@ -1,10 +1,8 @@
 use super::*;
 
-// -------------------------------------------------------------------------
 // stop_heartbeat must not emit HeartbeatStopped when there was
 // no heartbeat task to stop. Otherwise every connect (which defensively
 // calls stop_heartbeat first) emits a spurious stop event.
-// -------------------------------------------------------------------------
 #[tokio::test]
 async fn stop_heartbeat_on_unknown_device_emits_no_event() {
     use crate::event::{EquipmentEvent, EventPayload};
@@ -83,7 +81,6 @@ async fn stop_heartbeat_on_registered_but_inactive_device_emits_no_event() {
     }
 }
 
-// -------------------------------------------------------------------------
 // `disconnect_device` must route PHD2 device ids through the
 // PHD2-specific disconnect helper (mirroring the built-in-guider check),
 // otherwise the PHD2 client is leaked on disconnect.
@@ -94,7 +91,6 @@ async fn stop_heartbeat_on_registered_but_inactive_device_emits_no_event() {
 //     (this is a compile-time check: a typo would break the build)
 //   - `is_phd2_device_id` recognizes the canonical PHD2 ids the
 //     `disconnect_device` arm dispatches on.
-// -------------------------------------------------------------------------
 #[tokio::test]
 async fn disconnect_phd2_via_generic_route_calls_phd2_disconnect() {
     // Compile-time check: ensure both helpers referenced by
@@ -135,7 +131,6 @@ async fn disconnect_phd2_via_generic_route_calls_phd2_disconnect() {
     ));
 }
 
-// -------------------------------------------------------------------------
 // a manual `disconnect_device` arriving while a reconnect attempt
 // is between backoff and dispatch (i.e. inside `connect_device_internal`)
 // must trip the per-device cancel token so the connect attempt bails with
@@ -151,7 +146,6 @@ async fn disconnect_phd2_via_generic_route_calls_phd2_disconnect() {
 //      the loop would issue after backoff) must short-circuit with
 //      `RECONNECT_CANCELED_MSG` and must NOT flip the device back to
 //      `Connected`.
-// -------------------------------------------------------------------------
 #[tokio::test]
 async fn manual_disconnect_trips_in_flight_reconnect_cancel_token() {
     use crate::device_manager::connection::RECONNECT_CANCELED_MSG;

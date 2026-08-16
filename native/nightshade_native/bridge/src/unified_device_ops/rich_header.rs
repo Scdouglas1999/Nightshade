@@ -2,7 +2,7 @@ use super::*;
 
 /// Assemble the rich FITS header for a sequencer-saved frame.
 ///
-/// Split out of `save_fits` so the pointing decision is exercisable without a
+/// Separate from `save_fits` so the pointing decision is exercisable without a
 /// connected mount — reading the mount is the only thing `save_fits` adds.
 pub(crate) fn build_rich_header(
     image_data: &ImageData,

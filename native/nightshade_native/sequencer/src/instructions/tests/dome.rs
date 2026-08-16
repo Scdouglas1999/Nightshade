@@ -4,18 +4,13 @@
 
 use super::*;
 
-// ---------------------------------------------------------------------
 // dome-park-shutter: park surfaces the shutter-close error + verifies
-// ---------------------------------------------------------------------
 
 /// THE hardware-safety guard: when dome park closes the shutter but the
 /// close FAILS, `execute_park_dome` must return Failure with the close
 /// error surfaced — NOT report "parked" while the scope sits exposed
 /// under an open shutter all night. A failed roof returns an error, not
 /// success.
-///
-/// Fails WITHOUT the fix (the original code swallowed the `dome_close`
-/// Result and returned success).
 ///
 /// `start_paused = true` keeps this test on the virtual clock so it can
 /// never race a concurrent paused test's auto-advance under the
@@ -54,8 +49,8 @@ async fn test_park_dome_surfaces_shutter_close_error() {
 /// success. Here the shutter is still "Closing" for the first two polls
 /// and only reaches "Closed" on the third.
 ///
-/// Fails WITHOUT the wait (fire-and-forget reported "parked" while the
-/// shutter was still moving).
+/// A fire-and-forget park reports "parked" while the shutter is still
+/// moving.
 ///
 /// `start_paused = true` drives `wait_for_dome_shutter_state`'s
 /// `tokio::time::sleep` off the virtual clock (auto-advanced when idle).
@@ -119,15 +114,12 @@ async fn test_park_dome_fails_when_shutter_never_closes() {
     );
 }
 
-/// v4 SHOULD-FIX — `wait_for_dome_shutter_state` must NOT return a clean
-/// "Dome shutter closed" success when the shutter state could never be
-/// confirmed. A roof that can never report position ("Unknown" forever)
-/// is tolerated (a working roll-off must not be failed), but the success
-/// message MUST surface that arrival was unconfirmed — otherwise the
-/// operator reads "closed" while the roof's true state is unknown.
-///
-/// Fails WITHOUT the fix: the old code returned
-/// `success_with_message("Dome shutter closed")` with no caveat.
+/// `wait_for_dome_shutter_state` must NOT return a clean "Dome shutter
+/// closed" success when the shutter state could never be confirmed. A roof
+/// that can never report position ("Unknown" forever) is tolerated (a working
+/// roll-off must not be failed), but the success message MUST surface that
+/// arrival was unconfirmed — otherwise the operator reads "closed" while the
+/// roof's true state is unknown.
 #[tokio::test(start_paused = true)]
 async fn test_close_dome_surfaces_unconfirmed_when_shutter_never_reports_state() {
     // Never a definite state — the dome cannot report shutter position.
@@ -176,7 +168,6 @@ async fn test_close_dome_confirmed_reports_plain_success() {
     );
 }
 
-// =====================================================================
 // Dome / cover-calibrator role resolution
 //
 // Nothing in the Dart→FFI runtime-config path calls
@@ -186,7 +177,6 @@ async fn test_close_dome_confirmed_reports_plain_success() {
 // "No dome connected" while the device sat connected in the Equipment
 // screen. These pin the fallback to the device layer's view of what is
 // connected, and pin that the failure still fires when nothing is.
-// =====================================================================
 
 #[tokio::test(start_paused = true)]
 async fn open_dome_uses_connected_dome_when_context_has_no_role() {
@@ -248,7 +238,7 @@ async fn a_retried_node_reports_its_failure_once_not_once_per_attempt() {
     use crate::node::runtime::{Node, RuntimeNode};
 
     let ops = Arc::new(ScriptedDomeRotatorOps::new());
-    let mut ec = crate::node::context::ExecutionContext::new("dup-error".to_string());
+    let mut ec = crate::node::context::ExecutionContext::new_for_test("dup-error".to_string());
     ec.device_ops = ops.clone();
     let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(64);
     ec.event_tx = Some(event_tx);

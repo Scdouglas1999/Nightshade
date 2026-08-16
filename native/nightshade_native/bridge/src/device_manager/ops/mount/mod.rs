@@ -202,9 +202,9 @@ mod sim_mount_tests {
         );
     }
 
-    /// Park left RA/Dec at the previous target, so a parked mount reported the
-    /// altitude of whatever it had been imaging — and that altitude kept moving
-    /// with the sky.
+    /// A parked mount points at the pole, so its altitude equals the site
+    /// latitude and stays put. Leaving RA/Dec at the previous target reports
+    /// the altitude of whatever it was last imaging, still tracking the sky.
     #[tokio::test]
     async fn parking_moves_the_mount_to_a_park_position() {
         let _serialized = sim_singleton_test_lock().lock().await;

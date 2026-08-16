@@ -40,9 +40,7 @@
 use crate::{detect_stars, DetectedStar, ImageData, PixelType, StarDetectionConfig};
 use rayon::prelude::*;
 
-// =============================================================================
 // Public types
-// =============================================================================
 
 /// Which transform family to fit between the two frames.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -243,9 +241,7 @@ pub enum RegistrationError {
     NoConsistentGeometry { found: usize, needed: usize },
 }
 
-// =============================================================================
 // Public entry point
-// =============================================================================
 
 /// The number of detected stars [`register_frame`] requires on BOTH the
 /// reference and the frame for `kind`: enough to form triangles and to fit the
@@ -357,9 +353,7 @@ pub fn register_frame(
     })
 }
 
-// =============================================================================
 // Validation + detection-plane helpers
-// =============================================================================
 
 fn validate_pair(reference: &ImageData, frame: &ImageData) -> Result<(), RegistrationError> {
     if reference.pixel_type != PixelType::U16 {
@@ -419,9 +413,7 @@ fn luminance_proxy(rgb: &ImageData) -> ImageData {
     ImageData::from_u16(width, height, 1, &luma)
 }
 
-// =============================================================================
 // Geometric matching (triangle descriptors -> star correspondences)
-// =============================================================================
 
 /// A pairing of a reference star centroid with a frame star centroid.
 #[derive(Debug, Clone, Copy)]
@@ -664,9 +656,7 @@ fn lower_bound(slice: &[f64], value: f64) -> usize {
     lo
 }
 
-// =============================================================================
 // RANSAC transform estimation
-// =============================================================================
 
 struct FittedTransform {
     model: TransformModel,
@@ -804,9 +794,7 @@ fn inliers_for(
         .collect()
 }
 
-// =============================================================================
 // Model fitting (least squares)
-// =============================================================================
 
 /// Fit the requested model from `>= min` correspondences (source → reference).
 fn fit_model(pairs: &[Correspondence], kind: TransformKind) -> Option<TransformModel> {
@@ -999,9 +987,7 @@ fn model_residual(pairs: &[Correspondence], model: &TransformModel) -> f64 {
     rms(&residuals)
 }
 
-// =============================================================================
 // Resampling (warp source onto reference grid)
-// =============================================================================
 
 /// Warp `frame` onto the `reference` grid using `model` (source → reference)
 /// and `interp`. Output matches the reference dimensions/channels/pixel type.
@@ -1221,9 +1207,7 @@ fn lanczos3(x: f64) -> f64 {
     }
 }
 
-// =============================================================================
 // Small linear-algebra helpers (no nalgebra dependency)
-// =============================================================================
 
 /// Invert a 3×3 matrix; `None` if singular.
 fn invert_3x3(m: &[[f64; 3]; 3]) -> Option<[[f64; 3]; 3]> {
@@ -1317,9 +1301,7 @@ fn rms(values: &[f64]) -> f64 {
     (sum_sq / values.len() as f64).sqrt()
 }
 
-// =============================================================================
 // Deterministic PRNG for RANSAC sampling
-// =============================================================================
 
 /// SplitMix64 — a tiny, fast, deterministic PRNG. We use a fixed seed so
 /// registration is reproducible run-to-run (important for stack determinism and
@@ -1342,9 +1324,7 @@ impl Rng {
     }
 }
 
-// =============================================================================
 // Tests
-// =============================================================================
 
 #[cfg(test)]
 mod tests {

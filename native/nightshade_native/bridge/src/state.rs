@@ -328,10 +328,10 @@ impl AppState {
     /// record. Every native consumer treats it that way — polar alignment
     /// refuses to run, the sequencer skips altitude/meridian maths, FITS
     /// headers omit SITELAT/SITELONG — so `None` must never be an answer this
-    /// method invents. It used to be: a tokio `try_read()` that returned
-    /// `Ok(None)` on a failed try, which made a writer holding the lock for a
-    /// microsecond indistinguishable from a user who never set a site, at a
-    /// moment (settings sync) when a writer is exactly what is there.
+    /// method invents. In particular lock contention is not `None`: a failed
+    /// `try_read` would make a writer holding the lock for a microsecond
+    /// indistinguishable from a user who never set a site, at exactly the
+    /// moment (settings sync) when a writer is there.
     pub fn get_observer_location(&self) -> Result<Option<ObserverLocation>, String> {
         let location = self.read_observer_location().clone();
         match &location {
@@ -445,9 +445,7 @@ impl AppState {
         }
     }
 
-    // =========================================================================
-    // Event Publishing (using new event bus with sequence numbers)
-    // =========================================================================
+    // Event publishing (event bus with sequence numbers)
 
     /// Publish an event to the event bus
     /// Returns the event ID
@@ -572,9 +570,7 @@ impl AppState {
         )
     }
 
-    // =========================================================================
-    // Consolidated Device State Access
-    // =========================================================================
+    // Consolidated device state access
 
     /// Get device state summary for all connected devices
     /// This is the single source of truth for device state

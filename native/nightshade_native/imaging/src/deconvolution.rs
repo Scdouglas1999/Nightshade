@@ -39,7 +39,7 @@
 //! and operate on a single average PSF — enough to give the user a faithful
 //! "what would sharpening do?" preview without over-claiming.
 //!
-//! ## Honest limits
+//! ## Limitations
 //!
 //! The defaults ([`DeconvConfig::default`], [`PsfEstimateConfig::default`]) —
 //! 30 iterations, a small TV damping factor, an 80-star / 25-px estimation
@@ -186,9 +186,7 @@ pub enum DeconvError {
 /// at which a per-pixel median is meaningfully robust to one outlier.
 const MIN_STARS_FOR_PSF: usize = 3;
 
-// ============================================================================
-// PSF ESTIMATION
-// ============================================================================
+// PSF estimation
 
 /// Estimate the point-spread function from the stars in `image`.
 ///
@@ -687,9 +685,7 @@ fn measure_kernel_fwhm(kernel: &[f64], size: usize) -> f64 {
     2.0 * half as f64
 }
 
-// ============================================================================
-// RICHARDSON–LUCY DECONVOLUTION
-// ============================================================================
+// Richardson–Lucy deconvolution
 
 /// Deconvolve `image` with `psf` using regularized Richardson–Lucy.
 ///
@@ -922,9 +918,7 @@ fn flip_kernel(kernel: &[f64], size: usize) -> Vec<f64> {
     out
 }
 
-// ============================================================================
-// SHARED HELPERS
-// ============================================================================
+// Shared helpers
 
 /// Validate a PSF kernel: odd side, matching length, and a usable normalization.
 fn validate_kernel(psf: &PsfModel) -> Result<(), DeconvError> {
@@ -1074,8 +1068,8 @@ const F32_FULL_SCALE: f64 = 1.0;
 ///   star at 0.4 maps to ~26000 (well below the guard, kept) while only a clipped
 ///   core at 1.0 maps to 65535 and is correctly flagged. The saturation level is
 ///   therefore the same `0.9 · 65535` the ADU path uses. (Rescaling from the data
-///   *peak* instead would pin the brightest star to full range and the guard would
-///   wrongly reject every bright star — the bug an earlier draft of this fix had.)
+///   *peak* instead would pin the brightest star to full range, and the guard
+///   would then wrongly reject every bright star.)
 fn as_u16_image(image: &ImageData, plane: &[f64], width: usize, height: usize) -> (ImageData, f64) {
     const U16_SAT: f64 = 65535.0 * SATURATION_FRACTION;
 
@@ -1116,9 +1110,7 @@ fn as_u16_image(image: &ImageData, plane: &[f64], width: usize, height: usize) -
     )
 }
 
-// ============================================================================
-// TESTS
-// ============================================================================
+// Tests
 
 #[cfg(test)]
 mod tests {
@@ -1421,13 +1413,12 @@ mod tests {
 
     #[test]
     fn estimate_psf_succeeds_on_normalized_f32_starfield() {
-        // Finding 7 regression: a normalized [0,1] linear F32 frame (the layout
-        // the rest of the crate treats F32 as — stars at values like 0.02..0.82)
-        // must estimate a PSF, not silently fail. The old hardcoded
-        // `round().clamp(0,65535)` crushed every pixel to 0/1, so detect_stars
-        // found nothing and estimate_psf returned TooFewStars even on a perfect
-        // field. We build the SAME star geometry as the U16 test, then divide into
-        // [0,1] and assert the recovered FWHM still matches the planted Gaussian.
+        // A normalized [0,1] linear F32 frame (the layout the rest of the crate
+        // treats F32 as — stars at values like 0.02..0.82) must yield a PSF
+        // estimate: scaling by a hardcoded `round().clamp(0,65535)` crushes
+        // every pixel to 0/1 and detect_stars then finds nothing. This plants
+        // the SAME star geometry as the U16 case, divides into [0,1] and
+        // asserts the recovered FWHM still matches the planted Gaussian.
         let sigma = 2.0_f64;
         let planted_fwhm = FWHM_PER_SIGMA * sigma;
 
@@ -1438,7 +1429,7 @@ mod tests {
         let f32_data: Vec<f32> = src.iter().map(|&v| v as f32 / 65535.0).collect();
         let field = ImageData::from_f32(200, 200, 1, &f32_data);
         assert_eq!(field.pixel_type, crate::PixelType::F32);
-        // Sanity: this really is a low-amplitude [0,1] frame the old code broke on.
+        // Sanity: this really is a low-amplitude [0,1] frame.
         let max_v = f32_data.iter().cloned().fold(0.0f32, f32::max);
         assert!(max_v <= 1.0, "frame must be normalized, peak {max_v}");
 

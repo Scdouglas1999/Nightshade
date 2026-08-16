@@ -1,10 +1,9 @@
 //! Unified Device Operations Implementation
 //!
 //! This module is the one and only `DeviceOps` implementation the sequencer
-//! runs against. It absorbed the two earlier ones — `BridgeDeviceOps` (routed
-//! through the bridge API) and `RealDeviceOps` (direct ASCOM/Alpaca access) —
-//! both of which have been deleted; nothing may reintroduce a second impl,
-//! because `set_device_ops` on the process-global executor is last-writer-wins.
+//! runs against. Nothing may add a second one: `set_device_ops` on the
+//! process-global executor is last-writer-wins, so two impls means whichever
+//! registered last silently owns every device call.
 //!
 //! # Architecture
 //!
@@ -54,9 +53,9 @@
 //! - **star_count usize → u32** (line 544): real frames have ≤ tens of
 //!   thousands of stars; saturating cast would catch any pathology.
 //! - **Star-count average f64** (line 1300): exact widening.
-//! - **Julian Day chrono fields**: this file no longer computes a Julian Day
-//!   of its own — it calls `sequencer/src/meridian.rs::julian_day`, where
-//!   those per-site Why comments live.
+//! - **Julian Day chrono fields**: computed by
+//!   `sequencer/src/meridian.rs::julian_day`, where the per-site reasoning
+//!   lives.
 
 /// Prefix marking a capture that failed *image validation* rather than failing
 /// in the driver or the transport.
@@ -95,10 +94,8 @@ use crate::filter_matching::find_filter_match;
 use crate::state::SharedAppState;
 use crate::FitsWriteHeader;
 use async_trait::async_trait;
-// The Julian Day / LST pair this file used to carry privately was a
-// byte-for-byte copy of these two (same Meeus day-number, same single wrap of
-// `gmst + longitude`), and line 3047 below already called the sequencer's copy
-// directly — so the file was importing and re-typing the same function.
+// Julian Day and local sidereal time come from the sequencer; this file keeps
+// no copy of either.
 use nightshade_sequencer::meridian::{julian_day, local_sidereal_time};
 use nightshade_sequencer::{
     CameraSubframe, DeviceOps, DeviceResult, GuidingCalibration, GuidingStatus, ImageData,
@@ -234,9 +231,7 @@ impl UnifiedDeviceOps {
     }
 }
 
-// =============================================================================
-// FACTORY FUNCTION
-// =============================================================================
+// Factory function
 
 /// Create a unified DeviceOps instance for the sequencer
 ///

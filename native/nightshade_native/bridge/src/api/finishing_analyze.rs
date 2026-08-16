@@ -34,9 +34,7 @@ use nightshade_imaging::{
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-// =============================================================================
 // api_analyze_night — marginal-SNR optimizer
-// =============================================================================
 
 /// One per-sub quality descriptor (mirrors
 /// [`nightshade_imaging::frame_weighting::FrameQuality`]). `eccentricity` is
@@ -218,9 +216,7 @@ fn analyze_night_impl(args: AnalyzeNightArgs) -> Result<AnalyzeNightResult, Stri
     })
 }
 
-// =============================================================================
 // api_detect_stars_photometry — detect + per-channel aperture photometry
-// =============================================================================
 
 /// Default circular-aperture radius (px) for per-channel flux measurement when
 /// the caller does not specify one. Three pixels comfortably contains the core
@@ -417,9 +413,7 @@ fn detect_stars_photometry_impl(
     })
 }
 
-// =============================================================================
 // api_color_calibrate — solve + apply per-channel white balance
-// =============================================================================
 
 /// G2V (solar) `B − V` — the conventional daylight-balanced "white" reference.
 /// Used when the caller does not pass an explicit `whiteRefBv`.
@@ -554,9 +548,7 @@ fn color_calibrate_impl(args: ColorCalibrateArgs) -> Result<ColorCalibrateResult
     })
 }
 
-// =============================================================================
 // Shared helpers
-// =============================================================================
 
 /// Apply non-zero star-detection overrides onto a base [`StarDetectionConfig`],
 /// leaving each unset (zero) knob at its production default — identical to
@@ -753,19 +745,15 @@ fn ensure_parent_dir(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
-// =============================================================================
 // Tests
-// =============================================================================
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::path::PathBuf;
 
-    /// A scratch directory that deletes itself when the test ends.
-    /// `Drop` rather than the trailing `remove_file` calls these tests used to
-    /// finish with: the leak was worst exactly when a test FAILED, and a
-    /// trailing cleanup never runs while a panic unwinds — drop does.
+    /// A scratch directory that deletes itself when the test ends. Cleanup runs
+    /// from `Drop`, so it happens even while a panic unwinds out of a failing test.
     struct TempDir(PathBuf);
 
     impl std::ops::Deref for TempDir {
@@ -862,9 +850,7 @@ mod tests {
         })
     }
 
-    // -------------------------------------------------------------------------
     // api_analyze_night
-    // -------------------------------------------------------------------------
 
     /// Equal-quality subs follow the √n SNR law and the recommender keeps them all.
     #[test]
@@ -953,9 +939,7 @@ mod tests {
         assert!(api_analyze_night("not json".to_string()).is_err());
     }
 
-    // -------------------------------------------------------------------------
     // api_detect_stars_photometry
-    // -------------------------------------------------------------------------
 
     /// Detect stars on a synthetic mono master and measure single-channel
     /// aperture flux. The bright planted stars are found and report positive flux.
@@ -1053,9 +1037,7 @@ mod tests {
         assert!(api_detect_stars_photometry("not json".to_string()).is_err());
     }
 
-    // -------------------------------------------------------------------------
     // api_color_calibrate
-    // -------------------------------------------------------------------------
 
     /// Solve + apply a per-channel white balance over a synthetic RGB master.
     /// The middle (green) channel is pinned to 1.0 and the calibrated FITS is a

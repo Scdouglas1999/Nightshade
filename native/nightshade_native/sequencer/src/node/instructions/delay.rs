@@ -61,7 +61,7 @@ mod tests {
 
     #[tokio::test]
     async fn pause_does_not_consume_delay_time() {
-        let context = ExecutionContext::new("delay-test".to_string());
+        let context = ExecutionContext::new_for_test("delay-test".to_string());
         let paused = context.is_paused.clone();
         let resume_context = context.clone();
         let task = tokio::spawn(async move {

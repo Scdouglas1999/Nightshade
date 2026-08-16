@@ -12,9 +12,8 @@ fn decode_put_response_tolerates_missing_value() {
         "ErrorNumber": 0,
         "ErrorMessage": ""
     });
-    // Regression: this used to fail with "missing field Value". The
-    // turbofish pins the decoded type to the Alpaca void `()` and `.expect`
-    // asserts it decoded.
+    // A void Alpaca PUT response carries no `Value` field: the turbofish pins
+    // the decoded type to `()` and `.expect` asserts it decoded.
     decode_put_response::<()>(void_body).expect("void PUT must decode");
 }
 

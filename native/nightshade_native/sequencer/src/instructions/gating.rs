@@ -5,23 +5,18 @@
 
 use super::*;
 
-/// Architecture-unification 2026-06-07 (W1 native daylight gate): the default
-/// maximum Sun altitude (degrees above the horizon) at which an on-sky LIGHT
-/// capture is permitted. Mirrors the Dart scheduler's `maxSunAltitudeDegrees`
-/// default (`SchedulerConfig.maxSunAltitudeDegrees = -12.0`, nautical
-/// darkness) so the structural native gate is NEVER weaker than the Dart W1
-/// twilight gate it backstops. The Sun a few degrees below the horizon (civil
-/// twilight) is still far too bright for science LIGHT frames, so the default
-/// is slightly negative — the gate blocks while the Sun is above this.
+/// The default maximum Sun altitude (degrees above the horizon) at which an
+/// on-sky LIGHT capture is permitted. `-12.0` mirrors the Dart scheduler's
+/// `SchedulerConfig.maxSunAltitudeDegrees` default (nautical darkness), so the
+/// structural native gate is never weaker than the Dart twilight gate it
+/// backstops: a `0.0` default would open a twilight gap between -12° and 0°
+/// where Dart rejects and the native gate allows, and the Sun in civil
+/// twilight is far too bright for science LIGHT frames.
 ///
-/// Remediation 2026-06-09 (finding #2): this was previously `0.0`, which left a
-/// TWILIGHT GAP — for a Sun altitude between the Dart threshold (-12°) and 0°
-/// the Dart autopilot rejected but the native gate ALLOWED. The Dart side can
-/// still push a tighter/looser value at session start via
+/// The Dart side can push a tighter or looser value at session start via
 /// [`crate::executor::ExecutorCommand::UpdateMaxSunAltitude`] /
-/// `SequenceExecutor::update_max_sun_altitude`; this constant is the floor used
-/// when nothing was pushed (and when a non-finite value is seen), so the native
-/// gate matches the Dart W1 gate even with no explicit push.
+/// `SequenceExecutor::update_max_sun_altitude`; this constant is the floor
+/// used when nothing was pushed, or when a non-finite value is seen.
 pub const DEFAULT_MAX_SUN_ALTITUDE_DEGREES: f64 = -12.0;
 
 /// W1 native daylight gate — recovery code stamped on a START rejection so the
@@ -308,10 +303,10 @@ pub(crate) enum BurstFilter {
 ///
 /// Precedence, strongest evidence first:
 ///  1. the burst's own `filter` — `execute_exposure` is about to drive the
-///     wheel there, so it is what these frames are taken through. This case
-///     was silently dropped before: `${filter}` in the save-path template
-///     reads `current_filter`, never `config.filter`, so even a node with
-///     "Ha" configured wrote `..._nofilter_....fits`;
+///     wheel there, so it is what these frames are taken through. Dropping
+///     this case is silent: `${filter}` in the save-path template reads
+///     `current_filter`, never `config.filter`, so even a node with "Ha"
+///     configured writes `..._nofilter_....fits`;
 ///  2. the burst's `filter_index` resolved against the wheel's name table,
 ///     for nodes that address the wheel by position only;
 ///  3. whatever a preceding Change Filter / Smart Exposure already
@@ -379,12 +374,12 @@ pub(crate) async fn resolve_burst_filter(
 /// [`resolve_burst_filter`] flattened against the running context, for the two
 /// consumers that record a frame rather than update the context: the
 /// renderer-less filename fallback and `build_frame_context_for_save` (FITS
-/// FILTER card + the `captured_images` row). Both used to read `config.filter`
-/// and `config.filter_index` INDEPENDENTLY, so a Flat Wizard run whose config
-/// named "Ha" but carried no index was filed under "Ha" next to whatever slot
-/// number a previous light burst had left in the context — one frame described
-/// by two different filters. Resolving the pair as a unit here is what makes
-/// the filename, the FITS header and the database row agree by construction.
+/// FILTER card + the `captured_images` row). Reading `config.filter` and
+/// `config.filter_index` independently files a burst that names "Ha" but
+/// carries no index under "Ha" next to whatever slot a previous burst left in
+/// the context — one frame described by two different filters. Resolving the
+/// pair as a unit here makes the filename, the FITS header and the database
+/// row agree by construction.
 pub(crate) async fn resolve_frame_filter(
     config: &ExposureConfig,
     ctx: &InstructionContext,

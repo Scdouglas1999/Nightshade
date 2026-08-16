@@ -4,10 +4,8 @@ use nightshade_sequencer::scheduling::FrameContext;
 use nightshade_sequencer::MosaicPanelInfo;
 use std::path::{Path, PathBuf};
 
-/// A scratch directory that deletes itself when the test ends.
-/// `Drop` rather than the trailing `remove_file` calls these tests used to
-/// finish with: a trailing cleanup never runs while a panic unwinds, so a
-/// FAILING test used to leave its FITS behind — drop still runs.
+/// A scratch directory that deletes itself when the test ends. Cleanup runs
+/// from `Drop`, so it happens even while a panic unwinds out of a failing test.
 struct TempDir(PathBuf);
 
 impl std::ops::Deref for TempDir {
@@ -51,8 +49,8 @@ fn temp_scratch_dir(tag: &str) -> TempDir {
 /// route it through `save_fits_file_rich`, then read the FITS back from
 /// disk and assert every keyword survived.
 ///
-/// This is the "production-finished" gate the audit asks for: open the
-/// file in a reader and see all the new keywords populated.
+/// The gate is what a reader sees: open the file and every keyword the context
+/// carried is populated.
 #[tokio::test]
 async fn fits_round_trip_preserves_all_frame_context_keywords() {
     // 8x8 image with arbitrary pixel data so the FITS writer has
@@ -173,8 +171,7 @@ async fn fits_round_trip_preserves_all_frame_context_keywords() {
     assert_eq!(parsed.get_string("OBJCTRA"), Some("00 42 44.28"));
     assert_eq!(parsed.get_string("OBJCTDEC"), Some("+41 16 08.40"));
 
-    // Live device telemetry — the audit's key complaint that these
-    // weren't being written.
+    // Live device telemetry.
     assert_eq!(parsed.get_int("FOCUSPOS"), Some(25_400));
     assert_eq!(parsed.get_float("FOCTEMP"), Some(12.3));
     assert_eq!(parsed.get_float("ROTATPOS"), Some(123.7));
@@ -193,8 +190,8 @@ async fn fits_round_trip_preserves_all_frame_context_keywords() {
     assert_eq!(parsed.get_int("NS-FIDX"), Some(7));
     assert_eq!(parsed.get_int("NS-NPLN"), Some(20));
 
-    // Mosaic — the audit's most-specific complaint: mosaic_panel
-    // existed in config but was never written to FITS headers.
+    // Mosaic: the panel a frame belongs to has to reach the FITS header, not
+    // just the sequence config.
     assert_eq!(parsed.get_int("MOSAIC"), Some(1));
     assert_eq!(parsed.get_string("NS-MOSNM"), Some("M31 Wide"));
     // PANELIDX is 1-based for human readability; NS-PIDX preserves
@@ -242,10 +239,8 @@ async fn monochrome_capture_omits_bayer_pattern() {
     );
 }
 
-/// Absent optional fields must be omitted, not stamped with sentinel
-/// values. This is the audit's silent-fallback rule applied to FITS
-/// writing: writing CCD-TEMP=-273.15 for "no temperature" lies to
-/// downstream tools.
+/// Absent optional fields must be omitted, not stamped with sentinel values:
+/// writing CCD-TEMP=-273.15 for "no temperature" lies to downstream tools.
 #[tokio::test]
 async fn missing_optional_fields_are_omitted_not_zeroed() {
     let width = 4u32;
@@ -300,11 +295,9 @@ async fn missing_optional_fields_are_omitted_not_zeroed() {
     );
 }
 
-/// Regression: a below-horizon altitude used to abort the whole FITS
-/// write via `?` on `calculate_airmass`, so the thumbnail landed on
-/// disk and the science frame did not. Darks and flats are taken
-/// parked/capped (Alt < 0) by definition, so this destroyed entire
-/// calibration runs. AIRMASS is optional: omit it, keep the frame.
+/// AIRMASS is optional: a below-horizon altitude omits the card and still writes
+/// the frame. Darks and flats are taken parked/capped (Alt < 0) by definition, so
+/// failing the write on `calculate_airmass` would cost entire calibration runs.
 #[tokio::test]
 async fn below_horizon_altitude_still_writes_the_frame() {
     let width = 4u32;
@@ -392,12 +385,11 @@ async fn above_horizon_altitude_writes_airmass() {
 /// telemetry the sequencer stamps onto one (`instructions.rs` reads the
 /// mount's coordinates and derives alt/az from the site in the same
 /// breath), through the real `from_frame_context` and the real writer, and
-/// reads the cards back off disk. `from_frame_context` used to hardcode
-/// `altitude: None`, so every frame the sequencer wrote through
-/// `real_device_ops` or `unified_device_ops` lost both keywords —
-/// extinction correction has nothing to work from, and the altitude cannot
-/// be reconstructed later because the file does not say when, where, or at
-/// what it was pointed all at once.
+/// reads the cards back off disk. OBJCTALT and AIRMASS have to be on the frame
+/// the sequencer writes through `real_device_ops` / `unified_device_ops`:
+/// extinction correction has nothing to work from without them, and the altitude
+/// cannot be reconstructed later, because the file does not otherwise say when,
+/// where, and at what it was pointed all at once.
 #[tokio::test]
 async fn sequenced_frame_records_where_in_the_sky_it_was_taken() {
     let width = 4u32;
@@ -476,19 +468,11 @@ async fn sequenced_frame_records_where_in_the_sky_it_was_taken() {
 /// A frame taken with no mount attached still has an altitude, and the
 /// file must carry it.
 ///
-/// `altitude` came straight off `FrameContext::mount_altitude_deg`, which
-/// the capture path only ever sets inside its "a mount is connected and
-/// answered the coordinate read" branch. So a rig imaging without a mount
-/// — or one whose driver declined the read — got `RA`/`DEC` written from
-/// the TARGET and then lost the `OBJCTALT` and `AIRMASS` derived from that
-/// identical pointing. Altitude is pure geometry: pointing, site, time,
-/// all three of them already in this struct.
-///
-/// Reproduced twice before this was written. On the live rig,
-/// `Polaris_1_0001.fits` carried `SITELAT 39.97190`, `RA 37.95450` and
-/// `DEC 89.264` and neither horizon keyword; against the Linux simulator
-/// build with the mount left disconnected, a completed run wrote exactly
-/// the same header shape.
+/// `FrameContext::mount_altitude_deg` is set only when a mount is connected and
+/// answers the coordinate read, so reading it directly would write `RA`/`DEC`
+/// from the target and drop the `OBJCTALT` and `AIRMASS` derived from that same
+/// pointing. Altitude is pure geometry: pointing, site, and time are all already
+/// in this struct.
 ///
 /// The geometry is chosen so the expected altitude needs no sidereal-time
 /// calculation and cannot drift with the clock: the celestial pole sits at
@@ -579,7 +563,7 @@ async fn mountless_frame_still_records_altitude_and_airmass() {
 
 /// No site, no altitude — the one case where withholding it is right.
 ///
-/// Guards the fix above from turning into "always emit something": with no
+/// Guards the rule above from turning into "always emit something": with no
 /// observer location the altitude could only come from a guessed site, and
 /// a guessed `AIRMASS` silently corrupts an extinction correction in a way
 /// a missing one cannot.
@@ -627,10 +611,10 @@ fn hardie_1962_airmass(altitude_degrees: f64) -> f64 {
 /// (0.005 mag at a typical k = 0.25) across its whole validity range.
 ///
 /// This is the shape of check that catches a formula that has quietly
-/// stopped being the one it is named after — like the copy in the
-/// sequencer's photometry gate that added Pickering's refraction term to
-/// sin(h) instead of to h, and was wrong by a factor of nearly three at
-/// 10° altitude while still looking like Pickering's formula on the page.
+/// stopped being the one it is named after — a copy that adds Pickering's
+/// refraction term to sin(h) instead of to h is wrong by a factor of nearly
+/// three at 10° altitude while still looking like Pickering's formula on the
+/// page.
 #[test]
 fn airmass_agrees_with_hardie_1962_over_its_published_range() {
     let mut worst = (0.0_f64, 0.0_f64);
@@ -725,12 +709,11 @@ fn young_to_pickering_handover_step_stays_small() {
 /// The AIRMASS a frame records and the airmass the scheduler used to pick
 /// its target must be one number.
 ///
-/// Read off disk on one side, called live on the other — so this fails if
-/// either the writer or `scheduling::astronomy` grows its own formula
-/// again. They previously disagreed below 10° altitude, where the writer
-/// switches to Young 1994 and the scheduler's private copy did not: 31.7
-/// against 38.7 at the horizon, either of which could end up in a file
-/// somebody publishes.
+/// Read off disk on one side, called live on the other, so this fails if either
+/// the writer or `scheduling::astronomy` grows its own formula. Below 10°
+/// altitude the writer switches to Young 1994, and a private copy that does not
+/// gives 38.7 at the horizon against the writer's 31.7 — either of which could
+/// end up in a file somebody publishes.
 #[tokio::test]
 async fn airmass_card_agrees_with_the_scheduler_that_chose_the_target() {
     let width = 2u32;
@@ -777,7 +760,7 @@ async fn ra_is_written_in_degrees_not_hours() {
     let temp_path = scratch.join("pointing.fits");
 
     let mut ctx = FrameContext::new_light("sess", 1, 1, 3.0, 1);
-    // The exact pointing from the audit repro: 08h00m / +40°.
+    // A pointing whose hour and degree values cannot be confused: 08h00m / +40°.
     ctx.target_ra_hours = Some(8.0);
     ctx.target_dec_degrees = Some(40.0);
     let header = FitsWriteHeaderRich::from_frame_context(&ctx);

@@ -24,10 +24,6 @@ use tokio::sync::RwLock;
 // Sibling-module items via the parent's pub use re-exports.
 use super::*;
 
-// =============================================================================
-// REAL PLATE SOLVING
-// =============================================================================
-
 /// Process-wide admission gate shared by UI, headless HTTP, sequencer, and
 /// recovery callers. External solvers write sibling `.ini`/`.wcs` artifacts;
 /// allowing overlapping runs can mix or delete another solve's result.
@@ -41,13 +37,11 @@ fn plate_solve_gate() -> &'static Mutex<()> {
 
 /// Solves currently running, keyed by the frame they are solving.
 ///
-/// The admission gate above serialises solves; it does not stop two callers
-/// from solving the *same frame twice in a row*. Live evidence (ND-E2): a
-/// single snapshot produced a hinted solve and, 4 ms later, a second BLIND
-/// solve of the same file — two `astap_cli` processes counted concurrently by
-/// a 5 ms poller — and the blind one threw away the position hint the first
-/// one had. One frame has one answer, so the second caller waits for the
-/// first caller's result instead of launching a solver of its own.
+/// The admission gate above serialises solves; it does not stop two callers from
+/// solving the *same frame twice in a row*, and a second blind solve throws away
+/// the position hint the first caller had. One frame has one answer, so the
+/// second caller waits for the first caller's result instead of launching a
+/// solver of its own.
 type SolveOutcome = Result<PlateSolveResult, String>;
 type SolveBroadcast = tokio::sync::broadcast::Sender<Arc<SolveOutcome>>;
 static IN_FLIGHT_SOLVES: OnceLock<std::sync::Mutex<HashMap<String, SolveBroadcast>>> =
@@ -59,14 +53,11 @@ fn in_flight_solves() -> &'static std::sync::Mutex<HashMap<String, SolveBroadcas
 
 /// What a caller brings to a solve of the same frame.
 ///
-/// WF-SN-N2: coalescing stopped the two concurrent solver processes but left
-/// WHICH of them leads to a race. The live log shows both outcomes for the same
-/// button 103 s apart: once the blind caller led and the hinted one waited,
-/// once the reverse. On the simulator a blind solve costs 0.04 s so the
-/// coin-flip is invisible; on a real rig a blind ASTAP run is tens of seconds
-/// against a few for a hinted one, and it is the case that can lock onto the
-/// wrong field — so half the annotate/centering solves would pay the blind
-/// cost while a good position hint sat unused in the other caller.
+/// Coalescing alone leaves *which* caller leads a race, and the two are not
+/// interchangeable: on a real rig a blind ASTAP run costs tens of seconds
+/// against a few for a hinted one, and it is the run that can lock onto the
+/// wrong field. The hinted caller therefore always leads, so no solve pays the
+/// blind cost while a good position hint sits unused in the other caller.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum SolvePreference {
     /// The caller knows roughly where the telescope is pointing (and/or the
@@ -228,9 +219,7 @@ fn validate_solver_timeout(timeout_secs: Option<u32>) -> Result<u32, NightshadeE
     Ok(timeout)
 }
 
-// =============================================================================
-// SOLVER HINTS
-// =============================================================================
+// Solver hints
 
 /// The field-scale facts a solve can be told up front.
 ///
@@ -712,9 +701,7 @@ async fn plate_solve_near_inner(
     })
 }
 
-// =============================================================================
-// PLATE SOLVER UX (detection / verification / config)
-// =============================================================================
+// Plate solver UX (detection / verification / config)
 
 /// Detection snapshot returned to the settings UI. Contains everything
 /// needed to render the "ASTAP detected at /path/to/astap.exe (catalog: V17
@@ -908,7 +895,7 @@ pub fn api_platesolve_set_config(config: PlateSolverConfigPayload) -> Result<(),
     Ok(())
 }
 
-/// One frame, one solve (ND-E2).
+/// One frame, one solve.
 #[cfg(test)]
 mod solve_coalescing_tests {
     use super::{coalesced_solve, PlateSolveResult, SolvePreference};
@@ -979,11 +966,9 @@ mod solve_coalescing_tests {
         );
     }
 
-    /// WF-SN-N2: coalescing left the LEAD to a race. Same snapshot, same
-    /// button: at 04:06:37 the blind caller led and the hinted one waited; at
-    /// 04:08:20 the reverse. The one that leads is the one whose hints the
-    /// solver gets, so half the solves threw away a good position hint and ran
-    /// the slow, mis-lockable blind path instead.
+    /// Coalescing alone leaves the lead to a race, and the caller that leads is
+    /// the one whose hints the solver gets. A blind lead throws away a good
+    /// position hint and runs the slow, mis-lockable blind path instead.
     #[tokio::test]
     async fn a_hinted_caller_leads_even_when_the_blind_one_arrives_first() {
         let runs = Arc::new(AtomicUsize::new(0));

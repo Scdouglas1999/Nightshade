@@ -306,9 +306,7 @@ impl AscomSwitch {
         }
     }
 
-    // ========================================================================
-    // Batch Property Queries
-    // ========================================================================
+    // Batch property queries
 
     /// Get all switch channel telemetry in a single batch operation.
     ///
@@ -409,10 +407,9 @@ mod tests {
     }
 }
 
-/// Regression cover: all ten `ISwitch` members hand-rolled their own
-/// `IDispatch::Invoke` with `pExcepInfo = None`. A switch is what powers the
-/// mount and the dew heaters, so "why did the port refuse" is exactly the
-/// sentence an operator needs.
+/// All ten `ISwitch` members must pass an `EXCEPINFO` to `IDispatch::Invoke`.
+/// A switch powers the mount and the dew heaters, so "why did the port refuse"
+/// is exactly the sentence an operator needs.
 #[cfg(test)]
 mod excepinfo_tests {
     use super::*;

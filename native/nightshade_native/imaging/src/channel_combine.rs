@@ -43,7 +43,7 @@
 //! `rayon` over disjoint row slices exactly like
 //! [`crate::integration`]/[`crate::calibration`].
 //!
-//! ## Honest limits
+//! ## Limitations
 //!
 //! - The combine is purely **linear and per-pixel**. It does *not* perform
 //!   continuum subtraction, star removal, SCNR/green-cast suppression, or any
@@ -100,7 +100,7 @@ pub enum CombineError {
 ///
 /// Pass the returned `Vec` straight to [`combine_channels`] alongside the three
 /// masters in that same order. This is the unit-gain reference mapping; rebalance
-/// the triples yourself for artistic palettes (see the module "Honest limits").
+/// the triples yourself for artistic palettes (see the module "Limitations").
 pub fn sho_palette() -> Vec<[f64; 3]> {
     vec![
         [1.0, 0.0, 0.0], // S II  → Red
@@ -151,7 +151,7 @@ pub fn combine_channels(
     inputs: &[&ImageData],
     weights: &[[f64; 3]],
 ) -> Result<ImageData, CombineError> {
-    // --- Validate the call site ------------------------------------------------
+    // Validate the call site
     if inputs.is_empty() {
         return Err(CombineError::NoInputs);
     }
@@ -182,7 +182,7 @@ pub fn combine_channels(
         .map(|img| decode_plane_f64(img, pixel_count))
         .collect::<Result<Vec<_>, _>>()?;
 
-    // --- Combine ---------------------------------------------------------------
+    // Combine
     // Output layout is interleaved RGB: 3 contiguous samples per pixel. The work
     // is parallelised over disjoint output rows (one row = `width` pixels = `3 *
     // width` samples), matching the crate's integration/calibration idiom. Each
@@ -225,8 +225,8 @@ pub fn combine_channels(
 ///
 /// Accepts the linear master types the integration pipeline emits (`F32` and
 /// `U16`). Any other pixel type, or a buffer whose decoded length does not match
-/// `expected`, yields [`CombineError::DimMismatch`] — we refuse to guess at a
-/// layout we do not understand rather than fabricate a plane.
+/// `expected`, yields [`CombineError::DimMismatch`] rather than guessing at an
+/// unrecognised layout and fabricating a plane.
 fn decode_plane_f64(img: &ImageData, expected: usize) -> Result<Vec<f64>, CombineError> {
     let plane: Vec<f64> = if let Some(f) = img.as_f32() {
         f.into_iter().map(|v| v as f64).collect()

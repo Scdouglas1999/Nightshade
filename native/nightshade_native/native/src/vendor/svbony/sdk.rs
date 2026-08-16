@@ -2,10 +2,6 @@
 
 use super::*;
 
-// =============================================================================
-// SDK Function Pointers
-// =============================================================================
-
 pub(crate) type SvbGetNumOfConnectedCameras = unsafe extern "C" fn() -> c_int;
 pub(crate) type SvbGetCameraInfo =
     unsafe extern "C" fn(info: *mut SvbCameraInfo, index: c_int) -> c_int;

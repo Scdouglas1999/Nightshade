@@ -236,9 +236,7 @@ pub(crate) fn current_time_ms() -> u64 {
         .unwrap_or(0)
 }
 
-// =========================================================================
 // Zero-allocation lookup helpers for HashMap with tuple keys
-// =========================================================================
 // std::collections::HashMap requires owned keys for lookups via .get(),
 // which forces allocating Strings from &str just to perform a lookup.
 // These helpers iterate the map and compare borrowed keys directly,

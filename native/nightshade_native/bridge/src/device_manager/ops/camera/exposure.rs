@@ -1,9 +1,7 @@
 use super::*;
 
 impl DeviceManager {
-    // =========================================================================
-    // Camera Control
-    // =========================================================================
+    // Camera control
 
     /// Start a camera exposure
     pub async fn camera_start_exposure(
@@ -11,10 +9,9 @@ impl DeviceManager {
         device_id: &str,
         duration: f64,
         // `None` means "leave the camera's current gain/offset unchanged" — the
-        // node did not specify one. Previously this took a bare `i32` and the
-        // sequencer collapsed `None` to `0`, which both masked the real value
-        // and (on drivers that honor it) actively set gain/offset to 0. Keep it
-        // optional end-to-end so each driver branch can skip the setter.
+        // node did not specify one. It stays optional end-to-end so each driver
+        // branch can skip the setter; collapsing `None` to `0` both masks the
+        // real value and, on drivers that honor it, sets gain/offset to 0.
         gain: Option<i32>,
         offset: Option<i32>,
         bin_x: i32,
@@ -132,7 +129,7 @@ impl DeviceManager {
                     })?;
                     // Alpaca/ASCOM defines NumX/NumY in binned pixels. Changing
                     // BinX/BinY does not require drivers to resize an existing
-                    // full-frame ROI, and several leave the old unbinned
+                    // full-frame ROI, and several leave the unbinned
                     // dimensions in place. Reset the full-frame ROI after
                     // binning so a 2x2 exposure on an 800x600 sensor requests
                     // 400x300 instead of the invalid 800x600.
@@ -505,11 +502,10 @@ impl DeviceManager {
                 ))
             }
             Some(DriverType::Simulator) => {
-                // Complete once the requested integration time has actually
-                // elapsed. This used to be an unconditional `Ok(true)`, which
-                // left the simulator with no way to pace a capture loop — see
-                // `SIM_EXPOSURE_START` for what that cost. Refuse the call if
-                // not connected so callers can distinguish "nothing to expose"
+                // Complete only once the requested integration time has
+                // elapsed, so the simulator paces a capture loop the way a real
+                // camera does (see `SIM_EXPOSURE_START`). Refuse the call when
+                // not connected, so callers can distinguish "nothing to expose"
                 // from "no camera attached".
                 crate::device_manager::ops::sim_gate::require_camera_connected().await?;
                 Ok(crate::api::devices::simulation::sim_exposure_is_complete().await)

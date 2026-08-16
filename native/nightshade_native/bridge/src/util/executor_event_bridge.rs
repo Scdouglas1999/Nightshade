@@ -7,9 +7,9 @@
 //! Several bridge-side APIs construct an `InstructionContext` directly to run
 //! a single sequencer instruction outside the live `SequenceExecutor` —
 //! examples include the standalone autofocus API and the polar-alignment
-//! routine. Those code paths previously passed `event_tx: None` into the
-//! context, which silently dropped instruction-level emergencies such as
-//! FITS-save failures: the user never saw them, only the tracing log did.
+//! routine. With `event_tx: None` in the context, instruction-level emergencies
+//! such as FITS-save failures reach the tracing log and nothing else, so the
+//! user never sees them.
 //!
 //! The live sequencer already has its own broadcast channel (see
 //! `SequenceExecutor::event_tx`). For the one-shot bridge sites we need an

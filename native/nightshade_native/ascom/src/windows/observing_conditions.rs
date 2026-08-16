@@ -135,9 +135,7 @@ impl AscomObservingConditions {
             .get_string_property_indexed("SensorDescription", property_name)
     }
 
-    // ========================================================================
-    // Batch Property Queries
-    // ========================================================================
+    // Batch property queries
 
     /// Get weather conditions in a single batch operation
     pub fn get_weather_status(&self) -> WeatherStatus {

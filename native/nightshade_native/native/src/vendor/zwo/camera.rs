@@ -2,10 +2,6 @@
 
 use super::*;
 
-// =============================================================================
-// ZWO CAMERA IMPLEMENTATION
-// =============================================================================
-
 /// Locally-tracked cooler state.
 ///
 /// The ZWO SDK does not expose a reliable boolean read of "is the cooler currently
@@ -365,7 +361,7 @@ impl ZwoCamera {
             Err(error) => {
                 // The write succeeded, so the sensor did change; we just
                 // cannot confirm to what. Reporting the request is the only
-                // remaining estimate, and is no worse than the old behaviour.
+                // remaining estimate.
                 tracing::warn!(
                     "ZWO control {:?} read-back failed after write ({}); \
                      reporting requested value {}",
@@ -541,18 +537,8 @@ impl ZwoCamera {
         Err(NativeError::NotSupported)
     }
 
-    /// Wait for exposure to complete with timeout.
-    ///
-    /// Polls `is_exposure_complete()` until it returns true or the timeout is reached.
-    /// Uses the timeout calculated from the exposure duration plus a margin.
-    ///
-    /// # Arguments
-    /// * `config` - Timeout configuration
-    ///
-    /// # Returns
-    /// * `Ok(())` - Exposure completed successfully
-    /// * `Err(NativeError::ExposureTimeout)` - Exposure did not complete within timeout
-    /// * `Err(NativeError::...)` - Other errors from polling
+    /// Poll `is_exposure_complete()` until the exposure finishes or the deadline
+    /// — the exposure duration plus the config's margin — passes.
     pub async fn wait_for_exposure_complete(
         &self,
         config: &NativeTimeoutConfig,
@@ -565,18 +551,8 @@ impl ZwoCamera {
         .await
     }
 
-    /// Download image with timeout protection.
-    ///
-    /// This wrapper uses `tokio::time::timeout()` to enforce a hard timeout on the
-    /// image download operation. If the download takes longer than
-    /// `config.image_download_timeout`, the operation is cancelled and an error is returned.
-    ///
-    /// # Arguments
-    /// * `config` - Timeout configuration
-    ///
-    /// # Returns
-    /// * `Ok(ImageData)` - Image downloaded successfully
-    /// * `Err(NativeError::DownloadTimeout)` - Download timed out
+    /// Download the frame under a hard `config.image_download_timeout`; a
+    /// download that overruns it is cancelled rather than left to hang.
     pub async fn download_image_with_timeout(
         &mut self,
         config: &NativeTimeoutConfig,
@@ -618,17 +594,12 @@ pub(crate) fn validate_zwo_eaf_target(
 ///
 /// `effective_value` MUST be a read-back of the control, not the value that
 /// was requested. `ASISetControlValue` returns `ASI_SUCCESS` for values
-/// outside a control's published range and silently clamps them, so caching
-/// the request makes the driver report a setting the sensor is not at.
-/// Observed on a real ZWO ASI1600MM-Cool (published range gain 0-600,
-/// offset 0-100): requesting gain 601 / 1000 / 99999 produced frames whose
-/// read noise was indistinguishable from gain 600 (stddev 1486 / 1457 /
-/// 1472 / 1478), and requesting offset 101 / 500 / 5000 produced identical
-/// pedestals (mean 1430.60 / 1430.28 / 1430.52 / 1430.45) — yet
-/// `get_status()` reported the requested number, and that number is what
-/// reaches `ImageMetadata.gain`/`.offset` and therefore the FITS `GAIN` /
-/// `OFFSET` keywords. A dark library keyed on gain 99999 can never match a
-/// light actually taken at gain 600.
+/// outside a control's published range and silently clamps them — measured on
+/// an ASI1600MM-Cool (published gain 0-600, offset 0-100), gain 601/1000/99999
+/// all read out as gain 600 and offset 101/500/5000 all produced the gain-600
+/// pedestal. The cached number reaches `ImageMetadata.gain`/`.offset` and so
+/// the FITS `GAIN`/`OFFSET` keywords, and a dark library keyed on gain 99999
+/// can never match a light actually taken at gain 600.
 pub(crate) fn commit_zwo_cached_setting(
     cache: &mut i32,
     effective_value: i32,

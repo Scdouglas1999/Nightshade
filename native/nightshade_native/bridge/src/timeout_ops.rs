@@ -39,9 +39,7 @@ use std::future::Future;
 use std::time::Duration;
 use tokio::time::timeout;
 
-// =========================================================================
-// Standard Timeouts
-// =========================================================================
+// Standard timeouts
 
 /// Standard timeout values for different operation types
 pub struct Timeouts;
@@ -144,21 +142,10 @@ impl Timeouts {
     }
 }
 
-// =========================================================================
-// Timeout Wrapper Functions
-// =========================================================================
+// Timeout wrapper functions
 
-/// Execute a future with a timeout, converting to NightshadeError on timeout
-///
-/// # Arguments
-/// * `future` - The async operation to execute
-/// * `timeout_duration` - Maximum time to wait
-/// * `device_id` - Device ID for error context
-/// * `operation` - Operation name for error context
-///
-/// # Returns
-/// * `Ok(T)` - Operation completed within timeout
-/// * `Err(NightshadeError::DeviceTimeout)` - Operation timed out
+/// Execute a future with a timeout, reporting an expiry as
+/// [`NightshadeError::DeviceTimeout`] naming `device_id` and `operation`.
 pub async fn with_timeout<T, F>(
     future: F,
     timeout_duration: Duration,
@@ -216,37 +203,24 @@ where
     }
 }
 
-// =========================================================================
-// Specialized Timeout Operations
-// =========================================================================
+// Specialized timeout operations
 
-/// Mount slew with appropriate timeout based on estimated slew distance
-pub async fn mount_slew_with_timeout<F>(
-    future: F,
-    mount_id: &str,
-    ra: f64,
-    dec: f64,
-    current_ra: Option<f64>,
-    current_dec: Option<f64>,
-) -> Result<(), NightshadeError>
+/// Mount slew under the long-slew timeout.
+///
+/// The budget is fixed rather than scaled by slew distance: the driver arms
+/// that call this do not read the mount's current position first, so there is
+/// no distance to scale by.
+pub async fn mount_slew_with_timeout<F>(future: F, mount_id: &str) -> Result<(), NightshadeError>
 where
     F: Future<Output = Result<(), NightshadeError>>,
 {
-    // Estimate slew time based on distance (if current position known)
-    let timeout_duration = if let (Some(cur_ra), Some(cur_dec)) = (current_ra, current_dec) {
-        let ra_diff = (ra - cur_ra).abs();
-        let dec_diff = (dec - cur_dec).abs();
-        let max_diff = ra_diff.max(dec_diff);
-
-        // Rough estimate: 15 degrees per minute typical slew speed
-        // Plus 30s buffer
-        let estimated_secs = (max_diff / 0.25) + 30.0;
-        Duration::from_secs_f64(estimated_secs.max(60.0).min(600.0))
-    } else {
-        Timeouts::long_slew()
-    };
-
-    with_timeout(future, timeout_duration, mount_id, "slew_to_coordinates").await
+    with_timeout(
+        future,
+        Timeouts::long_slew(),
+        mount_id,
+        "slew_to_coordinates",
+    )
+    .await
 }
 
 /// Camera exposure with timeout based on exposure duration
@@ -290,9 +264,7 @@ where
     with_timeout(future, timeout_duration, focuser_id, "move").await
 }
 
-// =========================================================================
-// Retry with Timeout
-// =========================================================================
+// Retry with timeout
 
 /// Configuration for retry operations
 #[derive(Debug, Clone)]
@@ -423,9 +395,7 @@ where
     }
 }
 
-// =========================================================================
-// Deadline-based Operations
-// =========================================================================
+// Deadline-based operations
 
 /// A deadline that can be shared across multiple operations
 #[derive(Debug, Clone)]
@@ -476,10 +446,6 @@ impl Deadline {
             .map_err(|_| NightshadeError::Timeout("Deadline exceeded".to_string()))?
     }
 }
-
-// =========================================================================
-// Tests
-// =========================================================================
 
 #[cfg(test)]
 mod tests {

@@ -2,10 +2,6 @@
 
 use super::*;
 
-// =============================================================================
-// GPHOTO2 CAMERA IMPLEMENTATION
-// =============================================================================
-
 /// Known DSLR shutter speed values mapped to durations in seconds.
 /// Used to find the closest matching shutter speed for exposures <= 30s.
 pub(crate) const SHUTTER_SPEEDS: &[(f64, &str)] = &[

@@ -225,7 +225,7 @@ mod tests {
     use crate::{LoopCondition, LoopConfig};
 
     fn ctx_with_target(ra_hours: f64, dec_deg: f64, lat: f64, lon: f64) -> ExecutionContext {
-        let mut ctx = ExecutionContext::new("root".to_string());
+        let mut ctx = ExecutionContext::new_for_test("root".to_string());
         ctx.target_ra = Some(ra_hours);
         ctx.target_dec = Some(dec_deg);
         ctx.latitude = Some(lat);
@@ -278,11 +278,11 @@ mod tests {
 
     #[test]
     fn current_alt_az_none_without_coords() {
-        let ctx = ExecutionContext::new("root".to_string());
+        let ctx = ExecutionContext::new_for_test("root".to_string());
         assert!(current_alt_az(&ctx).is_none());
 
         // Missing observer location alone is still None.
-        let mut partial = ExecutionContext::new("root".to_string());
+        let mut partial = ExecutionContext::new_for_test("root".to_string());
         partial.target_ra = Some(5.59);
         partial.target_dec = Some(-5.39);
         assert!(current_alt_az(&partial).is_none());

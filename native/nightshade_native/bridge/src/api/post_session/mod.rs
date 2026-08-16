@@ -71,9 +71,7 @@ mod reference_choice_tests;
 #[cfg(test)]
 mod tests;
 
-// =============================================================================
 // Integration progress events
-// =============================================================================
 
 /// Overall fraction at the *start* of each integration phase. The fraction
 /// reported during a phase interpolates from its own entry up to the next

@@ -2,9 +2,6 @@
 
 use super::*;
 
-// =============================================================================
-// SDK LIBRARY LOADING
-// =============================================================================
 //
 // Path search + library open + per-symbol resolution + OnceLock storage is
 // delegated to the shared `vendor::sdk_loader` infrastructure via the

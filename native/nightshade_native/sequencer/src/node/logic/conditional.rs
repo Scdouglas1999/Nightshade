@@ -131,7 +131,7 @@ pub async fn execute_conditional(
             }
         }
         ConditionalCheck::WeatherSafe => {
-            // Audit C2 — WeatherSafe is the legacy "aggregated" check; it
+            // WeatherSafe is the legacy "aggregated" check; it
             // never names a specific monitor. Always route with `None`.
             evaluate_safety_condition("Weather safety", context, None).await
         }
@@ -143,7 +143,7 @@ pub async fn execute_conditional(
             separation > *degrees
         }
         ConditionalCheck::SafetyMonitorSafe => {
-            // Audit C2 — multi-safety-monitor targeting. When the user
+            // Multi-safety-monitor targeting. When the user
             // configured `safety_monitor_id` on the ConditionalConfig, we
             // pass it through to `safety_is_safe`; otherwise the dispatch
             // falls back to the aggregated / profile-default monitor.
@@ -222,7 +222,7 @@ mod tests {
             Ok(self.safe_result)
         }
 
-        // === delegating methods ===
+        // Delegating methods
         async fn mount_slew_to_coordinates(&self, id: &str, ra: f64, dec: f64) -> DeviceResult<()> {
             self.inner.mount_slew_to_coordinates(id, ra, dec).await
         }
@@ -426,8 +426,7 @@ mod tests {
     }
 
     fn make_test_context(ops: SharedDeviceOps) -> ExecutionContext {
-        ExecutionContext::new(NodeId::from("cond-test"))
-            .with_device_ops(ops)
+        ExecutionContext::new(NodeId::from("cond-test"), ops)
             .with_safety_fail_mode(SafetyFailMode::FailClosed)
     }
 
@@ -456,8 +455,7 @@ mod tests {
     }
 
     // ============================================================
-    // Audit C2 — multi-safety-monitor targeting dispatch.
-    // ============================================================
+    // Multi-safety-monitor targeting dispatch.
 
     /// When `safety_monitor_id` is `None`, the dispatch must call
     /// `safety_is_safe(None)` — that's the pre-C2 aggregated behaviour and
@@ -483,7 +481,7 @@ mod tests {
     /// When `safety_monitor_id` is `Some("safety-2")`, the dispatch must
     /// forward that exact id to `safety_is_safe` so a multi-monitor
     /// configuration can wire the conditional branch to one specific
-    /// device. Pre-fix this was always `None`.
+    /// device.
     #[tokio::test]
     async fn dispatch_forwards_specific_safety_monitor_id() {
         let (ops, recorded) = SafetyRecordingOps::new(true);
@@ -504,8 +502,7 @@ mod tests {
 
     /// Wiring test: `execute_conditional` reads `safety_monitor_id` off the
     /// `ConditionalConfig` and propagates it through
-    /// `evaluate_safety_condition`. Regression guard for the previous
-    /// behaviour that hard-coded `None`.
+    /// `evaluate_safety_condition` rather than hard-coding `None`.
     #[tokio::test]
     async fn execute_conditional_propagates_safety_monitor_id() {
         use crate::node::runtime::RuntimeNode;
@@ -546,9 +543,9 @@ mod tests {
         );
     }
 
-    /// Regression: when no `safety_monitor_id` is supplied (legacy single-
-    /// monitor sequences saved before C2), `execute_conditional` must still
-    /// pass `None` so the aggregated/profile-default check fires.
+    /// When no `safety_monitor_id` is supplied (a single-monitor sequence),
+    /// `execute_conditional` must still pass `None` so the
+    /// aggregated/profile-default check fires.
     #[tokio::test]
     async fn execute_conditional_defaults_to_none_safety_id() {
         use crate::node::runtime::RuntimeNode;
@@ -590,7 +587,7 @@ mod tests {
     /// the field optional on the wire; this test pins that contract so
     /// future field reorganisations don't silently break saved sequences.
     ///
-    /// Audit #24 — uses the canonical `{"type": "..."}` shape that matches
+    /// Uses the canonical `{"type": "..."}` shape that matches
     /// the Dart serialiser (`#[serde(tag = "type", content = "value")]`
     /// on `ConditionalCheck`).
     #[test]
@@ -607,24 +604,22 @@ mod tests {
     }
 
     // ============================================================
-    // Audit #24 — ConditionalCheck Dart↔Rust serde handshake
-    // ============================================================
+    // ConditionalCheck Dart↔Rust serde handshake
     //
     // The Dart sequence executor emits each conditional condition as
-    // `{"type": "<Variant>", "value": <data>}`. With the previous
-    // externally-tagged serde default, non-`Always` variants silently
-    // failed to deserialise — every HfrBelow / GuidingRmsBelow /
-    // AltitudeAbove / MoonSeparationAbove / TimeAfter conditional was
-    // broken at the FFI boundary. The fix pins
-    // `#[serde(tag = "type", content = "value")]` on `ConditionalCheck`
-    // to match the Dart wire format.
+    // `{"type": "<Variant>", "value": <data>}`. Under the externally-tagged
+    // serde default, non-`Always` variants silently fail to deserialise —
+    // every HfrBelow / GuidingRmsBelow / AltitudeAbove /
+    // MoonSeparationAbove / TimeAfter conditional broken at the FFI
+    // boundary. `ConditionalCheck` therefore pins
+    // `#[serde(tag = "type", content = "value")]` to match the Dart wire
+    // format.
     //
-    // These tests are the canonical regression guard: every variant
-    // round-trips through serde_json, and the JSON shape produced is
-    // explicitly asserted against the Dart-emitted format. If either
-    // side ever drifts again the tests fail loudly at `cargo test` time
-    // instead of waiting for an HFR-conditional to misfire on a real
-    // imaging run.
+    // These tests are the guard: every variant round-trips through
+    // serde_json, and the JSON shape produced is explicitly asserted
+    // against the Dart-emitted format. If either side drifts the tests fail
+    // loudly at `cargo test` time instead of waiting for an
+    // HFR-conditional to misfire on a real imaging run.
 
     /// Round-trip every variant through serde_json. Encoding + decoding
     /// must yield a value `matches!()`-equivalent to the original — this
@@ -739,10 +734,9 @@ mod tests {
         }
     }
 
-    /// Regression: the externally-tagged shape that the OLD default-serde
-    /// representation produced must NOT deserialise. If a future refactor
-    /// accidentally drops the `tag/content` attribute we want to fail
-    /// loudly here instead of letting the bug come back.
+    /// The externally-tagged shape that a default-serde representation produces
+    /// must NOT deserialise: a refactor that drops the `tag/content` attribute
+    /// has to fail loudly here.
     #[test]
     fn conditional_check_rejects_externally_tagged_shape() {
         use crate::ConditionalCheck;

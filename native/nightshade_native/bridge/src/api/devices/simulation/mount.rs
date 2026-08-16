@@ -1,9 +1,5 @@
 use super::*;
 
-// =============================================================================
-// Mount Control (Simulator implementation)
-// =============================================================================
-
 /// Simulated mount state
 pub(crate) static SIM_MOUNT: OnceLock<Arc<RwLock<SimulatedMount>>> = OnceLock::new();
 
@@ -58,10 +54,9 @@ pub(crate) fn get_sim_mount() -> &'static Arc<RwLock<SimulatedMount>> {
 ///
 /// Far brisker than real hardware (a good GEM manages 3-6 °/s) for the same
 /// reason the cooler ramp is: the motion has to COMPLETE inside a test or a
-/// sequence node's budget. It still takes time, which is the point — RA/Dec
-/// used to snap to the target and `slewing` was never true, so every
-/// wait-for-motion path in the app completed before the mount had moved and
-/// none of them could be exercised without hardware.
+/// sequence node's budget. It still consumes observable time, which is the
+/// point — a slew that snaps to the target never reports `slewing`, and every
+/// wait-for-motion path in the app then completes before the mount has moved.
 pub(crate) const SIM_SLEW_DEG_PER_SEC: f64 = 180.0;
 
 /// Floor on how long any commanded slew takes.
@@ -76,16 +71,14 @@ pub(crate) const SIM_MIN_SLEW_SECS: f64 = 0.2;
 ///
 /// Real drivers hold `Slewing` true through a mechanical settle: the axes
 /// arrive, the tube rings down, and only then does the driver report idle.
-/// Without a tail here `slewing` fell to false in the very same status read
-/// that first reported the target coordinates, so "arrived" and "stopped
-/// moving" were one event and no caller could ever observe them out of order.
-/// Every wait-for-motion path in the app — the sequencer's
+/// Without a tail here `slewing` falls to false in the very same status read
+/// that first reports the target coordinates, making "arrived" and "stopped
+/// moving" one event that no caller can observe out of order. Every
+/// wait-for-motion path in the app — the sequencer's
 /// `wait_for_mount_idle_with_progress`, centering's
 /// `wait_for_centering_correction_slew` (and the
 /// `CenteringSlewTimeoutException` behind it), the polar-alignment poll and
-/// the post-flip guiding settle — was therefore satisfied on its first poll.
-/// This project has already shipped a post-flip guiding-settle bug that a
-/// settle-free simulator cannot reproduce.
+/// the post-flip guiding settle — is then satisfied on its first poll.
 ///
 /// Sized in the same family as [`SIM_CALIBRATOR_SETTLE_SECS`]: long enough
 /// that a poller has to go round at least once more, short enough that it
@@ -277,9 +270,9 @@ pub(crate) async fn sim_slew_in_flight() -> bool {
 /// A parked German equatorial sits with the counterweights down pointing at the
 /// celestial pole, which is a fixed point in the horizon frame — altitude
 /// equals the site latitude and azimuth is due pole, whatever the time. Park
-/// used to leave RA/Dec at the previous target, so a parked mount reported the
-/// altitude of whatever it had been imaging, and that altitude went on tracking
-/// the sky.
+/// therefore moves RA/Dec to the pole: leaving them at the previous target
+/// makes a parked mount report the altitude of whatever it was last imaging,
+/// still tracking the sky.
 pub(crate) fn sim_park_position() -> (f64, f64) {
     let southern = crate::api::get_state()
         .get_observer_location()

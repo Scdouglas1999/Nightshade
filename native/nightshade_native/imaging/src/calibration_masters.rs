@@ -109,9 +109,7 @@ impl From<CalibrationError> for MasterCalibrationError {
     }
 }
 
-// =============================================================================
 // Master flat
-// =============================================================================
 
 /// Configuration for [`build_master_flat`].
 #[derive(Debug, Clone, Copy)]
@@ -144,7 +142,7 @@ impl Default for MasterFlatConfig {
 
 /// Build a master flat from a stack of raw flat frames.
 ///
-/// Pipeline (design §1.7):
+/// Pipeline:
 /// 1. Subtract the pedestal (`bias_or_dark_flat`) from each raw flat. Pass a
 ///    master **bias** for short snap flats, or a master **dark-flat** (a dark
 ///    matched to the flat's exposure & temperature) for longer sky/panel
@@ -195,9 +193,7 @@ pub fn build_master_flat(
     .map_err(MasterCalibrationError::Combine)
 }
 
-// =============================================================================
 // Defect map from a master dark
-// =============================================================================
 
 /// Sigma multiplier for the master-dark hot/cold outlier test. A pixel whose
 /// dark level deviates from the frame median by more than this many robust σ
@@ -286,9 +282,7 @@ pub fn build_defect_map_from_master_dark(
     Ok(map)
 }
 
-// =============================================================================
 // Transient cosmetic correction (self-derived, no master dark)
-// =============================================================================
 
 /// Configuration for [`cosmetic_correct_transient`].
 #[derive(Debug, Clone, Copy)]
@@ -497,9 +491,7 @@ pub fn cosmetic_correct_transient(
     })
 }
 
-// =============================================================================
 // Small numeric helpers (local to keep the module self-contained)
-// =============================================================================
 
 /// Median of a u16 slice as f64, without mutating the input.
 fn median_of(values: &[u16]) -> f64 {
@@ -535,9 +527,7 @@ mod tests {
         ImageData::from_u16(width, height, 1, &vec![value; (width * height) as usize])
     }
 
-    // -------------------------------------------------------------------------
     // Master flat
-    // -------------------------------------------------------------------------
 
     #[test]
     fn master_flat_normalizes_vignette_to_unit_mean() {
@@ -650,9 +640,7 @@ mod tests {
         assert!(matches!(err, MasterCalibrationError::Calibration(_)));
     }
 
-    // -------------------------------------------------------------------------
     // Defect map from master dark
-    // -------------------------------------------------------------------------
 
     #[test]
     fn defect_map_from_master_dark_flags_hot_and_cold() {
@@ -684,9 +672,7 @@ mod tests {
         ));
     }
 
-    // -------------------------------------------------------------------------
     // Transient cosmetic correction
-    // -------------------------------------------------------------------------
 
     #[test]
     fn cosmetic_correction_detects_and_repairs_hot_pixel() {

@@ -2,10 +2,6 @@
 
 use super::*;
 
-// =============================================================================
-// SDK Function Pointers
-// =============================================================================
-
 pub(crate) type ArtemisDeviceCount = unsafe extern "C" fn() -> c_int;
 // Forces a fresh device re-enumeration and returns the count. Absent on older
 // SDK builds, so it is loaded optionally.

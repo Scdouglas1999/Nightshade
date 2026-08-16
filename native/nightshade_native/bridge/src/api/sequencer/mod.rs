@@ -24,10 +24,6 @@ use tokio::sync::RwLock;
 // Sibling-module items via the parent's pub use re-exports.
 use super::*;
 
-// =============================================================================
-// SEQUENCER API
-// =============================================================================
-
 use nightshade_sequencer::{
     mosaic::calculate_mosaic_panels, mosaic::MosaicPanel, AutofocusConfig, AutofocusMethod,
     Binning, CenterConfig, CoolConfig, DelayConfig, DitherConfig, DitherPattern, ExecutorEvent,

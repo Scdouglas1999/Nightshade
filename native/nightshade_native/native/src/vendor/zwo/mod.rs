@@ -58,9 +58,7 @@ pub use filter_wheel::*;
 pub use focuser::*;
 use sdk::*;
 
-// =============================================================================
-// CONNECTED-DEVICE REGISTRIES (EAF + EFW)
-// =============================================================================
+// Connected-device registries (EAF + EFW)
 //
 // Purpose: prevent hot-plug discovery polls from calling EAFOpen/EAFClose (or
 // EFWOpen/EFWClose) on device IDs that are already held open by a live session.

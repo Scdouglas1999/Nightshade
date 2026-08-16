@@ -80,21 +80,19 @@ impl InstructionResult {
         ctx: &InstructionContext,
     ) -> NodeStatus {
         // Publish the reason BEFORE the recovery handler consumes `self`. It is
-        // the only copy: the node tree hands the executor a bare `NodeStatus`,
-        // so without this the message reached the log and nowhere else, and the
-        // run's terminal event, toast and persisted `errorMessages` all fell
-        // back to the hardcoded "Sequence failed".
+        // the only copy: the node tree hands the executor a bare `NodeStatus`, so
+        // without this the run's terminal event, toast and persisted
+        // `errorMessages` all fall back to the hardcoded "Sequence failed".
         //
-        // Exactly ONCE per failed node, though. The node runtime re-executes an
-        // instruction whose failure was promoted to device-disconnect recovery
-        // (see `execute_instruction_with_disconnect_retry`), and every one of
-        // those executions used to publish its own copy: one Open Dome node
-        // that failed with "No dome connected" filled the session report with
-        // six identical error lines and raised six identical Critical toasts,
-        // so the report's error count could never match the number of failed
-        // nodes. The first attempt is the one that reports — publishing there
-        // rather than on the last means no path (recovery driver absent,
-        // recovery cancelled, retries exhausted) can swallow the reason.
+        // Exactly ONCE per failed node, though, and on the FIRST attempt. The node
+        // runtime re-executes an instruction whose failure was promoted to
+        // device-disconnect recovery (see
+        // `execute_instruction_with_disconnect_retry`), so publishing per
+        // execution fills the session report with one identical error line and one
+        // Critical toast per try and the error count can never match the number of
+        // failed nodes. Reporting on the first attempt rather than the last means
+        // no path (recovery driver absent, recovery cancelled, retries exhausted)
+        // can swallow the reason.
         if matches!(self.status, NodeStatus::Failure)
             && !crate::node::runtime::is_disconnect_retry_attempt()
         {
@@ -228,11 +226,9 @@ pub struct InstructionContext {
     /// fresh `false` Arc in standalone instruction contexts (tests / one-shot
     /// bridge calls) where there is no runtime retry wrapper.
     pub device_disconnect_recovery_pending: Arc<AtomicBool>,
-    // -------------------------------------------------------------------
     // Image Grading: FITS-header metadata propagated from
     // ExecutionContext so `execute_exposure` can assemble a FrameContext
     // for save_fits.
-    // -------------------------------------------------------------------
     pub session_id: String,
     pub target_id: Option<String>,
     pub mosaic_panel: Option<crate::MosaicPanelInfo>,
@@ -248,11 +244,9 @@ pub struct InstructionContext {
     pub telescope_aperture_mm: Option<f64>,
     /// Shared handle to last plate-solve result (set by CenterTarget).
     pub last_plate_solve: Arc<tokio::sync::RwLock<Option<crate::device_ops::PlateSolveResult>>>,
-    // -------------------------------------------------------------------
     // Image Grading: per-run grading state, shared via Arc with
     // ExecutionContext so progress events carry consistent totals across
     // the entire sequence.
-    // -------------------------------------------------------------------
     pub hfr_baseline: Arc<tokio::sync::RwLock<Option<f64>>>,
     pub hfr_baseline_samples: Arc<tokio::sync::RwLock<Vec<f64>>>,
     pub consecutive_rejects: Arc<std::sync::atomic::AtomicU32>,
@@ -270,14 +264,12 @@ pub struct InstructionContext {
     /// value carries the parsed `DefectMap` ready for per-frame
     /// `correct_u16_slice` application.
     pub defect_map_apply: Arc<tokio::sync::RwLock<Option<crate::executor::DefectMapApplyState>>>,
-    // -------------------------------------------------------------------
     // Frame-Failure Forensics.
     //
     // `emit_grade_progress` snapshots live env values, looks at the
     // rolling history, classifies the rejection, then pushes the new
     // sample into the history. All five Arcs are shared with
     // ExecutionContext so other instructions can keep mutating them.
-    // -------------------------------------------------------------------
     /// Rolling buffer of the last `FORENSIC_HISTORY_LEN` frame samples.
     pub forensics_history:
         Arc<tokio::sync::RwLock<std::collections::VecDeque<crate::quality::RecentFrameSample>>>,
@@ -331,7 +323,10 @@ impl InstructionContext {
     ///
     /// [`ExecutionContext`]: crate::node::context::ExecutionContext
     pub(crate) fn to_template_context(&self) -> crate::node::context::ExecutionContext {
-        let mut ctx = crate::node::context::ExecutionContext::new(self.node_id.clone());
+        let mut ctx = crate::node::context::ExecutionContext::new(
+            self.node_id.clone(),
+            self.device_ops.clone(),
+        );
         ctx.target_name = self.target_name.clone();
         ctx.target_id = self.target_id.clone();
         ctx.target_ra = self.target_ra;

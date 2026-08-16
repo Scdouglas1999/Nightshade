@@ -2,8 +2,8 @@ use super::classify_exposure_failure;
 use crate::error::NightshadeError;
 use crate::unified_device_ops::IMAGE_VALIDATION_FAILED_PREFIX;
 
-/// Verbatim message observed from a real ZWO ASI1600MM-Cool exposed in
-/// daylight; it used to surface as HTTP 500 `internal_error`.
+/// Verbatim validation message from a ZWO ASI1600MM-Cool exposed in daylight:
+/// the operator's exposure to fix, so it must classify as 422, not 500.
 const SATURATED: &str = "Image is completely saturated (min value 65224 >= 65024) - significantly reduce exposure time or gain";
 
 #[test]

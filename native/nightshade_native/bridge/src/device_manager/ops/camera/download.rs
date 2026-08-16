@@ -102,7 +102,10 @@ impl DeviceManager {
                         }
                     };
 
-                    // Determine if color camera (sensor_type: 0=Monochrome, 1=Color, etc.)
+                    // ASCOM ICameraV3 SensorType: 0=Monochrome, 1=Color (direct
+                    // colour, no Bayer mask), 2=RGGB, 3=CMYG, 4=CMYG2, 5=LRGB.
+                    // A failed read yields an ordinal outside the enum, which names
+                    // no family and so produces no Bayer pattern.
                     let sensor_type = match camera.sensor_type().await {
                         Ok(t) => t,
                         Err(e) => {
@@ -113,49 +116,43 @@ impl DeviceManager {
                             -1
                         }
                     };
-                    let bayer_pattern = if sensor_type == 1 {
-                        // Both offsets must be READ, not assumed. Defaulting a failed
-                        // read to 0 mapped to RGGB — indistinguishable from a genuine
-                        // RGGB sensor — so a BGGR/GRBG one-shot-colour camera whose
-                        // bayeroffsetx/y read failed got red and blue TRANSPOSED in
-                        // every debayered frame and the wrong BAYERPAT written into
-                        // the FITS header, which cannot be undone after the fact.
-                        // `None` here means "pattern unknown", which leaves the frame
-                        // undebayered rather than debayered wrongly.
-                        let offsets =
+                    // Both offsets must be READ, not assumed: they, and never the
+                    // SensorType ordinal, carry which corner of the 2x2 block holds
+                    // red. Defaulting a failed read to 0 maps to RGGB —
+                    // indistinguishable from a genuine RGGB sensor — which transposes
+                    // red and blue on a BGGR/GRBG one-shot-colour camera and stamps
+                    // the wrong BAYERPAT into the FITS header, neither of which is
+                    // recoverable from the saved frame. `None` means "pattern
+                    // unknown", which leaves the frame undebayered rather than
+                    // debayered wrongly.
+                    let (bayer_offset_x, bayer_offset_y) =
+                        if crate::ascom_sensor_type::has_nameable_bayer_order(sensor_type) {
                             match (camera.bayer_offset_x().await, camera.bayer_offset_y().await) {
-                                (Ok(x), Ok(y)) => Some((x, y)),
+                                (Ok(x), Ok(y)) => (Some(x), Some(y)),
                                 (x, y) => {
                                     warn!(
                                         "Failed to read bayer offsets for {} (x: {:?}, y: {:?}). \
-                                     Leaving the Bayer pattern UNKNOWN so the frame is not \
-                                     debayered with a guessed pattern.",
+                                         Leaving the Bayer pattern UNKNOWN so the frame is not \
+                                         debayered with a guessed pattern.",
                                         device_id,
                                         x.err(),
                                         y.err()
                                     );
-                                    None
+                                    (None, None)
                                 }
-                            };
-                        // Map offsets to bayer pattern. An offset pair outside the
-                        // 2x2 grid is also "unknown" rather than silently RGGB.
-                        offsets.and_then(|(offset_x, offset_y)| match (offset_x, offset_y) {
-                            (0, 0) => Some(nightshade_native::camera::BayerPattern::Rggb),
-                            (1, 0) => Some(nightshade_native::camera::BayerPattern::Grbg),
-                            (0, 1) => Some(nightshade_native::camera::BayerPattern::Gbrg),
-                            (1, 1) => Some(nightshade_native::camera::BayerPattern::Bggr),
-                            _ => {
-                                warn!(
-                                    "Camera {} reported out-of-range bayer offsets \
-                                         ({}, {}); Bayer pattern left unknown.",
-                                    device_id, offset_x, offset_y
-                                );
-                                None
                             }
-                        })
-                    } else {
-                        None
-                    };
+                        } else {
+                            // Nothing to read: no other sensor family carries an
+                            // RGGB-style order, so the two property round-trips are
+                            // skipped for every frame off a mono, direct-colour or
+                            // CMYG/CMYG2/LRGB camera.
+                            (None, None)
+                        };
+                    let bayer_pattern = crate::ascom_sensor_type::bayer_pattern_from_sensor(
+                        sensor_type,
+                        bayer_offset_x,
+                        bayer_offset_y,
+                    );
 
                     return Ok(ImageData {
                         width,
@@ -279,15 +276,15 @@ impl DeviceManager {
                             // the mandatory NAXIS1/NAXIS2 keywords; prefer them
                             // over the CCD_INFO-derived guess. CCD_MAX_X/Y is the
                             // full UNBINNED sensor, so at bin 2 the two disagree —
-                            // verified against a live INDI CCD simulator: CCD_INFO
-                            // said 1280x1024 while the BLOB said NAXIS1=640,
-                            // NAXIS2=512. Using CCD_INFO there built an ImageData
-                            // claiming 1280x1024 around a 640x512 frame, which
-                            // failed validation outright (binned INDI capture was
-                            // broken); and when CCD_INFO is unreadable the 1920x1080
-                            // fallback below silently CROPPED and re-strided the
-                            // frame instead, because the truncate() made the
-                            // downstream size check pass tautologically.
+                            // measured against a live INDI CCD simulator: CCD_INFO
+                            // says 1280x1024 while the BLOB says NAXIS1=640,
+                            // NAXIS2=512. Trusting CCD_INFO there builds an
+                            // ImageData claiming 1280x1024 around a 640x512 frame,
+                            // which fails validation outright; and when CCD_INFO is
+                            // unreadable the 1920x1080 fallback below silently
+                            // CROPS and re-strides the frame instead, because the
+                            // truncate() makes the downstream size check pass
+                            // tautologically.
                             let mut fits_dims: Option<(u32, u32)> = None;
                             let image_data = if data.starts_with(b"SIMPLE") {
                                 let mut off = 0;
@@ -456,10 +453,9 @@ impl DeviceManager {
                     })?;
                 // Synthetic download: an electron-domain frame whose star PSF
                 // tracks focuser defocus, painting the sky the mount is actually
-                // on. Rendered by `crate::sim_capture`, which is also what the
-                // Imaging screen's manual capture calls — the two paths used to
-                // disagree, and the manual one scattered stars at random so
-                // nothing captured through it could be plate-solved.
+                // on. `crate::sim_capture` is the single renderer for this path
+                // and for the Imaging screen's manual capture, so a simulated
+                // frame is plate-solvable however it was taken.
                 let frame =
                     crate::sim_capture::render_sim_frame(crate::sim_capture::SimCaptureRequest {
                         exposure_secs: request.secs,
@@ -548,5 +544,161 @@ impl DeviceManager {
                 driver_type, device_id
             ))),
         }
+    }
+}
+
+#[cfg(test)]
+mod alpaca_bayer_gate_tests {
+    use crate::ascom_sensor_type::{bayer_pattern_from_sensor, has_nameable_bayer_order};
+    use nightshade_native::camera::BayerPattern;
+    use std::cell::Cell;
+
+    /// Stands in for the Alpaca camera's `BayerOffsetX`/`BayerOffsetY`
+    /// properties and counts how many times they are read.
+    struct OffsetSpy {
+        offset_x: Result<i32, String>,
+        offset_y: Result<i32, String>,
+        reads: Cell<u32>,
+    }
+
+    impl OffsetSpy {
+        fn readable(x: i32, y: i32) -> Self {
+            Self {
+                offset_x: Ok(x),
+                offset_y: Ok(y),
+                reads: Cell::new(0),
+            }
+        }
+
+        fn unreadable() -> Self {
+            Self {
+                offset_x: Err("BayerOffsetX not implemented".to_string()),
+                offset_y: Err("BayerOffsetY not implemented".to_string()),
+                reads: Cell::new(0),
+            }
+        }
+
+        async fn bayer_offset_x(&self) -> Result<i32, String> {
+            self.reads.set(self.reads.get() + 1);
+            self.offset_x.clone()
+        }
+
+        async fn bayer_offset_y(&self) -> Result<i32, String> {
+            self.reads.set(self.reads.get() + 1);
+            self.offset_y.clone()
+        }
+    }
+
+    /// Mirrors the `SensorType`/offset gate in the Alpaca branch of
+    /// `camera_download_image` so it is exercised without an HTTP camera: the
+    /// offsets are read only for a family whose element order they can name,
+    /// and the pattern always comes from `ascom_sensor_type`.
+    async fn download_bayer_pattern(sensor_type: i32, camera: &OffsetSpy) -> Option<BayerPattern> {
+        let (offset_x, offset_y) = if has_nameable_bayer_order(sensor_type) {
+            match (camera.bayer_offset_x().await, camera.bayer_offset_y().await) {
+                (Ok(x), Ok(y)) => (Some(x), Some(y)),
+                (_, _) => (None, None),
+            }
+        } else {
+            (None, None)
+        };
+        bayer_pattern_from_sensor(sensor_type, offset_x, offset_y)
+    }
+
+    /// SensorType 2 is the RGGB family; the offset pair names which corner
+    /// holds red, so all four orders are reachable from the one ordinal.
+    #[tokio::test]
+    async fn rggb_family_maps_every_offset_corner() {
+        for (x, y, expected) in [
+            (0, 0, BayerPattern::Rggb),
+            (1, 1, BayerPattern::Bggr),
+            (0, 1, BayerPattern::Gbrg),
+            (1, 0, BayerPattern::Grbg),
+        ] {
+            let camera = OffsetSpy::readable(x, y);
+            assert_eq!(
+                download_bayer_pattern(2, &camera).await,
+                Some(expected),
+                "offsets ({x}, {y}) named the wrong element order"
+            );
+            assert_eq!(
+                camera.reads.get(),
+                2,
+                "both offsets are read, never assumed"
+            );
+        }
+    }
+
+    /// SensorType 1 is a direct-colour sensor with no Bayer mask: its offsets
+    /// name nothing, so they are not read and no BAYERPAT card is produced.
+    #[tokio::test]
+    async fn direct_colour_sensor_reads_no_offsets_and_has_no_pattern() {
+        let camera = OffsetSpy::readable(0, 0);
+        assert_eq!(download_bayer_pattern(1, &camera).await, None);
+        assert_eq!(
+            camera.reads.get(),
+            0,
+            "a Bayer-less colour sensor's offsets are meaningless, so they are not read"
+        );
+    }
+
+    /// Monochrome carries no mask either.
+    #[tokio::test]
+    async fn monochrome_sensor_reads_no_offsets_and_has_no_pattern() {
+        let camera = OffsetSpy::readable(0, 0);
+        assert_eq!(download_bayer_pattern(0, &camera).await, None);
+        assert_eq!(camera.reads.get(), 0);
+    }
+
+    /// CMYG (3), CMYG2 (4) and LRGB (5) are mosaics whose offsets index an
+    /// order `BayerPattern` cannot express, so the pattern stays unknown.
+    #[tokio::test]
+    async fn non_rggb_mosaics_have_no_nameable_order() {
+        for sensor_type in [3, 4, 5] {
+            let camera = OffsetSpy::readable(0, 0);
+            assert_eq!(
+                download_bayer_pattern(sensor_type, &camera).await,
+                None,
+                "SensorType={sensor_type} named an RGGB pattern"
+            );
+            assert_eq!(camera.reads.get(), 0);
+        }
+    }
+
+    /// An unreadable offset leaves the pattern unknown rather than defaulting
+    /// to the (0, 0) corner, which would transpose red and blue on a BGGR or
+    /// GRBG sensor and stamp the wrong BAYERPAT.
+    #[tokio::test]
+    async fn unreadable_offsets_leave_the_pattern_unknown() {
+        let camera = OffsetSpy::unreadable();
+        assert_eq!(download_bayer_pattern(2, &camera).await, None);
+        assert_eq!(camera.reads.get(), 2);
+    }
+
+    /// A half-readable pair is unknown too: one axis cannot name a corner.
+    #[tokio::test]
+    async fn partially_readable_offsets_leave_the_pattern_unknown() {
+        let camera = OffsetSpy {
+            offset_x: Ok(1),
+            offset_y: Err("BayerOffsetY not implemented".to_string()),
+            reads: Cell::new(0),
+        };
+        assert_eq!(download_bayer_pattern(2, &camera).await, None);
+    }
+
+    /// An offset pair outside the 2×2 block is unknown, not silently RGGB.
+    #[tokio::test]
+    async fn out_of_range_offsets_leave_the_pattern_unknown() {
+        let camera = OffsetSpy::readable(2, 0);
+        assert_eq!(download_bayer_pattern(2, &camera).await, None);
+    }
+
+    /// A failed `SensorType` read names no family, so nothing is read and
+    /// nothing is guessed.
+    #[tokio::test]
+    async fn unknown_sensor_type_reads_no_offsets_and_has_no_pattern() {
+        let camera = OffsetSpy::readable(0, 0);
+        assert_eq!(download_bayer_pattern(-1, &camera).await, None);
+        assert_eq!(camera.reads.get(), 0);
     }
 }

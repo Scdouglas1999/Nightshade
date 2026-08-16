@@ -1,8 +1,8 @@
 //! Parallel logic node.
 //!
-//! Replaces the pre-refactor 22-field manual ExecutionContext copy with a
-//! single `ctx.clone()` call. The clone is cheap because every non-Copy
-//! field is wrapped in `Arc` so the clone is a refcount bump.
+//! Each branch gets its context from a single `ctx.clone()` call. The clone
+//! is cheap because every non-Copy field is wrapped in `Arc`, so cloning is a
+//! refcount bump.
 
 use crate::node::context::ExecutionContext;
 use crate::node::progress::ProgressUpdate;
@@ -71,16 +71,14 @@ pub async fn execute_parallel(
             let child = child.clone();
             let success_count = success_count.clone();
             let cancelled = cancelled.clone();
-            // The blocker for `#[derive(Clone)]` on ExecutionContext was the
-            // `Box<dyn Fn>` callbacks. Now they are `Arc<dyn Fn>`, so the
-            // entire context clones cheaply (every non-Copy field is Arc'd)
-            // and the pre-refactor 22-field manual copy disappears.
+            // The callbacks are `Arc<dyn Fn>` rather than `Box<dyn Fn>`,
+            // which is what lets `ExecutionContext` derive `Clone`: every
+            // non-Copy field is Arc'd, so the whole context clones cheaply.
             let mut branch_context = context.clone();
             branch_context.node_id = format!("{}_branch_{}", node_id, i);
             // Spawned branches do not report progress to the parent's
-            // callback (matches pre-refactor behaviour). The other Arc'd
-            // shared-state fields stay populated so the branch can still
-            // cancel, update trigger state, etc.
+            // callback. The other Arc'd shared-state fields stay populated so
+            // the branch can still cancel, update trigger state, etc.
             branch_context.progress_callback = None;
             branch_context.polar_align_image_callback = None;
 
@@ -115,13 +113,12 @@ pub async fn execute_parallel(
         .filter_map(|r| r.ok())
         .collect();
 
-    // Restore children from mutex wrappers. try_unwrap failure
-    // means another task somewhere is still holding a clone of the child Arc
-    // — i.e. the parallel-execution invariant has been violated. Previously
-    // we silently dropped the unrecovered child; now we surface the violation
-    // by returning Failure. Unrecovered children are replaced with
-    // placeholder Failed nodes so subsequent walks see a structurally valid
-    // tree (length and order preserved).
+    // Restore children from mutex wrappers. A try_unwrap failure means
+    // another task is still holding a clone of the child Arc — the
+    // parallel-execution invariant has been violated — so this returns
+    // Failure rather than dropping the unrecovered child. Unrecovered
+    // children are replaced with placeholder Failed nodes so subsequent walks
+    // see a structurally valid tree (length and order preserved).
     let mut restored_children = Vec::with_capacity(children.len());
     let mut unrecovered = 0usize;
     for child_mutex in children {
@@ -278,7 +275,7 @@ mod pause_gate_tests {
         let spy_b = ExecSpy::new("b", executed.clone());
         let mut node = parallel_node_with_spies(vec![spy_a, spy_b]);
 
-        let mut ctx = ExecutionContext::new("par".to_string());
+        let mut ctx = ExecutionContext::new_for_test("par".to_string());
         // Operator Pause is active before the node runs.
         ctx.is_paused.store(true, Ordering::Relaxed);
 
@@ -311,8 +308,8 @@ mod pause_gate_tests {
         );
     }
 
-    /// Guard the happy path: with NO pause active, the gate is a no-op and the
-    /// branches run as before (the fix must not break normal parallel exec).
+    /// Guard the happy path: with NO pause active, the gate is a no-op and
+    /// every branch runs.
     #[tokio::test]
     async fn unpaused_parallel_runs_all_branches() {
         let executed = Arc::new(AtomicUsize::new(0));
@@ -320,7 +317,7 @@ mod pause_gate_tests {
         let spy_b = ExecSpy::new("b", executed.clone());
         let mut node = parallel_node_with_spies(vec![spy_a, spy_b]);
 
-        let mut ctx = ExecutionContext::new("par".to_string());
+        let mut ctx = ExecutionContext::new_for_test("par".to_string());
         let cfg = ParallelConfig {
             required_successes: None,
         };

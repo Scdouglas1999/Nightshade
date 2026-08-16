@@ -113,9 +113,7 @@ impl AscomDome {
             .map_err(|e| format!("Failed to set ASCOM dome Slaved: {}", e))
     }
 
-    // ========================================================================
-    // Batch Property Queries
-    // ========================================================================
+    // Batch property queries
 
     /// Get complete dome status in a single batch operation
     pub fn get_full_status(&self) -> DomeFullStatus {

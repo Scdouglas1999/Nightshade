@@ -2,14 +2,13 @@ use super::*;
 
 /// The Imaging screen's capture must paint the sky the mount is on.
 ///
-/// THE regression guard for this file's half of the two-paths defect. The
-/// sequencer's DeviceManager download rendered the catalogue field while
-/// THIS path — `POST /api/camera/expose`, which is what the Imaging screen
-/// calls — took a `device_id.starts_with("sim_")` shortcut into a
-/// `rand::thread_rng()` star painter. Measured on the release build before
-/// the fix: two captures at an identical pointing shared zero of their 40
-/// brightest stars, and ASTAP found 151 stars and still answered
-/// `No solution found!` at every FOV from 9.5 deg to 0.4 deg.
+/// The guard for this file's half of the two-paths defect: a
+/// `device_id.starts_with("sim_")` shortcut into a `rand::thread_rng()` star
+/// painter on `POST /api/camera/expose` — what the Imaging screen calls —
+/// while the sequencer's DeviceManager download renders the catalogue field.
+/// Measured on the release build: two captures at an identical pointing share
+/// zero of their 40 brightest stars, and ASTAP finds 151 stars and still
+/// answers `No solution found!` at every FOV from 9.5 deg to 0.4 deg.
 ///
 /// Deliberately asserted on `camera_start_exposure_configured_opt` — the
 /// production call site — and not on the renderer, because the renderer was
@@ -134,11 +133,10 @@ async fn the_manual_capture_path_renders_the_catalogue_sky() {
 
 /// HFR and eccentricity must be measured, not invented.
 ///
-/// This path reported `Some(2.5 + random())` as HFR and
-/// `Some(0.15 + random())` as eccentricity for every simulated frame, so
-/// the numbers moved when nothing about the optics had, and an autofocus or
-/// guiding regression could not show up in them. They now come from the
-/// same `detect_stars` the real-camera branch uses.
+/// Reporting `Some(2.5 + random())` as HFR and `Some(0.15 + random())` as
+/// eccentricity for a simulated frame makes the numbers move when nothing
+/// about the optics has, and hides an autofocus or guiding regression. They
+/// come from the same `detect_stars` the real-camera branch uses.
 #[tokio::test]
 async fn simulated_frame_stats_track_focus_instead_of_a_random_draw() {
     use crate::api::devices::simulation::{get_sim_camera, get_sim_focuser};

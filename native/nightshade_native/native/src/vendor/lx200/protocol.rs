@@ -305,17 +305,15 @@ pub(crate) fn format_dec(dec_degrees: f64) -> String {
     format!("{}{}*{:02}:{:02}", sign, degrees, arcmin, arcsec)
 }
 
-// =============================================================================
-// PARK-STATE PERSISTENCE
-// =============================================================================
+// Park-state persistence
 //
 // Most LX200-family mounts (Losmandy Gemini in LX200 mode, generic clones,
 // pre-LX200GPS Meade firmware, certain 10Micron firmware) provide no telemetry
 // for "is the mount parked?". The protocol simply accepts `:hP#` and stops the
-// motors — there is no echo. The audit (§5.6) requires us to track our own
-// park sends and persist them across app restarts so a power-cycle does not
-// silently erase the canonical state. When neither telemetry nor a persisted
-// record exists we must surface `NotSupported` rather than fabricate `false`.
+// motors — there is no echo. So we track our own park sends and persist them
+// across app restarts, and a power-cycle does not silently erase the canonical
+// state. When neither telemetry nor a persisted record exists we surface
+// `NotSupported` rather than fabricate `false`.
 
 /// Returns the path to the park-state JSON file in the user's app-data dir.
 ///

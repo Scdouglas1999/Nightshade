@@ -24,23 +24,12 @@ use tokio::sync::RwLock;
 // Sibling-module items via the parent's pub use re-exports.
 use super::*;
 
-// =============================================================================
-// DEVICE CAPABILITY REPORTING API
-// =============================================================================
+// Device capability reporting API
 
 /// Get capabilities for any device by its device ID.
 ///
 /// This function queries the actual device to determine what features it supports.
 /// The result varies by device type (camera, mount, focuser, filter wheel).
-///
-/// # Arguments
-/// * `device_id` - The full device ID string (e.g., "ascom:ASCOM.Camera.Simulator")
-///
-/// # Returns
-/// * `DeviceCapabilities` - An enum containing the appropriate capability struct
-///
-/// # Errors
-/// * Returns error if device type is unsupported or device cannot be queried
 pub async fn api_get_device_capabilities(
     device_id: String,
 ) -> Result<crate::device_capabilities::DeviceCapabilities, NightshadeError> {
@@ -48,14 +37,6 @@ pub async fn api_get_device_capabilities(
 }
 
 /// Get camera capabilities for a specific camera device.
-///
-/// This is a convenience wrapper that returns only camera capabilities.
-///
-/// # Arguments
-/// * `device_id` - The camera device ID
-///
-/// # Returns
-/// * `CameraCapabilities` - Camera-specific capability information
 pub async fn api_get_camera_capabilities(
     device_id: String,
 ) -> Result<crate::device_capabilities::CameraCapabilities, NightshadeError> {
@@ -70,14 +51,6 @@ pub async fn api_get_camera_capabilities(
 }
 
 /// Get mount capabilities for a specific mount device.
-///
-/// This is a convenience wrapper that returns only mount capabilities.
-///
-/// # Arguments
-/// * `device_id` - The mount/telescope device ID
-///
-/// # Returns
-/// * `MountCapabilities` - Mount-specific capability information
 pub async fn api_get_mount_capabilities(
     device_id: String,
 ) -> Result<crate::device_capabilities::MountCapabilities, NightshadeError> {
@@ -92,14 +65,6 @@ pub async fn api_get_mount_capabilities(
 }
 
 /// Get focuser capabilities for a specific focuser device.
-///
-/// This is a convenience wrapper that returns only focuser capabilities.
-///
-/// # Arguments
-/// * `device_id` - The focuser device ID
-///
-/// # Returns
-/// * `FocuserCapabilities` - Focuser-specific capability information
 pub async fn api_get_focuser_capabilities(
     device_id: String,
 ) -> Result<crate::device_capabilities::FocuserCapabilities, NightshadeError> {
@@ -114,14 +79,6 @@ pub async fn api_get_focuser_capabilities(
 }
 
 /// Get filter wheel capabilities for a specific filter wheel device.
-///
-/// This is a convenience wrapper that returns only filter wheel capabilities.
-///
-/// # Arguments
-/// * `device_id` - The filter wheel device ID
-///
-/// # Returns
-/// * `FilterWheelCapabilities` - Filter wheel-specific capability information
 pub async fn api_get_filterwheel_capabilities(
     device_id: String,
 ) -> Result<crate::device_capabilities::FilterWheelCapabilities, NightshadeError> {
@@ -136,14 +93,6 @@ pub async fn api_get_filterwheel_capabilities(
 }
 
 /// Get rotator capabilities for a specific rotator device.
-///
-/// This is a convenience wrapper that returns only rotator capabilities.
-///
-/// # Arguments
-/// * `device_id` - The rotator device ID
-///
-/// # Returns
-/// * `RotatorCapabilities` - Rotator-specific capability information
 pub async fn api_get_rotator_capabilities(
     device_id: String,
 ) -> Result<crate::device_capabilities::RotatorCapabilities, NightshadeError> {
@@ -158,14 +107,6 @@ pub async fn api_get_rotator_capabilities(
 }
 
 /// Get dome capabilities for a specific dome device.
-///
-/// This is a convenience wrapper that returns only dome capabilities.
-///
-/// # Arguments
-/// * `device_id` - The dome device ID
-///
-/// # Returns
-/// * `DomeCapabilities` - Dome-specific capability information
 pub async fn api_get_dome_capabilities(
     device_id: String,
 ) -> Result<crate::device_capabilities::DomeCapabilities, NightshadeError> {
@@ -180,14 +121,6 @@ pub async fn api_get_dome_capabilities(
 }
 
 /// Get cover calibrator capabilities for a specific cover calibrator device.
-///
-/// This is a convenience wrapper that returns only cover calibrator capabilities.
-///
-/// # Arguments
-/// * `device_id` - The cover calibrator device ID
-///
-/// # Returns
-/// * `CoverCalibratorCapabilities` - Cover calibrator-specific capability information
 pub async fn api_get_cover_calibrator_capabilities(
     device_id: String,
 ) -> Result<crate::device_capabilities::CoverCalibratorCapabilities, NightshadeError> {
@@ -202,14 +135,6 @@ pub async fn api_get_cover_calibrator_capabilities(
 }
 
 /// Get weather capabilities for a specific weather/observing conditions device.
-///
-/// This is a convenience wrapper that returns only weather capabilities.
-///
-/// # Arguments
-/// * `device_id` - The weather device ID
-///
-/// # Returns
-/// * `WeatherCapabilities` - Weather-specific capability information
 pub async fn api_get_weather_capabilities(
     device_id: String,
 ) -> Result<crate::device_capabilities::WeatherCapabilities, NightshadeError> {
@@ -224,14 +149,6 @@ pub async fn api_get_weather_capabilities(
 }
 
 /// Get safety monitor capabilities for a specific safety monitor device.
-///
-/// This is a convenience wrapper that returns only safety monitor capabilities.
-///
-/// # Arguments
-/// * `device_id` - The safety monitor device ID
-///
-/// # Returns
-/// * `SafetyMonitorCapabilities` - Safety monitor-specific capability information
 pub async fn api_get_safety_monitor_capabilities(
     device_id: String,
 ) -> Result<crate::device_capabilities::SafetyMonitorCapabilities, NightshadeError> {
@@ -246,14 +163,6 @@ pub async fn api_get_safety_monitor_capabilities(
 }
 
 /// Get switch capabilities for a specific switch device.
-///
-/// This is a convenience wrapper that returns only switch capabilities.
-///
-/// # Arguments
-/// * `device_id` - The switch device ID
-///
-/// # Returns
-/// * `SwitchCapabilities` - Switch-specific capability information
 pub async fn api_get_switch_capabilities(
     device_id: String,
 ) -> Result<crate::device_capabilities::SwitchCapabilities, NightshadeError> {
@@ -267,9 +176,7 @@ pub async fn api_get_switch_capabilities(
     }
 }
 
-// =============================================================================
-// DEVICE QUIRKS
-// =============================================================================
+// Device quirks
 
 /// Information about a known device quirk, suitable for UI display.
 pub struct QuirkInfo {
@@ -284,12 +191,6 @@ pub struct QuirkInfo {
 /// Returns a list of known device characteristics and workarounds that are
 /// automatically applied. This information can be displayed in the equipment
 /// screen to inform users about device-specific behaviors.
-///
-/// # Arguments
-/// * `device_id` - The device identifier (e.g., "native:zwo:ASI294MC Pro")
-///
-/// # Returns
-/// * `Vec<QuirkInfo>` - List of quirks with categories and descriptions
 #[flutter_rust_bridge::frb(sync)]
 pub fn api_get_device_quirks(device_id: String) -> Vec<QuirkInfo> {
     let quirks = nightshade_native::quirks::get_quirks_for_device(&device_id);
@@ -302,51 +203,27 @@ pub fn api_get_device_quirks(device_id: String) -> Vec<QuirkInfo> {
         .collect()
 }
 
-// =============================================================================
-// QHY DISCOVERY CONTROL
-// =============================================================================
+// QHY discovery control
 
 /// Check if QHY camera discovery is enabled.
 ///
 /// QHY discovery can be disabled if the QHY SDK causes crashes or hangs on the
 /// user's system. When disabled, QHY cameras will not appear in device discovery.
-///
-/// # Returns
-/// * `true` - QHY discovery is enabled (default)
-/// * `false` - QHY discovery is disabled
 #[flutter_rust_bridge::frb(sync)]
 pub fn api_is_qhy_discovery_enabled() -> bool {
     nightshade_native::vendor::qhy::is_qhy_discovery_enabled()
 }
 
-/// Enable or disable QHY camera discovery.
-///
-/// Use this function to disable QHY discovery if it causes problems:
-/// - SDK crashes during enumeration
-/// - Discovery hangs and never completes
-/// - Conflicts with other camera SDKs
-///
-/// When disabled:
-/// - `discover_devices()` returns empty for QHY cameras/filter wheels
-/// - Existing QHY camera connections are not affected
-/// - The setting persists for the session but resets on restart
-///
-/// # Arguments
-/// * `enabled` - Whether to enable QHY discovery
-///
-/// # Example Use Cases
-/// 1. Disable if QHY SDK not installed to speed up discovery
-/// 2. Disable if QHY SDK crashes on this system
-/// 3. Disable temporarily to troubleshoot conflicts
+/// Enable or disable QHY camera discovery, for systems where the QHY SDK crashes
+/// or hangs during enumeration. While disabled, `discover_devices()` returns no
+/// QHY cameras or filter wheels; existing QHY connections are unaffected. The
+/// setting lasts for the session and resets on restart.
 #[flutter_rust_bridge::frb(sync)]
 pub fn api_set_qhy_discovery_enabled(enabled: bool) {
     nightshade_native::vendor::qhy::set_qhy_discovery_enabled(enabled);
 }
 
 /// Get information about QHY SDK availability and discovery status.
-///
-/// # Returns
-/// * `QhyDiscoveryStatus` - Status information about QHY discovery
 #[flutter_rust_bridge::frb(sync)]
 pub fn api_get_qhy_discovery_status() -> QhyDiscoveryStatus {
     QhyDiscoveryStatus {

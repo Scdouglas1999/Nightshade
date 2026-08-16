@@ -929,7 +929,7 @@ mod tests {
         assert_eq!(timeout_secs, 600);
     }
 
-    /// §5.15: when TELESCOPE_PARK is undefined, try_is_parked must return
+    /// When TELESCOPE_PARK is undefined, try_is_parked must return
     /// PropertyNotFound (not Ok(false)) so the UI can render "unknown".
     #[tokio::test]
     async fn try_is_parked_errors_when_undefined() {
@@ -939,7 +939,7 @@ mod tests {
         assert!(matches!(result, Err(IndiError::PropertyNotFound { .. })));
     }
 
-    /// §5.15: same contract for try_is_tracking.
+    /// Same contract for try_is_tracking.
     #[tokio::test]
     async fn try_is_tracking_errors_when_undefined() {
         let client = Arc::new(RwLock::new(IndiClient::new("localhost", Some(7624))));
@@ -948,7 +948,7 @@ mod tests {
         assert!(matches!(result, Err(IndiError::PropertyNotFound { .. })));
     }
 
-    /// §5.15: same contract for try_is_slewing.
+    /// Same contract for try_is_slewing.
     #[tokio::test]
     async fn try_is_slewing_errors_when_undefined() {
         let client = Arc::new(RwLock::new(IndiClient::new("localhost", Some(7624))));

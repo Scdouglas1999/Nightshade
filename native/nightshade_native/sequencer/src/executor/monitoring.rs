@@ -52,8 +52,8 @@ pub(super) const TRIGGER_MONITOR_STALL_TIMEOUT_SECS: u64 = 180;
 /// How often the mount is polled for tracking / slewing / parked / pier side /
 /// coordinates.
 ///
-/// These five calls used to run on the monitor's 1 Hz tick, which is five
-/// serial round-trips per second: meaningful on ASCOM (single-threaded
+/// Running these five calls on the monitor's 1 Hz tick is five serial
+/// round-trips per second, which is expensive on ASCOM (single-threaded
 /// apartment, per-call COM marshalling) and on INDI. Nothing downstream needs
 /// second-resolution — tracking loss is edge-detected and then waits minutes
 /// before acting, and the meridian hour angle moves 15° per hour.
@@ -105,20 +105,14 @@ pub(super) async fn trigger_monitor_stall_watchdog(
 /// Decide whether a mount tracking poll represents a genuine *loss* of tracking
 /// (an ON → OFF transition) rather than tracking simply not having started yet.
 ///
-/// B19 root cause: the trigger monitor used to arm `mount_tracking_expected =
-/// true` the instant it started — before the sequence had unparked/slewed and
-/// actually begun tracking. A level-triggered `expected && !tracking` test then
-/// fired the `MountTrackingLost` trigger on the very FIRST poll of a not-yet-
-/// tracking mount (e.g. still parked, or a headless mount reporting `Ok(false)`),
-/// self-cancelling the sequence ~1.5 s after start. Because this is a mount
-/// trigger, not a weather one, `safety_fail_mode = FailOpen` could not suppress
-/// it — matching the field report exactly.
-///
-/// "Lost" means tracking was observed ON and then went OFF, so we require the
-/// PREVIOUS reading (`previously_tracking`) to have been `Some(true)`. A first
-/// poll (`None`) or a mount that has not yet started tracking never trips it; a
-/// genuine mid-sequence drop (`Some(true)` → `false`) still does, so protection
-/// is unchanged for the case the trigger exists to catch.
+/// "Lost" means tracking was observed ON and then went OFF, so the PREVIOUS
+/// reading (`previously_tracking`) must have been `Some(true)`. A first poll
+/// (`None`) or a mount that has not yet started tracking never trips it — a
+/// level-triggered `expected && !tracking` test fires `MountTrackingLost` on
+/// the very first poll of a still-parked mount and self-cancels the sequence
+/// seconds after start, and `safety_fail_mode = FailOpen` cannot suppress a
+/// mount trigger. A genuine mid-sequence drop (`Some(true)` → `false`) still
+/// trips it.
 pub(super) fn mount_tracking_just_lost(
     tracking_expected: bool,
     currently_tracking: bool,
@@ -131,8 +125,8 @@ pub(super) fn mount_tracking_just_lost(
         && previously_tracking == Some(true)
 }
 
-/// One mount-tracking poll's verdict for the trigger monitor (B19 device-
-/// readiness gate). `currently_tracking` is the fresh `mount_is_tracking`
+/// One mount-tracking poll's verdict for the trigger monitor's device-
+/// readiness gate. `currently_tracking` is the fresh `mount_is_tracking`
 /// reading; the other arguments are the baseline carried in `TriggerState`.
 ///
 /// Returns `(expected, just_lost)`:
@@ -178,10 +172,10 @@ pub enum EscalationDisposition {
 /// Decide how a `PauseForOperator` recovery escalation is handled, given
 /// whether an operator has declared presence.
 ///
-/// This is the BLOCKER #1 safety decision factored out so it is unit-testable
-/// without spinning up the full executor task. The default — and the SAFE
-/// default — is "unattended" (`operator_present == false`), which must drive a
-/// safe abandonment rather than a passive, trigger-disabled, dome-open freeze.
+/// Factored out of the executor task so the safety decision is unit-testable
+/// on its own. The default — and the SAFE default — is "unattended"
+/// (`operator_present == false`), which must drive a safe abandonment rather
+/// than a passive, trigger-disabled, dome-open freeze.
 pub(super) fn recovery_escalation_disposition(operator_present: bool) -> EscalationDisposition {
     if operator_present {
         EscalationDisposition::PassivePause
@@ -194,13 +188,13 @@ pub(super) fn recovery_escalation_disposition(operator_present: bool) -> Escalat
 /// (`stop_tracking_during_recovery`), emitting a LOUD error if it cannot be
 /// restored.
 ///
-/// BLOCKER #2: recovery entry stops tracking by default. Any path that resumes
-/// or hands the run back to the operator MUST restore tracking first — the
-/// generic Resume command does not — otherwise the sequence exposes on a
+/// Recovery entry stops tracking by default, and the generic Resume command
+/// does not restore it, so any path that resumes or hands the run back to the
+/// operator must call this first — otherwise the sequence exposes on a
 /// non-tracking mount and every frame trails while the UI reports "Running".
-/// Both the recovered-resume branch and the attended operator-Pause branch call
-/// this so neither can resume untracked. A failure is never silent: it logs at
-/// error level and forwards an `ExecutorEvent::Error`.
+/// Both the recovered-resume branch and the attended operator-Pause branch go
+/// through here. A failure is never silent: it logs at error level and
+/// forwards an `ExecutorEvent::Error`.
 ///
 /// `context_label` distinguishes the wording ("after recovery" vs "before
 /// operator Pause") so the operator sees which path could not restore tracking.
@@ -321,11 +315,10 @@ pub(crate) struct RecoveryEscalationState<'a> {
 
 /// Apply a `PauseForOperator` recovery escalation, exactly as the recovery
 /// driver loop does once an `AttemptOutcome::PauseForOperator` ends the retry
-/// loop. Factored out of the inline driver closure so the BLOCKER #1/#2 branch
-/// is reachable by an integration test that drives the real device-ops and
-/// asserts the call ORDER (BLOCKER #2: tracking restored BEFORE the Paused
-/// `StateChanged`) and the SafeAbandon path (BLOCKER #1: park+close → Failed,
-/// never a resumable Paused-untracked state).
+/// loop. A free function rather than inline driver code so an integration test
+/// can drive the real device-ops and assert the call ORDER (tracking restored
+/// BEFORE the Paused `StateChanged`) and the SafeAbandon path (park+close →
+/// Failed, never a resumable Paused-untracked state).
 ///
 /// The disposition is derived live from `operator_present`:
 ///   * UNATTENDED (default) → SafeAbandon: park mount, close cover+dome, FAIL.
@@ -344,21 +337,17 @@ pub(super) async fn apply_recovery_escalation(
     let disposition = recovery_escalation_disposition(operator_present);
 
     if disposition == EscalationDisposition::SafeAbandon {
-        // BLOCKER #1 — UNATTENDED reject-storm escalation.
+        // UNATTENDED reject-storm escalation is a SAFE ABANDONMENT, identical to
+        // the give-up branch: park the mount (the OTA can't track into the Sun at
+        // dawn), close the cover, close the dome (verified — see
+        // `park_and_close_safe_state`), then FAIL the run, which cancels the node
+        // tree.
         //
-        // The old behaviour flipped to a passive Paused state. But the trigger
-        // monitor short-circuits on `state != Running` (it `continue`s), so the
-        // weather / altitude / dawn safety triggers STOP evaluating — and the
-        // node tree was never parked. On an unattended night that leaves the rig
-        // dome+cover OPEN with safety monitoring OFF until dawn: a rolling cloud
-        // / dew reject-storm can lose the optics, not just the night.
-        //
-        // So on an unattended rig a reject-storm escalation is a SAFE
-        // ABANDONMENT, identical to the give-up branch: park the mount (the OTA
-        // can't track into the Sun at dawn), close the cover, close the dome
-        // (verified — see `park_and_close_safe_state`), then FAIL the run (which
-        // cancels the node tree). The rig ends in the safe parked+closed
-        // end-state instead of frozen-open-and-unmonitored.
+        // A passive Paused state is not an option here: the trigger monitor
+        // short-circuits on `state != Running` (it `continue`s), so the weather /
+        // altitude / dawn triggers stop evaluating while the node tree is never
+        // parked — leaving the rig dome+cover OPEN with safety monitoring OFF until
+        // dawn, where a rolling cloud / dew reject-storm can lose the optics.
         tracing::error!(
             "[RECOVERY] Escalated {:?} to operator Pause after {} attempt(s) on an UNATTENDED rig: {} — abandoning safely (park + close cover + close dome)",
             ctx.cause,
@@ -460,7 +449,7 @@ pub(super) async fn apply_recovery_escalation(
             pause_message
         );
 
-        // BLOCKER #2 — restore tracking BEFORE handing off to the operator
+        // Restore tracking BEFORE handing off to the operator
         // Pause. Recovery entry stops tracking (the default); the generic Resume
         // path does NOT re-enable it, so resuming from this Pause would expose
         // on a non-tracking mount and every frame would trail with the UI saying
@@ -545,12 +534,10 @@ pub(super) fn weather_verdict_stale_warning(
 /// verdict (`weather_safety_provider.dart` `noDataFailModeResolution`) must
 /// agree on it.
 ///
-/// Architecture-unification 2026-06-05 (Subsystem 2 step 1, cross-language
-/// parity): extracted so the two implementations cannot drift. The Dart side
-/// mirrors this enum as `NoDataResolution` and is pinned against the identical
-/// table by `weather_fail_mode_parity_test.dart`; the Rust side is pinned by
-/// `safety_fail_mode_no_data_resolution_truth_table` in this module. If you
-/// change a row here, change it in BOTH tests or they will fail.
+/// The Dart side mirrors this enum as `NoDataResolution` and is pinned against
+/// the identical table by `weather_fail_mode_parity_test.dart`; the Rust side
+/// is pinned by `safety_fail_mode_no_data_resolution_truth_table` in this
+/// module. A row changed here must be changed in BOTH tests.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NoDataResolution {
     /// Treat the absence of data as UNSAFE (fail closed). The Rust poll sets

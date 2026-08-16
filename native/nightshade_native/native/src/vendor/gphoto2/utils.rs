@@ -2,10 +2,6 @@
 
 use super::*;
 
-// =============================================================================
-// UTILITY FUNCTIONS
-// =============================================================================
-
 /// Convert a fixed-size c_char array to a Rust String.
 pub(crate) fn cstr_from_array(arr: &[c_char]) -> String {
     let bytes: Vec<u8> = arr.iter().map(|&c| c as u8).collect();

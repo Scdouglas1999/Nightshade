@@ -1,16 +1,8 @@
 use super::*;
 
-/// Default event buffer size.
-///
-/// This is sized to handle burst scenarios like:
-/// - Rapid autofocus loops (100+ events in seconds)
-/// - High-frequency guiding corrections (10+ per second)
-/// - Multiple simultaneous device state changes
-///
-/// The buffer uses a broadcast channel, so if any receiver falls behind by more than
-/// this many events, it will receive a `Lagged` error and skip to the latest events.
-/// Increasing this value uses more memory but reduces the chance of dropping events
-/// when the Dart side is slow to consume them.
+/// Default event buffer size: 4096 broadcast slots, enough for the burstiest
+/// producers (autofocus loops, 10 Hz guiding corrections). A receiver that falls
+/// further behind than this gets `Lagged` and skips to the latest events.
 pub const DEFAULT_EVENT_BUFFER_SIZE: usize = 4096;
 
 /// A unified event that can be any category
@@ -133,16 +125,8 @@ impl EventBus {
         event_id
     }
 
-    /// Publish an event with full tracking support
-    ///
-    /// # Arguments
-    /// * `severity` - Event severity level
-    /// * `category` - Event category
-    /// * `payload` - The event data
-    /// * `caused_by` - Optional parent event ID for causality tracking
-    ///
-    /// # Returns
-    /// The event ID of the published event
+    /// Publish an event, threading `caused_by` for causality tracking, and return
+    /// the id it was published under.
     pub fn publish_with_tracking(
         &self,
         severity: EventSeverity,

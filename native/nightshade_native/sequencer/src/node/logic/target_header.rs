@@ -44,10 +44,9 @@ pub async fn execute_target_header(
     context.target_ra = Some(config.ra_hours);
     context.target_dec = Some(config.dec_degrees);
     context.target_rotation = config.rotation;
-    // populate target_id (stamped here so child exposures' FITS
-    // headers carry a stable join key for the database row) and
-    // mosaic_panel (the strategic-report regression: panel index never made
-    // it into PANELIDX/NS-PIDX/NS-PROW/NS-PCOL FITS keywords before this).
+    // Populate target_id (stamped here so child exposures' FITS headers
+    // carry a stable join key for the database row) and mosaic_panel (the
+    // panel index the PANELIDX/NS-PIDX/NS-PROW/NS-PCOL FITS keywords carry).
     context.target_id = Some(node.id().clone());
     context.mosaic_panel = config.mosaic_panel.clone();
 
@@ -327,7 +326,7 @@ async fn execute_children_with_budget(
             }
         }
 
-        // Trust-patch §7 SkipToNode propagation — kept in sync with
+        // Kept in sync with
         // `execute_children_sequential`.
         if let Some(ref skip_target) = context.skip_to_node_target() {
             if child.id() == skip_target {
@@ -433,7 +432,7 @@ async fn execute_children_with_end_when(
             }
         }
 
-        // Trust-patch §7 SkipToNode propagation — kept in sync with
+        // Kept in sync with
         // `execute_children_sequential`.
         if let Some(ref skip_target) = context.skip_to_node_target() {
             if child.id() == skip_target {
@@ -520,12 +519,11 @@ async fn wait_for_trigger(
 ) -> NodeStatus {
     use std::sync::atomic::Ordering;
 
-    // Errors are a feature: if the user wrote an altitude-bearing
-    // start_when but never configured an observer, that's almost always
-    // a misconfigured profile rather than "image at lat=0". The dart
-    // validator (`TargetTriggerImpossibleAltitudeRule`) warns about this
-    // at edit time; here we refuse to silently behave like we're at the
-    // equator and instead fail closed.
+    // An altitude-bearing start_when with no observer configured is almost
+    // always a misconfigured profile rather than "image at lat=0". The Dart
+    // validator (`TargetTriggerImpossibleAltitudeRule`) warns about this at
+    // edit time; here it fails closed rather than silently behaving as if the
+    // rig were on the equator.
     if trigger.references_altitude() && (context.latitude.is_none() || context.longitude.is_none())
     {
         tracing::error!(
@@ -757,7 +755,7 @@ mod tests {
             crate::node::runtime::RuntimeNode::from_definition(exposure_def),
         ));
 
-        let mut ctx = ExecutionContext::new("root".to_string());
+        let mut ctx = ExecutionContext::new_for_test("root".to_string());
 
         // Seed the budget registry as if a prior run had already met the budget.
         let mut prior = BudgetState::new("header1");
@@ -793,7 +791,7 @@ mod tests {
             stop_on_budget_met: true,
         };
 
-        let ctx = ExecutionContext::new("root".to_string());
+        let ctx = ExecutionContext::new_for_test("root".to_string());
         ctx.budget_registry
             .enter_target("header1", Some(budget.clone()))
             .await;
@@ -826,9 +824,7 @@ mod tests {
         }
     }
 
-    // ====================================================================
-    // target context population tests
-    // ====================================================================
+    // Target context population tests
 
     /// at TargetHeader entry the executor's `target_id`,
     /// `target_name`, `target_ra`, `target_dec`, and `mosaic_panel` must
@@ -886,7 +882,7 @@ mod tests {
             crate::node::runtime::RuntimeNode::from_definition(delay_def),
         ));
 
-        let mut ctx = ExecutionContext::new("root".to_string());
+        let mut ctx = ExecutionContext::new_for_test("root".to_string());
         // Prior values must be restored on exit; seed them with sentinel
         // values to verify scope-restore.
         let prior_target_id = "outer-target".to_string();
@@ -965,7 +961,7 @@ mod tests {
         };
         let mut node = crate::node::runtime::RuntimeNode::from_definition(header_def);
 
-        let mut ctx = ExecutionContext::new("root".to_string());
+        let mut ctx = ExecutionContext::new_for_test("root".to_string());
         ctx.target_id = Some("outer".to_string());
         ctx.target_name = Some("outer-name".to_string());
         ctx.target_ra = Some(99.0);
@@ -986,9 +982,7 @@ mod tests {
         assert_eq!(ctx.target_ra, Some(99.0));
     }
 
-    // ====================================================================
     // Per-target start/end crossings (MockClock-driven)
-    // ====================================================================
 
     use crate::scheduling::{Clock, MockClock, TargetTrigger};
     use crate::DelayConfig;
@@ -1031,7 +1025,7 @@ mod tests {
             crate::node::runtime::RuntimeNode::from_definition(make_delay_node("d1")),
         ));
 
-        let mut ctx = ExecutionContext::new("root".into()).with_clock(clock);
+        let mut ctx = ExecutionContext::new_for_test("root".into()).with_clock(clock);
         ctx.latitude = Some(40.0);
         ctx.longitude = Some(-74.0);
 
@@ -1068,7 +1062,7 @@ mod tests {
             crate::node::runtime::RuntimeNode::from_definition(make_delay_node("d1")),
         ));
 
-        let mut ctx = ExecutionContext::new("root".into()).with_clock(clock);
+        let mut ctx = ExecutionContext::new_for_test("root".into()).with_clock(clock);
         ctx.latitude = Some(40.0);
         ctx.longitude = Some(-74.0);
 
@@ -1096,7 +1090,7 @@ mod tests {
             dec_degrees: 41.27,
             ..TargetHeaderConfig::default()
         };
-        let mut ctx = ExecutionContext::new("root".into()).with_clock(clock.clone());
+        let mut ctx = ExecutionContext::new_for_test("root".into()).with_clock(clock.clone());
         ctx.latitude = Some(40.0);
         ctx.longitude = Some(-74.0);
 
@@ -1128,7 +1122,7 @@ mod tests {
             dec_degrees: 41.27,
             ..TargetHeaderConfig::default()
         };
-        let mut ctx = ExecutionContext::new("root".into()).with_clock(clock.clone());
+        let mut ctx = ExecutionContext::new_for_test("root".into()).with_clock(clock.clone());
         ctx.latitude = Some(40.0);
         ctx.longitude = Some(-74.0);
 
@@ -1145,25 +1139,21 @@ mod tests {
         assert_eq!(status, NodeStatus::Cancelled);
     }
 
-    // ====================================================================
-    // operator Pause honored in the end_when / budget walkers
-    // ====================================================================
+    // Operator Pause honored in the end_when / budget walkers
 
-    /// guard: a paused TargetHeader carrying an `end_when`
-    /// trigger must NOT execute its children, and must unwind to Cancelled
-    /// when the sequence is cancelled while paused. This exercises the
-    /// `execute_children_with_end_when` walker (end_when set, not satisfied
-    /// at entry), which previously checked only `is_cancelled` /
-    /// `is_skip_to_next_target` and ignored `is_paused` — so an operator
-    /// Pause on an autopilot/scheduler-built target (which always carries an
-    /// end_when) kept exposing/slewing while the UI showed "Paused".
+    /// A paused TargetHeader carrying an `end_when` trigger must NOT execute its
+    /// children, and must unwind to Cancelled when the sequence is cancelled while
+    /// paused. This exercises the `execute_children_with_end_when` walker
+    /// (end_when set, not satisfied at entry): a walker that checks only
+    /// `is_cancelled` / `is_skip_to_next_target` keeps exposing and slewing on an
+    /// autopilot/scheduler-built target — which always carries an end_when — while
+    /// the UI shows "Paused".
     ///
     /// Discriminator: the walker emits a "Step 1/1" lifecycle update with
-    /// `current_child == Some(0)` immediately BEFORE executing the first
-    /// child, i.e. only AFTER it clears the pause boundary. While paused, no
-    /// such update fires. Without the fix the update fires immediately and
-    /// the child runs; with the fix the walker parks at the boundary and the
-    /// later cancel makes it return Cancelled.
+    /// `current_child == Some(0)` immediately BEFORE executing the first child,
+    /// i.e. only AFTER it clears the pause boundary. While paused, no such update
+    /// fires, so the walker parks at the boundary and the later cancel makes it
+    /// return Cancelled.
     #[tokio::test(start_paused = true)]
     async fn paused_target_header_with_end_when_does_not_run_children_and_cancels() {
         use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -1192,7 +1182,7 @@ mod tests {
             crate::node::runtime::RuntimeNode::from_definition(make_delay_node("d1")),
         ));
 
-        let mut ctx = ExecutionContext::new("root".into()).with_clock(clock);
+        let mut ctx = ExecutionContext::new_for_test("root".into()).with_clock(clock);
         ctx.latitude = Some(40.0);
         ctx.longitude = Some(-74.0);
 
@@ -1293,7 +1283,7 @@ mod tests {
             crate::node::runtime::RuntimeNode::from_definition(make_delay_node("d1")),
         ));
 
-        let mut ctx = ExecutionContext::new("root".into());
+        let mut ctx = ExecutionContext::new_for_test("root".into());
 
         let child_steps = Arc::new(AtomicUsize::new(0));
         let child_steps_cb = child_steps.clone();
@@ -1371,7 +1361,7 @@ mod tests {
             children: vec![],
         };
         let mut node = crate::node::runtime::RuntimeNode::from_definition(header_def);
-        let mut ctx = ExecutionContext::new("root".into()).with_clock(clock);
+        let mut ctx = ExecutionContext::new_for_test("root".into()).with_clock(clock);
         // No latitude / longitude → fail closed.
 
         let config = match &node.definition.node_type {

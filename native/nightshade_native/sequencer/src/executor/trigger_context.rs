@@ -372,58 +372,15 @@ pub(super) fn skip_to_node_accepted_event(node_id: NodeId) -> ExecutorEvent {
     }
 }
 
-/// every exit path from the trigger-monitor closure that ends
-/// the sequence MUST set `is_cancelled` before returning the fired-triggers
-/// vector. This helper enforces the invariant in one place so future
-/// `match` arms cannot regress by forgetting the store.
-///
-/// `reason` is logged at info level so post-mortem traces can reconstruct
-/// which terminating action ran (e.g., `"ParkAndAbort"`,
-/// `"FlipFailureAction::AbortAndPark"`).
-///
-/// # Example
-/// ```ignore
-/// // Inside the trigger-monitor closure:
-/// fired_triggers.push((trigger_id.clone(), RecoveryAction::ParkAndAbort));
-/// return terminate_with(&is_cancelled_clone, fired_triggers, "ParkAndAbort");
-/// ```
-/// Hold a camera-using trigger action until the capture loop's in-flight
-/// exposure has been downloaded.
-///
-/// Two trigger actions drive the camera themselves — autofocus on its frame
-/// interval, and the meridian flip's post-flip recenter (which already runs
-/// only after the capture loop's own pre-frame gate has held the next frame).
-/// Starting one mid-frame destroys that frame: the capture loop's download
-/// finds the camera empty, the exposure node fails, and the sequential parent
-/// takes the run down with it.
-///
-/// Waiting is bounded by the claim's own deadline (see
-/// [`TriggerState::camera_busy_until_ms`]), so a hold that is never released
-/// expires rather than blocking autofocus for the rest of the night. A cancel
-/// releases immediately: an operator Stop must not wait out an exposure.
 /// Which trigger actions drive the camera themselves, and the label each waits
 /// under. `None` means the action never touches the sensor.
 ///
-/// WF-STOP-N1. Only autofocus used to take the claim, on the reasoning that the
-/// meridian flip "already runs only after the capture loop's own pre-frame gate
-/// has held the next frame". That gate holds the NEXT frame; it cannot hold the
-/// one already exposing. The waveF log caught the gap to the millisecond — the
-/// burst opened frame 1's 15 s shutter at `04:09:10.792627` and the flip
-/// trigger fired at `04:09:10.793593`, so the flip's plate-solve exposure
-/// restarted the same camera one second later:
-///
-/// ```text
-/// 04:09:10.792638  DeviceManager: camera_start_exposure for sim_camera_1 duration=15
-/// 04:09:11.795844  Starting 5.0s exposure on camera sim_camera_1   <- the flip's solve frame
-/// 04:09:17.133044  Saving FITS … New Target_nofilter_0001.fits (New Target frame 1 (5.0s, …))
-/// ```
-///
-/// The burst then downloaded the SOLVE frame and filed it under the target as
-/// light frame 1 — a third of the requested integration, accepted, with the
-/// card reading `Frame 1/4 (15.0s)` while it happened.
-///
-/// `Recenter` is on this list for the same reason: it plate-solves, and a plate
-/// solve is an exposure.
+/// Autofocus, the meridian flip and `Recenter` all expose — the post-flip
+/// recenter plate-solves, and a plate solve is an exposure. The capture loop's
+/// pre-frame gate cannot stand in for the claim: it holds the NEXT frame, not
+/// the one already exposing, so a flip firing a millisecond into a 15 s light
+/// restarts the same sensor for its solve and the burst downloads the solve
+/// frame and files it as that light.
 pub(super) fn camera_driving_trigger_action(action: &RecoveryAction) -> Option<&'static str> {
     match action {
         RecoveryAction::Autofocus => Some("autofocus"),
@@ -433,6 +390,18 @@ pub(super) fn camera_driving_trigger_action(action: &RecoveryAction) -> Option<&
     }
 }
 
+/// Hold a camera-using trigger action until the capture loop's in-flight
+/// exposure has been downloaded.
+///
+/// Starting one mid-frame destroys that frame: the capture loop's download
+/// finds the camera empty, the exposure node fails, and the sequential parent
+/// takes the run down with it.
+///
+/// Waiting is bounded by the claim's own deadline (see
+/// [`TriggerState::camera_busy_until_ms`]), so a hold that is never released
+/// expires rather than blocking autofocus for the rest of the night. A cancel
+/// releases immediately: an operator Stop must not wait out an exposure.
+///
 /// Returns the deadline (epoch ms) of the claim that was taken, or `None` when
 /// the wait ended without one because the sequence was cancelled.
 ///
@@ -506,14 +475,14 @@ pub(super) fn autofocus_trigger_skip_reason(
 /// The capture loop's camera claim, held on behalf of a trigger recovery
 /// action and handed back on EVERY exit of the arm that took it.
 ///
-/// Taking the claim was only half a protocol. The autofocus arm released it in
-/// exactly one place — after the sweep, inside the `(Some, Some)`
-/// camera+focuser branch. Its sibling branch (the rig whose focuser is absent
-/// or has disappeared mid-run) logs "skipping the refocus and continuing the
-/// run" and falls through with nothing released, so the hold sat until
-/// [`TRIGGER_CAMERA_CLAIM_SECS`] expired. For those ten minutes the capture
-/// loop's pre-frame gate in `instructions/expose.rs` blocked every frame while
-/// the run went on reporting itself as imaging: a night's worth of exposures
+/// Taking the claim is only half a protocol. Releasing it in exactly one place
+/// — after the sweep, inside the `(Some, Some)` camera+focuser branch — leaves
+/// the sibling branch (the rig whose focuser is absent or has disappeared
+/// mid-run) logging "skipping the refocus and continuing the run" and falling
+/// through with nothing released, so the hold sits until
+/// [`TRIGGER_CAMERA_CLAIM_SECS`] expires. For those ten minutes the capture
+/// loop's pre-frame gate in `instructions/expose.rs` blocks every frame while
+/// the run goes on reporting itself as imaging: a night's worth of exposures
 /// lost to a recovery that never ran.
 ///
 /// A guard rather than another `clear_camera_busy()` call site because the
@@ -699,6 +668,14 @@ pub(super) fn autofocus_failure_verdict(
     }
 }
 
+/// Every exit path from the trigger-monitor closure that ends the sequence
+/// MUST set `is_cancelled` before returning the fired-triggers vector; this
+/// helper enforces that in one place so a future `match` arm cannot regress
+/// by forgetting the store.
+///
+/// `reason` is logged at info level so post-mortem traces can reconstruct
+/// which terminating action ran (e.g. `"ParkAndAbort"`,
+/// `"FlipFailureAction::AbortAndPark"`).
 pub(super) fn terminate_with(
     is_cancelled: &Arc<AtomicBool>,
     triggers: Vec<(String, RecoveryAction)>,

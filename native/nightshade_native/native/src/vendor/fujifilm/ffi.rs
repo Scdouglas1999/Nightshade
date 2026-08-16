@@ -2,9 +2,7 @@
 
 use super::*;
 
-// =============================================================================
-// FUJIFILM SDK TYPE DEFINITIONS (from XAPI.h)
-// =============================================================================
+// Type definitions from XAPI.h.
 
 /// Camera handle type
 pub(crate) type XsdkHandle = *mut c_void;
@@ -94,9 +92,7 @@ impl Default for XsdkImageInformation {
     }
 }
 
-// =============================================================================
-// SDK CONSTANTS (from XAPI.h)
-// =============================================================================
+// SDK constants from XAPI.h.
 
 // Return values (XAPI.h lines 2264-2267)
 pub(crate) const XSDK_COMPLETE: c_long = 0;

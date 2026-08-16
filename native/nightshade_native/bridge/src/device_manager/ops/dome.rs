@@ -21,9 +21,7 @@ use crate::dispatch::DeviceOpError;
 use tracing::warn;
 
 impl DeviceManager {
-    // =========================================================================
-    // Dome Control
-    // =========================================================================
+    // Dome control
 
     /// Open dome shutter
     pub async fn dome_open_shutter(&self, device_id: &str) -> Result<(), DeviceOpError> {

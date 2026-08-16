@@ -1,8 +1,7 @@
 //! Camera operations dispatcher.
 //!
 //! Methods in this module are an additional impl block on `DeviceManager`
-//! using Rust's split-impl-block feature. Behavior is identical to the
-//! previous monolithic `devices.rs`.
+//! using Rust's split-impl-block feature.
 //!
 //! # `as`-cast policy
 //!
@@ -44,15 +43,14 @@
 //! * `gain`/`offset` → 0 — bottom of the legal ASCOM gain table; user
 //!   adjusts via the gain UI before exposing.
 //!
-//! `set_cooler` deliberately has **no** default target. It used to substitute
-//! `target_temp.unwrap_or(-10.0)`, which meant a plain "turn the cooler off"
-//! command — which carries no setpoint — pushed -10 C at the driver on its way
-//! past. On the reference rig that write is what failed (`SetCCDTemperature` on
-//! a camera reporting `CanSetCCDTemperature = False`), and because it happened
-//! before the `CoolerOn` write the cooler could not be switched off at all.
-//! The `Option` is now carried all the way down to each driver, and
-//! [`DeviceManager::cooler_setpoint_to_command`] drops it entirely when the
-//! cooler is being switched off.
+//! `set_cooler` has **no** default target. A "turn the cooler off" command
+//! carries no setpoint, and substituting one (`target_temp.unwrap_or(-10.0)`)
+//! pushes a `SetCCDTemperature` write at the driver on the way past — which
+//! throws on a camera reporting `CanSetCCDTemperature = False`, and does so
+//! before the `CoolerOn` write, so the cooler cannot be switched off at all.
+//! The `Option` is carried all the way down to each driver, and
+//! [`DeviceManager::cooler_setpoint_to_command`] drops it when the cooler is
+//! being switched off.
 //!
 //! Connection-level errors are not silenced here; this layer composes
 //! values *after* `with_camera!` has already established the device path.

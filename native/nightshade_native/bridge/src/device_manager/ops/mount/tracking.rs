@@ -256,12 +256,12 @@ impl DeviceManager {
                 )))
             }
             DriverType::Simulator => {
-                // Move the simulated star field. This used to gate on connection
-                // and return Ok without recording anything, which meant the
-                // built-in guider's own pulses never shifted the field it was
-                // measuring: calibration always aborted with "Calibration
-                // response on east axis was too small (0.000px)", so guiding,
-                // dithering and the correction loop could not be exercised
+                // Move the simulated star field. A guide pulse that gates on
+                // connection and returns Ok without recording anything leaves
+                // the built-in guider's own pulses never shifting the field it
+                // is measuring, so calibration aborts with "Calibration
+                // response on east axis was too small (0.000px)" and guiding,
+                // dithering and the correction loop cannot be exercised
                 // without a mount.
                 crate::device_manager::ops::sim_gate::require_mount_connected()
                     .await

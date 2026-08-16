@@ -536,25 +536,8 @@ pub fn verify_solver(path: &Path) -> Result<SolverInfo, SolverVerifyError> {
     })
 }
 
-/// A private working directory for one solver invocation.
-///
-/// External solvers name their output after the file they were handed and
-/// write it into that file's folder: ASTAP produces `<image>.ini` and
-/// `<image>.wcs`, astrometry.net produces `<image>.axy`, `.corr`, `.rdls`,
-/// `.solved`, `.new` and `.wcs`. Handing them the operator's capture meant a
-/// night of centering solves littered sidecars through the light folder, and
-/// any solve that was cut short — a hung solver we had to kill, a non-zero
-/// exit — left them there for good.
-///
-/// So the solver is handed a **hard link** to the image inside a directory we
-/// own, and the whole directory is removed when the solve returns. A hard link
-/// costs nothing and never copies the frame; when one cannot be made (the
-/// image's filesystem differs from the temp filesystem *and* its own folder is
-/// not writable) the solve falls back to running in place, and the guard then
-/// removes only the artifacts that appeared during this solve.
-///
-/// NAXIS2 read straight off the primary FITS header blocks, so sizing the
-/// ASTAP `-fov` hint never decodes pixel data.
+/// Frame height in pixels, read straight off the primary FITS header so sizing
+/// the ASTAP `-fov` hint never decodes pixel data.
 fn fits_naxis2(path: &Path) -> Option<f64> {
     fits_header_floats(path, &["NAXIS2"])
         .first()
@@ -622,24 +605,23 @@ pub fn fits_scale_arcsec_per_px(path: &Path) -> Option<f64> {
 /// Build the exact argument vector an ASTAP solve runs with.
 ///
 /// Flag reference: <https://www.hnsky.org/astap.htm#command_line>
-///   * `-f <file>`   input FITS file (required)
-///   * `-ra <hours>` hint RA in hours
-///   * `-spd <deg>`  hint south-pole distance = Dec + 90°
-///   * `-r <deg>`    search radius in degrees (only meaningful with -ra/-spd)
-///   * `-fov <deg>`  field HEIGHT in degrees — the scale hint
-///   * `-z <factor>` downsample factor (default 0 = auto)
-///   * `-d <dir>`    star catalog directory (REQUIRED when the catalog is not
-///                   co-located with the ASTAP binary)
-///   * `-wcs`        write the solution to a sibling `.wcs` FITS file. `-update`
-///                   is deliberately avoided: it writes only `.ini` and mutates
-///                   the operator's capture.
 ///
-/// This lives outside `AstapSolver::solve` for one reason: the arguments a set
-/// of hints produces are then readable by a test with no ASTAP install, no
-/// catalog and no frame. Three waves in a row "fixed" the `-fov` hint in a
-/// *different* implementation (`PlateSolveService.astapArguments`, Dart, which
-/// production never calls) and the running solver kept solving blind. A test
-/// over this function fails if the hint stops reaching the process that runs.
+/// * `-f <file>` — input FITS file (required)
+/// * `-ra <hours>` — hint RA in hours
+/// * `-spd <deg>` — hint south-pole distance = Dec + 90°
+/// * `-r <deg>` — search radius in degrees (only meaningful with `-ra`/`-spd`)
+/// * `-fov <deg>` — field HEIGHT in degrees, the scale hint
+/// * `-z <factor>` — downsample factor (default 0 = auto)
+/// * `-d <dir>` — star catalog directory, required whenever the catalog is not
+///   co-located with the ASTAP binary
+/// * `-wcs` — write the solution to a sibling `.wcs` FITS file. `-update` is
+///   deliberately avoided: it writes only `.ini` and mutates the operator's
+///   capture.
+///
+/// This is the only argument vector ASTAP ever receives — desktop, headless API
+/// and sequencer all solve through it — and it lives outside
+/// `AstapSolver::solve` so a test with no ASTAP install, no catalog and no frame
+/// can assert what a given set of hints produces.
 ///
 /// `hint_scale` is arcsec/pixel; ASTAP wants degrees of field height, so it
 /// needs the frame height in pixels — `naxis2`, read straight off the primary
@@ -713,6 +695,20 @@ pub(crate) fn build_astap_args(
     args
 }
 
+/// A private working directory for one solver invocation.
+///
+/// External solvers name their output after the file they were handed and write
+/// it into that file's folder: ASTAP produces `<image>.ini` and `<image>.wcs`,
+/// astrometry.net produces `<image>.axy`, `.corr`, `.rdls`, `.solved`, `.new`
+/// and `.wcs`. Pointing them at the operator's capture litters the light folder
+/// with sidecars, and a solve that is cut short leaves them behind for good.
+///
+/// So the solver is handed a hard link to the image inside a directory we own,
+/// and the whole directory is removed when the solve returns. A hard link costs
+/// nothing and never copies the frame; when one cannot be made (the image's
+/// filesystem differs from the temp filesystem *and* its own folder is not
+/// writable) the solve runs in place and the guard removes only the artifacts
+/// that appeared during this solve.
 struct SolveScratch {
     /// Directory created for this solve, removed wholesale on drop.
     dir: Option<PathBuf>,
@@ -1229,8 +1225,7 @@ impl AstapSolver {
     /// Required keywords: CRVAL1, CRVAL2, CD1_1, CD1_2, CD2_1, CD2_2.
     /// Any malformed value or missing required keyword propagates as
     /// `PlateSolveError`; the caller is responsible for converting to a
-    /// failed `PlateSolveResult`. Silent fallbacks (RA=0/Dec=0) are
-    /// forbidden — see "errors are a feature".
+    /// failed `PlateSolveResult`. Silent fallbacks (RA=0/Dec=0) are forbidden.
     fn parse_wcs_file(
         &self,
         wcs_path: &Path,
@@ -1419,9 +1414,9 @@ fn parse_wcs_file_inner(
     // Field rotation, inverse of the CD-from-rotation convention used when the
     // CD matrix must be reconstructed (SipWcs/WcsInfo::from_plate_solve):
     //   cd1_1 = -scale·cos(rot), cd2_1 = scale·sin(rot)
-    // so rot = atan2(cd2_1, -cd1_1). Using atan2(cd2_1, cd1_1) here (the old
-    // form) reported a north-up frame as 180°, disagreeing with the generator
-    // and corrupting any fallback CD rebuilt from the scalar rotation.
+    // so rot = atan2(cd2_1, -cd1_1). Using atan2(cd2_1, cd1_1) here reports a
+    // north-up frame as 180°, disagreeing with the generator and corrupting any
+    // fallback CD rebuilt from the scalar rotation.
     let rotation = cd2_1.atan2(-cd1_1).to_degrees();
 
     // Field extent in degrees, derived from the image dimensions and pixel
@@ -2041,12 +2036,12 @@ mod tests {
         format!("{body:<80}")
     }
 
-    /// Regression: a real ASTAP `.wcs` is a stream of fixed 80-character cards
-    /// with **no newlines**, and the camera's own metadata pushes the WCS
-    /// keywords well past the first card. Parsing it with `str::lines()` saw
-    /// only `SIMPLE` and reported the solve as missing `CRVAL1`, so every
-    /// `Plate Solve & Center` attempt failed against a solution ASTAP had
-    /// already found — and the failure took the whole run with it.
+    /// A real ASTAP `.wcs` is a stream of fixed 80-character cards with **no
+    /// newlines**, and the camera's own metadata pushes the WCS keywords well
+    /// past the first card. Parsing it with `str::lines()` sees only `SIMPLE`
+    /// and reports the solve as missing `CRVAL1`, so every `Plate Solve &
+    /// Center` attempt fails against a solution ASTAP has already found — and
+    /// the failure takes the whole run with it.
     #[test]
     fn parse_wcs_file_reads_a_newline_free_card_stream() {
         let mut content = padded_card("SIMPLE", "                   T");
@@ -2077,7 +2072,7 @@ mod tests {
         let _ = std::fs::remove_file(path);
     }
 
-    /// Regression (#3, #13): NAXIS drives the field size so the reconstructed
+    /// NAXIS drives the field size so the reconstructed
     /// WCS anchors CRPIX on the image centre (not the corner at 0.5), and a
     /// north-up CD matrix parses back as rotation 0°, not 180°.
     #[test]
@@ -2113,7 +2108,7 @@ mod tests {
             "field_height {}",
             r.field_height
         );
-        // North-up parses back to 0°, not the old 180°.
+        // A north-up solve parses to rotation 0.
         assert!(r.rotation.abs() < 1e-6, "rotation {}", r.rotation);
 
         // Reconstructed reference pixel is the 1-based image centre, not (0.5,0.5).
@@ -2198,8 +2193,8 @@ mod tests {
         let _ = std::fs::remove_file(path);
     }
 
-    /// §6.4: a malformed CRVAL1 must NOT silently produce a "successful"
-    /// solve at RA=0/Dec=0. The parser must return `PlateSolveError::WcsParse`.
+    /// A malformed CRVAL1 must NOT silently produce a "successful" solve at
+    /// RA=0/Dec=0. The parser must return `PlateSolveError::WcsParse`.
     #[test]
     fn parse_wcs_file_rejects_malformed_crval1() {
         let mut content = String::new();
@@ -2226,7 +2221,7 @@ mod tests {
         let _ = std::fs::remove_file(path);
     }
 
-    /// §6.4: a malformed CD-matrix value must also propagate.
+    /// A malformed CD-matrix value must also propagate.
     #[test]
     fn parse_wcs_file_rejects_malformed_cd_matrix() {
         let mut content = String::new();
@@ -2252,7 +2247,7 @@ mod tests {
         let _ = std::fs::remove_file(path);
     }
 
-    /// §6.4: missing required keyword must error rather than yielding zeros.
+    /// A missing required keyword must error rather than yielding zeros.
     #[test]
     fn parse_wcs_file_rejects_missing_required_keyword() {
         // Omit CRVAL2 entirely.
@@ -2275,7 +2270,7 @@ mod tests {
         let _ = std::fs::remove_file(path);
     }
 
-    /// §6.4: ASTAP `.ini` parser must not silently zero-out a malformed CRVAL.
+    /// The ASTAP `.ini` parser must not silently zero-out a malformed CRVAL.
     #[test]
     fn parse_astap_ini_rejects_malformed_crval2() {
         let content = "PLTSOLVD=T\nCRVAL1=150.0\nCRVAL2=not-a-number\nCDELT1=-0.000358\nCDELT2=0.000358\nCROTA1=12.34\n";
@@ -2308,8 +2303,8 @@ mod tests {
         let _ = std::fs::remove_file(path);
     }
 
-    /// §6.1 follow-up: catalog detection must walk an exe-relative dir and
-    /// surface the catalog flavour + magnitude limit from filename markers.
+    /// Catalog detection must walk an exe-relative dir and surface the catalog
+    /// flavour + magnitude limit from filename markers.
     #[test]
     fn detect_astap_catalog_finds_v17_next_to_exe() {
         let temp = std::env::temp_dir().join(format!(
@@ -2341,7 +2336,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&temp);
     }
 
-    /// §6.1 follow-up: a configured catalog directory must take precedence.
+    /// A configured catalog directory must take precedence.
     #[test]
     fn detect_astap_catalog_honours_configured_override() {
         let temp = std::env::temp_dir().join(format!(
@@ -2363,8 +2358,8 @@ mod tests {
         let _ = std::fs::remove_dir_all(&temp);
     }
 
-    /// §6.1 follow-up: `verify_solver` on a missing path must produce a
-    /// structured `Missing` error rather than panicking or claiming success.
+    /// `verify_solver` on a missing path must produce a structured `Missing`
+    /// error rather than panicking or claiming success.
     #[test]
     fn verify_solver_reports_missing_path() {
         let bogus = std::env::temp_dir().join(format!(
@@ -2378,9 +2373,7 @@ mod tests {
         }
     }
 
-    // =========================================================================
-    // Bug-fix regression tests: global preference wiring + catalog -d flag
-    // =========================================================================
+    // Global solver-preference wiring and the catalog -d flag
 
     /// `ACTIVE_SOLVER_PREF` and the discovery cache are process-global, so the
     /// tests that mutate them must not run concurrently with each other.
@@ -2396,10 +2389,10 @@ mod tests {
     /// make `PlateSolverConfig::default()` resolve the configured ASTAP path
     /// rather than falling through to the system candidate list.
     ///
-    /// This is the root bug: before the fix, `blind_solve` / `solve_near`
-    /// called `PlateSolverConfig::default()` which called `find_astap()` with
-    /// no access to the persisted user preference, so a custom install path
-    /// set in Settings → Plate Solving was silently ignored.
+    /// `blind_solve` and `solve_near` both build their config through
+    /// `PlateSolverConfig::default()`, so a custom install path set in
+    /// Settings → Plate Solving reaches the solve only if the default config
+    /// consults the persisted preference before the candidate list.
     #[test]
     fn set_solver_preference_makes_default_config_resolve_configured_path() {
         use super::{set_solver_preference, PlateSolverConfig};
@@ -2449,10 +2442,9 @@ mod tests {
         let _ = std::fs::remove_dir_all(&fake_catalog);
     }
 
-    /// Solver discovery must be probed once and then served from the cache:
-    /// every `PlateSolverConfig::default()` used to re-stat the whole candidate
-    /// list and shell out to `which`/`where`, and `blind_solve`/`solve_near`
-    /// each ran that probe twice per solve.
+    /// Solver discovery is probed once and then served from the cache;
+    /// without it every `PlateSolverConfig::default()` re-stats the whole
+    /// candidate list and shells out to `which`/`where`, twice per solve.
     ///
     /// Observable proof of the cache: delete the file the probe found. An
     /// uncached resolver reports `None` on the next call; a cached one keeps
@@ -2568,9 +2560,8 @@ mod tests {
 
     /// The standard Windows ASTAP install path must appear in the candidate
     /// list produced by `astap_candidates` for the Windows OS family.
-    /// This verifies bug #1 detection: if the standard path were missing,
-    /// a plain `C:\Program Files\astap\astap.exe` install would be invisible
-    /// to the auto-detect path.
+    /// Without it a plain `C:\Program Files\astap\astap.exe` install is
+    /// invisible to auto-detect.
     #[test]
     fn astap_candidates_windows_includes_standard_program_files_path() {
         use super::platesolve_paths::{astap_candidates, AstapPathInputs, OsFamily};
@@ -3185,11 +3176,11 @@ mod wcs_conformance;
 
 /// The `-fov` hint, pinned on the argument vector the ASTAP *process* is given.
 ///
-/// IMG-14 was reported three waves running. Each time the fix landed in
-/// `PlateSolveService.astapArguments` (Dart) — a fallback the production app
-/// does not run — and every live solve still went out blind. These tests read
-/// the arguments this crate builds, which is the only argument vector ASTAP
-/// ever sees from the desktop app, the headless API and the sequencer alike.
+/// These read the arguments this crate builds, which is the only argument
+/// vector ASTAP ever sees from the desktop app, the headless API and the
+/// sequencer alike. `PlateSolveService.astapArguments` (Dart) is a fallback
+/// production never runs, so asserting against it proves nothing about a live
+/// solve.
 #[cfg(test)]
 mod astap_arg_tests {
     use super::{build_astap_args, PlateSolverChoice, PlateSolverConfig};

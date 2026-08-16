@@ -1,11 +1,8 @@
 //! Wizard infrastructure: a shared base for stepped automation routines.
 //!
-//! # What is a "wizard"?
-//!
-//! A *wizard* in Nightshade is a multi-step automation routine that follows
-//! the pattern "for each step in a plan: do work, emit progress, check
-//! cancellation, optionally record resumable state, repeat." The four
-//! production wizards today are:
+//! A *wizard* is a multi-step automation routine following the pattern "for
+//! each step in a plan: do work, emit progress, check cancellation, optionally
+//! record resumable state, repeat." The four production wizards today are:
 //!
 //! * `FlatWizard` — iterates exposure trials in a binary search to converge
 //!   on a target ADU.
@@ -16,9 +13,7 @@
 //! * `AllSkyPolar` — captures a baseline frame, then loops on drift-pair
 //!   refinement.
 //!
-//! Before this module existed, each wizard hand-rolled its own progress
-//! emission, cancellation polling, and (in the case of FlatWizard) had no
-//! way to resume mid-execution. This module provides:
+//! This module provides:
 //!
 //! * The [`Wizard`] trait — wizards plug in by listing their steps and
 //!   describing how to execute one step. Wizards may run a fixed plan
@@ -383,9 +378,8 @@ impl<'a> WizardExecutor<'a> {
         let checkpoint_key = wizard.checkpoint_key();
         let wizard_name = wizard.name();
 
-        // Load checkpoint and determine resume index. Old checkpoints
-        // without WizardCheckpoint fields produce None which resumes
-        // from step 0 — matching pre-refactor behavior.
+        // Load checkpoint and determine resume index. A checkpoint without
+        // WizardCheckpoint fields produces None, which resumes from step 0.
         let resume_idx = self
             .checkpoint_sink
             .load(checkpoint_key)

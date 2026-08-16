@@ -63,7 +63,7 @@ pub struct VariableEntry {
 /// resolver — the tests assert the two stay in sync.
 pub fn variable_catalog() -> &'static [VariableEntry] {
     &[
-        // ----------------------- Target ---------------------------------
+        // Target
         VariableEntry {
             name: "target.name",
             description: "Name of the active target (e.g. \"M42\")",
@@ -113,7 +113,7 @@ pub fn variable_catalog() -> &'static [VariableEntry] {
             example: "138.2",
             supports_format: true,
         },
-        // ----------------------- Filter ---------------------------------
+        // Filter
         VariableEntry {
             name: "filter",
             description: "Currently selected filter name",
@@ -128,7 +128,7 @@ pub fn variable_catalog() -> &'static [VariableEntry] {
             example: "3",
             supports_format: true,
         },
-        // ----------------------- Frame counters -------------------------
+        // Frame counters
         VariableEntry {
             name: "frame",
             description: "Current frame number within the active burst",
@@ -143,7 +143,7 @@ pub fn variable_catalog() -> &'static [VariableEntry] {
             example: "30",
             supports_format: true,
         },
-        // ----------------------- Session --------------------------------
+        // Session
         VariableEntry {
             name: "session.id",
             description: "Unique identifier of the active imaging session",
@@ -165,7 +165,7 @@ pub fn variable_catalog() -> &'static [VariableEntry] {
             example: "2026-01-15T22:14:33Z",
             supports_format: false,
         },
-        // ----------------------- Time -----------------------------------
+        // Time
         VariableEntry {
             name: "time.now",
             description: "Current UTC timestamp (ISO-8601)",
@@ -187,7 +187,7 @@ pub fn variable_catalog() -> &'static [VariableEntry] {
             example: "2026-01-15",
             supports_format: false,
         },
-        // ----------------------- Moon -----------------------------------
+        // Moon
         VariableEntry {
             name: "moon.phase",
             description: "Moon illuminated fraction (0.0 – 1.0)",
@@ -202,7 +202,7 @@ pub fn variable_catalog() -> &'static [VariableEntry] {
             example: "67.3",
             supports_format: true,
         },
-        // ----------------------- Weather --------------------------------
+        // Weather
         VariableEntry {
             name: "weather.temp_c",
             description: "Ambient temperature (°C) from the active weather source",
@@ -224,7 +224,7 @@ pub fn variable_catalog() -> &'static [VariableEntry] {
             example: "21.2",
             supports_format: true,
         },
-        // ----------------------- Observer -------------------------------
+        // Observer
         VariableEntry {
             name: "observer.name",
             description: "Observer name from app settings",
@@ -253,7 +253,7 @@ pub fn variable_catalog() -> &'static [VariableEntry] {
             example: "150",
             supports_format: true,
         },
-        // ----------------------- Equipment ------------------------------
+        // Equipment
         VariableEntry {
             name: "equipment.camera",
             description: "Camera make + model from the active equipment profile",
@@ -282,7 +282,7 @@ pub fn variable_catalog() -> &'static [VariableEntry] {
             example: "130",
             supports_format: true,
         },
-        // ----------------------- Exposure -------------------------------
+        // Exposure
         VariableEntry {
             name: "exposure.duration",
             description: "Exposure duration of the active burst (seconds)",

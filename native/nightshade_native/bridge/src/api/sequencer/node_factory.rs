@@ -1,8 +1,6 @@
 use super::*;
 
-// =============================================================================
-// SEQUENCER NODE FACTORY - Create nodes programmatically
-// =============================================================================
+// Sequencer node factory - create nodes programmatically
 
 pub(crate) fn serialize_node_definition(node: &NodeDefinition) -> Result<String, NightshadeError> {
     serde_json::to_string(node).map_err(|e| {

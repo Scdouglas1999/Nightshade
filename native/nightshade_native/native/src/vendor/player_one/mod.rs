@@ -70,9 +70,7 @@ use ffi::*;
 pub use filter_wheel::*;
 pub use sdk::*;
 
-// =============================================================================
-// COOLER STATE TRACKING
-// =============================================================================
+// Cooler state tracking
 
 /// Cooler state tracked at the driver level.
 ///

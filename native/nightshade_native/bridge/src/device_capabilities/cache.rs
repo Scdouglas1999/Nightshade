@@ -1,9 +1,5 @@
 use super::*;
 
-// =========================================================================
-// API Functions
-// =========================================================================
-
 pub(crate) const CAPABILITY_CACHE_TTL: Duration = Duration::from_secs(300);
 
 #[derive(Debug, Clone)]

@@ -114,9 +114,7 @@ impl AscomRotator {
         self.device.call_method_1_double("Sync", position)
     }
 
-    // ========================================================================
-    // Batch Property Queries
-    // ========================================================================
+    // Batch property queries
 
     /// Get complete rotator status in a single batch operation
     pub fn get_full_status(&self) -> RotatorFullStatus {

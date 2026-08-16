@@ -1,9 +1,5 @@
 use super::*;
 
-// =============================================================================
-// Public FFI entry points
-// =============================================================================
-
 /// One-shot batch integration of a sub list into a linear FITS master.
 ///
 /// Pipeline: optional calibration (dark/flat/bias) + cosmetic correction →

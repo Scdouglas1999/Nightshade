@@ -19,16 +19,12 @@ use crate::device_manager::DeviceManager;
 use crate::dispatch::DeviceOpError;
 
 impl DeviceManager {
-    // =========================================================================
-    // INDI Switch Helpers
-    // =========================================================================
+    // INDI switch helpers
 
     // indi_get_all_switches / indi_get_switch_at moved to
     // `crate::dispatch::indi`; call sites use `self.indi_*` unchanged.
 
-    // =========================================================================
-    // Switch Control
-    // =========================================================================
+    // Switch control
 
     /// Get the number of switches exposed by a switch device
     pub async fn switch_get_max(&self, device_id: &str) -> Result<i32, DeviceOpError> {
@@ -660,11 +656,8 @@ impl DeviceManager {
 /// The simulated powerbox, driven the way the app drives a real one.
 ///
 /// Everything goes through discovery, `connect_device` and the real
-/// `DeviceManager` methods rather than calling the simulator helpers directly:
-/// the defect being closed here was not a broken helper, it was that
-/// `drivers_for_device_type` never asked for the simulator at all, so a test
-/// that skipped those steps would have passed against zero discoverable
-/// devices.
+/// `DeviceManager` methods rather than the simulator helpers, so the test
+/// cannot pass against zero discoverable devices.
 #[cfg(test)]
 mod simulator_tests {
     use crate::api::devices::simulation::{reset_sim_switch, sim_singleton_test_lock};

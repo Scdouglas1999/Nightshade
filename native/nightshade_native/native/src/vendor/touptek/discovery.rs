@@ -2,10 +2,6 @@
 
 use super::*;
 
-// ============================================================================
-// Discovery
-// ============================================================================
-
 /// Information about a discovered Touptek camera
 #[derive(Debug, Clone)]
 pub struct TouptekDeviceInfo {
@@ -14,6 +10,9 @@ pub struct TouptekDeviceInfo {
     pub serial_number: Option<String>,
     pub discovery_index: usize,
     pub model_flags: u64,
+    /// Upper bound of the fan-speed scale reported by the model table. Fan speed runs
+    /// over the closed interval `[0, max_fan_speed]`, so a percentage needs this value.
+    pub max_fan_speed: u32,
     pub width: u32,
     pub height: u32,
     pub pixel_size_x: f32,
@@ -67,19 +66,20 @@ pub(crate) fn enumerate_brand_devices_from_sdk(
         let name = touptek_device_string(&dev.displayname);
         let id = touptek_device_string(&dev.id);
 
-        let (flags, width, height, pixel_x, pixel_y) = if !dev.model.is_null() {
+        let (flags, max_fan_speed, width, height, pixel_x, pixel_y) = if !dev.model.is_null() {
             // SAFETY: `dev.model` was just verified non-null on the line above; it points to a `#[repr(C)]` OgmacamModelV2 owned by the SDK shared library (string tables live in the .rdata segment) so the pointer remains valid for the lifetime of the loaded library — which is held by the cached TouptekSdk in `static SDKS`. We borrow a shared reference (no mutation), which is sound for the borrow scope.
             let model = unsafe { &*dev.model };
             let res = model.res[0];
             (
                 model.flag,
+                model.maxfanspeed,
                 res.width,
                 res.height,
                 model.xpixsz,
                 model.ypixsz,
             )
         } else {
-            (0, 0, 0, 0.0, 0.0)
+            (0, 0, 0, 0, 0.0, 0.0)
         };
 
         devices.push(TouptekDeviceInfo {
@@ -88,6 +88,7 @@ pub(crate) fn enumerate_brand_devices_from_sdk(
             serial_number: None,
             discovery_index: i,
             model_flags: flags,
+            max_fan_speed,
             width,
             height,
             pixel_size_x: pixel_x,

@@ -107,9 +107,7 @@ impl IndiCoverCalibrator {
         &self.device_name
     }
 
-    // =========================================================================
     // Connection
-    // =========================================================================
 
     /// Connect to the cover calibrator
     pub async fn connect(&self) -> IndiResult<()> {
@@ -129,9 +127,7 @@ impl IndiCoverCalibrator {
         client.is_device_connected(&self.device_name).await
     }
 
-    // =========================================================================
-    // Cover Control (Dust Cap)
-    // =========================================================================
+    // Cover control (Dust Cap)
 
     /// Open the cover (unpark dust cap)
     pub async fn open_cover(&self) -> Result<(), String> {
@@ -231,12 +227,12 @@ impl IndiCoverCalibrator {
         let is_parked = client
             .get_switch(&self.device_name, "CAP_PARK", "PARK")
             .await
-            // Why: see module-level §4.3 policy — INDI switch absent → try next vocabulary.
+            // Why: see the module's `unwrap_or(false)` policy — INDI switch absent → try next vocabulary.
             .unwrap_or(false);
         let is_unparked = client
             .get_switch(&self.device_name, "CAP_PARK", "UNPARK")
             .await
-            // Why: see module-level §4.3 policy — INDI switch absent → try next vocabulary.
+            // Why: see the module's `unwrap_or(false)` policy — INDI switch absent → try next vocabulary.
             .unwrap_or(false);
 
         // Check if property is busy (moving)
@@ -336,12 +332,12 @@ impl IndiCoverCalibrator {
         let is_closed = client
             .get_switch(&self.device_name, "DUSTCAP_CONTROL", "CLOSE")
             .await
-            // Why: see module-level §4.3 policy — INDI switch absent → try next vocabulary.
+            // Why: see the module's `unwrap_or(false)` policy — INDI switch absent → try next vocabulary.
             .unwrap_or(false);
         let is_open = client
             .get_switch(&self.device_name, "DUSTCAP_CONTROL", "OPEN")
             .await
-            // Why: see module-level §4.3 policy — INDI switch absent → try next vocabulary.
+            // Why: see the module's `unwrap_or(false)` policy — INDI switch absent → try next vocabulary.
             .unwrap_or(false);
 
         if client
@@ -364,12 +360,12 @@ impl IndiCoverCalibrator {
         let lb_closed = client
             .get_switch(&self.device_name, "LIGHTBOX_CONTROL", "CLOSE")
             .await
-            // Why: see module-level §4.3 policy — INDI switch absent → try next vocabulary.
+            // Why: see the module's `unwrap_or(false)` policy — INDI switch absent → try next vocabulary.
             .unwrap_or(false);
         let lb_open = client
             .get_switch(&self.device_name, "LIGHTBOX_CONTROL", "OPEN")
             .await
-            // Why: see module-level §4.3 policy — INDI switch absent → try next vocabulary.
+            // Why: see the module's `unwrap_or(false)` policy — INDI switch absent → try next vocabulary.
             .unwrap_or(false);
 
         if client
@@ -403,9 +399,7 @@ impl IndiCoverCalibrator {
         }
     }
 
-    // =========================================================================
-    // Calibrator Control (Flat Light)
-    // =========================================================================
+    // Calibrator control (Flat Light)
 
     /// Turn on the calibrator light at specified brightness
     pub async fn calibrator_on(&self, brightness: i32) -> Result<(), String> {
@@ -519,12 +513,12 @@ impl IndiCoverCalibrator {
         let is_on = client
             .get_switch(&self.device_name, "FLAT_LIGHT_CONTROL", "FLAT_LIGHT_ON")
             .await
-            // Why: see module-level §4.3 policy — INDI switch absent → try next vocabulary.
+            // Why: see the module's `unwrap_or(false)` policy — INDI switch absent → try next vocabulary.
             .unwrap_or(false);
         let is_off = client
             .get_switch(&self.device_name, "FLAT_LIGHT_CONTROL", "FLAT_LIGHT_OFF")
             .await
-            // Why: see module-level §4.3 policy — INDI switch absent → try next vocabulary.
+            // Why: see the module's `unwrap_or(false)` policy — INDI switch absent → try next vocabulary.
             .unwrap_or(false);
 
         // Check if property is busy (stabilizing)
@@ -585,9 +579,7 @@ impl IndiCoverCalibrator {
         }
     }
 
-    // =========================================================================
-    // Brightness Control
-    // =========================================================================
+    // Brightness control
 
     /// Get current brightness (0-max)
     pub async fn get_brightness(&self) -> Result<i32, String> {

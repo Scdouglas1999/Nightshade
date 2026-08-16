@@ -106,11 +106,10 @@ async fn reconnecting_the_same_camera_is_not_treated_as_a_swap() {
 ///
 /// A mid-night USB dropout marks the device `Error`, and the reconnection
 /// loop installs a cancel token before retrying. Releasing the wrong camera
-/// trips that same token, so the identity error was being rewritten as
-/// `RECONNECT_CANCELED_MSG` — which the reconnection loop then suppresses
-/// on purpose, because it means "the user disconnected". The operator would
-/// have been told nothing at all about the swap on the one path the check
-/// exists for.
+/// trips that same token, so an identity error rewritten as
+/// `RECONNECT_CANCELED_MSG` — which the reconnection loop then suppresses on
+/// purpose, because it means "the user disconnected" — tells the operator
+/// nothing at all about the swap on the one path the check exists for.
 #[tokio::test]
 async fn a_swap_found_during_auto_reconnect_is_not_reported_as_a_user_cancel() {
     let _guard = simulator_singleton_test_lock().lock().await;

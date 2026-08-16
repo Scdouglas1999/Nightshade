@@ -24,9 +24,7 @@ use nightshade_indi::IndiFilterWheel;
 use nightshade_native::traits::NativeFilterWheel;
 
 impl DeviceManager {
-    // =========================================================================
-    // Filter Wheel Control
-    // =========================================================================
+    // Filter wheel control
 
     pub async fn filter_wheel_set_position(
         &self,
@@ -470,9 +468,9 @@ impl DeviceManager {
                     return Ok((count, names));
                 }
                 // debug, not error: querying a wheel that is not (or no longer)
-                // connected is a normal state the typed `not_connected` error
-                // below already reports to the caller. At ERROR it flooded the
-                // log every poll cycle after a disconnect.
+                // connected is a normal state, the typed `not_connected` error
+                // below is what reports it, and ERROR here floods the log every
+                // poll cycle for as long as the wheel stays disconnected.
                 tracing::debug!(
                     "filter_wheel_get_config: Native filter wheel '{}' not in native_filter_wheels map (not connected)",
                     device_id

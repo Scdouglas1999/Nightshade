@@ -6,34 +6,32 @@
 //!
 //! # Connect/Disconnect-probe guard
 //!
-//! Capability probes for Alpaca and ASCOM devices originally followed a
-//! `connect → read properties → disconnect` pattern. That pattern kicks any
-//! existing connection — e.g. when the user has the device open in the UI and
-//! the bridge tries to refresh capabilities, the probe's `disconnect()` drops
-//! the active session.
+//! A capability probe for an Alpaca or ASCOM device probes `is_connected()`
+//! before it touches the connection, because a blind
+//! `connect → read properties → disconnect` cycle drops a session the user
+//! already has open in the UI.
 //!
-//! The fix: probe `is_connected()` first. If `Ok(true)`, the device is already
-//! up and we MUST NOT issue connect/disconnect — we just read the properties.
-//! If `Ok(false)`, we perform the full connect/probe/disconnect cycle. If
-//! `is_connected()` returns `Err` (driver doesn't implement `Connected` or the
-//! call failed mid-transition), we treat the device as already connected: the
-//! conservative choice. Spuriously skipping disconnect on a probe leaves a
-//! short-lived connection that the UI / device manager will clean up via its
-//! normal lifecycle; spuriously issuing disconnect on a driver that was
+//! * `Ok(true)` — the device is already up: read the properties and issue no
+//!   connect/disconnect.
+//! * `Ok(false)` — run the full connect/probe/disconnect cycle.
+//! * `Err` (the driver does not implement `Connected`, or the call failed
+//!   mid-transition) — treat the device as already connected.
+//!
+//! `Err` resolves that way because the two mistakes are not symmetric:
+//! skipping a disconnect leaves a short-lived connection the device manager
+//! cleans up on its normal lifecycle, while issuing one against a driver
 //! mid-operation can corrupt a live exposure or slew.
 //!
 //! # `as`-cast policy
 //!
 //! All `as` casts in this file are capability-probe widenings:
-//! - **Sensor i32 → u32** (lines 517, 518): ASCOM CameraXSize/YSize are
-//!   int per spec, ≥ 1 physically; `unwrap_or(0)` on the optional probe
-//!   maps a missing/failed read to 0 (UI displays "unknown"). i32 → u32
-//!   for non-negative i32 is a SAFE narrowing.
-//! - **usize → i32 filter count** (lines 603, 998): physical filter wheels
-//!   have ≤ 16 slots; saturation at i32::MAX is unreachable.
-//! - **i32 → i32 filter position** (lines 604, 994, 1517): no-op widening
-//!   kept for clarity around the `.map(|p| p as i32)` Option-mapping
-//!   idiom in the surrounding code.
+//! - **Sensor i32 → u32** (ASCOM `CameraXSize` / `CameraYSize`): int per spec
+//!   and ≥ 1 physically; `unwrap_or(0)` on the optional probe maps a
+//!   missing/failed read to 0, which the UI renders as "unknown".
+//! - **usize → i32 filter count**: physical filter wheels have ≤ 16 slots, so
+//!   saturation at `i32::MAX` is unreachable.
+//! - **i32 → i32 filter position**: a no-op widening kept for clarity around
+//!   the `.map(|p| p as i32)` Option-mapping idiom.
 //!
 //! # Example
 //!
@@ -255,7 +253,7 @@ pub async fn get_device_capabilities(
         crate::device::DriverType::Ascom => get_ascom_capabilities(device_id).await,
         crate::device::DriverType::Indi => get_indi_capabilities(device_id).await,
         crate::device::DriverType::Native => get_native_capabilities(device_id).await,
-        crate::device::DriverType::Simulator => Ok(get_simulator_capabilities(device_id)),
+        crate::device::DriverType::Simulator => get_simulator_capabilities(&parsed).await,
     }?;
 
     let mut cache = capability_cache().lock().await;

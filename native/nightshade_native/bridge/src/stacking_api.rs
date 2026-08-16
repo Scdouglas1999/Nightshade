@@ -102,8 +102,7 @@ pub struct LiveStackingConfigApi {
     /// - `auto` — debayer only when the frame actually carries Bayer geometry
     ///   (or `bayer_pattern` is supplied); otherwise treat as mono.
     ///
-    /// Defaults to `"mono"` so existing callers keep the historic
-    /// single-channel behaviour byte-for-byte.
+    /// Defaults to `"mono"`.
     pub sensor_mode: String,
     /// Explicit Bayer pattern override (`"RGGB"`/`"BGGR"`/`"GRBG"`/`"GBRG"`,
     /// case-insensitive). When `None`, OSC/auto sessions fall back to the
@@ -189,8 +188,8 @@ impl TryFrom<LiveStackingConfigApi> for LiveStackConfig {
     type Error = String;
 
     /// Build the native stacking config, surfacing any invalid demosaic /
-    /// Bayer-pattern / sensor-mode string to the caller (errors are a feature —
-    /// never a silent best-guess).
+    /// Bayer-pattern / sensor-mode string to the caller rather than falling back
+    /// to a silent best-guess.
     fn try_from(api: LiveStackingConfigApi) -> Result<Self, Self::Error> {
         let demosaic_algorithm = parse_demosaic_quality(&api.demosaic_quality)?;
         let bayer_pattern = parse_bayer_pattern(&api.bayer_pattern)?;
@@ -227,9 +226,7 @@ impl TryFrom<LiveStackingConfigApi> for LiveStackConfig {
     }
 }
 
-// =============================================================================
 // Public API functions (exposed to Dart via flutter_rust_bridge)
-// =============================================================================
 
 /// Start live stacking by loading a reference image from a file path.
 ///
@@ -703,7 +700,7 @@ mod tests {
         data
     }
 
-    // ---- Config From-parse ---------------------------------------------------
+    // Config From-parse
 
     #[test]
     fn config_parses_valid_demosaic_qualities() {
@@ -785,7 +782,7 @@ mod tests {
         assert!(err.contains("sensor mode"), "got: {err}");
     }
 
-    // ---- OSC-without-pattern (in-memory ingest) ------------------------------
+    // OSC-without-pattern (in-memory ingest)
 
     #[test]
     fn osc_start_from_data_without_pattern_is_error() {
@@ -811,7 +808,7 @@ mod tests {
         );
     }
 
-    // ---- RGB round-trip ------------------------------------------------------
+    // RGB round-trip
 
     /// A small, fully-specified RGGB CFA where each colour site holds a distinct
     /// ADU so we can predict the demosaiced RGB at a known pixel exactly.
@@ -930,7 +927,7 @@ mod tests {
         let _ = stacking_stop();
     }
 
-    // ---- Mono path is unchanged ----------------------------------------------
+    // Mono path is unchanged
 
     #[test]
     fn mono_start_from_data_is_single_channel() {
@@ -951,15 +948,15 @@ mod tests {
         let _ = stacking_stop();
     }
 
-    // ---- AUTO with no pattern resolves to mono (regression guard) ------------
+    // AUTO with no pattern resolves to mono (regression guard)
 
     #[test]
     fn auto_start_from_data_without_pattern_is_mono() {
         // The default Stack-and-Share config is `sensor_mode = "auto"`. On a
         // monochrome session (a raw u16 buffer carries no BAYERPAT and the
         // config has no override) AUTO must stack as MONO, not error. This is
-        // the default mono Stack-and-Share path; collapsing auto into osc used
-        // to brick it.
+        // the default mono Stack-and-Share path; collapsing auto into osc
+        // bricks it.
         let _g = singleton_guard();
         let _ = stacking_stop();
 
@@ -1001,7 +998,7 @@ mod tests {
         let _ = stacking_stop();
     }
 
-    // ---- Every demosaic algorithm ingests end-to-end (geometry guard) -------
+    // Every demosaic algorithm ingests end-to-end (geometry guard)
 
     /// SuperPixel halves resolution; Bilinear/VNG keep it. Each must produce an
     /// integrated result whose declared dimensions and buffer length are
@@ -1047,7 +1044,7 @@ mod tests {
         }
     }
 
-    // ---- FITS master ---------------------------------------------------------
+    // FITS master
 
     /// Write a single-channel FITS light frame carrying the two keywords the
     /// master's header is built from.

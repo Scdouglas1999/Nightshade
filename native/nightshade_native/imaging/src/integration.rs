@@ -49,7 +49,7 @@
 //! masters reject and weight each channel independently — a hot red pixel must
 //! not drag the green and blue channels with it.
 //!
-//! ## Honest limits (per the design doc's "made honest, not functional" bar)
+//! ## Limitations
 //!
 //! The *algorithms* here are deterministic, order-independent, and unit-tested
 //! against synthetic data with injected outliers. The default sigma thresholds
@@ -65,9 +65,7 @@ use crate::robust_stats::{median_sorted as median_of_sorted, MAD_TO_SIGMA};
 use crate::{ImageData, PixelType};
 use rayon::prelude::*;
 
-// =============================================================================
 // Public configuration types
-// =============================================================================
 
 /// How the surviving (non-rejected) samples are combined into the output pixel.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -250,9 +248,7 @@ pub enum IntegrationError {
     UnsupportedOutputType(PixelType),
 }
 
-// =============================================================================
 // Public entry point
-// =============================================================================
 
 /// Integrate a population of aligned, normalized, weighted frames into a single
 /// master with per-pixel rejection.
@@ -479,9 +475,7 @@ pub(crate) fn integrate_columns(
     })
 }
 
-// =============================================================================
 // Per-pixel column combination
-// =============================================================================
 
 /// One weighted sample for a single output pixel/channel.
 #[derive(Debug, Clone, Copy)]
@@ -588,9 +582,7 @@ fn apply_rejection(samples: &mut Vec<Sample>, reject: Reject, iteration_limit: u
     (before - samples.len()) as u32
 }
 
-// =============================================================================
 // Rejection algorithms (batch, order-independent)
-// =============================================================================
 
 /// Iterated sigma clipping. When `winsorize` is true the σ estimate is computed
 /// on the *Winsorized* set (outliers clamped to the current bound) rather than
@@ -744,9 +736,7 @@ fn min_max_clip(samples: &mut Vec<Sample>, n_low: usize, n_high: usize) {
     *samples = keep;
 }
 
-// =============================================================================
 // Estimators
-// =============================================================================
 
 /// Reliability-weighted mean of the samples. Returns 0 for an empty set.
 fn weighted_mean(samples: &[Sample]) -> f64 {
@@ -861,9 +851,7 @@ fn winsorized_mean_sigma(samples: &[Sample], low: f64, high: f64) -> (f64, f64) 
     weighted_mean_sigma(&winsorized)
 }
 
-// =============================================================================
 // Output finalization
-// =============================================================================
 
 /// Pack the f64 accumulator into the requested output [`ImageData`]. For `F32`
 /// the linear values are stored verbatim (archival, no quantisation). For `U16`
@@ -927,9 +915,7 @@ mod tests {
         }
     }
 
-    // -------------------------------------------------------------------------
     // Weighted-mean correctness vs. analytic
-    // -------------------------------------------------------------------------
 
     #[test]
     fn weighted_mean_matches_analytic_with_no_rejection() {
@@ -971,9 +957,7 @@ mod tests {
         assert!((master[0] as f64 - 8.0).abs() < 1e-4);
     }
 
-    // -------------------------------------------------------------------------
     // Outlier rejection (each algorithm) + rejection-map correctness
-    // -------------------------------------------------------------------------
 
     /// Build a column of `n` frames all equal to `base` except one spike, for a
     /// single 1x1 mono pixel. Returns the owned per-frame buffers.
@@ -1117,9 +1101,7 @@ mod tests {
         assert_eq!(out.stats.total_rejected, 0);
     }
 
-    // -------------------------------------------------------------------------
     // Rejection map localises the outlier to the right pixel
-    // -------------------------------------------------------------------------
 
     #[test]
     fn rejection_map_localises_a_satellite_trail_pixel() {
@@ -1151,9 +1133,7 @@ mod tests {
         assert!((master[1] as f64 - 300.0).abs() < 1e-2);
     }
 
-    // -------------------------------------------------------------------------
     // Per-channel independence (OSC)
-    // -------------------------------------------------------------------------
 
     #[test]
     fn channels_are_rejected_independently() {
@@ -1180,9 +1160,7 @@ mod tests {
         assert_eq!(rej[2] as u32, 0);
     }
 
-    // -------------------------------------------------------------------------
     // Coverage handling
-    // -------------------------------------------------------------------------
 
     #[test]
     fn coverage_mask_excludes_uncovered_samples() {
@@ -1253,9 +1231,7 @@ mod tests {
         assert_eq!(out.stats.uncovered_pixels, 1);
     }
 
-    // -------------------------------------------------------------------------
     // SNR improvement vs. a naive single frame and naive mean-with-outlier
-    // -------------------------------------------------------------------------
 
     #[test]
     fn integration_improves_snr_over_single_frame() {
@@ -1374,9 +1350,7 @@ mod tests {
         );
     }
 
-    // -------------------------------------------------------------------------
     // Order independence (batch, not online)
-    // -------------------------------------------------------------------------
 
     #[test]
     fn result_is_independent_of_frame_order() {
@@ -1414,9 +1388,7 @@ mod tests {
         assert_eq!(a.stats.total_rejected, bres.stats.total_rejected);
     }
 
-    // -------------------------------------------------------------------------
     // U16 output path + median combine
-    // -------------------------------------------------------------------------
 
     #[test]
     fn u16_output_clamps_and_rounds() {
@@ -1453,9 +1425,7 @@ mod tests {
         assert!((m[0] as f64 - 12.0).abs() < 1e-4, "got {}", m[0]);
     }
 
-    // -------------------------------------------------------------------------
     // Error paths
-    // -------------------------------------------------------------------------
 
     #[test]
     fn empty_population_errors() {

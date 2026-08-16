@@ -104,9 +104,7 @@ impl AscomFocuser {
         self.device.call_method("Halt")
     }
 
-    // ========================================================================
-    // Batch Property Queries
-    // ========================================================================
+    // Batch property queries
 
     /// Get focuser capabilities in a single batch operation
     pub fn get_capabilities(&self) -> FocuserCapabilities {

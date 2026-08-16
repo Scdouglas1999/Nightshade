@@ -183,7 +183,7 @@ pub(crate) fn typed_sequencer_event_from_progress_detail(
         // `ProgressDetail` field shapes verbatim so the Dart light-curve panel
         // binds to explicit fields instead of re-parsing the legacy string
         // `detail`. Emitted alongside `InstructionProgress` (additional, not a
-        // replacement) following the Wave-3 precedent above.
+        // replacement), like the typed progress payloads above.
         PD::PhotometryFrame {
             target_designation,
             reference_stars,
@@ -268,9 +268,7 @@ pub(crate) fn structured_progress_payload_from_progress_detail(
     }
 }
 
-// =============================================================================
-// typed Recovery event builders
-// =============================================================================
+// typed recovery event builders
 //
 // These helpers flatten the chrono-bearing `RecoveryContext` Rust struct into
 // the FRB-friendly primitive payload exposed via `SequencerEvent::Recovery{

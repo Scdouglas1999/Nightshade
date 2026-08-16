@@ -129,13 +129,13 @@ pub(crate) struct GuideSnapshot {
 impl GuideSnapshot {
     /// The star's position in the FULL guide frame.
     ///
-    /// WF-SN-N1: `find_star` and `get_lock_position` both returned the CROP
-    /// coordinates, so one Auto Select click logged
-    /// "chose a guide star at (967.8, 724.3) px" and then
-    /// "locked guide star at (24.8, 25.3) px", and the operator-facing banner
-    /// showed the second — the corner of a 1920x1080 guide frame for a star
-    /// locked near its centre. PHD2's own `find_star` answers in frame
-    /// coordinates, so the two guider backends disagreed as well.
+    /// When `find_star` and `get_lock_position` answer in CROP coordinates,
+    /// one Auto Select click logs "chose a guide star at (967.8, 724.3) px"
+    /// and then "locked guide star at (24.8, 25.3) px", and the
+    /// operator-facing banner shows the second — the corner of a 1920x1080
+    /// guide frame for a star locked near its centre. PHD2's own `find_star`
+    /// answers in frame coordinates, so the two guider backends disagree as
+    /// well.
     pub(crate) fn star_frame_position(&self) -> (f64, f64) {
         (
             self.crop_origin_x as f64 + self.star_x,
@@ -175,8 +175,7 @@ impl Default for BuiltinGuideStatus {
     }
 }
 
-// =============================================================================
-// Per-star tracked-star export (Phase F, guider-ui)
+// Per-star tracked-star export for the guider UI
 //
 // The built-in guider tracks up to `GUIDE_MAX_TRACKED_STARS` reference stars,
 // but `get_status()` only returns the PHD2-shaped *aggregate* `Phd2Status`
@@ -188,7 +187,6 @@ impl Default for BuiltinGuideStatus {
 // without changing any flutter_rust_bridge-generated struct shape (no regen).
 // The same `*_json: String` convention is used by the typed event payloads in
 // `event.rs` (FRB does not bridge `serde_json::Value` directly).
-// =============================================================================
 
 /// One tracked reference star, as surfaced to the per-star guider UI.
 #[flutter_rust_bridge::frb(ignore)]
@@ -334,12 +332,10 @@ pub(crate) struct BuiltinGuiderState {
     /// Recent per-axis guide errors in ARCSEC, newest last, capped in length.
     ///
     /// Backs the `rms_ra`/`rms_dec`/`rms_total` this guider reports. Those fields
-    /// live on a PHD2-shaped status struct, and PHD2 fills them with a genuine
-    /// root-mean-square; this guider used to assign the CURRENT frame's absolute
-    /// offset instead. Same labels, different statistic — so the identical
-    /// "RMS Tot" readout meant one thing under PHD2 and another under the
-    /// built-in guider, and the built-in guider always looked worse because a
-    /// single-frame error is strictly noisier than an RMS over a window.
+    /// live on a PHD2-shaped status struct that PHD2 fills with a genuine
+    /// root-mean-square, so they must be an RMS over this window too: the current
+    /// frame's absolute offset under the same "RMS Tot" label is a strictly
+    /// noisier statistic, and makes this guider look worse than PHD2 for free.
     pub(crate) rms_samples_arcsec: Vec<Vec2>,
     /// Native, unbinned guide-camera sampling in arcsec/pixel. Derived from the
     /// active profile focal length and the selected camera's physical pixel size.
@@ -403,7 +399,7 @@ pub(crate) fn state() -> &'static Arc<RwLock<BuiltinGuiderState>> {
 /// and "spawn the loop", so it alone cannot make start/stop atomic. Without this
 /// mutex a `stop()` landing in the window after the loop is spawned but before its
 /// `JoinHandle`/`stop_flag` is recorded would take `None`, signal nothing, return
-/// Ok, and orphan a mount-pulsing loop (v4 review blocker #7). Holding this mutex
+/// Ok, and orphan a mount-pulsing loop. Holding this mutex
 /// across the whole start (lock → spawn → record handle) and the whole stop
 /// guarantees stop always observes a live loop and cancels it.
 pub(crate) static GUIDER_OP_LOCK: OnceLock<Arc<Mutex<()>>> = OnceLock::new();

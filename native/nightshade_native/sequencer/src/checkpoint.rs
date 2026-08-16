@@ -1010,10 +1010,9 @@ mod tests {
 
     #[test]
     fn test_mark_completed_clears_resume_banner_but_keeps_file() {
-        // Regression: on normal sequence completion the executor now calls
-        // mark_completed(). Before the fix the checkpoint stayed is_active
-        // forever, so has_recoverable_checkpoint() kept returning true and the
-        // UI showed a stale "resume?" banner after every successful night.
+        // On normal sequence completion the executor calls mark_completed(), which
+        // clears is_active — otherwise has_recoverable_checkpoint() keeps returning
+        // true and the UI shows a stale "resume?" banner after a successful night.
         let dir = test_dir("mark_completed_clears_banner");
         let manager = CheckpointManager::new(&dir);
         let mut checkpoint = SessionCheckpoint::new(SequenceDefinition::new("Night".to_string()));
@@ -1432,9 +1431,7 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
     }
 
-    // ---------------------------------------------------------------
     // SmartExposure cross-process resume.
-    // ---------------------------------------------------------------
 
     #[test]
     fn smart_exposure_state_round_trips_through_session_checkpoint_serde() {

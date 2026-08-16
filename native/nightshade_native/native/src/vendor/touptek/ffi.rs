@@ -2,10 +2,6 @@
 
 use super::*;
 
-// ============================================================================
-// SDK Types and Constants
-// ============================================================================
-
 /// Opaque handle to a camera
 pub(crate) type HOgmacam = *mut c_void;
 
@@ -19,17 +15,25 @@ pub(crate) const OGMACAM_FLAG_TEC_ONOFF: u64 = 0x00020000;
 pub(crate) const OGMACAM_FLAG_ST4: u64 = 0x00000200;
 pub(crate) const OGMACAM_FLAG_ROI_HARDWARE: u64 = 0x00000008;
 pub(crate) const OGMACAM_FLAG_BINSKIP_SUPPORTED: u64 = 0x00000020;
+pub(crate) const OGMACAM_FLAG_FAN: u64 = 0x00010000;
+pub(crate) const OGMACAM_FLAG_HEAT: u64 = 0x0000008000000000;
 
 // Options (values verified against toupcam.h / ogmacam.h)
 pub(crate) const OGMACAM_OPTION_TEC: c_uint = 0x08;
-// 0x06 = TOUPCAM_OPTION_BITDEPTH (0 = 8-bit, 1 = 16-bit). NOT 0x04 — that value is
-// OPTION_RAW, so the old constant silently re-set RAW and never changed bit depth,
-// leaving the camera in 8-bit while download parsed W*H bytes as W*H*2 u16 garbage.
+// 0x06 = TOUPCAM_OPTION_BITDEPTH (0 = 8-bit, 1 = 16-bit). Do not confuse with 0x04
+// (OPTION_RAW): writing bit depth to 0x04 re-sets RAW and leaves the camera in 8-bit,
+// while download parses W*H bytes as W*H*2 u16 garbage.
 pub(crate) const OGMACAM_OPTION_BITDEPTH: c_uint = 0x06;
-// 0x17 = TOUPCAM_OPTION_BINNING. NOT 0x01 — that value is OPTION_NOFRAME_TIMEOUT, so
-// the old constant wrote a frame timeout (below the 500ms minimum) and never binned.
+// 0x17 = TOUPCAM_OPTION_BINNING. Do not confuse with 0x01 (OPTION_NOFRAME_TIMEOUT,
+// minimum 500ms): writing a bin factor there sets a frame timeout and never bins.
 pub(crate) const OGMACAM_OPTION_BINNING: c_uint = 0x17;
 pub(crate) const OGMACAM_OPTION_RAW: c_uint = 0x04;
+/// [RW] cooling fan speed, 0 = off, [1, `maxfanspeed`] otherwise.
+pub(crate) const OGMACAM_OPTION_FAN: c_uint = 0x07;
+/// [RW] anti-fogging heater level, 0 = off.
+pub(crate) const OGMACAM_OPTION_HEAT: c_uint = 0x37;
+/// [RW] USB bandwidth as a percentage, [1, 100].
+pub(crate) const OGMACAM_OPTION_BANDWIDTH: c_uint = 0x2e;
 // 0x0b = TOUPCAM_OPTION_TRIGGER. Value 1 selects software/simulated trigger mode, the
 // prerequisite for the software-trigger + pull-mode capture pipeline used below.
 pub(crate) const OGMACAM_OPTION_TRIGGER: c_uint = 0x0b;
@@ -103,9 +107,7 @@ pub struct OgmacamFrameInfoV3 {
     pub blacklevel: u16,
 }
 
-// ============================================================================
-// SDK Function Types
-// ============================================================================
+// SDK function types
 
 pub(crate) type OgmacamEnumV2 = unsafe extern "system" fn(arr: *mut OgmacamDeviceV2) -> c_uint;
 pub(crate) type OgmacamOpen = unsafe extern "system" fn(id: *const c_void) -> HOgmacam;

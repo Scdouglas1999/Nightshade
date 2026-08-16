@@ -68,9 +68,7 @@ pub async fn api_stop_polar_alignment() -> Result<(), NightshadeError> {
     Ok(())
 }
 
-// =============================================================================
-// All-Sky Polar Alignment (Sharpcap-style)
-// =============================================================================
+// All-sky polar alignment (SharpCap-style)
 
 /// Polar alignment mode selector.
 ///
@@ -95,21 +93,13 @@ pub enum PolarAlignmentMode {
 /// and the observer's geographic location it recovers the polar-axis
 /// azimuth and altitude error.
 ///
-/// # Arguments
-/// * `exposure_time` — exposure duration per frame, seconds.
-/// * `solve_timeout` — plate-solve timeout per frame, seconds.
-/// * `binning` — camera binning factor (1, 2, or 4 typical).
-/// * `is_north` — northern hemisphere observer flag.
-/// * `acceptance_threshold_arcsec` — alignment auto-completes when the
-///   total error stays below this for 3 seconds (default 30″ = good for
-///   ~3-minute unguided subs).
-/// * `iteration_cadence_secs` — re-solve cadence (default 3s).
-/// * `gain`, `offset` — optional camera parameters.
+/// Alignment auto-completes once the total error stays under
+/// `acceptance_threshold_arcsec` for 3 seconds; 30″ is the default and is good
+/// for ~3-minute unguided subs. `iteration_cadence_secs` defaults to 3 s.
 ///
-/// # Errors
-/// Returns `NightshadeError::OperationFailed` if a plate solver is not
-/// available (the user must install ASTAP), if no camera/mount is
-/// connected, or if the observer location is not configured.
+/// Fails with `NightshadeError::OperationFailed` when no plate solver is
+/// installed, no camera or mount is connected, or the observer location is not
+/// configured.
 pub async fn api_start_all_sky_polar_alignment(
     exposure_time: f64,
     solve_timeout: f64,
@@ -216,12 +206,12 @@ pub async fn api_start_all_sky_polar_alignment(
 
     let device_ops = create_unified_device_ops();
 
-    // hand the alignment task its own executor-event bridge
-    // so instruction-level failures (e.g. FITS-save error on a polar-align
-    // exposure) reach the same NightshadeEvent stream the rest of the app
-    // listens to. The status_cb/image_cb callbacks below cover the alignment
-    // workflow itself, but anything emitted directly by the instructions
-    // layer (write_fits failure, etc.) was previously silent.
+    // Hand the alignment task its own executor-event bridge so instruction-level
+    // failures (e.g. a FITS-save error on a polar-align exposure) reach the same
+    // NightshadeEvent stream the rest of the app listens to. The status_cb /
+    // image_cb callbacks below cover the alignment workflow itself; anything the
+    // instructions layer emits directly reaches the stream only through this
+    // bridge.
     //
     // `event_tx` is moved into the spawned task; the background bridge task
     // exits when the task drops the sender after the alignment finishes.

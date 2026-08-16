@@ -2,8 +2,7 @@
 //!
 //! A bare `tokio::spawn(async move { ... })` whose `JoinHandle` is dropped
 //! gives no signal when the spawned task panics: the future silently dies,
-//! the feature stops working, and no log line is emitted. That violates
-//! the "errors are a feature" rule (see the CONTRIBUTING.md house rules).
+//! the feature stops working, and no log line is emitted.
 //!
 //! This module provides two supervisors:
 //!

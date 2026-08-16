@@ -659,10 +659,9 @@ impl NativeCamera for AtikCamera {
             return Err(NativeError::NotConnected);
         }
 
-        // Atik cameras typically have limited gain control compared to CMOS cameras.
-        // Most Atik CCD cameras have fixed or limited gain.
-        // Return reasonable defaults that work for most Atik cameras.
-        Ok((0, 100))
+        // The Atik SDK publishes no gain bounds, and a fixed-gain CCD has none to
+        // publish; report the absence rather than a range the hardware never stated.
+        Err(NativeError::NotSupported)
     }
 
     async fn get_offset_range(&self) -> Result<(i32, i32), NativeError> {
@@ -670,8 +669,7 @@ impl NativeCamera for AtikCamera {
             return Err(NativeError::NotConnected);
         }
 
-        // Atik cameras have limited offset/bias control.
-        // Return reasonable defaults.
-        Ok((0, 255))
+        // Same as gain: the SDK reports no offset bounds.
+        Err(NativeError::NotSupported)
     }
 }

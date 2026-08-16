@@ -9,24 +9,12 @@
 //!
 //! ICameraV3 splits cooling into two properties: `CoolerOn` (a bool) and
 //! `SetCCDTemperature` (the setpoint, optional — a driver may reject it and
-//! advertises that through `CanSetCCDTemperature`). Nightshade used to write
-//! both on every cooler command, with a fabricated -10 C substituted whenever
-//! the caller named no setpoint.
-//!
-//! On the reference rig (2026-08-09) that combination bricked end-of-night
-//! warm-up. `POST /api/camera/cooling {"enabled":false}` carries no setpoint,
-//! so the -10 was invented, and on a ZWO ASI178MM — `CanSetCCDTemperature =
-//! False` — the `SetCCDTemperature` write threw:
-//!
-//! ```text
-//! Failed to set ASCOM camera ascom:ASCOM.ASICamera2.Camera cooler
-//! (enabled=false, target=-10C): SDK error: Failed to set cooler:
-//! Failed to set property SetCCDTemperature...
-//! ```
-//!
-//! Because the setpoint was written *before* `CoolerOn`, the throw meant
-//! `CoolerOn = false` was never attempted: the cooler could not be switched
-//! off at all. Two rules fall out, and this module is where they live:
+//! advertises that through `CanSetCCDTemperature`). The setpoint is written
+//! *before* `CoolerOn`, so a setpoint write that throws also costs the
+//! `CoolerOn` write: on a ZWO ASI178MM (`CanSetCCDTemperature = False`) an
+//! invented -10 C on a cooler-off command threw and left the cooler on with
+//! no way to switch it off. Two rules fall out, and this module is where they
+//! live:
 //!
 //! 1. **Off needs no setpoint.** Turning a TEC off is a `CoolerOn = false`
 //!    write and nothing else.
@@ -67,27 +55,26 @@ pub fn setpoint_to_write(
 mod tests {
     use super::setpoint_to_write;
 
-    /// The live defect: a cooler-OFF command carries no setpoint, and the
-    /// layer above used to substitute -10 C. Nothing may be written.
+    /// A cooler-OFF command carries no setpoint, and nothing may be written
+    /// in its place.
     #[test]
     fn disabling_never_writes_a_setpoint() {
         assert_eq!(setpoint_to_write(false, None, Some(true)), None);
-        // Even when a caller does name one, switching off does not need it —
-        // and on the rig this write is what threw.
+        // Even when a caller does name one, switching off does not need it.
         assert_eq!(setpoint_to_write(false, Some(-10.0), Some(true)), None);
         assert_eq!(setpoint_to_write(false, Some(-10.0), Some(false)), None);
         assert_eq!(setpoint_to_write(false, Some(-10.0), None), None);
     }
 
-    /// A camera that answers `CanSetCCDTemperature = False` (the ASI178MM on
-    /// the reference rig) must never be sent the property.
+    /// A camera that answers `CanSetCCDTemperature = False` (the ASI178MM,
+    /// among others) must never be sent the property.
     #[test]
     fn a_camera_without_set_temperature_is_never_written_to() {
         assert_eq!(setpoint_to_write(true, Some(-10.0), Some(false)), None);
     }
 
     /// A capability probe that itself errored is not evidence the property
-    /// exists; writing anyway is what broke the rig.
+    /// exists, so it counts as unsupported.
     #[test]
     fn an_unreadable_capability_is_treated_as_unsupported() {
         assert_eq!(setpoint_to_write(true, Some(-10.0), None), None);

@@ -2,10 +2,8 @@ use super::*;
 use nightshade_imaging::read_fits;
 use std::path::PathBuf;
 
-/// A scratch directory that deletes itself when the test ends.
-/// `Drop` rather than the trailing `remove_file` calls these tests used to
-/// finish with: the leak was worst exactly when a test FAILED, and a
-/// trailing cleanup never runs while a panic unwinds — drop does.
+/// A scratch directory that deletes itself when the test ends. Cleanup runs
+/// from `Drop`, so it happens even while a panic unwinds out of a failing test.
 struct TempDir(PathBuf);
 
 impl std::ops::Deref for TempDir {
@@ -410,13 +408,12 @@ fn master_accumulate_create_add_finalize() {
     assert_eq!(img.width, size);
 }
 
-/// IMG-001 regression: folding a good-seeing night and then a uniformly
-/// worse-seeing (blurrier ⇒ larger-FWHM) night into the accumulating master
-/// must give the good night strictly more *total* weight. The old per-fold
-/// max-normalization (`weight_frames`) reset each night's best sub to 1.0,
-/// making the two folds' total weights near-equal regardless of cross-night
-/// quality; `accumulation_weights` anchors both folds on a fixed scale so the
-/// worse night contributes proportionally less.
+/// Folding a good-seeing night and then a uniformly worse-seeing (blurrier ⇒
+/// larger-FWHM) night into the accumulating master must give the good night
+/// strictly more *total* weight. `accumulation_weights` anchors both folds on a
+/// fixed scale so the worse night contributes proportionally less; a per-fold
+/// max-normalization would reset each night's best sub to 1.0 and make the two
+/// folds' totals near-equal regardless of cross-night quality.
 #[test]
 fn accumulate_weights_better_night_more_than_worse_night() {
     let dir = temp_dir("accumulate_weights_better_night_more_than_worse_night");
@@ -560,20 +557,16 @@ fn invalid_inputs_error() {
     assert!(api_master_accumulate(r#"{"op":"bogus"}"#.to_string()).is_err());
 }
 
-/// REGRESSION (senior review blocker #5 — "morning report intelligence is
-/// structurally dead"): every accepted sub MUST surface a positive, finite
-/// `noise` (and `snr`) so the downstream marginal-SNR optimizer
-/// (`integration_curve`, which skips any `noise <= 0` sub from its variance
-/// sums) produces a real, non-zero improvement curve rather than the all-zero
-/// curve the old record — which omitted `noise` entirely, defaulting it to 0
-/// across the FFI — guaranteed.
+/// Every accepted sub must surface a positive, finite `noise` (and `snr`): the
+/// marginal-SNR optimizer `integration_curve` drops any `noise <= 0` sub from
+/// its variance sums, so a record that omits noise yields an all-zero
+/// improvement curve.
 ///
-/// This drives the REAL pipeline both ways: `api_integrate_session` measures
-/// the per-sub `FrameQuality`, and then the exact `qualities` map the Dart
-/// `_analyzeAndStoreCurve` builds from these records is fed to the REAL
-/// `api_analyze_night`. The assertions (positive, monotone-non-decreasing
-/// curve; non-zero `target_snr`) fail with the old (noise-less) record and
-/// pass once `noise` rides through — no scripted fake curve can mask it.
+/// This drives the real pipeline both ways: `api_integrate_session` measures the
+/// per-sub `FrameQuality`, and the exact `qualities` map the Dart
+/// `_analyzeAndStoreCurve` builds from these records is fed to the real
+/// `api_analyze_night`, so no scripted curve can mask a zero. The assertions are
+/// a positive, monotone-non-decreasing curve and a non-zero `target_snr`.
 #[test]
 fn per_frame_noise_drives_a_positive_optimizer_curve() {
     let dir = temp_dir("per_frame_noise_drives_a_positive_optimizer_curve");
@@ -606,8 +599,7 @@ fn per_frame_noise_drives_a_positive_optimizer_curve() {
     let result: IntegrateSessionResult = serde_json::from_str(&resp).unwrap();
 
     // Every accepted sub carries a positive, finite noise + snr — the inputs
-    // the optimizer's variance sums need. (Pre-fix: `noise` did not exist on
-    // the record, so it crossed the FFI as 0 and killed the curve.)
+    // the optimizer's variance sums need.
     let accepted: Vec<&PerFrameRecord> = result
         .per_frame_stats
         .iter()

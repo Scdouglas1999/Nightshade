@@ -115,7 +115,7 @@ impl DeviceIdentity {
         }
     }
 
-    /// Compare against the identity previously observed for the same device id.
+    /// Compare against the identity last observed for the same device id.
     ///
     /// `Some(reason)` means the id has re-bound to different hardware; the
     /// string names both sides so the operator can see which camera they

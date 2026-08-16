@@ -25,9 +25,7 @@ use tokio::sync::RwLock;
 use super::super::*;
 use super::*;
 
-// =============================================================================
-// Filter Wheel Control
-// =============================================================================
+// Filter wheel control
 
 /// Set filter wheel position
 pub async fn filter_wheel_set_position(

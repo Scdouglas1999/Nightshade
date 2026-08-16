@@ -25,9 +25,7 @@ use tokio::sync::RwLock;
 use super::super::*;
 use super::*;
 
-// =============================================================================
-// Camera Exposure Control (Real Cameras)
-// =============================================================================
+// Camera exposure control (real cameras)
 
 /// Start camera exposure
 /// This delegates to api_camera_start_exposure which handles the full exposure
@@ -96,9 +94,7 @@ pub async fn set_camera_cooler(
         .map_err(NightshadeError::from)
 }
 
-// =============================================================================
-// Camera Readout Mode
-// =============================================================================
+// Camera readout mode
 
 /// Set camera readout mode by index
 ///
@@ -108,11 +104,6 @@ pub async fn api_camera_set_readout_mode(
     device_id: String,
     mode_index: i32,
 ) -> Result<(), NightshadeError> {
-    if device_id.starts_with("sim_") {
-        tracing::info!("Simulator camera readout mode set to index: {}", mode_index);
-        return Ok(());
-    }
-
     tracing::info!(
         "Setting camera readout mode for {}: index={}",
         device_id,
@@ -124,9 +115,7 @@ pub async fn api_camera_set_readout_mode(
         .map_err(NightshadeError::from)
 }
 
-// =============================================================================
-// Camera Binning (Legacy API - keeping for compatibility)
-// =============================================================================
+// Camera binning (legacy API, kept for compatibility)
 
 /// Set camera binning
 pub async fn api_set_camera_binning(
@@ -162,9 +151,7 @@ pub async fn api_camera_capture_preview(device_id: String) -> Result<Vec<u8>, Ni
         .map_err(NightshadeError::from)
 }
 
-// =============================================================================
-// Camera Auto-Detect Recommended Settings (IMG-P3-2)
-// =============================================================================
+// Camera auto-detect recommended settings
 
 /// Query the camera SDK for manufacturer-recommended gain/offset values.
 ///

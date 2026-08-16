@@ -432,10 +432,9 @@ mod tests {
         assert!(matches!(result, Err(FitsError::MissingKeyword(keyword)) if keyword == "NAXIS2"));
     }
 
-    /// The mapped reader used to read a 4-D cube as a 3-D image, silently
-    /// discarding every plane past NAXIS3 — while `read_fits` refused the same
-    /// file. Both derive geometry from `geometry_from_header` now, so a cube is
-    /// rejected on either path.
+    /// The mapped reader and `read_fits` both derive geometry from
+    /// `geometry_from_header`, so a 4-D cube is rejected on either path rather
+    /// than read as a 3-D image with every plane past NAXIS3 discarded.
     #[test]
     fn mapped_reader_rejects_a_4d_cube_like_read_fits_does() {
         let path = temp_path("naxis4");

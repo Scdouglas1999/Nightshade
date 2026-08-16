@@ -23,9 +23,7 @@ use thiserror::Error;
 /// and potential recovery actions.
 #[derive(Error, Debug, Clone)]
 pub enum NightshadeError {
-    // =========================================================================
-    // Device Discovery & Connection Errors
-    // =========================================================================
+    // Device discovery & connection errors
     #[error("Device not found: {0}")]
     DeviceNotFound(String),
 
@@ -41,9 +39,7 @@ pub enum NightshadeError {
     #[error("Device disconnected unexpectedly: {device_id} - {reason}")]
     DeviceDisconnected { device_id: String, reason: String },
 
-    // =========================================================================
-    // Hardware Errors
-    // =========================================================================
+    // Hardware errors
     /// General hardware error from device
     #[error("Hardware error: {device_id} - {message}")]
     HardwareError {
@@ -57,9 +53,7 @@ pub enum NightshadeError {
     #[error("Communication error: {device_id} - {message}")]
     CommunicationError { device_id: String, message: String },
 
-    // =========================================================================
-    // Timeout Errors
-    // =========================================================================
+    // Timeout errors
     /// Generic timeout error (for backwards compatibility)
     #[error("Operation timed out: {0}")]
     Timeout(String),
@@ -79,9 +73,7 @@ pub enum NightshadeError {
         timeout_secs: f64,
     },
 
-    // =========================================================================
-    // Parameter Validation Errors
-    // =========================================================================
+    // Parameter validation errors
     #[error("Invalid parameter: {0}")]
     InvalidParameter(String),
 
@@ -99,9 +91,7 @@ pub enum NightshadeError {
         max: String,
     },
 
-    // =========================================================================
-    // Operation Errors
-    // =========================================================================
+    // Operation errors
     #[error("Operation failed: {0}")]
     OperationFailed(String),
 
@@ -117,9 +107,7 @@ pub enum NightshadeError {
         current_operation: String,
     },
 
-    // =========================================================================
-    // Imaging Errors
-    // =========================================================================
+    // Imaging errors
     #[error("Image processing error: {0}")]
     ImageError(String),
 
@@ -138,9 +126,7 @@ pub enum NightshadeError {
     #[error("Image download failed: {camera_id} - {reason}")]
     DownloadFailed { camera_id: String, reason: String },
 
-    // =========================================================================
-    // I/O Errors
-    // =========================================================================
+    // I/O errors
     #[error("File I/O error: {0}")]
     IoError(String),
 
@@ -150,15 +136,11 @@ pub enum NightshadeError {
     #[error("Plate solving failed: {0}")]
     PlateSolveError(String),
 
-    // =========================================================================
-    // Sequence Errors
-    // =========================================================================
+    // Sequence errors
     #[error("Sequence error: {0}")]
     SequenceError(String),
 
-    // =========================================================================
-    // Driver-Specific Errors
-    // =========================================================================
+    // Driver-specific errors
     /// ASCOM driver error (Windows only)
     #[error("ASCOM error: {prog_id} - {message} (code: {error_code})")]
     AscomError {
@@ -197,9 +179,7 @@ pub enum NightshadeError {
     #[error("COM error: {message} (HRESULT: 0x{hresult:08X})")]
     ComError { message: String, hresult: u32 },
 
-    // =========================================================================
-    // System Errors
-    // =========================================================================
+    // System errors
     #[error("Internal error: {0}")]
     Internal(String),
 
@@ -214,9 +194,7 @@ pub enum NightshadeError {
 }
 
 impl NightshadeError {
-    // =========================================================================
-    // Constructor Helpers
-    // =========================================================================
+    // Constructor helpers
 
     /// Create a device timeout error
     pub fn device_timeout(
@@ -376,9 +354,7 @@ impl NightshadeError {
         }
     }
 
-    // =========================================================================
-    // Error Classification
-    // =========================================================================
+    // Error classification
 
     /// Returns true if this error is recoverable by retrying the same operation.
     ///
@@ -653,9 +629,7 @@ impl NightshadeError {
     }
 }
 
-// =========================================================================
-// From Implementations for Standard Library Types
-// =========================================================================
+// From implementations for standard library types
 
 impl From<std::io::Error> for NightshadeError {
     fn from(e: std::io::Error) -> Self {
@@ -699,9 +673,7 @@ impl From<&str> for NightshadeError {
     }
 }
 
-// =========================================================================
-// Backward Compatibility - Conversion TO String for Legacy APIs
-// =========================================================================
+// Backward compatibility - conversion to string for legacy APIs
 
 /// Convert NightshadeError to String for backward compatibility with APIs
 /// that return Result<T, String>
@@ -718,9 +690,7 @@ impl From<&NightshadeError> for String {
     }
 }
 
-// =========================================================================
-// FFI Serialization Support
-// =========================================================================
+// FFI serialization support
 
 /// Structured error information for FFI transfer
 ///
@@ -779,9 +749,7 @@ impl NightshadeError {
     }
 }
 
-// =========================================================================
-// Backward Compatibility - Legacy Error Conversion
-// =========================================================================
+// Backward compatibility - legacy error conversion
 
 // Allow converting legacy string-based InvalidDeviceId to new format
 impl NightshadeError {
@@ -805,9 +773,7 @@ impl NightshadeError {
 /// Result type alias for Nightshade operations
 pub type NightshadeResult<T> = Result<T, NightshadeError>;
 
-// =========================================================================
-// Safe Conversion Traits
-// =========================================================================
+// Safe conversion traits
 
 /// Extension trait for safely converting Results with context
 pub trait ResultExt<T> {

@@ -1,8 +1,6 @@
 use super::*;
 
-// -------------------------------------------------------------------------
 // Raw-frame diagnostic statistics
-// -------------------------------------------------------------------------
 
 #[test]
 fn frame_buffer_stats_match_the_four_pass_definition() {
@@ -28,19 +26,16 @@ fn frame_buffer_stats_of_a_flat_frame_report_equal_bounds() {
 
 #[test]
 fn frame_buffer_stats_of_an_empty_buffer_is_none() {
-    // The previous code guarded this with `if !data.is_empty()` before
-    // calling `.expect("non-empty data")`; keep that impossible to get wrong.
+    // An empty buffer answers `None` rather than making the caller guard with
+    // `if !data.is_empty()` before an `.expect("non-empty data")`.
     assert_eq!(FrameBufferStats::of(&[]), None);
 }
 
-// -------------------------------------------------------------------------
 // Pixel-container full scale (no hardware required)
-// -------------------------------------------------------------------------
 
 /// The container ceiling must be reported in the units the pixels arrive in.
-/// `(1 << bit_depth) - 1` — what this used to publish — is the ADC range and
-/// is 16x/4x too small for the 12/14-bit sensors that make up most of the
-/// ZWO line.
+/// `(1 << bit_depth) - 1` is the ADC range and is 16x/4x too small for the
+/// 12/14-bit sensors that make up most of the ZWO line.
 #[test]
 fn raw16_container_max_adu_accounts_for_left_justification() {
     // 12-bit ASI1600MM/ASI183/ASI294: 4095 << 4.
@@ -55,9 +50,7 @@ fn raw16_container_max_adu_accounts_for_left_justification() {
     assert_eq!(raw16_container_max_adu(16), 65535);
 }
 
-// -------------------------------------------------------------------------
 // Reported model (no hardware required)
-// -------------------------------------------------------------------------
 
 /// Fill an `ASICameraInfo` as the SDK would, with just the fields the model
 /// accessor reads.
@@ -143,9 +136,7 @@ fn raw16_container_max_adu_agrees_with_pipeline_saturation_threshold() {
     assert!(65024 <= 65504 && 65504 <= twelve_bit_ceiling);
 }
 
-// -------------------------------------------------------------------------
-// Connected-device registry tests (no hardware required)
-// -------------------------------------------------------------------------
+// Connected-device registry (no hardware required)
 
 /// Insert an EAF entry, verify it can be read back, then remove it.
 #[test]
@@ -309,10 +300,6 @@ fn efw_discovery_skip_returns_cached_metadata() {
         .unwrap_or_else(|e| e.into_inner())
         .remove(&id);
 }
-
-// -------------------------------------------------------------------------
-// Pre-existing tests
-// -------------------------------------------------------------------------
 
 #[test]
 fn zwo_cached_setting_updates_after_success_only() {

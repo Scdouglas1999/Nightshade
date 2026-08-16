@@ -1,9 +1,9 @@
 # cargo-deny configuration for the nightshade_native workspace.
 #
-# Policy seed for cargo-deny. CI's exact resolved-graph regression gate uses
-# `duplicate-versions-baseline.txt`. Reference:
-# docs/code-quality/(base64, thiserror, socket2,
-# getrandom, hashbrown, windows-sys, windows-targets duplicate semvers).
+# Policy seed for cargo-deny. The exact resolved-graph gate in CI reads
+# `duplicate-versions-baseline.txt`, which records the accepted duplicate
+# semvers (base64, thiserror, socket2, getrandom, hashbrown, windows-sys,
+# windows-targets).
 #
 # Format reference: https://embarkstudios.github.io/cargo-deny/
 

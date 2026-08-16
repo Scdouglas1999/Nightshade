@@ -105,20 +105,17 @@ pub struct TriggerState {
     /// in flight.
     ///
     /// A trigger recovery action that drives the camera itself — autofocus is
-    /// the one that fires on a timer — must not start while the capture loop
-    /// is mid-frame. It did, and the frame was destroyed: the autofocus began
-    /// its own exposures 0.35 s after a 10 s light started, and when the
-    /// capture loop came to download its frame the camera had nothing for it
-    /// ("No exposure is available to download"). That failed the exposure
-    /// node, and the sequential parent took the capture loop and the entire
-    /// run with it — at frame 25 of every run, since that is the default
-    /// autofocus cadence.
+    /// the one that fires on a timer — must not start while the capture loop is
+    /// mid-frame: its own exposures leave the capture loop nothing to download
+    /// ("No exposure is available to download"), which fails the exposure node
+    /// and takes the sequential parent and the run down with it, at frame 25 of
+    /// every run since that is the default autofocus cadence.
     ///
     /// This is a deadline rather than a boolean on purpose. A boolean that is
     /// never cleared (a panic, an early return down a path nobody updated)
     /// would block every future autofocus for the rest of the night; a
     /// deadline in the past simply stops holding, so the failure mode of this
-    /// mechanism is the behaviour we had before it, not a wedged run.
+    /// mechanism is an unheld autofocus, not a wedged run.
     pub camera_busy_until_ms: Option<i64>,
 
     /// Consecutive failed dithers. A single failure is noise; a run of them
@@ -173,19 +170,15 @@ pub struct TriggerState {
     /// safe than the hardware verdict ("fail closed"). Pushed via
     /// `ExecutorCommand::UpdateWeatherVerdict`.
     pub weather_verdict_unsafe: Option<bool>,
-    /// Architecture-unification 2026-06-05 (Subsystem 2 step 3 — stale-verdict
-    /// observability): the monotonic timestamp of the most recent
-    /// `update_weather_verdict` push. `None` until the Dart side has pushed at
-    /// least once.
+    /// The monotonic timestamp of the most recent `update_weather_verdict`
+    /// push. `None` until the Dart side has pushed at least once.
     ///
-    /// A pushed `Some(true)` (UNSAFE) verdict is FAIL-CLOSED: if the Dart feed
-    /// then goes silent, the verdict is deliberately NOT auto-cleared — holding
-    /// the sequence paused is the correct safe behaviour. But an INDEFINITE hold
-    /// must never be SILENT. The safety poll loop uses this timestamp to detect
-    /// a stale-AND-unsafe verdict and emit a loud warning event so the operator
-    /// knows the hold is being sustained by a dead feed rather than fresh data.
-    /// It is NEVER used to resume — staleness only adds observability, never
-    /// anti-safety auto-resume.
+    /// A pushed `Some(true)` (UNSAFE) verdict is FAIL-CLOSED: a silent Dart feed
+    /// does NOT auto-clear it, because holding the sequence paused is the safe
+    /// behaviour. An INDEFINITE hold must not be SILENT, though, so the safety
+    /// poll loop uses this timestamp to detect a stale-AND-unsafe verdict and
+    /// emit a loud warning: the operator learns the hold is sustained by a dead
+    /// feed rather than fresh data. It is NEVER used to resume.
     pub weather_verdict_last_update: Option<Instant>,
 
     // Temperature
@@ -202,23 +195,17 @@ pub struct TriggerState {
     pub observer_latitude: Option<f64>,
     pub observer_longitude: Option<f64>,
 
-    /// Architecture-unification 2026-06-07 (W1 native daylight gate): the
-    /// maximum Sun altitude (degrees above the horizon) at which an on-sky
-    /// LIGHT capture is allowed. Seeded by the executor from
-    /// `RuntimeConfig::max_sun_altitude_degrees` so the structural native
-    /// daylight START gate in `instructions::execute_slew` / `execute_exposure`
-    /// can read the configured threshold through the shared trigger state.
-    ///
-    /// Remediation 2026-06-09 (finding #2): the Dart side now genuinely pushes
-    /// its `SchedulerConfig.maxSunAltitudeDegrees` here via
-    /// `SequenceExecutor::update_max_sun_altitude`
-    /// ([`crate::executor::ExecutorCommand::UpdateMaxSunAltitude`]), so this
-    /// value really does mirror the Dart scheduler's threshold. `None` until
+    /// The maximum Sun altitude (degrees above the horizon) at which an on-sky
+    /// LIGHT capture is allowed, carried here so the native daylight gate in
+    /// `instructions::execute_slew` / `execute_exposure` can read it through the
+    /// shared trigger state. The executor seeds it from
+    /// `RuntimeConfig::max_sun_altitude_degrees`, which the Dart side pushes from
+    /// `SchedulerConfig.maxSunAltitudeDegrees` via
+    /// [`crate::executor::ExecutorCommand::UpdateMaxSunAltitude`]. `None` until
     /// seeded; the gate then falls back to
-    /// [`crate::instructions::DEFAULT_MAX_SUN_ALTITUDE_DEGREES`] (-12°, the Dart
-    /// default), so even an un-pushed gate is no weaker than the Dart W1 gate.
-    /// This value is NOT itself a trigger — it carries config to the
-    /// instruction-layer gate.
+    /// [`crate::instructions::DEFAULT_MAX_SUN_ALTITUDE_DEGREES`] (-12°). This
+    /// value is not itself a trigger — it carries config to the instruction-layer
+    /// gate.
     pub max_sun_altitude_degrees: Option<f64>,
 
     // Frame counting for periodic triggers
@@ -258,7 +245,6 @@ pub struct TriggerState {
     /// Incremented after each dither, wraps around to 0 after grid_size*grid_size.
     pub grid_dither_index: u32,
 
-    // ---------------------------------------------------------------------
     // Cloud-motion telemetry.
     //
     // Fed by `ExecutorCommand::UpdateCloudMotion` which the Dart side
@@ -266,7 +252,6 @@ pub struct TriggerState {
     // 60 seconds). All fields are `Option` because the analyzer may not
     // yet have enough radar history; an absent field disables the
     // corresponding trigger evaluation rather than firing spuriously.
-    // ---------------------------------------------------------------------
     /// Current cloud coverage percentage (0-100). Source: Dart
     /// `cloudCoverPercentageProvider` (Open-Meteo) merged with analyzer.
     pub current_cloud_coverage_percent: Option<f64>,
@@ -292,14 +277,12 @@ pub struct TriggerState {
     /// telemetry is fresh; also used by validation to flag stale data.
     pub cloud_motion_last_update: Option<Instant>,
 
-    // ---------------------------------------------------------------------
     // Science — Sky transparency telemetry.
     //
     // Fed by `ExecutorCommand::UpdateTransparency` which the Dart science
     // pipeline pushes whenever the transparency sampler produces a new
     // reading. `None` until the science pipeline has a first sample;
     // `Some(fraction)` carries the live 0.0..=1.0 transparency reading.
-    // ---------------------------------------------------------------------
     /// Live transparency reading (0.0..=1.0; 1.0 = clear). Consumed by
     /// `TransparencyDropped`.
     pub current_transparency: Option<f64>,
@@ -425,10 +408,9 @@ impl TriggerState {
     }
 
     /// Append a guiding-RMS sample and trim the rolling history to
-    /// `self.guiding_rms_retention_secs`. the previously hardcoded
-    /// 300-second window is now configurable via
-    /// `set_guiding_rms_retention_secs` (driven by the GuidingFailed trigger
-    /// configuration in the trigger evaluator). Default remains 300s.
+    /// `self.guiding_rms_retention_secs`, the window set by
+    /// `set_guiding_rms_retention_secs` from the GuidingFailed trigger
+    /// configuration (default 300 s).
     pub fn update_guiding_rms(&mut self, rms: f64) {
         if self.guiding_rms_history.is_none() {
             self.guiding_rms_history = Some(Vec::new());
@@ -524,28 +506,18 @@ impl TriggerState {
     }
 
     /// Clear the per-RUN latches so a second run in the same app launch does not
-    /// inherit the previous run's transient trigger state.
-    ///
-    /// Observed on the live rig: run 1 changed to "Filter 2" and left
-    /// `autofocus_invalidated` set; run 2 (a different sequence, changing to
-    /// "Filter 4") force-fired the HFR trigger one second after start with the
-    /// reason `filter changed to Filter 2` — a filter that run 2 never selected.
-    /// [`TriggerManager`] and its state are built once in
-    /// [`SequenceExecutor::new`] and outlive every run, so nothing else resets
-    /// these.
+    /// inherit the previous run's transient trigger state. [`TriggerManager`] and
+    /// its state are built once in [`SequenceExecutor::new`] and outlive every
+    /// run, so nothing else resets these — an inherited `autofocus_invalidated`
+    /// force-fires the HFR trigger seconds into the next run, and an inherited
+    /// target makes the altitude-limit trigger skip a whole tree (while reporting
+    /// `completed`) on coordinates this run never had, or slew to the previous
+    /// target in daylight.
     ///
     /// Deliberately NOT cleared here: operator/runtime configuration
     /// (thresholds, retention windows, meridian config) and live device
     /// telemetry (weather verdict, pier side), which are properties of the rig
     /// rather than of a run.
-    ///
-    /// Simulator campaign 2026-07-28 (Q1/Q2): the target is a property of the
-    /// RUN and was previously left alone, so a sequence with no `TargetHeader`
-    /// anywhere inherited the previous run's coordinates. Its altitude-limit
-    /// trigger fired 4 ms after start (on an altitude computed from a target
-    /// this run never had) and skipped the whole tree while reporting
-    /// `completed`; its meridian trigger slewed the mount to the previous
-    /// target in daylight.
     pub fn reset_for_new_run(&mut self) {
         self.baseline_hfr = None;
         self.current_hfr = None;
@@ -677,10 +649,9 @@ impl TriggerState {
     /// `predicted_arrival_minutes: None`.
     ///
     /// `current_cover_percent` outside `[0, 100]` is clamped, but the original
-    /// out-of-range value is logged at WARN so a buggy data source is loud
-    /// ("errors are a feature"). NaN / inf flow through `.filter`
-    /// — they would have been treated as "fire" by the comparison operators
-    /// otherwise, which is exactly the silent-fallback bug we forbid.
+    /// out-of-range value is logged at WARN so a buggy data source is loud. NaN /
+    /// inf are dropped by `.filter` — the comparison operators would otherwise
+    /// read them as "fire".
     pub fn update_cloud_motion(
         &mut self,
         current_cover_percent: Option<f64>,
@@ -722,12 +693,12 @@ impl TriggerState {
         self.current_humidity = Some(humidity);
     }
 
-    /// W1 native daylight gate — seed the configured maximum Sun altitude
-    /// (degrees) for on-sky LIGHT captures so the instruction-layer gate
-    /// (`instructions::execute_slew` / `execute_exposure`) can read it through
-    /// the shared trigger state. A non-finite value is rejected (stored as
-    /// `None`) so the gate falls back to its default rather than silently
-    /// disabling itself on a NaN/inf config push ("fail closed").
+    /// Seed the configured maximum Sun altitude (degrees) for on-sky LIGHT
+    /// captures so the instruction-layer gate (`instructions::execute_slew` /
+    /// `execute_exposure`) can read it through the shared trigger state. A
+    /// non-finite value is rejected (stored as `None`) so the gate falls back to
+    /// its default rather than silently disabling itself on a NaN/inf config
+    /// push.
     /// Move the observer to a new site.
     ///
     /// Clearing `dawn_time` is the point of having a setter at all: the
@@ -766,10 +737,9 @@ impl TriggerState {
         self.weather_verdict_last_update = Some(Instant::now());
     }
 
-    /// Architecture-unification 2026-06-05 (Subsystem 2 step 3): true when a
-    /// `Some(true)` (UNSAFE) verdict has not been refreshed within
-    /// `staleness_secs`. Used by the safety poll to emit a loud
-    /// "verdict feed stale; holding paused fail-closed" warning.
+    /// True when a `Some(true)` (UNSAFE) verdict has not been refreshed within
+    /// `staleness_secs`. Used by the safety poll to emit a loud "verdict feed
+    /// stale; holding paused fail-closed" warning.
     ///
     /// Returns false (NOT stale) when:
     ///   * the verdict is not `Some(true)` (a safe / abstaining verdict that
@@ -792,8 +762,7 @@ impl TriggerState {
 
     /// Science: store the latest transparency reading. `None`
     /// clears the slot (used when the science pipeline loses lock).
-    /// NaN / infinite values are dropped via `is_finite` rather than
-    /// silently stored — "errors are a feature".
+    /// NaN / infinite values are dropped via `is_finite` rather than stored.
     pub fn update_transparency(&mut self, transparency: Option<f64>) {
         let sanitised = transparency.filter(|v| v.is_finite()).map(|v| {
             if !(0.0..=1.5).contains(&v) {
@@ -866,9 +835,7 @@ impl TriggerState {
         self.grid_dither_index = 0;
     }
 
-    // ========================================================================
     // Meridian Flip State Management
-    // ========================================================================
 
     /// Update the current hour angle (call periodically from mount polling)
     pub fn update_hour_angle(&mut self, hour_angle: f64) {
@@ -932,12 +899,11 @@ impl TriggerState {
 
     /// Update the current pier side and clear `has_flipped_this_target` if
     /// the mount has returned to the side it was on before the recorded flip.
-    /// a long single-target session that crosses two meridians
-    /// (high latitude / pause-resume / mosaic-with-shared-name) used to
-    /// silently skip the second flip because the flag was only ever cleared
-    /// by a target-name change. Observing the original pier side is
-    /// authoritative evidence that the mount is back on the pre-flip side
-    /// and a fresh flip is again required.
+    /// Observing the original pier side is authoritative evidence that the mount
+    /// is back on the pre-flip side and a fresh flip is again required — a long
+    /// single-target session that crosses two meridians (high latitude,
+    /// pause-resume, mosaic with a shared name) never changes target name, so
+    /// that alone cannot clear the flag.
     pub fn update_pier_side(&mut self, pier_side: PierSide) {
         self.pier_side = Some(pier_side);
         self.on_pier_side_observed(pier_side);
@@ -956,9 +922,8 @@ impl TriggerState {
         }
         let Some(origin) = self.flip_origin_pier_side else {
             // Why: without an origin we cannot reason about a return-to-pre-flip
-            // event. Clearing on every observation would re-introduce the
-            // double-flip bug §1.3 fixed, so we leave the flag set until the
-            // user changes target.
+            // event. Clearing on every observation reopens the double-flip
+            // bug, so we leave the flag set until the user changes target.
             return;
         };
         // Unknown is non-actionable — wait for a real reading.
@@ -1021,7 +986,7 @@ impl TriggerState {
             Some(PierSide::West) => Some(PierSide::East),
             // Why: if telemetry is unavailable we cannot compute the origin
             // safely; leaving it None keeps the flag latched until target
-            // change (matches §1.9's safe-default policy).
+            // change, which is the safe default.
             _ => None,
         };
         tracing::info!(

@@ -24,10 +24,6 @@ use tokio::sync::RwLock;
 // Sibling-module items via the parent's pub use re-exports.
 use super::*;
 
-// =============================================================================
-// Event Stream
-// =============================================================================
-
 /// Stream of events from the native side
 /// The Dart side should listen to this stream for UI updates
 ///

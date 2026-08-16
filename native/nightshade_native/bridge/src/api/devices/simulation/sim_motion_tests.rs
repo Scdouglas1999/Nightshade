@@ -126,7 +126,7 @@ async fn api_pulse_guide_moves_the_simulated_field() {
 }
 
 /// An unknown direction must be rejected rather than silently sleeping —
-/// and rejected for THAT reason, not because the device was missing.
+/// and rejected for THAT reason, not because the device is missing.
 #[tokio::test]
 async fn api_pulse_guide_rejects_an_unknown_direction() {
     attach_sim_mount("sim_mount_direction").await;

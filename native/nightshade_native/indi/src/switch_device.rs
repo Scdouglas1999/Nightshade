@@ -54,9 +54,7 @@ impl IndiSwitchDevice {
         &self.device_name
     }
 
-    // =========================================================================
     // Connection
-    // =========================================================================
 
     /// Connect to the switch device
     pub async fn connect(&self) -> IndiResult<()> {
@@ -76,9 +74,7 @@ impl IndiSwitchDevice {
         client.is_device_connected(&self.device_name).await
     }
 
-    // =========================================================================
-    // Switch Discovery
-    // =========================================================================
+    // Switch discovery
 
     /// Get all switch-type properties on this device
     ///
@@ -143,9 +139,7 @@ impl IndiSwitchDevice {
         switches
     }
 
-    // =========================================================================
-    // Switch Control
-    // =========================================================================
+    // Switch control
 
     /// Get the state of a specific switch element
     pub async fn get_switch_state(&self, property_name: &str, element: &str) -> Option<bool> {

@@ -272,12 +272,12 @@ fn nearest_star_respects_max_distance() {
     assert!(nearest_star(&stars, Vec2 { x: 100.0, y: 100.0 }, 5.0).is_none());
 }
 
-/// WF-SN-N1: one Auto Select click logged two different positions for one
-/// star — "chose a guide star at (967.8, 724.3) px" and then "locked guide
-/// star at (24.8, 25.3) px" — and the operator-facing banner showed the
-/// second. The two numbers are the same star in two coordinate spaces: the
-/// full guide frame, and the 50 px crop cut around it. Only the first is a
-/// position anyone can act on.
+/// One Auto Select click must not log two different positions for one star —
+/// "chose a guide star at (967.8, 724.3) px" and then "locked guide star at
+/// (24.8, 25.3) px" — with the operator-facing banner showing the second. The
+/// two numbers are the same star in two coordinate spaces: the full guide
+/// frame, and the 50 px crop cut around it. Only the first is a position
+/// anyone can act on.
 #[test]
 fn reported_lock_position_is_in_frame_coordinates() {
     let image = ImageData::from_u16(200, 200, 1, &vec![0u16; 200 * 200]);
@@ -317,7 +317,6 @@ fn crop_raw_image_returns_16bit_payload() {
     assert_eq!(crop.pixels.len(), 8);
 }
 
-// =========================================================================
 // Multi-star guider math (star selection, robust centroid, calibration,
 // backlash, correction clamps, adaptive/spiral dither).
 //
@@ -325,7 +324,6 @@ fn crop_raw_image_returns_16bit_payload() {
 // the guiding-quality logic is validated without a mount or camera. Honest
 // gap: none of this is a substitute for an on-sky calibration/guiding run,
 // which belongs in the on-sky campaign.
-// =========================================================================
 
 /// Build a `DetectedStar` with explicit quality fields for selection tests.
 fn star_q(x: f64, y: f64, flux: f64, snr: f64, peak: f64, ecc: f64) -> DetectedStar {
@@ -383,7 +381,7 @@ fn refs_from(stars: &[DetectedStar]) -> Vec<GuideReferenceStar> {
     select_reference_stars(stars, 800, 800)
 }
 
-// --- Star selection ------------------------------------------------------
+// Star selection
 
 #[test]
 fn selection_rejects_saturated_faint_elongated_and_edge_stars() {
@@ -408,7 +406,7 @@ fn selection_caps_at_max_tracked_stars() {
     assert_eq!(refs.len(), GUIDE_MAX_TRACKED_STARS);
 }
 
-// --- Robust weighted centroid -------------------------------------------
+// Robust weighted centroid
 
 #[test]
 fn weighted_centroid_recovers_known_displacement() {
@@ -500,7 +498,7 @@ fn single_star_falls_back_to_plain_weighted_mean() {
     assert!((offset.y + 2.0).abs() < 1e-6);
 }
 
-// --- Calibration math ----------------------------------------------------
+// Calibration math
 
 #[test]
 fn calibration_recovers_angles_rates_and_orthogonality() {
@@ -564,7 +562,7 @@ fn zero_reverse_offset_would_infer_a_full_pulse_of_backlash() {
     assert_eq!(estimate_dec_backlash_ms(fwd, lost_star, 2000.0), 2000.0);
 }
 
-// --- Corrections: aggressiveness, clamps, backlash compensation ----------
+// Corrections: aggressiveness, clamps, backlash compensation
 
 fn ortho_calib(backlash_ms: f64) -> GuideCalibration {
     // RA +x, Dec +y, 1 px/pulse on each, pulse = 100 ms.
@@ -681,7 +679,7 @@ fn dec_backlash_added_only_on_reversal() {
     assert!((same_dir.dec_ms.expect("dec") + 500.0).abs() < 1e-6);
 }
 
-// --- Sub-minimum pulse carry (standing-offset defect) -------------------
+// Sub-minimum pulse carry (standing-offset defect)
 
 /// A realistic rig: 1.5 px per 250 ms pulse (what the simulator produces and
 /// the same order as a real short guide scope), stock aggressiveness and the
@@ -884,7 +882,7 @@ fn realistic_calib_with_backlash(backlash_ms: f64) -> GuideCalibration {
     .expect("calib")
 }
 
-// --- Adaptive / spiral dither -------------------------------------------
+// Adaptive / spiral dither
 
 #[test]
 fn dither_spiral_walks_to_fresh_pixels() {
@@ -1019,13 +1017,13 @@ fn abandoned_dither_rolls_back_and_leaves_guiding_running() {
 /// A settle is an episode with an end. Once it completes, ordinary guiding
 /// frames must not open a new one.
 ///
-/// Live finding IMG-8: the Guiding screen read `Settling` for 127 frames
-/// (2.5 minutes) at 0.26px total RMS while the status bar of the same screen
-/// read `Guiding`. The loop re-armed the settle on the first in-tolerance
-/// frame AFTER each settle completed, so it published `Settling` again
-/// within a frame of every `Settled` — perpetually "about to be guiding".
-/// Automated flows gate on settled, and the re-armed timeout could also fail
-/// the loop task (stopping guiding) over a session that was guiding fine.
+/// Re-arming the settle on the first in-tolerance frame AFTER each settle
+/// completes publishes `Settling` again within a frame of every `Settled` —
+/// perpetually "about to be guiding". Observed as the Guiding screen reading
+/// `Settling` for 127 frames (2.5 minutes) at 0.26px total RMS while the
+/// status bar of the same screen read `Guiding`. Automated flows gate on
+/// settled, and the re-armed timeout can also fail the loop task (stopping
+/// guiding) over a session that is guiding fine.
 #[tokio::test]
 async fn a_completed_settle_does_not_re_arm_on_the_next_guiding_frame() {
     let controller = Arc::new(RwLock::new(BuiltinGuiderState {
@@ -1063,11 +1061,11 @@ async fn a_completed_settle_does_not_re_arm_on_the_next_guiding_frame() {
     );
 }
 
-/// Live finding IMG-9: through a whole Loop Exposures run the guide-star
-/// badge read `SNR: 0.0`, Star Statistics read `SNR —` / `Star Mass —` /
-/// `Frame Count 0`, and the thumbnail plainly contained a bright star. Every
-/// one of those readouts is fed by the `GuideStats` event, and the looping
-/// path stored its measurement without ever announcing it.
+/// A looping frame must announce its star measurement. The guide-star badge
+/// and Star Statistics' `SNR` / `Star Mass` / `Frame Count` are all fed by the
+/// `GuideStats` event, so a looping path that stores its measurement without
+/// emitting one leaves the badge reading `SNR: 0.0` and the statistics blank
+/// through a whole Loop Exposures run over a plainly bright star.
 #[tokio::test]
 async fn a_looping_frame_announces_its_star_measurement() {
     let mut events = get_state().event_bus.subscribe();
@@ -1132,18 +1130,15 @@ fn dither_ra_only_stays_on_ra_axis_and_alternates() {
     );
 }
 
-// =========================================================================
-// start/stop lifecycle race (v4 review blocker #7)
+// start/stop lifecycle race
 //
-// The built-in guider stores the loop's `stop_flag`/`task` AFTER spawning the
-// loop, so a concurrent `stop()` in that window found `None`, signalled
-// nothing, and orphaned a mount-pulsing loop. The fix stores the stop flag in
-// the same write-lock critical section that flips the run-state (before the
-// spawn) and serializes every lifecycle entry point with `op_lock`, so a stop
-// can never interleave a start and lose the cancel. These tests use a
-// synthetic loop (no hardware) that reports liveness so an orphan is directly
-// observable.
-// =========================================================================
+// Storing the loop's `stop_flag`/`task` AFTER spawning the loop leaves a window
+// where a concurrent `stop()` finds `None`, signals nothing, and orphans a
+// mount-pulsing loop. The stop flag is stored in the same write-lock critical
+// section that flips the run-state (before the spawn) and every lifecycle entry
+// point serializes on `op_lock`, so a stop can never interleave a start and
+// lose the cancel. These tests use a synthetic loop (no hardware) that reports
+// liveness so an orphan is directly observable.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -1209,10 +1204,10 @@ async fn start_then_immediate_stop_cancels_loop() {
 #[tokio::test]
 async fn active_loop_always_has_a_live_stop_flag() {
     let _serial = test_serial().lock().await;
-    // The invariant the old ordering violated: whenever the run-state says a
-    // loop is active, a `stop_flag` is present for `stop()` to signal. The old
-    // code set `guiding=true`, released the lock, spawned, and only THEN stored
-    // the flag — leaving a window where `guiding==true && stop_flag==None`.
+    // Whenever the run-state says a loop is active, a `stop_flag` must be present
+    // for `stop()` to signal. Flipping `guiding=true`, releasing the lock,
+    // spawning, and only then storing the flag leaves a window where
+    // `guiding==true && stop_flag==None`.
     reset_guider_state().await;
     let live = Arc::new(AtomicUsize::new(0));
     start_synthetic_loop(live.clone()).await;
@@ -1237,12 +1232,11 @@ async fn active_loop_always_has_a_live_stop_flag() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn concurrent_start_stop_start_never_orphans_loop() {
     let _serial = test_serial().lock().await;
-    // Reproduce the permanent-orphan window: two starts and a stop fired
-    // concurrently. With the pre-fix ordering, a stop landing in start1's
-    // spawn→record window dropped start1's cancel, then start2 OVERWROTE the
-    // stored flag/handle — stranding loop1 forever (its flag clone is no longer
-    // reachable from any future stop). `live` (loops currently running) must
-    // return to 0 after a final stop; a non-zero count is a leaked
+    // Two starts and a stop fired concurrently. Without the op-lock a stop
+    // landing in start1's spawn→record window drops start1's cancel and start2
+    // then overwrites the stored flag/handle, stranding loop1 forever — its flag
+    // clone is no longer reachable from any future stop. `live` (loops currently
+    // running) must return to 0 after a final stop; a non-zero count is a leaked
     // mount-pulsing loop. The op-lock makes start1/stop/start2 atomic, so each
     // start's `stop_locked()` joins the prior loop and nothing leaks.
     for round in 0..150 {

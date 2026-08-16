@@ -137,7 +137,7 @@ mod tests {
         // broadcast service and returns Success without doing any I/O.
         let _broadcast_guard = crate::broadcast::test_lock();
         crate::broadcast::deactivate();
-        let mut ctx = ExecutionContext::new("ls-1".to_string());
+        let mut ctx = ExecutionContext::new_for_test("ls-1".to_string());
         let cfg = LiveStackingConfig {
             mode: LiveStackingMode::BroadcastOnly,
             stack_method: StackMethod::Sigma,
@@ -166,7 +166,7 @@ mod tests {
         // Two LiveStacking nodes in one sequence: the second wins.
         let _broadcast_guard = crate::broadcast::test_lock();
         crate::broadcast::deactivate();
-        let mut ctx = ExecutionContext::new("ls-1".to_string());
+        let mut ctx = ExecutionContext::new_for_test("ls-1".to_string());
 
         let cfg1 = LiveStackingConfig {
             broadcast_port: 8081,
@@ -192,7 +192,7 @@ mod tests {
 
     #[tokio::test]
     async fn live_stacking_rejects_wrong_variant() {
-        let mut ctx = ExecutionContext::new("ls-1".to_string());
+        let mut ctx = ExecutionContext::new_for_test("ls-1".to_string());
         let wrong = NodeType::Park;
         let status = LiveStackingInstruction
             .execute("ls-1", &wrong, &mut ctx)

@@ -7,10 +7,9 @@
 //! It mirrors [`crate::api::post_session`] exactly — the same **minimal**
 //! `String -> Result<String, String>` boundary, the same
 //! `#[flutter_rust_bridge::frb(ignore)]` serde DTOs that ride *inside* the JSON
-//! payload so new knobs never trigger another FRB regen, and the same
-//! "errors are a feature" contract: every failure (unreadable frame,
-//! too-few-stars, malformed PSF, write failure) surfaces as `Err(String)`,
-//! never a silent degraded preview.
+//! payload so new knobs never trigger another FRB regen, and the same failure
+//! contract: every failure (unreadable frame, too-few-stars, malformed PSF,
+//! write failure) surfaces as `Err(String)`, never a silent degraded preview.
 //!
 //! The boundary is exactly three `pub fn`:
 //!
@@ -34,9 +33,7 @@ use nightshade_imaging::{read_fits, write_fits, FitsHeader, ImageData, PixelType
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-// =============================================================================
 // Public FFI entry points
-// =============================================================================
 
 /// Fit a star-masked, low-order polynomial background model and write the
 /// background-subtracted (flattened) frame as a linear `F32` FITS master.
@@ -91,9 +88,7 @@ pub fn api_reduce_stars_preview(args_json: String) -> Result<String, String> {
     serde_json::to_string(&result).map_err(|e| format!("failed to encode result: {e}"))
 }
 
-// =============================================================================
 // api_extract_background
-// =============================================================================
 
 /// Tunables for [`api_extract_background`] (subset of [`BackgroundConfig`]).
 /// Each unset field keeps the production [`BackgroundConfig::default`] value.
@@ -188,9 +183,7 @@ fn extract_background_impl(args: ExtractBackgroundArgs) -> Result<ExtractBackgro
     })
 }
 
-// =============================================================================
 // api_deconvolve_preview
-// =============================================================================
 
 /// PSF parameters supplied when `estimatePsf` is false. The bridge renders a
 /// sum-normalized kernel from these so [`deconvolution::richardson_lucy`] can
@@ -445,9 +438,7 @@ fn psf_kind_str(kind: PsfKind) -> &'static str {
     }
 }
 
-// =============================================================================
 // api_reduce_stars_preview
-// =============================================================================
 
 /// Star-reduction knobs (subset of [`StarReductionConfig`]). Each unset field
 /// keeps the production [`StarReductionConfig::default`] value.
@@ -540,9 +531,7 @@ fn reduce_stars_preview_impl(
     })
 }
 
-// =============================================================================
 // Shared helpers
-// =============================================================================
 
 /// Convert an image to `F32` for an archival linear master, de-interleaving and
 /// promoting any supported source pixel type. A frame already `F32` is returned
@@ -592,9 +581,7 @@ fn ensure_parent_dir(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
-// =============================================================================
 // Tests
-// =============================================================================
 
 #[cfg(test)]
 mod tests {
@@ -602,10 +589,8 @@ mod tests {
     use nightshade_imaging::read_fits;
     use std::path::PathBuf;
 
-    /// A scratch directory that deletes itself when the test ends.
-    /// `Drop` rather than the trailing `remove_file` calls these tests used to
-    /// finish with: the leak was worst exactly when a test FAILED, and a
-    /// trailing cleanup never runs while a panic unwinds — drop does.
+    /// A scratch directory that deletes itself when the test ends. Cleanup runs
+    /// from `Drop`, so it happens even while a panic unwinds out of a failing test.
     struct TempDir(PathBuf);
 
     impl std::ops::Deref for TempDir {
@@ -697,9 +682,7 @@ mod tests {
         write_fits(path, image, &h).expect("write synthetic master");
     }
 
-    // -------------------------------------------------------------------------
     // api_extract_background
-    // -------------------------------------------------------------------------
 
     /// A gradient sky with a few stars flattens to a readable `F32` master of the
     /// same geometry, and the result reports the fitted degree + per-channel mean.
@@ -738,9 +721,7 @@ mod tests {
         assert_eq!(img.channels, 1);
     }
 
-    // -------------------------------------------------------------------------
     // api_deconvolve_preview
-    // -------------------------------------------------------------------------
 
     /// Deconvolution with an explicitly supplied Moffat PSF restores a readable
     /// frame and echoes the PSF actually used.
@@ -811,9 +792,7 @@ mod tests {
         assert_eq!(img.width, size);
     }
 
-    // -------------------------------------------------------------------------
     // api_reduce_stars_preview
-    // -------------------------------------------------------------------------
 
     /// Star reduction writes a same-geometry reduced frame preserving pixel type.
     #[test]
@@ -841,9 +820,7 @@ mod tests {
         assert_eq!(img.height, size);
     }
 
-    // -------------------------------------------------------------------------
     // Error paths
-    // -------------------------------------------------------------------------
 
     /// Bad JSON, a missing required path, and a nonexistent input FITS all surface
     /// as `Err` — never a silent degraded preview — across all three entry points.

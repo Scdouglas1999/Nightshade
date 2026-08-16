@@ -38,9 +38,7 @@ use nightshade_imaging::{
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-// =============================================================================
 // api_drizzle_integrate — JSON contracts
-// =============================================================================
 
 /// One frame's contribution to a drizzle integration.
 ///
@@ -181,9 +179,7 @@ struct DrizzleIntegrateResult {
     channels: u32,
 }
 
-// =============================================================================
 // api_combine_channels — JSON contracts
-// =============================================================================
 
 /// Top-level request for [`api_combine_channels`].
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -216,9 +212,7 @@ struct CombineChannelsResult {
     height: u32,
 }
 
-// =============================================================================
 // Public FFI entry points
-// =============================================================================
 
 /// Drizzle (variable-pixel linear reconstruction) a population of registered
 /// frames onto a `scale`× output grid.
@@ -231,9 +225,8 @@ struct CombineChannelsResult {
 /// per-pixel drizzle-weight map is written there too.
 ///
 /// `args_json` is a [`DrizzleIntegrateArgs`]; the result is a
-/// [`DrizzleIntegrateResult`]. Every failure (no frames, unreadable frame,
-/// missing Bayer header in Bayer mode, geometry mismatch, bad parameters, write
-/// failure) surfaces as `Err(String)` — never a silent partial stack.
+/// [`DrizzleIntegrateResult`]. Every failure surfaces as `Err(String)` rather
+/// than a partial stack.
 pub fn api_drizzle_integrate(args_json: String) -> Result<String, String> {
     let args: DrizzleIntegrateArgs =
         serde_json::from_str(&args_json).map_err(|e| format!("invalid drizzle args: {e}"))?;
@@ -257,9 +250,7 @@ pub fn api_combine_channels(args_json: String) -> Result<String, String> {
     serde_json::to_string(&result).map_err(|e| format!("failed to encode result: {e}"))
 }
 
-// =============================================================================
 // api_drizzle_integrate implementation
-// =============================================================================
 
 fn drizzle_integrate_impl(args: DrizzleIntegrateArgs) -> Result<DrizzleIntegrateResult, String> {
     if args.frames.is_empty() {
@@ -274,7 +265,7 @@ fn drizzle_integrate_impl(args: DrizzleIntegrateArgs) -> Result<DrizzleIntegrate
 
     let cfg = build_drizzle_config(&args.config)?;
 
-    // --- Load calibration masters once (shared across all subs). ---
+    // Load calibration masters once (shared across all subs).
     //
     // DRIZZLE CALIBRATION CONTRACT: the drizzle must calibrate each sub with the
     // SAME dark/flat/bias the standard integrate pass applied — otherwise the
@@ -310,8 +301,8 @@ fn drizzle_integrate_impl(args: DrizzleIntegrateArgs) -> Result<DrizzleIntegrate
 
         if args.bayer {
             // Raw CFA mode: the mosaic must be a single-channel buffer, and the
-            // Bayer pattern is read from the typed FITS header. We refuse to
-            // guess a pattern (mis-coloured reconstruction otherwise).
+            // Bayer pattern is read from the typed FITS header; guessing a
+            // pattern mis-colours the reconstruction.
             if image.channels != 1 {
                 return Err(format!(
                     "Bayer drizzle requires a single-channel CFA mosaic, but '{}' has {} channels",
@@ -327,7 +318,7 @@ fn drizzle_integrate_impl(args: DrizzleIntegrateArgs) -> Result<DrizzleIntegrate
             patterns.push(geometry.effective);
         }
 
-        // --- Calibrate the (raw) sub before depositing its drops. ---
+        // Calibrate the (raw) sub before depositing its drops.
         //
         // Same helpers `api_integrate_session` uses: dark/flat/bias via
         // `calibrate_frame`, then the per-sub self-derived cosmetic repair. This
@@ -390,7 +381,7 @@ fn drizzle_integrate_impl(args: DrizzleIntegrateArgs) -> Result<DrizzleIntegrate
             .map_err(|e| format!("drizzle failed: {e}"))?
     };
 
-    // --- Write the F32 master. ---
+    // Write the F32 master.
     let master_path = Path::new(&args.output_fits);
     ensure_parent_dir(master_path)?;
     let mut header = FitsHeader::new();
@@ -409,7 +400,7 @@ fn drizzle_integrate_impl(args: DrizzleIntegrateArgs) -> Result<DrizzleIntegrate
     write_fits(master_path, &output.master, &header)
         .map_err(|e| format!("failed to write drizzle master: {e:?}"))?;
 
-    // --- Optional coverage map FITS. ---
+    // Optional coverage map FITS.
     let coverage_path = match args.coverage_fits.as_ref() {
         Some(p) if !p.trim().is_empty() => {
             let path = Path::new(p);
@@ -424,7 +415,7 @@ fn drizzle_integrate_impl(args: DrizzleIntegrateArgs) -> Result<DrizzleIntegrate
         _ => None,
     };
 
-    // --- Optional stretched coverage-map PNG. ---
+    // Optional stretched coverage-map PNG.
     // Preserve the linear coverage FITS for science while providing a format
     // Flutter can actually composite in the review overlay.
     let coverage_png_path = match args.coverage_png_path.as_ref() {
@@ -444,7 +435,7 @@ fn drizzle_integrate_impl(args: DrizzleIntegrateArgs) -> Result<DrizzleIntegrate
         _ => None,
     };
 
-    // --- Optional stretched preview PNG of the drizzled master. ---
+    // Optional stretched preview PNG of the drizzled master.
     // Mirror `api_integrate_session`: emit a sibling 8-bit preview so the
     // session-review hero shows the (scaled) drizzled image, not the standard
     // 1× preview.
@@ -560,9 +551,7 @@ fn decode_image_f64(image: &ImageData, path: &str) -> Result<Vec<f64>, String> {
     }
 }
 
-// =============================================================================
 // api_combine_channels implementation
-// =============================================================================
 
 fn combine_channels_impl(args: CombineChannelsArgs) -> Result<CombineChannelsResult, String> {
     if args.inputs.is_empty() {
@@ -643,9 +632,7 @@ fn combine_channels_impl(args: CombineChannelsArgs) -> Result<CombineChannelsRes
     })
 }
 
-// =============================================================================
 // Shared helpers
-// =============================================================================
 
 /// Read an optional calibration master by path. Empty / `None` → `Ok(None)`.
 ///
@@ -684,19 +671,15 @@ fn ensure_parent_dir(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
-// =============================================================================
 // Tests
-// =============================================================================
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::path::PathBuf;
 
-    /// A scratch directory that deletes itself when the test ends.
-    /// `Drop` rather than the trailing `remove_file` calls these tests used to
-    /// finish with: the leak was worst exactly when a test FAILED, and a
-    /// trailing cleanup never runs while a panic unwinds — drop does.
+    /// A scratch directory that deletes itself when the test ends. Cleanup runs
+    /// from `Drop`, so it happens even while a panic unwinds out of a failing test.
     struct TempDir(PathBuf);
 
     impl std::ops::Deref for TempDir {
@@ -793,9 +776,7 @@ mod tests {
         write_fits(path, image, &h).expect("write synthetic CFA mosaic");
     }
 
-    // -------------------------------------------------------------------------
     // api_drizzle_integrate — RGB/mono warp path
-    // -------------------------------------------------------------------------
 
     /// Two dithered mono frames drizzle onto a 2x grid: the output dims are
     /// `ceil(ref * scale)`, an `F32` master + coverage map land on disk, and the
@@ -882,9 +863,7 @@ mod tests {
         assert_eq!(coverage_preview.height(), result.out_height);
     }
 
-    // -------------------------------------------------------------------------
-    // api_drizzle_integrate — calibration contract (BLOCKER #4)
-    // -------------------------------------------------------------------------
+    // api_drizzle_integrate — calibration contract
 
     /// A uniform `F32` field of `value`, single-channel `size`x`size`. Flat
     /// fields make the drizzle interior trivially predictable (`flux/weight`
@@ -928,16 +907,12 @@ mod tests {
         sum / count as f64
     }
 
-    /// BLOCKER #4 (native half): with a `calibration` block, drizzle calibrates
-    /// every (raw) sub — dark/flat/bias — BEFORE depositing drops, so the
-    /// drizzled master `_runDrizzle` swaps in as canonical is calibrated, not a
-    /// raw deposit. The same input drizzled *without* the block is the raw,
-    /// uncalibrated reference: the two masters must differ exactly by the dark
-    /// pedestal and the region-dependent flat.
-    ///
-    /// Without the fix the `calibration` field doesn't exist (or is ignored) and
-    /// the calibrated run equals the raw run — this test FAILS. With the fix the
-    /// pedestal is removed and the non-uniform flat reshapes each region.
+    /// With a `calibration` block, drizzle calibrates every (raw) sub —
+    /// dark/flat/bias — before depositing drops, so the drizzled master
+    /// `_runDrizzle` swaps in as canonical is calibrated, not a raw deposit. The
+    /// same input drizzled without the block is the raw reference: the two
+    /// masters must differ exactly by the dark pedestal and the
+    /// region-dependent flat.
     #[test]
     fn drizzle_calibration_removes_pedestal_and_applies_flat() {
         let dir = temp_dir("drizzle_calibration_removes_pedestal_and_applies_flat");
@@ -1030,8 +1005,8 @@ mod tests {
             "calibrated bottom band ~= 1200, got {cal_bot}"
         );
 
-        // The decisive regression guard: the calibrated master is NOT the raw
-        // deposit (the BLOCKER-#4 silent-corruption symptom).
+        // The decisive guard: the calibrated master is NOT the raw deposit,
+        // which is the silent-corruption symptom.
         assert!(
             (cal_top - raw_top).abs() > 100.0 && (cal_bot - raw_bot).abs() > 100.0,
             "calibrated master must differ from the raw deposit (cal_top={cal_top} \
@@ -1039,12 +1014,9 @@ mod tests {
         );
     }
 
-    /// Preview-PNG write failures must NOT abort the (expensive) drizzle run —
+    /// Preview-PNG write failures must not abort the (expensive) drizzle run —
     /// the master + coverage FITS are the real outputs. Point both cosmetic
     /// previews at unwritable paths and assert the real artifacts survive.
-    ///
-    /// Without the fix the preview write is a hard `?` error and the whole run
-    /// returns `Err`, throwing away the master — this test FAILS.
     #[test]
     fn drizzle_preview_failure_still_returns_master() {
         let dir = temp_dir("drizzle_preview_failure_still_returns_master");
@@ -1097,9 +1069,7 @@ mod tests {
         );
     }
 
-    // -------------------------------------------------------------------------
     // api_drizzle_integrate — Bayer (CFA) path
-    // -------------------------------------------------------------------------
 
     /// Two dithered raw single-channel CFA mosaics (with `BAYERPAT` headers)
     /// Bayer-drizzle into a 3-channel RGB master of the scaled dimensions.
@@ -1160,9 +1130,7 @@ mod tests {
         assert_eq!(master.channels, 3);
     }
 
-    // -------------------------------------------------------------------------
     // api_combine_channels
-    // -------------------------------------------------------------------------
 
     /// Three single-channel masters combine through the SHO palette into a
     /// 3-channel `F32` composite of the shared geometry.
@@ -1235,9 +1203,7 @@ mod tests {
         assert_eq!(img.channels, 3);
     }
 
-    // -------------------------------------------------------------------------
     // Error paths
-    // -------------------------------------------------------------------------
 
     /// Malformed JSON, empty populations, a nonexistent input frame, a bad
     /// transform, a missing Bayer header, and mismatched combine geometry all

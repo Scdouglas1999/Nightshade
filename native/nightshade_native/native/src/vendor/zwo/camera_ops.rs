@@ -10,14 +10,10 @@ impl NativeDevice for ZwoCamera {
 
     /// The model the SDK reports, e.g. `ZWO ASI1600MM-Cool`.
     ///
-    /// This used to return `device_id` — `native:zwo:1` — with a comment saying
-    /// a stable identifier would do "until an owned display-name field is
-    /// added". It does not do: `native:zwo:1` is the ASI enumeration index, it
-    /// re-binds to the other body across a replug, and the device-identity
-    /// check and the FITS `INSTRUME` keyword both read this method expecting
-    /// the model. Handing them the id turned one id-derived placeholder into
-    /// another and would have stamped an enumeration index into an archival
-    /// header.
+    /// The device-identity check and the FITS `INSTRUME` keyword both read this
+    /// method expecting the model, so `device_id` will not do: `native:zwo:1` is
+    /// the ASI enumeration index and re-binds to another body across a replug,
+    /// which would stamp an enumeration index into an archival header.
     ///
     /// Falls back to the id only before `load_camera_info` has run, i.e. before
     /// there is any model to report.
@@ -310,9 +306,8 @@ impl NativeCamera for ZwoCamera {
             )));
         }
 
-        // ExposureParams is the per-frame source of truth. Previously this
-        // driver logged requested binning but never programmed the SDK, so a
-        // 2x2 request silently downloaded a full-resolution 1x1 frame.
+        // ExposureParams is the per-frame source of truth: the requested binning
+        // must reach the SDK, or the download returns a full-resolution 1x1 frame.
         if self.current_bin != params.bin_x {
             self.set_binning(params.bin_x, params.bin_y).await?;
         }

@@ -355,10 +355,10 @@ pub(crate) struct AutofocusTriggerContinuation {
     pub(crate) operator_message: String,
 }
 
-/// Build the continuation record for a non-converging trigger autofocus. Split
-/// out of the trigger loop so the unattended policy (owner decision 2026-08-14 —
-/// continue on the last-good focus, never pause an unattended run) is testable
-/// without standing up an executor.
+/// Build the continuation record for a non-converging trigger autofocus. Lives
+/// outside the trigger loop so the unattended policy — continue on the
+/// last-good focus, never pause an unattended run — is testable without
+/// standing up an executor.
 ///
 /// `origin_restored` is the `autofocus_origin_restored` marker from the failed
 /// result: `Some(true)` the focuser went back to where it started, `Some(false)`

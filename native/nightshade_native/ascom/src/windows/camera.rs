@@ -285,9 +285,7 @@ impl AscomCamera {
         self.device.get_int_property("MaxADU")
     }
 
-    // ========================================================================
-    // Batch Property Queries
-    // ========================================================================
+    // Batch property queries
 
     /// Get thermal status in a single batch operation
     /// Returns (temperature, cooler_on, cooler_power, can_set_temperature)
@@ -408,14 +406,11 @@ pub struct CameraFullStatus {
     pub exposure_settings: CameraExposureSettings,
 }
 
-/// Regression cover for the frame download keeping the driver's explanation.
+/// Cover for the frame download keeping the driver's explanation.
 ///
-/// `image_array` hand-rolled its own `IDispatch::Invoke` instead of going
-/// through `invoke_with_retry`, and passed `None` for `pExcepInfo` — the same
-/// omission that made a refused `Tracking` write on the live NYX101 read as
-/// `Exception occurred. (0x80020009)`. On this path the cost is a lost frame
-/// with no stated reason, which is the worst version of it: it happens in the
-/// middle of an unattended night.
+/// `image_array` hand-rolls its own `IDispatch::Invoke`, so these prove it
+/// supplies `pExcepInfo` and the driver's message survives; without it a
+/// refused download is a lost frame with no stated reason.
 #[cfg(test)]
 mod excepinfo_tests {
     use super::*;

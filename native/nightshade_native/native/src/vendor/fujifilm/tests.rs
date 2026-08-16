@@ -1,12 +1,6 @@
-// =============================================================================
-// UNIT TESTS
-// =============================================================================
-
 use super::*;
 
-// =========================================================================
-// MODEL DETECTION TESTS
-// =========================================================================
+// Model detection
 
 #[test]
 fn test_model_from_product_name_x_series() {
@@ -150,9 +144,7 @@ fn test_model_from_product_name_case_insensitive() {
     );
 }
 
-// =========================================================================
-// SENSOR SPECS TESTS
-// =========================================================================
+// Sensor specs
 
 #[test]
 fn test_sensor_specs_40mp_xtrans() {
@@ -244,9 +236,7 @@ fn test_sensor_specs_default_26mp() {
     assert_eq!(h, 4160);
 }
 
-// =========================================================================
-// RAW SAMPLE DEPTH TESTS
-// =========================================================================
+// Raw sample depth
 
 fn camera_for(model: FujifilmModel) -> FujifilmCamera {
     FujifilmCamera::new(&FujifilmDeviceInfo {
@@ -396,9 +386,7 @@ fn test_resolve_max_adu_ignores_an_unmeasured_white_level() {
     assert_eq!(resolve_max_adu(None, 0), 255);
 }
 
-// =========================================================================
-// X-TRANS DETECTION TESTS
-// =========================================================================
+// X-Trans detection
 
 #[test]
 fn test_is_xtrans_x_series() {
@@ -458,9 +446,7 @@ fn test_is_xtrans_unknown() {
     );
 }
 
-// =========================================================================
-// SHUTTER SPEED CODE MAPPING TESTS
-// =========================================================================
+// Shutter speed code mapping
 
 #[test]
 fn test_find_shutter_code_exact_matches() {
@@ -606,9 +592,7 @@ fn test_shutter_bulb_constant() {
     assert_eq!(XSDK_SHUTTER_BULB, -1, "XSDK_SHUTTER_BULB should be -1");
 }
 
-// =========================================================================
-// ERROR CODE CONSTANT TESTS
-// =========================================================================
+// Error code constants
 
 #[test]
 fn test_error_codes_defined() {
@@ -664,9 +648,7 @@ fn test_sdk_return_values() {
     assert_eq!(XSDK_ERROR, -1, "XSDK_ERROR should be -1");
 }
 
-// =========================================================================
-// SDK CONSTANT TESTS
-// =========================================================================
+// SDK constants
 
 #[test]
 fn test_connection_interface_constants() {

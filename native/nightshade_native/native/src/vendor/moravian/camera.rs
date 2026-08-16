@@ -2,19 +2,13 @@
 
 use super::*;
 
-// ============================================================================
-// Handle Wrapper for Send + Sync
-// ============================================================================
+// Handle wrapper for Send + Sync
 
 pub(crate) struct HandleWrapper(pub(crate) PCCamera);
 // SAFETY: HandleWrapper wraps a raw `*mut c_void` camera handle. The handle is opaque to us — we never deref it. It is only handed back to the gxccd SDK functions, which serialize through `moravian_mutex()`, so no concurrent access ever happens to the underlying SDK state via this pointer.
 unsafe impl Send for HandleWrapper {}
 // SAFETY: Same justification as `impl Send`. The pointer is opaque and access to it is gated by both the wrapping `Mutex<HandleWrapper>` (held inside MoravianCamera) and the global `moravian_mutex()`.
 unsafe impl Sync for HandleWrapper {}
-
-// ============================================================================
-// Camera Implementation
-// ============================================================================
 
 /// Moravian camera instance
 pub struct MoravianCamera {
@@ -327,7 +321,7 @@ impl NativeDevice for MoravianCamera {
         let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         // Release camera (no separate Close() in the current SDK).
-        // SAFETY: moravian_mutex held above; handle was previously Initialize()'d (we're on the connected path); gxccd_release() pairs with gxccd_initialize_usb() and is the required final cleanup per gxccd.h:206-211.
+        // SAFETY: moravian_mutex held above; handle was Initialize()'d (we're on the connected path); gxccd_release() pairs with gxccd_initialize_usb() and is the required final cleanup per gxccd.h:206-211.
         unsafe { (sdk.release)(handle) };
 
         {

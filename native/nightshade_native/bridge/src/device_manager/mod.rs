@@ -72,20 +72,20 @@ pub struct HeartbeatConfig {
     /// + reconnection loop) or merely latches a `Degraded` "stale" status while
     /// keeping the device connected and monitored.
     ///
-    /// `true` for devices where liveness genuinely matters and a lost heartbeat
-    /// means the session is in danger — cameras (a dead camera stalls every
-    /// frame) and mounts (a dead mount drifts off target / can slew into the
-    /// pier). For those, escalating to a real disconnect lets the auto-reconnect
-    /// / recovery machinery act.
+    /// `true` where liveness is itself a signal the run depends on: a dead
+    /// camera stalls every frame, a dead mount drifts off target or slews into
+    /// the pier, and a dead accessory left registered as Connected is worse than
+    /// one being reconnected — escalating hands the device to the auto-reconnect
+    /// and recovery machinery. Slow, USB-contention-prone auxiliaries reach that
+    /// point later, through higher failure thresholds, a per-poll retry and
+    /// suppression during camera USB contention.
     ///
-    /// Slow, USB-contention-prone auxiliary devices use higher failure
-    /// thresholds, a per-poll retry, and explicit suppression during camera
-    /// USB contention. Those protections absorb transient misses; once all of
-    /// them are exhausted, keeping a dead accessory registered as Connected
-    /// is worse than reconnecting it, so those devices also escalate.
+    /// `false` only where another path already carries the real signal: safety
+    /// monitors read `IsSafe` on their own fail-closed paths, so a missed
+    /// liveness ping earns a stale badge and nothing more.
     ///
-    /// Default `true` so any device type that does not explicitly opt out keeps
-    /// today's fail-loud behavior (errors are a feature).
+    /// Defaults to `true`, so a device type that does not explicitly opt out
+    /// escalates rather than staying registered as Connected while dead.
     pub escalate_to_disconnect: bool,
 }
 
@@ -259,21 +259,18 @@ impl HeartbeatConfig {
 
     /// Create config for safety monitors.
     ///
-    /// IMPORTANT: this heartbeat is only a LIVENESS ping. A SafetyMonitor's actual
-    /// safety signal (`IsSafe`) is read on its OWN paths — the Dart environment
-    /// poll and, during a run, the sequencer's fail-closed safety check — NOT via
-    /// this heartbeat. The previous config put the safety monitor on the most
-    /// aggressive escalate-to-disconnect path of any device (5s ping,
-    /// failure_threshold 2, UNLIMITED 2s-delay auto-reconnect, escalate=true), so
-    /// any flaky network hub — e.g. a JustaHub that occasionally misses a 5s
-    /// quick-timeout ping — was torn down and reconnected in an endless
-    /// disconnect -> error -> reconnect cycle, each iteration emitting fresh
-    /// "disconnected" + "heartbeat" error toasts (a new episode every ~15-25s).
+    /// IMPORTANT: this heartbeat is only a LIVENESS ping. A SafetyMonitor's
+    /// actual safety signal (`IsSafe`) is read on its OWN paths — the Dart
+    /// environment poll and, during a run, the sequencer's fail-closed safety
+    /// check — NOT via this heartbeat.
     ///
-    /// Treat liveness like the focuser/filter-wheel/rotator: latch a Degraded
-    /// "stale" badge and KEEP monitoring; never tear the device down on a missed
-    /// ping. Genuine loss of safety is still caught by the real `IsSafe` read
-    /// (fail-closed during a run), so safety is not silently lost.
+    /// So liveness is treated like the focuser/filter-wheel/rotator: latch a
+    /// Degraded "stale" badge and KEEP monitoring, never tear the device down
+    /// on a missed ping. On an aggressive escalate-to-disconnect config a flaky
+    /// network hub missing the occasional ping drives an endless
+    /// disconnect -> error -> reconnect cycle, each iteration emitting fresh
+    /// error toasts. Genuine loss of safety is still caught by the real
+    /// `IsSafe` read, which fails closed during a run.
     pub fn for_safety_monitor() -> Self {
         Self {
             base_interval_secs: 15,
@@ -1014,10 +1011,6 @@ impl DeviceManager {
         Some(Arc::new(AlpacaClient::new(&device)))
     }
 }
-
-// =============================================================================
-// Tests
-// =============================================================================
 
 #[cfg(test)]
 mod tests;

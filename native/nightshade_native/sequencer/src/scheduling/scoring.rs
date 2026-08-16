@@ -76,9 +76,7 @@ pub struct TargetInput {
     /// end_before`.
     pub end_before: Option<i64>,
     /// User-assigned priority. Higher = preferred. Ties on raw score are
-    /// broken by priority (descending) so the previously-unused
-    /// `TargetHeaderConfig::priority` field becomes meaningful for the
-    /// scheduler.
+    /// broken by priority, descending.
     pub priority: i32,
     /// Pre-existing completion flag. The scheduler does not pick a completed
     /// target even if it would otherwise score highest.
@@ -457,9 +455,7 @@ pub fn pick_best(
         .find(|s| s.runnable && s.total_score >= min_score)
 }
 
-// ---------------------------------------------------------------------------
 // Per-axis scorers — verbatim from `target_scoring.dart`.
-// ---------------------------------------------------------------------------
 
 fn score_altitude(altitude: f64) -> f64 {
     if altitude < 0.0 {
@@ -626,9 +622,9 @@ mod tests {
     }
 
     /// A bright moon can never score as well as a dark sky at the same
-    /// separation. This test previously asserted 100.0 and so ENSHRINED the
-    /// inversion: a full moon at 120 deg scored a perfect 100.0 while a new moon
-    /// at 120 deg scored 96.7, i.e. the scorer preferred the worse night.
+    /// separation: a full moon at 120 deg scoring a perfect 100.0 against a new
+    /// moon's 96.7 at the same separation is the scorer preferring the worse
+    /// night.
     #[test]
     fn moon_distance_bright_moon_never_scores_perfect() {
         // illumination 100 -> moon_factor 1.0 -> best_achievable = 78.0, and
@@ -838,7 +834,7 @@ mod tests {
         assert_eq!(scored.skip_reason.as_deref(), Some("already completed"));
     }
 
-    // ----- Per-azimuth horizon mask -----
+    // Per-azimuth horizon mask
 
     #[test]
     fn horizon_single_sample_is_flat() {

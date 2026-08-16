@@ -362,9 +362,6 @@ impl AscomFilterWheelWrapper {
     }
 }
 
-// =============================================================================
-// Tests
-// =============================================================================
 //
 // Why: `new()` spawns a real STA thread that requires Windows COM to load the
 // ASCOM driver. The tests below build a wrapper struct directly with a mock

@@ -84,9 +84,8 @@ impl InstructionNode for SciencePhotometryInstruction {
         };
 
         // Validate config at runtime — these checks are also wired into
-        // Dart-side validation rules, but a corrupt-file path could
-        // reach execution with bad data and the runtime must refuse
-        // loudly ("errors are a feature").
+        // Dart-side validation rules, but a corrupt-file path can reach
+        // execution with bad data and the runtime must refuse loudly.
         if config.count == 0 {
             tracing::warn!(
                 "SciencePhotometry '{}' has count == 0; nothing to do (success)",
@@ -410,21 +409,14 @@ async fn run_filter_change(
 async fn read_frame_metrics(context: &ExecutionContext) -> (Option<f64>, Option<f64>, Option<f64>) {
     let altitude_deg = context.calculate_altitude();
     // The same function that writes the frame's `AIRMASS` card, so the number
-    // this gate rejects on is the number the file will claim.
+    // this gate rejects on is the number the file will claim. A hand-rolled
+    // copy is how the gate stops working: one that added Pickering's
+    // refraction term to sin(h) instead of to h peaked at 2.02 over the whole
+    // sky, so the default `max_airmass` of 2.5 could never fire and the gate
+    // that exists to throw out horizon-hugging photometry passed all of it.
     //
-    // This used to be a third hand-rolled copy that added Pickering's
-    // refraction term to sin(h) instead of to h. That is not Pickering's
-    // formula or anyone's: it peaked at 2.02 near 10° altitude and then FELL
-    // back toward the horizon, reporting 0.86 at 1° — below 1.0, which no
-    // airmass can be. Because its maximum over the whole sky was 2.02, the
-    // default `max_airmass` of 2.5 could never fire on any frame at any
-    // altitude, and the gate that exists to throw out horizon-hugging
-    // photometry passed all of it.
-    //
-    // `None` now means only "below the horizon" (`calculate_airmass` refuses
-    // it), which `PhotometryQualityGates::evaluate` treats as a reject rather
-    // than a pass — the same verdict as before, with a reason that names the
-    // measured value instead of claiming nothing was measurable.
+    // `None` means only "below the horizon" (`calculate_airmass` refuses it),
+    // which `PhotometryQualityGates::evaluate` treats as a reject.
     let airmass = altitude_deg.and_then(|alt| nightshade_imaging::calculate_airmass(alt).ok());
 
     // FWHM estimate from the HFR baseline (HFR -> arcsec FWHM under
@@ -441,12 +433,10 @@ async fn read_frame_metrics(context: &ExecutionContext) -> (Option<f64>, Option<
         _ => None,
     };
 
-    // SNR: read whichever measurement we can. For now we expose the
-    // most-recent star-detection-derived value via the grading
-    // pipeline; if absent, the photometry quality gate will reject
-    // the frame and the Dart pipeline will fall back to its own
-    // extraction. We deliberately do not invent a value (the CONTRIBUTING.md house rules
-    // forbids silent fallbacks).
+    // SNR: read whichever measurement is available — today the most recent
+    // star-detection-derived value via the grading pipeline. When it is
+    // absent the photometry quality gate rejects the frame and the Dart
+    // pipeline falls back to its own extraction; no value is invented.
     // Standard SNR-from-HFR proxy: poor proxy in absolute terms but
     // adequate for the relative quality gate comparison the photometry
     // pipeline does. We surface this as a *measured-by-runtime* value;
@@ -667,7 +657,7 @@ mod tests {
     /// mock. That makes the whole gate drivable end to end: real
     /// `ExecutionContext`, real `read_frame_metrics`, real gates.
     fn context_pointed_at_altitude(altitude_deg: f64) -> ExecutionContext {
-        let mut ctx = ExecutionContext::new("photometry-gate-test".to_string());
+        let mut ctx = ExecutionContext::new_for_test("photometry-gate-test".to_string());
         ctx.target_ra = Some(3.0);
         ctx.target_dec = Some(90.0);
         ctx.latitude = Some(altitude_deg);

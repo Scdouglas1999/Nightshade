@@ -2,10 +2,6 @@
 
 use super::*;
 
-// ============================================================================
-// Device Discovery
-// ============================================================================
-
 /// Active enumeration sink for SDK callbacks.
 pub(crate) static ACTIVE_ENUMERATION_IDS: Mutex<Option<Arc<Mutex<Vec<c_int>>>>> = Mutex::new(None);
 

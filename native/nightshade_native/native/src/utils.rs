@@ -11,33 +11,15 @@
 use crate::traits::NativeError;
 use std::ffi::c_char;
 
-// =============================================================================
-// SAFE STRING CONVERSION
-// =============================================================================
+// Safe string conversion
 
-/// Safely convert a C string pointer to a Rust String with bounds checking.
-///
-/// This function:
-/// 1. Handles null pointers gracefully (returns empty string)
-/// 2. Enforces a maximum length to prevent buffer overruns
-/// 3. Finds the null terminator safely within the bounded slice
-/// 4. Uses lossy UTF-8 conversion for robustness
-///
-/// # Arguments
-/// * `ptr` - Pointer to a null-terminated C string (can be null)
-/// * `max_len` - Maximum number of bytes to read (typically the buffer size)
-///
-/// # Returns
-/// A safe Rust String, empty if the pointer is null or the string is empty
+/// Convert a NUL-terminated C string to a Rust `String`, reading at most
+/// `max_len` bytes. A null pointer yields an empty string; invalid UTF-8 is
+/// replaced rather than rejected.
 ///
 /// # Safety
 /// The caller must ensure that `ptr` points to valid memory of at least `max_len` bytes
 /// if `ptr` is not null.
-///
-/// # Example
-/// ```ignore
-/// let name = safe_cstr_to_string(info.name.as_ptr(), 64);
-/// ```
 pub fn safe_cstr_to_string(ptr: *const c_char, max_len: usize) -> String {
     if ptr.is_null() {
         return String::new();
@@ -54,44 +36,19 @@ pub fn safe_cstr_to_string(ptr: *const c_char, max_len: usize) -> String {
     }
 }
 
-/// Safely convert a fixed-size C char array to a Rust String.
-///
-/// This is a convenience wrapper for arrays that are common in SDK structs.
-///
-/// # Arguments
-/// * `arr` - Reference to a fixed-size C char array
-///
-/// # Returns
-/// A safe Rust String, trimmed at the first null byte
+/// Convert a fixed-size C char array — the shape SDK structs use — to a Rust
+/// `String`, trimmed at the first NUL byte.
 pub fn safe_char_array_to_string<const N: usize>(arr: &[c_char; N]) -> String {
     safe_cstr_to_string(arr.as_ptr(), N)
 }
 
-// =============================================================================
-// OVERFLOW-SAFE BUFFER CALCULATIONS
-// =============================================================================
+// Overflow-safe buffer calculations
 
-/// Calculate buffer size for image data with overflow protection.
+/// Buffer size for image data, computed with checked arithmetic.
 ///
-/// This function uses checked arithmetic to prevent integer overflow when
-/// calculating buffer sizes for image data. This is critical for memory safety
-/// as unchecked multiplication of width * height * bytes_per_pixel can overflow
-/// on large images, leading to undersized buffer allocations.
-///
-/// # Arguments
-/// * `width` - Image width in pixels
-/// * `height` - Image height in pixels
-/// * `bytes_per_pixel` - Number of bytes per pixel (1 for 8-bit, 2 for 16-bit, etc.)
-///
-/// # Returns
-/// * `Ok(usize)` - The safe buffer size
-/// * `Err(NativeError)` - If the calculation would overflow
-///
-/// # Example
-/// ```ignore
-/// let buffer_size = calculate_buffer_size(4656, 3520, 2)?;
-/// let mut buffer: Vec<u8> = vec![0u8; buffer_size];
-/// ```
+/// `width * height * bytes_per_pixel` overflows u32 on large images, and a
+/// wrapped product allocates an undersized buffer, so overflow is an error
+/// rather than a size.
 pub fn calculate_buffer_size(
     width: u32,
     height: u32,
@@ -113,16 +70,8 @@ pub fn calculate_buffer_size(
         })
 }
 
-/// Calculate buffer size with i32 inputs (common in C APIs) with overflow protection.
-///
-/// # Arguments
-/// * `width` - Image width in pixels (must be positive)
-/// * `height` - Image height in pixels (must be positive)
-/// * `bytes_per_pixel` - Number of bytes per pixel (must be positive)
-///
-/// # Returns
-/// * `Ok(usize)` - The safe buffer size
-/// * `Err(NativeError)` - If any input is negative or the calculation would overflow
+/// [`calculate_buffer_size`] for the signed dimensions C APIs report. A
+/// non-positive input is rejected before the cast to u32.
 pub fn calculate_buffer_size_i32(
     width: i32,
     height: i32,
@@ -142,17 +91,8 @@ pub fn calculate_buffer_size_i32(
     calculate_buffer_size(width as u32, height as u32, bytes_per_pixel as u32)
 }
 
-/// Validate that a buffer is large enough for the specified image dimensions.
-///
-/// # Arguments
-/// * `buffer_len` - Actual buffer length in bytes
-/// * `width` - Image width in pixels
-/// * `height` - Image height in pixels
-/// * `bytes_per_pixel` - Number of bytes per pixel
-///
-/// # Returns
-/// * `Ok(())` - If the buffer is large enough
-/// * `Err(NativeError)` - If the buffer is too small or dimensions overflow
+/// Check that `buffer_len` covers an image of the given dimensions; errors if it
+/// is short or if the dimensions overflow.
 pub fn validate_buffer_size(
     buffer_len: usize,
     width: u32,
@@ -169,19 +109,10 @@ pub fn validate_buffer_size(
     Ok(())
 }
 
-// =============================================================================
-// ERROR HANDLING UTILITIES
-// =============================================================================
+// Error handling utilities
 
-/// Convert a vendor SDK error code to a NativeError with detailed context.
-///
-/// This is a helper for creating consistent error messages across vendors.
-///
-/// # Arguments
-/// * `vendor` - Name of the vendor (e.g., "ZWO", "QHY")
-/// * `operation` - Description of the operation that failed
-/// * `code` - The SDK error code
-/// * `message` - Optional additional message
+/// Build a `NativeError::SdkError` carrying the vendor, the operation and the
+/// raw SDK code, so error text reads the same across vendors.
 pub fn sdk_error(vendor: &str, operation: &str, code: i32, message: Option<&str>) -> NativeError {
     match message {
         Some(msg) => NativeError::SdkError(format!(
@@ -192,9 +123,7 @@ pub fn sdk_error(vendor: &str, operation: &str, code: i32, message: Option<&str>
     }
 }
 
-// =============================================================================
-// CONNECT WITH CLEANUP GUARD
-// =============================================================================
+// Connect with cleanup guard
 
 /// A guard that ensures cleanup is called if the guarded block fails.
 ///
@@ -245,25 +174,13 @@ impl<F: FnOnce()> Drop for CleanupGuard<F> {
     }
 }
 
-// =============================================================================
-// TIMEOUT UTILITIES
-// =============================================================================
+// Timeout utilities
 
 use crate::traits::NativeTimeoutConfig;
 use std::time::{Duration, Instant};
 
-/// Wait for an exposure to complete with timeout and exponential backoff.
-///
-/// This function polls for exposure completion with an exponential backoff
-/// strategy to balance responsiveness with CPU usage.
-///
-/// # Arguments
-/// * `is_complete` - Async function that returns true when exposure is complete
-/// * `timeout_secs` - Maximum time to wait in seconds
-///
-/// # Returns
-/// * `Ok(())` - Exposure completed successfully
-/// * `Err(NativeError::Timeout)` - Exposure did not complete within timeout
+/// Poll `is_complete` until the exposure finishes or `timeout_secs` elapses,
+/// backing off 1.5x per round up to 500ms so a long exposure does not spin.
 pub async fn wait_for_exposure_with_timeout<F, Fut>(
     mut is_complete: F,
     timeout_secs: f64,
@@ -298,19 +215,9 @@ where
     }
 }
 
-/// Wait for exposure completion with detailed timeout tracking.
-///
-/// Similar to `wait_for_exposure_with_timeout` but uses `NativeTimeoutConfig`
-/// and provides more detailed error information.
-///
-/// # Arguments
-/// * `is_complete` - Async function that returns true when exposure is complete
-/// * `config` - Timeout configuration
-/// * `exposure_secs` - The expected exposure duration in seconds
-///
-/// # Returns
-/// * `Ok(())` - Exposure completed successfully
-/// * `Err(NativeError::ExposureTimeout)` - Exposure did not complete within timeout
+/// [`wait_for_exposure_with_timeout`] driven by a [`NativeTimeoutConfig`]: the
+/// deadline is `exposure_secs` plus the config's margin, and a miss reports the
+/// elapsed and expected durations.
 pub async fn wait_for_exposure<F, Fut>(
     mut is_complete: F,
     config: &NativeTimeoutConfig,
@@ -360,19 +267,8 @@ where
     }
 }
 
-/// Wait for a move operation (focuser, filter wheel) to complete with timeout.
-///
-/// Polls a completion function until it returns true or the timeout is reached.
-///
-/// # Arguments
-/// * `is_moving` - Async function that returns true if the device is still moving
-/// * `timeout` - Maximum time to wait
-/// * `poll_interval` - How often to check
-/// * `operation_desc` - Description for error messages (e.g., "focuser move to 5000")
-///
-/// # Returns
-/// * `Ok(())` - Move completed successfully
-/// * `Err(NativeError::MoveTimeout)` - Move did not complete within timeout
+/// Poll `is_moving` until a focuser or filter-wheel move settles or `timeout`
+/// elapses. `operation_desc` names the move in the timeout error.
 pub async fn wait_for_move_complete<F, Fut>(
     mut is_moving: F,
     timeout: Duration,
@@ -422,12 +318,7 @@ where
     }
 }
 
-/// Wait for focuser move to complete with timeout from config.
-///
-/// # Arguments
-/// * `is_moving` - Async function that returns true if focuser is still moving
-/// * `config` - Timeout configuration
-/// * `target_position` - Target position for error messages
+/// [`wait_for_move_complete`] with the config's focuser timeout.
 pub async fn wait_for_focuser_move<F, Fut>(
     is_moving: F,
     config: &NativeTimeoutConfig,
@@ -446,12 +337,7 @@ where
     .await
 }
 
-/// Wait for filter wheel move to complete with timeout from config.
-///
-/// # Arguments
-/// * `is_moving` - Async function that returns true if filter wheel is still moving
-/// * `config` - Timeout configuration
-/// * `target_slot` - Target filter slot for error messages
+/// [`wait_for_move_complete`] with the config's filter-wheel timeout.
 pub async fn wait_for_filterwheel_move<F, Fut>(
     is_moving: F,
     config: &NativeTimeoutConfig,
@@ -470,19 +356,9 @@ where
     .await
 }
 
-/// Execute an async operation with a timeout.
-///
-/// This is a generic timeout wrapper that can be used for any async operation
-/// that might hang (e.g., SDK calls on unresponsive hardware).
-///
-/// # Arguments
-/// * `operation` - The async operation to execute
-/// * `timeout` - Maximum time to wait
-/// * `operation_name` - Description for error messages
-///
-/// # Returns
-/// * `Ok(T)` - The result of the operation
-/// * `Err(NativeError::OperationTimeout)` - Operation did not complete within timeout
+/// Run any async operation under a deadline — SDK calls on unresponsive
+/// hardware hang otherwise. A miss becomes `NativeError::OperationTimeout`
+/// naming `operation_name`.
 pub async fn with_timeout<T, F, Fut>(
     operation: F,
     timeout: Duration,
@@ -502,20 +378,8 @@ where
     }
 }
 
-/// Execute an async operation with a timeout, providing a result type that indicates
-/// whether the operation completed or timed out.
-///
-/// Unlike `with_timeout`, this function returns `Ok(None)` on timeout instead of
-/// an error, allowing the caller to handle timeouts differently.
-///
-/// # Arguments
-/// * `operation` - The async operation to execute
-/// * `timeout` - Maximum time to wait
-///
-/// # Returns
-/// * `Ok(Some(T))` - The result of the operation
-/// * `Ok(None)` - Operation timed out
-/// * `Err(NativeError)` - Operation failed with an error
+/// [`with_timeout`] that reports a miss as `Ok(None)` instead of an error, for
+/// callers that treat a timeout as a normal outcome.
 pub async fn try_with_timeout<T, F, Fut>(
     operation: F,
     timeout: Duration,

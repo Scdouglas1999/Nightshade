@@ -24,9 +24,7 @@ pub enum Quirk {
     Camera(CameraQuirk),
 }
 
-// ============================================================================
-// TEMPERATURE QUIRKS
-// ============================================================================
+// Temperature quirks
 
 /// Quirks related to temperature reporting
 #[derive(Debug, Clone, PartialEq)]
@@ -59,9 +57,7 @@ pub enum TemperatureQuirk {
     RequiresDelayMs(u64),
 }
 
-// ============================================================================
-// POSITION QUIRKS
-// ============================================================================
+// Position quirks
 
 /// Quirks related to position reporting (focusers, filter wheels, rotators)
 #[derive(Debug, Clone, PartialEq)]
@@ -106,9 +102,7 @@ pub enum PositionQuirk {
     FocuserStepSizeMicrons(f64),
 }
 
-// ============================================================================
-// TIMING QUIRKS
-// ============================================================================
+// Timing quirks
 
 /// Quirks related to operation timing
 #[derive(Debug, Clone, PartialEq)]
@@ -138,9 +132,7 @@ pub enum TimingQuirk {
     SlowUsbCommunication,
 }
 
-// ============================================================================
-// DISCOVERY QUIRKS
-// ============================================================================
+// Discovery quirks
 
 /// Quirks related to device discovery
 #[derive(Debug, Clone, PartialEq)]
@@ -170,9 +162,7 @@ pub enum DiscoveryQuirk {
     RequiresMultipleScans(u32),
 }
 
-// ============================================================================
-// EXPOSURE QUIRKS
-// ============================================================================
+// Exposure quirks
 
 /// Quirks related to camera exposures
 #[derive(Debug, Clone, PartialEq)]
@@ -215,9 +205,7 @@ pub enum ExposureTimeUnit {
     Centiseconds,
 }
 
-// ============================================================================
-// COMMUNICATION QUIRKS
-// ============================================================================
+// Communication quirks
 
 /// Quirks related to device communication
 #[derive(Debug, Clone, PartialEq)]
@@ -254,9 +242,7 @@ pub enum CommunicationQuirk {
     RetryCount(u32),
 }
 
-// ============================================================================
-// MOUNT QUIRKS
-// ============================================================================
+// Mount quirks
 
 /// Quirks specific to telescope mounts
 #[derive(Debug, Clone, PartialEq)]
@@ -296,9 +282,7 @@ pub enum MountQuirk {
     GuideRateScale(f64),
 }
 
-// ============================================================================
-// CAMERA QUIRKS
-// ============================================================================
+// Camera quirks
 
 /// Quirks specific to cameras
 #[derive(Debug, Clone, PartialEq)]
@@ -337,9 +321,7 @@ pub enum CameraQuirk {
     ReadoutModeMapping(Vec<(String, u32)>),
 }
 
-// ============================================================================
-// HELPER IMPLEMENTATIONS
-// ============================================================================
+// Helper implementations
 
 impl Quirk {
     /// Get a human-readable description of this quirk

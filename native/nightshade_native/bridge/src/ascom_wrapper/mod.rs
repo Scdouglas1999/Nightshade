@@ -34,16 +34,13 @@ pub mod weather;
 /// matching [`tokio::sync::mpsc::Receiver::blocking_recv`] so callers keep
 /// their `while let Some(cmd) = ...` loop shape unchanged.
 ///
-/// TEST-ONLY. Production no longer parks a thread per device: each wrapper
-/// hands [`sta_worker`] a closure that does a single non-blocking `try_recv`
-/// and reports [`sta_worker::PumpOutcome::Idle`], and the one STA worker owns
-/// the message pump for every device (see `sta_worker::pump_messages`). That
-/// keeps the apartment invariant with one thread instead of ten while still
-/// draining the queue, so this per-device helper survives only to give the
-/// wrapper unit tests the same loop shape without standing up a worker.
-///
-/// Do not reintroduce it on a production path — a second pump would drain
-/// messages the central worker is responsible for dispatching.
+/// TEST-ONLY. On a production path each wrapper hands [`sta_worker`] a closure
+/// that does a single non-blocking `try_recv` and reports
+/// [`sta_worker::PumpOutcome::Idle`], and the one STA worker owns the message
+/// pump for every device (see `sta_worker::pump_messages`). This helper exists
+/// only to give the wrapper unit tests that loop shape without standing up a
+/// worker; a second pump on a production path would drain messages the central
+/// worker is responsible for dispatching.
 #[cfg(test)]
 pub(crate) fn pump_blocking_recv<T>(rx: &mut tokio::sync::mpsc::Receiver<T>) -> Option<T> {
     use tokio::sync::mpsc::error::TryRecvError;

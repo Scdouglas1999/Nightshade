@@ -55,7 +55,7 @@
 //! avoids over-fitting low-signal cells); callers enable it for the
 //! "long night / moving moon" preset.
 //!
-//! ## Honest limits (per the design doc's "made honest, not functional" bar)
+//! ## Limitations
 //!
 //! The robust-fit constants (sigma-clip κ for the pair fit, the star/saturation
 //! exclusion percentile, the minimum sample count per local cell) are
@@ -264,9 +264,7 @@ pub enum NormalizationError {
     EmptyGrid,
 }
 
-// =============================================================================
 // Public API
-// =============================================================================
 
 /// Estimate the normalization that maps `frame` onto `reference`'s photometric
 /// scale.
@@ -362,9 +360,7 @@ pub fn apply_normalization(
     }
 }
 
-// =============================================================================
 // Global fit
-// =============================================================================
 
 /// A bare global fit result (no local grid).
 #[derive(Debug, Clone, Copy)]
@@ -518,9 +514,7 @@ fn ordinary_least_squares(pairs: &[(f64, f64)]) -> Option<(f64, f64)> {
     Some((scale, offset))
 }
 
-// =============================================================================
 // Local grid fit + apply
-// =============================================================================
 
 /// Fit a `rows × cols` grid of local `(scale, offset)` coefficients.
 ///
@@ -635,9 +629,7 @@ fn bilinear_coeffs(grid: &LocalGrid, gx: f64, gy: f64) -> (f64, f64) {
     (s, o)
 }
 
-// =============================================================================
 // Robust-statistics helpers
-// =============================================================================
 
 /// The reference value above which a pixel is treated as bright structure and
 /// excluded from the fit. Computed as the `percentile` quantile of the *valid,
@@ -672,9 +664,7 @@ fn std_dev(values: &[f64]) -> f64 {
     var.sqrt()
 }
 
-// =============================================================================
 // Tests
-// =============================================================================
 
 #[cfg(test)]
 mod tests {

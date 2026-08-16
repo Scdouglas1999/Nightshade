@@ -40,9 +40,7 @@ async fn indi_weather_conditions(
 }
 
 impl DeviceManager {
-    // =========================================================================
-    // Weather (Observing Conditions)
-    // =========================================================================
+    // Weather (observing conditions)
 
     /// Get weather conditions
     pub async fn weather_get_conditions(

@@ -2,10 +2,6 @@
 
 use super::*;
 
-// =============================================================================
-// FLI Filter Wheel Implementation
-// =============================================================================
-
 /// FLI filter wheel native driver
 pub struct FliFilterWheel {
     pub(crate) device_path: String,

@@ -2,10 +2,6 @@
 
 use super::*;
 
-// =============================================================================
-// PLAYER ONE CAMERA IMPLEMENTATION
-// =============================================================================
-
 /// Player One Camera implementation
 #[derive(Debug)]
 pub struct PlayerOneCamera {
@@ -68,6 +64,61 @@ impl PlayerOneCamera {
         } else {
             format!("Player One Camera {}", self.camera_id)
         }
+    }
+
+    /// Read a writable integer control's `[min, max]` from the SDK's own attribute
+    /// table, so the bounds offered to the user are the camera's and not a model
+    /// average. Reports `NotSupported` when this SDK build cannot answer or the
+    /// camera declares the control unwritable.
+    pub(crate) async fn config_int_bounds(
+        &self,
+        control: POAConfig,
+    ) -> Result<(i32, i32), NativeError> {
+        let sdk = PoaSdk::get().ok_or(NativeError::SdkNotLoaded)?;
+        let Some(get_attributes) = sdk.get_config_attributes_by_config_id else {
+            tracing::warn!(
+                "Player One SDK build exports no POAGetConfigAttributesByConfigID; \
+                 bounds for control {:?} are unavailable",
+                control
+            );
+            return Err(NativeError::NotSupported);
+        };
+
+        let _lock = player_one_mutex().lock().await;
+        // SAFETY: POAConfigAttributes is `#[repr(C)]` over c_int fields, POD unions and
+        // char arrays; the all-zero bit pattern is valid for every one of them.
+        let mut attributes: POAConfigAttributes = unsafe { std::mem::zeroed() };
+        // SAFETY: player_one_mutex held above (single-threaded SDK access); `self.camera_id` is the open camera checked by the caller; `&mut attributes` is a valid out-pointer to the `#[repr(C)]` struct the SDK fills.
+        let result = unsafe { get_attributes(self.camera_id, control as c_int, &mut attributes) };
+        check_poa_error(result, "POAGetConfigAttributesByConfigID")?;
+
+        if attributes.is_writable == POA_FALSE {
+            return Err(NativeError::NotSupported);
+        }
+        if attributes.value_type != POAValueType::Int as c_int {
+            return Err(NativeError::SdkError(format!(
+                "Player One control {:?} reports value type {}, not VAL_INT",
+                control, attributes.value_type
+            )));
+        }
+
+        // SAFETY: the SDK reported VAL_INT above, so both bounds hold the int variant
+        // of the POAConfigValue union.
+        let (min, max) = unsafe {
+            (
+                attributes.min_value.int_value,
+                attributes.max_value.int_value,
+            )
+        };
+        let narrow = |value: c_long| {
+            i32::try_from(value).map_err(|_| {
+                NativeError::SdkError(format!(
+                    "Player One control {:?} reported bound {} outside i32",
+                    control, value
+                ))
+            })
+        };
+        Ok((narrow(min)?, narrow(max)?))
     }
 
     /// Get a control value as integer (mutex protected)
@@ -233,18 +284,8 @@ impl PlayerOneCamera {
         check_poa_error(result, "POASetConfig")
     }
 
-    /// Wait for exposure to complete with timeout.
-    ///
-    /// Polls `is_exposure_complete()` until it returns true or the timeout is reached.
-    /// Uses the timeout calculated from the exposure duration plus a margin.
-    ///
-    /// # Arguments
-    /// * `config` - Timeout configuration
-    ///
-    /// # Returns
-    /// * `Ok(())` - Exposure completed successfully
-    /// * `Err(NativeError::ExposureTimeout)` - Exposure did not complete within timeout
-    /// * `Err(NativeError::...)` - Other errors from polling
+    /// Poll `is_exposure_complete()` until the exposure finishes or the deadline
+    /// — the exposure duration plus the config's margin — passes.
     pub async fn wait_for_exposure_complete(
         &self,
         config: &NativeTimeoutConfig,
@@ -257,18 +298,8 @@ impl PlayerOneCamera {
         .await
     }
 
-    /// Download image with timeout protection.
-    ///
-    /// This wrapper uses `tokio::time::timeout()` to enforce a hard timeout on the
-    /// image download operation. If the download takes longer than
-    /// `config.image_download_timeout`, the operation is cancelled and an error is returned.
-    ///
-    /// # Arguments
-    /// * `config` - Timeout configuration
-    ///
-    /// # Returns
-    /// * `Ok(ImageData)` - Image downloaded successfully
-    /// * `Err(NativeError::DownloadTimeout)` - Download timed out
+    /// Download the frame under a hard `config.image_download_timeout`; a
+    /// download that overruns it is cancelled rather than left to hang.
     pub async fn download_image_with_timeout(
         &mut self,
         config: &NativeTimeoutConfig,

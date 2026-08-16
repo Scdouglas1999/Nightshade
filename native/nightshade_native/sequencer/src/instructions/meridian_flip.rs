@@ -5,21 +5,18 @@
 
 use super::*;
 
-// =============================================================================
-// MERIDIAN FLIP INSTRUCTION
-// =============================================================================
+// Meridian flip instruction
 
 /// Execute a meridian flip via the canonical [`MeridianFlipExecutor`].
 ///
-/// this used to be a 394-line second implementation that diverged
-/// from the executor on timeouts, post-flip altitude check, autofocus
-/// parameters, settle behaviour, plate-solve failure handling, pier-side
-/// telemetry fallback, and abort-during-flip semantics. The single-source-
-/// of-truth executor lives in `crate::meridian_flip_executor`. This wrapper
-/// builds a [`FlipContext`] from the instruction context and calls
+/// The single source of truth lives in `crate::meridian_flip_executor`; this
+/// wrapper builds a [`FlipContext`] from the instruction context and calls
 /// `executor.execute()`. The cancellation token, the trigger-state flip
-/// bookkeeping, the cover-state pre-check, and the
-/// configurable autofocus parameters all flow through the FlipContext.
+/// bookkeeping, the cover-state pre-check and the configurable autofocus
+/// parameters all flow through the FlipContext, so timeouts, the post-flip
+/// altitude check, settle behaviour, plate-solve failure handling, pier-side
+/// telemetry fallback and abort-during-flip semantics cannot diverge from the
+/// executor's.
 pub async fn execute_meridian_flip(
     config: &MeridianFlipConfig,
     ctx: &InstructionContext,
@@ -125,8 +122,7 @@ pub async fn execute_meridian_flip_with_autofocus(
         trigger_state: ctx.trigger_state.clone(),
         // Carry the tuned autofocus config PLUS the live filter context
         // (current filter, wheel id, per-filter focus offsets) so the post-flip
-        // refocus doesn't fall back to defaults on the wrong filter (finding
-        // #11: filter wheel + offsets were previously dropped).
+        // refocus does not fall back to defaults on the wrong filter.
         autofocus_config: autofocus_config.map(|cfg| {
             crate::meridian_flip_executor::PostFlipAutofocusConfig {
                 config: cfg.clone(),
@@ -166,7 +162,7 @@ pub async fn execute_meridian_flip_with_autofocus(
             if let Some(cb) = progress_callback {
                 cb(100.0, "Flip complete".to_string());
             }
-            // §1.6: mark_flip_performed is invoked inside the executor on
+            // mark_flip_performed is invoked inside the executor on
             // success when trigger_state is supplied; the instruction-path
             // populates trigger_state via the FlipContext above so the same
             // bookkeeping happens regardless of caller.

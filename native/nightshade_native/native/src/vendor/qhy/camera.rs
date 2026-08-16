@@ -2,10 +2,6 @@
 
 use super::*;
 
-// =============================================================================
-// QHY CAMERA IMPLEMENTATION
-// =============================================================================
-
 /// QHY Camera implementation
 #[derive(Debug)]
 pub struct QhyCamera {
@@ -365,18 +361,8 @@ impl QhyCamera {
         Ok((min_val, max_val, step))
     }
 
-    /// Wait for exposure to complete with timeout.
-    ///
-    /// Polls `is_exposure_complete()` until it returns true or the timeout is reached.
-    /// Uses the timeout calculated from the exposure duration plus a margin.
-    ///
-    /// # Arguments
-    /// * `config` - Timeout configuration
-    ///
-    /// # Returns
-    /// * `Ok(())` - Exposure completed successfully
-    /// * `Err(NativeError::ExposureTimeout)` - Exposure did not complete within timeout
-    /// * `Err(NativeError::...)` - Other errors from polling
+    /// Poll `is_exposure_complete()` until the exposure finishes or the deadline
+    /// — the exposure duration plus the config's margin — passes.
     pub async fn wait_for_exposure_complete(
         &self,
         config: &NativeTimeoutConfig,
@@ -389,18 +375,8 @@ impl QhyCamera {
         .await
     }
 
-    /// Download image with timeout protection.
-    ///
-    /// This wrapper uses `tokio::time::timeout()` to enforce a hard timeout on the
-    /// image download operation. If the download takes longer than
-    /// `config.image_download_timeout`, the operation is cancelled and an error is returned.
-    ///
-    /// # Arguments
-    /// * `config` - Timeout configuration
-    ///
-    /// # Returns
-    /// * `Ok(ImageData)` - Image downloaded successfully
-    /// * `Err(NativeError::DownloadTimeout)` - Download timed out
+    /// Download the frame under a hard `config.image_download_timeout`; a
+    /// download that overruns it is cancelled rather than left to hang.
     pub async fn download_image_with_timeout(
         &mut self,
         config: &NativeTimeoutConfig,

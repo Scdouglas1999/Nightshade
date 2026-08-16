@@ -5,14 +5,14 @@
 //!
 //! A wide-field mosaic is captured as an N×M grid of overlapping panels, each
 //! integrated to its own master with its own plate-solved WCS (the `WcsInfo`
-//! CD-matrix that rides on every `integrated_masters` row). Nothing in the
-//! imaging crate previously placed those spatially-offset panels onto a shared
+//! CD-matrix that rides on every `integrated_masters` row). This is the only
+//! place in the imaging crate that puts spatially-offset panels onto a shared
 //! output frame: [`registration`](crate::registration) warps a frame onto the
 //! *reference's exact pixel grid* (so it cannot grow a canvas), and
 //! [`normalization`](crate::normalization) matches a sub onto a *reference's
-//! photometric scale* over the *same grid*. This module is the genuinely new
-//! muscle: a variable-size, WCS-driven reprojection plus an overlap-region
-//! global photometric solve plus seam feathering.
+//! photometric scale* over the *same grid*. What this module adds is a
+//! variable-size, WCS-driven reprojection plus an overlap-region global
+//! photometric solve plus seam feathering.
 //!
 //! # Algorithm
 //!
@@ -61,9 +61,9 @@ use crate::{ImageData, WcsInfo};
 
 /// Hard upper bound on the output canvas in pixels (per channel-plane). At
 /// ~400 megapixels a single F32 plane is 1.6 GB; beyond this the caller almost
-/// certainly passed garbage WCS (e.g. a panel solved to the wrong field) and we
-/// refuse rather than try to allocate a terabyte. Tunable knob lives here, not
-/// scattered through the renderer.
+/// certainly passed garbage WCS (e.g. a panel solved to the wrong field), so the
+/// stitch errors rather than trying to allocate a terabyte. The tunable knob
+/// lives here, not scattered through the renderer.
 const MAX_CANVAS_PIXELS: u64 = 400_000_000;
 
 /// One panel feeding a mosaic: a linear master plus the WCS that places it on
@@ -187,9 +187,7 @@ pub enum MosaicError {
     },
 }
 
-// =============================================================================
 // WCS projection (gnomonic / TAN)
-// =============================================================================
 
 /// Forward / inverse gnomonic (RA---TAN, DEC--TAN) projection for one
 /// CD-matrix [`WcsInfo`].
@@ -353,9 +351,7 @@ fn delta_ra_deg(a: f64, b: f64) -> f64 {
     d
 }
 
-// =============================================================================
 // Decoded panel (f64 planar-interleaved) + footprint
-// =============================================================================
 
 /// A panel decoded once to interleaved `f64` (`data[y·stride + x·channels + c]`,
 /// matching the resampler's layout) plus its projection and canvas footprint.
@@ -403,8 +399,8 @@ impl DecodedPanel {
         } else if let Some(u) = panel.image.as_u16() {
             u.into_iter().map(|v| v as f64).collect()
         } else {
-            // Unknown layout: refuse rather than guess (the CONTRIBUTING.md house rules — no silent
-            // gray buffer). Treat as dimensionless-equivalent bad input.
+            // Unknown layout: refuse rather than guess a gray buffer. Treat as
+            // dimensionless-equivalent bad input.
             return Err(MosaicError::Dimensionless);
         };
         if data.len() != expected {
@@ -439,9 +435,7 @@ impl DecodedPanel {
     }
 }
 
-// =============================================================================
 // Resampling kernels (mirrors registration.rs; private there so reimplemented)
-// =============================================================================
 
 /// Sample channel `c` at fractional `(sx, sy)` in an interleaved `f64` plane.
 ///
@@ -582,9 +576,7 @@ fn lanczos3(x: f64) -> f64 {
     }
 }
 
-// =============================================================================
 // Output-canvas construction
-// =============================================================================
 
 /// Build the output canvas WCS + integer dimensions from the panel projections.
 ///
@@ -597,7 +589,7 @@ fn build_output_wcs(
     panels: &[DecodedPanel],
     cfg: &MosaicStitchConfig,
 ) -> Result<(WcsInfo, WcsProjection, u32, u32), MosaicError> {
-    // --- Reference projection centre: median CRVAL. ---
+    // Reference projection centre: median CRVAL.
     // RA is taken relative to the first panel to handle the 0h/24h wrap, then
     // re-wrapped; Dec is a plain median.
     let ra0 = panels[0].proj.crval1_rad.to_degrees();
@@ -612,7 +604,7 @@ fn build_output_wcs(
     let center_ra = normalize_deg(ra0 + median(&mut ra_offsets));
     let center_dec = median(&mut decs);
 
-    // --- Output pixel scale (arcsec/px) → deg/px. ---
+    // Output pixel scale (arcsec/px) → deg/px.
     let scale_arcsec = match cfg.output_pixel_scale_arcsec {
         Some(s) if s > 0.0 => s,
         _ => {
@@ -636,7 +628,7 @@ fn build_output_wcs(
     };
     let proj0 = WcsProjection::new(&out_wcs).ok_or(MosaicError::DegenerateWcs)?;
 
-    // --- Project every panel corner onto the provisional output plane. ---
+    // Project every panel corner onto the provisional output plane.
     let mut min_x = f64::INFINITY;
     let mut min_y = f64::INFINITY;
     let mut max_x = f64::NEG_INFINITY;
@@ -667,7 +659,7 @@ fn build_output_wcs(
         return Err(MosaicError::DegenerateWcs);
     }
 
-    // --- Shift CRPIX so the bbox lands in [0, w)×[0, h) with a 1 px margin. ---
+    // Shift CRPIX so the bbox lands in [0, w)×[0, h) with a 1 px margin.
     let margin = 1.0;
     let lo_x = (min_x - margin).floor();
     let lo_y = (min_y - margin).floor();
@@ -736,9 +728,7 @@ fn compute_footprints(
     }
 }
 
-// =============================================================================
 // Cross-panel photometric solve
-// =============================================================================
 
 /// Per-panel photometric correction `value ← gain·sample + offset`.
 #[derive(Debug, Clone, Copy)]
@@ -803,7 +793,7 @@ fn solve_panel_photometry(
         return (corrections, 0);
     }
 
-    // --- Global solve. ---
+    // Global solve.
     // Model: corrected_i = g_i·v_i + o_i. For a pair giving s·v_j + o ≈ v_i,
     // i.e. v_i ≈ s·v_j + o, equalisation wants corrected_i ≈ corrected_j:
     //   g_i·v_i + o_i = g_j·v_j + o_j.
@@ -982,9 +972,7 @@ fn fit_overlap_pair(
     Some((coeffs.scale, coeffs.offset))
 }
 
-// =============================================================================
 // Render
-// =============================================================================
 
 /// Render the output canvas, one row per rayon task.
 ///
@@ -1134,9 +1122,7 @@ fn panel_weight(sx: f64, sy: f64, width: usize, height: usize, cfg: &MosaicStitc
     }
 }
 
-// =============================================================================
 // Public entry point
-// =============================================================================
 
 /// Stitch `panels` into a single mosaic master onto a common tangent-plane
 /// canvas.
@@ -1168,7 +1154,7 @@ pub fn stitch_mosaic(
         return Err(MosaicError::NoPanels);
     }
 
-    // --- Decode + validate. ---
+    // Decode + validate.
     let mut decoded: Vec<DecodedPanel> = panels
         .iter()
         .map(DecodedPanel::decode)
@@ -1179,13 +1165,13 @@ pub fn stitch_mosaic(
         return Err(MosaicError::ChannelMismatch);
     }
 
-    // --- Output canvas. ---
+    // Output canvas.
     let (out_wcs, out_proj, out_w, out_h) = build_output_wcs(&decoded, cfg)?;
 
-    // --- Footprints. ---
+    // Footprints.
     compute_footprints(&mut decoded, &out_proj, out_w, out_h);
 
-    // --- Photometric solve. ---
+    // Photometric solve.
     let (photometry, overlap_pairs) = if cfg.normalize {
         solve_panel_photometry(&decoded, &out_proj)
     } else {
@@ -1209,7 +1195,7 @@ pub fn stitch_mosaic(
         photometry.iter().map(|p| p.gain).sum::<f64>() / photometry.len() as f64
     };
 
-    // --- Render. ---
+    // Render.
     let (master_data, coverage_data) = render_canvas(
         &decoded,
         &photometry,
@@ -1260,9 +1246,7 @@ fn count_overlaps(panels: &[DecodedPanel]) -> usize {
     count
 }
 
-// =============================================================================
 // Tests
-// =============================================================================
 
 #[cfg(test)]
 mod tests {
@@ -1322,7 +1306,7 @@ mod tests {
         }
     }
 
-    // ----- TAN projection -----
+    // TAN projection
 
     #[test]
     fn tan_round_trip_is_subpixel() {
@@ -1394,7 +1378,7 @@ mod tests {
         assert_eq!(err, MosaicError::DegenerateWcs);
     }
 
-    // ----- stitch errors -----
+    // Stitch errors
 
     #[test]
     fn empty_panels_errors() {
@@ -1446,7 +1430,7 @@ mod tests {
         );
     }
 
-    // ----- single panel round-trips to ~itself -----
+    // Single panel round-trips to ~itself
 
     #[test]
     fn single_panel_reproduces_itself() {
@@ -1498,7 +1482,7 @@ mod tests {
         );
     }
 
-    // ----- two overlapping panels: seamless, doubled coverage -----
+    // Two overlapping panels: seamless, doubled coverage
 
     /// Two panels offset in RA so they overlap by ~half. Same sky field ⇒ the
     /// overlap must be consistent and coverage ~2× a single-panel region.
@@ -1583,7 +1567,7 @@ mod tests {
         assert!(max_diff < 30.0, "overlap seam diff {max_diff} too large");
     }
 
-    // ----- photometric matching equalises a gained panel -----
+    // Photometric matching equalises a gained panel
 
     #[test]
     fn normalization_equalizes_seam() {
@@ -1674,7 +1658,7 @@ mod tests {
         out.stats.overlap_pairs
     }
 
-    // ----- non-overlapping panels both appear -----
+    // Non-overlapping panels both appear
 
     #[test]
     fn non_overlapping_panels_both_present() {
@@ -1716,15 +1700,14 @@ mod tests {
         }
     }
 
-    // ----- 3-panel chain: offset equalisation must account for per-panel gain -----
+    // 3-panel chain: offset equalisation must account for per-panel gain
 
     /// A 3-panel RA chain A–B–C with *different* gains and offsets, perfect
     /// noiseless synthetic sky. After equalisation every overlap must collapse
     /// onto the same truth field — including the B–C overlap at the far end of
-    /// the chain, where the previous code (offset edge `o` instead of `g_i·o`)
-    /// left an `(g_i−1)·o` residual because it linearised the offset chain
-    /// around `g_i ≈ 1`. With unequal gains that assumption is false and the
-    /// additive equalisation drifts along the chain.
+    /// the chain, which is where a linearised offset edge (`o` instead of
+    /// `g_i·o`, valid only for `g_i ≈ 1`) leaves a `(g_i−1)·o` residual that
+    /// accumulates along the chain.
     #[test]
     fn normalization_equalizes_three_panel_chain() {
         let ra0: f64 = 120.0;
@@ -1764,10 +1747,9 @@ mod tests {
         let stitched = out.master.as_f32().unwrap();
         let proj = WcsProjection::new(&out.wcs).unwrap();
 
-        // Check the residual in *every* 2-panel overlap against the truth field.
-        // The B–C overlap (far end of the chain) is the one the old linearised
-        // solve got wrong; with d = g_i·o it must now match within resampling
-        // error, not the tens-of-ADU drift the bug produced.
+        // Check the residual in *every* 2-panel overlap against the truth
+        // field. B–C, at the far end of the chain, is the strictest: with
+        // d = g_i·o it must match within resampling error.
         let mut max_err = 0.0f64;
         let mut n = 0;
         for oy in 16..oh - 16 {
@@ -1783,9 +1765,9 @@ mod tests {
             }
         }
         assert!(n > 100, "expected overlap pixels to check, got {n}");
-        // Field spans thousands of ADU; the chain is noiseless, so only resampling
-        // error remains. The bug left ~33 ADU in the B–C overlap for this exact
-        // gain/offset spread — far above this bound.
+        // Field spans thousands of ADU; the chain is noiseless, so only
+        // resampling error remains. B–C is the far end of the chain and the
+        // strictest case: a gain-blind offset chain drifts tens of ADU here.
         assert!(
             max_err < 15.0,
             "3-panel chain overlap residual {max_err} too large — \
@@ -1793,7 +1775,7 @@ mod tests {
         );
     }
 
-    // ----- a NaN source pixel must not poison the stitched output -----
+    // A NaN source pixel must not poison the stitched output
 
     /// Inject a NaN into a covered pixel of a panel and assert the stitched
     /// master and coverage stay entirely finite. NaN/inf-bearing masters are an

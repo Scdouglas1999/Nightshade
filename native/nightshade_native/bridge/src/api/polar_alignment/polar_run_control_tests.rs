@@ -9,8 +9,8 @@ fn plate_solve_ra_is_already_degrees_for_polar_geometry() {
     assert_eq!(plate_solve_ra_degrees(10.0), 10.0);
 }
 
-/// IMG-14: the frame polar alignment hands the solver must carry the field
-/// scale the operator already told us about. Without `FOCALLEN` and the
+/// The frame polar alignment hands the solver must carry the field scale the
+/// operator already configured. Without `FOCALLEN` and the
 /// binned pixel pitch, ASTAP has no scale to work from and sweeps its
 /// field-of-view ladder — the slow path that fails on fields it would
 /// otherwise solve, three times per alignment run.

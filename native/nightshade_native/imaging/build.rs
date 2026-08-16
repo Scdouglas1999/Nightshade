@@ -33,7 +33,7 @@ fn main() {
     let version_yaml = workspace_root.join("version.yaml");
     println!("cargo:rerun-if-changed={}", version_yaml.display());
     let nightshade_version = read_nightshade_version(&version_yaml).unwrap_or_else(|err| {
-        // Errors are a feature — refuse to silently fall back to a fake version.
+        // Refuse to silently fall back to a fake version.
         panic!(
             "build.rs: unable to determine Nightshade version from {}: {}",
             version_yaml.display(),
@@ -85,9 +85,9 @@ fn main() {
         //   * Examples     -> target/<profile>/examples/<name>.exe
         //   * Main binary  -> target/<profile>/<name>.exe
         //
-        // Errors are a feature: if the source DLL is missing we panic so
-        // a misconfigured checkout fails loudly at build time rather than
-        // surfacing as an opaque STATUS_DLL_NOT_FOUND at test runtime.
+        // A missing source DLL panics so a misconfigured checkout fails
+        // loudly at build time rather than surfacing as an opaque
+        // STATUS_DLL_NOT_FOUND at test runtime.
         if !libraw_dll.exists() {
             panic!(
                 "build.rs: libraw.dll not found at {}. \
@@ -201,8 +201,8 @@ fn copy_dll_to(source: &Path, dest_dir: &Path) {
     }
 
     if let Err(err) = std::fs::copy(source, &dest_path) {
-        // Errors are a feature: surface the failure rather than letting the
-        // test binary hit STATUS_DLL_NOT_FOUND at runtime. The one exception
+        // Surface the failure rather than letting the test binary hit
+        // STATUS_DLL_NOT_FOUND at runtime. The one exception
         // is ERROR_SHARING_VIOLATION (32) / ERROR_ACCESS_DENIED (5), which
         // means the DLL is currently loaded by another process (e.g. a
         // running test). In that case the existing copy is already correct

@@ -101,9 +101,7 @@ fn ascom_device_type_normalization_requires_exact_device_type() {
     assert_eq!(normalize_ascom_capability_device_type("CameraGuard"), None);
 }
 
-// ---------------------------------------------------------------------
-// C1: cooler-range / pulse-guide-range / angle-range capability fields
-// ---------------------------------------------------------------------
+// Cooler-range / pulse-guide-range / angle-range capability fields
 
 /// Minimal native camera whose SDK exposes a regulated-cooling range but no
 /// recommended setpoint — mirrors the ZWO shape that C2 will wire through

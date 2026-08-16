@@ -1,12 +1,13 @@
 //! ExecutionContext — the per-run state that flows through every node.
 //!
-//! Refactored to derive `Clone` so the parallel executor can clone the
-//! context for each spawned branch instead of manually field-copying ~22
-//! members. The pre-refactor blocker was `progress_callback: Box<dyn Fn>`;
-//! it's now wrapped in `Arc` so cloning bumps the refcount rather than
-//! moving ownership.
+//! Derives `Clone` so the parallel executor can clone the context for each
+//! spawned branch instead of field-copying ~22 members. `progress_callback`
+//! is an `Arc<dyn Fn>` rather than a `Box`, so cloning bumps the refcount
+//! rather than moving ownership.
 
-use crate::device_ops::{NullDeviceOps, SharedDeviceOps};
+#[cfg(test)]
+use crate::device_ops::NullDeviceOps;
+use crate::device_ops::SharedDeviceOps;
 use crate::executor::ExecutorEvent;
 use crate::instructions::InstructionContext;
 use crate::node::progress::ProgressUpdate;
@@ -78,8 +79,7 @@ impl PauseGate {
 ///
 /// All quantities are `Option` because the analyzer may not yet have
 /// enough radar history to produce them — absent values disable the
-/// dependent recovery branch rather than firing on defaults (the CONTRIBUTING.md house rules
-/// "errors are a feature").
+/// dependent recovery branch rather than firing on defaults.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct CloudMotionSnapshot {
     /// Current cloud cover percentage (0-100).
@@ -135,8 +135,8 @@ impl DeviceLockRegistry {
 /// Context passed to nodes during execution.
 ///
 /// Cloning is cheap: every field is either `Copy`, `Arc`, or already
-/// `Clone`. The parallel executor uses `ctx.clone()` to derive per-branch
-/// contexts instead of the previous 22-field manual copy.
+/// `Clone`, and the parallel executor uses `ctx.clone()` to derive
+/// per-branch contexts.
 #[derive(Clone)]
 pub struct ExecutionContext {
     /// ID of the scope this context belongs to — the ROOT node for the main run,
@@ -163,12 +163,10 @@ pub struct ExecutionContext {
     /// `is_paused` alone cannot tell an instruction whether recovery happened:
     /// the driver raises it on engage and clears it on success, so a recovery
     /// that finishes before the failed instruction starts watching is
-    /// indistinguishable from no driver at all. That race failed live runs with
-    /// "[RECOVERY] No recovery driver engaged within 10s" moments after the same
-    /// log said "Loop succeeded after 1 attempt(s); resuming sequence" — the
-    /// FASTER recovery was, the more likely it killed the run. Instructions
-    /// snapshot this before executing and compare afterwards, which is
-    /// edge-durable where a transient level is not.
+    /// indistinguishable from no driver at all — the faster the recovery, the
+    /// more likely it kills the run. Instructions snapshot this counter before
+    /// executing and compare afterwards, which is edge-durable where a
+    /// transient level is not.
     pub recovery_generation: Arc<std::sync::atomic::AtomicU64>,
     /// Skip current target request - set by trigger monitor and consumed by target header.
     pub skip_to_next_target: Arc<AtomicBool>,
@@ -180,7 +178,7 @@ pub struct ExecutionContext {
     pub scheduler_recompute_cadence: Arc<AtomicU32>,
     pub scheduler_recompute_baseline: Arc<AtomicU64>,
     pub scheduler_recompute_requested: Arc<AtomicBool>,
-    /// Trust-patch §7: SkipToNode target. When `Some(node_id)`, the executor
+    /// SkipToNode target. When `Some(node_id)`, the executor
     /// is in "skip until we reach this node" mode: container nodes mark
     /// children whose subtree does NOT contain the target as Skipped, and
     /// unwrap the request once the target's own subtree is entered. Cleared
@@ -217,16 +215,15 @@ pub struct ExecutionContext {
     pub trigger_state: Option<Arc<RwLock<crate::triggers::TriggerState>>>,
     /// Safety fail mode - determines behavior when safety devices fail or are unavailable
     pub safety_fail_mode: Arc<parking_lot::RwLock<SafetyFailMode>>,
-    /// Architecture-unification 2026-06-07 (W1 native daylight gate): the
-    /// maximum Sun altitude (degrees above the horizon) at which an on-sky
-    /// LIGHT capture is permitted. Mirrors the Dart scheduler's
-    /// `maxSunAltitudeDegrees` so the structural native gate
-    /// (`instructions::execute_slew` / `execute_exposure`) and the Dart W1
-    /// twilight gate agree on the threshold. The native gate blocks a
-    /// slew-to-science-target or a LIGHT-frame exposure while the Sun is above
-    /// this altitude; it deliberately does NOT block flats/darks/bias/park or a
-    /// parked rig (daytime calibration / testing stays usable). Seeded from
-    /// `RuntimeConfig::max_sun_altitude_degrees` at `start()`. Defaults to
+    /// The maximum Sun altitude (degrees above the horizon) at which an on-sky
+    /// LIGHT capture is permitted, mirroring the Dart scheduler's
+    /// `maxSunAltitudeDegrees` so the native gate
+    /// (`instructions::execute_slew` / `execute_exposure`) and the Dart twilight
+    /// gate agree on the threshold. The native gate blocks a slew to a science
+    /// target or a LIGHT exposure while the Sun is above this altitude, and
+    /// deliberately does NOT block flats/darks/bias/park or a parked rig, so
+    /// daytime calibration stays usable. Seeded from
+    /// `RuntimeConfig::max_sun_altitude_degrees` at `start()`; defaults to
     /// [`crate::instructions::DEFAULT_MAX_SUN_ALTITUDE_DEGREES`].
     pub max_sun_altitude_degrees: f64,
     /// Filter focus offsets from equipment profile (filter_name -> offset_steps)
@@ -277,7 +274,7 @@ pub struct ExecutionContext {
     /// credits successful bursts; the next `TargetHeader` child-boundary
     /// check terminates the target Success when the budget is met.
     /// Internally an `Arc<RwLock<...>>` so `ExecutionContext::clone` shares
-    /// a single registry across parallel branches.
+    /// A single registry across parallel branches.
     pub budget_registry: BudgetRegistry,
     // -------------------------------------------------------------------
     // Image Grading: FITS-header metadata + grading state.
@@ -359,10 +356,9 @@ pub struct ExecutionContext {
     /// header altitude crossings, target scheduler, integration budget
     /// timeline). Defaults to [`crate::scheduling::WallClock`] in
     /// production; tests inject a `MockClock` via
-    /// [`ExecutionContext::with_clock`] so previously-flaky
-    /// time-of-day-dependent assertions become deterministic.
+    /// [`ExecutionContext::with_clock`] so time-of-day-dependent assertions
+    /// are deterministic.
     pub clock: Arc<dyn Clock>,
-    // -------------------------------------------------------------------
     // sky-brightness adaptive exposures.
     // -------------------------------------------------------------------
     /// Live sky brightness in mag/arcsec² (bigger = darker). Pushed by
@@ -379,10 +375,8 @@ pub struct ExecutionContext {
     /// fallback when the node has none. `None` => no global default,
     /// no adaptation.
     ///
-    /// Held behind `Arc<RwLock<...>>` so the executor's command handler
-    /// (which has shared `&context`, not `&mut`) can update it mid-run
-    /// without fighting the borrow checker. Matches the
-    /// `current_sky_brightness_mag` / `cloud_motion_snapshot` pattern.
+    /// Held behind `Arc<RwLock<...>>` so the executor's command handler — which
+    /// holds a shared `&context` — can update it mid-run.
     pub default_adaptive_exposure: Arc<RwLock<Option<crate::scheduling::AdaptiveExposureConfig>>>,
     /// latest cloud-motion analyzer snapshot. Pushed by
     /// the Dart side via `ExecutorCommand::UpdateCloudMotion`; consumed by
@@ -404,14 +398,10 @@ pub struct ExecutionContext {
     >,
     /// per-frame defect-map application state.
     ///
-    /// When `Some`, `instructions::execute_exposure` will apply the
-    /// pre-loaded defect map to each captured frame before the FITS
-    /// save. When `None`, defect correction is disabled. The state is
-    /// pushed in via `ExecutorCommand::UpdateDefectMap` (toggle on/off
-    /// from the calibration UI). Held behind `Arc<RwLock<Option<...>>>`
-    /// so the executor's command handler can mutate it without
-    /// fighting the borrow checker (matches the `cloud_motion_snapshot`
-    /// / `current_sky_brightness_mag` pattern).
+    /// When `Some`, `instructions::execute_exposure` applies the pre-loaded
+    /// defect map to each captured frame before the FITS save; `None` disables
+    /// defect correction. Pushed in via `ExecutorCommand::UpdateDefectMap`
+    /// (toggle on/off from the calibration UI).
     pub defect_map_apply: Arc<RwLock<Option<crate::executor::DefectMapApplyState>>>,
     /// Science — latest sky transparency reading (0.0..=1.0 as a
     /// fraction of clear-sky reference; 1.0 = perfectly clear, 0.0 =
@@ -620,7 +610,15 @@ pub struct PluginNodeReply {
 }
 
 impl ExecutionContext {
-    pub fn new(node_id: NodeId) -> Self {
+    /// Build a context for `node_id` against `device_ops`.
+    ///
+    /// The device handle is a constructor argument rather than a default
+    /// because every instruction (slew, expose, autofocus, safety poll) routes
+    /// through it: a context that fell back to [`NullDeviceOps`] would answer
+    /// `safety_is_safe` = true and fabricate HFR readings against real
+    /// hardware. `SequenceExecutor` refuses to start without a handle for the
+    /// same reason.
+    pub fn new(node_id: NodeId, device_ops: SharedDeviceOps) -> Self {
         Self {
             node_id,
             target_ra: None,
@@ -651,7 +649,7 @@ impl ExecutionContext {
             save_path: None,
             latitude: None,
             longitude: None,
-            device_ops: Arc::new(NullDeviceOps),
+            device_ops,
             device_locks: Arc::new(DeviceLockRegistry::default()),
             completed_integration_secs: Arc::new(RwLock::new(0.0)),
             trigger_state: None,
@@ -810,6 +808,13 @@ impl ExecutionContext {
     pub fn with_device_ops(mut self, ops: SharedDeviceOps) -> Self {
         self.device_ops = ops;
         self
+    }
+
+    /// A context wired to [`NullDeviceOps`], for tests that exercise logic no
+    /// device call reaches.
+    #[cfg(test)]
+    pub(crate) fn new_for_test(node_id: NodeId) -> Self {
+        Self::new(node_id, Arc::new(NullDeviceOps))
     }
 
     pub fn with_target(mut self, name: String, ra: f64, dec: f64, rotation: Option<f64>) -> Self {
@@ -1067,36 +1072,31 @@ impl ExecutionContext {
         Some(trigger.is_satisfied(&ctx))
     }
 
-    /// Trust-patch §7: read the current SkipToNode target, if any.
+    /// Read the current SkipToNode target, if any.
     /// Returns the target node id when the executor is in "skip until we
     /// reach this node" mode; None otherwise.
     pub fn skip_to_node_target(&self) -> Option<NodeId> {
         self.skip_to_node.read().clone()
     }
 
-    /// Trust-patch §7: clear the SkipToNode request, signalling that we
-    /// have reached (or recursed into) the target subtree and normal
-    /// execution should resume.
+    /// Clear the SkipToNode request, signalling that execution has reached (or
+    /// recursed into) the target subtree and normal execution should resume.
     pub fn clear_skip_to_node_request(&self) {
         *self.skip_to_node.write() = None;
     }
 
-    /// Trust-patch §7: set the SkipToNode request from outside the tree
-    /// walk (called by the executor command handler).
+    /// Set the SkipToNode request from outside the tree walk (called by the
+    /// executor command handler).
     pub fn set_skip_to_node_request(&self, node_id: NodeId) {
         *self.skip_to_node.write() = Some(node_id);
     }
 
     pub fn send_progress(&self, update: ProgressUpdate) {
-        // Why: integration time is no longer tracked here. The canonical update
-        // happens on the awaiting path in `TakeExposure` (see the
+        // Integration time is not tracked here: the canonical update happens on
+        // the awaiting path in `TakeExposure` (the
         // `completed_integration_secs.write().await` block in the exposure
-        // instruction). Previously this function also called `try_write` on
-        // the same counter, which either silently dropped the increment on
-        // contention or — when uncontended — double-counted the exposure
-        // duration. Both behaviours are bugs. `send_progress` is intentionally
-        // sync because it is invoked from synchronous progress callbacks
-        // supplied to instruction code.
+        // instruction). `send_progress` is sync because it is invoked from the
+        // synchronous progress callbacks supplied to instruction code.
         if let Some(callback) = &self.progress_callback {
             callback(update);
         }
@@ -1295,16 +1295,16 @@ impl ExecutionContext {
     }
 }
 
-/// Architecture-unification 2026-06-07 (W1 native daylight gate): compute the
-/// Sun's current altitude (degrees above the horizon) for an observer at
-/// `latitude` / `longitude` (degrees). Positive = Sun above the horizon.
+/// Compute the Sun's current altitude (degrees above the horizon) for an
+/// observer at `latitude` / `longitude` (degrees). Positive = Sun above the
+/// horizon.
 ///
 /// `is_dark` answers the binary astronomical-twilight question, whereas the
 /// native daylight START gate (`instructions::execute_slew` /
 /// `instructions::execute_exposure`) needs the continuous altitude so it can
 /// compare against a configurable `max_sun_altitude_degrees` that mirrors the
-/// Dart scheduler's `maxSunAltitudeDegrees`. Extracted as a free `pub(crate)`
-/// fn (rather than a method) so the instruction layer can call it without an
+/// Dart scheduler's `maxSunAltitudeDegrees`. A free `pub(crate)` fn rather
+/// than a method so the instruction layer can call it without an
 /// `ExecutionContext`.
 pub(crate) fn current_sun_altitude_degrees(latitude: f64, longitude: f64) -> f64 {
     crate::solar::sun_altitude_degrees(latitude, longitude, &chrono::Utc::now())
@@ -1341,26 +1341,24 @@ pub(crate) fn normalized_observer_location(
 mod tests {
     use super::*;
 
-    /// Regression: the instruction context must carry the producing node id.
-    ///
-    /// It used to be absent, so `emit_grade_progress` emitted its
-    /// FrameAccepted / FrameRejected events with an empty `node_id` and the app
-    /// silently dropped every sequencer frame instead of writing a
-    /// `captured_images` row (no gallery entry, no integration total, no
-    /// per-target completion — the frames existed only as files on disk).
+    /// The instruction context must carry the producing node id: with an empty
+    /// `node_id`, `emit_grade_progress` emits FrameAccepted / FrameRejected
+    /// events the app drops instead of writing a `captured_images` row — no
+    /// gallery entry, no integration total, no per-target completion, the frames
+    /// existing only as files on disk.
     #[tokio::test]
     async fn instruction_context_carries_producing_node_id() {
         // The run-scoped context is rooted at "root"; the instruction context
         // must report the node the caller names, not the root — mixing those up
         // is what mis-attributed every captured frame to the root node.
-        let ctx = ExecutionContext::new("root".to_string());
+        let ctx = ExecutionContext::new_for_test("root".to_string());
         let ictx = ctx.to_instruction_context("exposure-node-7").await;
         assert_eq!(ictx.node_id, "exposure-node-7");
     }
 
     #[test]
     fn execution_context_is_clone() {
-        let ctx = ExecutionContext::new("root".to_string());
+        let ctx = ExecutionContext::new_for_test("root".to_string());
         let cloned = ctx.clone();
         assert_eq!(cloned.node_id, ctx.node_id);
         // Arc fields must point at the same allocation (shared state preserved).
@@ -1374,7 +1372,7 @@ mod tests {
 
     #[test]
     fn clone_preserves_progress_callback_identity() {
-        let mut ctx = ExecutionContext::new("root".to_string());
+        let mut ctx = ExecutionContext::new_for_test("root".to_string());
         let counter = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let counter_clone = counter.clone();
         ctx.progress_callback = Some(Arc::new(move |_| {

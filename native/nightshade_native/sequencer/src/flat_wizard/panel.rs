@@ -1,8 +1,8 @@
 //! Flat-panel device dance (cover open/close, calibrator on/off,
 //! brightness adjustment, slewing for sky-flat positioning).
 //!
-//! Extracted from the original monolithic `flat_wizard.rs` so the
-//! `mod.rs` wizard implementation reads as a clean state machine.
+//! Kept out of the `mod.rs` wizard implementation so that reads as a
+//! clean state machine.
 //! Teardown is fail-closed: a run cannot report success unless the
 //! calibrator is confirmed off and the cover is confirmed closed.
 
@@ -220,7 +220,7 @@ pub(super) async fn set_panel_brightness(
         .await?;
 
     // Wait for calibrator to stabilize (10s timeout, non-cancellable to
-    // match pre-refactor behavior of `set_panel_brightness`).
+    // match `set_panel_brightness`).
     let _ = wait_for_calibrator_state(
         ctx,
         cc_id,

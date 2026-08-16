@@ -1,22 +1,20 @@
-//! Alpaca `imagearray` JSON decoder (§5.3).
+//! Alpaca `imagearray` JSON decoder.
 
 use super::*;
 
-// -----------------------------------------------------------------------------
-// Image-array JSON parser (§5.3)
-// -----------------------------------------------------------------------------
+// Image-array JSON parser
 
 /// Parse an Alpaca `imagearray` JSON response into `ImageArrayResult`.
 ///
 /// Why this is a free function (not a method): isolating the pure parser
-/// makes §5.3 directly unit-testable without spinning up an HTTP server.
+/// makes it directly unit-testable without spinning up an HTTP server.
 ///
 /// # Error semantics
 ///
 /// * Any pixel that is not a JSON number — or, for an integer `Type`, a
 ///   fractional number — yields `AlpacaError::PixelParseError` carrying the
 ///   linear pixel offset and the offending JSON token. **No silent
-///   zero-substitution** (the bug the audit calls out).
+///   zero-substitution.**
 /// * Unknown `Type` or unsupported `(Rank, Type)` combinations yield
 ///   `AlpacaError::UnsupportedImageArray` instead of guessing.
 /// * Mismatched array shape vs. `(width, height)` is `AlpacaError::ParseError`.
@@ -55,7 +53,7 @@ pub(crate) fn parse_image_array_json(
         }
     }
 
-    // Why: Type/Rank are required for §5.3 dispatch. The Alpaca spec mandates
+    // Why: Type/Rank are required to pick a decoder. The Alpaca spec mandates
     // them; a missing field is a server bug we should report, not paper over.
     let element_type_raw = json
         .get("Type")
@@ -279,8 +277,8 @@ fn parse_rank3(
 
 /// Decode a single JSON pixel into `u16`, dispatching on `element_type`.
 ///
-/// Why this function exists: §5.3 mandates that we **never** silently turn an
-/// unparseable JSON token into `0`. Every failure path here returns a
+/// Why this function exists: an unparseable JSON token must **never** silently
+/// become `0`. Every failure path here returns a
 /// `PixelParseError` carrying enough context to find the bad pixel.
 fn decode_pixel(
     pixel: &serde_json::Value,
@@ -370,9 +368,7 @@ fn shorten_json(v: &serde_json::Value) -> String {
     }
     s
 }
-// -----------------------------------------------------------------------------
-// Tests (§5.3, §5.13)
-// -----------------------------------------------------------------------------
+// Tests
 
 #[cfg(test)]
 mod image_array_tests {
@@ -405,7 +401,7 @@ mod image_array_tests {
 
     #[test]
     fn malformed_pixel_string_yields_pixel_parse_error_not_zero() {
-        // A pixel string instead of a number; previously this became 0.
+        // A pixel string instead of a number: an error, never 0.
         let body = ok_response(2, 2, serde_json::json!([[1, 2, "oops"], [4, 5, 6],]));
         let err = parse_image_array_json(&body, 2, 3).expect_err("must reject malformed pixel");
         match err {
@@ -436,7 +432,7 @@ mod image_array_tests {
     #[test]
     fn fractional_pixel_with_integer_type_errors() {
         // Type 2 = Int32; a fractional value is a server bug, not a rounding
-        // opportunity. §5.3 mandates failing closed.
+        // opportunity — fail closed.
         let body = ok_response(2, 2, serde_json::json!([[1, 2, 3.5], [4, 5, 6],]));
         let err = parse_image_array_json(&body, 2, 3).expect_err("fractional Int32 must error");
         match err {

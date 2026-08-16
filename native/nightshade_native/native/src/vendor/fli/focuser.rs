@@ -2,10 +2,6 @@
 
 use super::*;
 
-// =============================================================================
-// FLI Focuser Implementation
-// =============================================================================
-
 /// FLI focuser native driver
 pub struct FliFocuser {
     pub(crate) device_path: String,

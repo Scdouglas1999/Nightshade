@@ -24,10 +24,6 @@ use tokio::sync::RwLock;
 // Sibling-module items via the parent's pub use re-exports.
 use super::*;
 
-// =============================================================================
-// Initialization
-// =============================================================================
-
 /// Initialize the native bridge with optional file logging
 /// Must be called once at app startup before any other API calls
 ///

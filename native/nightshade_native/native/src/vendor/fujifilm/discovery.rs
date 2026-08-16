@@ -2,10 +2,6 @@
 
 use super::*;
 
-// =============================================================================
-// DEVICE DISCOVERY
-// =============================================================================
-
 /// Information about a discovered Fujifilm device
 pub struct FujifilmDeviceInfo {
     pub name: String,
@@ -29,7 +25,7 @@ pub async fn discover_devices() -> Result<Vec<FujifilmDeviceInfo>, NativeError> 
     // Step 1: Detect USB devices with retry logic
     let mut count: c_long = 0;
     for attempt in 1..=3 {
-        // SAFETY: fujifilm_mutex held above; XSDK_Detect accepts NULL for the two reserved interface-options pointers (per XAPI.h §USB-detect); `&mut count` is a valid stack out-pointer to c_long; XSDK_DSC_IF_USB is the documented USB interface constant.
+        // SAFETY: fujifilm_mutex held above; XSDK_Detect accepts NULL for the two reserved interface-options pointers (per XAPI.h); `&mut count` is a valid stack out-pointer to c_long; XSDK_DSC_IF_USB is the documented USB interface constant.
         let result = unsafe {
             (sdk.detect)(
                 XSDK_DSC_IF_USB,

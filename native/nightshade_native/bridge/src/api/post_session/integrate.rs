@@ -1,9 +1,5 @@
 use super::*;
 
-// =============================================================================
-// api_integrate_session implementation
-// =============================================================================
-
 /// A light frame loaded, calibrated, and ready to register: kept around so the
 /// reference can be picked after every sub's quality is known.
 #[flutter_rust_bridge::frb(ignore)]
@@ -23,12 +19,12 @@ pub(crate) fn integrate_session(
         return Err("output.masterFitsPath is required".to_string());
     }
 
-    // --- Load calibration masters once (shared across all lights). ---
+    // Load calibration masters once (shared across all lights).
     let dark = load_optional_master(&args.calibration.dark, "dark")?;
     let flat = load_optional_master(&args.calibration.flat, "flat")?;
     let bias = load_optional_master(&args.calibration.bias, "bias")?;
 
-    // --- Load + calibrate every light. ---
+    // Load + calibrate every light.
     let total_lights = args.light_paths.len() as u32;
     emit_integration_progress(
         "calibrating",
@@ -77,7 +73,7 @@ pub(crate) fn integrate_session(
         emit_integration_progress("calibrating", frac, Some(done), Some(total_lights));
     }
 
-    // --- Choose the reference frame. ---
+    // Choose the reference frame.
     // The registration config is built first: reference choice must consult the
     // same star detector the registration will use.
     let reg_cfg = build_registration_config(&args.settings.align)?;
@@ -90,7 +86,7 @@ pub(crate) fn integrate_session(
     let locations = (width as usize) * (height as usize);
     let chan = channels as usize;
 
-    // --- Register every light onto the reference. ---
+    // Register every light onto the reference.
     // Per-frame outputs, aligned to `loaded`.
     struct Registered {
         path: String,
@@ -189,7 +185,7 @@ pub(crate) fn integrate_session(
         }
     }
 
-    // --- Weight the accepted subs. ---
+    // Weight the accepted subs.
     let accepted_idx: Vec<usize> = registered
         .iter()
         .enumerate()
@@ -214,7 +210,7 @@ pub(crate) fn integrate_session(
         vec![1.0; accepted_idx.len()]
     };
 
-    // --- Reference luminance for normalization (the anchor). ---
+    // Reference luminance for normalization (the anchor).
     // Use the *registered* reference buffer (already on the grid).
     let ref_reg_pos = accepted_idx
         .iter()
@@ -222,7 +218,7 @@ pub(crate) fn integrate_session(
         .ok_or_else(|| "reference frame was dropped during registration".to_string())?;
     let ref_pixels = registered[ref_index].pixels.clone();
 
-    // --- Normalize each accepted sub to the reference, per channel. ---
+    // Normalize each accepted sub to the reference, per channel.
     let norm_total = accepted_idx.len() as u32;
     emit_integration_progress("normalizing", FRACTION_NORMALIZE, Some(0), Some(norm_total));
     if args.settings.normalization.enabled {
@@ -266,7 +262,7 @@ pub(crate) fn integrate_session(
     }
     let _ = ref_reg_pos; // reference normalizes to identity; kept for clarity.
 
-    // --- Integrate. ---
+    // Integrate.
     let sub_count = accepted_idx.len();
     let int_cfg = build_integration_config(&args.settings.integration, sub_count)?;
     let frames: Vec<IntegrationFrame<'_>> = accepted_idx
@@ -286,7 +282,7 @@ pub(crate) fn integrate_session(
         .map_err(|e| format!("integration failed: {e}"))?;
     emit_integration_progress("integrating", FRACTION_INTEGRATE_DONE, None, None);
 
-    // --- Write the master FITS. ---
+    // Write the master FITS.
     emit_integration_progress("writing", FRACTION_WRITE, None, None);
     let master_path = Path::new(&args.output.master_fits_path);
     ensure_parent_dir(master_path)?;
@@ -302,7 +298,7 @@ pub(crate) fn integrate_session(
     write_fits(master_path, &output.master, &header)
         .map_err(|e| format!("failed to write master FITS: {e:?}"))?;
 
-    // --- Optional rejection map FITS. ---
+    // Optional rejection map FITS.
     let rejection_map_path = if let (Some(p), Some(map)) = (
         args.output.rejection_map_path.as_ref(),
         output.rejection_map.as_ref(),
@@ -323,7 +319,7 @@ pub(crate) fn integrate_session(
         None
     };
 
-    // --- Optional stretched rejection-map PNG. ---
+    // Optional stretched rejection-map PNG.
     // Flutter cannot decode the scientific FITS map directly. Keep that FITS
     // for inspection and emit a real image sibling for Session Review.
     let rejection_map_preview_path = if let (Some(p), Some(map)) = (
@@ -349,7 +345,7 @@ pub(crate) fn integrate_session(
         None
     };
 
-    // --- Optional stretched preview PNG. ---
+    // Optional stretched preview PNG.
     let preview_path = if let Some(p) = args.output.preview_png_path.as_ref() {
         if !p.trim().is_empty() {
             write_preview_png(&output.master, Path::new(p))?;
@@ -363,7 +359,7 @@ pub(crate) fn integrate_session(
     // Final boundary: the master (and optional preview) are on disk.
     emit_integration_progress("preview", FRACTION_DONE, None, None);
 
-    // --- Assemble per-frame stats + aggregate residual. ---
+    // Assemble per-frame stats + aggregate residual.
     // Map normalized weights back to the accepted frames by position.
     let mut weight_by_index: std::collections::HashMap<usize, f64> =
         std::collections::HashMap::new();

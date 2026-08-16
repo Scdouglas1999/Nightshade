@@ -1,9 +1,5 @@
 use super::*;
 
-// =============================================================================
-// Filter Wheel Control (Simulator implementation)
-// =============================================================================
-
 /// Simulated filter wheel state
 pub(crate) static SIM_FILTERWHEEL: OnceLock<Arc<RwLock<SimulatedFilterWheel>>> = OnceLock::new();
 

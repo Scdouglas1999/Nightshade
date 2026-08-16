@@ -1,9 +1,5 @@
 use super::*;
 
-// =============================================================================
-// Rotator Control (Simulator implementation)
-// =============================================================================
-
 /// Simulated rotator state
 pub(crate) static SIM_ROTATOR: OnceLock<Arc<RwLock<SimulatedRotator>>> = OnceLock::new();
 

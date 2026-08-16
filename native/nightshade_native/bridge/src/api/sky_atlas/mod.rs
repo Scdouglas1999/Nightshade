@@ -56,9 +56,7 @@ pub(crate) use tiles::*;
 /// largest channel counts and a future batched variant.
 const DEFAULT_MEMORY_BUDGET_BYTES: u64 = 512 * 1024 * 1024;
 
-// =============================================================================
 // Shared JSON helpers
-// =============================================================================
 
 /// Parse an interpolator token (`bilinear` | `catmullRom` | `lanczos3`), falling
 /// back to Lanczos-3 (the atlas / mosaic default) when unset or empty.
@@ -173,9 +171,7 @@ fn list_tiles_on_disk(atlas: &SkyAtlas) -> Result<Vec<TileId>, String> {
     Ok(ids)
 }
 
-// =============================================================================
-// api_sky_atlas — the dispatcher (contracts §2.1)
-// =============================================================================
+// api_sky_atlas — the dispatcher
 
 #[derive(Debug, Clone, Deserialize)]
 #[flutter_rust_bridge::frb(ignore)]
@@ -232,6 +228,4 @@ pub fn api_sky_atlas(args_json: String) -> Result<String, String> {
     }
 }
 
-// =============================================================================
 // Tests
-// =============================================================================

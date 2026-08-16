@@ -136,11 +136,10 @@ async fn test_jitter_produces_variation() {
     assert!(delay2.as_secs_f64() >= 8.5 && delay2.as_secs_f64() <= 11.5);
 }
 
-/// Regression test for §5.23: ensure two clients constructed back-to-back
-/// produce uncorrelated jitter streams. With the previous process-global
-/// PRNG (seeded from system time on first use), two clients created in
-/// the same nanosecond would observe identical reconnect schedules and
-/// thunder-herd the INDI server. Per-instance seeding must prevent that.
+/// Two clients constructed back-to-back must produce uncorrelated jitter
+/// streams. A process-global PRNG seeded from system time on first use gives
+/// two clients created in the same nanosecond identical reconnect schedules,
+/// which thunder-herds the INDI server; per-instance seeding prevents that.
 #[tokio::test]
 async fn test_per_instance_jitter_uncorrelated_across_clients() {
     let client_a = IndiClient::new("localhost", Some(7624));
@@ -421,9 +420,7 @@ async fn test_reader_status() {
     assert_eq!(status, ReaderStatus::Stopped);
 }
 
-// =========================================================================
-// Reader Supervision Tests
-// =========================================================================
+// Reader supervision tests
 
 #[tokio::test]
 async fn test_reader_task_config_default() {
@@ -697,9 +694,7 @@ async fn test_disconnect_resets_failure_counter() {
     assert_eq!(client.reader_consecutive_failures(), 0);
 }
 
-// =========================================================================
-// Keepalive Race Condition Prevention Tests
-// =========================================================================
+// Keepalive race condition prevention tests
 
 #[tokio::test]
 async fn test_keepalive_in_progress_flag_initial_state() {
@@ -937,9 +932,7 @@ async fn test_keepalive_atomic_guard_acquire_release() {
     assert!(acquired_after_release);
 }
 
-// =========================================================================
 // XML depth-stack parser tests
-// =========================================================================
 
 #[test]
 fn test_classify_indi_tag_dispatches_each_kind() {

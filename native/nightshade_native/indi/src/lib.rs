@@ -14,20 +14,18 @@
 //! | Rotator          | Full          | Angle control                            |
 //! | Dome             | Full          | Slew, park, shutter control              |
 //! | Safety Monitor   | Full          | Safety state monitoring                  |
-//! | Cover Calibrator | Partial       | No halt support, basic open/close only   |
+//! | Cover Calibrator | Full          | Open, close, halt, calibrator brightness |
 //! | Weather          | Full          | All standard INDI weather properties     |
 //! | Switch           | Full          | Custom switch property enumeration       |
 //!
 //! ## Unsupported Features
 //!
-//! The following INDI features are not currently implemented:
-//! - Cover calibrator halt command
-//! - BLOB streaming for video
+//! BLOB streaming for video is unsupported; frames arrive as standard BLOB
+//! transfers. ASCOM Alpaca is the cross-platform alternative for streaming.
 //!
-//! ## Alternatives
-//!
-//! For unsupported features (cover calibrator halt, BLOB streaming), use ASCOM
-//! Alpaca which provides cross-platform support via HTTP.
+//! Cover calibrator open/close/halt each try several property vocabularies
+//! (`CAP_*`, `LIGHTBOX_CONTROL`, `DUST_CAP`) and error out only when the driver
+//! exposes none of them.
 //!
 //! ## Features
 //!
@@ -75,75 +73,6 @@ pub use rotator::IndiRotator;
 pub use safetymonitor::IndiSafetyMonitor;
 pub use switch_device::{IndiSwitchDevice, IndiSwitchInfo};
 pub use weather::{IndiWeather, IndiWeatherStatus, DEFAULT_WEATHER_STALE_MS};
-
-/// Error returned when an INDI feature is not supported
-#[derive(Debug, Clone)]
-pub struct UnsupportedFeatureError {
-    pub device_type: String,
-    pub feature: String,
-    pub alternative: Option<String>,
-}
-
-impl std::fmt::Display for UnsupportedFeatureError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "INDI does not support {} for {}.",
-            self.feature, self.device_type
-        )?;
-        if let Some(alt) = &self.alternative {
-            write!(f, " Alternative: {}", alt)?;
-        }
-        Ok(())
-    }
-}
-
-impl std::error::Error for UnsupportedFeatureError {}
-
-/// Check if a feature is supported for a device type
-///
-/// Returns `Ok(())` if the feature is supported, or an `UnsupportedFeatureError`
-/// with details about the limitation and any available alternatives.
-///
-/// # Arguments
-///
-/// * `device_type` - The type of device (e.g., "camera", "mount", "weather")
-/// * `feature` - The specific feature being requested (e.g., "connect", "halt")
-///
-/// # Examples
-///
-/// ```
-/// use nightshade_indi::check_feature_support;
-///
-/// // Camera features are fully supported
-/// assert!(check_feature_support("camera", "capture").is_ok());
-///
-/// // BLOB streaming is not supported; use standard BLOB transfers instead.
-/// assert!(check_feature_support("camera", "blob_streaming").is_err());
-/// ```
-pub fn check_feature_support(
-    device_type: &str,
-    feature: &str,
-) -> Result<(), UnsupportedFeatureError> {
-    match (
-        device_type.to_lowercase().as_str(),
-        feature.to_lowercase().as_str(),
-    ) {
-        ("covercalibrator", "halt") => Err(UnsupportedFeatureError {
-            device_type: device_type.to_string(),
-            feature: feature.to_string(),
-            alternative: None,
-        }),
-        ("covercalibrator", "blob_streaming") | ("camera", "blob_streaming") => {
-            Err(UnsupportedFeatureError {
-                device_type: device_type.to_string(),
-                feature: feature.to_string(),
-                alternative: Some("Use standard BLOB transfers instead of streaming".to_string()),
-            })
-        }
-        _ => Ok(()),
-    }
-}
 
 /// Default INDI server port
 pub const INDI_DEFAULT_PORT: u16 = 7624;

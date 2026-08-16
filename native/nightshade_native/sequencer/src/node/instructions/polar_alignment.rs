@@ -34,9 +34,9 @@ impl InstructionNode for PolarAlignmentInstruction {
             config,
             &ctx,
             |msg, _progress| {
-                // Preserves the pre-refactor lifecycle-message shape; the
-                // polar-align engine emits free-form status strings rather
-                // than instruction-progress events.
+                // Lifecycle-message shape: the polar-align engine emits
+                // free-form status strings rather than instruction-progress
+                // events.
                 if let Some(cb) = progress_cb {
                     cb(ProgressUpdate::lifecycle(
                         node_id.to_string(),

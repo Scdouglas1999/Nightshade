@@ -30,9 +30,9 @@
 //! [`crate::master_accumulation::AccumulationMode::RunningWeightedMean`] and
 //! `clip == None` this is **provably exact** versus folding both contributors'
 //! frames into one accumulator — the master's online-vs-batch parity, lifted to
-//! tiles. The honesty caveat carried over verbatim from the master: cross-batch
-//! *online* rejection is not identical to a from-scratch full-population clip;
-//! only with `clip: None` is the merge exact. [`merge_tiles_subtract`] is the
+//! tiles. The master's caveat carries over: cross-batch *online* rejection is
+//! not identical to a from-scratch full-population clip, so only with
+//! `clip: None` is the merge exact. [`merge_tiles_subtract`] is the
 //! retraction: a linear subtraction of a contributor's recorded delta.
 //!
 //! # Where tiles live
@@ -83,9 +83,7 @@ pub const TILE_PIXELS: u32 = 1024;
 /// are additive and `finalize` re-divides).
 const TILE_SCALE_MARGIN: f64 = 1.08;
 
-// =============================================================================
 // HEALPix NESTED addressing
-// =============================================================================
 //
 // A from-scratch Rust implementation of the standard HEALPix NESTED scheme
 // (Górski et al. 2005), the Rust twin of the Dart HiPS addressing reference. We
@@ -301,9 +299,7 @@ pub fn radec_to_tile(ra_deg: f64, dec_deg: f64, order: u32) -> TileId {
     zphi_to_nest(z, phi, order)
 }
 
-// =============================================================================
 // Public tile addressing
-// =============================================================================
 
 /// `(ra_deg in [0,360), dec_deg)` of a tile's centre.
 pub fn tile_center(id: TileId, order: u32) -> (f64, f64) {
@@ -448,9 +444,7 @@ pub fn tile_wcs(id: TileId, order: u32) -> SipWcs {
     )
 }
 
-// =============================================================================
 // Provenance
-// =============================================================================
 
 /// One contributor's fold into a tile (mirrors the master's `FoldRecord`).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -490,9 +484,7 @@ impl TileProvenance {
     }
 }
 
-// =============================================================================
 // Errors
-// =============================================================================
 
 /// Errors from the sky-atlas API. Every variant is a caller mistake surfaced
 /// loudly rather than silently producing a wrong tile.
@@ -547,9 +539,7 @@ pub enum AtlasError {
     Io(String),
 }
 
-// =============================================================================
 // SkyTileAccumulator
-// =============================================================================
 
 /// Per-tile additive accumulator — the master's [`PerPixelAccumulator`] on a
 /// fixed tile grid, plus the tile's frozen [`SipWcs`] and provenance.
@@ -881,9 +871,7 @@ impl SkyTileAccumulator {
         sum as f64 / self.state.coverage.len() as f64
     }
 
-    // -------------------------------------------------------------------------
-    // Serialization (resumable sidecar) — same layout discipline as the master.
-    // -------------------------------------------------------------------------
+    // Serialization (resumable sidecar), same layout discipline as the master
 
     /// Serialize to a self-contained, versioned blob:
     /// `MAGIC (4) | version (u32 LE) | header_len (u32 LE) | JSON header | raw
@@ -1048,9 +1036,7 @@ struct TileHeader {
     slot_count: usize,
 }
 
-// =============================================================================
 // Federation: merge / subtract
-// =============================================================================
 
 /// Add `other` into `dst` (same tile id + order + grid). Sums the six running
 /// vectors (scaling `other`'s weighted sums by `trust`) and unions provenance.
@@ -1177,9 +1163,7 @@ fn merge_signed(
     Ok(())
 }
 
-// =============================================================================
 // Out-of-core atlas: per-tile sidecars on disk
-// =============================================================================
 
 /// A handle to an on-disk atlas: a directory of serialized tile sidecars under
 /// `<root>/tiles/<order>/<tileId>.nst`. The atlas is the bulk pixel store; the
@@ -1518,9 +1502,7 @@ mod tests {
         AccumulationMode::RunningWeightedMean { clip: None }
     }
 
-    // -------------------------------------------------------------------------
     // HEALPix addressing
-    // -------------------------------------------------------------------------
 
     #[test]
     fn tile_round_trip_center_maps_back_to_same_tile() {
@@ -1599,9 +1581,7 @@ mod tests {
         assert!(checked > 0);
     }
 
-    // -------------------------------------------------------------------------
     // Fold + finalize
-    // -------------------------------------------------------------------------
 
     /// A flat F32 frame whose WCS is the tile's own grid, so the frame covers the
     /// tile pixel-for-pixel. Returns (frame, wcs).
@@ -1643,8 +1623,8 @@ mod tests {
         // The atlas reproject must route through the frame's full SipWcs, not a
         // CD-only shortcut. Fold the same pixel data once with a CD-only frame WCS
         // and once with the same WCS plus a non-trivial forward SIP; the sampled
-        // tile must differ, proving SIP is applied (the old WcsProjection dropped
-        // it silently). A gradient frame makes the distortion observable.
+        // tile must differ, which is what proves SIP is applied. A gradient
+        // frame makes the distortion observable.
         let order = ATLAS_HEALPIX_ORDER;
         let tid = radec_to_tile(140.0, -20.0, order);
         let w = TILE_PIXELS as usize;
@@ -1692,9 +1672,7 @@ mod tests {
         );
     }
 
-    // -------------------------------------------------------------------------
-    // THE additivity property (Pillar C's requirement)
-    // -------------------------------------------------------------------------
+    // The additivity property
 
     /// A structured (ramped) frame on a tile's own grid so the per-channel robust
     /// scale (MAD) is non-degenerate and the photometric normalization is
@@ -2009,9 +1987,7 @@ mod tests {
         assert!((v1 - 500.0).abs() < 2.0, "full-trust merged mean: {v1}");
     }
 
-    // -------------------------------------------------------------------------
     // Serialize / deserialize
-    // -------------------------------------------------------------------------
 
     #[test]
     fn serialize_deserialize_round_trips() {
@@ -2063,9 +2039,7 @@ mod tests {
         );
     }
 
-    // -------------------------------------------------------------------------
     // Out-of-core atlas (disk round-trip + query)
-    // -------------------------------------------------------------------------
 
     #[test]
     fn atlas_fold_persists_and_query_recovers() {
@@ -2204,9 +2178,7 @@ mod tests {
         assert!((v - 1000.0).abs() < 50.0, "finalized stayed near 1000: {v}");
     }
 
-    // -------------------------------------------------------------------------
     // Cross-language parity fixtures
-    // -------------------------------------------------------------------------
     //
     // The hub (`server/nightshade_hub`) re-implements this module's `NST1`
     // additive tile codec in Dart and claims byte-for-byte parity. To make a

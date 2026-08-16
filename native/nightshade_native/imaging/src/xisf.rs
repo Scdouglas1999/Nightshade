@@ -159,7 +159,7 @@ impl From<quick_xml::events::attributes::AttrError> for XisfError {
     }
 }
 
-/// Parsed image header information extracted from the XISF XML
+/// Parsed image header information read from the XISF XML
 struct ImageHeader {
     width: u32,
     height: u32,
@@ -762,10 +762,10 @@ mod tests {
         assert_eq!(resolved.1, expected_offset);
     }
 
-    /// §6.21: Boolean parsing must accept all spec-permitted literals
-    /// case-insensitively. The previous implementation only matched `"true"`
-    /// and `"1"` exactly, so PixInsight-emitted `"True"` was silently treated
-    /// as `false` (turning real flags into wrong defaults).
+    /// Boolean parsing must accept all spec-permitted literals
+    /// case-insensitively. Matching only `"true"` and `"1"` exactly treats a
+    /// PixInsight-emitted `"True"` as `false`, turning real flags into wrong
+    /// defaults.
     #[test]
     fn parses_boolean_property_case_insensitive() {
         for truthy in &["true", "True", "TRUE", " true ", "1"] {
@@ -792,7 +792,7 @@ mod tests {
         }
     }
 
-    /// §6.22: the XISF Creator property must reflect the real product version
+    /// The XISF Creator property must reflect the real product version
     /// (sourced from `version.yaml` via `build.rs`), not a hardcoded "2.0".
     #[test]
     fn xisf_creator_contains_real_version() {
@@ -818,13 +818,13 @@ mod tests {
             expected,
             xml
         );
-        // The hardcoded sentinel value must no longer appear unless the real
-        // version is literally 2.0 (in which case the assertion above already
-        // matched the dynamic string and this is a no-op).
+        // The emitted version is the dynamic NIGHTSHADE_PRODUCT_VERSION, so
+        // the "2.0" literal may only appear when the real version is 2.0 (in
+        // which case the assertion above already matched it).
         if NIGHTSHADE_PRODUCT_VERSION != "2.0" {
             assert!(
                 !xml.contains("\"Nightshade 2.0\""),
-                "XISF header still contains the legacy hardcoded \"Nightshade 2.0\" literal"
+                "XISF header must carry the product version, not a \"Nightshade 2.0\" literal"
             );
         }
         // Sanity: version constant is non-empty and matches a SemVer-ish shape.

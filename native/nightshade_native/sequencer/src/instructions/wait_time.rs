@@ -5,9 +5,7 @@
 
 use super::*;
 
-// =============================================================================
-// WAIT TIME INSTRUCTION
-// =============================================================================
+// Wait time instruction
 
 /// Execute wait for time
 pub async fn execute_wait_time(
@@ -154,8 +152,7 @@ Sequence cannot wait for an unreachable twilight state.",
 /// Timestamp of the next EVENING crossing of the twilight type's Sun altitude.
 ///
 /// The math lives in [`crate::solar`] so this and the `DawnApproaching`
-/// trigger are calibrated against the same Sun; they used to run separate
-/// implementations that disagreed by the equation of time.
+/// trigger are calibrated against the same Sun.
 pub(crate) fn calculate_twilight_time(
     latitude: f64,
     longitude: f64,

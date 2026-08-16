@@ -1,9 +1,5 @@
 use super::*;
 
-// =========================================================================
-// Device ID Cache
-// =========================================================================
-
 /// Default cache capacity for parsed device IDs.
 /// A typical astrophotography setup has 5-10 devices, so 64 provides
 /// ample room for multiple sessions without excessive memory usage.
@@ -87,20 +83,17 @@ pub struct DeviceIdCache {
 impl DeviceIdCache {
     /// Create a new cache with the specified capacity.
     ///
-    /// # `unwrap_or` policy
+    /// Every `unwrap` in this type is panic-free by construction:
     ///
-    /// * `NonZeroUsize::new(capacity).unwrap_or(NonZeroUsize::new(DEFAULT_CACHE_CAPACITY).unwrap())`
-    ///   — caller-supplied zero capacity is treated as "use the default"
-    ///   rather than panicking; the inner `unwrap()` on the constant
-    ///   `DEFAULT_CACHE_CAPACITY` is genuinely infallible (compile-time
-    ///   constant > 0).
-    /// * `self.cache.lock().unwrap_or_else(|e| e.into_inner())` (five
-    ///   sites) — Mutex poison recovery: a previous panic-while-holding
-    ///   left the cache in a possibly-inconsistent state. The cache is a
-    ///   pure performance optimisation around `ParsedDeviceId::parse`, so
-    ///   recovering the inner LruCache is always safe — at worst we
-    ///   return a stale entry, which the caller's signature already
-    ///   tolerates via `Option`.
+    /// * `NonZeroUsize::new(capacity).unwrap_or(...)` — a caller-supplied zero
+    ///   capacity means "use `DEFAULT_CACHE_CAPACITY`" rather than a panic, and
+    ///   the inner `unwrap()` reads that compile-time constant, which is
+    ///   non-zero.
+    /// * `self.cache.lock().unwrap_or_else(|e| e.into_inner())` (five sites) —
+    ///   poison recovery. A panic while the lock was held can leave the LRU
+    ///   inconsistent, but this cache is a pure optimisation around
+    ///   `ParsedDeviceId::parse`, so the worst a recovered lock yields is a
+    ///   stale entry, which every caller's `Option` already tolerates.
     pub(crate) fn new(capacity: usize) -> Self {
         let cap = NonZeroUsize::new(capacity)
             .unwrap_or(NonZeroUsize::new(DEFAULT_CACHE_CAPACITY).unwrap());
@@ -170,22 +163,8 @@ pub(crate) fn get_cache() -> &'static DeviceIdCache {
 
 /// Parse a device ID with caching.
 ///
-/// This is the primary entry point for parsing device IDs. It will:
-/// 1. Check the cache for an existing parsed result
-/// 2. If not found, parse the ID and cache the result
-/// 3. Return a clone of the parsed device ID
-///
-/// # Arguments
-/// * `device_id` - The raw device ID string to parse
-///
-/// # Returns
-/// * `Ok(ParsedDeviceId)` - Successfully parsed (from cache or freshly parsed)
-/// * `Err(NightshadeError)` - Parsing failed
-///
-/// # Example
-/// ```rust,ignore
-/// let parsed = parse_device_id_cached("alpaca:http://192.168.1.100:11111:camera:0")?;
-/// ```
+/// The primary entry point for parsing device IDs: a cache hit returns a clone of
+/// the stored parse, a miss parses and stores it.
 pub fn parse_device_id_cached(device_id: &str) -> Result<ParsedDeviceId, NightshadeError> {
     let cache = get_cache();
 

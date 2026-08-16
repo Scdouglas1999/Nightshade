@@ -5,9 +5,7 @@
 
 use super::*;
 
-// =============================================================================
-// PARK/UNPARK INSTRUCTIONS
-// =============================================================================
+// PARK/UNPARK instructions
 
 /// Execute park
 pub async fn execute_park(ctx: &InstructionContext) -> InstructionResult {

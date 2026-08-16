@@ -2,10 +2,6 @@
 
 use super::*;
 
-// =============================================================================
-// SDK LIBRARY LOADING
-// =============================================================================
-
 /// Fujifilm SDK library wrapper
 pub(crate) struct FujifilmSdk {
     #[allow(dead_code)]
@@ -259,9 +255,7 @@ impl FujifilmSdk {
     }
 }
 
-// =============================================================================
-// ERROR HANDLING
-// =============================================================================
+// Error handling
 
 /// Map XSDK error codes to NativeError
 pub(crate) fn check_xapi_error(h_camera: XsdkHandle, sdk: &FujifilmSdk) -> Result<(), NativeError> {
@@ -328,9 +322,7 @@ pub(crate) fn check_xapi_error(h_camera: XsdkHandle, sdk: &FujifilmSdk) -> Resul
     }
 }
 
-// =============================================================================
-// HELPER FUNCTIONS
-// =============================================================================
+// Helper functions
 
 /// Safely convert C string array to Rust String
 pub(crate) fn cstr_to_string(arr: &[c_char; 256]) -> String {

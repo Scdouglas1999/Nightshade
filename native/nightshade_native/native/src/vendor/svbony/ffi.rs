@@ -2,9 +2,7 @@
 
 use super::*;
 
-// =============================================================================
-// SVBony SDK Types (from SVBCameraSDK.h)
-// =============================================================================
+// Types and constants from SVBCameraSDK.h.
 
 /// SVBony error codes
 #[repr(i32)]
@@ -119,30 +117,18 @@ pub(crate) enum SvbImgType {
 /// width of the sensor" (`SDKs/SVBony/SVBONY/ReadMe.txt:424,430`).
 ///
 /// With `SVB_IMG_RAW16` selected the SDK left-justifies those sensor bits into
-/// the 16-bit buffer, exactly like ZWO. Measured on real hardware, an SV305
-/// (12-bit sensor): after SVBony changed the SDK to expose RAW16 in place of
-/// RAW12, SharpCap's sensor analysis reported e-/ADU 16x smaller across all 11
-/// gain rows, moving the implied saturation level from exactly 4096 ADU to
-/// exactly 65536 ADU. SharpCap's author states the mechanism directly:
-///
-/// > Previously the data came from the SDK at 12 bits (0..4095), which SharpCap
-/// > would multiply by 16, leading to values from 0..65520 (all the values being
-/// > multiples of 16). ... Now the data comes from the SDK at 16 bits. If all the
-/// > white balance/contrast/sharpness etc are default then all the pixel values
-/// > will be multiples of 16 and the 12 bit depth of the sensor will be detected
-/// > correctly.
-///
-/// — <https://forums.sharpcap.co.uk/viewtopic.php?t=4837> (posts #3 and #6).
-/// "All the pixel values will be multiples of 16" over a 12-bit sensor is the
-/// left-justification signature: the reachable ceiling is `4095 << 4 = 65520`,
-/// not 4095. Reporting `(1 << MaxBitDepth) - 1` understated it 16x and made every
-/// percent-of-full-scale consumer — flat-frame targets above all — unreachable.
+/// the 16-bit buffer, exactly like ZWO. Measured on an SV305 (12-bit sensor):
+/// every RAW16 pixel value is a multiple of 16 and saturation sits at 65536 ADU
+/// rather than 4096 — the left-justification signature — so the reachable ceiling
+/// is `4095 << 4 = 65520`, not 4095
+/// (<https://forums.sharpcap.co.uk/viewtopic.php?t=4837>, posts #3 and #6).
+/// Reporting `(1 << MaxBitDepth) - 1` understates it 16x and puts every
+/// percent-of-full-scale consumer — flat-frame targets above all — out of reach.
 ///
 /// `SVB_IMG_RAW8` is a genuine 8-bit container (the SDK takes the high bits), so
-/// its ceiling is 255 regardless of sensor bit depth. This matters because
-/// `connect()` falls back to RAW8 when a model does not offer RAW16; before this
-/// function the driver kept publishing the sensor-derived ceiling in that case,
-/// which overstated an 8-bit frame by up to 16x in the other direction.
+/// its ceiling is 255 regardless of sensor bit depth. `connect()` falls back to
+/// RAW8 when a model does not offer RAW16, and a sensor-derived ceiling there
+/// overstates an 8-bit frame by up to 16x in the other direction.
 ///
 /// `bit_depth == 0` or `>= 16` means either an unpopulated property or a
 /// genuinely 16-bit ADC; both take the container's own ceiling rather than
@@ -213,9 +199,10 @@ pub(crate) struct SvbCameraProperty {
 pub(crate) struct SvbCameraPropertyEx {
     pub(crate) b_support_pulse_guide: c_int,
     pub(crate) b_support_control_temp: c_int,
-    // SVB_CAMERA_PROPERTY_EX has `int Unused[64]` here (SVBCameraSDK.h). The old
-    // `[c_int; 8]` under-sized the struct by 224 bytes, so SVBGetCameraPropertyEx
-    // wrote past the stack buffer on every connect (UB / stack corruption).
+    // SVB_CAMERA_PROPERTY_EX has `int Unused[64]` here (SVBCameraSDK.h). A
+    // `[c_int; 8]` under-sizes the struct by 224 bytes, so
+    // SVBGetCameraPropertyEx writes past the stack buffer on every connect
+    // (UB / stack corruption).
     pub(crate) unused: [c_int; 64],
 }
 

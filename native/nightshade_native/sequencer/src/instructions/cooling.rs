@@ -5,9 +5,7 @@
 
 use super::*;
 
-// =============================================================================
-// CAMERA COOLING/WARMING INSTRUCTIONS
-// =============================================================================
+// Camera COOLING/WARMING instructions
 
 /// Execute camera cooling
 pub async fn execute_cool_camera(
@@ -80,14 +78,13 @@ pub async fn execute_cool_camera(
         );
     }
 
-    // Always wait for the setpoint. The configured duration caps HOW LONG we
-    // wait — it does NOT decide WHETHER we wait. Previously a `None` duration
-    // returned Success immediately (camera never verified at temperature) and
-    // a duration that elapsed before convergence ALSO returned Success. Both
-    // let an unattended sequence start exposing a warm / mis-cooled sensor.
-    // Now non-convergence within the deadline is a hard failure (fail-closed).
+    // Always wait for the setpoint. The configured duration caps HOW LONG the
+    // wait may run — it does not decide WHETHER it happens — and
+    // non-convergence within the deadline is a hard failure: returning Success
+    // on a `None` duration, or once the duration elapses, lets an unattended
+    // sequence start exposing a warm or mis-cooled sensor.
     //
-    // When no duration is configured we still bound the wait with a generous
+    // When no duration is configured the wait is still bounded by a generous
     // default so a stuck cooler cannot hang the sequence forever.
     const DEFAULT_COOL_TIMEOUT_SECS: f64 = 900.0; // 15 min — ample for any TEC ramp
     const POLL_SECS: f64 = 10.0;

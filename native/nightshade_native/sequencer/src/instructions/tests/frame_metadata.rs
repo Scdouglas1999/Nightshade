@@ -6,11 +6,10 @@ use super::*;
 
 /// The frame event that makes Dart write the `captured_images` row must
 /// carry the same `FrameContext` the FITS writer stamped the header from.
-///
-/// Fails WITHOUT the fix: the event used to carry only node id, grading
-/// metrics and a save path, so the row landed with NULL gain, offset,
-/// sensor temperature, cooler power, pointing, pier side, focuser position
-/// and rotator angle while the file on disk had every one of them.
+/// An event carrying only node id, grading metrics and a save path lands the
+/// row with NULL gain, offset, sensor temperature, cooler power, pointing,
+/// pier side, focuser position and rotator angle while the file on disk has
+/// every one of them.
 #[tokio::test]
 async fn frame_event_carries_the_fits_writers_own_capture_context() {
     let sun_alt = live_sun_alt();
@@ -136,9 +135,9 @@ async fn equipment_profile_camera_name_beats_the_driver_string() {
     assert_eq!(saved[0].camera_make.as_deref(), Some("ZWO"));
 }
 
-/// The fix's CENTRAL claim, asserted at the REAL call site: the frame event
-/// that makes Dart write the `captured_images` row is stamped from the very
-/// `FrameContext` instance `save_fits` was handed for that frame.
+/// Asserted at the REAL call site: the frame event that makes Dart write the
+/// `captured_images` row is stamped from the very `FrameContext` instance
+/// `save_fits` was handed for that frame.
 ///
 /// Every other test on this path calls `emit_grade_progress` directly with a
 /// hand-made context and then derives both sides of the comparison from that
@@ -432,25 +431,22 @@ async fn nonsense_driver_exposure_report_cannot_inflate_integration_totals() {
     );
 }
 
-/// WF-STOP-N2 — the per-frame progress callback reports the seconds the frame
-/// was RECORDED as, so every integration total in the app sums the same number
-/// the FITS header and the `captured_images` row were written from.
+/// The per-frame progress callback reports the seconds the frame was RECORDED
+/// as, so every integration total in the app sums the same number the FITS
+/// header and the `captured_images` row were written from.
 ///
-/// The waveF run collected 5 + 15 + 15 + 15 = 50 s across four frames. The
-/// Session Report, which sums the rows, said `50s`. The Dashboard "Last night"
-/// card, the Execution History row and the Recover Sequence dialog all said
-/// `1m 0s` — `frames x the node's planned duration` — because the executor
-/// credited integration from the node's plan and the exposure events carried
-/// the plan too. Four frames that cannot total one minute, provable from two
-/// screens without opening the database.
+/// Crediting the node's PLANNED duration instead makes the surfaces that sum
+/// rows disagree with the surfaces that multiply: 5 + 15 + 15 + 15 s across
+/// four frames reads as `50s` on the Session Report and `1m 0s` on the
+/// Dashboard, the Execution History row and the Recover Sequence dialog.
 #[tokio::test]
 async fn the_frame_callback_reports_recorded_seconds_not_planned_ones() {
     let scratch = scratch_dir("exposure-callback-recorded");
     let ops = Arc::new(
         ScriptedDomeRotatorOps::new()
-            // Commanded 15 s; the shutter was actually open 5 s — exactly the
-            // waveF frame 1, where a meridian-flip solve restarted the camera
-            // under the burst.
+            // Commanded 15 s; the shutter was actually open 5 s — the shape a
+            // meridian-flip solve leaves when it restarts the camera under the
+            // burst.
             .with_reported_exposure_secs(5.0),
     );
     let (event_tx, _event_rx) = tokio::sync::broadcast::channel(16);

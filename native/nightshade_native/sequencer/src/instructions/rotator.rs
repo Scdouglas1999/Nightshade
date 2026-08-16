@@ -5,9 +5,7 @@
 
 use super::*;
 
-// =============================================================================
-// ROTATOR MOVE + VERIFY (shared by RotateToAngle instruction and centering)
-// =============================================================================
+// Rotator move + verify (shared by RotateToAngle instruction and centering)
 
 /// Tolerance (degrees) within which a rotator is considered "at" its target.
 pub(crate) const ROTATOR_TOLERANCE_DEG: f64 = 1.0;
@@ -92,9 +90,7 @@ pub(crate) async fn rotator_move_to_verified(
     }
 }
 
-// =============================================================================
-// ROTATOR INSTRUCTION
-// =============================================================================
+// Rotator instruction
 
 /// Execute rotator move
 pub async fn execute_rotator_move(

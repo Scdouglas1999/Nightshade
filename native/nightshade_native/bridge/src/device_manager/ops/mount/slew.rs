@@ -1,9 +1,7 @@
 use super::*;
 
 impl DeviceManager {
-    // =========================================================================
-    // Mount Control
-    // =========================================================================
+    // Mount control
 
     pub async fn mount_slew(
         &self,
@@ -71,10 +69,6 @@ impl DeviceManager {
                                     .map_err(|e| NightshadeError::OperationFailed(e.to_string()))
                             },
                             device_id,
-                            ra,
-                            dec,
-                            None,
-                            None,
                         )
                         .await
                         .map_err(|e| {
@@ -106,10 +100,6 @@ impl DeviceManager {
                                 .map_err(NightshadeError::OperationFailed)
                         },
                         device_id,
-                        ra,
-                        dec,
-                        None,
-                        None,
                     )
                     .await
                     .map_err(|e| {
@@ -143,10 +133,6 @@ impl DeviceManager {
                                     .map_err(|e| NightshadeError::OperationFailed(e.to_string()))
                             },
                             device_id,
-                            ra,
-                            dec,
-                            None,
-                            None,
                         )
                         .await
                         .map_err(|e| {
@@ -176,10 +162,6 @@ impl DeviceManager {
                                 .map_err(|e| NightshadeError::OperationFailed(e.to_string()))
                         },
                         device_id,
-                        ra,
-                        dec,
-                        None,
-                        None,
                     )
                     .await
                     .map_err(|e| {

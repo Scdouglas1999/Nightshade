@@ -665,11 +665,10 @@ mod tests {
 
     #[test]
     fn classify_does_not_let_connection_switch_preempt_name() {
-        // Regression: every INDI device exposes a CONNECTION switch vector
-        // before its device-specific properties stream in. The old code's
-        // property inference returned Switch for that, masking the real type.
-        // A telescope/camera with ONLY a CONNECTION switch loaded must still
-        // classify by name, not as a switch.
+        // Every INDI device exposes a CONNECTION switch vector before its
+        // device-specific properties stream in, so property inference alone
+        // returns Switch and masks the real type. A telescope/camera with only a
+        // CONNECTION switch loaded must classify by name, not as a switch.
         let props = vec![switch_prop("CONNECTION"), switch_prop("DEBUG")];
         assert_eq!(
             classify_indi_device(&props, "Telescope Simulator", "indi_simulator_telescope"),

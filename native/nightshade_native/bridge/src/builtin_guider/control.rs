@@ -61,7 +61,7 @@ pub async fn start_guiding(
     // → spawn loop → record handle). This is what makes start atomic with respect
     // to a concurrent `stop()`: a stop cannot land in the window between the loop
     // being spawned and its handle being recorded, so it can never observe `None`
-    // and orphan a live mount-pulsing loop (v4 review blocker #7).
+    // and orphan a live mount-pulsing loop.
     let _op = op_lock().lock().await;
     stop_locked().await?;
 
@@ -167,8 +167,8 @@ pub async fn loop_exposures() -> Result<(), NightshadeError> {
 /// Shared start path for `start_guiding`/`loop_exposures`. The caller MUST already
 /// hold the [`op_lock`] and have torn down any previous loop via `stop_locked()`.
 ///
-/// The atomicity guarantee for the start/stop race (v4 review blocker #7) lives
-/// here: the stop flag is created and stored into state inside the SAME write-lock
+/// The atomicity guarantee for the start/stop race lives here: the stop flag is
+/// created and stored into state inside the same write-lock
 /// critical section that flips `guiding`/`looping`, BEFORE the loop is spawned, so
 /// the invariant "an active loop always has a live `stop_flag` in state" holds for
 /// the entire lifetime of the loop. Because the caller holds the op-lock for the
@@ -205,9 +205,9 @@ where
 /// Test-only: start a synthetic loop through the real lifecycle machinery
 /// (`op_lock` + `stop_locked` + `begin_loop`). The loop holds no hardware. While
 /// alive it keeps `live_loops` incremented (decremented on exit), so a test can
-/// detect ANY orphaned loop — including one stranded when a later start overwrote
-/// its handle, which is exactly how the pre-fix race permanently lost the stop
-/// signal. Returns once the loop is registered, like the real `start_guiding`.
+/// detect any orphaned loop — including one stranded when a later start overwrote
+/// its handle, which loses the stop signal permanently. Returns once the loop is
+/// registered, like the real `start_guiding`.
 #[cfg(test)]
 pub(crate) async fn start_synthetic_loop(live_loops: Arc<std::sync::atomic::AtomicUsize>) {
     let _op = op_lock().lock().await;
@@ -338,7 +338,7 @@ pub async fn find_star() -> Result<(f64, f64), NightshadeError> {
     );
 
     // FRAME coordinates, in both arms — the snapshot's own `star_x/star_y`
-    // live inside the 50 px crop made one line above (WF-SN-N1).
+    // live inside the 50 px crop made one line above.
     if let Some(snapshot) = &guard.last_snapshot {
         Ok(snapshot.star_frame_position())
     } else {
@@ -406,7 +406,7 @@ pub async fn get_lock_position() -> Result<(f64, f64), NightshadeError> {
     let guard = state().read().await;
     if let Some(snapshot) = &guard.last_snapshot {
         // Frame coordinates, matching `find_star`, `manual_lock` and the
-        // `StarSelected` event — not the crop's (WF-SN-N1).
+        // `StarSelected` event — not the crop's.
         return Ok(snapshot.star_frame_position());
     }
     if let Some(lock) = guard.manual_lock {

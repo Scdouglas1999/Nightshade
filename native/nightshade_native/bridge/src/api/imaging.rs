@@ -11,9 +11,8 @@
 //   by camera-driver advertised ranges. Saturation per Rust 1.45 spec matches
 //   the "clamp out-of-range UI value" intent at the FFI boundary.
 // - **Simulator math** (synthetic exposure path): pixel counts and star
-//   counts are bounded by simulator config; the previously-overflowing
-//   `width * height` allocations were hardened in W12 with explicit
-//   `checked_mul` and `u64` promotion (see `simulate_*` helpers below).
+//   counts are bounded by simulator config, and `width * height` allocations
+//   use `checked_mul` with `u64` promotion (see `simulate_*` helpers below).
 // - **Histogram indexing** (`pixel as usize`): pixel is u16; usize on every
 //   target trivially holds 65536 entries.
 //
@@ -68,10 +67,6 @@ use tokio::sync::Mutex;
 use tokio::sync::RwLock;
 // Sibling-module items via the parent's pub use re-exports.
 use super::*;
-
-// =============================================================================
-// Camera Exposure & Image Capture
-// =============================================================================
 
 /// Global cancellation token for autofocus
 pub(crate) static AUTOFOCUS_CANCEL_TOKEN: OnceLock<Arc<AtomicBool>> = OnceLock::new();
@@ -462,9 +457,7 @@ pub async fn api_cancel_autofocus() -> Result<(), NightshadeError> {
     Ok(())
 }
 
-// =============================================================================
-// Camera Exposure & Image Capture
-// =============================================================================
+// Camera exposure & image capture
 
 /// Captured image result containing display-ready data
 #[derive(Debug, Clone)]
@@ -720,24 +713,12 @@ pub(crate) async fn camera_start_exposure_opt(
 /// Turn a `DeviceOps` capture error into the narrowest `NightshadeError` that
 /// still describes it.
 ///
-/// Why this exists: `camera_start_exposure_configured` reports every failure as
-/// a bare `String`, and mapping the lot to [`NightshadeError::OperationFailed`]
-/// made the headless API answer HTTP 500 `internal_error` for outcomes that are
-/// neither internal nor faults. Observed on the rig with a real ASI1600MM: a
-/// daylight frame came back completely saturated and the API returned
-///
-/// ```text
-/// HTTP 500 {"error":"internal_error","message":"Image validation failed: Image
-/// is completely saturated (min value 65224 >= 65024) - significantly reduce
-/// exposure time or gain"}
-/// ```
-///
-/// The camera had worked perfectly and the message was already actionable; only
-/// the envelope was wrong, and a client with retry-on-5xx would have retried a
-/// request that can only fail again. Frames rejected by validation now become
-/// [`NightshadeError::ExposureFailed`], which the headless mapper renders as 422.
-/// Everything else keeps falling through to `OperationFailed` (HTTP 500), so
-/// genuine driver and transport faults are unaffected.
+/// `camera_start_exposure_configured` reports every failure as a bare `String`.
+/// A frame rejected by image validation (saturated, all-zero) is the operator's
+/// exposure to fix, not a fault: it becomes [`NightshadeError::ExposureFailed`],
+/// which the headless mapper renders as 422. Everything else falls through to
+/// [`NightshadeError::OperationFailed`] (HTTP 500). The split matters because a
+/// client retrying on 5xx would otherwise retry a request that can only fail again.
 fn classify_exposure_failure(device_id: &str, error: String) -> NightshadeError {
     match error.strip_prefix(crate::unified_device_ops::IMAGE_VALIDATION_FAILED_PREFIX) {
         Some(reason) => NightshadeError::ExposureFailed {
@@ -860,29 +841,18 @@ pub(crate) async fn camera_start_exposure_configured_opt(
             camera.status.state = CameraState::Reading;
         }
 
-        // Render the frame through THE simulated-capture renderer — the same one
-        // the sequencer's DeviceManager download uses.
-        //
-        // This branch used to call a local `generate_simulated_image()` that
-        // painted `rand::thread_rng()` stars at random positions. It was not a
-        // cosmetic difference: two consecutive captures at an IDENTICAL mount
-        // pointing shared zero of their 40 brightest stars, and ASTAP (D05
-        // installed, correct hint) detected 151 stars in one and still answered
-        // `No solution found!` at every FOV from 9.5 deg down to 0.4 deg. So
-        // everything downstream of a solve — Slew & Center, framing, mosaic
-        // tiles, meridian-flip recentre, polar alignment — could never be
-        // exercised from the Imaging screen, while the sequencer path solved
-        // fine. One renderer now serves both.
+        // Render the frame through the simulated-capture renderer the sequencer's
+        // DeviceManager download uses. One renderer serves both paths, so a
+        // simulated frame is plate-solvable and everything downstream of a solve —
+        // Slew & Center, framing, mosaic tiles, meridian-flip recentre, polar
+        // alignment — is exercisable from the Imaging screen.
         //
         // The simulator commands no real hardware, so an unspecified (None)
         // gain falls back to 0 for brightness math.
         let sim_gain = gain.unwrap_or(0);
-        // The geometry the camera ADVERTISES, not a second hardcoded sensor.
-        // These were 4144x2822 while `get_camera_status` reported SIM_W x SIM_H
-        // (1920x1080), so the Framing screen drew an FOV box 2.16x too narrow
-        // for the frames the same camera was delivering, and no measurement
-        // taken through the manual-capture path could be compared with one from
-        // the sequencer path.
+        // The geometry the camera advertises, not a second hardcoded sensor: the
+        // Framing FOV box and every measurement taken through this path must
+        // describe the frames this same camera delivers to the sequencer path.
         let (advertised_width, advertised_height, sim_pixel_size, sim_offset, sim_max_adu) = {
             let camera = get_sim_camera().read().await;
             (
@@ -911,15 +881,12 @@ pub(crate) async fn camera_start_exposure_configured_opt(
             })
             .await;
         // Binning and subframing both change the delivered geometry, so take it
-        // from the renderer rather than re-deriving it here — the two used to
-        // disagree.
+        // from the renderer rather than re-deriving it here.
         let (sensor_width, sensor_height) = (sim_frame.width, sim_frame.height);
         let raw_data = sim_frame.data;
 
-        // Measure the simulated frame with the SAME code the real-camera branch
-        // uses. The old branch reported `2.5 + random()` as HFR and
-        // `0.15 + random()` as eccentricity — numbers that tracked nothing, so
-        // an autofocus or guiding regression could not show up in them.
+        // Measure the simulated frame with the same code the real-camera branch
+        // uses, so autofocus and guiding regressions show up in simulator metrics.
         let image_bytes: Vec<u8> = raw_data.iter().flat_map(|&val| val.to_le_bytes()).collect();
         let image = nightshade_imaging::ImageData {
             width: sensor_width,
@@ -1131,31 +1098,20 @@ pub(crate) async fn camera_start_exposure_configured_opt(
             // 2.5. Apply Auto White Balance (Histogram Peak Alignment)
             apply_auto_white_balance(&mut rgb_data);
 
-            // 3. Auto-stretch RGB via the real STF engine (IMG-audit fix).
+            // 3. Auto-stretch RGB through the same MAD-based PixInsight STF the
+            // mono path uses, so color captures get the noise-scaled curve too.
             //
-            // Previously this path hard-coded `shadows = median - 0.1`,
-            // `highlights = median + 0.3`, `midtones = 0.5` — a crude
-            // percentile-tracking heuristic that ignored noise scale. Mono
-            // captures used the proper MAD-based PixInsight STF
-            // (`auto_stretch_stf`); color captures got this fallback. Result:
-            // color cameras rendered with a perceptibly worse curve.
+            // Unlinked (PixInsight's default): per-channel independent STF
+            // maximizes per-channel contrast. The Dart-side
+            // `AutoStretchSettings.linkedChannels` flag re-links the channels
+            // once auto-stretch is explicitly enabled (see
+            // `auto_stretch_provider.dart`).
             //
-            // Default to Unlinked (PixInsight's default): per-channel
-            // independent STF maximizes per-channel contrast. The user can
-            // still re-stretch with linked channels via the Dart-side
-            // `AutoStretchSettings.linkedChannels` flag once auto-stretch is
-            // explicitly enabled (see `auto_stretch_provider.dart`).
-            //
-            // # Degenerate-input contract ("errors are a feature")
-            //
-            // `auto_stretch_rgb_with_mode` returns `StretchParams::default()`
-            // (shadows=0, highlights=1, midtones=0.5 — the identity MTF)
-            // when a channel has MAD = 0 (constant data) or is empty. The
-            // downstream `apply_stretch_rgb_per_channel` then emits an
-            // identity stretch for that channel — never the old heuristic,
-            // never a silent black frame. The previous fallback path that
-            // erroneously errored on empty `sorted` is now unreachable
-            // because the validation happens inside the imaging crate.
+            // Degenerate input: `auto_stretch_rgb_with_mode` returns
+            // `StretchParams::default()` (shadows=0, highlights=1, midtones=0.5 —
+            // the identity MTF) when a channel has MAD = 0 (constant data) or is
+            // empty, and `apply_stretch_rgb_per_channel` then emits an identity
+            // stretch for that channel rather than a black frame.
             let (r_params, g_params, b_params) = nightshade_imaging::auto_stretch_rgb_with_mode(
                 &rgb_data,
                 seq_image.width,
@@ -1200,8 +1156,7 @@ pub(crate) async fn camera_start_exposure_configured_opt(
             // Check display data distribution.
             //
             // Gated, because this is a whole-frame scan run purely to build one
-            // log line — it used to be three unconditional linear passes on
-            // every exposure.
+            // log line.
             if tracing::enabled!(tracing::Level::DEBUG) {
                 if let Some((display_min, display_max, display_mean)) =
                     display_data_summary(&display_data_raw)
@@ -1412,9 +1367,7 @@ pub async fn api_camera_cancel_exposure(device_id: String) -> Result<(), Nightsh
     }
 }
 
-// =============================================================================
-// REAL FITS FILE OPERATIONS
-// =============================================================================
+// Real FITS file operations
 
 /// Result from reading a FITS file
 #[derive(Debug, Clone)]
@@ -1621,9 +1574,7 @@ pub async fn api_read_fits_file(file_path: String) -> Result<FitsReadResult, Nig
     })
 }
 
-// =============================================================================
 // FITS header keyword update (science writeback)
-// =============================================================================
 
 /// A single keyword to inject (or overwrite) on an existing FITS file.
 ///
@@ -1878,9 +1829,7 @@ mod quality_map_tests;
 
 /// FITS header for writing
 
-// =============================================================================
-// STAR DETECTION AND IMAGE ANALYSIS
-// =============================================================================
+// Star detection and image analysis
 
 /// Detected star information
 #[derive(Debug, Clone)]
@@ -2163,9 +2112,7 @@ pub async fn api_apply_stretch(
     Ok(display_data_to_rgba(&display_data_raw, false))
 }
 
-// =============================================================================
-// DEBAYERING (COLOR CAMERAS)
-// =============================================================================
+// Debayering (color cameras)
 
 /// Bayer pattern type
 #[derive(Debug, Clone, Copy)]
@@ -2222,9 +2169,7 @@ pub async fn api_debayer_fits_file(
     Ok(rgb_image.to_rgba8())
 }
 
-// =============================================================================
-// XISF FILE SUPPORT
-// =============================================================================
+// XISF file support
 
 /// XISF file read result
 #[derive(Debug, Clone)]
@@ -2549,9 +2494,7 @@ pub async fn api_save_rgba_jpeg_file(
 #[cfg(test)]
 mod rgba_save_tests;
 
-// =============================================================================
-// FILE NAMING PATTERNS
-// =============================================================================
+// File naming patterns
 
 /// Frame type for file naming
 #[derive(Debug, Clone, Copy)]
@@ -2664,9 +2607,7 @@ pub async fn api_get_next_frame_number(
     nightshade_imaging::scan_for_next_frame_number(base_path, &naming_pattern, &context)
 }
 
-// =============================================================================
-// FITS File Saving
-// =============================================================================
+// FITS file saving
 
 /// Header data for FITS file writing.
 ///
@@ -2745,9 +2686,7 @@ pub struct FitsWriteHeaderRich {
     pub site_latitude: Option<f64>,
     pub site_longitude: Option<f64>,
     pub site_elevation: Option<f64>,
-    // -------------------------------------------------------------------
-    // Image Grading additions — populated from FrameContext.
-    // -------------------------------------------------------------------
+    // Image grading additions — populated from FrameContext.
     /// Focuser absolute position (FITS `FOCUSPOS`).
     pub focuser_position: Option<i32>,
     /// Focuser temperature in °C (FITS `FOCTEMP`).
@@ -2782,15 +2721,12 @@ pub struct FitsWriteHeaderRich {
     pub mosaic_panel_column: Option<i32>,
     /// Mosaic total panel count (FITS `NS-NPAN`).
     pub mosaic_total_panels: Option<i32>,
-    // -------------------------------------------------------------------
     // per-frame defect-map correction provenance.
     // Emitted as a FITS HISTORY card so the calibration trace is visible
     // in any FITS viewer (PixInsight, APP, NINA's image viewer, ds9).
     // `None` => no correction was applied (no map configured, or skipped
     // due to camera/sensor mismatch).
-    // -------------------------------------------------------------------
     pub defect_map_correction: Option<nightshade_sequencer::scheduling::DefectMapCorrectionRecord>,
-    // -------------------------------------------------------------------
     // Science — photometric FITS keywords.
     //
     //   * OBJCAT   - target catalogue designation
@@ -2803,7 +2739,6 @@ pub struct FitsWriteHeaderRich {
     //
     // All fields are Option<_> so non-photometry captures omit the
     // keywords entirely.
-    // -------------------------------------------------------------------
     pub photometry_object_catalog: Option<String>,
     pub photometry_reference_stars: Option<String>,
     pub photometry_mjd_obs: Option<f64>,
@@ -2905,13 +2840,9 @@ impl FitsWriteHeaderRich {
             dec,
             // The altitude of the pointing selected just above — the mount's
             // when it was read, otherwise the target's, computed from the site
-            // and the exposure midpoint. Reading `mount_altitude_deg` directly
-            // (what this used to do) meant the altitude existed only when a
-            // mount was connected AND answered, so a rig imaging without one
-            // wrote RA/DEC from the target and then dropped the OBJCTALT and
-            // AIRMASS derived from that identical pointing. Going through
-            // `recorded_altitude_deg` keeps the altitude and the RA/DEC cards
-            // describing one and the same direction, by construction.
+            // and the exposure midpoint. `recorded_altitude_deg` keeps OBJCTALT
+            // and AIRMASS describing the same direction as the RA/DEC cards by
+            // construction, including on a rig imaging without a mount attached.
             altitude: ctx.recorded_altitude_deg(),
             telescope: ctx.telescope_name.clone(),
             instrument,
@@ -3044,11 +2975,11 @@ fn set_pointing_keywords(header: &mut FitsHeader, ra_hours: Option<f64>, dec_deg
 ///
 /// AIRMASS itself is a convenience keyword — every stacker works without it —
 /// but [`calculate_airmass`] deliberately refuses sub-horizon altitudes, and
-/// darks and flats are by definition taken parked or capped (Alt < 0). The
-/// previous code propagated that refusal with `?`, which aborted the entire
-/// FITS write and destroyed the frame: the thumbnail landed on disk and the
-/// science data did not. Losing an optional keyword is always better than
-/// losing the exposure, so warn and skip the card instead.
+/// darks and flats are by definition taken parked or capped (Alt < 0).
+/// Propagating that refusal with `?` aborts the entire FITS write and destroys
+/// the frame: the thumbnail lands on disk and the science data does not. Losing
+/// an optional keyword is always better than losing the exposure, so warn and
+/// skip the card instead.
 #[flutter_rust_bridge::frb(ignore)]
 fn set_horizon_keywords(header: &mut FitsHeader, altitude_degrees: Option<f64>) {
     let Some(altitude) = altitude_degrees else {
@@ -3225,9 +3156,7 @@ pub async fn save_fits_file_rich(
 
     let mut header = FitsHeader::new();
 
-    // ------------------------------------------------------------------
     // Core observation metadata.
-    // ------------------------------------------------------------------
     header.set_float("EXPTIME", header_data.exposure_time);
     header.set_string("DATE-OBS", &header_data.capture_timestamp);
     header.set_string("IMAGETYP", &header_data.frame_type);
@@ -3242,9 +3171,7 @@ pub async fn save_fits_file_rich(
         header.set_int("FILTPOS", pos as i64);
     }
 
-    // ------------------------------------------------------------------
     // Camera / sensor configuration.
-    // ------------------------------------------------------------------
     if let Some(gain) = header_data.gain {
         header.set_int("GAIN", gain as i64);
     }
@@ -3274,9 +3201,7 @@ pub async fn save_fits_file_rich(
         header.set_string("BAYERPAT", bayer);
     }
 
-    // ------------------------------------------------------------------
     // Telescope / optics identification.
-    // ------------------------------------------------------------------
     if let Some(focal_length) = header_data.focal_length {
         header.set_float("FOCALLEN", focal_length);
     }
@@ -3290,9 +3215,7 @@ pub async fn save_fits_file_rich(
         header.set_string("INSTRUME", instrument);
     }
 
-    // ------------------------------------------------------------------
     // Observer / site.
-    // ------------------------------------------------------------------
     if let Some(observer) = &header_data.observer {
         header.set_string("OBSERVER", observer);
     }
@@ -3306,17 +3229,13 @@ pub async fn save_fits_file_rich(
         header.set_float("SITEELEV", elev);
     }
 
-    // ------------------------------------------------------------------
     // Target coordinates + horizon coordinates. RA arrives in hours and
     // leaves in degrees; OBJCTALT/AIRMASS are optional and never fatal (see
     // helpers above).
-    // ------------------------------------------------------------------
     set_pointing_keywords(&mut header, header_data.ra, header_data.dec);
     set_horizon_keywords(&mut header, header_data.altitude);
 
-    // ------------------------------------------------------------------
-    // Image Grading: live device telemetry.
-    // ------------------------------------------------------------------
+    // Image grading: live device telemetry.
     if let Some(pos) = header_data.focuser_position {
         header.set_int("FOCUSPOS", pos as i64);
     }
@@ -3330,12 +3249,10 @@ pub async fn save_fits_file_rich(
         header.set_float("GUIDERMS", rms);
     }
 
-    // ------------------------------------------------------------------
     // Plate-solve result. SOLVED-RA / SOLVED-DEC are Nightshade
     // conventions consumed by re-stacking workflows that want to
     // compare the commanded pointing (RA/DEC) against where the field
     // actually landed.
-    // ------------------------------------------------------------------
     // Plate-solve result. FITS keywords are capped at 8 characters; we use
     // `SOLVRA` / `SOLVDEC` (Nightshade convention, also used by Voyager and
     // some PixInsight imports) plus the standard `PIXSCALE`.
@@ -3356,9 +3273,7 @@ pub async fn save_fits_file_rich(
         header.set_float("CROTA2", rot);
     }
 
-    // ------------------------------------------------------------------
     // Nightshade-specific session / frame / mosaic accounting (NS-*).
-    // ------------------------------------------------------------------
     if let Some(session_id) = &header_data.session_id {
         header.set_string("NS-SESID", session_id);
     }
@@ -3399,12 +3314,10 @@ pub async fn save_fits_file_rich(
         header.set_string("NS-RIG", rig);
     }
 
-    // ------------------------------------------------------------------
     // defect-map correction HISTORY card. When the
     // sequencer applied a defect map to this frame, record the
     // provenance so re-stacking workflows know the cosmetic correction
     // has already been done (and can skip re-applying it).
-    // ------------------------------------------------------------------
     if let Some(record) = &header_data.defect_map_correction {
         let history = format!(
             "Nightshade applied defect map v1 for camera {}: corrected {} of {} \
@@ -3419,11 +3332,9 @@ pub async fn save_fits_file_rich(
         header.add_history(&history);
     }
 
-    // ------------------------------------------------------------------
     // Science — photometric metadata. Stamped when the frame
     // was captured by the SciencePhotometryInstruction. Non-photometric
     // captures omit every keyword.
-    // ------------------------------------------------------------------
     if let Some(catalog) = &header_data.photometry_object_catalog {
         if !catalog.is_empty() {
             header.set_string("OBJCAT", catalog);
@@ -3461,10 +3372,8 @@ pub async fn save_fits_file_rich(
         header.set_float("SNR", snr);
     }
 
-    // ------------------------------------------------------------------
     // Validate header completeness — warnings only; we never refuse to
     // write a frame because of a missing nice-to-have keyword.
-    // ------------------------------------------------------------------
     let header_validation = validate_fits_header(&header);
     for warning in &header_validation.warnings {
         tracing::debug!("FITS header warning: {}", warning);
@@ -3649,9 +3558,7 @@ fn display_data_summary(display_data: &[u8]) -> Option<(u8, u8, u64)> {
     Some((min, max, sum / display_data.len() as u64))
 }
 
-// =============================================================================
-// Image Processing
-// =============================================================================
+// Image processing
 
 /// Calculate image statistics
 fn image_stats(width: u32, height: u32, data: Vec<u16>) -> nightshade_imaging::ImageStats {
@@ -4102,9 +4009,7 @@ pub(crate) fn apply_auto_white_balance(image: &mut [u16]) {
     });
 }
 
-// =============================================================================
-// INDI Autofocus
-// =============================================================================
+// INDI autofocus
 
 /// INDI autofocus configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -4163,15 +4068,8 @@ pub struct FocusDataPointApi {
     pub star_count: u32,
 }
 
-/// Run INDI autofocus routine
-///
-/// # Arguments
-/// * `camera_id` - INDI camera device ID (format: "indi:host:port:device_name")
-/// * `focuser_id` - INDI focuser device ID (format: "indi:host:port:device_name")
-/// * `config` - Autofocus configuration
-///
-/// # Returns
-/// Autofocus result with best focus position and curve data
+/// Run the INDI autofocus routine and return the best focus position with its
+/// curve data. Device ids are INDI-form: `indi:host:port:device_name`.
 pub async fn api_run_indi_autofocus(
     camera_id: String,
     focuser_id: String,
@@ -4288,9 +4186,7 @@ pub async fn api_run_indi_autofocus(
     })
 }
 
-// =============================================================================
-// Image Calibration
-// =============================================================================
+// Image calibration
 
 /// Calibrate an image file using dark, flat, and/or bias calibration frames.
 ///
@@ -4475,9 +4371,7 @@ pub fn api_calibrate_image_data(
     })
 }
 
-// =============================================================================
-// Live Stacking API
-// =============================================================================
+// Live stacking API
 
 /// Live stacking configuration exposed to Dart
 pub struct ApiLiveStackingConfig {
@@ -4487,17 +4381,9 @@ pub struct ApiLiveStackingConfig {
     pub match_radius_px: f64,
     pub match_flux_tolerance: f64,
     pub min_matched_pairs: u32,
-    /// Sensor acquisition mode: `"mono"`, `"osc"`, or `"auto"` (case-insensitive).
-    ///
-    /// - `mono` — frames are single-channel luminance; never debayered.
-    /// - `osc` — frames are a Bayer CFA mosaic that *must* be debayered to RGB;
-    ///   an unresolvable pattern is a hard error (no silent mono-fallback that
-    ///   would scramble the colour mosaic).
-    /// - `auto` — debayer only when the frame actually carries Bayer geometry
-    ///   (or `bayer_pattern` is supplied); otherwise treat as mono.
-    ///
-    /// Defaults to `"mono"` so existing callers keep the historic single-channel
-    /// behaviour byte-for-byte.
+    /// Sensor acquisition mode: `"mono"`, `"osc"`, or `"auto"` (case-insensitive),
+    /// defaulting to `"mono"`. The three modes are specified on
+    /// `stacking_api::LiveStackingConfigApi::sensor_mode`.
     pub sensor_mode: String,
     /// Explicit Bayer pattern override (`"RGGB"`/`"BGGR"`/`"GRBG"`/`"GBRG"`,
     /// case-insensitive). When `None`, OSC/auto sessions fall back to the pattern
@@ -4715,9 +4601,7 @@ pub fn api_stacking_frame_count() -> u32 {
     crate::stacking_api::stacking_frame_count()
 }
 
-// =============================================================================
-// Defect-Map / Bad-Pixel Cosmetic Correction API
-// =============================================================================
+// Defect-map / bad-pixel cosmetic correction API
 
 /// Status of a stored defect map for a given camera / sensor / temperature.
 pub struct ApiDefectMapStatus {
@@ -5063,16 +4947,12 @@ pub async fn api_defect_map_get_status(
 #[cfg(test)]
 mod unified_image_storage_tests;
 
-// ============================================================================
-// Image Grading: round-trip test for the rich-header save path.
-// ============================================================================
+// Image grading: round-trip test for the rich-header save path.
 
 #[cfg(test)]
 mod rich_header_tests;
 
-// =============================================================================
-// Master calibration frame combination (IMG-)
-// =============================================================================
+// Master calibration frame combination
 //
 // Why this lives here: master-frame combine is a sibling of the existing
 // `api_calibrate_image_*` and `api_defect_map_build` entry points — both
@@ -5318,9 +5198,7 @@ pub async fn api_combine_master_frames(
     })
 }
 
-// ============================================================================
 // FITS keyword update round-trip test
-// ============================================================================
 
 #[cfg(test)]
 mod exposure_failure_classification_tests;

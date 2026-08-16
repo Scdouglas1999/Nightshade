@@ -9,9 +9,7 @@ use crate::device_manager::DeviceManager;
 use crate::dispatch::DeviceOpError;
 
 impl DeviceManager {
-    // =========================================================================
-    // Rotator Control
-    // =========================================================================
+    // Rotator control
 
     /// Get rotator position (sky angle in degrees)
     pub async fn rotator_get_position(&self, device_id: &str) -> Result<f64, DeviceOpError> {

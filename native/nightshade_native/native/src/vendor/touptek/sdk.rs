@@ -2,10 +2,6 @@
 
 use super::*;
 
-// ============================================================================
-// SDK Wrapper
-// ============================================================================
-
 pub(crate) struct TouptekSdk {
     pub(crate) _library: Library,
     pub(crate) enum_v2: OgmacamEnumV2,
@@ -374,24 +370,21 @@ pub(crate) fn touptek_fourcc_to_string(fourcc: u32) -> String {
 /// Evidence:
 ///
 /// * The SDK's own histogram is indexed by pixel value and sized
-///   `1 << bitdepth`: "nFlag & 0x0f: bitdepth / so the size of aHist is: int
-///   arraySize = 1 << (nFlag & 0x0f);" (`SDKs/Touptek/inc/ogmacam.h:616-624`,
+///   `1 << bitdepth` (`SDKs/Touptek/inc/ogmacam.h:616-624`,
 ///   `PIOGMACAM_HISTOGRAM_CALLBACKV2`). A 12-bit camera's histogram has 4096
-///   bins, so delivered samples span 0..=4095. Left-justified samples would need
-///   65536.
-/// * Black level — a pedestal subtracted from the delivered data — is expressed
-///   in native-bit-depth units, not container units:
+///   bins, so delivered samples span 0..=4095; left-justified samples would
+///   need 65536.
+/// * Black level, a pedestal subtracted from the delivered data, is expressed
+///   in native-bit-depth units rather than container units:
 ///   `OGMACAM_BLACKLEVEL8_MAX 31`, `..._12_MAX (31 * 16)`, `..._16_MAX (31 * 256)`
 ///   (`SDKs/Touptek/inc/ogmacam.h:217-222`); INDI's toupbase scales its offset
 ///   control the same way (`bLevelStep = 1 << (m_maxBitDepth - 8)`).
-/// * Measured on hardware: an Orion G16 (ToupTek ATR3CMOS16000KPA, 12-bit) via
-///   the INDI toupbase driver, which passes the SDK buffer through unshifted —
-///   "the 12 bits per pixel would only occupy the first 4096 brightness values
-///   and never go above that ... The way the ASCOM driver does it is scale each
-///   pixel value by multiplying it by 16 ... being able to have scaled 16 bit
-///   FITS files like you have with ZWO or QHY cameras would be a blessing."
-///   <https://indilib.org/forum/ccds-dslrs/12316-touptek-14-and-12-bit-scaling-issues.html>
-///   The ×16 lives in ToupTek's *ASCOM* layer, above the SDK this driver uses.
+/// * Measured on an Orion G16 (ToupTek ATR3CMOS16000KPA, 12-bit) through the
+///   INDI toupbase driver, which passes the SDK buffer through unshifted: pixel
+///   values never exceed 4095
+///   (<https://indilib.org/forum/ccds-dslrs/12316-touptek-14-and-12-bit-scaling-issues.html>).
+///   The ×16 scaling lives in ToupTek's *ASCOM* layer, above the SDK this
+///   driver uses.
 ///
 /// `bit_depth` comes from `Ogmacam_get_RawFormat`, which reports the raw format's
 /// own bits-per-pixel, so container and precision coincide for this vendor.

@@ -758,12 +758,10 @@ mod tests {
         assert_eq!(variant_to_f64(&var), None);
     }
 
-    // ------------------------------------------------------------------
     // OwnedVariant RAII (DEV-001): PROPERTYGET out-param VARIANTs that own a
     // SAFEARRAY/BSTR must be freed by VariantClear on drop. These tests run
     // only on Windows (the whole `windows` module is `#[cfg(windows)]`), where
     // the COM runtime / OleAut32 are present.
-    // ------------------------------------------------------------------
 
     use std::ffi::c_void;
     use std::mem::ManuallyDrop;

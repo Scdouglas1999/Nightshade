@@ -132,16 +132,30 @@ fn compute_exposure_remaining(
     }
 }
 
-/// Try-once-cache lookup for an ASCOM "Can*" capability that the driver
-/// does not expose declaratively. Probes via `probe()` only on the first
-/// call; subsequent calls return the cached result.
+/// True when an ASCOM error is the driver stating a member does not exist,
+/// as opposed to failing to answer for it.
 ///
-/// Why: the previous code probed `cam.cooler_power()` on
-/// every capability query. That is slow (one COM round-trip per status)
-/// and inverts ASCOM's "Can*" convention which is supposed to be cheap.
-/// Caching the result on the STA worker thread (where this is the only
-/// caller of the underlying COM property) is sufficient — the cache is
-/// reset on disconnect so a reconnect re-probes.
+/// `OwnedExcepInfo::describe` renders the driver's `scode` as `0x%08X`, so the
+/// code is carried in the error text. `0x80040400` is ASCOM's `NotImplemented`
+/// (what `PropertyNotImplementedException` sets) and `0x80004001` is COM's
+/// `E_NOTIMPL`; both are permanent facts about the interface. Every other
+/// failure — disconnect, RPC fault, STA pump timeout — is transport and says
+/// nothing about the capability.
+fn is_not_implemented_error(err: &str) -> bool {
+    err.contains("0x80040400") || err.contains("0x80004001")
+}
+
+/// Try-once-cache lookup for an ASCOM "Can*" capability that the driver
+/// does not expose declaratively. Probes via `probe()` only until the answer
+/// is known; subsequent calls return the cached result.
+///
+/// The probe costs a COM round-trip, so its answer is cached — but only when
+/// the driver actually reported the property as unsupported. A transport
+/// failure leaves the cache unset so the next capability query re-probes:
+/// caching `false` on a blip would strip cooler telemetry from a cooled camera
+/// for the life of the connection, with nothing to re-probe it. Until the
+/// answer is known the capability reads `false`, which understates rather than
+/// fabricates. The cache is reset on disconnect, so a reconnect re-probes.
 fn cooler_power_supported(
     cache: &mut Option<bool>,
     probe: impl FnOnce() -> Result<f64, String>,
@@ -149,9 +163,41 @@ fn cooler_power_supported(
     if let Some(v) = *cache {
         return v;
     }
-    let supported = probe().is_ok();
-    *cache = Some(supported);
-    supported
+    match probe() {
+        Ok(_) => {
+            *cache = Some(true);
+            true
+        }
+        Err(e) if is_not_implemented_error(&e) => {
+            *cache = Some(false);
+            false
+        }
+        Err(e) => {
+            tracing::warn!(
+                "ASCOM CoolerPower probe failed without a NotImplemented code ({}); \
+                 leaving CanGetCoolerPower unresolved so the next capability query re-probes",
+                e
+            );
+            false
+        }
+    }
+}
+
+/// The FITS `BAYERPAT` spelling of the element order named by ASCOM
+/// `SensorType` plus the `BayerOffsetX`/`BayerOffsetY` pair.
+///
+/// The mapping itself lives in [`crate::ascom_sensor_type`], shared with the
+/// Alpaca download path so both ASCOM transports read the same enum the same
+/// way; this adapter only renders it as the `String` the capabilities struct
+/// carries. `None` means the pattern is unknown, which leaves the frame
+/// undebayered rather than debayered wrongly.
+fn bayer_pattern_from_sensor(
+    sensor_type: i32,
+    offset_x: Option<i32>,
+    offset_y: Option<i32>,
+) -> Option<String> {
+    crate::ascom_sensor_type::bayer_pattern_from_sensor(sensor_type, offset_x, offset_y)
+        .map(|pattern| crate::ascom_sensor_type::bayer_pattern_fits_name(pattern).to_string())
 }
 
 /// Connection health status for ASCOM devices
@@ -177,11 +223,10 @@ pub struct AscomCameraCapabilities {
     pub bit_depth: u32,
     /// ASCOM `ICameraV3.MaxADU` verbatim: the largest value the driver can put in
     /// a pixel. This is the pixel-container full scale and the only field that
-    /// may be used to scale percentages / saturation. It was previously read from
-    /// the driver purely to bucket `bit_depth` and then discarded, which forced
-    /// every downstream consumer to reconstruct it as `2^bit_depth - 1` — wrong in
-    /// both directions (65535 for a driver honestly reporting 4095, and see
-    /// `SensorInfo::max_adu` for the left-justified case).
+    /// may be used to scale percentages / saturation. Reconstructing it from
+    /// `bit_depth` as `2^bit_depth - 1` is wrong in both directions: 65535 for a
+    /// driver honestly reporting 4095, and see `SensorInfo::max_adu` for the
+    /// left-justified case.
     pub max_adu: u32,
     pub has_shutter: bool,
     pub can_set_ccd_temperature: bool,
@@ -267,8 +312,8 @@ impl AscomCameraWrapper {
             // `PercentCompleted` (0..100) into a wall-clock seconds-remaining
             // value. Cleared on abort/stop/disconnect.
             let mut last_exposure_duration: Option<f64> = None;
-            // Try-once-cache for the `CanGetCoolerPower` capability (§5.16).
-            // `None` = not yet probed; `Some(_)` = cached result.
+            // Try-once-cache for the `CanGetCoolerPower` capability.
+            // `None` = not yet resolved; `Some(_)` = cached result.
             let mut cooler_power_cache: Option<bool> = None;
 
             Ok(Box::new(move || {
@@ -359,7 +404,7 @@ impl AscomCameraWrapper {
                                     None
                                 };
 
-                            // Why (§5.19): ASCOM `PercentCompleted` is only valid while
+                            // ASCOM `PercentCompleted` is only valid while
                             // CameraState is in {Exposing, Reading, Downloading}; outside
                             // that window we treat it (and exposure_remaining) as None
                             // rather than fabricating a stale residual.
@@ -392,7 +437,7 @@ impl AscomCameraWrapper {
                     }
                     AscomCommand::GetCapabilities(reply) => {
                         if let Some(cam) = &camera {
-                            // Why (§5.9): sensor width/height and bit-depth are load-bearing
+                            // Sensor width/height and bit-depth are load-bearing
                             // for every downstream image operation (FITS header, debayer,
                             // calibration). A transient COM failure must propagate as Err
                             // rather than fabricating a 1x1 sensor or a wrong bit-depth.
@@ -432,7 +477,7 @@ impl AscomCameraWrapper {
                                 }
                             };
 
-                            // Why (§5.9): bit-depth derives from `MaxADU` and feeds image
+                            // Bit-depth derives from `MaxADU` and feeds image
                             // scaling on every frame; a heuristic default of 65535 silently
                             // produces wrong output for 8-bit or 32-bit sensors. Propagate.
                             let max_adu = match cam.max_adu() {
@@ -453,19 +498,19 @@ impl AscomCameraWrapper {
                                 8
                             };
 
-                            // Determine sensor type (color vs mono)
+                            // Colour and Bayer order are independent answers: a
+                            // direct-colour sensor (SensorType 1) is colour with no
+                            // BAYERPAT at all. An unreadable SensorType reads
+                            // monochrome, because debayering a mono frame is a
+                            // no-op while a wrong debayer is not.
                             let sensor_type = sensor_config.sensor_type.unwrap_or(0);
-                            let is_color = sensor_type > 0; // 0 = Monochrome, 1+ = Color variants
+                            let is_color = crate::ascom_sensor_type::is_colour_sensor(sensor_type);
 
-                            // Get bayer pattern from sensor type
-                            let bayer_pattern = match sensor_type {
-                                0 => None, // Monochrome
-                                2 => Some("RGGB".to_string()),
-                                3 => Some("CMYG".to_string()),
-                                4 => Some("CMYG2".to_string()),
-                                5 => Some("LRGB".to_string()),
-                                _ => Some("Unknown".to_string()),
-                            };
+                            let bayer_pattern = bayer_pattern_from_sensor(
+                                sensor_type,
+                                sensor_config.bayer_offset_x,
+                                sensor_config.bayer_offset_y,
+                            );
 
                             // Why: ReadoutModes is optional in ASCOM ICameraV3; an Err here
                             // (typically NotImplementedException) just means the driver does
@@ -474,7 +519,7 @@ impl AscomCameraWrapper {
                             let readout_modes = cam.readout_modes().unwrap_or_default();
                             let exposure_settings = cam.get_exposure_settings();
 
-                            // §5.16: try-once-cache the CanGetCoolerPower probe.
+                            // Try-once-cache the CanGetCoolerPower probe.
                             let can_get_cooler_power =
                                 cooler_power_supported(&mut cooler_power_cache, || {
                                     cam.cooler_power()
@@ -522,14 +567,12 @@ impl AscomCameraWrapper {
                         );
                         if let Some(cam) = &mut camera {
                             // Apply the per-frame acquisition parameters BEFORE
-                            // exposing. Previously this handler ignored
-                            // gain/offset/binning/subframe and shot every frame
-                            // at the camera's current settings — a silent
-                            // mis-acquisition for any per-filter-gain or binned
-                            // night (Alpaca/INDI/native all apply these). Order
-                            // matters on ASCOM: binning must be set before frame
-                            // geometry because NumX/NumY are in *binned* pixels.
-                            // Fail closed on any setter error.
+                            // exposing, or the frame is shot at the camera's
+                            // current settings — a silent mis-acquisition on any
+                            // per-filter-gain or binned night. Order matters on
+                            // ASCOM: binning must be set before frame geometry
+                            // because NumX/NumY are in *binned* pixels. Fail
+                            // closed on any setter error.
                             //
                             // The apply logic lives in the platform-independent
                             // `ascom_exposure_apply` module so it is regression-
@@ -558,7 +601,7 @@ impl AscomCameraWrapper {
                             match cam.start_exposure(params.duration_secs, true) {
                                 Ok(_) => {
                                     tracing::info!("ASCOM: start_exposure succeeded");
-                                    // Why (§5.19): capture the commanded duration so
+                                    // Capture the commanded duration so
                                     // GetStatus can convert ASCOM `PercentCompleted`
                                     // into a wall-clock seconds-remaining figure.
                                     last_exposure_duration = Some(params.duration_secs);
@@ -612,7 +655,7 @@ impl AscomCameraWrapper {
                         tracing::info!("ASCOM: DownloadImage called");
                         if let Some(cam) = &camera {
                             tracing::info!("ASCOM: Getting camera dimensions");
-                            // Why (§5.9): the dimensions used here are only for the log
+                            // The dimensions used here are only for the log
                             // line below — the authoritative dimensions come from
                             // `image_array()` itself which returns the SAFEARRAY shape.
                             // Even so, a transient COM error on CameraXSize/YSize must
@@ -691,7 +734,7 @@ impl AscomCameraWrapper {
                                         "ASCOM: Sending ImageData with {} pixels",
                                         image_data.data.len()
                                     );
-                                    // Why (§5.19): once the frame has been delivered the
+                                    // Once the frame has been delivered the
                                     // tracked duration is no longer the "current" exposure;
                                     // clear it so subsequent GetStatus calls return None
                                     // instead of computing remaining-time from a stale total.
@@ -1166,7 +1209,7 @@ impl NativeDevice for AscomCameraWrapper {
             .map_err(|_| NativeError::Unknown("Worker thread dead".to_string()))?;
         Self::recv_with_timeout(rx, Timeouts::connection(), "connect").await?;
         self.connected.store(true, Ordering::SeqCst);
-        // Why (§5.9): sensor size and bit depth are load-bearing for every
+        // Sensor size and bit depth are load-bearing for every
         // downstream image operation. If the device cannot answer those
         // properties immediately after connect, the camera is unusable and
         // must be marked Disconnected instead of pretending the connection
@@ -1398,10 +1441,6 @@ impl NativeCamera for AscomCameraWrapper {
     }
 }
 
-// =============================================================================
-// Tests
-// =============================================================================
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1458,10 +1497,9 @@ mod tests {
         assert!(stop_called.load(Ordering::SeqCst));
     }
 
-    /// a transient COM error during DownloadImage must propagate
-    /// as Err. The previous implementation called `cam.camera_x_size().unwrap_or(1)`
-    /// which silently fabricated a 1x1 image; here we verify the wrapper now
-    /// surfaces the worker error to the caller.
+    /// a transient COM error during DownloadImage must propagate as Err.
+    /// Falling back to `cam.camera_x_size().unwrap_or(1)` would silently
+    /// fabricate a 1x1 image instead of surfacing the worker error.
     #[tokio::test]
     async fn test_download_image_propagates_com_error() {
         let mut wrapper = build_test_wrapper(move |cmd| {
@@ -1541,17 +1579,22 @@ mod tests {
         );
     }
 
-    /// a probe failure caches `false` so we don't pay the COM
-    /// round-trip on every subsequent capability query.
+    /// A driver reporting the property as unsupported caches `false`, so we
+    /// don't pay the COM round-trip on every subsequent capability query.
     #[test]
-    fn test_cooler_power_supported_caches_failure() {
+    fn test_cooler_power_supported_caches_not_implemented() {
+        // The shape `OwnedExcepInfo::describe` produces for
+        // PropertyNotImplementedException: sentence, source, ASCOM scode.
+        const NOT_IMPLEMENTED: &str =
+            "CoolerPower is not implemented (reported by ASCOM.Simulator.Camera, 0x80040400)";
+
         let probe_count = Arc::new(AtomicI32::new(0));
         let mut cache: Option<bool> = None;
 
         let count1 = Arc::clone(&probe_count);
         let supported = cooler_power_supported(&mut cache, move || {
             count1.fetch_add(1, Ordering::SeqCst);
-            Err("not implemented".to_string())
+            Err(NOT_IMPLEMENTED.to_string())
         });
         assert!(!supported);
         assert_eq!(cache, Some(false));
@@ -1559,14 +1602,127 @@ mod tests {
         let count2 = Arc::clone(&probe_count);
         let supported_again = cooler_power_supported(&mut cache, move || {
             count2.fetch_add(1, Ordering::SeqCst);
-            Err("not implemented".to_string())
+            Err(NOT_IMPLEMENTED.to_string())
         });
         assert!(!supported_again);
         assert_eq!(
             probe_count.load(Ordering::SeqCst),
             1,
-            "failed probe must cache the negative result"
+            "a NotImplemented probe must cache the negative result"
         );
+    }
+
+    /// A transport failure must not be cached: it says nothing about the
+    /// capability, and caching it would strip cooler telemetry from a cooled
+    /// camera for the life of the connection.
+    #[test]
+    fn test_cooler_power_supported_retries_after_transport_error() {
+        let probe_count = Arc::new(AtomicI32::new(0));
+        let mut cache: Option<bool> = None;
+
+        let count1 = Arc::clone(&probe_count);
+        let supported = cooler_power_supported(&mut cache, move || {
+            count1.fetch_add(1, Ordering::SeqCst);
+            Err("The RPC server is unavailable. (0x800706BA)".to_string())
+        });
+        assert!(!supported, "an unresolved capability reads false");
+        assert_eq!(cache, None, "a transport error must leave the cache unset");
+
+        // The camera is reachable again: the next query re-probes and resolves.
+        let count2 = Arc::clone(&probe_count);
+        let supported_again = cooler_power_supported(&mut cache, move || {
+            count2.fetch_add(1, Ordering::SeqCst);
+            Ok(0.75)
+        });
+        assert!(supported_again);
+        assert_eq!(cache, Some(true));
+        assert_eq!(probe_count.load(Ordering::SeqCst), 2);
+    }
+
+    /// The Bayer element order comes from the offset pair, never from the
+    /// SensorType family tag alone.
+    #[test]
+    fn test_bayer_pattern_from_sensor_reads_offsets() {
+        assert_eq!(
+            bayer_pattern_from_sensor(2, Some(0), Some(0)),
+            Some("RGGB".to_string())
+        );
+        assert_eq!(
+            bayer_pattern_from_sensor(2, Some(1), Some(0)),
+            Some("GRBG".to_string())
+        );
+        assert_eq!(
+            bayer_pattern_from_sensor(2, Some(0), Some(1)),
+            Some("GBRG".to_string())
+        );
+        assert_eq!(
+            bayer_pattern_from_sensor(2, Some(1), Some(1)),
+            Some("BGGR".to_string())
+        );
+    }
+
+    /// A BGGR sensor must not be reported as RGGB: red and blue would be
+    /// transposed in every debayered frame and the wrong BAYERPAT written to
+    /// the FITS header.
+    #[test]
+    fn test_bayer_pattern_from_sensor_does_not_assume_rggb() {
+        assert_eq!(
+            bayer_pattern_from_sensor(2, Some(1), Some(1)).as_deref(),
+            Some("BGGR"),
+            "the offset pair, not the SensorType ordinal, names the element order"
+        );
+    }
+
+    /// Anything the offsets cannot pin down is unknown, so the frame is left
+    /// undebayered rather than debayered with a guess.
+    #[test]
+    fn test_bayer_pattern_from_sensor_unknown_cases() {
+        // Offsets unreadable on an RGGB-family sensor.
+        assert_eq!(bayer_pattern_from_sensor(2, None, Some(0)), None);
+        assert_eq!(bayer_pattern_from_sensor(2, Some(0), None), None);
+        assert_eq!(bayer_pattern_from_sensor(2, None, None), None);
+        // Offsets outside the 2x2 grid.
+        assert_eq!(bayer_pattern_from_sensor(2, Some(2), Some(0)), None);
+        assert_eq!(bayer_pattern_from_sensor(2, Some(-1), Some(1)), None);
+        // Monochrome and direct-colour sensors carry no Bayer mask.
+        assert_eq!(bayer_pattern_from_sensor(0, Some(0), Some(0)), None);
+        assert_eq!(bayer_pattern_from_sensor(1, Some(0), Some(0)), None);
+        // CMYG / CMYG2 / LRGB have no RGGB-style element order to name.
+        assert_eq!(bayer_pattern_from_sensor(3, Some(0), Some(0)), None);
+        assert_eq!(bayer_pattern_from_sensor(4, Some(0), Some(0)), None);
+        assert_eq!(bayer_pattern_from_sensor(5, Some(0), Some(0)), None);
+        // An unreadable SensorType names no family.
+        assert_eq!(bayer_pattern_from_sensor(-1, Some(0), Some(0)), None);
+    }
+
+    /// Colour and Bayer order are independent answers: SensorType 1..=5 all
+    /// mark the sensor colour, but only the RGGB family names a BAYERPAT.
+    #[test]
+    fn test_colour_sensors_without_a_nameable_bayer_order() {
+        for sensor_type in [1, 3, 4, 5] {
+            assert!(
+                crate::ascom_sensor_type::is_colour_sensor(sensor_type),
+                "SensorType={sensor_type} is a colour variant"
+            );
+            assert_eq!(
+                bayer_pattern_from_sensor(sensor_type, Some(0), Some(0)),
+                None,
+                "SensorType={sensor_type} is colour without a BAYERPAT card"
+            );
+        }
+    }
+
+    /// Only the four patterns `map_bayer_pattern` accepts may be produced;
+    /// anything else would be discarded downstream and read as mono.
+    #[test]
+    fn test_bayer_pattern_from_sensor_round_trips_to_native() {
+        for (x, y) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
+            let pattern = bayer_pattern_from_sensor(2, Some(x), Some(y));
+            assert!(
+                AscomCameraWrapper::map_bayer_pattern(pattern.as_deref()).is_some(),
+                "offsets ({x}, {y}) produced {pattern:?}, which the native mapping drops"
+            );
+        }
     }
 
     /// PercentCompleted (0..100) translates into a wall-clock

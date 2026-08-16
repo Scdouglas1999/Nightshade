@@ -32,7 +32,7 @@
 //! the same intent as PixInsight's k-sigma noise evaluator, implemented with
 //! the project's existing robust-statistics idiom.
 //!
-//! ## Honest limits (per the design doc's "made honest, not functional" bar)
+//! ## Limitations
 //!
 //! The default weight *exponents* (`snr_pow`, `fwhm_pow`, `ecc_pow`) and the
 //! auto-cull percentile are defensible PixInsight-spirit defaults, **not**
@@ -836,7 +836,7 @@ mod tests {
         assert!(accumulation_weights(&[], &WeightFormula::default()).is_empty());
     }
 
-    /// IMG-001: the accumulating master's per-fold weights must sit on a fixed,
+    /// The accumulating master's per-fold weights must sit on a fixed,
     /// population-independent scale so a uniformly worse night contributes
     /// strictly less weight across folds — the property `weight_frames`'
     /// per-fold max-normalization erases.
@@ -895,7 +895,7 @@ mod tests {
         );
     }
 
-    /// IMG-001 invariant: anchoring on `neutral` instead of the fold's best
+    /// Anchoring on `neutral` instead of the fold's best
     /// frame is a pure global rescale within a single fold, so the implied
     /// weighted mean is unchanged. Pin that the two weightings are proportional.
     #[test]

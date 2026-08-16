@@ -2,10 +2,6 @@
 
 use super::*;
 
-// =============================================================================
-// Discovery
-// =============================================================================
-
 /// Discovered Atik camera info
 #[derive(Debug, Clone)]
 pub struct AtikDiscoveryInfo {

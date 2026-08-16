@@ -381,15 +381,11 @@ pub enum AttemptOutcome {
     /// Unlike `Failed` (sleep `retry_interval_secs`, try again until the
     /// attempt/time budget runs out) this breaks out on the first attempt and
     /// takes the ordinary give-up path — park the mount, close cover and dome,
-    /// fail the run loudly.
-    ///
-    /// The case that motivated it: a `DeviceDisconnected` recovery entered with
-    /// NO device ids configured at all. `connect_device` has nothing to call and
-    /// `device_is_connected` has nothing to poll, so every attempt returns the
-    /// same answer; with the shipped defaults (10 min interval, 90 min cap) that
-    /// is nine identical failures spread over an hour and a half of an
-    /// unattended night, presented to the operator as `recovering` at
-    /// `progress 0.0`.
+    /// fail the run loudly. A `DeviceDisconnected` recovery entered with NO
+    /// device ids configured is the shape: `connect_device` has nothing to call
+    /// and `device_is_connected` nothing to poll, so with the shipped defaults
+    /// (10 min interval, 90 min cap) the operator gets nine identical failures
+    /// spread over ninety minutes, presented as `recovering` at `progress 0.0`.
     Unrecoverable { message: String },
 }
 

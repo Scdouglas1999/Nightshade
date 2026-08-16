@@ -8,9 +8,7 @@ use async_trait::async_trait;
 use std::fmt::Debug;
 use std::time::Duration;
 
-// =============================================================================
-// TIMEOUT CONFIGURATION
-// =============================================================================
+// Timeout configuration
 
 /// Configuration for operation timeouts in native SDK drivers.
 ///
@@ -202,10 +200,9 @@ pub trait NativeCamera: NativeDevice {
     ///
     /// `target_temp == None` means *the caller did not name a setpoint* —
     /// implementations must leave the driver's existing setpoint alone rather
-    /// than substituting one. Turning a cooler off needs no setpoint at all,
-    /// and inventing one (Nightshade used to substitute -10 C two layers up)
-    /// both pushes a temperature the operator never asked for and fails
-    /// outright on cameras that reject a set-temperature write.
+    /// than substituting one. Turning a cooler off needs no setpoint at all, and
+    /// inventing one both pushes a temperature the operator never asked for and
+    /// fails outright on cameras that reject a set-temperature write.
     async fn set_cooler(
         &mut self,
         enabled: bool,
@@ -294,49 +291,30 @@ pub trait NativeCamera: NativeDevice {
     /// Query the regulated-cooling temperature range the sensor's TEC can
     /// achieve, as `(min_temp_c, max_temp_c)`.
     ///
-    /// Returns `Ok(Some((min, max)))` only when the vendor SDK actually
-    /// publishes the achievable setpoint range (e.g. ZWO exposes the
-    /// `ASI_TARGET_TEMP` control's min/max caps). Returns `Ok(None)` — the
-    /// honest "unknown" answer — for the many cameras whose SDK reports cooling
-    /// support but never publishes the achievable range; the UI then shows the
-    /// setpoint field without artificial clamps rather than inventing limits.
-    ///
-    /// The default implementation returns `Ok(None)`; drivers that CAN report
-    /// the range (currently ZWO) override this. Never fabricate a range here —
-    /// a guessed clamp is a silent fallback that would hide real hardware
-    /// limits from the operator.
-    ///
-    /// # Errors
-    ///
-    /// Returns `Err` only when the SDK call genuinely failed (e.g. the camera
-    /// disconnected mid-query). A camera that simply does not publish the range
-    /// returns `Ok(None)`.
+    /// `Ok(Some((min, max)))` only when the vendor SDK publishes the achievable
+    /// setpoint range — ZWO exposes the `ASI_TARGET_TEMP` control's min/max caps
+    /// and overrides this default. `Ok(None)` for the many cameras that report
+    /// cooling support but no achievable range, so the UI shows the setpoint
+    /// field unclamped. `Err` is reserved for a genuine SDK failure such as a
+    /// disconnect mid-query.
     async fn get_cooler_temp_range(&self) -> Result<Option<(f64, f64)>, NativeError> {
         Ok(None)
     }
 
     /// Shortest and longest exposure the sensor accepts, in SECONDS.
     ///
-    /// Same "never fabricate" contract as [`Self::get_cooler_temp_range`]: the
-    /// default returns `Ok(None)` ("this driver does not publish a range") and
-    /// only drivers whose SDK actually reports it override this.
-    ///
-    /// Why it matters: with the range absent, `CameraCapabilities.exposure_min`
-    /// / `exposure_max` were `null`, so no client could validate an exposure
-    /// before submitting it — a request outside the sensor's range failed late,
-    /// down in the SDK, instead of being rejected up front with the limit that
-    /// was violated. The ZWO SDK publishes this via `ASIGetControlCaps` for
-    /// `ASI_EXPOSURE`.
+    /// Same contract as [`Self::get_cooler_temp_range`]: `Ok(None)` when the
+    /// driver does not publish a range, `Err` only on a genuine SDK failure. The
+    /// ZWO SDK reports it via `ASIGetControlCaps` for `ASI_EXPOSURE`. With the
+    /// range absent, `CameraCapabilities.exposure_min`/`exposure_max` are null
+    /// and no client can reject an out-of-range exposure before submitting it —
+    /// the request then fails late inside the SDK instead of up front, naming
+    /// the limit it violated.
     ///
     /// Implementations MUST convert from their SDK's native unit (ZWO reports
     /// microseconds) and MUST NOT narrow through `i32` on the way — a 2000 s
-    /// maximum is 2_000_000_000 µs, which is within a hair of `i32::MAX` and
-    /// overflows outright for cameras that allow longer.
-    ///
-    /// # Errors
-    ///
-    /// Returns `Err` only when the SDK call genuinely failed. A camera that
-    /// simply does not publish the range returns `Ok(None)`.
+    /// maximum is 2_000_000_000 µs, within a hair of `i32::MAX` and an outright
+    /// overflow for cameras that allow longer.
     async fn get_exposure_range(&self) -> Result<Option<(f64, f64)>, NativeError> {
         Ok(None)
     }

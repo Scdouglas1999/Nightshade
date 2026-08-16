@@ -2,10 +2,6 @@
 
 use super::*;
 
-// =============================================================================
-// SDK LIBRARY LOADING
-// =============================================================================
-
 /// Candidate paths for the Player One camera SDK, in search order.
 pub(crate) fn poa_camera_candidate_paths() -> Vec<std::path::PathBuf> {
     if cfg!(target_os = "windows") {
@@ -85,6 +81,9 @@ crate::load_vendor_sdk! {
     // SDK metadata. Older camera SDK builds may not export this.
     optional_symbols: {
         get_sdk_version: b"POAGetSDKVersion\0" => unsafe extern "C" fn() -> *const c_char,
+        // Per-control min/max/default. Optional so an SDK build that predates it
+        // still loads and drives cameras; callers report unknown bounds instead.
+        get_config_attributes_by_config_id: b"POAGetConfigAttributesByConfigID\0" => unsafe extern "C" fn(c_int, c_int, *mut POAConfigAttributes) -> c_int,
     }
 }
 
@@ -131,10 +130,9 @@ crate::load_vendor_sdk! {
 /// format at all — `POAImgFormat` is only RAW8/RAW16/RGB24/MONO8 — so a 12-bit
 /// sensor's only 16-bit path is RAW16, and its samples fill the 16-bit range.
 ///
-/// [`crate::vendor::zwo`] carries the same correction for the same reason; that
-/// one was confirmed against an ASI1600MM on the bench. This one rests on Player
-/// One's SDK documentation rather than a measured frame — see the module note in
-/// `raw16_container_max_adu`'s test for the one measurement that would confirm it.
+/// [`crate::vendor::zwo`] carries the same rule, confirmed against an ASI1600MM
+/// on the bench. This one rests on Player One's SDK documentation rather than a
+/// measured frame.
 ///
 /// `bit_depth >= 16` needs no shift. `bit_depth == 0` (or a nonsensical value)
 /// means the SDK never populated the property; fall back to the container's own
@@ -187,12 +185,7 @@ pub(crate) fn check_poa_error(code: c_int, operation: &str) -> Result<(), Native
             "{}: Buffer size too small",
             operation
         ))),
-        // Codes 11-17 per PlayerOneCamera.h (POAErrors enum). These were
-        // previously mislabeled (11 as NotSupported, 12 as a config error) and
-        // 13-17 fell through to "Unknown" — critically, code 16
-        // (POA_ERROR_OPERATION_FAILED, "maybe the camera is disconnected
-        // suddenly") was not surfaced as a disconnect, so variant-keyed
-        // reconnect/recovery never fired on a mid-capture USB drop.
+        // Codes 11-17 per PlayerOneCamera.h (POAErrors enum).
         11 => Err(NativeError::SdkError(format!(
             "{}: Camera is exposing - stop the exposure first",
             operation

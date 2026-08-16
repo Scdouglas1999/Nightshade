@@ -25,9 +25,7 @@ use tokio::sync::RwLock;
 use super::super::*;
 use super::*;
 
-// =============================================================================
-// Mount Control
-// =============================================================================
+// Mount control
 
 /// Slew mount to coordinates
 pub async fn mount_slew(device_id: String, ra: f64, dec: f64) -> Result<(), NightshadeError> {

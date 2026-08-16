@@ -12,17 +12,13 @@ use std::io::{Read, Write};
 use std::sync::Mutex;
 use std::time::Duration;
 
-// =============================================================================
-// CONSTANTS
-// =============================================================================
+// Constants
 
 const IOPTRON_BAUD_RATE: u32 = 9600;
 const IOPTRON_BAUD_RATE_FAST: u32 = 115200;
 const RESPONSE_TERM: u8 = b'#';
 
-// =============================================================================
-// IOPTRON COMMANDS
-// =============================================================================
+// iOptron commands
 
 mod commands {
     pub const GET_MOUNT_VERSION: &str = ":MountInfo#";
@@ -63,9 +59,7 @@ const MIN_GUIDE_RATE: f64 = 0.10;
 const MAX_GUIDE_RATE: f64 = 1.00;
 const MAX_PULSE_GUIDE_DURATION_MS: u32 = 32_767;
 
-// =============================================================================
-// MOUNT STATUS PARSING
-// =============================================================================
+// Mount status parsing
 
 #[derive(Debug, Clone, Default)]
 pub struct IOptronStatus {
@@ -217,9 +211,7 @@ fn query_hash_command(port: &mut dyn serialport::SerialPort, command: &str) -> O
     }
 }
 
-// =============================================================================
-// COORDINATE CONVERSION
-// =============================================================================
+// Coordinate conversion
 
 fn parse_ra(response: &str) -> Result<f64, NativeError> {
     if response.len() < 8 {
@@ -294,9 +286,7 @@ fn format_dec(dec_degrees: f64) -> String {
     format!("{}{:02}{:02}{:04}", sign, degrees, arcmin, centiarcsec)
 }
 
-// =============================================================================
-// IOPTRON MOUNT IMPLEMENTATION
-// =============================================================================
+// iOptron mount implementation
 
 pub struct IOptronMount {
     device_id: String,
@@ -832,9 +822,7 @@ impl NativeMount for IOptronMount {
     }
 }
 
-// =============================================================================
-// DISCOVERY
-// =============================================================================
+// Discovery
 
 pub struct IOptronMountInfo {
     pub port: String,

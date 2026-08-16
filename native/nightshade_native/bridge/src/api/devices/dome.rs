@@ -25,9 +25,7 @@ use tokio::sync::RwLock;
 use super::super::*;
 use super::*;
 
-// =============================================================================
-// Dome Control
-// =============================================================================
+// Dome control
 
 /// Get dome status
 pub async fn api_get_dome_status(device_id: String) -> Result<DomeStatus, NightshadeError> {

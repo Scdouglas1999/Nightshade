@@ -1,12 +1,61 @@
 use super::*;
+use crate::device::DeviceType;
+use crate::device_id::{ConnectionInfo, ParsedDeviceId};
 
-/// Get capabilities for a simulator device
-pub(crate) fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities {
-    let device_id_lower = device_id.to_lowercase();
+/// Resolve the device-type token carried by a parsed simulator id.
+///
+/// `ParsedDeviceId::parse` splits the legacy `sim_<type>_<instance>` form on
+/// underscores, so a multi-word type arrives truncated to its first word
+/// (`sim_safety_monitor_1` yields `safety`, `sim_cover_calibrator_1` yields
+/// `cover`); the canonical `simulator:<type>` form carries the whole word.
+/// Both spellings must resolve to the same type — matching on substrings of
+/// the raw id instead let `sim_safety_monitor_1` and `sim_cover_calibrator_1`
+/// miss every branch and be reported to the app as a default camera.
+fn simulator_device_type(token: &str) -> Option<DeviceType> {
+    match token {
+        "camera" => Some(DeviceType::Camera),
+        "mount" | "telescope" => Some(DeviceType::Mount),
+        "focuser" => Some(DeviceType::Focuser),
+        "filter" | "filterwheel" => Some(DeviceType::FilterWheel),
+        "guider" => Some(DeviceType::Guider),
+        "rotator" => Some(DeviceType::Rotator),
+        "dome" => Some(DeviceType::Dome),
+        "cover" | "covercalibrator" | "flatpanel" => Some(DeviceType::CoverCalibrator),
+        "weather" | "observingconditions" => Some(DeviceType::Weather),
+        "safety" | "safetymonitor" => Some(DeviceType::SafetyMonitor),
+        "switch" => Some(DeviceType::Switch),
+        _ => None,
+    }
+}
 
-    // Simulator devices have full capabilities
-    if device_id_lower.contains("camera") {
-        DeviceCapabilities::Camera(CameraCapabilities {
+/// Get capabilities for a simulator device.
+///
+/// Dispatches on the device type the id parses to. A type this module does not
+/// model is an error rather than a default: handing the app a camera stub for
+/// a safety monitor gates the UI on the wrong capabilities and hides the
+/// missing coverage.
+pub(crate) async fn get_simulator_capabilities(
+    parsed: &ParsedDeviceId,
+) -> Result<DeviceCapabilities, NightshadeError> {
+    let ConnectionInfo::Simulator {
+        device_type: token, ..
+    } = &parsed.connection_info
+    else {
+        return Err(NightshadeError::invalid_device_id(
+            &parsed.raw_id,
+            "simulator capabilities requested for a non-simulator device id",
+        ));
+    };
+
+    let device_type = simulator_device_type(token).ok_or_else(|| {
+        NightshadeError::invalid_device_id(
+            &parsed.raw_id,
+            format!("unrecognised simulator device type '{token}'"),
+        )
+    })?;
+
+    let capabilities = match device_type {
+        DeviceType::Camera => DeviceCapabilities::Camera(CameraCapabilities {
             max_width: crate::sim_frame::SIM_W as u32,
             max_height: crate::sim_frame::SIM_H as u32,
             bit_depth: 16,
@@ -37,9 +86,8 @@ pub(crate) fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities 
             cooler_min_temp_c: Some(-40.0),
             cooler_max_temp_c: Some(40.0),
             ..Default::default()
-        })
-    } else if device_id_lower.contains("mount") || device_id_lower.contains("telescope") {
-        DeviceCapabilities::Mount(MountCapabilities {
+        }),
+        DeviceType::Mount => DeviceCapabilities::Mount(MountCapabilities {
             can_slew: true,
             can_slew_async: true,
             can_sync: true,
@@ -57,9 +105,8 @@ pub(crate) fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities 
             min_pulse_guide_ms: Some(1.0),
             max_pulse_guide_ms: Some(8000.0),
             ..Default::default()
-        })
-    } else if device_id_lower.contains("focuser") {
-        DeviceCapabilities::Focuser(FocuserCapabilities {
+        }),
+        DeviceType::Focuser => DeviceCapabilities::Focuser(FocuserCapabilities {
             max_position: 100000,
             max_increment: 50000,
             step_size: Some(1.0),
@@ -68,9 +115,8 @@ pub(crate) fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities 
             can_halt: true,
             can_reverse: true,
             ..Default::default()
-        })
-    } else if device_id_lower.contains("filter") {
-        DeviceCapabilities::FilterWheel(FilterWheelCapabilities {
+        }),
+        DeviceType::FilterWheel => DeviceCapabilities::FilterWheel(FilterWheelCapabilities {
             position_count: 7,
             filter_names: vec![
                 "L".into(),
@@ -85,9 +131,8 @@ pub(crate) fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities 
             can_set_filter_names: true,
             can_set_focus_offsets: true,
             ..Default::default()
-        })
-    } else if device_id_lower.contains("rotator") {
-        DeviceCapabilities::Rotator(RotatorCapabilities {
+        }),
+        DeviceType::Rotator => DeviceCapabilities::Rotator(RotatorCapabilities {
             can_reverse: true,
             reverse: false,
             step_size: Some(0.1),
@@ -101,9 +146,8 @@ pub(crate) fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities 
             // UI and its clamping are exercised end-to-end.
             min_angle_deg: Some(0.0),
             max_angle_deg: Some(360.0),
-        })
-    } else if device_id_lower.contains("dome") {
-        DeviceCapabilities::Dome(DomeCapabilities {
+        }),
+        DeviceType::Dome => DeviceCapabilities::Dome(DomeCapabilities {
             can_set_azimuth: true,
             can_park: true,
             can_find_home: true,
@@ -117,19 +161,18 @@ pub(crate) fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities 
             can_slave: true,
             slaved: false,
             can_abort: true,
-        })
-    } else if device_id_lower.contains("covercalibrator") || device_id_lower.contains("flatpanel") {
-        DeviceCapabilities::CoverCalibrator(CoverCalibratorCapabilities {
-            max_brightness: 255,
-            cover_present: true,
-            calibrator_present: true,
-            cover_state: Some(CoverState::Closed),
-            calibrator_state: Some(CalibratorState::Off),
-            brightness: Some(0),
-        })
-    } else if device_id_lower.contains("weather") || device_id_lower.contains("observingconditions")
-    {
-        DeviceCapabilities::Weather(WeatherCapabilities {
+        }),
+        DeviceType::CoverCalibrator => {
+            DeviceCapabilities::CoverCalibrator(CoverCalibratorCapabilities {
+                max_brightness: 255,
+                cover_present: true,
+                calibrator_present: true,
+                cover_state: Some(CoverState::Closed),
+                calibrator_state: Some(CalibratorState::Off),
+                brightness: Some(0),
+            })
+        }
+        DeviceType::Weather => DeviceCapabilities::Weather(WeatherCapabilities {
             has_cloud_cover: true,
             has_dew_point: true,
             has_humidity: true,
@@ -144,14 +187,33 @@ pub(crate) fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities 
             has_wind_gust: true,
             has_wind_speed: true,
             average_period: Some(60.0),
-        })
-    } else if device_id_lower.contains("safetymonitor") {
-        DeviceCapabilities::SafetyMonitor(SafetyMonitorCapabilities {
-            is_safe: true,
-            safety_description: Some("Simulator safety monitor - always safe".to_string()),
-        })
-    } else if device_id_lower.contains("switch") {
-        DeviceCapabilities::Switch(SwitchCapabilities {
+        }),
+        DeviceType::SafetyMonitor => {
+            // Read the simulator's live state. A monitor that can only ever
+            // answer SAFE means the unsafe-weather sweep — park, close, abort
+            // the run — is never exercisable offline, and an unreachable
+            // monitor reads unsafe so the safety layer fails closed.
+            let monitor = crate::api::devices::simulation::get_sim_safety_monitor()
+                .read()
+                .await;
+            let (is_safe, description) = if monitor.status.connected {
+                (
+                    monitor.status.is_safe,
+                    if monitor.status.is_safe {
+                        "Simulated conditions are safe"
+                    } else {
+                        "Simulated conditions are unsafe"
+                    },
+                )
+            } else {
+                (false, "Simulated safety monitor is not connected")
+            };
+            DeviceCapabilities::SafetyMonitor(SafetyMonitorCapabilities {
+                is_safe,
+                safety_description: Some(description.to_string()),
+            })
+        }
+        DeviceType::Switch => DeviceCapabilities::Switch(SwitchCapabilities {
             switch_count: 4,
             switches: vec![
                 SwitchInfo {
@@ -199,9 +261,16 @@ pub(crate) fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities 
                     value: 1.0,
                 },
             ],
-        })
-    } else {
-        // Default to camera for unknown simulator devices
-        DeviceCapabilities::Camera(CameraCapabilities::default())
-    }
+        }),
+        // No `DeviceCapabilities` variant models a guider; say so rather than
+        // answer with another device's capability set.
+        DeviceType::Guider => {
+            return Err(NightshadeError::not_supported(
+                &parsed.raw_id,
+                "capability reporting for simulated guiders",
+            ))
+        }
+    };
+
+    Ok(capabilities)
 }

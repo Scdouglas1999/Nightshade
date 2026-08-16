@@ -108,9 +108,8 @@ impl SequenceExecutor {
     ///
     /// This MUST be called before [`SequenceExecutor::start`], otherwise
     /// `start()` returns an error. The handler is the single chokepoint
-    /// every instruction (slew, expose, autofocus) routes through;
-    /// `None` would let a sequence "run" while doing nothing, a silent
-    /// failure mode the house rules explicitly forbid.
+    /// every instruction (slew, expose, autofocus) routes through, so `None`
+    /// would let a sequence "run" while doing nothing.
     pub fn set_device_ops(&mut self, ops: SharedDeviceOps) {
         self.device_ops = Some(ops);
     }

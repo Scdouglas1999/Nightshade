@@ -38,10 +38,9 @@ async fn test_hfr_trigger_relative() {
 
 #[tokio::test]
 async fn test_guide_star_lost_requires_arming() {
-    // Regression: `guiding_enabled` must be settable so the GuideStarLost
-    // trigger can fire. Previously it was never set true, making the
-    // trigger permanently dead and letting the sequence take unguided
-    // subs after a star loss.
+    // `guiding_enabled` must be settable so the GuideStarLost trigger can
+    // fire; left false it is permanently dead and the sequence takes
+    // unguided subs after a star loss.
     let mut trigger = Trigger::new(
         "guide_star_lost",
         "Guide Star Lost",
@@ -84,9 +83,8 @@ async fn test_guide_star_lost_requires_arming() {
 
 #[tokio::test]
 async fn test_dawn_approaching_fires_only_within_upcoming_window() {
-    // Regression: DawnApproaching must fire when an UPCOMING dawn is within
-    // the window, and must NOT fire when dawn_time is unset (the old bug
-    // left it None forever) or already in the past (the stale-cache bug).
+    // DawnApproaching fires when an UPCOMING dawn is within the window, and
+    // must NOT fire when dawn_time is unset or already in the past.
     let mut trigger = Trigger::new(
         "dawn",
         "Dawn Approaching",
@@ -159,9 +157,9 @@ async fn test_hfr_trigger_consecutive_frames() {
     assert!(!trigger.check(&state).await);
     assert_eq!(trigger.hfr_bad_frame_count, 1);
 
-    // a re-evaluation of the SAME frame (the ~1Hz monitor tick) must
-    // NOT advance the counter — it counts frames, not ticks. Without the
-    // fix this would have bumped the count toward firing within one sub.
+    // A re-evaluation of the SAME frame (the ~1Hz monitor tick) must NOT
+    // advance the counter — it counts frames, not ticks. Counting ticks bumps
+    // the count toward firing within one sub.
     assert!(!trigger.check(&state).await);
     assert_eq!(
         trigger.hfr_bad_frame_count, 1,
@@ -468,7 +466,7 @@ async fn test_weather_unsafe_trigger_honours_dart_verdict() {
     );
 }
 
-/// Architecture-unification 2026-06-05 (Subsystem 2 step 1): the abstain
+/// The abstain
 /// landmine. A disabled / snoozed / permissive-fail-mode weather toggle on
 /// the Dart side pushes `None` (abstain), NOT `Some(false)`. This test pins
 /// that abstaining MUST NOT suppress a hardware-unsafe abort — even though
@@ -506,9 +504,8 @@ async fn test_weather_unsafe_abstain_does_not_suppress_hardware_abort() {
     );
 }
 
-/// Architecture-unification 2026-06-05 (Subsystem 2 step 1) — EXHAUSTIVE
-/// gate matrix: Dart verdict {Some(true), Some(false), None} × hardware
-/// {safe, unsafe, unavailable}. "Unavailable" is what the executor's
+/// EXHAUSTIVE gate matrix: Dart verdict {Some(true), Some(false), None} ×
+/// hardware {safe, unsafe, unavailable}. "Unavailable" is what the executor's
 /// safety poll resolves through the shared fail-mode truth table
 /// (`safety_fail_mode_no_data_resolution`) BEFORE the gate sees
 /// `weather_safe`, so the unavailable rows are exercised once per fail
@@ -521,11 +518,9 @@ async fn test_weather_unsafe_abstain_does_not_suppress_hardware_abort() {
 ///      with `Some(false)` or `Some(true)` also fires with `None` swapped
 ///      in only if the hardware term alone fires — i.e. None contributes
 ///      nothing in either direction.
-///   3. The disabled-safety landmine is closed: a Dart side that opted out
-///      (pushes `None`, never `Some(false)`) cannot make any unsafe row go
-///      safe — including the unavailable+FailClosed row — even if a future
-///      refactor made Rust "trust" the verdict, because there is no SAFE
-///      assertion to trust.
+///   3. A Dart side that opts out (pushes `None`, never `Some(false)`)
+///      cannot make any unsafe row go safe — the unavailable+FailClosed row
+///      included — because there is no SAFE assertion to trust.
 #[tokio::test]
 async fn weather_unsafe_gate_full_matrix_verdict_x_hardware() {
     use crate::{safety_fail_mode_no_data_resolution, NoDataResolution, SafetyFailMode};
@@ -551,7 +546,7 @@ async fn weather_unsafe_gate_full_matrix_verdict_x_hardware() {
     let verdicts: [Option<bool>; 3] = [Some(true), Some(false), None];
 
     for verdict in verdicts {
-        // --- Hardware SAFE ---------------------------------------------
+        // Hardware safe
         let mut state = TriggerState::new();
         state.weather_safe = true;
         state.update_weather_verdict(verdict);
@@ -561,7 +556,7 @@ async fn weather_unsafe_gate_full_matrix_verdict_x_hardware() {
             "hardware-safe: gate must fire iff verdict is Some(true) (verdict={verdict:?})"
         );
 
-        // --- Hardware UNSAFE -------------------------------------------
+        // Hardware unsafe
         let mut state = TriggerState::new();
         state.weather_safe = false;
         state.update_weather_verdict(verdict);
@@ -570,7 +565,7 @@ async fn weather_unsafe_gate_full_matrix_verdict_x_hardware() {
             "hardware-unsafe must ALWAYS fire; verdict={verdict:?} must never suppress it"
         );
 
-        // --- Hardware UNAVAILABLE (per fail mode) ----------------------
+        // Hardware unavailable (per fail mode)
         for (mode, prior) in [
             (SafetyFailMode::FailClosed, true),
             (SafetyFailMode::FailOpen, false),
@@ -591,8 +586,8 @@ async fn weather_unsafe_gate_full_matrix_verdict_x_hardware() {
         }
     }
 
-    // Landmine regression (disabled safety + a hypothetical verdict-trusting
-    // Rust): the Dart opt-out contract is `None`, never `Some(false)`. With
+    // Disabled safety + a hypothetical verdict-trusting Rust: the Dart
+    // opt-out contract is `None`, never `Some(false)`. With
     // `None` pushed there is no SAFE assertion in the channel at all, so no
     // unsafe hardware state — including unavailable under FailClosed — can
     // be declared safe via the verdict.
@@ -605,7 +600,7 @@ async fn weather_unsafe_gate_full_matrix_verdict_x_hardware() {
     );
 }
 
-/// Architecture-unification 2026-06-05 (Subsystem 2 step 3 — stale-verdict
+/// (Subsystem 2 step 3 — stale-verdict
 /// observability). A pushed `Some(true)`=UNSAFE verdict whose Dart feed goes
 /// stale MUST stay unsafe (the `WeatherUnsafe` trigger keeps firing — the
 /// sequence is held paused fail-closed) and the staleness predicate must
@@ -738,14 +733,12 @@ async fn test_temperature_shift_trigger() {
 
 #[tokio::test]
 async fn test_temperature_shift_needs_a_drifting_source() {
-    // Regression for the cooled-camera bug: the executor used to feed this
-    // trigger from `camera_get_temperature`. A cooled camera is regulated
-    // to a fixed setpoint, so its reading never drifts and the trigger
-    // could never fire — focus walked soft over the night. The executor now
-    // feeds `update_temperature` from the FOCUSER probe instead. This test
-    // demonstrates the underlying contract the fix relies on: a constant
-    // (regulated) feed never trips, while a drifting (focuser/ambient) feed
-    // does once the delta exceeds the configured degrees.
+    // The temperature trigger is fed from the FOCUSER probe, not the
+    // regulated camera sensor: a cooled camera holds a fixed setpoint, so its
+    // reading never drifts and the trigger could never fire while focus walks
+    // soft over the night. This test pins the underlying contract — a
+    // constant feed never trips, a drifting (focuser/ambient) feed does once
+    // the delta exceeds the configured degrees.
     let mut trigger = Trigger::new(
         "test",
         "Temp Shift Source",
@@ -901,9 +894,7 @@ async fn test_hfr_baseline_reset() {
     assert_eq!(state.current_hfr, Some(3.0));
 }
 
-// =========================================================================
 // OnTrackingLimitHit trigger tests
-// =========================================================================
 
 /// Helper to create a TriggerState simulating a mount that hit its tracking limit
 fn make_limit_hit_state() -> TriggerState {

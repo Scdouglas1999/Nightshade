@@ -281,9 +281,9 @@ where
             } else if lower.starts_with("w08") || lower.contains("_w08") {
                 detected = Some(("W08", Some(8.0)));
             } else if lower.starts_with("d05") || lower.contains("_d05") {
-                // The D-series deep databases ship as `d05_0101.1476`. This one
-                // was missing, so a directory full of working D05 catalogs
-                // detected as "catalog present, version unrecognized". No
+                // The D-series deep databases ship as `d05_0101.1476`. Without
+                // this arm a directory full of working D05 catalogs detects as
+                // "catalog present, version unrecognized". No
                 // magnitude limit is asserted: the published table does not
                 // give one for D05, and inventing a number here would feed a
                 // fabricated limit to the exposure planner.

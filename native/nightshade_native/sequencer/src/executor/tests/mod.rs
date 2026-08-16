@@ -4,11 +4,10 @@ use crate::SequenceDefinition;
 mod recovery_tests;
 mod runtime_tests;
 
-/// Observed live: an unguided 12-frame dark run logged 12 identical
-/// "Trigger-initiated dither failed: No active guider configured" WARNs —
-/// one per exposure — because a failed dither never reset the interval, so
-/// the trigger stayed permanently due for a condition that cannot change
-/// mid-run.
+/// A failed dither that does not reset the interval leaves the trigger
+/// permanently due for a condition that cannot change mid-run: an unguided
+/// 12-frame dark run logs 12 identical "Trigger-initiated dither failed: No
+/// active guider configured" WARNs, one per exposure.
 #[test]
 fn dither_without_a_guider_is_a_skip_not_a_failure() {
     assert_eq!(
@@ -114,7 +113,7 @@ fn a_failed_position_restore_is_called_out_not_smoothed_over() {
 
 /// An autofocus rejected at the admission gate never moved the focuser, so
 /// the marker is absent rather than `false`. Reading that as a failed
-/// restore would cry wolf about focus on a run whose focuser never moved.
+/// restore would warn about focus on a run whose focuser never moved.
 #[test]
 fn an_autofocus_that_never_moved_the_focuser_does_not_warn_about_restore() {
     let continuation = autofocus_trigger_continuation(
@@ -241,14 +240,11 @@ fn nested_leaf_chain_sequence() -> SequenceDefinition {
     sequence
 }
 
-/// P2 regression. `ExecutorEvent::TargetStarted` had a bridge mapping and
-/// a Dart handler but no producer anywhere in this crate, so Dart's
-/// `SequenceProgress.currentTarget` was null for every run. The visible
-/// damage was in the run record: `sequence_runs.stats_json.targetBreakdown`
-/// fell through to its documented fallback and keyed a whole night under
-/// the SEQUENCE name while the frames on disk carried the target's name.
-///
-/// Pre-fix this test finds no TargetStarted event at all.
+/// A run must emit `ExecutorEvent::TargetStarted`: Dart's
+/// `SequenceProgress.currentTarget` is fed by it, and without it
+/// `sequence_runs.stats_json.targetBreakdown` falls through to its fallback
+/// and keys a whole night under the SEQUENCE name while the frames on disk
+/// carry the target's.
 #[tokio::test]
 async fn entering_a_target_announces_the_target_by_name() {
     let mut sequence = SequenceDefinition::new("New Sequence".to_string());
@@ -378,12 +374,9 @@ fn instructions_parented_under_a_leaf_are_reported_as_unreachable() {
     );
 }
 
-/// P0 DATA LOSS regression. Run 70 walked one instruction of four and the
-/// Session Report still showed "New Sequence - completed", a green
-/// Completed badge, 0 frames and `errorMessages: []` while the header chip
-/// read "3 frames".
-///
-/// Pre-fix this test sees `ExecutorState::Completed`.
+/// A run that walked one instruction of four must not report Completed: the
+/// Session Report would show a green Completed badge, 0 frames and
+/// `errorMessages: []` against a header chip reading "3 frames".
 #[tokio::test]
 async fn a_run_that_never_reaches_part_of_its_tree_does_not_report_completed() {
     let dir = std::env::temp_dir().join(format!("ns-unreachable-{}", uuid::Uuid::new_v4()));
@@ -440,13 +433,11 @@ async fn a_run_that_never_reaches_part_of_its_tree_does_not_report_completed() {
     );
 }
 
-/// P1 regression. `SequenceFailed` was hardcoded to "Sequence failed", so
-/// a run killed by the daylight gate carried "Daylight gate: refusing
-/// light-frame exposure — Sun altitude 66.9° is above the maximum -12.0°"
-/// in its log while the toast, the Session Report Errors section and the
-/// persisted `stats_json.errorMessages` all read only ["Sequence failed"].
-///
-/// Pre-fix this test sees exactly "Sequence failed".
+/// The terminal `SequenceFailed` must carry the instruction's real reason —
+/// with a hardcoded "Sequence failed" the toast, the Session Report Errors
+/// section and the persisted `stats_json.errorMessages` all hide the cause
+/// (e.g. "Daylight gate: refusing light-frame exposure") that only the log
+/// holds.
 #[tokio::test]
 async fn a_failed_run_reports_the_reason_the_instruction_gave() {
     // A misconfigured script fails immediately with a specific, quotable
@@ -520,8 +511,8 @@ fn last_instruction_failure_prefers_the_most_recent_reason() {
     );
 }
 
-/// D2: a run that captures frames with no save path configured used to
-/// start, report 100% complete and write nothing. Refuse it at the door.
+/// A capture sequence with no save path configured is refused at the door:
+/// starting it reports 100% complete and writes nothing.
 #[tokio::test]
 async fn start_refuses_a_capture_sequence_with_no_save_path() {
     let mut executor = SequenceExecutor::new();
@@ -684,9 +675,9 @@ async fn start_allows_a_non_capturing_sequence_with_no_camera() {
 }
 
 /// An absolute `save_to` exempts a `TakeExposure` from the base-save-path
-/// gate, but nothing exempts it from needing a camera. This is the exact
-/// shape used to reproduce L6 on the rig (an absolute `save_to` was what
-/// got the run past the save-path preflight and into the recovery hang).
+/// gate, but nothing exempts it from needing a camera — this shape gets past
+/// the save-path preflight and must still fail on the missing camera rather
+/// than hang in recovery.
 #[tokio::test]
 async fn start_refuses_an_absolute_save_to_capture_with_no_camera() {
     let dir = std::env::temp_dir().join(format!("ns-cam-abs-{}", uuid::Uuid::new_v4()));
@@ -783,12 +774,12 @@ async fn start_refusal_for(node_type: crate::NodeType, step_name: &str) -> Strin
     }
 }
 
-/// Live-rig L16 (2026-08-09). Pre-flight refused a missing save path and a
-/// missing plate solver, but a sequence that declared a DEVICE the executor
-/// could not resolve was allowed to start and then died mid-run.
+/// Pre-flight refuses a missing save path and a missing plate solver; a
+/// sequence that declares a DEVICE the executor cannot resolve must be
+/// refused the same way rather than starting and dying mid-run.
 ///
 /// Reproduced against the Linux appliance (release bundle, headless, no
-/// devices connected), each one `POST /api/sequencer/start -> 200
+/// devices connected): each one answers `POST /api/sequencer/start -> 200
 /// {"status":"started"}` followed by
 /// `{"state":"failed","message":"Cancelled: Target"}`, with the real reason
 /// only in the log — `ERROR Change Filter failed: No filter wheel
@@ -798,9 +789,9 @@ async fn start_refusal_for(node_type: crate::NodeType, step_name: &str) -> Strin
 /// `ERROR Move Rotator failed: No rotator connected` — each immediately
 /// promoted to a futile disconnect recovery.
 ///
-/// Reverting `collect_required_devices` to the old
-/// `TakeExposure | SmartExposure | FlatWizard` camera-only predicate puts
-/// every case below back on that path: `start()` then returns `Ok`.
+/// Narrowing `collect_required_devices` to a `TakeExposure | SmartExposure |
+/// FlatWizard` camera-only predicate puts every case below back on that path:
+/// `start()` then returns `Ok`.
 #[tokio::test]
 async fn start_refuses_a_filter_change_with_no_filter_wheel() {
     let error = start_refusal_for(
@@ -1317,7 +1308,7 @@ impl DeviceOps for ReacquireGuiderOps {
         Ok(())
     }
 
-    // === delegating methods (every other DeviceOps method) ===
+    // Delegating methods (every other DeviceOps method)
     async fn mount_slew_to_coordinates(&self, id: &str, ra: f64, dec: f64) -> DeviceResult<()> {
         self.inner.mount_slew_to_coordinates(id, ra, dec).await
     }

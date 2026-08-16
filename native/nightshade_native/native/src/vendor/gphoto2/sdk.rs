@@ -2,10 +2,6 @@
 
 use super::*;
 
-// =============================================================================
-// SDK LIBRARY LOADING
-// =============================================================================
-
 /// Candidate paths for libgphoto2, in search order.
 pub(crate) fn gphoto2_candidate_paths() -> Vec<std::path::PathBuf> {
     let mut lib_paths: Vec<std::path::PathBuf> = Vec::new();

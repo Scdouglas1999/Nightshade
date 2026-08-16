@@ -25,9 +25,7 @@ use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_double, c_float, c_int, c_uint, c_ushort, c_void};
 use std::path::Path;
 
-// =============================================================================
-// LibRaw FFI Declarations (matching libraw.dll structures and functions)
-// =============================================================================
+// LibRaw FFI declarations (matching libraw.dll structures and functions)
 
 const LIBRAW_SUCCESS: i32 = 0;
 
@@ -467,11 +465,11 @@ pub fn read_raw(
             _ => [0.0; 4],
         };
 
-        // Why: previously a `CString::new` failure here was silently swallowed,
-        // leaving LibRaw to use its defaults while the user believed their
-        // bad-pixels / dark-frame path was active. Surface the failure with
-        // enough context to identify which path is at fault — and close the
-        // already-opened LibRaw processor before propagating so we don't leak.
+        // Why: a swallowed `CString::new` failure leaves LibRaw on its
+        // defaults while the caller believes the bad-pixels / dark-frame path
+        // is active. Surface the failure with enough context to identify which
+        // path is at fault, and close the already-opened LibRaw processor
+        // before propagating so it does not leak.
         match path_to_cstring("bad_pixels", params.bad_pixels_path.as_deref()) {
             Ok(value) => _bad_pixels_c_str = value,
             Err(err) => {
@@ -1065,7 +1063,7 @@ pub fn read_cfa_mosaic_from_bytes(
 unsafe fn decode_cfa_common(
     processor: *mut libraw_data_t,
 ) -> Result<(CfaImage, RawMetadata), RawError> {
-    // ---- Metadata (available post-open, pre-unpack) ------------------------
+    // Metadata (available post-open, pre-unpack)
     let iparams = libraw_get_iparams(processor);
     let other = libraw_get_imgother(processor);
     if iparams.is_null() || other.is_null() {
@@ -1094,7 +1092,7 @@ unsafe fn decode_cfa_common(
     let focal_length = (other.focal_len > 0.0).then_some(other.focal_len);
     let timestamp = (other.timestamp > 0).then_some(other.timestamp as i64);
 
-    // ---- Unpack + raw2image (NO dcraw_process → stays linear mono) ---------
+    // Unpack + raw2image (NO dcraw_process → stays linear mono)
     let ret = libraw_unpack(processor);
     if ret != LIBRAW_SUCCESS {
         let err_msg = get_error_string(ret);
@@ -1115,7 +1113,7 @@ unsafe fn decode_cfa_common(
         )));
     }
 
-    // ---- Extract geometry / CFA orientation / bit depth from the struct ----
+    // Extract geometry / CFA orientation / bit depth from the struct
     let mut info = nightshade_cfa_info_t {
         width: 0,
         height: 0,
@@ -1152,7 +1150,7 @@ unsafe fn decode_cfa_common(
     let height = info.height as u32;
     let pixel_count = (width as usize) * (height as usize);
 
-    // ---- Copy the visible mosaic (margins trimmed) ------------------------
+    // Copy the visible mosaic (margins trimmed)
     let mut data = vec![0u16; pixel_count];
     let ret = nightshade_libraw_copy_cfa_mosaic(processor, data.as_mut_ptr(), data.len());
     if ret != 0 {
@@ -1305,8 +1303,8 @@ mod tests {
         assert!(!is_raw_file(Path::new("test.jpg")));
     }
 
-    /// §6.25: a `None` input must round-trip to `Ok(None)` (no error, no
-    /// surprise allocation), while a normal path produces a usable CString.
+    /// A `None` input must round-trip to `Ok(None)` (no error, no surprise
+    /// allocation), while a normal path produces a usable CString.
     #[test]
     fn path_to_cstring_passes_through_normal_inputs() {
         assert!(matches!(path_to_cstring("bad_pixels", None), Ok(None)));
@@ -1318,10 +1316,10 @@ mod tests {
         assert_eq!(c_str.to_str().unwrap(), "/tmp/bad_pixels.txt");
     }
 
-    /// §6.25: a path containing an interior NUL byte must propagate
+    /// A path containing an interior NUL byte must propagate
     /// `RawError::InvalidCStringPath` with the offending field name and the
-    /// original string. The previous implementation silently dropped the
-    /// path, so LibRaw quietly used its defaults.
+    /// original string; silently dropping the path leaves LibRaw quietly
+    /// using its defaults.
     #[test]
     fn path_to_cstring_propagates_interior_nul() {
         // PathBuf::from accepts strings with NULs on Unix; on Windows we
@@ -1345,8 +1343,8 @@ mod tests {
         }
     }
 
-    /// §6.25: same propagation for `dark_frame` so both paths share a single
-    /// helper (no copy-paste rot where one swallows and the other doesn't).
+    /// Same propagation for `dark_frame` so both paths share a single helper
+    /// (no copy-paste rot where one swallows and the other doesn't).
     #[test]
     fn path_to_cstring_dark_frame_path_propagates() {
         let bad_path = std::path::PathBuf::from("dark\0frame");

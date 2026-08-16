@@ -60,9 +60,7 @@ impl AscomSafetyMonitor {
         self.device.get_bool_property("IsSafe")
     }
 
-    // ========================================================================
-    // Batch Property Queries
-    // ========================================================================
+    // Batch property queries
 
     /// Get complete safety monitor status in a single batch operation
     pub fn get_full_status(&self) -> Result<SafetyMonitorFullStatus, String> {

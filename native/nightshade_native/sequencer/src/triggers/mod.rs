@@ -16,7 +16,7 @@ pub use manager::*;
 pub use state::*;
 pub use trigger::*;
 
-/// Trust-patch §6: hard upper bound on the FocusDrift rolling-window length.
+/// Hard upper bound on the FocusDrift rolling-window length.
 /// The window is user-configurable (`TriggerType::FocusDrift::window_size`,
 /// `lib.rs:1115`); enforcing a ceiling here keeps the in-memory footprint
 /// bounded and prevents a misconfigured sequence from allocating an

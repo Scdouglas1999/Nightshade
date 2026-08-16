@@ -288,11 +288,11 @@ impl PixelType {
 
 /// Errors produced by `ImageData` display-conversion routines.
 ///
-/// We surface these explicitly rather than papering over them with a synthetic
-/// gray buffer: a mid-gray image at the display layer is indistinguishable
-/// from a failed capture, and silently hiding an unsupported channel layout
-/// has historically masked debayer/reader bugs for months. Callers must
-/// decide how to report the failure (snackbar, log, abort frame, etc.).
+/// These are typed rather than papered over with a synthetic gray buffer: a
+/// mid-gray image at the display layer is indistinguishable from a failed
+/// capture, so hiding an unsupported channel layout hides debayer and reader
+/// bugs with it. Callers decide how to report the failure (snackbar, log,
+/// abort frame, etc.).
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum ImageDisplayError {
     /// The image has a channel count the display pipeline does not know how
@@ -541,9 +541,7 @@ pub struct ImageReadResult {
     pub bayer: Option<BayerGeometry>,
 }
 
-// ============================================================================
-// IMAGE WRITING FUNCTIONS
-// ============================================================================
+// Image writing functions
 
 /// Write an image to TIFF format (16-bit if possible, otherwise 8-bit)
 pub fn write_tiff(path: &std::path::Path, image: &ImageData) -> Result<(), String> {
@@ -1096,9 +1094,8 @@ mod tests {
 
     #[test]
     fn to_rgba_returns_loud_error_on_unsupported_five_channel_layout() {
-        // IMG-P3-3 regression: previously this returned vec![128u8; w*h*4]
-        // (a silent gray buffer indistinguishable from a failed capture).
-        // It must now surface a typed error naming the bad channel count.
+        // An unsupported channel count must surface a typed error naming the
+        // count, never a gray buffer indistinguishable from a failed capture.
         let image = ImageData {
             width: 4,
             height: 4,

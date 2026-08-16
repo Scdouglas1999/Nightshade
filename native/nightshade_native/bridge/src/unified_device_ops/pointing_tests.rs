@@ -98,8 +98,8 @@ async fn untargeted_frame_carries_the_mount_pointing() {
     assert_eq!(parsed.get_float("DEC"), Some(30.0));
     assert_eq!(parsed.get_string("OBJCTRA"), Some("17 00 00.00"));
     assert_eq!(parsed.get_string("OBJCTDEC"), Some("+30 00 00.00"));
-    // Altitude rides along so AIRMASS becomes computable for sequenced
-    // frames, which previously always lacked it.
+    // Altitude rides along with the pointing, which is what makes AIRMASS
+    // computable for sequenced frames.
     assert!(
         parsed.get_float("AIRMASS").is_some(),
         "AIRMASS should be derivable once the pointing carries an altitude"
@@ -115,11 +115,6 @@ async fn untargeted_frame_carries_the_mount_pointing() {
 /// what reaches the file. That makes this function, not the constructor,
 /// the place where "a mountless frame keeps its altitude" is either true or
 /// silently undone by a later assignment.
-///
-/// Reproduced on hardware before this was written: the real file carried
-/// `SITELAT 39.97190`, `RA 37.95450`, `DEC 89.264` and neither horizon
-/// keyword, and a camera-only run against the Linux build wrote the same
-/// header shape.
 ///
 /// Dec 90° is deliberate: the celestial pole sits at the observer's
 /// latitude for every hour angle, at every longitude, for ever, so the
@@ -183,9 +178,9 @@ async fn mountless_sequencer_frame_keeps_its_altitude_through_the_save_path() {
     assert_eq!(parsed.get_float("DEC"), Some(90.0));
 }
 
-/// Even with a Target group the old header was wrong in kind: it wrote the
-/// target's NOMINAL coordinates, so an unedited "New Target" stamped
-/// 0h/0° onto frames the mount took 17h away. The mount's report wins.
+/// The mount's reported pointing wins over the target's nominal coordinates,
+/// even when a Target group is present: an unedited "New Target" carries
+/// 0h/0°, which would stamp that onto frames the mount took 17h away.
 #[tokio::test]
 async fn mount_pointing_wins_over_nominal_target_coordinates() {
     let mut ctx = FrameContext::new_light("sess-targeted", 1, 1, 3.0, 1);
@@ -347,10 +342,8 @@ fn missing_mount_falls_back_to_target_coordinates() {
     assert_eq!(header.altitude, None);
 }
 
-// -----------------------------------------------------------------------
 // AIRMASS: the site the sequencer was seeded with vs the site app settings
 // knows about.
-// -----------------------------------------------------------------------
 
 /// A run whose executor never received a location produces pointing with no
 /// altitude. Skipping the mount read (correct — the pointing is already

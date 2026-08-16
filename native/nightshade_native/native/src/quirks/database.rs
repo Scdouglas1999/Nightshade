@@ -13,9 +13,7 @@
 use super::types::*;
 use crate::NativeVendor;
 
-// ============================================================================
-// ZWO QUIRKS
-// ============================================================================
+// ZWO quirks
 
 /// Get quirks for ZWO devices
 fn zwo_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
@@ -77,9 +75,7 @@ fn zwo_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
     ]
 }
 
-// ============================================================================
-// QHY QUIRKS
-// ============================================================================
+// QHY quirks
 
 /// Get quirks for QHY devices
 fn qhy_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
@@ -113,9 +109,7 @@ fn qhy_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
     ]
 }
 
-// ============================================================================
-// PLAYER ONE QUIRKS
-// ============================================================================
+// Player One quirks
 
 /// Get quirks for Player One devices
 fn player_one_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
@@ -136,9 +130,7 @@ fn player_one_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
     ]
 }
 
-// ============================================================================
-// SVBONY QUIRKS
-// ============================================================================
+// SVBony quirks
 
 /// Get quirks for SVBony devices
 fn svbony_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
@@ -164,9 +156,7 @@ fn svbony_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
     ]
 }
 
-// ============================================================================
-// ATIK QUIRKS
-// ============================================================================
+// Atik quirks
 
 /// Get quirks for Atik devices
 fn atik_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
@@ -195,9 +185,7 @@ fn atik_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
     ]
 }
 
-// ============================================================================
-// TOUPTEK QUIRKS
-// ============================================================================
+// ToupTek quirks
 
 /// Get quirks for Touptek/Ogma devices.
 ///
@@ -251,9 +239,7 @@ fn touptek_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
     ]
 }
 
-// ============================================================================
-// MORAVIAN QUIRKS
-// ============================================================================
+// Moravian quirks
 
 /// Get quirks for Moravian devices
 fn moravian_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
@@ -265,9 +251,7 @@ fn moravian_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
     ]
 }
 
-// ============================================================================
-// FLI QUIRKS
-// ============================================================================
+// FLI quirks
 
 /// Get quirks for FLI devices
 fn fli_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
@@ -278,9 +262,7 @@ fn fli_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
     ]
 }
 
-// ============================================================================
-// SKY-WATCHER MOUNT QUIRKS
-// ============================================================================
+// Sky-Watcher mount quirks
 
 /// Get quirks for Sky-Watcher mounts
 fn skywatcher_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
@@ -302,9 +284,7 @@ fn skywatcher_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
     ]
 }
 
-// ============================================================================
-// IOPTRON MOUNT QUIRKS
-// ============================================================================
+// iOptron mount quirks
 
 /// Get quirks for iOptron mounts
 fn ioptron_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
@@ -326,9 +306,7 @@ fn ioptron_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
     ]
 }
 
-// ============================================================================
-// LX200 MOUNT QUIRKS
-// ============================================================================
+// LX200 mount quirks
 
 /// Get quirks for LX200-compatible mounts
 fn lx200_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
@@ -349,9 +327,7 @@ fn lx200_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
     ]
 }
 
-// ============================================================================
-// ASCOM QUIRKS (for ASCOM drivers in general)
-// ============================================================================
+// ASCOM quirks, applied to ASCOM drivers in general
 
 /// Get quirks for ASCOM devices
 fn ascom_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
@@ -362,9 +338,7 @@ fn ascom_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
     ]
 }
 
-// ============================================================================
-// ALPACA QUIRKS (for Alpaca devices in general)
-// ============================================================================
+// Alpaca quirks, applied to Alpaca devices in general
 
 /// Get quirks for Alpaca devices
 fn alpaca_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
@@ -373,9 +347,7 @@ fn alpaca_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
     ]
 }
 
-// ============================================================================
-// INDI QUIRKS
-// ============================================================================
+// INDI quirks
 
 /// Get quirks for INDI devices
 fn indi_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
@@ -384,9 +356,7 @@ fn indi_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
     ]
 }
 
-// ============================================================================
-// QUIRK MATCHER
-// ============================================================================
+// Quirk matcher
 
 /// How to match quirks to devices
 #[derive(Debug, Clone, PartialEq)]
@@ -413,9 +383,7 @@ impl QuirkMatcher {
     }
 }
 
-// ============================================================================
-// PUBLIC API
-// ============================================================================
+// Public API
 
 /// Get all quirks for a device based on its ID.
 ///
@@ -434,9 +402,8 @@ impl QuirkMatcher {
 /// - `alpaca:10.0.0.5:camera:0`
 ///
 /// Malformed IDs (fewer than 2 segments, or unrecognised protocol) log
-/// loudly and return an empty quirk list — silent fallthrough would
-/// hide misconfigured devices for months — errors are a feature
-/// here.
+/// loudly and return an empty quirk list; silent fallthrough would hide a
+/// misconfigured device indefinitely.
 ///
 /// # Arguments
 /// * `device_id` - The full device identifier
@@ -761,9 +728,7 @@ mod tests {
         }
     }
 
-    // =========================================================================
-    // Touptek brand-aware quirks lookup
-    // =========================================================================
+    // ToupTek brand-aware quirks lookup
     //
     // Touptek IDs are 4-part: `native:touptek:{brand}:{idx}`. The lookup
     // synthesizes the model string as `"{brand}:{idx}"` so brand-specific
@@ -878,12 +843,11 @@ mod tests {
 
     #[test]
     fn touptek_vendor_wide_quirks_apply_to_every_brand() {
-        // Regression-guard for the data shape: every Touptek brand must
-        // still receive VendorWide quirks when `touptek_quirks()` adds
-        // them. Today there are no VendorWide Touptek quirks (the prior
-        // entries were intentionally removed; see comments in
-        // `touptek_quirks()`), so we synthesize one via a runtime
-        // override on a brand-tagged ID to prove the path works.
+        // Guard for the data shape: every Touptek brand must receive
+        // VendorWide quirks when `touptek_quirks()` adds them. There are no
+        // VendorWide Touptek quirks today (see the comments in
+        // `touptek_quirks()`), so we synthesize one via a runtime override
+        // on a brand-tagged ID to prove the path works.
         //
         // (Using runtime overrides side-steps having to mutate the
         // built-in database from tests — the contract we care about is
@@ -922,7 +886,7 @@ mod tests {
 
     #[test]
     fn touptek_4part_id_logs_no_warning() {
-        // Regression: the malformed-ID warn! path must NOT fire for a
+        // The malformed-ID warn! path must NOT fire for a
         // well-formed 4-part Touptek ID. The simplest way to confirm
         // this is to verify the lookup actually returned the brand
         // quirk — if `get_device_quirks` had bailed via the malformed

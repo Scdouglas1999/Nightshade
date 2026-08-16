@@ -1,8 +1,6 @@
 use super::*;
 
-// =============================================================================
 // JSON request / response contracts
-// =============================================================================
 
 /// Calibration master paths applied to every light before registration.
 #[derive(Debug, Clone, Default, Deserialize)]

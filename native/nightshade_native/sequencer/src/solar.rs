@@ -1,14 +1,10 @@
 //! Single source of truth for "where is the Sun".
 //!
-//! Three independent answers to that question used to live in this crate:
-//! `node::context::approximate_sun_equatorial_coords` (used by the daylight
-//! start gate), `instructions::calculate_solar_position` (used by the
-//! `WaitTime` twilight instruction) and `triggers::calculate_dawn_time` (used
-//! by the `DawnApproaching` trigger). The third one used Cooper's equation for
-//! the declination and omitted the equation of time entirely, so "wait until
-//! astronomical dark" and "stop at dawn" were calibrated against different
-//! suns — they disagreed by the equation of time (±16 min over the year) plus
-//! the Cooper declination error.
+//! Every consumer derives from here — the daylight start gate, the `WaitTime`
+//! twilight instruction and the `DawnApproaching` trigger — so "wait until
+//! astronomical dark" and "stop at dawn" are calibrated against one Sun.
+//! Separate implementations drift: one omitting the equation of time puts the
+//! two up to ±16 minutes apart over the year.
 //!
 //! Everything here derives from one low-precision series (mean longitude /
 //! mean anomaly / ecliptic longitude), accurate to roughly a minute of arc,
@@ -356,9 +352,9 @@ mod tests {
         }
     }
 
-    /// The regression D3 exists to prevent: the Cooper/no-equation-of-time dawn
-    /// put the Sun as much as several degrees away from -18°, so "stop at dawn"
-    /// and "wait for astronomical dark" were calibrated against different suns.
+    /// A Cooper / no-equation-of-time dawn puts the Sun as much as several
+    /// degrees away from -18°, so "stop at dawn" and "wait for astronomical
+    /// dark" end up calibrated against different suns.
     #[test]
     fn the_unified_dawn_is_closer_to_true_astronomical_twilight_than_cooper_was() {
         let mut worst_legacy_error = 0.0_f64;

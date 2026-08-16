@@ -59,15 +59,14 @@ impl InstructionNode for NotificationInstruction {
 /// Interpolate a notification template, falling back to the raw template text
 /// when a variable cannot be resolved.
 ///
-/// A notification is advisory: it reports on the run, it does not steer it. An
-/// unresolvable variable used to `return NodeStatus::Failure` straight out of
-/// `execute`, which (a) aborted the whole sequence over a text template — so
-/// the Park Mount node after the notification never ran and the mount was left
-/// tracking — and (b) bypassed `log_and_get_status_with_context`, the call every
-/// other instruction uses to record its error text, so the run record carried a
-/// bare "Sequence failed" with the real reason only in the log. Sending the
-/// literal `${...}` token is honest (the operator sees exactly the template they
-/// typed) and leaves the night running.
+/// A notification is advisory: it reports on the run, it does not steer it.
+/// Failing the node over a text template aborts the whole sequence — the Park
+/// Mount node after the notification never runs and the mount is left tracking
+/// — and bypasses `log_and_get_status_with_context`, the call every other
+/// instruction uses to record its error text, leaving the run record with a
+/// bare "Sequence failed". Sending the literal `${...}` token is honest (the
+/// operator sees exactly the template they typed) and leaves the night
+/// running.
 fn interpolate_or_raw(
     template: &str,
     context: &ExecutionContext,
@@ -102,14 +101,12 @@ mod tests {
 
     /// `${frame}` is the variable the title field's own hint advertises
     /// (`e.g. Frame ${frame} of ${target.name} done`) and it can NEVER resolve
-    /// from a notification, which fires outside an exposure burst. Failing the
-    /// node aborted the whole sequence, so any safing node after it — Park
-    /// Mount, Close Dome — never ran.
-    ///
-    /// Fails WITHOUT the fix (the node returned Failure).
+    /// from a notification, which fires outside an exposure burst. The node must
+    /// return Success with the literal token: failing it aborts the sequence, so
+    /// any safing node after it — Park Mount, Close Dome — never runs.
     #[tokio::test]
     async fn unresolvable_variable_does_not_fail_the_node() {
-        let mut ctx = ExecutionContext::new("notify-node".to_string());
+        let mut ctx = ExecutionContext::new_for_test("notify-node".to_string());
 
         let status = NotificationInstruction
             .execute("notify-node", &config("AUDIT NOTIF ${frame}"), &mut ctx)
@@ -126,7 +123,7 @@ mod tests {
     /// emptied alert, so the unsubstituted token is self-explanatory.
     #[test]
     fn unresolvable_variable_keeps_the_raw_template() {
-        let ctx = ExecutionContext::new("notify-node".to_string());
+        let ctx = ExecutionContext::new_for_test("notify-node".to_string());
         let frame = EvaluationFrame::empty();
 
         assert_eq!(

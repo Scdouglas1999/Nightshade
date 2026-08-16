@@ -151,10 +151,8 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
     }
     tracing::debug!("ZWO camera discovery complete.");
 
-    // Discover QHY devices
-    // Note: QHY SDK discovery was previously disabled due to initialization issues.
-    // It has been re-enabled with proper error handling - discovery failures are
-    // logged but don't prevent other vendors from being discovered.
+    // Discover QHY devices. A QHY discovery failure is logged and must not abort
+    // discovery of the remaining vendors.
     tracing::debug!("Discovering QHY cameras...");
     // QHY ID format typically includes serial: "ModelName-SerialNumber"
     match crate::vendor::qhy::discover_devices().await {
@@ -296,7 +294,6 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
     tracing::debug!("ZWO EFW discovery complete.");
 
     // Discover QHY CFW filter wheels (attached to cameras)
-    // Note: QHY CFW discovery was previously disabled. Re-enabled with proper error handling.
     tracing::debug!("Discovering QHY filter wheels...");
     match crate::vendor::qhy::discover_filter_wheels().await {
         Ok(qhy_filterwheels) => {
@@ -634,9 +631,7 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
     }
     tracing::debug!("gPhoto2 camera discovery complete.");
 
-    // =========================================================================
-    // MOUNT DISCOVERY (Serial Protocol Mounts)
-    // =========================================================================
+    // Mount discovery (serial protocol mounts)
 
     // Discover Sky-Watcher mounts (SynScan protocol)
     tracing::debug!("Discovering Sky-Watcher mounts...");

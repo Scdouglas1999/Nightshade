@@ -9,9 +9,7 @@ use crate::device_manager::DeviceManager;
 use crate::dispatch::DeviceOpError;
 
 impl DeviceManager {
-    // =========================================================================
-    // Safety Monitor
-    // =========================================================================
+    // Safety monitor
 
     /// Check if conditions are safe
     pub async fn safety_is_safe(&self, device_id: &str) -> Result<bool, DeviceOpError> {

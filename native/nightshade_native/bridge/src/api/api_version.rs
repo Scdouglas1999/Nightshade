@@ -24,10 +24,6 @@ use tokio::sync::RwLock;
 // Sibling-module items via the parent's pub use re-exports.
 use super::*;
 
-// =============================================================================
-// Device API Version Negotiation
-// =============================================================================
-
 /// Get the API version information for a connected device.
 ///
 /// This queries the device's interface version, driver version, and supported actions.

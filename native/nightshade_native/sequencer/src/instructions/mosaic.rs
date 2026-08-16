@@ -5,14 +5,11 @@
 
 use super::*;
 
-// =============================================================================
-// MOSAIC INSTRUCTION
-// =============================================================================
+// Mosaic instruction
 
 /// Execute mosaic panel iteration. Delegates to [`crate::mosaic::run_mosaic_wizard`]
 /// which drives a [`crate::wizard::Wizard`] for per-panel checkpoint
-/// support. Behavior is byte-identical to the pre-refactor monolithic
-/// implementation.
+/// support.
 pub async fn execute_mosaic(
     config: &crate::MosaicConfig,
     ctx: &InstructionContext,

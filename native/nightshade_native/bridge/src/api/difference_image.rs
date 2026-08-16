@@ -66,9 +66,7 @@ fn read_frame(path: &str) -> Result<ImageData, String> {
     Ok(read.image)
 }
 
-// =============================================================================
-// api_difference_image (contracts §2.2)
-// =============================================================================
+// api_difference_image
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -221,7 +219,7 @@ struct DifferenceResultJson {
 }
 
 /// Difference one plate-solved frame against the atlas, returning residual
-/// transient candidates per the contract §2.2 JSON schema.
+/// transient candidates per the contract JSON schema.
 pub fn api_difference_image(args_json: String) -> Result<String, String> {
     let args: DifferenceArgs =
         serde_json::from_str(&args_json).map_err(|e| format!("invalid difference args: {e}"))?;
@@ -338,10 +336,17 @@ fn difference_impl(args: DifferenceArgs) -> Result<DifferenceResultJson, String>
                 ] {
                     if let Some(stamp) = crop_stamp(plane, c.tile_x, c.tile_y, crop_half) {
                         let path = Path::new(dir).join(crop_basename(tid, c.ra, c.dec, stage));
-                        // A crop write failure is non-fatal: the UI falls back to the
-                        // schematic. Log-free here (the bridge has no logger); the
-                        // absence of the file is the signal.
-                        let _ = write_preview_png(&stamp, &path);
+                        // A crop write failure is non-fatal — the UI falls back to the
+                        // schematic — but it is logged with the path so a misconfigured
+                        // or full crop directory is diagnosable instead of silently
+                        // costing every stamp of the run.
+                        if let Err(e) = write_preview_png(&stamp, &path) {
+                            tracing::warn!(
+                                path = %path.display(),
+                                error = %e,
+                                "difference-image crop stamp not written"
+                            );
+                        }
                     }
                 }
             }

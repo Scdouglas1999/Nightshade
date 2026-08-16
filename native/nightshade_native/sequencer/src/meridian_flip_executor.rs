@@ -38,13 +38,10 @@ use crate::{AutofocusConfig, FlipFailureAction, MeridianFlipConfig};
 /// progress on this string, so it must stay stable.
 pub const MERIDIAN_FLIP_RUN_PROGRESS_NODE_ID: &str = "trigger:meridian_flip";
 
-// AUDIT-FIX-5B: the formerly-constant defaults
-// FLIP_COORDINATE_TOLERANCE_DEG / SAFETY_ACTION_RETRY_COUNT /
-// SAFETY_ACTION_RETRY_DELAY_SECS / MIN_POST_FLIP_ALTITUDE_DEG have moved to
-// fields on `MeridianFlipConfig`. The numeric defaults still match the prior
-// constants (1 arcminute / 3 retries / 5s / 10°), but the values are now
-// user-configurable via the meridian-flip settings panel. Read them via
-// `self.config.<field>` inside the executor.
+// The flip's coordinate tolerance (1 arcminute), safety-action retry count
+// (3) and delay (5 s), and minimum post-flip altitude (10°) are fields on
+// `MeridianFlipConfig`, user-configurable from the meridian-flip settings
+// panel; read them via `self.config.<field>`.
 
 /// Result of a meridian flip execution
 #[derive(Debug, Clone)]
@@ -107,15 +104,14 @@ pub struct FlipContext {
     /// post-flip refocus step. `None` falls back to an unfiltered
     /// `AutofocusConfig::default()`.
     pub autofocus_config: Option<PostFlipAutofocusConfig>,
-    /// Phase G — dry-run / simulate flag. When `true`, the executor walks the
-    /// full pre-flight and step sequence (altitude check, cover check, build
-    /// the step list, emit every Starting/StepStarted/StepCompleted/Progress/
-    /// Completed event) but **does not command any real hardware**: the slew,
-    /// pier-side verify, plate-solve, refocus, guider, and tracking device-ops
-    /// are skipped. This lets an operator validate the configured flip sequence
-    /// (which steps run, in what order, with what timeouts) without moving the
-    /// mount — building confidence before an unattended night. Pier-side verify
-    /// is reported as a no-op success because no real flip occurred.
+    /// Dry-run / simulate flag. When `true`, the executor walks the full
+    /// pre-flight and step sequence (altitude check, cover check, build the step
+    /// list, emit every Starting/StepStarted/StepCompleted/Progress/Completed
+    /// event) but **does not command any real hardware**: the slew, pier-side
+    /// verify, plate-solve, refocus, guider and tracking device-ops are skipped,
+    /// so an operator can validate which steps run, in what order and with what
+    /// timeouts, without moving the mount. Pier-side verify reports a no-op
+    /// success because no real flip occurred.
     pub simulate: bool,
 }
 
@@ -194,13 +190,10 @@ impl MeridianFlipExecutor {
     /// Execute the meridian flip.
     ///
     /// The verdict is announced on the executor event stream here rather than
-    /// at the call sites. `MeridianFlipOutcome` is what feeds the run vitals'
-    /// `meridianFlips` count and the session report's error list, and only the
-    /// trigger call site used to emit it — so a sequence that flipped via an
-    /// explicit MeridianFlip node reported no flip at all, and a node-driven
-    /// flip that failed its post-flip recenter left an empty error list on a
-    /// run reported as completed. The executor owns the flip, so it owns the
-    /// verdict; both call sites now inherit it.
+    /// at the call sites: the executor owns the flip, so it owns the verdict, and
+    /// both the trigger and the explicit MeridianFlip node inherit it.
+    /// `MeridianFlipOutcome` is what feeds the run vitals' `meridianFlips` count
+    /// and the session report's error list.
     pub async fn execute(&mut self, ctx: &FlipContext) -> FlipResult {
         let result = self.execute_flip(ctx).await;
         self.announce_outcome(ctx, &result);
@@ -395,8 +388,7 @@ impl MeridianFlipExecutor {
         }
 
         // capture the mount's tracking state BEFORE we touch
-        // it so cancel paths can restore it. The instruction-path implementation
-        // had this; the executor previously left tracking off after a cancel.
+        // it so cancel paths can restore it.
         let pre_flip_tracking = match self.device_ops.mount_is_tracking(&ctx.mount_id).await {
             Ok(t) => Some(t),
             Err(e) => {
@@ -422,7 +414,7 @@ impl MeridianFlipExecutor {
 
         // capture pre-flip coordinates so the
         // pier-side-Unknown verification path can fall back to coordinate
-        // convergence (the executor previously returned Unknown silently).
+        // convergence.
         let pre_flip_coords = match self.device_ops.mount_get_coordinates(&ctx.mount_id).await {
             Ok(coords) => Some(coords),
             Err(e) => {
@@ -499,9 +491,9 @@ impl MeridianFlipExecutor {
                     // and the terminal-failure path needs the same list.
                     self.failed_attempts.push(e.clone());
                     if self.is_cancelled(ctx) {
-                        // restore tracking on cancel if we
-                        // recorded it as on before the flip. The executor used
-                        // to leave tracking off, the instruction path didn't.
+                        // Restore tracking on cancel if we recorded it as on
+                        // before the flip, so the executor and instruction
+                        // paths leave the mount in the same state.
                         self.restore_tracking_on_cancel(ctx, pre_flip_tracking)
                             .await;
                         let reason = "User requested abort".to_string();
@@ -512,12 +504,10 @@ impl MeridianFlipExecutor {
                     }
 
                     if attempt < max_attempts {
-                        // previously `.unwrap_or(60.0)` — silently
-                        // ignored a 30s user setting once the array was exhausted.
-                        // Now: if the user provided values, saturate on the LAST
-                        // entry; if the array is empty AND retries are configured,
-                        // refuse to retry (return the underlying error so the
-                        // failure_action runs) — silent fallback hides config bugs.
+                        // With user-provided delays, saturate on the LAST entry; with an
+                        // empty array AND retries configured, refuse to retry (return the
+                        // underlying error so the failure_action runs) rather than falling
+                        // back to a built-in delay, which would hide the config bug.
                         // Why: u32 -> usize. usize is >=32 bits on all our target
                         // platforms, so this is lossless.
                         let delay_idx = (attempt - 1) as usize;
@@ -756,9 +746,7 @@ impl MeridianFlipExecutor {
         Ok(new_pier_side)
     }
 
-    // ========================================================================
     // Step implementations
-    // ========================================================================
 
     async fn pause_guider(&self, ctx: &FlipContext) -> Result<(), String> {
         if ctx.simulate {
@@ -942,9 +930,8 @@ impl MeridianFlipExecutor {
         }
 
         // pier side is unavailable (either before, after,
-        // or both). Fall back to coordinate convergence — the instruction-path
-        // implementation did this and the executor previously just returned
-        // Unknown without verifying.
+        // or both). Fall back to coordinate convergence rather than
+        // reporting Unknown unverified.
         tracing::warn!(
             "[MERIDIAN] Pier side telemetry unavailable (pre={:?}, post={:?}); \
              verifying flip via coordinate convergence",
@@ -1301,8 +1288,7 @@ impl MeridianFlipExecutor {
         // settle threshold / time / timeout come from the user's guiding settle
         // settings (plumbed onto MeridianFlipConfig from AppSettings), not a
         // hardcoded constant, so a user who tunes settling gets it honoured
-        // after a flip too. The config defaults reproduce the old 1.5px / 10s /
-        // 60s values, so behaviour is unchanged for users on defaults.
+        // after a flip too. The config defaults are 1.5 px / 10 s / 60 s.
         let settle_pixels = self.config.guider_settle_pixels;
         let settle_time = self.config.guider_settle_time;
         let settle_timeout = self.config.guider_settle_timeout;
@@ -1432,9 +1418,7 @@ impl MeridianFlipExecutor {
         Ok(())
     }
 
-    // ========================================================================
     // Helper methods
-    // ========================================================================
 
     async fn get_pier_side(&self, mount_id: &str) -> Result<PierSide, String> {
         let ps = self.device_ops.mount_side_of_pier(mount_id).await?;
@@ -1503,9 +1487,8 @@ impl MeridianFlipExecutor {
     }
 
     /// restore the mount's pre-flip tracking state when a
-    /// cancel happens mid-flip. The instruction-path implementation did this;
-    /// the executor previously left tracking off. Errors are *logged*, not
-    /// dropped — but we do not return them since this is already a cancel path.
+    /// cancel happens mid-flip. Errors are *logged*, not returned, since this is
+    /// already a cancel path.
     async fn restore_tracking_on_cancel(&self, ctx: &FlipContext, pre_flip_tracking: Option<bool>) {
         if matches!(pre_flip_tracking, Some(true)) {
             if let Err(e) = self
@@ -1677,7 +1660,7 @@ impl MeridianFlipExecutor {
     /// retry helper for safety-critical device operations. Logs
     /// every failed attempt at error level; sleeps `safety_action_retry_delay_secs`
     /// between attempts. Returns the last error after exhaustion. Retry count
-    /// and delay come from `MeridianFlipConfig` (AUDIT-FIX-5B / §4.3).
+    /// and delay come from `MeridianFlipConfig`.
     async fn retry_safety_action<F, Fut>(&self, op_name: &str, mut op: F) -> Result<(), String>
     where
         F: FnMut() -> Fut,
@@ -1720,7 +1703,7 @@ impl MeridianFlipExecutor {
     fn emit_event(&self, event: MeridianFlipEvent) {
         self.event_emitter.emit(event.clone());
 
-        // WF-STOP-N4 — a flip in its retry ladder is the run standing still,
+        // A flip in its retry ladder is the run standing still,
         // and nothing on the Sequencer screen said so. `event_tx` below is the
         // flip DIALOG's channel, which a trigger-fired flip never has (only the
         // node-driven flip sets it), so a retry ladder that held a run for two
@@ -1892,9 +1875,7 @@ mod tests {
         assert!((ha).abs() < 1e-9);
     }
 
-    // ========================================================================
-    // Mock device for §1.6 / §1.19 / §1.20 behavioural tests
-    // ========================================================================
+    // Mock device for the flip / cover / retry behavioural tests
 
     #[derive(Default)]
     struct MockDeviceOpsState {
@@ -1923,10 +1904,10 @@ mod tests {
         notifications: Mutex<Vec<(String, String)>>,
         /// Whether to simulate slewing (false means slew completes immediately).
         is_slewing: AtomicBool,
-        /// Observer location. AUDIT-FIX-5B: wrapped in Mutex so altitude-gate
-        /// tests can install a location at runtime.
+        /// Observer location, wrapped in a Mutex so altitude-gate tests can install
+        /// a location at runtime.
         location: Mutex<Option<(f64, f64)>>,
-        /// AUDIT-FIX-5B: optional override for `calculate_altitude` so the
+        /// Optional override for `calculate_altitude` so the
         /// min_post_flip_altitude_deg gate can be exercised by tests. Defaults
         /// to None (which causes calculate_altitude to return 45° as before).
         altitude_override_deg: Mutex<Option<f64>>,
@@ -2223,7 +2204,7 @@ mod tests {
             _lat: f64,
             _lon: f64,
         ) -> f64 {
-            // AUDIT-FIX-5B: honour the per-test altitude override so the
+            // Honour the per-test altitude override so the
             // min_post_flip_altitude_deg gate can be exercised. Defaults to
             // 45° (above the gate) so existing tests are unaffected.
             self.state
@@ -2234,7 +2215,7 @@ mod tests {
         }
 
         fn get_observer_location(&self) -> Option<(f64, f64)> {
-            // AUDIT-FIX-5B: read through the Mutex so altitude-gate tests can
+            // Read through the Mutex so altitude-gate tests can
             // install a location at runtime.
             *self.state.location.lock().unwrap()
         }
@@ -2425,7 +2406,7 @@ mod tests {
         );
     }
 
-    /// Regression: a clean first-attempt flip must report exactly one attempt
+    /// A clean first-attempt flip must report exactly one attempt
     /// and no failed steps, so the run vitals can distinguish it from a flip
     /// that only worked because the retry ladder saved it.
     #[tokio::test]
@@ -2466,9 +2447,8 @@ mod tests {
         );
     }
 
-    /// Regression for the silent-degradation defect: a flip whose post-flip
-    /// plate-solve recenter FAILS and only succeeds on the retry is not a
-    /// clean flip. The mount ended up on the right side, but the framing was
+    /// A flip whose post-flip plate-solve recenter FAILS and only succeeds on
+    /// the retry is not a clean flip. The mount ended up on the right side, but the framing was
     /// only recovered on the second try — the operator must be able to see
     /// that from the run record.
     ///
@@ -2543,11 +2523,10 @@ mod tests {
         outcomes
     }
 
-    /// D4/R4: `MeridianFlipOutcome` is the only wire that carries a flip to the
-    /// run vitals (`meridianFlips`) and the session report. It used to be
-    /// emitted by the TRIGGER call site alone, so a sequence that flipped via
-    /// an explicit MeridianFlip node reported no flip at all. The executor owns
-    /// the flip, so the executor announces it — both call sites inherit it.
+    /// `MeridianFlipOutcome` is the only wire that carries a flip to the run
+    /// vitals (`meridianFlips`) and the session report, and the executor — not
+    /// the call site — announces it, so a trigger-fired flip and a node-driven
+    /// flip both report.
     #[tokio::test]
     async fn a_successful_flip_announces_its_outcome_on_the_event_stream() {
         let state = Arc::new(MockDeviceOpsState::default());
@@ -2659,7 +2638,7 @@ mod tests {
         assert_eq!(action_taken.as_deref(), Some("PauseAndAlert"));
     }
 
-    /// Regression: when the ladder is exhausted the telemetry must still carry
+    /// When the ladder is exhausted the telemetry must still carry
     /// every attempt so the terminal error can say how hard the app tried.
     #[tokio::test]
     async fn exhausted_flip_reports_every_failed_attempt() {
@@ -2940,7 +2919,7 @@ mod tests {
             settle_time: 0.0,
             max_retries: 0,
             failure_action: FlipFailureAction::AbortAndPark,
-            // Provide retry_delays_secs to satisfy §1.20.
+            // Provide retry_delays_secs so the ladder has a delay to use.
             retry_delays_secs: vec![0.01],
             // Override the safety-action retry delay so the test does not
             // wait the default 5s between each park attempt.
@@ -2985,14 +2964,12 @@ mod tests {
         );
     }
 
-    // ========================================================================
-    // AUDIT-FIX-5B: magic-number-to-config promotions.
+    // Magic-number-to-config promotions.
     // Each test demonstrates that changing the configurable value flips the
     // executor's behaviour — without the test the field would compile-pass
     // but silently be ignored.
-    // ========================================================================
 
-    /// AUDIT-FIX-5B (§4.3 item 1): default `min_post_flip_altitude_deg = 10°`
+    /// Default `min_post_flip_altitude_deg = 10°`
     /// makes a 5°-altitude target abort. Lowering the threshold to 0° allows
     /// the same target to proceed.
     #[tokio::test]
@@ -3066,7 +3043,7 @@ mod tests {
         }
     }
 
-    /// AUDIT-FIX-5B (§4.3 item 3): default `safety_action_retry_count = 3`.
+    /// Default `safety_action_retry_count = 3`.
     /// Lowering it to 1 means a failing park is attempted only once.
     #[tokio::test]
     async fn test_safety_action_retry_count_is_user_configurable() {
@@ -3107,9 +3084,7 @@ mod tests {
         );
     }
 
-    // ========================================================================
     // Phase G — meridian-flip dry-run (simulate) mode.
-    // ========================================================================
 
     /// Phase G: a dry-run (`FlipContext::simulate = true`) must walk the full
     /// step sequence and return `Success`, but must NOT command a real slew or
@@ -3214,16 +3189,15 @@ mod tests {
     /// guiding settle now has it honoured after a flip.
     #[test]
     fn test_guider_settle_defaults_and_serde_backcompat() {
-        // Defaults reproduce the old hardcoded executor constants.
+        // Defaults reproduce the executor's own constants.
         let d = MeridianFlipConfig::default();
         assert!((d.guider_settle_pixels - 1.5).abs() < 1e-9);
         assert!((d.guider_settle_time - 10.0).abs() < 1e-9);
         assert!((d.guider_settle_timeout - 60.0).abs() < 1e-9);
         assert!((d.max_post_settle_rms_pixels - 3.0).abs() < 1e-9);
 
-        // A pre-existing sequence whose JSON predates these fields (they are
-        // absent) must deserialize to the defaults — no behaviour change on
-        // upgrade.
+        // A sequence whose JSON predates these fields (they are absent) must
+        // deserialize to the defaults.
         let mut value = serde_json::to_value(MeridianFlipConfig::default()).unwrap();
         let obj = value.as_object_mut().unwrap();
         obj.remove("guider_settle_pixels");
@@ -3253,13 +3227,12 @@ mod tests {
         assert!((back.max_post_settle_rms_pixels - 1.5).abs() < 1e-9);
     }
 
-    /// Regression: an unguided rig must not send the flip into its retry ladder.
+    /// An unguided rig must not send the flip into its retry ladder.
     ///
-    /// `pause_guider` / `resume_guider` used to propagate "No active guider
-    /// configured" as a step failure, so the flip logged
-    /// "✗ Pausing guider FAILED" and "Retry 3/4 scheduled in 120 seconds...",
-    /// stalling the sequence for minutes over a device that does not exist.
-    /// Observed live on an unguided simulator run parked on its exposure node.
+    /// `pause_guider` / `resume_guider` report "No active guider configured" as
+    /// a skippable step: propagating it as a step failure sends an unguided rig
+    /// into the flip's retry ladder, stalling the sequence for minutes over a
+    /// device that does not exist.
     #[test]
     fn no_guider_marker_is_treated_as_a_skippable_step() {
         assert!(crate::device_ops::is_no_guider_configured(
@@ -3274,21 +3247,12 @@ mod tests {
             "Settle timed out after 60s"
         ));
     }
-    /// WF-STOP-N4 — a flip in its retry ladder must say so on the RUN's event
-    /// stream, not only on the flip dialog's channel.
-    ///
-    /// The waveF drive: the flip's plate solve failed at 04:10:43 and the
-    /// executor entered `Retry 2/4 scheduled in 60 seconds...`, then
-    /// `Retry 3/4 scheduled in 120 seconds...`. For two and a half minutes the
-    /// Sequencer screen said status **Running**, `Progress 4/8 · 50%`,
-    /// `Mount: Tracking`, and `~1m 8s · done ~00:12:13` — a finish time that
-    /// came and went while no frame had been captured. Nothing anywhere
-    /// mentioned a flip, a failed solve or a retry; the first honest account
-    /// arrived after the operator's Stop, in the Session Report.
-    ///
-    /// A trigger-fired flip has no `event_tx` (only the node-driven flip sets
-    /// one), which is why the retry was invisible: the run's broadcast is the
-    /// channel every operator surface actually listens to.
+    /// A flip in its retry ladder must say so on the RUN's event stream, not only
+    /// on the flip dialog's channel: a trigger-fired flip has no `event_tx` (only
+    /// the node-driven flip sets one), and the run's broadcast is the channel
+    /// every operator surface listens to — otherwise the screen reports Running,
+    /// on-schedule progress and a passing finish time while no frame is being
+    /// captured.
     #[tokio::test]
     async fn a_scheduled_retry_reaches_the_runs_event_stream() {
         let (tx, mut rx) = tokio::sync::broadcast::channel(8);

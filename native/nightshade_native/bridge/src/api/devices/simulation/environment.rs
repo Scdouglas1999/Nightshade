@@ -1,8 +1,6 @@
 use super::*;
 
-// =============================================================================
 // Observatory accessory simulators
-// =============================================================================
 
 /// Backing state for the dome simulator advertised by discovery.
 pub(crate) static SIM_DOME: OnceLock<Arc<RwLock<SimulatedDome>>> = OnceLock::new();

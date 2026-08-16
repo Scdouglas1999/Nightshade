@@ -17,9 +17,7 @@
 //! The flow is expressed as a [`crate::wizard::Wizard`] for uniform
 //! cancellation and progress handling. The two phases (baseline capture,
 //! adjustment loop) become two wizard steps; the loop body lives inside
-//! the second step. The drift math is in [`drift_math`]. User-visible
-//! behavior (callbacks, log lines, return type) matches the
-//! pre-refactor implementation.
+//! the second step. The drift math is in [`drift_math`].
 //!
 //! ## Errors
 //!

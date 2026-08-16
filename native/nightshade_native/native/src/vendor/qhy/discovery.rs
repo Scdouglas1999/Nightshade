@@ -2,10 +2,6 @@
 
 use super::*;
 
-// =============================================================================
-// QHY CAMERA DISCOVERY
-// =============================================================================
-
 /// QHY camera discovery info
 pub struct QhyCameraInfo {
     /// Full camera ID string (e.g., "QHY183M-123456789")

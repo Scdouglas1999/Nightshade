@@ -51,9 +51,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-// =========================================================================
-// Poller Configuration
-// =========================================================================
+// Poller configuration
 
 /// Configuration for adaptive polling behavior
 #[derive(Debug, Clone)]
@@ -96,9 +94,7 @@ impl PollerConfig {
     }
 }
 
-// =========================================================================
-// Preset Configurations
-// =========================================================================
+// Preset configurations
 
 /// Preset polling configurations for common use cases
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -200,9 +196,7 @@ impl PollerPreset {
     }
 }
 
-// =========================================================================
-// Polling Metrics
-// =========================================================================
+// Polling metrics
 
 /// Metrics tracked by the adaptive poller
 #[derive(Debug, Clone, Default)]
@@ -248,9 +242,7 @@ impl PollerMetrics {
     }
 }
 
-// =========================================================================
-// Adaptive Poller (Non-thread-safe version)
-// =========================================================================
+// Adaptive poller (non-thread-safe version)
 
 /// Adaptive poller that adjusts polling interval based on value changes.
 ///
@@ -286,15 +278,7 @@ impl<T: PartialEq + Clone> AdaptivePoller<T> {
         Self::new(preset.to_config())
     }
 
-    /// Process a polled value and return the next wait duration.
-    ///
-    /// # Arguments
-    ///
-    /// * `current_value` - The current value from polling
-    ///
-    /// # Returns
-    ///
-    /// The `Duration` to wait before the next poll
+    /// Process a polled value and return how long to wait before the next poll.
     pub fn tick(&mut self, current_value: &T) -> Duration {
         self.metrics.total_ticks += 1;
 
@@ -377,9 +361,7 @@ impl<T: PartialEq + Clone> AdaptivePoller<T> {
     }
 }
 
-// =========================================================================
-// Thread-Safe Adaptive Poller
-// =========================================================================
+// Thread-safe adaptive poller
 
 /// Thread-safe adaptive poller using atomic operations and mutex.
 ///
@@ -434,9 +416,7 @@ impl<T: PartialEq + Clone + Send> SyncAdaptivePoller<T> {
     }
 }
 
-// =========================================================================
-// String-based Poller (Convenience Type)
-// =========================================================================
+// String-based poller (convenience type)
 
 /// Type alias for the common case of polling string-based status values
 pub type StringPoller = AdaptivePoller<String>;
@@ -444,9 +424,7 @@ pub type StringPoller = AdaptivePoller<String>;
 /// Type alias for thread-safe string-based polling
 pub type SyncStringPoller = SyncAdaptivePoller<String>;
 
-// =========================================================================
-// Numeric Tolerance Poller
-// =========================================================================
+// Numeric tolerance poller
 
 /// A wrapper type for floating-point values that compares with tolerance.
 ///
@@ -482,9 +460,7 @@ pub type TolerancePoller = AdaptivePoller<ToleranceValue>;
 /// Type alias for thread-safe tolerance-based polling
 pub type SyncTolerancePoller = SyncAdaptivePoller<ToleranceValue>;
 
-// =========================================================================
-// Consecutive Failure Backoff
-// =========================================================================
+// Consecutive failure backoff
 
 /// Exponential retry gate for a poll that should remain fail-loud until its
 /// failures are demonstrably sustained.
@@ -570,9 +546,7 @@ impl ConsecutiveFailureBackoff {
     }
 }
 
-// =========================================================================
-// Lightweight Atomic Poller (No Value Tracking)
-// =========================================================================
+// Lightweight atomic poller (no value tracking)
 
 /// A lightweight poller that doesn't track values, only time-based backoff.
 ///
@@ -674,9 +648,7 @@ impl AtomicPoller {
     }
 }
 
-// =========================================================================
-// Poller Builder (Fluent API)
-// =========================================================================
+// Poller builder (fluent API)
 
 /// Builder for creating custom poller configurations
 #[derive(Debug, Clone)]
@@ -793,9 +765,7 @@ impl Default for PollerBuilder {
     }
 }
 
-// =========================================================================
 // Tests
-// =========================================================================
 
 #[cfg(test)]
 mod tests {

@@ -284,7 +284,7 @@ impl InstructionNode for SmartExposureInstruction {
                 remaining
             };
 
-            // === Filter change ===
+            // Filter change
             // Skip when the wheel is already on this plan's filter — avoids
             // wasted FW moves when the user authored two consecutive plans
             // on the same filter (legal: e.g. tighter & wider exposures for
@@ -329,7 +329,7 @@ impl InstructionNode for SmartExposureInstruction {
                 }
             }
 
-            // === Exposure burst ===
+            // Exposure burst
             let burst_status = run_exposure_burst(node_id, plan, batch_size, context).await;
             if matches!(burst_status, NodeStatus::Cancelled) {
                 save_checkpoint(node_id, context, &state).await;
@@ -350,7 +350,7 @@ impl InstructionNode for SmartExposureInstruction {
                 return NodeStatus::Skipped;
             }
 
-            // === Bookkeeping ===
+            // Bookkeeping
             // ExposureInstruction handles its own integration counter
             // updates against the SHARED context.completed_integration_secs.
             // We additionally track a SmartExposure-LOCAL slice here so the
@@ -377,12 +377,11 @@ impl InstructionNode for SmartExposureInstruction {
             //
             // Without this advance, `next_plan` re-picks `plan_index` every
             // iteration as long as the current plan still has remaining > 0
-            // (because its scan starts at `current_plan_index` and accepts
-            // the first hit), so rotation never actually rotates — the node
-            // drains the first plan exactly as if `rotate_filters` were
-            // false. The pre-fix unit test for rotation didn't catch this
-            // because it asserted `next_plan` in isolation with a
-            // pre-advanced index, never exercising execute()'s update.
+            // (its scan starts at `current_plan_index` and accepts the first
+            // hit), so rotation never rotates — the node drains the first
+            // plan exactly as if `rotate_filters` were false. Asserting
+            // `next_plan` in isolation with a pre-advanced index does not
+            // cover this; the advance has to be exercised through execute().
             //
             // Sequential mode is left alone: the scan from `current_plan_index`
             // forward already does the right "drain in order" thing because
@@ -641,9 +640,7 @@ async fn clear_checkpoint(node_id: &str, context: &ExecutionContext) {
     states.remove(node_id);
 }
 
-// =============================================================================
 // Tests
-// =============================================================================
 
 #[cfg(test)]
 mod tests {
@@ -903,7 +900,7 @@ mod tests {
         assert!(picked < cfg.plans.len());
     }
 
-    /// rotation regression test.
+    /// Rotation order test.
     ///
     /// Drives the execute() loop's plan-picking flow manually, mirroring the
     /// exact sequence of operations the body performs:
@@ -911,10 +908,10 @@ mod tests {
     ///   2. Increment per_filter_completed by batch_size for the picked plan
     ///   3. In rotation mode, advance current_plan_index = (picked + 1) % n
     ///
-    /// With 4 plans of count=2 and batch_size=1, the expected order is
-    /// L,R,G,B,L,R,G,B — every filter once per round, two rounds total. The
-    /// pre-fix code stayed on L for 2 iterations (the count for L), then on R
-    /// for 2, etc., producing L,L,R,R,G,G,B,B — i.e. rotation broken.
+    /// With 4 plans of count=2 and batch_size=1, the order must be
+    /// L,R,G,B,L,R,G,B — every filter once per round, two rounds total. Without
+    /// the advance it stays on each filter for its whole count (L,L,R,R,G,G,B,B),
+    /// which is rotation broken.
     #[test]
     fn rotation_visits_every_filter_in_order_across_rounds() {
         let cfg = config_with(
@@ -925,7 +922,7 @@ mod tests {
         let mut order: Vec<String> = Vec::new();
 
         // Run until next_plan returns None (every plan exhausted) — bounded
-        // by total frame count to avoid infinite loops if the fix regresses.
+        // by total frame count so a rotation bug cannot loop forever.
         let n = cfg.plans.len();
         let total_frames: u32 = cfg.plans.iter().map(|p| p.count).sum();
         for _ in 0..(total_frames + 1) {
@@ -944,7 +941,7 @@ mod tests {
                 .per_filter_completed
                 .insert(cfg.plans[picked].filter_name.clone(), completed + 1);
 
-            // Advance the current_plan_index AFTER the batch — the fix.
+            // Advance the current_plan_index AFTER the batch.
             state.current_plan_index = (picked + 1) % n;
         }
 
@@ -966,12 +963,12 @@ mod tests {
         );
     }
 
-    /// rotation with batch_size > 1 still rotates.
+    /// Rotation with batch_size > 1 still rotates.
     ///
-    /// With 2 plans of count=4 and batch_size=2, expected order is L,R,L,R —
-    /// two batches per filter, alternating. The fix advances
-    /// current_plan_index immediately so the next iteration's `next_plan`
-    /// starts the scan at the next plan.
+    /// With 2 plans of count=4 and batch_size=2, the expected order is
+    /// L,R,L,R — two batches per filter, alternating. `current_plan_index`
+    /// advances immediately so the next iteration's `next_plan` starts the
+    /// scan at the next plan.
     #[test]
     fn rotation_with_batch_size_two_alternates_filters() {
         let cfg = SmartExposureConfig {
@@ -1018,10 +1015,9 @@ mod tests {
         );
     }
 
-    /// Sequential (rotate_filters=false) must still drain plans in order
-    /// even with the new advance — the fix is gated behind
-    /// `config.rotate_filters` in execute() so sequential picks always stay
-    /// on the same plan until exhausted.
+    /// Sequential (rotate_filters=false) drains plans in order: the rotation
+    /// advance is gated behind `config.rotate_filters` in execute(), so a
+    /// sequential pick stays on the same plan until it is exhausted.
     #[test]
     fn sequential_drains_each_plan_before_advancing() {
         let cfg = config_with(vec![plan("L", 3), plan("R", 2)], false);
@@ -1139,7 +1135,7 @@ mod tests {
             ..SmartExposureConfig::default()
         };
         let node_type = NodeType::SmartExposure(cfg);
-        let mut context = ExecutionContext::new("root".to_string());
+        let mut context = ExecutionContext::new_for_test("root".to_string());
         // No target end trigger installed.
         assert!(context.active_target_end_trigger().is_none());
         let rt = tokio::runtime::Builder::new_current_thread()
@@ -1173,7 +1169,7 @@ mod tests {
         };
         // The guard condition mirrors execute(): budget>0 OR end-trigger set.
         let has_budget = cfg.integration_budget_secs > 0.0;
-        let context = ExecutionContext::new("root".to_string());
+        let context = ExecutionContext::new_for_test("root".to_string());
         let bounded = has_budget || context.active_target_end_trigger().is_some();
         assert!(
             bounded,
@@ -1187,7 +1183,7 @@ mod tests {
     /// would stop on the first between-batch check.
     #[test]
     fn loop_until_stopped_target_window_is_a_valid_bound() {
-        let context = ExecutionContext::new("root".to_string());
+        let context = ExecutionContext::new_for_test("root".to_string());
         // A TimeAfter(0) (epoch) is always in the past → satisfied now.
         context.install_active_target_end_trigger(Some(
             crate::scheduling::TargetTrigger::TimeAfter(0),
@@ -1223,7 +1219,7 @@ mod tests {
     fn save_and_load_checkpoint_round_trip_through_context_map() {
         // Smoke-test the in-memory map: a save followed by a load returns
         // the same state. This is the "resume in the same process" path.
-        let context = ExecutionContext::new("root".to_string());
+        let context = ExecutionContext::new_for_test("root".to_string());
         let cp = SmartExposureCheckpoint {
             per_filter_completed: HashMap::from([("L".to_string(), 7)]),
             current_plan_index: 1,

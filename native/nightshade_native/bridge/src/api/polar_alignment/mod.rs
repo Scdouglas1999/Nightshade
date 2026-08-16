@@ -40,10 +40,6 @@ use tokio::sync::RwLock;
 // Sibling-module items via the parent's pub use re-exports.
 use super::*;
 
-// =============================================================================
-// Polar Alignment
-// =============================================================================
-
 use std::sync::atomic::{AtomicBool as PolarAtomicBool, Ordering as PolarOrdering};
 use tokio::task::JoinHandle;
 

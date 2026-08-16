@@ -112,8 +112,7 @@ fn card_split_matches_the_dart_fits_header_cards() {
     }
 }
 
-/// The C1 regression, stated as an invariant instead of an anecdote: the
-/// separator a solver happens to use must not change a single card.
+/// The separator a solver happens to use must not change a single card.
 #[test]
 fn wcs_conformance_terminator_free_header_splits_like_a_crlf_one() {
     let root = fixture_root();

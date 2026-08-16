@@ -1,21 +1,17 @@
 //! Platform-independent ASCOM per-frame exposure-parameter application.
 //!
-//! (2026-06-02 sequencer audit): the ASCOM camera worker historically
-//! received `ExposureParams` carrying gain/offset/binning/subframe but only
-//! called `start_exposure(duration, true)` — it never read or applied those
-//! fields. Every frame shot at the camera's *current* settings, a silent
-//! mis-acquisition for any per-filter-gain or binned night (Alpaca/INDI/native
-//! all applied these correctly; ASCOM was the lone gap). It was doubly silent
-//! because the FITS header recorded the camera's actual (unchanged) value,
-//! masking the discrepancy from the operator.
+//! The ASCOM camera worker gets `ExposureParams` carrying
+//! gain/offset/binning/subframe, and every one of those fields has to reach the
+//! camera before the exposure starts: a frame shot at the camera's current
+//! settings is a silent mis-acquisition on any per-filter-gain or binned night,
+//! doubly silent because the FITS header records the camera's actual (unchanged)
+//! value.
 //!
-//! The real apply logic was tightly coupled to the concrete `AscomCamera` COM
-//! type, which only exists on Windows (`#[cfg(windows)] mod ascom_wrapper`).
-//! That made the apply logic impossible to exercise on Linux/CI. This module
-//! lifts the logic into a pure, generically-typed function over a tiny
-//! [`ExposureApplyTarget`] trait so it compiles and is regression-tested on
-//! every platform, while the real `AscomCamera` (Windows-only) and a test spy
-//! (all platforms) both implement the trait.
+//! The concrete `AscomCamera` COM type exists only on Windows
+//! (`#[cfg(windows)] mod ascom_wrapper`), so the apply logic lives here as a
+//! generic function over the small [`ExposureApplyTarget`] trait — implemented by
+//! the real `AscomCamera` and by a cross-platform test spy — and is therefore
+//! compiled and regression-tested on every platform.
 //!
 //! Order matters on ASCOM: binning must be set *before* frame geometry because
 //! `NumX`/`NumY` are expressed in *binned* pixels. Gain/offset are applied only
@@ -145,12 +141,10 @@ pub fn apply_exposure_params<C: ExposureApplyTarget>(
     Ok(())
 }
 
-// =============================================================================
 // Tests — regression guard. These run on every platform (the module is
 // NOT `#[cfg(windows)]`-gated, unlike the COM worker) so a future refactor that
 // drops the gain/offset/binning apply, reorders binning vs. geometry, or
 // mishandles a setter error is caught in the Linux/CI dev loop.
-// =============================================================================
 #[cfg(test)]
 mod tests {
     use super::*;

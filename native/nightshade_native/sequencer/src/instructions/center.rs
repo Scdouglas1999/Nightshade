@@ -5,9 +5,7 @@
 
 use super::*;
 
-// =============================================================================
-// CENTER INSTRUCTION (Plate Solve + Sync + Slew Loop)
-// =============================================================================
+// Center instruction (Plate Solve + Sync + Slew Loop)
 
 pub(crate) const CENTER_CORRECTION_SLEW_START_TIMEOUT: Duration = Duration::from_secs(5);
 pub(crate) const CENTER_CORRECTION_SLEW_COMPLETE_TIMEOUT: Duration = Duration::from_secs(300);
@@ -232,7 +230,7 @@ pub async fn execute_center(
         };
 
         // Feeding the solve back into trigger state is what enables the
-        // DriftLimit trigger (§1.11) to detect cumulative drift across
+        // DriftLimit trigger to detect cumulative drift across
         // exposures without re-solving on every frame.
         if let Some(trigger_state_lock) = &ctx.trigger_state {
             let mut trigger_state = trigger_state_lock.write().await;
@@ -495,14 +493,12 @@ pub(crate) async fn wait_for_meridian_flip_window(
         // give) it additionally requires a POSITIVE hour angle — i.e. the
         // target is west of the meridian.
         //
-        // Only the East case was mirrored here before. A target EAST of the
-        // meridian (negative HA) with unreported pier side could therefore
-        // hold: `fire_in_secs` came out non-positive from a stale HA left over
-        // by an earlier run (the mount poll only runs while a sequence is
-        // executing, so the very first frame of a run reads the previous run's
-        // value), the gate logged "meridian flip fires in ~0s", and every
-        // light frame in the sequence blocked for the gate's full bound while
-        // the trigger it was waiting on could not fire at all.
+        // Mirroring only the East case holds a target EAST of the meridian
+        // (negative HA) with unreported pier side: `fire_in_secs` comes out
+        // non-positive from a stale HA left over by an earlier run — the mount
+        // poll only runs while a sequence is executing, so the first frame of a
+        // run reads the previous run's value — and every light frame then blocks
+        // for the gate's full bound on a trigger that cannot fire.
         if matches!(pier, Some(crate::PierSide::East)) || ha <= 0.0 {
             return None;
         }
@@ -515,16 +511,14 @@ pub(crate) async fn wait_for_meridian_flip_window(
         //
         // `fire_in_secs` goes arbitrarily negative once the target is past
         // the meridian — at HA +9.9h with a 5-minute threshold it is about
-        // -35_000. Every negative value used to land in the branch below and
-        // hold, and the announcement clamped the number to zero, so the app
-        // said "the flip fires in ~0s" about a flip that had been due for the
-        // best part of a day. A target hours west of the meridian is routine
-        // (a run that starts on a setting target, or any mount that reports a
-        // pointing position the flip trigger reads differently from the
-        // target's own coordinates), and the trigger in that state never
-        // fires, so nothing ever released the gate: each frame paid the full
-        // MERIDIAN_GATE_MAX_WAIT before proceeding and a 12-frame sequence
-        // took the whole night to not finish.
+        // -35_000 — and the announcement clamps the number to zero, so holding
+        // on every negative value tells the operator "the flip fires in ~0s"
+        // about a flip that has been due for the best part of a day. A target
+        // hours west of the meridian is routine (a run that starts on a setting
+        // target, or a mount whose reported pointing the flip trigger reads
+        // differently from the target's own coordinates), and the trigger in that
+        // state never fires, so nothing releases the gate: each frame pays the
+        // full MERIDIAN_GATE_MAX_WAIT.
         //
         // `announced` is only ever set once this call has decided to hold, so
         // testing it here scopes the escape hatch to gate ENTRY. A hold that
@@ -634,13 +628,13 @@ pub(crate) async fn wait_for_meridian_flip_window(
 /// Hour angle of the ACTIVE TARGET right now, in hours, normalized to
 /// [-12, +12]. Negative is east of the meridian.
 ///
-/// The gate used to read `TriggerState::current_hour_angle`, which is written
-/// by the executor's mount-poll loop — i.e. only while a sequence is running,
-/// only for the MOUNT's reported coordinates, and never invalidated between
-/// runs. Recomputing from the target's own RA and the observer longitude makes
-/// the prediction fresh by construction and answers the question the gate is
-/// actually asking ("will the flip for THIS target interrupt THIS frame").
-/// Falls back to the polled value when the target or the site is unknown.
+/// Recomputed from the target's own RA and the observer longitude rather than
+/// read off `TriggerState::current_hour_angle`, which the executor's
+/// mount-poll loop writes only while a sequence is running, only for the
+/// MOUNT's reported coordinates, and never invalidates between runs. This is
+/// fresh by construction and answers the question the gate is actually asking
+/// ("will the flip for THIS target interrupt THIS frame"). Falls back to the
+/// polled value when the target or the site is unknown.
 pub(crate) fn current_target_hour_angle(ctx: &InstructionContext) -> Option<f64> {
     let ra_hours = ctx.target_ra?;
     let longitude = ctx.longitude?;

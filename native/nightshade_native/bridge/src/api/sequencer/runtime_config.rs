@@ -141,9 +141,7 @@ pub async fn api_sequencer_set_save_path(path: Option<String>) -> Result<(), Nig
     Ok(())
 }
 
-// =============================================================================
-// SEQUENCER RUNTIME SETTINGS PROPAGATION
-// =============================================================================
+// Sequencer runtime settings propagation
 
 /// Update dither configuration at runtime while a sequence is running or paused.
 /// The updated values are stored on the executor and will be used by subsequent
@@ -269,7 +267,7 @@ pub async fn api_sequencer_update_filter_offsets(
 /// is wrong for both very-short (5 s) and very-long (5 min) subs, so the UI
 /// must let the user override it. `every_n_frames == 0` is rejected because
 /// the trigger evaluator disables the periodic AF when the cadence is zero,
-/// which would silently turn AF off ("errors are a feature").
+/// which would silently turn AF off.
 pub async fn api_sequencer_update_autofocus_interval(
     every_n_frames: u32,
 ) -> Result<(), NightshadeError> {
@@ -291,12 +289,11 @@ pub async fn api_sequencer_update_autofocus_interval(
 
 /// Push the operator's autofocus settings so trigger-fired refocus uses them.
 ///
-/// The only source of trigger-autofocus tuning used to be an Autofocus node
-/// inside the sequence. A sequence without one — which is exactly the sequence
-/// whose interval trigger fires unattended — therefore ran every refocus on
-/// library defaults, ignoring the operator's step size, exposure, backlash,
-/// failure tolerance and failure action. An Autofocus node still wins at
-/// `start()`: a node is a per-sequence decision, this is a global one.
+/// A sequence without an Autofocus node — which is exactly the sequence whose
+/// interval trigger fires unattended — otherwise refocuses on library defaults,
+/// ignoring the operator's step size, exposure, backlash, failure tolerance and
+/// failure action. An Autofocus node still wins at `start()`: a node is a
+/// per-sequence decision, this is the global one.
 ///
 /// Takes the same JSON shape the sequence's Autofocus node carries, so the
 /// Dart side has exactly one serializer to keep correct.
@@ -377,11 +374,10 @@ pub async fn api_sequencer_update_reject_folder_path(
     Ok(())
 }
 
-/// push observer / equipment identification to the executor so
-/// the next FITS save stamps real keywords (OBSERVER, TELESCOP, FOCALLEN,
-/// APTDIA, INSTRUME, SITEELEV). Every field is optional because in
-/// headless / no-profile runs we'd rather omit the keyword than emit a
-/// sentinel — silent fallbacks are bugs.
+/// Push observer / equipment identification to the executor so the next FITS
+/// save stamps real keywords (OBSERVER, TELESCOP, FOCALLEN, APTDIA, INSTRUME,
+/// SITEELEV). Every field is optional so a headless / no-profile run omits the
+/// keyword instead of emitting a sentinel.
 pub async fn api_sequencer_update_observer_profile(
     observer_name: Option<String>,
     site_elevation_m: Option<f64>,
@@ -423,9 +419,7 @@ pub async fn api_sequencer_update_observer_profile(
     Ok(())
 }
 
-// =============================================================================
 // Cloud-motion-aware triggers
-// =============================================================================
 //
 // Push the live `cloudMotionAnalyzerProvider` output from Dart into the
 // executor's trigger state on a ~60s cadence (see WeatherSafetyNotifier).
@@ -480,8 +474,7 @@ pub async fn api_sequencer_update_cloud_motion(
     Ok(())
 }
 
-/// Full-night audit 2026-06-04 (defense-in-depth) — push the Dart-side
-/// weather-safety verdict into the executor.
+/// Push the Dart-side weather-safety verdict into the executor.
 ///
 /// The in-sequencer `WeatherUnsafe` trigger keys off the hardware
 /// `safety_is_safe` poll only; a rig WITHOUT a hardware safety device never
@@ -513,9 +506,7 @@ pub async fn api_sequencer_get_cloud_motion_json() -> Result<Option<String>, Nig
     Ok(executor.current_cloud_motion_json())
 }
 
-// =============================================================================
 // Sky-brightness adaptive exposures
-// =============================================================================
 //
 // The Dart `SkyBrightnessTracker` produces a continuous mag/arcsec² reading
 // during execution. We push that reading to the sequencer executor whenever
@@ -636,9 +627,7 @@ pub async fn api_sequencer_clear_default_adaptive_exposure() -> Result<(), Night
     Ok(())
 }
 
-// =============================================================================
-// Recovery Mode — FRB-exposed control surface
-// =============================================================================
+// Recovery mode — FRB-exposed control surface
 //
 // added these to `bridge/src/sequencer_api.rs` but that module
 // is OUTSIDE `crate::api`, which is FRB's scan root (see
@@ -759,9 +748,7 @@ pub async fn api_sequencer_get_recovery_history_json() -> Result<String, Nightsh
     })
 }
 
-// ============================================================================
-// Replay Debug
-// ============================================================================
+// Replay debug
 
 /// Replay Debug — stamp the active `sequence_runs.id` onto the
 /// executor so every subsequent emitted DecisionEvent carries it as
@@ -808,9 +795,7 @@ pub async fn api_sequencer_get_decision_logging_enabled() -> Result<bool, Nights
     Ok(executor.decision_logging_enabled())
 }
 
-// =============================================================================
 // Adaptive sky-conditions target swap
-// =============================================================================
 //
 // The Dart `AdaptiveSwapService` composes the live ConditionsScore from
 // transparency / seeing / cloud cover / wind every ~30s and pushes it

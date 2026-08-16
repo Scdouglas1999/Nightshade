@@ -4,9 +4,7 @@
 
 use super::*;
 
-// -------------------------------------------------------------------
 // Image Grading: reject folder resolution
-// -------------------------------------------------------------------
 
 #[test]
 fn reject_dir_defaults_to_reject_subfolder_of_save_path() {

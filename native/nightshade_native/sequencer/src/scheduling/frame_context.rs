@@ -64,9 +64,7 @@ pub struct DefectMapCorrectionRecord {
 /// new field would require updating every implementor of `DeviceOps`.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct FrameContext {
-    // -------------------------------------------------------------------
-    // SESSION / RUN IDENTIFICATION
-    // -------------------------------------------------------------------
+    // Session / run identification
     /// Unique session identifier so frames captured in the same run can
     /// be linked back to a logical session row in the database. Generated
     /// once per executor start. Surfaced as the FITS keyword `NS-SESID`.
@@ -77,26 +75,20 @@ pub struct FrameContext {
     /// remains the join key for the captured_images database row.
     pub target_id: Option<String>,
 
-    // -------------------------------------------------------------------
-    // TARGET INFORMATION (OBJECT, RA, DEC keywords)
-    // -------------------------------------------------------------------
+    // Target information (object, RA, dec keywords)
     pub target_name: Option<String>,
     /// Target RA in hours (0–24). FITS `RA` keyword.
     pub target_ra_hours: Option<f64>,
     /// Target Dec in degrees (-90 to +90). FITS `DEC` keyword.
     pub target_dec_degrees: Option<f64>,
 
-    // -------------------------------------------------------------------
-    // FILTER (FILTER keyword)
-    // -------------------------------------------------------------------
+    // Filter (filter keyword)
     pub filter_name: Option<String>,
     /// Filter position (1-based index, matches FITS convention). Surfaced
     /// as the FITS keyword `FILTPOS`.
     pub filter_index: Option<i32>,
 
-    // -------------------------------------------------------------------
-    // CAMERA SETTINGS (XBINNING/YBINNING/GAIN/OFFSET keywords)
-    // -------------------------------------------------------------------
+    // Camera settings (XBINNING/YBINNING/GAIN/OFFSET keywords)
     pub binning_x: u32,
     pub binning_y: u32,
     pub gain: Option<i32>,
@@ -113,18 +105,14 @@ pub struct FrameContext {
     /// omitted rather than filled with a plausible-looking lie.
     pub exposure_started_at: Option<chrono::DateTime<chrono::Utc>>,
 
-    // -------------------------------------------------------------------
-    // FRAME ACCOUNTING (custom NS-* keywords)
-    // -------------------------------------------------------------------
+    // Frame accounting (custom NS-* keywords)
     /// 1-based frame index within the current TakeExposure burst.
     /// Surfaced as the FITS keyword `NS-FIDX`.
     pub frame_index: u32,
     /// Total planned frames in the burst (1-based). Surfaced as `NS-NPLN`.
     pub total_planned_frames: Option<u32>,
 
-    // -------------------------------------------------------------------
-    // LIVE DEVICE TELEMETRY (CCD-TEMP / SET-TEMP / FOCUSPOS / ROTATPOS / GUIDERMS)
-    // -------------------------------------------------------------------
+    // Live device telemetry (CCD-TEMP / SET-TEMP / focuspos / rotatpos / guiderms)
     /// Sensor temperature at capture time. FITS `CCD-TEMP`.
     pub sensor_temp_c: Option<f64>,
     /// Target temperature the cooler was set to. FITS `SET-TEMP`.
@@ -146,15 +134,12 @@ pub struct FrameContext {
     /// `GUIDERMS`.
     pub guide_rms_arcsec: Option<f64>,
 
-    // -------------------------------------------------------------------
-    // MOUNT POINTING (RA / DEC / OBJCTALT / OBJCTAZ / PIERSIDE keywords)
-    // -------------------------------------------------------------------
+    // Mount pointing (RA / dec / objctalt / objctaz / pierside keywords)
     //
     // Where the telescope actually WAS, as distinct from `target_ra_hours` /
-    // `target_dec_degrees`, which are where the sequence meant to be. The
-    // bridge used to sample this itself at save time; it now comes from here
-    // so the FITS header and the `captured_images` row are stamped from one
-    // struct instead of two independent reads that can disagree.
+    // `target_dec_degrees`, which are where the sequence meant to be. The FITS
+    // header and the `captured_images` row are stamped from this one struct, so
+    // they cannot disagree the way two independent reads can.
     /// Mount-reported right ascension in HOURS (0-24). Same unit as
     /// `target_ra_hours` and `captured_images.mount_ra`; the FITS writer
     /// multiplies by 15 for the degrees-valued `RA` card.
@@ -176,9 +161,7 @@ pub struct FrameContext {
     /// from a driver that cannot report at all.
     pub pier_side: Option<String>,
 
-    // -------------------------------------------------------------------
-    // PLATE-SOLVE RESULT (SOLVED-RA / SOLVED-DEC / PIXSCALE / CROTA1 keywords)
-    // -------------------------------------------------------------------
+    // PLATE-SOLVE result (SOLVED-RA / SOLVED-DEC / pixscale / CROTA1 keywords)
     /// Plate-solved RA in hours (if the frame was solved). FITS
     /// `SOLVED-RA`.
     pub plate_solve_ra_hours: Option<f64>,
@@ -189,24 +172,18 @@ pub struct FrameContext {
     /// Solved field rotation in degrees. FITS `CROTA1`/`CROTA2`.
     pub plate_solve_rotation_deg: Option<f64>,
 
-    // -------------------------------------------------------------------
-    // BAYER PATTERN (OSC cameras) — FITS `BAYERPAT` keyword
-    // -------------------------------------------------------------------
+    // Bayer pattern (osc cameras) — fits `BAYERPAT` keyword
     /// Bayer pattern string like "RGGB", "BGGR", etc. None for monochrome
     /// sensors.
     pub bayer_pattern: Option<String>,
 
-    // -------------------------------------------------------------------
-    // MOSAIC PANEL (custom NS-MOSNM / NS-PIDX / NS-PROW / NS-PCOL)
-    // -------------------------------------------------------------------
+    // Mosaic panel (custom NS-MOSNM / NS-PIDX / NS-PROW / NS-PCOL)
     /// Mosaic panel information when this target is one panel of a
     /// multi-panel mosaic. The audit's specific complaint: this field
     /// existed in `MosaicPanelInfo` but was never written to FITS headers.
     pub mosaic_panel: Option<MosaicPanelInfo>,
 
-    // -------------------------------------------------------------------
-    // OBSERVER / SITE (OBSERVER / SITELAT / SITELONG / SITEELEV keywords)
-    // -------------------------------------------------------------------
+    // Observer / site (observer / sitelat / sitelong / siteelev keywords)
     /// Observer name as configured in app settings. FITS `OBSERVER`.
     pub observer_name: Option<String>,
     /// Latitude in decimal degrees (+ = north). FITS `SITELAT`.
@@ -216,9 +193,7 @@ pub struct FrameContext {
     /// Elevation in metres above sea level. FITS `SITEELEV`.
     pub site_elevation_m: Option<f64>,
 
-    // -------------------------------------------------------------------
-    // EQUIPMENT IDENTIFICATION
-    // -------------------------------------------------------------------
+    // Equipment identification
     /// Camera manufacturer (e.g., "ZWO"). Concatenated with model into
     /// the FITS `INSTRUME` keyword.
     pub camera_make: Option<String>,
@@ -231,12 +206,10 @@ pub struct FrameContext {
     /// The FITS writer multiplies these by `XBINNING`/`YBINNING`, so the
     /// unbinned pitch is what belongs here.
     ///
-    /// Without them a sequenced sub carries `FOCALLEN` but no pitch, so ASTAP,
-    /// PixInsight and AstroBin cannot derive the plate scale from the file
-    /// alone — the same defect that was fixed on the manual-snapshot path and
-    /// left standing on the path that writes every frame of a real run.
-    /// `None` when the driver will not report one, so the keyword is omitted
-    /// rather than filled with a guess a downstream solver would trust.
+    /// Without them a sub carries `FOCALLEN` but no pitch, so ASTAP, PixInsight
+    /// and AstroBin cannot derive the plate scale from the file alone. `None`
+    /// when the driver will not report one, so the keyword is omitted rather
+    /// than filled with a guess a downstream solver would trust.
     pub camera_pixel_size_x_um: Option<f64>,
     /// Vertical counterpart of [`Self::camera_pixel_size_x_um`].
     pub camera_pixel_size_y_um: Option<f64>,
@@ -247,14 +220,11 @@ pub struct FrameContext {
     /// Telescope aperture diameter in millimetres. FITS `APTDIA`.
     pub telescope_aperture_mm: Option<f64>,
 
-    // -------------------------------------------------------------------
-    // IMAGE TYPE — already conveyed but now centralised here.
-    // -------------------------------------------------------------------
+    // Image type — already conveyed but now centralised here.
     /// "Light", "Dark", "Flat", "Bias", etc. FITS `IMAGETYP`.
     /// Defaults to "Light" when constructed from a TakeExposure node.
     pub frame_type: String,
 
-    // -------------------------------------------------------------------
     // defect-map correction record.
     //
     // When defect correction ran for this frame, the FITS writer
@@ -263,10 +233,8 @@ pub struct FrameContext {
     // the replacement method. None means no correction was applied
     // (no map configured, or it was skipped because the camera id
     // mismatched).
-    // -------------------------------------------------------------------
     pub defect_map_correction: Option<DefectMapCorrectionRecord>,
 
-    // -------------------------------------------------------------------
     // Science — Photometry FITS keywords.
     //
     // Populated by the `SciencePhotometryInstruction` for frames
@@ -284,7 +252,6 @@ pub struct FrameContext {
     //
     // `AIRMASS` is intentionally NOT added here — the bridge writer
     // already computes it from the altitude when present.
-    // -------------------------------------------------------------------
     pub photometry_object_catalog: Option<String>,
     pub photometry_reference_stars: Option<Vec<String>>,
     pub photometry_mjd_obs: Option<f64>,
@@ -293,7 +260,6 @@ pub struct FrameContext {
     pub photometry_fwhm_arcsec: Option<f64>,
     pub photometry_snr: Option<f64>,
 
-    // -------------------------------------------------------------------
     // Dual-rig — frame attribution by rig.
     //
     // When set, identifies which optical train / camera produced this
@@ -303,20 +269,18 @@ pub struct FrameContext {
     // loop ([`crate::dual_rig`]) stamps its `rig_label` here so subs are
     // attributable to the right rig and the session stats can be split.
     // Surfaced as the custom FITS keyword `NS-RIG`.
-    // -------------------------------------------------------------------
     pub rig_label: Option<String>,
 }
 
 /// The per-frame capture truth, projected out of the [`FrameContext`] the FITS
 /// writer used, so the database row and the file on disk can never disagree.
 ///
-/// Why this type exists: the FITS header was built from `FrameContext` and then
-/// the struct was dropped, while the `captured_images` row was built from a
-/// completely separate progress event that carried only node id + grading
-/// metrics. A sequenced frame therefore landed in the database with no gain, no
-/// offset, no sensor temperature, no pointing and no focuser/rotator position —
-/// while the file written microseconds earlier from the same exposure had all of
-/// them. Two sources of truth for one frame is the defect; this struct is the
+/// Why this type exists: building the FITS header from `FrameContext` and then
+/// dropping the struct, while the `captured_images` row comes from a completely
+/// separate progress event carrying only node id + grading metrics, lands a
+/// sequenced frame in the database with no gain, no offset, no sensor
+/// temperature, no pointing and no focuser/rotator position — while the file
+/// written microseconds earlier from the same exposure has all of them. Two sources of truth for one frame is the defect; this struct is the
 /// one source. It rides on `ProgressDetail::FrameAccepted`/`FrameRejected` so
 /// the Dart listener writes the row from exactly the values the header got.
 ///
@@ -406,12 +370,11 @@ impl FrameContext {
     ///
     /// Anything derived from where the sky WAS — altitude, azimuth and the
     /// airmass computed from them — belongs at the midpoint, because that is
-    /// the effective epoch of the light the frame integrated. Both the
-    /// sequencer and the FITS writer used to derive it from `Utc::now()` at
-    /// save time instead, which dates the geometry by the whole exposure plus
-    /// readout: on a 300 s sub taken at 20 deg altitude that is a 2.9 %
-    /// airmass error, and it lands directly in the extinction correction of a
-    /// photometry run and in the AMASS column of an AAVSO submission.
+    /// the effective epoch of the light the frame integrated. Deriving it from
+    /// the clock at save time dates the geometry by the whole exposure plus
+    /// readout: on a 300 s sub taken at 20 deg altitude that is a 2.9 % airmass
+    /// error, landing directly in the extinction correction of a photometry run
+    /// and in the AMASS column of an AAVSO submission.
     ///
     /// `None` when the caller never recorded when the shutter opened, so the
     /// caller falls back to its own clock rather than inventing a start.
@@ -443,15 +406,11 @@ impl FrameContext {
     /// midpoint — the number behind `OBJCTALT`, and through it `AIRMASS`.
     ///
     /// `mount_altitude_deg` is preferred when the mount was read, because the
-    /// capture path derived it in the same breath as the pointing. It is only
-    /// ever set inside the "a mount is connected and answered" branch, and
-    /// that gate is what left every mountless frame with no `OBJCTALT` and no
-    /// `AIRMASS` — on a rig with no mount attached, or one whose driver
-    /// declined the coordinate read, the writer still stamped `RA`/`DEC` from
-    /// the target and then dropped the altitude derived from that very same
-    /// pointing. Altitude is pure geometry: pointing, site and time, all three
-    /// of which are already in this struct. Withholding it did not make the
-    /// file more honest, it made it unusable for photometry.
+    /// capture path derived it in the same breath as the pointing. Altitude is
+    /// pure geometry — pointing, site and time, all three already in this struct
+    /// — so a frame taken on a rig with no mount, or one whose driver declined
+    /// the coordinate read, still gets an altitude derived from the same
+    /// pointing the writer stamps into `RA`/`DEC`.
     ///
     /// Still `None` — deliberately — when there is no pointing at all or the
     /// observer location is unset, because then it would have to be computed

@@ -49,9 +49,7 @@ use nightshade_native::vendor::zwo;
 #[cfg(windows)]
 use nightshade_native::ExposureParams;
 
-// =============================================================================
-// SDK LOADING TESTS (No Hardware Required)
-// =============================================================================
+// SDK loading (no hardware required)
 
 /// Test that ZWO ASI Camera SDK status can be checked
 #[test]
@@ -93,9 +91,7 @@ fn test_svbony_camera_sdk_status() {
     assert!(!message.is_empty());
 }
 
-// =============================================================================
-// DISCOVERY TESTS (No Hardware Required - Returns Empty If No Devices)
-// =============================================================================
+// Discovery (no hardware required; returns empty when no devices are present)
 
 /// Test that camera discovery doesn't crash even without hardware
 #[tokio::test]
@@ -169,9 +165,7 @@ async fn test_svbony_camera_discovery_no_crash() {
     }
 }
 
-// =============================================================================
-// HARDWARE INTEGRATION TESTS (Require ZWO Devices Connected)
-// =============================================================================
+// Hardware integration (requires ZWO devices connected)
 // These tests are ignored by default and can be run with:
 // cargo test --test native_driver_tests -- --ignored
 
@@ -355,9 +349,7 @@ async fn test_zwo_filter_wheel_operations() {
         .expect("Should disconnect successfully");
 }
 
-// =============================================================================
-// SVBONY HARDWARE INTEGRATION TESTS (Require SVBony Devices Connected)
-// =============================================================================
+// SVBony hardware integration (requires SVBony devices connected)
 // These tests are ignored by default and can be run with:
 // cargo test --test native_driver_tests -- --ignored
 
@@ -483,9 +475,7 @@ async fn test_svbony_camera_exposure() {
         .expect("Should disconnect successfully");
 }
 
-// =============================================================================
-// QHY CFW FILTER WHEEL TESTS
-// =============================================================================
+// QHY CFW filter wheel
 
 /// Test that QHY CFW discovery doesn't crash even without hardware
 #[tokio::test]
@@ -572,9 +562,7 @@ async fn test_qhy_cfw_operations() {
         .expect("Should disconnect successfully");
 }
 
-// =============================================================================
-// UNIFIED DISCOVERY TEST
-// =============================================================================
+// Unified discovery
 
 /// Test that the unified discovery finds all device types
 #[tokio::test]
@@ -611,9 +599,7 @@ async fn test_unified_discovery() {
     }
 }
 
-// =============================================================================
-// MOUNT DISCOVERY TESTS (No Hardware Required - Scans Serial Ports)
-// =============================================================================
+// Mount discovery (no hardware required; scans serial ports)
 
 /// Test that Sky-Watcher mount discovery doesn't crash
 #[tokio::test]
@@ -685,9 +671,7 @@ async fn test_unified_discovery_includes_mounts() {
     }
 }
 
-// =============================================================================
-// MOUNT HARDWARE INTEGRATION TESTS (Require Mounts Connected)
-// =============================================================================
+// Mount hardware integration (requires mounts connected)
 // These tests are ignored by default and can be run with:
 // cargo test --test native_driver_tests -- --ignored
 

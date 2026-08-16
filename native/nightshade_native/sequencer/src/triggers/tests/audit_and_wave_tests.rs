@@ -22,7 +22,7 @@ async fn audit_1_9_pier_side_return_clears_flipped_flag() {
     assert_eq!(state.flip_origin_pier_side, Some(PierSide::West));
 
     // Some time later the mount returns to the original (West) side.
-    // The §1.9 invariant clears the flag so the trigger can fire again.
+    // The return-to-origin invariant clears the flag so the trigger can fire again.
     state.update_pier_side(PierSide::West);
     assert!(
         !state.has_flipped_this_target,
@@ -103,10 +103,10 @@ async fn audit_1_11_drift_limit_inactive_without_plate_solve() {
     assert!(!trigger.check(&state).await);
 }
 
-/// the standard-trigger builder now creates a
-/// `DitherInterval` trigger so periodic dithering is honoured even when
-/// the sequence does not contain an explicit Dither node. The standard
-/// `DriftLimit` trigger is also registered for §1.11.
+/// The standard-trigger builder creates a `DitherInterval` trigger so
+/// periodic dithering is honoured even when the sequence does not contain an
+/// explicit Dither node. The standard `DriftLimit` trigger is registered
+/// alongside it.
 #[tokio::test]
 async fn audit_1_5_and_1_11_standard_triggers_include_new_audit_triggers() {
     let mut manager = TriggerManager::new();
@@ -124,23 +124,21 @@ async fn audit_1_5_and_1_11_standard_triggers_include_new_audit_triggers() {
     );
 }
 
-/// Regression: the operator's meridian-flip settings must reach BOTH the
-/// trigger's own config (which decides when to fire) and the recovery
-/// action's config (which decides how the flip runs).
+/// The operator's meridian-flip settings must reach BOTH the trigger's own
+/// config (which decides when to fire) and the recovery action's config
+/// (which decides how the flip runs).
 ///
-/// The standard trigger is seeded with `MeridianFlipConfig::default()` and
-/// nothing used to replace it, so the whole Settings → Meridian Flip panel
-/// was inert on the trigger path. Proven live: a run with
-/// `recenterAfterFlip: false` still executed
-/// `"Step 6/8: Plate solving and centering"` and failed the flip on it.
-/// It hid for so long because the Rust defaults equal the panel defaults —
-/// only an operator who changed a value was silently ignored.
+/// The standard trigger is seeded with `MeridianFlipConfig::default()`, so a
+/// path that never replaces it leaves the whole Settings → Meridian Flip
+/// panel inert — a run with `recenterAfterFlip: false` still executes
+/// "Step 6/8: Plate solving and centering". The Rust defaults equal the panel
+/// defaults, so only an operator who changed a value is silently ignored.
 #[tokio::test]
 async fn meridian_flip_settings_reach_both_trigger_and_recovery_action() {
     let mut manager = TriggerManager::new();
     manager.create_standard_triggers();
 
-    // Sanity: the default really is the config that used to be stuck.
+    // Sanity: the seeded trigger really carries the default config.
     let seeded = manager.get_trigger("meridian_flip").expect("trigger");
     match &seeded.trigger_type {
         TriggerType::MeridianFlip { config } => {
@@ -207,9 +205,9 @@ async fn meridian_flip_settings_push_reports_missing_trigger() {
     );
 }
 
-/// Trust-patch §3: AutofocusInterval is now part of the standard
-/// trigger set so periodic refocus fires in sequences that lack an
-/// explicit Autofocus node. Symmetric with the §1.5 DitherInterval test.
+/// AutofocusInterval is part of the standard trigger set so periodic refocus
+/// fires in sequences that lack an explicit Autofocus node. Symmetric with
+/// the DitherInterval test.
 #[tokio::test]
 async fn trust_patch_3_standard_triggers_include_autofocus_interval() {
     let mut manager = TriggerManager::new();
@@ -222,7 +220,7 @@ async fn trust_patch_3_standard_triggers_include_autofocus_interval() {
     );
 }
 
-/// Trust-patch §6: HumidityThreshold trigger fires when state.current_humidity
+/// HumidityThreshold trigger fires when state.current_humidity
 /// exceeds the configured threshold and stays inactive when below.
 #[tokio::test]
 async fn trust_patch_2_humidity_threshold_fires_above_max_percent() {
@@ -246,7 +244,7 @@ async fn trust_patch_2_humidity_threshold_fires_above_max_percent() {
     assert!(trigger.check(&state).await);
 }
 
-/// Trust-patch §6: FocusDrift trigger uses VecDeque so trimming is O(1)
+/// FocusDrift trigger uses VecDeque so trimming is O(1)
 /// and the window stays bounded.
 #[tokio::test]
 async fn trust_patch_6_focus_drift_window_uses_vecdeque_and_is_bounded() {
@@ -279,7 +277,7 @@ async fn trust_patch_6_focus_drift_window_uses_vecdeque_and_is_bounded() {
     );
 }
 
-/// Trust-patch §6: `Trigger::new_focus_drift_checked` rejects oversize
+/// `Trigger::new_focus_drift_checked` rejects oversize
 /// windows up-front (instead of silently clamping the way `new` does
 /// for stored sequences).
 #[test]
@@ -296,7 +294,7 @@ fn trust_patch_6_focus_drift_checked_rejects_oversize_windows() {
     assert!(err.contains("exceeds maximum"), "error message: {}", err);
 }
 
-/// Trust-patch §6: `Trigger::new` clamps oversize windows silently with
+/// `Trigger::new` clamps oversize windows silently with
 /// a tracing warning so a checkpoint-restored sequence with a stale
 /// window still loads.
 #[test]
@@ -385,9 +383,7 @@ async fn audit_1_21_guiding_rms_retention_propagates_via_sync() {
     );
 }
 
-// =========================================================================
 // cloud-motion-aware trigger tests
-// =========================================================================
 
 /// CloudArrivingIn fires when both the arrival-time AND coverage gates
 /// are satisfied. Without coverage data the trigger stays quiescent.
@@ -490,7 +486,7 @@ async fn wave_5_cloud_opening_in_requires_lead_time_and_duration() {
     state3.update_cloud_motion(Some(80.0), None, Some(3.0), Some(600.0), None);
     assert!(trigger3.check(&state3).await);
 
-    // Duration unknown => refuse to fire (the CONTRIBUTING.md house rules silent-fallback rule).
+    // Duration unknown => refuse to fire.
     let mut trigger4 = Trigger::new(
         "test_cloud_opening_4",
         "Test Cloud Opening 4",
@@ -652,9 +648,7 @@ fn wave_5_cloud_recovery_actions_round_trip_through_serde() {
     }
 }
 
-// =============================================================
 // Science — TransparencyDropped trigger tests.
-// =============================================================
 
 #[tokio::test]
 async fn wave_7_transparency_dropped_fires_below_threshold_immediately() {

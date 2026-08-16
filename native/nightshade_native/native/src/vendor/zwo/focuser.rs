@@ -5,9 +5,7 @@ use crate::load_vendor_sdk;
 use crate::vendor::sdk_loader::vendor_library_candidates;
 use std::path::PathBuf;
 
-// =============================================================================
-// ZWO EAF FOCUSER SDK
-// =============================================================================
+// EAF focuser SDK
 
 /// EAF Info structure from SDK
 #[repr(C)]
@@ -150,9 +148,7 @@ pub(crate) fn check_eaf_error(code: c_int) -> Result<(), NativeError> {
     }
 }
 
-// =============================================================================
-// ZWO FOCUSER IMPLEMENTATION
-// =============================================================================
+// Focuser implementation
 
 /// ZWO EAF Focuser implementation
 #[derive(Debug)]
@@ -464,18 +460,8 @@ impl NativeFocuser for ZwoFocuser {
 }
 
 impl ZwoFocuser {
-    /// Move focuser to position and wait for completion with timeout.
-    ///
-    /// This is a convenience method that combines `move_to` with waiting for
-    /// the move to complete, with timeout protection.
-    ///
-    /// # Arguments
-    /// * `position` - Target position to move to
-    /// * `config` - Timeout configuration
-    ///
-    /// # Returns
-    /// * `Ok(())` - Move completed successfully
-    /// * `Err(NativeError::MoveTimeout)` - Move did not complete within timeout
+    /// `move_to` the absolute position, then wait for the focuser to settle
+    /// under the config's focuser timeout.
     pub async fn move_to_with_timeout(
         &mut self,
         position: i32,
@@ -488,15 +474,8 @@ impl ZwoFocuser {
         wait_for_focuser_move(|| async { self.is_moving().await }, config, position).await
     }
 
-    /// Move focuser relative and wait for completion with timeout.
-    ///
-    /// # Arguments
-    /// * `steps` - Number of steps to move (positive = outward, negative = inward)
-    /// * `config` - Timeout configuration
-    ///
-    /// # Returns
-    /// * `Ok(())` - Move completed successfully
-    /// * `Err(NativeError::MoveTimeout)` - Move did not complete within timeout
+    /// Move `steps` from the current position (positive is outward), then wait
+    /// for the focuser to settle under the config's focuser timeout.
     pub async fn move_relative_with_timeout(
         &mut self,
         steps: i32,
@@ -516,9 +495,7 @@ impl ZwoFocuser {
     }
 }
 
-// =============================================================================
-// ZWO FOCUSER DISCOVERY
-// =============================================================================
+// Focuser discovery
 
 /// ZWO focuser discovery info
 pub struct ZwoFocuserDiscoveryInfo {

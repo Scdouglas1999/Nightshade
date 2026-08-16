@@ -2,10 +2,9 @@
 //!
 //! ## Why this exists
 //!
-//! Pre-refactor, every new instruction touched a ~780-line `match node_type`
-//! arm in `node.rs`, plus the totals walker in `executor.rs`, plus checkpoint
-//! serialization. The match arm was the largest single barrier to feature
-//! velocity (see strategic report). This module replaces the match with a
+//! A single `match node_type` arm covering every instruction would have to be
+//! touched by each new one, alongside the totals walker in `executor.rs` and
+//! checkpoint serialization. This module replaces that match with a
 //! per-instruction trait `InstructionNode` and a static registry keyed by
 //! `NodeType` discriminant name.
 //!

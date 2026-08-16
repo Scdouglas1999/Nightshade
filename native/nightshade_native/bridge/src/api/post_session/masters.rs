@@ -1,8 +1,6 @@
 use super::*;
 
-// =============================================================================
 // api_master_accumulate implementation
-// =============================================================================
 
 #[derive(Debug, Clone, Deserialize)]
 #[flutter_rust_bridge::frb(ignore)]
@@ -438,9 +436,7 @@ pub(crate) fn ensure_u16(image: &ImageData) -> ImageData {
     to_u16_for_preview(image)
 }
 
-// =============================================================================
 // api_build_master_flat implementation
-// =============================================================================
 
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -557,9 +553,7 @@ pub(crate) fn build_master_flat_impl(
     })
 }
 
-// =============================================================================
 // api_save_fits_master implementation
-// =============================================================================
 
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default, rename_all = "camelCase")]

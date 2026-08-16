@@ -26,8 +26,8 @@
 //!   * `max_brightness` → `255` (the ASCOM default; the brightness slider
 //!     UI then renders 0-255 instead of a calibrator-specific scale).
 //!
-//! The `warn!` log is the explicit non-silent error signal required by
-//! "errors are a feature".
+//! Each substitution carries a `warn!` naming the device and the failed
+//! read, so a placeholder is never mistaken for a reading.
 //!
 //! # Simulator arm
 //!
@@ -67,9 +67,7 @@ impl DeviceManager {
             })
     }
 
-    // =========================================================================
-    // Cover Calibrator Control
-    // =========================================================================
+    // Cover calibrator control
 
     /// Open cover calibrator cover
     pub async fn cover_calibrator_open_cover(&self, device_id: &str) -> Result<(), DeviceOpError> {
@@ -924,14 +922,12 @@ mod tests {
 
 /// The simulated flat panel, driven the way the app drives a real one.
 ///
-/// These deliberately go the long way round — `api_discover_devices` for the id,
-/// `connect_device` to open it, then `nightshade_sequencer::DeviceOps` for every
-/// operation — because that is the whole path the sequencer's `OpenCover` and
-/// `CalibratorOn` nodes take. Calling `sim_cover_move` directly would keep
-/// passing even if the device were never discoverable, never connectable, or the
-/// `DriverType::Simulator` arm were deleted, which is exactly how the gap being
-/// closed here survived: `scan_simulator_for_type` was willing to advertise a
-/// device that `drivers_for_device_type` never asked it for.
+/// These go the long way round — `api_discover_devices` for the id,
+/// `connect_device` to open it, then `nightshade_sequencer::DeviceOps` for
+/// every operation — because that is the whole path the sequencer's
+/// `OpenCover` and `CalibratorOn` nodes take. Calling `sim_cover_move`
+/// directly keeps passing even when the device is never discoverable, never
+/// connectable, or the `DriverType::Simulator` arm is gone.
 #[cfg(test)]
 mod simulator_tests {
     use crate::api::devices::simulation::sim_singleton_test_lock;

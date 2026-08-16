@@ -4,7 +4,7 @@
 
 use super::*;
 
-// --- pure helper: daylight_gate_block_reason ---
+// Pure helper: daylight_gate_block_reason
 
 #[test]
 fn daylight_gate_blocks_when_sun_above_max() {
@@ -42,11 +42,11 @@ fn daylight_gate_abstains_without_location() {
     assert!(daylight_gate_block_reason(None, None, -90.0, "test").is_none());
 }
 
-/// SCI-39: an operator who skipped the optional site step was judged
-/// against Null Island. The persisted site arrives as `Some(0, 0)`, the
-/// gate computed a real Greenwich Sun altitude from it, and every light
-/// frame of the night was refused with a message blaming the Sun rather
-/// than the missing setting. (0, 0) must read as "no site".
+/// An operator who skips the optional site step must not be judged against
+/// Null Island. The persisted site arrives as `Some(0, 0)`; computing a real
+/// Greenwich Sun altitude from it refuses every light frame of the night with
+/// a message blaming the Sun rather than the missing setting. (0, 0) must read
+/// as "no site".
 #[test]
 fn daylight_gate_treats_null_island_as_no_location() {
     assert!(
@@ -197,12 +197,9 @@ async fn calibration_exposure_without_target_not_gated_in_daylight() {
 }
 
 /// The gate must key off the FRAME TYPE, not off whether a TargetHeader
-/// happens to exist: a bare "Take Exposures" LIGHT node dropped at the top
-/// level of a sequence is exactly as much an on-sky capture as the same
-/// node nested under a target.
-///
-/// Fails WITHOUT the fix — the gate also required `ctx.target_ra`/
-/// `target_dec`, so a targetless burst wrote LIGHT frames in full daylight.
+/// happens to exist or `ctx.target_ra`/`target_dec` are set: a bare "Take
+/// Exposures" LIGHT node dropped at the top level of a sequence is exactly as
+/// much an on-sky capture as the same node nested under a target.
 #[tokio::test]
 async fn untargeted_light_exposure_rejected_when_sun_up() {
     let sun_alt = live_sun_alt();

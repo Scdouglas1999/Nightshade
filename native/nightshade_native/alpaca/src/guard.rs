@@ -9,9 +9,7 @@ use crate::{
     AlpacaCamera, AlpacaDome, AlpacaFilterWheel, AlpacaFocuser, AlpacaRotator, AlpacaTelescope,
 };
 
-// ============================================================================
-// Alpaca Connection Guard Trait
-// ============================================================================
+// Alpaca connection guard trait
 
 /// Trait for Alpaca devices that can be connected/disconnected
 pub trait AlpacaConnectable: Send + Sync {
@@ -165,25 +163,10 @@ impl AlpacaConnectable for AlpacaDome {
     }
 }
 
-// ============================================================================
-// Scoped Connection Helper
-// ============================================================================
+// Scoped connection helper
 
-/// Helper for executing an operation with automatic connection cleanup.
-///
-/// This function connects to the device, executes the operation, and ensures
-/// disconnect happens regardless of success or failure.
-///
-/// # Example
-/// ```ignore
-/// let result = with_alpaca_connection(&mount, "Mount", async {
-///     mount.slew_to_target().await?;
-///     while mount.slewing().await? {
-///         tokio::time::sleep(Duration::from_millis(500)).await;
-///     }
-///     Ok(())
-/// }).await;
-/// ```
+/// Run `operation` against an already-connected device and disconnect on the
+/// way out, whether the operation succeeded or failed.
 pub async fn with_alpaca_connection<T, F, R, E>(
     device: &T,
     device_name: &str,

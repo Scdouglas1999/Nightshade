@@ -40,9 +40,7 @@ pub use cache::*;
 // with the vendor name and parse error embedded in the panic message.
 mod tests;
 
-// =========================================================================
-// Parsed Device ID
-// =========================================================================
+// Parsed device ID
 
 /// A fully parsed and validated device ID
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -124,20 +122,9 @@ pub enum ConnectionInfo {
 }
 
 impl ParsedDeviceId {
-    /// Parse a device ID string into its components
-    ///
-    /// # Arguments
-    /// * `id` - The raw device ID string
-    ///
-    /// # Returns
-    /// * `Ok(ParsedDeviceId)` - Successfully parsed device ID
-    /// * `Err(NightshadeError)` - Parsing failed with details
-    ///
-    /// # Examples
-    /// ```rust,ignore
-    /// let parsed = ParsedDeviceId::parse("ascom:ASCOM.Camera.Simulator")?;
-    /// assert_eq!(parsed.driver_type, DriverType::Ascom);
-    /// ```
+    /// Parse a device ID string (`"ascom:ASCOM.Camera.Simulator"`,
+    /// `"native:zwo:0"`, `"alpaca:http://host:11111:camera:0"`) into its
+    /// components.
     pub fn parse(id: &str) -> Result<Self, NightshadeError> {
         if id.is_empty() {
             return Err(NightshadeError::invalid_device_id(
@@ -348,9 +335,9 @@ impl ParsedDeviceId {
             .ok_or_else(|| NightshadeError::invalid_device_id(id, "Missing 'native:' prefix"))?;
 
         // Split into all segments up-front so the multi-segment branches
-        // below can index without re-splitting. `splitn(2, ':')` (the old
-        // behaviour) collapsed every byte after the vendor into a single
-        // string, which is exactly the bug §5.2 calls out.
+        // below can index without re-splitting. `splitn(2, ':')` would collapse
+        // every byte after the vendor into a single string, losing the brand
+        // segment the multi-part vendors need.
         let segments: Vec<&str> = remainder.split(':').collect();
         if segments.len() < 2 || segments[0].is_empty() || segments[1].is_empty() {
             return Err(NightshadeError::invalid_device_id(
@@ -538,9 +525,7 @@ impl ParsedDeviceId {
         ))
     }
 
-    // =========================================================================
-    // Accessor Methods
-    // =========================================================================
+    // Accessor methods
 
     /// Get the raw device ID string
     pub fn raw(&self) -> &str {
@@ -703,9 +688,7 @@ impl ParsedDeviceId {
     }
 }
 
-// =========================================================================
-// Helper Functions
-// =========================================================================
+// Helper functions
 
 /// Parse a base URL into protocol, host, and port
 fn parse_base_url(url: &str) -> Result<(String, String, u16), &'static str> {
@@ -745,9 +728,7 @@ fn parse_base_url(url: &str) -> Result<(String, String, u16), &'static str> {
     Ok((protocol, host, port))
 }
 
-// =========================================================================
-// Display Implementation
-// =========================================================================
+// Display implementation
 
 impl std::fmt::Display for ParsedDeviceId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -800,6 +781,4 @@ impl std::fmt::Display for ParsedDeviceId {
     }
 }
 
-// =========================================================================
 // Tests
-// =========================================================================

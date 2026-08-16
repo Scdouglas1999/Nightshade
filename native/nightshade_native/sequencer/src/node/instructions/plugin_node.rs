@@ -327,7 +327,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn plugin_node_dispatches_and_completes_on_reply() {
         let (event_tx, mut event_rx) = broadcast::channel(16);
-        let mut ctx = ExecutionContext::new("plugin_node_1".to_string());
+        let mut ctx = ExecutionContext::new_for_test("plugin_node_1".to_string());
         ctx.event_tx = Some(event_tx);
         let pending = ctx.plugin_node_pending.clone();
         let node_type = NodeType::PluginNode {
@@ -403,7 +403,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn plugin_node_reports_failure_when_dart_returns_false() {
         let (event_tx, mut event_rx) = broadcast::channel(16);
-        let mut ctx = ExecutionContext::new("plugin_node_fail".to_string());
+        let mut ctx = ExecutionContext::new_for_test("plugin_node_fail".to_string());
         ctx.event_tx = Some(event_tx);
         let pending = ctx.plugin_node_pending.clone();
         let node_type = NodeType::PluginNode {
@@ -470,7 +470,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn plugin_node_times_out_when_no_reply_arrives() {
         let (event_tx, mut event_rx) = broadcast::channel(16);
-        let mut ctx = ExecutionContext::new("plugin_node_timeout".to_string());
+        let mut ctx = ExecutionContext::new_for_test("plugin_node_timeout".to_string());
         ctx.event_tx = Some(event_tx);
         let node_type = NodeType::PluginNode {
             plugin_id: "com.example.hang".to_string(),

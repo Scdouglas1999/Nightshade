@@ -455,16 +455,13 @@ impl DeviceManager {
                 ))
             }
             Some(DriverType::Simulator) => {
-                // SimulatedCamera::status has no readout-mode field; refuse
-                // the call when disconnected but accept it (no-op) when
-                // connected so existing tests that set a readout mode after
-                // connect_device still pass.
-                crate::device_manager::ops::sim_gate::require_camera_connected().await?;
-                tracing::info!(
-                    "camera_set_readout_mode: simulator accepted mode_index={} (no-op)",
-                    mode_index
-                );
-                Ok(())
+                // `SimulatedCamera::status` has no readout-mode field and the
+                // simulator advertises no readout modes, so there is no index
+                // to select and nothing a read-back could contradict. Reporting
+                // success would leave the caller believing a mode was applied.
+                Err(DeviceOpError::unsupported(
+                    "Simulated cameras do not support readout modes",
+                ))
             }
             _ => Err(DeviceOpError::not_connected(
                 Some(device_id.to_string()),
@@ -476,11 +473,9 @@ impl DeviceManager {
     /// The setpoint that may accompany a cooler command.
     ///
     /// Switching a cooler **off** carries no setpoint: the TEC stops, and no
-    /// temperature needs naming to make that happen. Nightshade used to send
-    /// one anyway (a fabricated -10 C when the caller named none), and on the
-    /// reference rig that write is what failed — leaving the cooler stuck on.
-    /// End-of-night warm-up and the `safe_rig` shutdown path are both
-    /// `enabled = false` with no target, so this is the shape that matters.
+    /// temperature needs naming to make that happen. End-of-night warm-up and
+    /// the `safe_rig` shutdown path are both `enabled = false` with no target,
+    /// so this is the shape that matters.
     pub(crate) fn cooler_setpoint_to_command(
         enabled: bool,
         target_temp: Option<f64>,

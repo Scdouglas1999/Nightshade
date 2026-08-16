@@ -2,10 +2,6 @@
 
 use super::*;
 
-// =============================================================================
-// SDK LIBRARY LOADING
-// =============================================================================
-
 /// QHY SDK library wrapper
 pub(crate) type GetQhyccdSdkVersion =
     unsafe extern "C" fn(*mut c_uint, *mut c_uint, *mut c_uint, *mut c_uint) -> c_uint;
@@ -102,9 +98,7 @@ pub(crate) static SDK_INITIALIZED: OnceLock<bool> = OnceLock::new();
 
 pub(crate) const QHY_VENDOR_NAME: &str = "QHY Camera";
 
-// =============================================================================
-// QHY DISCOVERY CONFIGURATION
-// =============================================================================
+// Discovery configuration
 
 /// Global flag to enable/disable QHY discovery.
 ///
@@ -142,14 +136,9 @@ pub fn is_qhy_discovery_enabled() -> bool {
     QHY_DISCOVERY_ENABLED.load(Ordering::SeqCst)
 }
 
-/// Enable or disable QHY discovery.
-///
-/// When disabled, `discover_devices()` will return an empty list without
-/// attempting to scan for cameras. This is useful if the QHY SDK causes
-/// crashes or hangs on a particular system.
-///
-/// # Arguments
-/// * `enabled` - Whether to enable QHY discovery
+/// Enable or disable QHY discovery. While disabled, `discover_devices()` returns
+/// an empty list without scanning, which is the escape hatch for hosts where the
+/// QHY SDK crashes or hangs during enumeration.
 pub fn set_qhy_discovery_enabled(enabled: bool) {
     let previous = QHY_DISCOVERY_ENABLED.swap(enabled, Ordering::SeqCst);
     if previous != enabled {
@@ -511,8 +500,7 @@ pub(crate) enum QhyError {
 
 /// Full-scale ADU of the delivered pixel container for a QHY camera.
 ///
-/// QHY splits this into two separate SDK queries, and the driver historically
-/// used neither:
+/// QHY splits this into two separate SDK queries:
 ///
 /// * `GetQHYCCDChipInfo`'s `bpp` is the **container** depth (8 or 16). The SDK
 ///   manual calls it "Image data bit depth", and it is what

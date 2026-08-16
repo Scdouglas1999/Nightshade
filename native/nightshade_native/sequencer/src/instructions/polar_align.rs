@@ -5,9 +5,7 @@
 
 use super::*;
 
-// =============================================================================
-// POLAR ALIGNMENT INSTRUCTION
-// =============================================================================
+// Polar alignment instruction
 
 /// Execute polar alignment
 pub async fn execute_polar_alignment(

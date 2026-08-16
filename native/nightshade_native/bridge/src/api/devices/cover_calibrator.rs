@@ -25,9 +25,7 @@ use tokio::sync::RwLock;
 use super::super::*;
 use super::*;
 
-// =============================================================================
-// Cover Calibrator Control (Flat Panel / Dust Cover)
-// =============================================================================
+// Cover calibrator control (flat panel / dust cover)
 
 /// Open cover calibrator dust cover
 pub async fn api_cover_calibrator_open_cover(device_id: String) -> Result<(), NightshadeError> {

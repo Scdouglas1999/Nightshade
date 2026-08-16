@@ -55,9 +55,7 @@ use std::time::{Duration, Instant};
 
 use crate::scheduling::TargetScore;
 
-// ---------------------------------------------------------------------------
 // Public types
-// ---------------------------------------------------------------------------
 
 /// Hint on a TargetHeader telling the scheduler which brightness tier this
 /// target belongs to. `None` lets the scheduler infer the tier or fall back
@@ -265,9 +263,7 @@ impl AdaptiveSwapDecision {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Decision entry point
-// ---------------------------------------------------------------------------
 
 /// Pure decision function. Caller supplies:
 ///
@@ -419,9 +415,7 @@ impl InstantExt for Instant {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {

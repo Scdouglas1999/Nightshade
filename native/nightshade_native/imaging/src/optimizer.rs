@@ -67,7 +67,7 @@
 //!    model itself predicts is *worse* than keeping everything (a smaller cleaner
 //!    subset can still win, but only by *recovering* SNR from net-negative subs).
 //!
-//! ## Honest limits (per the design doc's "made honest, not functional" bar)
+//! ## Limitations
 //!
 //! - The **noise model** is the explicit assumption above. It is the right
 //!   first-order model for background-limited deep-sky subs and matches the
@@ -89,7 +89,7 @@ use crate::frame_weighting::FrameQuality;
 /// means the next sub bought less than ~0.5 % SNR — past the point where the
 /// integration time is worth it.
 ///
-/// Honest limit: a defensible default, not corpus-tuned (see module docs).
+/// A default, not a corpus-tuned value (see module docs).
 const KNEE_EPS: f64 = 0.005;
 
 /// One point on the predicted integration curve: the stacked metrics you would
@@ -406,10 +406,10 @@ pub fn recommend_subset(
     } else {
         // Only call the dropped subs "low-weight" when they genuinely weigh less
         // than the kept tail; otherwise they were dropped for SNR recovery, not
-        // weight, and "low-weight" would be a factual lie (the over-cull-on-equal
-        // -weight case finding 2 flagged). Compare the heaviest dropped sub to the
-        // lightest kept sub: only if the drop boundary is a real weight step do we
-        // say "low-weight".
+        // weight, and "low-weight" would be a factual lie — the over-cull case
+        // where every sub carries the same weight. Compare the heaviest dropped
+        // sub to the lightest kept sub: only if the drop boundary is a real
+        // weight step do we say "low-weight".
         let kept_min_w = order[..keep_n]
             .iter()
             .map(|&i| sanitize_weight(weights[i]))
@@ -440,9 +440,7 @@ pub fn recommend_subset(
     })
 }
 
-// =============================================================================
 // Internal helpers
-// =============================================================================
 
 /// Indices of `weights`, sorted by weight **descending**, stable on ties (a tie
 /// keeps the lower original index first). This is the weight-rank order every
@@ -489,10 +487,8 @@ mod tests {
         }
     }
 
-    // -------------------------------------------------------------------------
     // Test 1: N equal-quality subs ⇒ SNR ~ √n (the integration improvement law),
-    //         and the recommendation keeps them all.
-    // -------------------------------------------------------------------------
+    // and the recommendation keeps them all.
 
     #[test]
     fn equal_quality_subs_follow_sqrt_n_and_keep_all() {
@@ -558,11 +554,9 @@ mod tests {
         );
     }
 
-    // -------------------------------------------------------------------------
     // Test 2: N good subs + one appended high-noise/low-SNR sub ⇒ the curve's
-    //         tail declines (SNR(N) < SNR(N-1)) and the optimizer drops the bad
-    //         one, identifying it by its ORIGINAL index.
-    // -------------------------------------------------------------------------
+    // tail declines (SNR(N) < SNR(N-1)) and the optimizer drops the bad
+    // one, identifying it by its ORIGINAL index.
 
     #[test]
     fn appending_a_bad_sub_declines_the_tail_and_is_culled() {
@@ -618,9 +612,7 @@ mod tests {
         );
     }
 
-    // -------------------------------------------------------------------------
     // Test 3: min_keep clamp is honored even when the math wants to cull harder.
-    // -------------------------------------------------------------------------
 
     #[test]
     fn min_keep_clamp_is_honored() {
@@ -660,9 +652,7 @@ mod tests {
         assert_eq!(rec_over.keep_n, total, "min_keep clamps to N, not beyond");
     }
 
-    // -------------------------------------------------------------------------
     // Test 4: empty input ⇒ empty curve / keep_n = 0, no panic.
-    // -------------------------------------------------------------------------
 
     #[test]
     fn empty_input_is_handled_without_panic() {
@@ -676,9 +666,7 @@ mod tests {
         assert!(!rec.reason.is_empty(), "even the empty case gets a reason");
     }
 
-    // -------------------------------------------------------------------------
     // Error path: mismatched parallel-array lengths are refused.
-    // -------------------------------------------------------------------------
 
     #[test]
     fn length_mismatch_is_an_error() {
@@ -698,9 +686,7 @@ mod tests {
         assert_eq!(err2, err);
     }
 
-    // -------------------------------------------------------------------------
     // Supplementary correctness / robustness coverage.
-    // -------------------------------------------------------------------------
 
     #[test]
     fn aggressiveness_interpolates_between_knee_and_maxsnr() {
@@ -836,17 +822,14 @@ mod tests {
         );
     }
 
-    // -------------------------------------------------------------------------
-    // Regression (finding 1/3): a LARGE pile of identical good subs must NOT be
-    // culled. The diminishing-returns knee for equal-quality subs fires at the
-    // first prefix where (1 − √((n−1)/n)) < KNEE_EPS, i.e. around n ≈ 101,
-    // REGARDLESS of N. Before the never-harm floor, any stack of >100 equal subs
-    // had keep_n pulled down toward ~101–170, recommending you drop good,
-    // already-captured frames for a real, self-predicted SNR LOSS. The fix floors
-    // keep_n at the SNR-monotone region, so for equal subs (SNR strictly climbing)
-    // the floor is the full set: keep_n == N and gain >= 0 at every aggressiveness.
-    // The OLD tests never reached n >= 101, so this bug shipped green.
-    // -------------------------------------------------------------------------
+    // A large pile of identical good subs must NOT be culled. The
+    // diminishing-returns knee for equal-quality subs fires at the first prefix
+    // where (1 − √((n−1)/n)) < KNEE_EPS, i.e. around n ≈ 101, regardless of N.
+    // keep_n is floored at the SNR-monotone region, so for equal subs (SNR
+    // strictly climbing) the floor is the full set: keep_n == N and gain >= 0 at
+    // every aggressiveness. Without that floor a stack of >100 equal subs is
+    // pulled down toward ~101–170, dropping already-captured frames for a
+    // self-predicted SNR loss.
     #[test]
     fn large_pile_of_equal_good_subs_is_never_culled() {
         let n = 200usize; // well past the knee's ~101 landing point
@@ -883,13 +866,10 @@ mod tests {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // General never-harm invariant (finding 3): across a spread of random
-    // populations and every aggressiveness, the recommended subset's predicted SNR
-    // is never worse than the full stack. This is the property that actually backs
-    // the module's never-harm contract; it failed for any large equal-quality pile
-    // before the fix.
-    // -------------------------------------------------------------------------
+    // General never-harm invariant: across a spread of random populations and
+    // every aggressiveness, the recommended subset's predicted SNR is never
+    // worse than the full stack. This is the property that backs the module's
+    // never-harm contract, and a large equal-quality pile is its hardest case.
     #[test]
     fn recommended_subset_never_predicts_an_snr_loss() {
         // Tiny deterministic LCG so the random populations are reproducible.

@@ -5,10 +5,8 @@ use nightshade_imaging::read_fits;
 use nightshade_sequencer::scheduling::FrameContext;
 use std::path::{Path, PathBuf};
 
-/// A scratch directory that deletes itself when the test ends.
-/// `Drop` rather than the trailing `remove_file` calls these tests used to
-/// finish with: a trailing cleanup never runs while a panic unwinds, so a
-/// FAILING test used to leave its FITS behind — drop still runs.
+/// A scratch directory that deletes itself when the test ends. Cleanup runs
+/// from `Drop`, so it happens even while a panic unwinds out of a failing test.
 struct TempDir(PathBuf);
 
 impl std::ops::Deref for TempDir {

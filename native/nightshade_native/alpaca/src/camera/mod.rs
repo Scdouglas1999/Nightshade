@@ -156,11 +156,9 @@ pub struct CameraFullStatus {
 
 /// Alpaca image-array element types as carried in the JSON `Type` field.
 ///
-/// Why §5.3: previously the loop ignored `Type` entirely and assumed the JSON
-/// number could be coerced to `i64` or `f64` — which silently zero-filled on
-/// any unexpected token. We now branch on `Type` so the parser knows whether a
-/// fractional pixel is legitimate (Double/Single) or a corruption signal
-/// (any integer Type).
+/// The parser branches on `Type` so it knows whether a fractional pixel is
+/// legitimate (Double/Single) or a corruption signal (any integer Type);
+/// coercing every token to `i64`/`f64` zero-fills on anything unexpected.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ImageArrayElementType {
     /// Type 0 - server omitted/unknown

@@ -85,8 +85,8 @@ impl NativeCamera for FliCamera {
 
         // Dark/bias frames must keep the mechanical shutter CLOSED
         // (FLI_FRAME_TYPE_DARK); light/flat frames open it (FLI_FRAME_TYPE_NORMAL).
-        // The old code hardcoded NORMAL for every frame, so darks/bias were
-        // exposed with the shutter OPEN → light-contaminated calibration masters.
+        // A dark exposed as NORMAL is light-contaminated, and the calibration
+        // master built from it is worthless.
         let fli_frame_type = if params.frame_type.opens_shutter() {
             FLI_FRAME_TYPE_NORMAL
         } else {
@@ -518,8 +518,7 @@ impl NativeCamera for FliCamera {
             return Err(NativeError::NotConnected);
         }
 
-        // FLI cameras are primarily CCD cameras without adjustable gain.
-        // This returns a nominal range for compatibility.
+        // libfli exposes no gain control and no gain bounds to report.
         Err(NativeError::NotSupported)
     }
 
@@ -528,7 +527,7 @@ impl NativeCamera for FliCamera {
             return Err(NativeError::NotConnected);
         }
 
-        // FLI cameras typically don't have user-adjustable offset.
+        // libfli exposes no offset control and no offset bounds to report.
         Err(NativeError::NotSupported)
     }
 }

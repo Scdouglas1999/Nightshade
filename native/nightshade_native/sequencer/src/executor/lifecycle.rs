@@ -67,7 +67,7 @@ impl SequenceExecutor {
     /// [`Self::stop`] with the CALLER'S identity. The stop decision is what
     /// the dashboard's stop row claims "Stopped by request" off, and the
     /// scheduler drives this same path on unattended re-plans — an autopilot
-    /// stop must not wear the operator's evidence (Wave K refutation K1).
+    /// stop must not wear the operator's evidence.
     /// `origin` of `None` or `"operator"` is a human; `"scheduler"` is the
     /// autopilot.
     pub async fn stop_with_origin(&mut self, origin: Option<&str>) -> Result<(), String> {
@@ -225,9 +225,7 @@ impl SequenceExecutor {
         Ok(())
     }
 
-    // =========================================================================
     // Recovery Mode — operator-driven loop controls
-    // =========================================================================
 
     /// Operator pressed "Try Now" on the dashboard banner — punch through
     /// the wait timer and fire the next recovery attempt immediately. No-op
@@ -259,13 +257,13 @@ impl SequenceExecutor {
         Ok(())
     }
 
-    /// Trust-patch §7: jump execution to the node with the given id, marking
-    /// preceding sibling nodes as Skipped. Honoured on the next container's
-    /// tree-walk step; the currently-running instruction (e.g. an exposure
-    /// burst) continues to completion first.
+    /// Jump execution to the node with the given id, marking preceding sibling
+    /// nodes as Skipped. Honoured on the next container's tree-walk step; the
+    /// currently-running instruction (e.g. an exposure burst) continues to
+    /// completion first.
     ///
-    /// Errors when the executor is not running because the request would
-    /// otherwise be silently dropped — "errors are a feature".
+    /// Errors when the executor is not running, because the request would
+    /// otherwise be dropped without the caller knowing.
     pub async fn skip_to_node(&self, node_id: NodeId) -> Result<(), String> {
         let node_id_for_decision = node_id.clone();
         if let Some(tx) = &self.command_tx {

@@ -2,9 +2,7 @@
 
 use super::*;
 
-// ============================================================================
-// Handle Wrapper for Thread Safety
-// ============================================================================
+// Handle wrapper for thread safety
 
 pub(crate) struct HandleWrapper(pub(crate) HOgmacam);
 // SAFETY: HOgmacam is a `*mut c_void` opaque camera handle returned by Ogmacam_Open. The struct is always wrapped in `Mutex<HandleWrapper>` in TouptekCamera; the pointer is never dereferenced or modified outside `touptek_mutex().lock().await` + `handle.lock().unwrap()` sections (see all call sites in this module — every SDK call captures the handle value while both locks are held). Marking Send is therefore equivalent to a hand-serialized capability. Sync is intentionally NOT implemented (see comment block below).
@@ -12,10 +10,6 @@ unsafe impl Send for HandleWrapper {}
 // Note: Sync is intentionally omitted. HandleWrapper contains a raw pointer
 // (*mut c_void) that is not safe to share via &-references across threads. The Mutex<HandleWrapper>
 // provides synchronized access, and Mutex<T> only requires T: Send (not Sync) to be Sync itself.
-
-// ============================================================================
-// Camera Implementation
-// ============================================================================
 
 /// Touptek camera instance
 pub struct TouptekCamera {
@@ -31,6 +25,10 @@ pub struct TouptekCamera {
     pub(crate) sensor_info: SensorInfo,
     pub(crate) state: CameraState,
     pub(crate) current_gain: i32,
+    /// Gain bounds as reported by `get_ExpoAGainRange` at connect, in the SDK's own
+    /// percent-step units where 100 == 1x. `None` means the camera never reported a
+    /// range, which callers must surface as unknown rather than substitute a default.
+    pub(crate) gain_range: Option<(i32, i32)>,
     pub(crate) current_offset: i32,
     pub(crate) current_bin_x: i32,
     pub(crate) current_bin_y: i32,
@@ -40,6 +38,8 @@ pub struct TouptekCamera {
     pub(crate) exposure_duration: f64,
     pub(crate) exposure_started_at: Option<std::time::Instant>,
     pub(crate) model_flags: u64,
+    /// Upper bound of the model's fan-speed scale; 0 when the model reports no fan.
+    pub(crate) max_fan_speed: u32,
     /// Which brand SDK this camera uses
     pub(crate) brand: String,
     /// Heap-stable state shared with the SDK pull-mode event callback. `Some` only while
@@ -80,6 +80,7 @@ impl TouptekCamera {
             sensor_info: SensorInfo::default(),
             state: CameraState::Idle,
             current_gain: 100,
+            gain_range: None,
             current_offset: 0,
             current_bin_x: 1,
             current_bin_y: 1,
@@ -89,6 +90,7 @@ impl TouptekCamera {
             exposure_duration: 0.0,
             exposure_started_at: None,
             model_flags: 0,
+            max_fan_speed: 0,
             brand: brand.to_string(),
             event_state: None,
             pull_bytes_per_pixel: 0,

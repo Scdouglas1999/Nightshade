@@ -673,13 +673,7 @@ impl NativeCamera for PlayerOneCamera {
             return Err(NativeError::NotConnected);
         }
 
-        // Player One SDK doesn't expose control min/max through a dedicated function.
-        // The range depends on the camera model. Most Player One cameras support:
-        // - Gain: 0 to 500 (or higher for some models)
-        // - This is a conservative range that works for most cameras.
-        // Note: The actual max gain varies by model (e.g., Mars-C/M: 510, Neptune-C: 500)
-        // If the user sets a value outside the range, the SDK will return an error.
-        Ok((0, 500))
+        self.config_int_bounds(POAConfig::POA_GAIN).await
     }
 
     async fn get_offset_range(&self) -> Result<(i32, i32), NativeError> {
@@ -687,9 +681,6 @@ impl NativeCamera for PlayerOneCamera {
             return Err(NativeError::NotConnected);
         }
 
-        // Player One SDK doesn't expose control min/max through a dedicated function.
-        // Most Player One cameras support offset in the range 0-100.
-        // Some models may support higher values; the SDK will return an error if exceeded.
-        Ok((0, 100))
+        self.config_int_bounds(POAConfig::POA_OFFSET).await
     }
 }

@@ -5,9 +5,7 @@
 
 use super::*;
 
-// =============================================================================
-// SCRIPT INSTRUCTION
-// =============================================================================
+// Script instruction
 
 /// Effective timeout applied to a Run Script node that carries no explicit
 /// `timeout_secs`.
@@ -94,7 +92,7 @@ pub async fn execute_script(
     cmd.stdout(std::process::Stdio::piped());
     cmd.stderr(std::process::Stdio::piped());
 
-    // SEQ-001: isolate the child in its OWN process group (pgid == child pid).
+    // Isolate the child in its OWN process group (pgid == child pid).
     // `kill_on_drop` SIGKILLs only the *direct* child, so a script that
     // backgrounds work (`some_cmd &`) leaves those grandchildren running after a
     // timeout/cancel. With the child in its own group we can SIGKILL `-pgid` on
@@ -147,7 +145,7 @@ pub async fn execute_script(
             // The losing `wait_with_output` future has been dropped, so
             // `kill_on_drop` already SIGKILLed the direct child; now reap the rest
             // of its process group (any backgrounded grandchildren) so nothing the
-            // script spawned survives the abort (SEQ-001). Unix-only; elsewhere we
+            // script spawned survives the abort. Unix-only; elsewhere we
             // retain the existing direct-child `kill_on_drop` behaviour.
             #[cfg(unix)]
             kill_script_process_group(child_pid);
@@ -175,8 +173,8 @@ pub async fn execute_script(
 /// the negative-pgid group syntax is parsed inconsistently across `kill(1)`
 /// implementations (the bash builtin accepts it; some standalone util-linux
 /// `kill` binaries — e.g. on CI runners — reject `-<pgid>` as a bad option), and
-/// a misparse there silently leaks the group because the non-zero exit was
-/// ignored. The syscall has no such ambiguity (SEQ-001 regression on CI).
+/// a misparse there silently leaks the group because the non-zero exit is
+/// ignored. The syscall has no such ambiguity.
 #[cfg(unix)]
 pub(crate) fn kill_script_process_group(pid: Option<u32>) {
     let Some(pid) = pid else {

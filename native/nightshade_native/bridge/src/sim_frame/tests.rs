@@ -42,7 +42,7 @@ fn in_focus_frame_yields_enough_detectable_stars_for_autofocus() {
     assert!(
         count >= 10,
         "in-focus simulated frame produced {count} detectable stars; autofocus \
-         requires at least 10 and previously failed with 0"
+         requires at least 10"
     );
     let hfr = hfr.expect("stars were detected, so an HFR must be measurable");
     assert!(
@@ -214,9 +214,8 @@ fn default_sweep_window_spans_enough_hfr_for_a_v_curve() {
     );
 }
 
-/// Exposure has to move pixels. An 8 s frame and a 2 s frame were previously
-/// 99.73% bit-identical, which is what made every exposure-dependent
-/// behaviour untestable.
+/// Exposure has to move pixels: an 8 s frame and a 2 s frame that come back
+/// 99.7% bit-identical make every exposure-dependent behaviour untestable.
 #[test]
 fn longer_exposure_collects_more_signal() {
     // The bias pedestal is a fixed electronic offset and does not integrate,
@@ -268,10 +267,9 @@ fn gain_and_offset_move_the_frame() {
     );
 }
 
-/// The background must be noise, not the old diagonal sawtooth: a master
-/// dark built from a ramp injects that ramp into every calibrated light.
-/// Lag-1 autocorrelation along a row was 0.9835 and row 500 literally read
-/// 300, 301, 302, ...
+/// The background must be noise, not a diagonal sawtooth: a master dark built
+/// from a ramp injects that ramp into every calibrated light. A ramp shows up as
+/// a near-1 lag-1 autocorrelation along a row (rows reading 300, 301, 302, ...).
 #[test]
 fn background_is_noise_rather_than_a_ramp() {
     let buffer = frame(&SimFrameRequest {
@@ -336,9 +334,9 @@ fn short_exposure_does_not_saturate() {
     );
 }
 
-/// Darks, biases and flats must not contain stars. A DARK previously held 45
-/// compact peaks above 1000 ADU, brightest 33,780 — subtract that as a master
-/// dark and it punches holes in every light frame.
+/// Darks, biases and flats must not contain stars: compact peaks in a dark —
+/// tens of them, thousands of ADU tall — punch holes in every light frame that
+/// master dark is subtracted from.
 #[test]
 fn calibration_frames_contain_no_stars() {
     for frame_type in [FrameType::Dark, FrameType::Bias, FrameType::Flat] {
@@ -456,13 +454,12 @@ fn binning_shrinks_the_frame_and_sums_charge() {
 }
 
 /// The bias pedestal is injected once at the amplifier, so it must not move
-/// when the sensor bins. It previously scaled with bin area — 499.5 ADU at
-/// bin 1 but 1999.5 ADU at bin 2 — because the offset was added per sensor
-/// pixel and then carried into the sum by the binning loop. Binning sums
-/// charge; the offset is not charge. A camera that reported four pedestals
-/// on a binned bias would have every binned calibration master, every
-/// offset-derived check and every "is this pedestal sane" heuristic
-/// agreeing with the simulator and disagreeing with the hardware.
+/// when the sensor bins: adding the offset per sensor pixel lets the binning
+/// loop carry it into the sum, scaling it with bin area (499.5 ADU at bin 1
+/// against 1999.5 ADU at bin 2). Binning sums charge; the offset is not charge.
+/// A camera reporting four pedestals on a binned bias would have every binned
+/// calibration master, every offset-derived check and every "is this pedestal
+/// sane" heuristic agreeing with the simulator and disagreeing with hardware.
 #[test]
 fn bias_level_is_independent_of_binning() {
     // 500 ADU from the default offset of 10, at every binning the simulated
@@ -514,8 +511,8 @@ fn binned_signal_scales_with_bin_area_above_the_pedestal() {
 }
 
 /// One read means one read-noise draw. Summing a draw per sensor pixel
-/// inflated binned read noise by sqrt(bin area), so a binned simulated frame
-/// was noisier than the hardware it stands in for — the direction that lets
+/// inflates binned read noise by sqrt(bin area), making a binned simulated
+/// frame noisier than the hardware it stands in for — the direction that lets
 /// a real noise regression hide inside the simulator's own noise floor, and
 /// that makes binning look like it buys less SNR than it does.
 #[test]
@@ -560,9 +557,7 @@ fn subframe_returns_the_requested_region() {
     assert_eq!(frame(&request).len(), 640 * 480);
 }
 
-// =====================================================================
 // Real-sky rendering
-// =====================================================================
 
 fn digest(buffer: &[u16]) -> u64 {
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
@@ -576,11 +571,11 @@ fn digest(buffer: &[u16]) -> u64 {
 /// The pseudo-random field is untouched by the real-sky path.
 ///
 /// These digests were taken from a build with `add_sky_stars` and the `sky`
-/// field deleted outright, so they pin the frame as it stood BEFORE real-sky
-/// rendering existed rather than merely pinning it against itself. That
-/// matters because the sim's own suite asserts star counts, HFR and the
-/// autofocus V-curve against this exact field: if the default frame moves,
-/// every one of those numbers silently means something else.
+/// field deleted outright, so they pin the frame against an independent
+/// construction rather than merely against itself. That matters because the
+/// sim's own suite asserts star counts, HFR and the autofocus V-curve against
+/// this exact field: if the default frame moves, every one of those numbers
+/// silently means something else.
 ///
 /// A digest that fails here is a REGRESSION, not a golden to re-bless,
 /// unless the pseudo-random field was deliberately changed.

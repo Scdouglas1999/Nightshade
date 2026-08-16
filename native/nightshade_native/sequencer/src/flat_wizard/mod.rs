@@ -202,7 +202,7 @@ impl<'a> Wizard for FlatWizardRun<'a> {
             (WizardRunStatus::Failed(msg), _) => InstructionResult::failure(msg),
             (WizardRunStatus::Completed, None) => {
                 // Plan exhausted without convergence — emit the canonical
-                // pre-refactor error message.
+                // error message.
                 let tolerance = (f64::from(self.config.target_adu) * self.config.tolerance_percent
                     / 100.0) as u16;
                 let message = format!(
@@ -279,7 +279,7 @@ impl<'a> FlatWizardRun<'a> {
 
         let test_exposure = (self.min_exp + self.max_exp) / 2.0;
 
-        // Pre-refactor: iterations span 30%..85% of overall progress.
+        // Iterations span 30%..85% of overall progress.
         // Why: iteration is u32 in 1..=10; both lossless to f64.
         let fraction =
             0.30 + (f64::from(iteration) / f64::from(MAX_BINARY_SEARCH_ITERATIONS)) * 0.55;
@@ -461,12 +461,11 @@ fn final_flat_exposure_config(
 /// Capture the requested flats at the converged exposure.
 ///
 /// Flats go through the same save-path renderer as every other frame in the
-/// session. The wizard used to call [`execute_exposure`], whose renderer-less
-/// branch falls back to the pre-template `<target>_<filter>_<NNNN>.fits`
-/// layout — so the user's configured naming template did not apply to flats,
-/// and a flat run with no target (the normal shape, since flats are not shot
-/// at anything) filed every frame under the synthetic label `untargeted`
-/// instead of `Flat`.
+/// session, so the user's configured naming template applies to them:
+/// [`execute_exposure`]'s renderer-less branch falls back to the pre-template
+/// `<target>_<filter>_<NNNN>.fits` layout and files a flat run with no target
+/// — the normal shape, since flats are not shot at anything — under the
+/// synthetic label `untargeted` instead of `Flat`.
 ///
 /// The filter identity comes from [`resolve_frame_filter`], the same answer the
 /// FITS FILTER card and the `captured_images` row are built from, so the
@@ -535,8 +534,7 @@ pub async fn execute_flat_wizard(
         config.panel_location
     );
 
-    // Preserve the pre-refactor early-error path: a missing camera is
-    // surfaced before any other work.
+    // A missing camera is surfaced before any other work.
     if ctx.camera_id.as_deref().is_none() {
         return InstructionResult::failure("No camera connected");
     }
@@ -699,8 +697,8 @@ mod tests {
 
     #[test]
     fn fresh_seed_plan_has_filter_position_panel_iter1() {
-        // Why: regression guard — fresh runs (resume_idx=0) must keep
-        // the pre-refactor structural setup + first binary-search step.
+        // Why: regression guard — fresh runs (resume_idx=0) must keep the
+        // structural setup + first binary-search step.
         let config = test_config();
         let run = make_run(&config);
         let plan = run.plan_steps(0);

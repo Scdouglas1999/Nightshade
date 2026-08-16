@@ -5,13 +5,11 @@ use super::*;
 ///
 /// Every caller treats this as "make sure events are flowing" and calls it
 /// unconditionally — the Dart bridge does it at the top of `sequencerStart()`,
-/// and the headless and remote entry points reach the same place. Each call used
-/// to spawn two fresh supervised tasks, each holding its own receiver on the
-/// executor's broadcast channel and republishing everything it saw. Two runs in
-/// one app launch therefore meant every sequencer event reached the UI twice:
-/// two identical Critical toasts and two Session Report lines per node failure,
-/// two frame events per frame. `spawn_supervised_restart` is a bare
-/// `tokio::spawn` with no registry, so the task NAME does not dedupe.
+/// and the headless and remote entry points reach the same place. Without the
+/// latch each call spawns another pair of supervised tasks, each with its own
+/// receiver on the executor's broadcast channel, so every sequencer event
+/// reaches the UI once per run started in this launch. `spawn_supervised_restart`
+/// is a bare `tokio::spawn` with no registry, so the task name does not dedupe.
 ///
 /// Latching for the process lifetime is safe because the executor is a
 /// `OnceLock` singleton whose broadcast sender is created in
@@ -450,41 +448,25 @@ pub(crate) async fn run_sequencer_event_loop(
                     ))
                 }
                 ExecutorEvent::RuntimeConfigUpdated { what } => {
-                    // Internal housekeeping — logged, NOT surfaced to the
+                    // Internal housekeeping — logged, never surfaced to the
                     // operator's event feed.
                     //
-                    // This used to be emitted as a `SequencerEvent::Error`
-                    // carrying Info severity, on the reasoning that "the existing
-                    // UI subscriber sees the change without needing a new typed
-                    // payload (a typed payload would require an FRB regen)".
-                    // Observed live on a completely healthy 10-frame run: the top
-                    // row of Recent Events read
-                    //   [!] Sequencer  Sequencer error  x2  13:26:45
-                    //       Runtime config updated: conditions_score
-                    // because the Dart display layer derives an event's title and
-                    // criticality from its PAYLOAD type, so an Error payload reads
-                    // as an error however benign its severity claims to be.
-                    //
-                    // No Dart code consumes this event — grep for
-                    // "Runtime config updated" outside comments finds nothing. It
-                    // fires roughly every 30s, so its only measurable effect was
-                    // filling a five-row panel with false errors and evicting the
-                    // events that mattered. The tracing line below is the correct
-                    // channel for it.
+                    // It must not ride a `SequencerEvent::Error` payload: the
+                    // Dart display layer derives an event's title and criticality
+                    // from the PAYLOAD type, so an Error payload reads as an error
+                    // however benign its severity claims to be. Nothing in Dart
+                    // consumes this event and it fires roughly every 30 s, so on
+                    // the feed it would only evict the events that matter.
                     tracing::info!("[EVENT_SUB] Runtime config updated: {}", what);
                     None
                 }
-                // Recovery Mode — dispatch to first-class typed
-                // SequencerEvent variants. Pre-Wave-4.5 these tunneled
-                // through `InstructionProgress` with a `_recovery` sentinel
-                // node_id and JSON-encoded detail; the Dart side did
-                // string-prefix matching on `instruction` and
-                // `jsonDecode(detail)`. the FRB regen promotes these
-                // to typed payloads (see `SequencerEvent::Recovery{Started,
-                // Progress,Completed,GaveUp}` in `crate::event`). Severity
-                // is Critical on entry / GaveUp so the existing
+                // Recovery Mode — dispatch to first-class typed SequencerEvent
+                // variants (see `SequencerEvent::Recovery{Started,Progress,
+                // Completed,GaveUp}` in `crate::event`) rather than tunnelling
+                // through `InstructionProgress` for Dart to string-match.
+                // Severity is Critical on entry / GaveUp so the existing
                 // critical-event escalation paths (audible alert, push
-                // notification) keep firing without extra wiring.
+                // notification) fire without extra wiring.
                 ExecutorEvent::RecoveryStarted { context } => Some(create_event_auto_id(
                     EventSeverity::Critical,
                     EventCategory::Sequencer,

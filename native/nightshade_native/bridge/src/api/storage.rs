@@ -24,9 +24,7 @@ use tokio::sync::RwLock;
 // Sibling-module items via the parent's pub use re-exports.
 use super::*;
 
-// =============================================================================
-// Equipment Profiles
-// =============================================================================
+// Equipment profiles
 
 /// Initialize profile storage
 #[flutter_rust_bridge::frb(sync)]
@@ -72,9 +70,7 @@ pub async fn api_get_active_profile() -> Result<Option<EquipmentProfile>, Nights
     Ok(get_state().get_profile().await)
 }
 
-// =============================================================================
-// Settings & Location
-// =============================================================================
+// Settings & location
 
 /// Initialize settings storage and load observer location into memory
 #[flutter_rust_bridge::frb(sync)]

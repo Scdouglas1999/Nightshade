@@ -1,4 +1,5 @@
 use super::*;
+use crate::ascom_sensor_type::is_colour_sensor;
 
 /// Get capabilities for an Alpaca device
 ///
@@ -152,11 +153,17 @@ pub(crate) async fn get_alpaca_capabilities(
                 can_stop_exposure: camera.can_stop_exposure().await.unwrap_or(false), // Why: ICameraV3.CanStopExposure (optional)
                 pixel_size_x: camera.pixel_size_x().await.ok(),
                 pixel_size_y: camera.pixel_size_y().await.ok(),
-                // Why: SensorType enum 0=Monochrome, >0 = color variant. If the
-                // driver hides this property, default to monochrome — debayering
-                // a mono frame is a no-op, debayering a hidden color sensor
-                // produces a green frame, so mono is the safer fallback.
-                is_color: camera.sensor_type().await.map(|t| t > 0).unwrap_or(false),
+                // Why: ICameraV3.SensorType names a colour family only for the
+                // ordinals 1..=5 (see `crate::ascom_sensor_type`); an ordinal
+                // outside the enum names no family, and a hidden property names
+                // nothing at all. Both read monochrome — debayering a mono frame
+                // is a no-op, while claiming colour on a guess produces a green
+                // frame.
+                is_color: camera
+                    .sensor_type()
+                    .await
+                    .map(is_colour_sensor)
+                    .unwrap_or(false),
                 exposure_min: None, // Alpaca lacks exposure_min method
                 exposure_max: None, // Alpaca lacks exposure_max method
                 // Why: ASCOM/Alpaca ICameraV3 exposes SetCCDTemperature (the
@@ -537,5 +544,59 @@ pub(crate) async fn get_alpaca_capabilities(
             device_id,
             "get_capabilities",
         )),
+    }
+}
+
+#[cfg(test)]
+mod alpaca_sensor_type_tests {
+    use super::is_colour_sensor;
+
+    /// The `is_color` projection the camera arm above applies to
+    /// `ICameraV3.SensorType`, including the unreadable-property arm.
+    fn is_color(sensor_type: Result<i32, String>) -> bool {
+        sensor_type.map(is_colour_sensor).unwrap_or(false)
+    }
+
+    /// SensorType 1..=5 are the colour families: direct colour, RGGB, CMYG,
+    /// CMYG2, LRGB. All are colour whether or not their mosaic has an element
+    /// order this app can name.
+    #[test]
+    fn colour_families_report_colour() {
+        for sensor_type in 1..=5 {
+            assert!(
+                is_color(Ok(sensor_type)),
+                "SensorType={sensor_type} is a colour family"
+            );
+        }
+    }
+
+    /// Monochrome is the one in-enum ordinal that is not colour.
+    #[test]
+    fn monochrome_reports_mono() {
+        assert!(!is_color(Ok(0)));
+    }
+
+    /// An ordinal outside the enum names no family, so the camera reads
+    /// monochrome rather than being claimed colour on a guess — matching
+    /// `ascom_sensor_type`, which leaves such a sensor without a Bayer pattern.
+    #[test]
+    fn out_of_enum_sensor_type_reports_mono() {
+        for sensor_type in [-1, 6, 99, i32::MAX] {
+            assert!(
+                !is_color(Ok(sensor_type)),
+                "SensorType={sensor_type} is outside the enum and names no family"
+            );
+        }
+    }
+
+    /// A driver that refuses SensorType (Alpaca error 0x400, or any transport
+    /// failure) names nothing, so the frame stays monochrome instead of being
+    /// debayered on a guess.
+    #[test]
+    fn unreadable_sensor_type_reports_mono() {
+        assert!(!is_color(Err("SensorType: Alpaca error 0x400".to_string())));
+        assert!(!is_color(
+            Err("http 500 from the Alpaca server".to_string())
+        ));
     }
 }

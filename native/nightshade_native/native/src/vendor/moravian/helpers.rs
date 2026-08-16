@@ -2,10 +2,6 @@
 
 use super::*;
 
-// ============================================================================
-// Pure helpers (unit-tested)
-// ============================================================================
-
 /// Binned ROI in the coordinate system `gxccd_start_exposure` expects: origin
 /// is bottom-up (y grows up), matching `gxccd_read_image`'s Cartesian output.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

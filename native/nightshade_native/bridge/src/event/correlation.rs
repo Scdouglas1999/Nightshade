@@ -58,9 +58,7 @@ pub fn create_event_with_cause(
 /// Thread-safe shared event bus
 pub type SharedEventBus = Arc<EventBus>;
 
-// =========================================================================
-// Event Context for Tracking Causality
-// =========================================================================
+// Event context for tracking causality
 
 /// Context for tracking event causality
 ///
@@ -112,9 +110,7 @@ impl EventContext {
     }
 }
 
-// =========================================================================
-// Correlation ID Generator
-// =========================================================================
+// Correlation ID generator
 
 /// Generate a unique correlation ID
 ///

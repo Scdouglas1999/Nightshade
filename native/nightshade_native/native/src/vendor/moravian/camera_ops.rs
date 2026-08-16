@@ -752,10 +752,10 @@ impl NativeCamera for MoravianCamera {
             return Err(NativeError::NotConnected);
         }
 
-        // Moravian cameras (mostly CCD) typically have limited or no gain control.
-        // CMOS Moravian cameras would have adjustable gain.
-        // Return a nominal range that works for most.
-        Ok((0, 100))
+        // The gX SDK publishes no gain bounds, and the range genuinely differs between
+        // the CCD and CMOS model lines; report the absence rather than one invented
+        // range for both.
+        Err(NativeError::NotSupported)
     }
 
     async fn get_offset_range(&self) -> Result<(i32, i32), NativeError> {

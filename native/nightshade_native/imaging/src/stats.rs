@@ -156,13 +156,13 @@ pub struct CameraNoiseModel {
 /// image-grading eccentricity threshold, which operators set around 0.6-0.8.
 ///
 /// Why the two must not be the same number: a wind-trailed star at a 2:1 axis
-/// ratio measures e = 0.87 and is still a star. When the detector's ceiling
-/// sat at 0.7 it discarded exactly those stars, so a trailed frame came back
-/// with no measurable stars, [`frame_eccentricity`] returned `None`, and the
-/// grading gate read that as "unknown — do not reject". The frame that the
-/// gate exists to catch was the one frame it could never see. Clipping the
-/// measurement at the decision threshold makes the decision un-fireable, so
-/// the detector must measure well past anything a grader would reject.
+/// ratio measures e = 0.87 and is still a star. A detector ceiling of 0.7
+/// discards exactly those, so a trailed frame comes back with no measurable
+/// stars, [`frame_eccentricity`] returns `None`, and the grading gate reads
+/// that as "unknown — do not reject": clipping the measurement at the decision
+/// threshold makes the decision un-fireable. The detector must measure well
+/// past anything a grader would reject. [`SELECTION_MAX_ECCENTRICITY`] is the
+/// tight answer, for callers that need one.
 pub const DETECTION_MAX_ECCENTRICITY: f64 = 0.95;
 
 /// Working-star eccentricity ceiling: how round a source must be before we
@@ -170,19 +170,15 @@ pub const DETECTION_MAX_ECCENTRICITY: f64 = 0.95;
 ///
 /// [`DETECTION_MAX_ECCENTRICITY`] answers a different question — "is this
 /// source a star at all?" — and must stay permissive so a trailed frame is
-/// still measurable. Answering both questions with one number is what broke:
-/// widening detection to 0.95 so grading could finally see trailing also
-/// widened guide-star picking, autofocus HFR and star masking, which had been
-/// tuned against the old 0.7 and want the *tight* answer. A guide star at
-/// e = 0.9 is a smear whose centroid wanders along its major axis, and a
-/// trailed star's HFR reads as defocus, so a focuser chases a shape error.
+/// still measurable. One number cannot answer both: a guide star at e = 0.9 is
+/// a smear whose centroid wanders along its major axis, and a trailed star's
+/// HFR reads as defocus, so a focuser chases a shape error.
 ///
-/// 0.7 (a ~1.4:1 axis ratio) is the value every one of those consumers was
-/// tuned against before the two questions were conflated. Use
-/// [`detect_stars_for_selection`] — or [`detect_stars_with_stats`], which
-/// applies this to the stars it returns — to get the tight answer;
-/// [`detect_stars`] deliberately still returns everything the detector
-/// measured so per-frame shape statistics stay honest.
+/// 0.7 (a ~1.4:1 axis ratio) is what guide-star picking, autofocus HFR and
+/// star masking are tuned against. Use [`detect_stars_for_selection`] — or
+/// [`detect_stars_with_stats`], which applies this to the stars it returns —
+/// to get the tight answer; [`detect_stars`] deliberately returns everything
+/// the detector measured so per-frame shape statistics stay honest.
 pub const SELECTION_MAX_ECCENTRICITY: f64 = 0.7;
 
 /// Star detection configuration
@@ -215,12 +211,12 @@ pub struct StarDetectionConfig {
     pub max_sharpness: f64,
     /// Camera noise model for the electron-domain CCD-equation SNR.
     ///
-    /// Why: when present, SNR is computed in electrons
-    /// When `None`, SNR uses the ADU-domain approximation against the
-    /// measured per-pixel background variance (still the standard CCD
-    /// equation, just evaluated empirically). Callers that do have
-    /// camera metadata (gain, read-noise, dark-current, exposure) should
-    /// populate this so reported SNR is comparable across cameras.
+    /// When present, SNR is computed in electrons from gain, read noise, dark
+    /// current and exposure. When `None`, SNR uses the ADU-domain
+    /// approximation against the measured per-pixel background variance —
+    /// still the standard CCD equation, just evaluated empirically. Populate
+    /// it wherever camera metadata is available so reported SNR is comparable
+    /// across cameras.
     pub noise_model: Option<CameraNoiseModel>,
 }
 
@@ -427,12 +423,11 @@ pub fn detect_stars(image: &ImageData, config: &StarDetectionConfig) -> Vec<Dete
 /// choice, while a config left at the permissive detection default gets the
 /// working-star answer rather than the "is it a star at all" answer.
 ///
-/// The asymmetry is deliberate and is why [`StarDetectionResult::sources`]
-/// exists: a caller asking for something *looser* than the working-star
-/// ceiling is not asking for guide stars, it is measuring the field, and this
-/// function cannot tell that apart from the crate default (both are 0.95).
-/// Rather than guess, we keep the safe answer in `stars` and hand the caller's
-/// verbatim population back in `sources`.
+/// The asymmetry is why [`StarDetectionResult::sources`] exists: a caller
+/// asking for something *looser* than the working-star ceiling is measuring
+/// the field, not picking guide stars, and this function cannot tell that
+/// apart from the crate default (both are 0.95). `stars` therefore keeps the
+/// safe answer and `sources` carries the caller's verbatim population.
 fn selection_eccentricity_ceiling(config: &StarDetectionConfig) -> f64 {
     config.max_eccentricity.min(SELECTION_MAX_ECCENTRICITY)
 }
@@ -442,11 +437,10 @@ fn selection_eccentricity_ceiling(config: &StarDetectionConfig) -> f64 {
 ///
 /// Deliberately ignores a caller that asks for something tighter, because a
 /// shape statistic computed from a population pre-filtered at the caller's own
-/// threshold can never exceed that threshold — the same self-blinding that made
-/// the grading gate un-fireable at 0.7. `api_detect_stars_in_file` still ships a
-/// config with `max_eccentricity: 0.7`, so without this widening the FITS
-/// star-analysis screen reports every trailed frame as `e <= 0.70` no matter how
-/// badly it is smeared.
+/// threshold can never exceed that threshold. `api_detect_stars_in_file` ships
+/// a config with `max_eccentricity: 0.7`, so without this widening the FITS
+/// star-analysis screen reports every trailed frame as `e <= 0.70` no matter
+/// how badly it is smeared.
 ///
 /// Widening is safe because eccentricity is the *only* filter relaxed: area,
 /// HFR, SNR and sharpness limits still apply, and a cosmic ray or satellite
@@ -546,15 +540,13 @@ fn measure_star(ctx: &mut StarMeasurementContext, cx: usize, cy: usize) -> Optio
 
     // First pass: Calculate centroid using intensity-weighted center.
     //
-    // Why we no longer mark visited here (audit IMG-): the previous
-    // implementation stamped the entire `(2·hfr_radius+1)²` search window
-    // as visited, which with the default `hfr_radius=20` is a 41×41
-    // forbidden zone after each detection. In dense fields (M13, M11
-    // cores, Pleiades) two real stars within ~40 px would not both be
-    // detected — the second one was masked out before its centroid was
-    // ever computed. We now defer visited marking until *after* HFR is
-    // known, then stamp only the actual star aperture (an HFR-derived
-    // disk). See the stamp at the bottom of this function.
+    // Why visited is not marked here: stamping the whole
+    // `(2·hfr_radius+1)²` search window is a 41×41 forbidden zone after each
+    // detection at the default `hfr_radius=20`, so in dense fields (M13, M11
+    // cores, Pleiades) the second of two stars ~40 px apart is masked out
+    // before its centroid is ever computed. Marking is deferred until HFR is
+    // known and then stamps only the star aperture, an HFR-derived disk. See
+    // the stamp at the bottom of this function.
     let mut sum_x = 0.0;
     let mut sum_y = 0.0;
     let mut sum_flux = 0.0;
@@ -795,8 +787,8 @@ fn stamp_visited_disk(ctx: &mut StarMeasurementContext, cx: f64, cy: f64, radius
 /// 50% point.
 ///
 /// This matches the NINA / SGP / PixInsight HFR convention. The
-/// previous implementation returned the flux-weighted *mean* radius
-/// ⟨r⟩, which over-states FWHM by ~25% for a Gaussian PSF.
+/// flux-weighted *mean* radius ⟨r⟩ is a different quantity — it
+/// over-states FWHM by ~25% for a Gaussian PSF.
 fn calculate_hfr_at_point(
     pixels: &[f64],
     width: usize,
@@ -1026,8 +1018,8 @@ pub fn calculate_display_histogram(image: &ImageData, logarithmic: bool) -> Vec<
         // divisor that yields a flat 0.0 display (no division by zero)
         // rather than a NaN-filled output that the GPU shader would
         // render as black. We also clamp the actual max to 1 for the same
-        // reason: an all-zero image (e.g. just-opened darks) used to
-        // produce NaN bars from a 0/0 division.
+        // reason: an all-zero image (e.g. just-opened darks) would otherwise
+        // divide 0/0 into NaN bars.
         let max_raw = *histogram.iter().max().unwrap_or(&1);
         let max_val = max_raw.max(1) as f32;
         histogram
@@ -1415,9 +1407,9 @@ mod tests {
 
     /// Render a synthetic 2-D Gaussian PSF on a u16 grid.
     ///
-    /// Why: the audit (§6.11) requires a load-bearing test that builds a
-    /// known-σ Gaussian, runs the detector, and asserts the reported HFR
-    /// (≈ 1.177 σ) and FWHM (≈ 2.355 σ) within 5%.
+    /// Why: the load-bearing test builds a known-σ Gaussian, runs the
+    /// detector, and asserts the reported HFR (≈ 1.177 σ) and FWHM
+    /// (≈ 2.355 σ) within 5%.
     fn render_gaussian_u16(width: u32, height: u32, cx: f64, cy: f64, sigma: f64) -> ImageData {
         const BACKGROUND: f64 = 1000.0;
         const PEAK: f64 = 30000.0;
@@ -1438,8 +1430,8 @@ mod tests {
 
     /// Render a synthetic Moffat-β profile.
     ///
-    /// Why: the audit (§6.11) asks for a Moffat-2 cross-check confirming the
-    /// metric behaves under non-Gaussian PSFs. Moffat β=2 has heavier wings
+    /// Why: the Moffat-2 cross-check confirms the metric behaves under
+    /// non-Gaussian PSFs. Moffat β=2 has heavier wings
     /// than a Gaussian; its encircled-energy HFR is therefore larger than
     /// the half-maximum radius for the same analytic FWHM.
     fn render_moffat_u16(
@@ -1781,9 +1773,9 @@ mod tests {
         // The config here is deliberately `default()`, not a loosened test
         // config: it is verbatim what `real_device_ops` /
         // `unified_device_ops` hand to `detect_stars` before calling
-        // `frame_eccentricity`. With the old 0.7 ceiling every one of these
-        // stars was discarded, the frame reported zero stars, and the median
-        // eccentricity came back `None` = "unknown, don't reject".
+        // `frame_eccentricity`. A 0.7 detection ceiling discards every one of
+        // these stars, the frame reports zero stars, and the median
+        // eccentricity comes back `None` = "unknown, don't reject".
         let (sigma_major, sigma_minor) = (6.0_f64, 2.4_f64);
         let image =
             render_trailed_field_u16(280, 160, &trailed_field_centers(), sigma_major, sigma_minor);
@@ -2216,9 +2208,7 @@ mod tests {
         assert_eq!(compute_snr(100.0, 0.0, 2.0, None), 0.0);
     }
 
-    // -----------------------------------------------------------------
-    // Audit IMG-visited-mask = star aperture, not search window.
-    // -----------------------------------------------------------------
+    // Visited mask is the star aperture, not the search window.
 
     /// Render `n` Gaussian PSFs at the supplied (cx, cy) coordinates.
     fn render_multi_gaussian_u16(
@@ -2259,20 +2249,18 @@ mod tests {
             min_hfr: 0.5,
             min_snr: 1.0,
             max_sharpness: 1.0,
-            // Default hfr_radius=20 reproduces the bug: 41×41 forbidden
-            // zone after each detection ⇒ stars 25 px apart hidden by
-            // the old square-stamp implementation.
+            // Default hfr_radius=20: a square visited-stamp would be a 41×41
+            // forbidden zone after each detection, hiding stars 25 px apart.
             hfr_radius: 20,
             ..Default::default()
         }
     }
 
-    /// Two stars 25 px apart with FWHM=4 must both be detected.
-    ///
-    /// Pre-fix (visited = full 41×41 search window): only one was found.
-    /// Post-fix (visited = 2·HFR disk ≈ 5 px radius): both detected.
+    /// Two stars 25 px apart with FWHM=4 must both be detected: visited is
+    /// stamped only over the HFR-derived disk (≈ 5 px radius), where a full
+    /// 41×41 search-window stamp hides the second star.
     #[test]
-    fn two_neighbouring_stars_are_both_detected_after_aperture_visited_fix() {
+    fn two_neighbouring_stars_are_both_detected() {
         let fwhm = 4.0;
         let sigma = sigma_for_fwhm(fwhm);
         let centers = [(30.0, 32.0), (55.0, 32.0)]; // 25 px apart
@@ -2448,15 +2436,15 @@ mod tests {
         assert!(visited[12 * width + 12]);
     }
 
-    /// Regression: the sharpness filter must discriminate stars from hot pixels,
-    /// not reject everything.
+    /// The sharpness filter must discriminate stars from hot pixels, not
+    /// reject everything.
     ///
-    /// `sharpness` was `peak / mean_flux_per_pixel`, which exceeds 1 for any
-    /// peaked source and was then clamped to exactly 1.0 — above the 0.95
-    /// default — so `detect_stars_with_stats` returned ZERO stars for real star
-    /// fields. Downstream that read as "Insufficient stars detected. Only 0
-    /// stars found (minimum: 10)" from autofocus, no HFR for grading, and
-    /// nothing for the HFR / focus-drift triggers to measure.
+    /// A `sharpness` of `peak / mean_flux_per_pixel` exceeds 1 for any peaked
+    /// source and clamps to exactly 1.0 — above the 0.95 default — so
+    /// `detect_stars_with_stats` returns ZERO stars for real star fields.
+    /// Downstream that reads as "Insufficient stars detected. Only 0 stars
+    /// found (minimum: 10)" from autofocus, no HFR for grading, and nothing
+    /// for the HFR / focus-drift triggers to measure.
     #[test]
     fn sharpness_passes_a_star_and_rejects_a_hot_pixel() {
         const W: usize = 120;

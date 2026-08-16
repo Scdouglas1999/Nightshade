@@ -2,10 +2,6 @@
 
 use super::*;
 
-// =============================================================================
-// QHY FILTER WHEEL (CFW) IMPLEMENTATION
-// =============================================================================
-
 pub(crate) const QHYCCD_ERROR_VALUE: f64 = u32::MAX as f64;
 pub(crate) const DEFAULT_QHY_CFW_SLOTS: i32 = 5;
 pub(crate) const MAX_QHY_CFW_SLOTS: i32 = 16;

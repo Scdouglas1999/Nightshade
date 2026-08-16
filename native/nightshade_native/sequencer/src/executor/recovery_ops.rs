@@ -66,10 +66,9 @@ pub(crate) fn alt_az_to_ra_dec(
 /// the relevant context plumbing arrives.
 /// Actively re-acquire the guide star after a `GuideStarLost` event.
 ///
-/// The previous implementation only *queried* `is_guiding` and reported
-/// success/failure — it never told the guider to find a star again, so once a
-/// star was lost the recovery could only ever succeed if the guider happened to
-/// re-lock on its own. This mirrors the verified lock-on logic in
+/// Merely *querying* `is_guiding` never tells the guider to find a star again,
+/// so once a star is lost the recovery could only succeed if the guider
+/// happened to re-lock on its own. This mirrors the lock-on logic in
 /// `execute_start_guiding`: it issues `guider_start` (which, for PHD2, performs
 /// auto-select + calibrate-if-needed + guide, i.e. a real re-acquisition) and
 /// then polls `guider_get_status` until guiding is confirmed within a bounded
@@ -194,19 +193,15 @@ pub(crate) async fn run_recovery_attempt(
             },
         },
         RecoveryCause::WeatherUnsafe => {
-            // Fail-closed recovery gate (architecture-unification 2026-06-05,
-            // Subsystem 2 step 4). A weather abort can be tripped by EITHER the
-            // hardware safety device (`safety_is_safe`) OR the Dart-side verdict
-            // (API alert / configured threshold / park-before-dawn), ORed in
-            // `triggers.rs:535`. The old re-check polled ONLY the hardware boolean,
-            // so a Dart-threshold-only abort (hardware reads safe, but the API
-            // says a storm is overhead) was declared "recovered" the instant the
-            // hardware poll returned safe → premature resume into API-unsafe
-            // weather. We now require BOTH sources to be clear before resuming:
-            // the hardware poll must read safe AND the Dart verdict must not be
-            // `Some(true)` (still-unsafe). `Some(false)` (Dart explicitly safe)
-            // and `None` (Dart abstains) both permit resume — they cannot pin the
-            // sequence paused, so this only adds-unsafe and never weakens the gate.
+            // Fail-closed recovery gate. A weather abort can be tripped by EITHER the
+            // hardware safety device (`safety_is_safe`) OR the Dart-side verdict (API
+            // alert / configured threshold / park-before-dawn), so resuming requires
+            // BOTH to be clear: the hardware poll must read safe AND the Dart verdict
+            // must not be `Some(true)`. Re-checking the hardware boolean alone declares
+            // a Dart-threshold-only abort "recovered" the instant the hardware reads
+            // safe, resuming into API-unsafe weather. `Some(false)` (Dart explicitly
+            // safe) and `None` (Dart abstains) both permit resume — they cannot pin the
+            // sequence paused, so this only ever adds an unsafe source.
             let verdict_unsafe = {
                 let state = trigger_manager.read().await.state();
                 let guard = state.read().await;
@@ -277,14 +272,14 @@ pub(crate) async fn run_recovery_attempt(
                 };
             }
 
-            // Actively drive a reconnect for each device. The old behaviour only
-            // POLLED device_is_connected, which never recovers camera / focuser
-            // / filter-wheel disconnects: those devices default to
-            // auto_reconnect=false, so the background reconnection loop skips
-            // them and the recovery budget is burned reporting "still
-            // disconnected". connect_device() flips auto_reconnect on AND issues
-            // an immediate connect. A failed attempt is non-fatal — the
-            // is_connected verification below decides the outcome.
+            // Actively drive a reconnect for each device. Polling
+            // device_is_connected alone never recovers camera / focuser /
+            // filter-wheel disconnects: those devices default to
+            // auto_reconnect=false, so the background reconnection loop skips them
+            // and the recovery budget burns reporting "still disconnected".
+            // connect_device() flips auto_reconnect on AND issues an immediate
+            // connect. A failed attempt is non-fatal — the is_connected
+            // verification below decides the outcome.
             for device_id in device_ids {
                 if let Err(e) = device_ops.connect_device(device_id).await {
                     tracing::warn!(

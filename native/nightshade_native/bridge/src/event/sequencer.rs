@@ -12,23 +12,18 @@ pub enum SequencerEvent {
     Stopped {
         /// The run this terminal belongs to, when the publisher knows it.
         /// Episode identity for the dashboard's stop fold: without it a
-        /// bare terminal and a neighbouring press are indistinguishable
-        /// (Wave K refutation K2).
+        /// bare terminal and a neighbouring press are indistinguishable.
         sequence_run_id: Option<i64>,
     },
     Completed,
     /// The run ended in FAILURE. Terminal, and the counterpart of
     /// [`SequencerEvent::Completed`] / [`SequencerEvent::Stopped`].
     ///
-    /// `ExecutorEvent::SequenceFailed` used to be flattened onto
-    /// `SequencerEvent::Error`, which the Dart executor handles as a
-    /// *non-terminal* mid-run error. The consequence was that Dart's
-    /// `case 'SequenceFailed'` branch — the one that drives
-    /// `_onTerminalEvent` — was unreachable dead code, so a failed run NEVER
-    /// finalized: `sequence_runs.status` stayed `'running'` with a null
-    /// `ended_at`, the imaging session stayed active, and the next start was
-    /// refused with `active_session_exists` until the operator manually reset
-    /// the sequencer.
+    /// This is what drives Dart's `_onTerminalEvent`; `SequencerEvent::Error` is
+    /// handled there as a non-terminal mid-run error, so a failure delivered as
+    /// `Error` never finalizes the run — `sequence_runs.status` stays `'running'`
+    /// with a null `ended_at`, the imaging session stays active, and the next
+    /// start is refused with `active_session_exists`.
     Failed {
         error: String,
     },
@@ -72,14 +67,10 @@ pub enum SequencerEvent {
     /// A meridian flip finished. Mirrors
     /// `ExecutorEvent::MeridianFlipOutcome`.
     ///
-    /// The flip is the single most dangerous thing the app does unattended and
-    /// it used to be entirely absent from the wire: the run vitals reported
-    /// `meridianFlips: 0` after a flip that had physically swapped pier sides,
-    /// and a flip whose post-flip plate-solve recenter FAILED left
-    /// `errorMessages: []` on a run reported as `completed`. This variant is
-    /// the typed verdict the Dart run-stats layer consumes — deliberately
-    /// typed rather than string-sniffed off the log, matching the Pack-H
-    /// migration away from regex-parsed `detail` strings.
+    /// The flip is the most dangerous operation the app runs unattended, so its
+    /// verdict rides the wire as this typed variant — consumed by the Dart
+    /// run-stats layer, which counts the flip and surfaces a failed post-flip
+    /// recenter rather than sniffing either out of a log string.
     MeridianFlipOutcome {
         /// `"success"`, `"failed"`, or `"aborted"`.
         outcome: String,
@@ -134,21 +125,15 @@ pub enum SequencerEvent {
         detail_json: String,
     },
 
-    // ===== typed Wave-3 progress payloads =====
+    // Typed progress payloads.
     //
-    // Pre-Pack-H, the image-grading + target-scheduler progress
-    // payloads (`ProgressDetail::FrameAccepted/FrameRejected/Scheduler/
-    // IntegrationBudget`) were stringified through `ProgressDetail::detail_text()`
-    // and shipped on `InstructionProgress.detail`. The Dart side parsed
-    // those strings with regex (`FrameGradeEvent.tryParseDetail`) — fragile,
-    // lossy, and silently dropped fields that didn't fit the format string.
-    //
-    // promotes the four high-value variants to first-class typed
-    // `SequencerEvent` variants. The bridge's `run_sequencer_event_loop`
-    // matches on the structured `ProgressDetail` directly and emits the
-    // typed variant; the legacy `InstructionProgress` is still emitted in
-    // parallel so any subscriber that hasn't migrated yet keeps working
-    // (back-compat: the typed variants are *additional*, not replacements).
+    // The image-grading and target-scheduler details
+    // (`ProgressDetail::FrameAccepted/FrameRejected/Scheduler/IntegrationBudget`)
+    // are first-class typed variants rather than strings the Dart side has to
+    // regex out of `InstructionProgress.detail`. `run_sequencer_event_loop`
+    // matches on the structured `ProgressDetail` and emits the typed variant; the
+    // legacy `InstructionProgress` is emitted alongside it, so the typed variants
+    // are additional, not replacements, and unmigrated subscribers keep working.
     /// Image Grading: a frame passed every configured
     /// quality threshold and was saved to the normal output folder.
     /// Mirrors `ProgressDetail::FrameAccepted`.
@@ -277,20 +262,14 @@ pub enum SequencerEvent {
         reason: String,
     },
 
-    // ===== typed Science / photometry progress payloads =====
+    // Typed Science / photometry progress payloads.
     //
-    // Photometry progress already existed as `ProgressDetail` variants
+    // These mirror the field shapes of the `ProgressDetail` photometry variants
     // (`PhotometryFrame`, `PhotometryCadenceBroken`, `PhotometrySummary` — see
-    // `nightshade_sequencer::node::progress`) but was only shipped stringified
-    // through `ProgressDetail::detail_text()` on `InstructionProgress.detail`.
-    // The Dart light-curve panel parsed that string fragilely (it has to recover
-    // floats like SNR / FWHM / airmass that Rust formatted with `{:?}`). These
-    // typed variants mirror the corresponding `ProgressDetail` field shapes so
-    // the panel binds to explicit fields. Following the Wave-3 precedent above,
-    // the bridge's `run_sequencer_event_loop` emits these typed variants
-    // alongside the legacy `InstructionProgress` — the typed variants are
-    // *additional*, not replacements, so any subscriber that hasn't migrated
-    // keeps working.
+    // `nightshade_sequencer::node::progress`) so the Dart light-curve panel binds
+    // to explicit floats (SNR / FWHM / airmass) instead of recovering them from a
+    // formatted `detail` string. As with the progress payloads above, they are
+    // emitted alongside the legacy `InstructionProgress`, not in place of it.
     /// Science: per-frame photometry payload from the
     /// `SciencePhotometryInstruction`. Mirrors
     /// `ProgressDetail::PhotometryFrame`. The Dart science pipeline writes a row
@@ -366,7 +345,7 @@ pub enum SequencerEvent {
         last_reject_reason: Option<String>,
     },
 
-    // ===== Recovery Mode — typed entry / progress / exit events =====
+    // Recovery Mode — typed entry / progress / exit events
     //
     // Pre-Wave-4.5, the Rust executor's `ExecutorEvent::Recovery*` events
     // were routed through the legacy `InstructionProgress` channel with
@@ -457,7 +436,7 @@ pub enum SequencerEvent {
         aborted_by_user: bool,
     },
 
-    // ===== plugin sequence nodes (Rust dispatch) =====
+    // plugin sequence nodes (Rust dispatch)
     //
     // The Rust executor reaches a `NodeType::PluginNode`, registers a
     // pending oneshot for the node id, and emits PluginNodeRequested.
@@ -500,7 +479,7 @@ pub enum SequencerEvent {
         detail_json: String,
     },
 
-    // ===== Replay Debug: typed decision payload =====
+    // Replay Debug: typed decision payload
     /// Replay Debug — a structured decision emitted by the
     /// sequencer (scheduler pick, trigger fire, recovery transition,
     /// frame verdict, adaptive swap, plugin invocation, manual operator

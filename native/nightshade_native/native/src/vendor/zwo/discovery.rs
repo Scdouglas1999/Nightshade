@@ -2,10 +2,6 @@
 
 use super::*;
 
-// =============================================================================
-// ZWO CAMERA DISCOVERY
-// =============================================================================
-
 /// ZWO camera discovery info
 pub struct ZwoDiscoveryInfo {
     /// Stable SDK CameraID used by ASIOpenCamera and all subsequent operations.

@@ -2,10 +2,6 @@
 
 use super::*;
 
-// =============================================================================
-// TRAIT IMPLEMENTATIONS
-// =============================================================================
-
 #[async_trait]
 impl NativeDevice for FujifilmCamera {
     fn id(&self) -> &str {
@@ -83,7 +79,7 @@ impl NativeDevice for FujifilmCamera {
         std::thread::sleep(Duration::from_millis(100));
 
         // 4. CRITICAL: Set dynamic range to 100 BEFORE ISO operations
-        // SAFETY: fujifilm_mutex held; `camera_handle` valid; XSDK_SetDynamicRange takes (handle, c_long) POD per XAPI.h. Must precede ISO operations per module header §Important SDK Behaviors §1.
+        // SAFETY: fujifilm_mutex held; `camera_handle` valid; XSDK_SetDynamicRange takes (handle, c_long) POD per XAPI.h. Must precede ISO operations per the module header's "Important SDK Behaviors" §1.
         unsafe { (sdk.set_dynamic_range)(camera_handle, XSDK_DR_100) };
         std::thread::sleep(Duration::from_millis(100));
 
@@ -264,7 +260,7 @@ impl NativeCamera for FujifilmCamera {
 
         // 1. Set ISO if specified
         if let Some(gain) = params.gain {
-            // SAFETY: fujifilm_mutex held above (in start_exposure); `self.camera_handle.0` valid (connected==true was checked); XSDK_SetSensitivity takes (handle, c_long) POD per XAPI.h. The 100ms sleep below honours the SDK §Important SDK Behaviors §2 settling delay.
+            // SAFETY: fujifilm_mutex held above (in start_exposure); `self.camera_handle.0` valid (connected==true was checked); XSDK_SetSensitivity takes (handle, c_long) POD per XAPI.h. The 100ms sleep below honours the module header's "Important SDK Behaviors" §2 settling delay.
             unsafe { (sdk.set_sensitivity)(self.camera_handle.0, gain as c_long) };
             self.current_iso = gain;
             tokio::time::sleep(Duration::from_millis(100)).await;
@@ -498,7 +494,7 @@ impl NativeCamera for FujifilmCamera {
         let sdk = FujifilmSdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let _lock = fujifilm_mutex().lock().await;
 
-        // SAFETY: fujifilm_mutex held above (in set_gain); `self.camera_handle.0` valid (connected==true was checked); XSDK_SetSensitivity takes (handle, c_long) POD per XAPI.h. The 100ms tokio sleep below honours SDK §Important SDK Behaviors §2.
+        // SAFETY: fujifilm_mutex held above (in set_gain); `self.camera_handle.0` valid (connected==true was checked); XSDK_SetSensitivity takes (handle, c_long) POD per XAPI.h. The 100ms tokio sleep below honours the module header's "Important SDK Behaviors" §2.
         unsafe { (sdk.set_sensitivity)(self.camera_handle.0, gain as c_long) };
         self.current_iso = gain;
         tokio::time::sleep(Duration::from_millis(100)).await;

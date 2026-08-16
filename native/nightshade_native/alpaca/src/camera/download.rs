@@ -1,7 +1,7 @@
 //! Image download paths for `AlpacaCamera`.
 //!
-//! Split out of `camera.rs` verbatim: these are the only members of the
-//! property-wrapper impl that drive the ImageArray / ImageBytes decoders.
+//! These are the members of the property-wrapper impl that drive the
+//! ImageArray / ImageBytes decoders.
 
 use super::*;
 
@@ -22,15 +22,14 @@ impl AlpacaCamera {
     /// `AlpacaError::ColorImageUnsupported` so callers cannot silently lose the
     /// channel dimension; use [`download_image_array_full_typed`] for those.
     ///
-    /// Why §5.3: previously any pixel that failed `as_i64`/`as_f64` was
-    /// substituted with `0`, corrupting whole frames on any JSON anomaly. We
-    /// now propagate `AlpacaError::PixelParseError` with the exact offset and
-    /// offending JSON token. Rank 3 used to be flattened silently; we now
-    /// reject it explicitly until a multi-plane consumer lands.
+    /// A pixel that fails `as_i64`/`as_f64` propagates as
+    /// `AlpacaError::PixelParseError` carrying the exact offset and offending
+    /// JSON token; substituting `0` would corrupt a whole frame on any JSON
+    /// anomaly. Rank 3 is rejected outright until a multi-plane consumer lands.
     ///
-    /// Why §5.12: this used to build a fresh `reqwest::Client` per image; we
-    /// now reuse the pooled client from `AlpacaClient::http_client()` and set
-    /// the per-request timeout via `RequestBuilder::timeout(...)`.
+    /// The transport is the pooled client from `AlpacaClient::http_client()`
+    /// with the per-request timeout set via `RequestBuilder::timeout(...)`, so
+    /// a download does not cost a TLS handshake per frame.
     pub async fn download_image_data_typed(&self) -> Result<(u32, u32, Vec<u16>), AlpacaError> {
         let result = self.download_image_array_full_typed().await?;
 
@@ -47,12 +46,12 @@ impl AlpacaCamera {
 
     /// Download image preserving the channel dimension (rank 2 OR rank 3).
     ///
-    /// Why §5.3: callers that genuinely want color image arrays need access to
+    /// Why: callers that genuinely want color image arrays need access to
     /// the third dimension. Pixels are returned in **planar** order — all of
     /// plane 0, then all of plane 1, etc. — matching the on-the-wire Alpaca
     /// shape `[NumX][NumY][NumPlanes]` after the Y-then-X iteration order.
     ///
-    /// Why §5.13: prefer the binary `imagearrayvariant` endpoint with
+    /// Why: prefer the binary `imagearrayvariant` endpoint with
     /// `Accept: application/imagebytes`. A 24 MP frame is ~50 MB binary vs
     /// ~150 MB JSON; binary path is ~10x faster end-to-end. We send `Accept`
     /// for both binary and JSON so older servers that only know
@@ -87,7 +86,7 @@ impl AlpacaCamera {
         let timeout_ms = self.client.timeout_config().very_long_operation_ms;
 
         let (client_id, transaction_id) = self.client.client_transaction();
-        // Why §5.13: `imagearrayvariant` is the v3 endpoint that may return
+        // Why: `imagearrayvariant` is the v3 endpoint that may return
         // `application/imagebytes`. ASCOM mandates servers advertising binary
         // accept it here; servers that only know JSON still respond with their
         // standard JSON envelope on the same endpoint, so it is safe to prefer.
@@ -98,7 +97,7 @@ impl AlpacaCamera {
             transaction_id
         );
 
-        // Why §5.12: reuse the pooled HTTP client so successive frames share
+        // Why: reuse the pooled HTTP client so successive frames share
         // the keep-alive connection; only override the timeout per request.
         let http_client = self.client.http_client()?;
 
@@ -108,7 +107,7 @@ impl AlpacaCamera {
         // realistic sensor (u64::MAX / 6 ≈ 3.07e18 bytes).
         let estimated_bytes = u64::from(width) * u64::from(height) * 2 * 3;
 
-        // Why §5.13: include `application/json` as the fallback alternative so
+        // Why: include `application/json` as the fallback alternative so
         // servers that do not speak ImageBytes can still satisfy the request
         // without a 406. q=0.9 nudges binary-capable servers to pick binary.
         let response = http_client
@@ -138,13 +137,13 @@ impl AlpacaCamera {
 
         let status = response.status();
         if !status.is_success() {
-            // Why §5.13: a 406 Not Acceptable means the server rejected our
-            // Accept header set. Per ASCOM, that should not happen for these
-            // media types — propagate as a hard error so it is diagnosable.
-            // The HTTP error body itself is best-effort diagnostic context; if
-            // reading it ALSO fails we propagate that reqwest error (
-            // §4.3 — never coerce a body-read failure into an empty string,
-            // since downstream confusion masks the real transport bug).
+            // Why: a 406 Not Acceptable means the server rejected our Accept
+            // header set. Per ASCOM, that should not happen for these media
+            // types — propagate as a hard error so it is diagnosable. The HTTP
+            // error body itself is best-effort diagnostic context; if reading
+            // it ALSO fails we propagate that reqwest error rather than
+            // coercing a body-read failure into an empty string, since the
+            // downstream confusion masks the real transport bug.
             let body = response.text().await?;
             return Err(AlpacaError::HttpError {
                 status: status.as_u16(),
@@ -153,7 +152,7 @@ impl AlpacaCamera {
             });
         }
 
-        // Why §5.13: parse `Content-Type` once. ImageBytes is signaled
+        // Why: parse `Content-Type` once. ImageBytes is signaled
         // server-side; the spec allows parameters (charset, etc.) so we match
         // by prefix, not equality.
         //
@@ -180,8 +179,8 @@ impl AlpacaCamera {
             return parse_image_bytes(&bytes, width, height);
         }
 
-        // Why §5.13: JSON fallback for older Alpaca servers that do not support
-        // ImageBytes. Identical to the previous behavior on `imagearray`.
+        // Why: JSON fallback for older Alpaca servers that do not support
+        // ImageBytes; the body is parsed exactly like the `imagearray` one.
         let response_text = response.text().await.map_err(|e| {
             AlpacaError::RequestFailed(format!("Failed to read image array response: {}", e))
         })?;

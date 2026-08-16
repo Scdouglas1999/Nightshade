@@ -2,10 +2,6 @@
 
 use super::*;
 
-// =============================================================================
-// ASI SDK TYPE DEFINITIONS
-// =============================================================================
-
 /// ASI Camera Info structure from SDK - matches ASI_CAMERA_INFO from ASICamera2.h
 #[repr(C)]
 #[derive(Debug, Clone)]

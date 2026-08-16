@@ -49,9 +49,10 @@ fn a_resumed_run_keeps_the_target_restored_from_its_checkpoint() {
 
 #[tokio::test]
 async fn altitude_limit_does_not_fire_for_a_run_with_no_target() {
-    // A dark/flat sequence with no TargetHeader used to inherit the
-    // previous run's altitude and skip its whole tree 4 ms after start,
-    // reporting `completed` with zero frames.
+    // Per-run target state is cleared between runs: a dark/flat sequence with
+    // no TargetHeader that inherits the previous run's altitude skips its
+    // whole tree milliseconds after start, reporting `completed` with zero
+    // frames.
     let mut state = TriggerState::new();
     state.set_target(270.0, 60.0);
     state.current_altitude = Some(10.5);

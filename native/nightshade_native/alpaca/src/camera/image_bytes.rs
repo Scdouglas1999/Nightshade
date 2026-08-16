@@ -1,10 +1,8 @@
-//! Alpaca ImageBytes binary decoder (§5.13).
+//! Alpaca ImageBytes binary decoder.
 
 use super::*;
 
-// -----------------------------------------------------------------------------
-// ImageBytes binary parser (§5.13)
-// -----------------------------------------------------------------------------
+// ImageBytes binary parser
 
 /// Fixed-size of the Alpaca v3 ImageBytes metadata header in bytes.
 ///
@@ -26,7 +24,7 @@ const IMAGE_BYTES_HEADER_SIZE: usize = 44;
 
 /// Parsed Alpaca ImageBytes metadata header.
 ///
-/// Why a struct (not inline parsing): the unit test for §5.13 builds these
+/// Why a struct (not inline parsing): the unit tests build these
 /// fields synthetically, so a named layout is much easier to reason about than
 /// raw byte slicing in two places.
 ///
@@ -52,8 +50,8 @@ pub(crate) struct ImageBytesHeader {
 }
 
 /// Read a little-endian `i32` from `buf` at `offset`. Returns a structured
-/// error (not a panic) when the buffer is too short — that is the "truncated"
-/// case §5.13 calls out as a propagatable failure.
+/// error (not a panic) when the buffer is too short: a truncated payload is a
+/// propagatable failure, not a crash.
 fn read_i32_le(buf: &[u8], offset: usize) -> Result<i32, AlpacaError> {
     let end = offset
         .checked_add(4)
@@ -443,9 +441,7 @@ pub(crate) fn parse_image_bytes(
         element_type: image_element_type,
     })
 }
-// -----------------------------------------------------------------------------
-// ImageBytes binary protocol tests (§5.13)
-// -----------------------------------------------------------------------------
+// ImageBytes binary protocol tests
 
 #[cfg(test)]
 mod image_bytes_tests {

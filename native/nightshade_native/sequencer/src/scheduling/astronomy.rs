@@ -128,15 +128,7 @@ pub fn object_alt_az(
 /// [`super::scoring::score_airmass`] maps to a zero score. Note `<= 0`, not
 /// `< 0` — a target exactly on the horizon is unobservable and must not be
 /// scheduled, even though its airmass is finite (~31.7) and the FITS writer
-/// will quite correctly record it for a frame that was somehow taken there.
-/// That is the "31.73 vs infinity" disagreement, now stated once, in the one
-/// place that means it.
-///
-/// Dart parity is unaffected. `calculate_airmass` uses the identical Pickering
-/// (2002) expression at h ≥ 10° and switches to Young (1994) below it, where
-/// the two differ by at most 0.7 airmass out of >5 — every altitude in that
-/// band already scores in `score_airmass`'s bottom bucket under either, so the
-/// scores the parity test compares are unchanged.
+/// records it for a frame somehow taken there.
 pub fn airmass(altitude_deg: f64) -> f64 {
     if altitude_deg <= 0.0 {
         return f64::INFINITY;
@@ -260,17 +252,14 @@ mod tests {
         assert!(airmass(0.0).is_infinite());
     }
 
-    /// The scheduler and the FITS writer must be describing one atmosphere.
+    /// The scheduler and the FITS writer must be describing one atmosphere. A
+    /// private Pickering copy here agrees with the writer's `calculate_airmass`
+    /// above 10° and diverges below it — by 7 airmass at the horizon, where the
+    /// writer switches to Young 1994 — so the scheduler ranks a target on one
+    /// airmass while every frame it produces records another.
     ///
-    /// This module used to carry its own Pickering copy, which agreed with the
-    /// writer's `calculate_airmass` above 10° and diverged below it — by 7
-    /// airmass at the horizon, where the writer switches to Young 1994. So the
-    /// scheduler could rank a target on one airmass while every frame it then
-    /// produced recorded a different one, with nothing on either surface
-    /// saying which was meant.
-    ///
-    /// Equality is asserted exactly, not to a tolerance: the point is that
-    /// there is one function, not two that currently happen to be close.
+    /// Equality is asserted exactly, not to a tolerance: the point is that there
+    /// is one function, not two that currently happen to be close.
     #[test]
     fn airmass_is_the_same_function_the_fits_writer_uses() {
         let mut h = 0.25_f64;

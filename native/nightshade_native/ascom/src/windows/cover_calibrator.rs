@@ -120,9 +120,7 @@ impl AscomCoverCalibrator {
         self.device.call_method("CalibratorOff")
     }
 
-    // ========================================================================
-    // Batch Property Queries
-    // ========================================================================
+    // Batch property queries
 
     /// Get complete cover calibrator status in a single batch operation
     pub fn get_full_status(&self) -> CoverCalibratorFullStatus {
@@ -156,9 +154,9 @@ pub struct CoverCalibratorFullStatus {
     pub max_brightness: Option<i32>,
 }
 
-/// Regression cover: `CalibratorOn` hand-rolled its own `IDispatch::Invoke`
-/// with `pExcepInfo = None`, so a flat panel that refused a brightness — the
-/// usual reason a flat sequence stalls — could only say `0x80020009`.
+/// `CalibratorOn` must pass an `EXCEPINFO` to `IDispatch::Invoke`. Without it
+/// a flat panel that refuses a brightness — the usual reason a flat sequence
+/// stalls — can only say `0x80020009`.
 #[cfg(test)]
 mod excepinfo_tests {
     use super::*;

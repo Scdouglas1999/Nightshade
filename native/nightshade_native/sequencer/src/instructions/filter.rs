@@ -5,9 +5,7 @@
 
 use super::*;
 
-// =============================================================================
-// FILTER CHANGE INSTRUCTION
-// =============================================================================
+// Filter change instruction
 
 /// Default timeout for filter wheel change operations (in seconds)
 pub(crate) const DEFAULT_FILTER_WHEEL_TIMEOUT_SECS: u64 = 120;

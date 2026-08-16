@@ -258,17 +258,10 @@ async fn heartbeat_reflects_simulator_singleton_state() {
     get_sim_mount().write().await.status.connected = false;
 }
 
-// -------------------------------------------------------------------------
-// ND-INDI heartbeat must invoke the INDI client's own recovery path.
-//
-// The previous health check read `client.is_connected()` and returned
-// `Ok(false)` when the server connection had already dropped. That made
-// the bridge heartbeat mark the device unhealthy but never called the
-// INDI client's implemented `recover_reader` / reconnect machinery. This
-// test locks down the new contract: a disconnected INDI client must attempt
-// reader recovery, and if that recovery cannot reconnect it must surface a
-// real error instead of a passive "not healthy" result.
-// -------------------------------------------------------------------------
+// The INDI heartbeat must invoke the client's own recovery path: a
+// disconnected INDI client attempts reader recovery, and if recovery cannot
+// reconnect it surfaces a real error rather than a passive "not healthy"
+// result that leaves `recover_reader` never called.
 #[tokio::test]
 async fn indi_health_check_attempts_reader_recovery_when_server_disconnected() {
     let manager = build_device_manager();
@@ -423,17 +416,14 @@ async fn indi_health_check_reissues_device_connect_after_server_recovery() {
     server.await.expect("fake INDI server task should finish");
 }
 
-// -------------------------------------------------------------------------
-// DEV-P3-3 follow-up: ops/* simulator arms must consult the singleton
-// instead of returning hardcoded `Ok(value)` constants. These tests
-// exercise the connect → read → disconnect → read cycle for two
-// representative shapes (read-side + write-side) and one no-singleton
-// device type (switch).
+// ops/* simulator arms must consult the singleton rather than return
+// hardcoded `Ok(value)` constants. These exercise the connect → read →
+// disconnect → read cycle for a read-side and a write-side shape, plus one
+// device type with no singleton (switch).
 //
-// Note: the simulation.rs singletons are process-wide, so these tests
-// hold `simulator_singleton_test_lock` while they run and explicitly reset
-// singleton state before returning.
-// -------------------------------------------------------------------------
+// The simulation.rs singletons are process-wide, so these tests hold
+// `simulator_singleton_test_lock` while they run and reset singleton state
+// before returning.
 
 #[tokio::test]
 async fn camera_ops_simulator_gates_on_singleton_connected() {

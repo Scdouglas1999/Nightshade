@@ -2,10 +2,6 @@
 
 use super::*;
 
-// ============================================================================
-// SDK Types and Constants
-// ============================================================================
-
 /// Camera handle type (opaque `camera_t`, gxccd.h:66).
 pub(crate) type CCamera = c_void;
 pub(crate) type PCCamera = *mut CCamera;

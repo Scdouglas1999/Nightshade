@@ -2,9 +2,7 @@
 
 use super::*;
 
-// ============================================================================
-// SDK Function Types (signatures verbatim from gxccd.h)
-// ============================================================================
+// SDK function types; signatures verbatim from gxccd.h.
 
 /// `typedef void (*enum_callback_t)(int device_id);` (gxccd.h:63)
 pub(crate) type EnumCallback = unsafe extern "C" fn(camera_id: c_int);
@@ -58,9 +56,7 @@ pub(crate) type ReadImage =
 pub(crate) type GetLastError =
     unsafe extern "C" fn(camera: PCCamera, buf: *mut c_char, size: usize);
 
-// ============================================================================
-// SDK Singleton
-// ============================================================================
+// SDK singleton
 
 /// Candidate paths for the Moravian gxccd library, in search order.
 pub(crate) fn moravian_candidate_paths() -> Vec<std::path::PathBuf> {

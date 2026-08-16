@@ -25,9 +25,7 @@ use tokio::sync::RwLock;
 use super::super::*;
 use super::*;
 
-// =============================================================================
-// Switch Control
-// =============================================================================
+// Switch control
 
 /// Get the number of switches exposed by a switch device
 pub async fn api_switch_get_max(device_id: String) -> Result<i32, NightshadeError> {

@@ -47,7 +47,7 @@
 //! layered-robustness strategy the rest of the crate uses for noise
 //! ([`crate::frame_weighting`]) and pixel rejection ([`crate::integration`]).
 //!
-//! ## Honest limits (per the design doc's "made honest, not functional" bar)
+//! ## Limitations
 //!
 //! The defaults (`grid = 24`, `poly_degree = 4`, `sample_box = 15`,
 //! `sigma_low = 3.0`, `sigma_high = 2.0`) are defensible DBE/ABE-spirit values,
@@ -72,9 +72,7 @@ use rayon::prelude::*;
 /// model fits noise rather than the smooth background (see module docs).
 const MAX_POLY_DEGREE: usize = 6;
 
-// =============================================================================
 // Public configuration
-// =============================================================================
 
 /// Tunables for [`extract_background`].
 ///
@@ -213,9 +211,7 @@ pub enum BackgroundError {
     SingularFit { channel: usize },
 }
 
-// =============================================================================
 // Public entry points
-// =============================================================================
 
 /// Fit a star-masked, low-order polynomial background model to `image`.
 ///
@@ -401,9 +397,7 @@ pub fn extract_and_subtract(
     Ok((out, model))
 }
 
-// =============================================================================
 // Per-channel fit
-// =============================================================================
 
 /// Fit one channel's background polynomial. Returns the coefficient vector (in
 /// [`poly_terms`] order) and the surface's mean level over the frame.
@@ -687,9 +681,7 @@ fn iterative_residual_fit(
     Ok(coeffs)
 }
 
-// =============================================================================
 // Polynomial machinery
-// =============================================================================
 
 /// The exponent pairs `(i, j)` of every monomial `xⁱ·yʲ` with `i + j ≤ degree`,
 /// in a stable canonical order: ascending total degree, then **descending `i`**
@@ -924,9 +916,7 @@ fn surface_mean(coeffs: &[f64], degree: usize, width: usize, height: usize) -> f
     }
 }
 
-// =============================================================================
 // Star masking
-// =============================================================================
 
 /// Detect star centres/radii once, on a luminance proxy, so every channel's fit
 /// can reject the same star-overlapping boxes.
@@ -1017,9 +1007,7 @@ fn synth_luminance_u16(planes: &[Vec<f64>], width: usize, height: usize) -> Vec<
         .collect()
 }
 
-// =============================================================================
 // Pixel <-> f64 conversion
-// =============================================================================
 
 /// De-interleave an [`ImageData`] into one `f64` plane per channel.
 fn deinterleave_to_f64(image: &ImageData) -> Vec<Vec<f64>> {
@@ -1089,9 +1077,7 @@ fn write_pixel(bytes: &mut [u8], pt: PixelType, value: f64) {
     }
 }
 
-// =============================================================================
 // Small robust-statistics helpers
-// =============================================================================
 
 /// Nearest-rank percentile (`p` in `[0, 1]`) of a mutable slice, sorting it in
 /// place. See [`crate::robust_stats`] for why the convention is named.
@@ -1100,9 +1086,7 @@ fn percentile_f64(v: &mut [f64], p: f64) -> f64 {
     percentile_nearest_rank(v, p)
 }
 
-// =============================================================================
 // Tests
-// =============================================================================
 
 #[cfg(test)]
 mod tests {
@@ -1198,10 +1182,10 @@ mod tests {
 
     #[test]
     fn eval_poly_takes_hoisted_terms_and_matches_known_polynomial() {
-        // eval_poly now receives the term list by reference (hoisted out of the
-        // per-pixel hot loop — finding 4) instead of allocating it per call. Pin
-        // both the new signature and the arithmetic against a hand-computed value
-        // so a regression that mis-orders the terms or drops the hoist is caught.
+        // eval_poly takes the term list by reference, hoisted out of the
+        // per-pixel hot loop rather than allocated per call. Pin both the
+        // signature and the arithmetic against a hand-computed value so a
+        // change that mis-orders the terms or drops the hoist is caught.
         //
         // Degree-2 term order is [(0,0),(1,0),(0,1),(2,0),(1,1),(0,2)]; with
         // coeffs c and (nx,ny)=(0.5,-0.25):

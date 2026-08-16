@@ -1,45 +1,37 @@
 //! Image Grading: per-frame Pass/Reject decision based on HFR,
 //! eccentricity, and star count.
 //!
-//! The pre-existing `frame_quality_assessment_service.dart` is advisory
-//! only — it tags frames as Good / Needs Review / Poor but never moves
-//! them off-disk. Bad frames stay mixed with good ones until the user
-//! opens PixInsight and culls them by hand.
-//!
-//! `ImageQualityCheck` adds a real-time gate. When enabled, captures
-//! exceeding the configured thresholds are routed to a `Reject/` subfolder,
-//! excluded from the integration-budget accounting ('s
-//! per-filter budget tracker), and surfaced in the run dashboard's
-//! quality panel.
+//! `frame_quality_assessment_service.dart` is advisory only — it tags frames
+//! as Good / Needs Review / Poor but never moves them off-disk, so bad frames
+//! stay mixed with good ones until the user culls them by hand.
+//! `ImageQualityCheck` is the real-time gate: captures exceeding the
+//! configured thresholds are routed to a `Reject/` subfolder, excluded from
+//! the per-filter integration-budget accounting, and surfaced in the run
+//! dashboard's quality panel.
 //!
 //! ## Design notes
 //!
 //! * **Per-node toggle**: `ExposureConfig.quality_check` overrides the
 //!   global settings, so an operator can disable grading on a specific
-//!   smartexposure burst while keeping it active globally.
+//!   smart-exposure burst while keeping it active globally.
 //! * **Baseline computation**: `hfr_baseline_percent` compares the current
 //!   frame's HFR against a rolling baseline of the first 5 accepted
 //!   frames. This catches sky-quality degradation that absolute thresholds
 //!   miss (a dry-air HFR of 2.4 px is great; the same field at 3.6 px the
 //!   next night is everyone-pack-up bad — `hfr_baseline_percent: 50` would
 //!   flag it).
-//! * **Consecutive-reject escalation**: 3 in a row triggers a critical
-//!   event banner via the path, because no amount of
-//!   averaging will fix a systematic failure (focus walked off, cloud bank
-//!   moved through, dome failed to slave).
-//! * **Honest absence**: when a metric was never computed (`None` —
-//!   detection didn't run, calculate_image_hfr returned None) the frame is
-//!   graded `Pass`, not `Reject`. A metric we never took is not the same as
-//!   a known-bad frame — the user might be imaging a dim nebula in
-//!   narrowband where our detector legitimately struggles. The audit's
-//!   silent-fallback rule applies in both directions: never reject without
-//!   evidence.
+//! * **Consecutive-reject escalation**: 3 in a row raises a critical event
+//!   banner, because no amount of averaging will fix a systematic failure
+//!   (focus walked off, cloud bank moved through, dome failed to slave).
+//! * **A metric never taken grades Pass.** When a measurement is `None`
+//!   (detection did not run, `calculate_image_hfr` returned None) the frame
+//!   passes rather than rejecting: a missing measurement is not a known-bad
+//!   frame, and narrowband on a dim nebula legitimately defeats the detector.
 //! * **…but a measured zero is evidence.** `star_count: Some(0)` is not
 //!   absence: the detector ran on a light frame and found nothing. Every
 //!   other metric is then `None` by construction, so every configured gate
-//!   would be skipped and the frame would pass on the strength of having
-//!   been unmeasurable — which is exactly how a clouded-out or badly
-//!   trailed frame used to slip through. See `grade_frame`.
+//!   would be skipped and a clouded-out or badly trailed frame would pass on
+//!   the strength of having been unmeasurable. See `grade_frame`.
 
 use serde::{Deserialize, Serialize};
 
@@ -402,9 +394,8 @@ mod tests {
 
     #[test]
     fn elongated_frame_above_threshold_is_rejected() {
-        // The capture pipeline now measures per-frame eccentricity from star
-        // shape moments, so a trailed frame above the configured threshold
-        // must be culled. This is the gate that was previously un-fireable.
+        // The capture pipeline measures per-frame eccentricity from star shape
+        // moments, so a trailed frame above the configured threshold is culled.
         let check = ImageQualityCheck {
             eccentricity_threshold: Some(0.7),
             ..Default::default()
@@ -615,7 +606,6 @@ mod tests {
         );
     }
 
-    // -----------------------------------------------------------------
     // Pixels-to-verdict wiring.
     //
     // Everything above hand-builds `FrameMetrics`, which cannot catch the
@@ -627,7 +617,6 @@ mod tests {
     // `UnifiedDeviceOps::measure_frame_eccentricity` and
     // `detect_stars_in_image` use) → `frame_eccentricity` → `FrameMetrics`
     // → `grade_frame` — starting from pixels.
-    // -----------------------------------------------------------------
 
     /// A field of identically-smeared elliptical Gaussians on a flat
     /// background: what wind shake or a dropped guide correction does to

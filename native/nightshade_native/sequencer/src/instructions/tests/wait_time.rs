@@ -4,16 +4,14 @@
 
 use super::*;
 
-// =====================================================================
 // Wait node with no condition
-// =====================================================================
 
-/// An unconfigured Wait node used to return Success in microseconds — a
-/// without waiting. The canonical use is "wait until astronomical dark", so
-/// skipping it starts the run in daylight; it must fail instead.
+/// An unconfigured Wait node must fail rather than return Success in
+/// microseconds: the canonical use is "wait until astronomical dark", so
+/// skipping it starts the run in daylight.
 #[tokio::test]
 async fn wait_time_without_any_condition_fails() {
-    let ctx = crate::node::context::ExecutionContext::new("test-node".to_string())
+    let ctx = crate::node::context::ExecutionContext::new_for_test("test-node".to_string())
         .to_instruction_context("test-node")
         .await;
 

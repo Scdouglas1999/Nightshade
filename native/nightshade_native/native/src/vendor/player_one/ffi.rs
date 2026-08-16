@@ -2,10 +2,6 @@
 
 use super::*;
 
-// =============================================================================
-// POA SDK TYPE DEFINITIONS
-// =============================================================================
-
 /// POA Camera handle (index-based)
 pub(crate) type PoaCameraIdx = c_int;
 
@@ -162,6 +158,39 @@ impl Default for POAConfigValue {
     fn default() -> Self {
         Self { int_value: 0 }
     }
+}
+
+/// POA value type, matching `POAValueType` from PlayerOneCamera.h. Selects which
+/// variant of a [`POAConfigValue`] union the SDK wrote.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum POAValueType {
+    Int = 0,
+    Float = 1,
+    Bool = 2,
+}
+
+/// Per-control attributes, matching `POAConfigAttributes` from PlayerOneCamera.h.
+/// Every [`POAConfig`] has one; this is where the SDK publishes a control's real
+/// min/max/default and whether it can be written at all.
+///
+/// `config_id` and `value_type` are held as `c_int` rather than the Rust enums they
+/// mirror: the SDK is free to report a discriminant this build does not know, and
+/// materialising that as a Rust enum would be undefined behaviour.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub(crate) struct POAConfigAttributes {
+    pub(crate) is_support_auto: POABool,
+    pub(crate) is_writable: POABool,
+    pub(crate) is_readable: POABool,
+    pub(crate) config_id: c_int,
+    pub(crate) value_type: c_int,
+    pub(crate) max_value: POAConfigValue,
+    pub(crate) min_value: POAConfigValue,
+    pub(crate) default_value: POAConfigValue,
+    pub(crate) conf_name: [c_char; 64],
+    pub(crate) description: [c_char; 128],
+    pub(crate) reserved: [c_char; 64],
 }
 
 impl std::fmt::Debug for POAConfigValue {

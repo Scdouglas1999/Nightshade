@@ -29,9 +29,7 @@ use nightshade_imaging::{add_wcs_headers, read_fits, write_fits, FitsHeader, Wcs
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-// =============================================================================
 // JSON contracts
-// =============================================================================
 
 /// One panel feeding the mosaic.
 ///
@@ -149,9 +147,7 @@ struct StitchMosaicResult {
     mean_panel_gain: f64,
 }
 
-// =============================================================================
 // Public FFI entry point
-// =============================================================================
 
 /// Stitch N plate-solved panel masters into one mosaic master.
 ///
@@ -165,9 +161,7 @@ struct StitchMosaicResult {
 /// stretched preview are written too.
 ///
 /// `args_json` is a [`StitchMosaicArgs`]; the result is a [`StitchMosaicResult`].
-/// Every failure (no panels, unreadable FITS, missing/degenerate WCS, oversized
-/// canvas, write failure) surfaces as `Err(String)` — never a silent partial
-/// mosaic.
+/// Every failure surfaces as `Err(String)` rather than a partial mosaic.
 pub fn api_stitch_mosaic(args_json: String) -> Result<String, String> {
     let args: StitchMosaicArgs =
         serde_json::from_str(&args_json).map_err(|e| format!("invalid stitch args: {e}"))?;
@@ -175,9 +169,7 @@ pub fn api_stitch_mosaic(args_json: String) -> Result<String, String> {
     serde_json::to_string(&result).map_err(|e| format!("failed to encode result: {e}"))
 }
 
-// =============================================================================
 // Implementation
-// =============================================================================
 
 fn stitch_mosaic_impl(args: StitchMosaicArgs) -> Result<StitchMosaicResult, String> {
     if args.panels.is_empty() {
@@ -187,7 +179,7 @@ fn stitch_mosaic_impl(args: StitchMosaicArgs) -> Result<StitchMosaicResult, Stri
         return Err("output.mosaicFitsPath is required".to_string());
     }
 
-    // --- Read each panel master + resolve its WCS. ---
+    // Read each panel master + resolve its WCS.
     let mut panels: Vec<MosaicPanel> = Vec::with_capacity(args.panels.len());
     for (idx, pa) in args.panels.iter().enumerate() {
         if pa.fits_path.trim().is_empty() {
@@ -207,13 +199,13 @@ fn stitch_mosaic_impl(args: StitchMosaicArgs) -> Result<StitchMosaicResult, Stri
         panels.push(MosaicPanel { image, wcs });
     }
 
-    // --- Build the stitch config from the JSON args. ---
+    // Build the stitch config from the JSON args.
     let cfg = build_config(&args.config)?;
 
-    // --- Stitch. ---
+    // Stitch.
     let output = stitch_mosaic(&panels, &cfg).map_err(|e| describe_error(&e))?;
 
-    // --- Write the F32 master, stamping the output canvas WCS. ---
+    // Write the F32 master, stamping the output canvas WCS.
     let master_path = Path::new(&args.output.mosaic_fits_path);
     ensure_parent_dir(master_path)?;
     let mut header = FitsHeader::new();
@@ -228,7 +220,7 @@ fn stitch_mosaic_impl(args: StitchMosaicArgs) -> Result<StitchMosaicResult, Stri
     write_fits(master_path, &output.master, &header)
         .map_err(|e| format!("failed to write mosaic master: {e:?}"))?;
 
-    // --- Optional coverage plane FITS. ---
+    // Optional coverage plane FITS.
     let coverage_path = match args.output.coverage_fits_path.as_ref() {
         Some(p) if !p.trim().is_empty() => {
             let path = Path::new(p);
@@ -244,7 +236,7 @@ fn stitch_mosaic_impl(args: StitchMosaicArgs) -> Result<StitchMosaicResult, Stri
         _ => None,
     };
 
-    // --- Optional stretched preview PNG. ---
+    // Optional stretched preview PNG.
     // BEST-EFFORT: the preview is a cosmetic convenience, not a real output. A
     // stitch is expensive (read + project + blend every panel); aborting the
     // whole run because an 8-bit sibling PNG failed to write would throw away the
@@ -348,7 +340,7 @@ fn wcs_from_header(header: &FitsHeader) -> Option<WcsInfo> {
         .get_float("CRPIX2")
         .unwrap_or_else(|| naxis2 / 2.0 + 0.5);
 
-    // --- Prefer an explicit CD matrix. ---
+    // Prefer an explicit CD matrix.
     if let (Some(cd1_1), Some(cd2_2)) = (header.get_float("CD1_1"), header.get_float("CD2_2")) {
         let cd1_2 = header.get_float("CD1_2").unwrap_or(0.0);
         let cd2_1 = header.get_float("CD2_1").unwrap_or(0.0);
@@ -364,7 +356,7 @@ fn wcs_from_header(header: &FitsHeader) -> Option<WcsInfo> {
         });
     }
 
-    // --- Fall back to CDELT + CROTA2 (older WCS convention). ---
+    // Fall back to CDELT + CROTA2 (older WCS convention).
     let cdelt1 = header.get_float("CDELT1")?;
     let cdelt2 = header.get_float("CDELT2")?;
     let crota2 = header.get_float("CROTA2").unwrap_or(0.0).to_radians();
@@ -402,9 +394,7 @@ fn ensure_parent_dir(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
-// =============================================================================
 // Tests
-// =============================================================================
 
 #[cfg(test)]
 mod tests {
@@ -414,10 +404,8 @@ mod tests {
 
     static COUNTER: AtomicU64 = AtomicU64::new(0);
 
-    /// A scratch directory that deletes itself when the test ends.
-    /// `Drop` rather than the trailing `remove_file` calls these tests used to
-    /// finish with: the leak was worst exactly when a test FAILED, and a
-    /// trailing cleanup never runs while a panic unwinds — drop does.
+    /// A scratch directory that deletes itself when the test ends. Cleanup runs
+    /// from `Drop`, so it happens even while a panic unwinds out of a failing test.
     struct TempDir(std::path::PathBuf);
 
     impl std::ops::Deref for TempDir {

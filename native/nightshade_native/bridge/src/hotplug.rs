@@ -235,10 +235,10 @@ async fn poll_once(suppress_events: bool) {
     // is currently CONNECTED holds an exclusive serial/USB handle, so the SDK
     // enumerate would either fail to see it (producing a spurious `device_lost`
     // -> the UI drops a live device) or re-open the bus and disrupt the live
-    // connection (the remote-connect contention this fix targets). We therefore
-    // (1) skip probing any (driver, device_type) bus that has a connected
-    // device and carry its cached entries forward unchanged, and (2) as a
-    // belt-and-suspenders guard, never emit a removal for a connected device id.
+    // connection — the contention a remote connect racing this poll produces.
+    // So (1) skip probing any (driver, device_type) bus that has a connected
+    // device and carry its cached entries forward unchanged, and (2) never emit
+    // a removal for a connected device id.
     let connected = get_state().get_all_device_states().await;
     let connected_keys: HashSet<(DriverType, String)> = connected
         .iter()
@@ -508,8 +508,8 @@ fn schedule_off_cadence_poll() {
             });
         }
         Err(err) => {
-            // Errors are a feature — if the runtime is gone we want to know,
-            // because the user will silently stop seeing arrival events.
+            // A missing runtime must be visible: without it the user simply
+            // stops seeing arrival events, with nothing to say why.
             tracing::warn!(
                 "Hot-plug off-cadence poll could not acquire runtime: {} (typed arrival events will be delayed up to {} s)",
                 err,
@@ -771,14 +771,11 @@ mod tests {
 
     #[test]
     fn slow_poll_interval_is_five_minutes() {
-        // The hybrid hot-plug architecture relies on this being the slow
-        // (safety-net) cadence — not the fast cadence that the kernel-event
-        // path delivers. If someone drops this back to the old 4 s value
-        // they are reverting to the polling-only design and burning CPU /
-        // hammering vendor SDKs. The OS bus listener
-        // (WM_DEVICECHANGE / libusb hotplug) is the fast path; this must
-        // stay at the conservative cadence. Native enumeration actively opens
-        // serial ports, so the fallback must not run every few seconds.
+        // This is the slow safety-net cadence, not the fast one: the OS bus
+        // listener (WM_DEVICECHANGE / libusb hotplug) delivers arrivals
+        // promptly, and this poll only backstops it. A few-second cadence here
+        // is the polling-only design, which burns CPU and hammers vendor SDKs —
+        // native enumeration actively opens serial ports.
         assert_eq!(
             HOTPLUG_POLL_INTERVAL.as_secs(),
             5 * 60,
@@ -858,7 +855,7 @@ mod tests {
     }
 
     /// Mirror of `poll_once`'s connection-aware diff, isolated from the global
-    /// singleton. Models the two LIM-5 guarantees: (1) for any paused bus
+    /// singleton. Models the two guarantees: (1) for any paused bus
     /// (a `(driver, type)` with a connected device) the cached entries are
     /// carried forward into `observed` unchanged, and (2) a removal is never
     /// emitted for a key that is still in `connected_keys`. Returns

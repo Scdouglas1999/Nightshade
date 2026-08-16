@@ -1,13 +1,12 @@
 //! Structured progress reporting for sequencer nodes.
 //!
-//! Pre-refactor, instruction nodes hand-formatted strings like
-//! `"Filter: foo (50%)"` and the executor's progress callback parsed those
-//! strings back into `(instruction, percent, detail)` triples via
-//! `split_once` and `rfind('(')`. That was brittle (a parenthesis in a
-//! target name would corrupt parsing), lossy (no way to surface RA/Dec
-//! mid-slew or HFR mid-AF), and tightly coupled to message shape.
+//! Hand-formatted strings like `"Filter: foo (50%)"`, parsed back into
+//! `(instruction, percent, detail)` triples via `split_once` and
+//! `rfind('(')`, are brittle (a parenthesis in a target name corrupts
+//! parsing), lossy (no way to surface RA/Dec mid-slew or HFR mid-AF), and
+//! tightly coupled to message shape.
 //!
-//! The new contract: every instruction populates a `ProgressUpdate` with a
+//! The contract here: every instruction populates a `ProgressUpdate` with a
 //! typed `ProgressDetail`. The executor's progress callback consumes the
 //! structured payload directly — no parsing. The legacy `message: String`
 //! field is still populated (auto-derived from the detail via `legacy_message`)
@@ -194,19 +193,16 @@ pub enum ProgressDetail {
         #[serde(default)]
         capture: crate::scheduling::FrameCaptureMetadata,
     },
-    /// Image Grading: exposure failed at least one quality threshold
-    /// and was routed to the reject folder. 's integration
-    /// budget tracker listens for this and skips counting the exposure
-    /// time. The dashboard quality panel surfaces the reason text + metrics.
+    /// Image Grading: the exposure failed at least one quality threshold and was
+    /// routed to the reject folder. The integration-budget tracker listens for
+    /// this and skips counting the exposure time; the dashboard quality panel
+    /// surfaces the reason text + metrics.
     ///
-    /// Frame-Failure Forensics extends this payload with a
-    /// structured cause + evidence list classified by
-    /// [`crate::quality::analyze_rejection`]. The legacy fields stay
-    /// non-optional / pre-existing; the new fields are all `Option` so a
-    /// classifier-disabled run (e.g. headless / standalone smoke tests)
-    /// can still emit the event without a verdict. The Dart side persists
-    /// `likely_cause` + `evidence` + the per-snapshot env values in the
-    /// new `frame_forensics` table.
+    /// The forensics fields carry a structured cause + evidence list classified
+    /// by [`crate::quality::analyze_rejection`]. They are all `Option` so a
+    /// classifier-disabled run (headless / standalone smoke tests) can still emit
+    /// the event without a verdict. The Dart side persists `likely_cause` +
+    /// `evidence` + the per-snapshot env values in the `frame_forensics` table.
     FrameRejected {
         frame: u32,
         total: u32,
@@ -283,16 +279,9 @@ pub enum ProgressDetail {
     /// re-serialises it as a string so the FRB wire format stays
     /// primitive (FRB does not bridge `serde_json::Value`).
     ///
-    /// Emitted in two places:
-    ///   * `plugin_node.rs` while the node is waiting for the Dart-side
-    ///     reply (one synthetic "started" tick) and on the final reply
-    ///     (when Dart attaches `structured_detail`).
-    ///   * Optionally by future plugin authors who want intermediate
-    ///     progress; the request/response protocol allows the Dart side
-    ///     to push extra `PluginNode` progress updates by sending a
-    ///     follow-up `ExecutorCommand::PluginNodeFinished` is NOT how
-    ///     that's done — instead, Dart will call into the existing
-    ///     `InstructionProgress` channel for now.
+    /// Emitted from `plugin_node.rs`: one synthetic "started" tick while the node
+    /// waits for the Dart-side reply, and one on the final reply when Dart
+    /// attaches `structured_detail`.
     PluginNode {
         plugin_id: String,
         node_type_id: String,
@@ -349,9 +338,8 @@ pub enum ProgressDetail {
 }
 
 impl ProgressDetail {
-    /// Render this detail as the pre-refactor string format expected by the
-    /// existing Dart consumers and the executor's legacy progress-callback
-    /// pipeline. The shape is `"<detail-text>"` — the leading `"<instruction>: "`
+    /// Render this detail as the string format the Dart consumers and the
+    /// executor's legacy progress-callback pipeline expect. The shape is `"<detail-text>"` — the leading `"<instruction>: "`
     /// prefix and trailing `" (NN%)"` suffix are added by `ProgressUpdate::legacy_message`.
     pub fn detail_text(&self) -> String {
         match self {
@@ -701,16 +689,15 @@ pub struct ProgressUpdate {
     ///
     /// `None` on any update that is not a per-frame sighting. The executor
     /// credits integration and stamps the exposure events from this when it is
-    /// present, and falls back to the node's PLANNED duration when it is not.
-    /// Crediting the plan is what made the same run report `50s` on the Session
-    /// Report (which sums the rows) and `1m 0s` on the Dashboard, the Execution
-    /// History row and the Recover Sequence dialog (WF-STOP-N2).
+    /// present, and falls back to the node's PLANNED duration when it is not —
+    /// crediting the plan is what makes surfaces that sum the rows disagree with
+    /// surfaces that multiply.
     pub frame_exposure_secs: Option<f64>,
 }
 
 impl ProgressUpdate {
     /// Build the legacy progress message string the bridge layer publishes.
-    /// Format matches the pre-refactor regex: `"<instruction>: <detail> (<NN>%)"`.
+    /// Format matches the consumer regex: `"<instruction>: <detail> (<NN>%)"`.
     /// Returns `message` verbatim when no structured fields are populated
     /// (the container/logic life-cycle case).
     pub fn legacy_message(&self) -> Option<String> {

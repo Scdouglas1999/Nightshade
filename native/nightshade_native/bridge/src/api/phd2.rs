@@ -24,10 +24,6 @@ use tokio::sync::RwLock;
 // Sibling-module items via the parent's pub use re-exports.
 use super::*;
 
-// =============================================================================
-// REAL PHD2 GUIDING INTEGRATION
-// =============================================================================
-
 /// PHD2 connection state
 #[derive(Debug, Clone)]
 pub struct Phd2Status {
@@ -99,11 +95,10 @@ pub fn api_is_phd2_running() -> bool {
 ///   `api_phd2_connect` / `api_phd2_disconnect`) answers "is a guider
 ///   connected" for `get_active_guider_id_for_ops` and the storage API.
 ///
-/// The two are deliberately separate — see the module note on
-/// `resolve_guider_backend` — but they must agree on the id, which is why every
-/// PHD2 site reads it from here instead of respelling the literal. The Dart
-/// side pins the same value as `kPhd2CanonicalId`
-/// (`packages/nightshade_core/lib/src/utils/device_id.dart:78`).
+/// The two are separate — see the module note on `resolve_guider_backend` — but
+/// they must agree on the id, so every PHD2 site reads it from here instead of
+/// respelling the literal. The Dart side pins the same value as
+/// `kPhd2CanonicalId` (`packages/nightshade_core/lib/src/utils/device_id.dart`).
 pub(crate) const PHD2_DEVICE_ID: &str = "phd2_guider";
 
 /// Static PHD2 client storage
@@ -115,13 +110,13 @@ pub fn get_phd2_storage() -> &'static Arc<RwLock<Option<nightshade_imaging::Phd2
     PHD2_CLIENT.get_or_init(|| Arc::new(RwLock::new(None)))
 }
 
-/// The PHD2 **client registry** accessor: take the write lock and hand back the
-/// live client, or the `NotConnected("PHD2")` error that every PHD2 entry point
-/// used to build inline (21 verbatim copies of the same four lines).
+/// The PHD2 **client registry** accessor: takes the write lock and hands back the
+/// live client, or the `NotConnected("PHD2")` error every PHD2 entry point
+/// reports when there is none.
 ///
-/// The returned guard holds the write lock for as long as it is alive, exactly
-/// like the `let mut storage = …write().await` it replaces; drop it early where
-/// a long wait must not stall other PHD2 calls (see `api_phd2_dither`).
+/// The returned guard holds the write lock for as long as it is alive; drop it
+/// early where a long wait must not stall other PHD2 calls (see
+/// `api_phd2_dither`).
 async fn phd2_client() -> Result<
     tokio::sync::RwLockMappedWriteGuard<'static, nightshade_imaging::Phd2Client>,
     NightshadeError,
@@ -135,9 +130,8 @@ async fn phd2_client() -> Result<
 ///
 /// This is the **guider-state registry** half of the PHD2 split: the mapping
 /// from a device id to the backend that services it. Every `api_guider_*` entry
-/// point re-derived it with the same two-armed if-chain and the same trailing
-/// error string; they all resolve through [`resolve_guider_backend`] now, so a
-/// third backend is a single new arm rather than eleven.
+/// point resolves through [`resolve_guider_backend`], so a third backend is a
+/// single new arm rather than eleven edits.
 enum GuiderBackend {
     Phd2,
     Builtin,
@@ -145,10 +139,9 @@ enum GuiderBackend {
 
 /// Resolve a guider device id to its backend.
 ///
-/// Order matters and is preserved from the retired copies: PHD2 ids are matched
-/// first (they have four spellings — see `is_phd2_device_id`), then the built-in
-/// guider's single id; anything else is the same `Unsupported guider device`
-/// error the copies produced.
+/// Order matters: PHD2 ids are matched first (they have four spellings — see
+/// `is_phd2_device_id`), then the built-in guider's single id; anything else is
+/// an `Unsupported guider device` error.
 fn resolve_guider_backend(device_id: &str) -> Result<GuiderBackend, NightshadeError> {
     if is_phd2_device_id(device_id) {
         return Ok(GuiderBackend::Phd2);
@@ -669,9 +662,9 @@ pub async fn api_phd2_get_calibration_data() -> Result<Phd2CalibrationData, Nigh
     // PHD2's get_calibration_data returns a JSON object with a `calibrated`
     // boolean (and, when true, the xAngle/yAngle/xRate/yRate details). It does
     // NOT return null when the mount is uncalibrated — it returns
-    // {"calibrated": false}. The old `!result.is_null()` was therefore ALWAYS
-    // true on any successful RPC, so the Guiding screen reported the mount as
-    // calibrated even when it wasn't. Read the actual flag.
+    // {"calibrated": false}. A `!result.is_null()` test is therefore ALWAYS
+    // true on any successful RPC, which reports the mount as calibrated when
+    // it is not. Read the actual flag.
     let is_calibrated = result
         .get("calibrated")
         .and_then(|v| v.as_bool())
@@ -916,9 +909,7 @@ pub async fn api_guider_get_calibration(
     }
 }
 
-// =============================================================================
-// BUILT-IN GUIDER CONFIGURATION
-// =============================================================================
+// Built-in guider configuration
 
 /// Get the current built-in guider configuration.
 /// Returns a flat struct with all configurable parameters.
@@ -941,11 +932,10 @@ pub async fn api_builtin_guider_get_config() -> Result<BuiltinGuiderConfig, Nigh
 ///
 /// This is the bridged entry point for the `#[frb(ignore)]`
 /// `builtin_guider::get_tracked_stars_json` DTO: the built-in guider tracks up
-/// to `GUIDE_MAX_TRACKED_STARS` reference stars, but the PHD2-shaped aggregate
-/// `Phd2Status` only carries rms/snr/star_mass, so the per-star list never
-/// reached the Dart guider UI (its star-list panel rendered empty on real
-/// hardware). The host FFI backend calls this from `phd2GetStatus()` and decodes
-/// the JSON into `Phd2Status.trackedStars`.
+/// to `GUIDE_MAX_TRACKED_STARS` reference stars, and the PHD2-shaped aggregate
+/// `Phd2Status` carries only rms/snr/star_mass, so the per-star list reaches the
+/// Dart guider UI through this call. The host FFI backend calls it from
+/// `phd2GetStatus()` and decodes the JSON into `Phd2Status.trackedStars`.
 ///
 /// Returns `{"count":0,"stars":[]}` when the built-in guider is not the active
 /// guider or is not tracking (e.g. PHD2/external guiders), so it is always safe
@@ -998,9 +988,7 @@ pub struct BuiltinGuiderConfig {
     pub max_pulse_ms: f64,
 }
 
-// =============================================================================
-// PARITY TESTS FOR THE PHD2 REGISTRY SPLIT
-// =============================================================================
+// Parity tests for the PHD2 registry split
 //
 // These pin the exact outputs the retired inline copies produced, so the two
 // registries cannot drift back together:
@@ -1120,21 +1108,18 @@ mod registry_split_tests {
     }
 }
 
-// =============================================================================
-// THE PHD2 CRY-WOLF: A CONNECTED GUIDER THE CONNECTED-DEVICES API CANNOT SEE
-// =============================================================================
+// A PHD2 connect must be visible to the connected-devices API.
 //
 // `api_get_connected_devices` / `api_is_device_connected` read the
-// **DeviceManager** registry; PHD2 connect wrote only the **AppState** mirror.
-// So after a successful PHD2 connect the app told the user "no guider
-// connected" on every surface that asks those two APIs, while
-// `get_active_guider_id_for_ops` resolved `phd2_guider` and the sequencer
-// guided through it all night.
+// **DeviceManager** registry, so writing only the **AppState** mirror would have
+// every surface that asks those two APIs report "no guider connected" while
+// `get_active_guider_id_for_ops` resolves `phd2_guider` and the sequencer guides
+// through it all night.
 //
 // These tests drive the real `api_phd2_connect` against a mock PHD2 socket, so
 // they exercise the production connect path end to end rather than a helper.
 #[cfg(test)]
-mod connected_devices_crywolf_tests {
+mod connected_devices_registry_tests {
     use super::*;
     use std::io::{BufRead, BufReader, Write};
     use std::net::TcpListener;

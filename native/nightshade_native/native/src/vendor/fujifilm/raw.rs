@@ -2,9 +2,7 @@
 
 use super::*;
 
-// =============================================================================
-// RAW SAMPLE DEPTH
-// =============================================================================
+// Raw sample depth
 
 /// A bit depth this driver is willing to believe. LibRaw clamps its own derived
 /// depth to 8..=16 and `SensorInfo` pixels are `u16`, so anything outside that
@@ -63,9 +61,7 @@ pub(crate) fn resolve_max_adu(measured_white_level: Option<u32>, bit_depth: u32)
     }
 }
 
-// =============================================================================
-// RAF PROCESSING
-// =============================================================================
+// RAF processing
 
 /// Decode a RAF buffer into its native single-channel LINEAR CFA mosaic.
 ///

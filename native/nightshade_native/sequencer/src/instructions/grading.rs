@@ -5,13 +5,9 @@
 
 use super::*;
 
-// =============================================================================
-// IMAGE-GRADING HELPERS (Image Grading)
-// =============================================================================
+// IMAGE-GRADING helpers (Image Grading)
 
-// =============================================================================
-// DEFECT-MAP HELPERS
-// =============================================================================
+// DEFECT-MAP helpers
 
 /// Outcome of the per-frame defect-map application step. Threaded into
 /// the FITS HISTORY card emitter so the saved frame carries provenance
@@ -26,11 +22,8 @@ pub(crate) enum DefectMapOutcome {
     /// frame's. In either case the frame is left as-is and a warn line
     /// is logged so the operator sees the skip.
     ///
-    /// `reason` is constructed at the call sites (with the specific
-    /// mismatch detail) and surfaced in the warn log line emitted there
-    /// — keeping the field in the enum means future code paths that
-    /// need to inspect or re-emit the reason (e.g. a richer skip event)
-    /// can do so without changing the shape.
+    /// `reason` is constructed at the call sites, with the specific mismatch
+    /// detail, and surfaced in the warn line emitted there.
     SkippedMismatch {
         #[allow(dead_code)]
         reason: String,

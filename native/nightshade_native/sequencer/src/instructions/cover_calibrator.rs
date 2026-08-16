@@ -5,9 +5,7 @@
 
 use super::*;
 
-// =============================================================================
-// COVER CALIBRATOR (FLAT PANEL / DUST COVER) INSTRUCTIONS
-// =============================================================================
+// Cover calibrator (flat panel / dust cover) instructions
 
 /// Execute open cover (unpark dust cap)
 pub async fn execute_open_cover(

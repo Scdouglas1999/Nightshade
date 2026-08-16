@@ -24,9 +24,7 @@ use tokio::sync::RwLock;
 // Sibling-module items via the parent's pub use re-exports.
 use super::*;
 
-// =============================================================================
-// Device Discovery - ASCOM and ALPACA IMPLEMENTATION
-// =============================================================================
+// Device discovery for ASCOM and Alpaca
 
 /// Discover available Alpaca devices on the network
 pub async fn api_discover_alpaca_devices() -> Result<Vec<DeviceInfo>, NightshadeError> {
@@ -1005,9 +1003,9 @@ pub async fn api_discover_devices(
         errors.len()
     );
 
-    // Errors are a feature: if every driver failed and we have
-    // nothing to return, surface a structured error instead of silently
-    // returning an empty list.
+    // If every driver failed there is nothing to return, so surface a
+    // structured error rather than an empty list a caller would read as
+    // "no devices present".
     if aggregated.is_empty() && !errors.is_empty() {
         let combined = errors
             .iter()
@@ -1050,11 +1048,11 @@ mod tests {
 
     #[test]
     fn ascom_hub_drivers_are_discoverable() {
-        // Regression: an `is_diagnostic` rule matching `contains("hub.")` hid
-        // ASCOM Device Hub and 32-bit JustAHub from every equipment list while
+        // An `is_diagnostic` rule matching `contains("hub.")` hides ASCOM
+        // Device Hub and 32-bit JustAHub from every equipment list while
         // letting `JustAHub64` through, because "hub64." does not contain
-        // "hub.". All four were verified to connect on the Windows rig, so none
-        // of them may be filtered.
+        // "hub.". All four connect on the Windows rig, so none of them may be
+        // filtered.
         for (prog_id, name) in [
             ("ASCOM.DeviceHub.Telescope", "Device Hub Telescope"),
             ("ASCOM.DeviceHub.Focuser", "Device Hub Focuser"),

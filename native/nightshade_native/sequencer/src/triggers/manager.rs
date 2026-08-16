@@ -50,17 +50,12 @@ impl TriggerManager {
     /// `meridian_flip` trigger.
     ///
     /// `create_standard_triggers` seeds that trigger with
-    /// `MeridianFlipConfig::default()` and, before this existed, nothing ever
-    /// replaced it — so EVERY trigger-driven flip ran on Rust defaults and the
-    /// whole Settings → Meridian Flip panel was inert for the path that
-    /// actually fires in a real night. It went unnoticed because the shipped
-    /// defaults (5 minutes past, recenter on, 3 retries at 30/60/120 s,
-    /// Pause & Alert) are identical to the panel's defaults; only a user who
-    /// CHANGED a value would have seen their change ignored.
-    ///
-    /// Both the trigger's own config (which decides WHEN to fire) and the
-    /// recovery action's config (which decides HOW the flip runs) are updated
-    /// so the threshold and the step sequence can never drift apart.
+    /// `MeridianFlipConfig::default()`, so without this every trigger-driven flip
+    /// runs on Rust defaults and the Settings → Meridian Flip panel is inert for
+    /// the path that fires on a real night. Both the trigger's own config (which
+    /// decides WHEN to fire) and the recovery action's config (which decides HOW
+    /// the flip runs) are updated, so the threshold and the step sequence cannot
+    /// drift apart.
     ///
     /// Returns `true` when the trigger was found and updated.
     pub fn set_meridian_flip_config(&mut self, config: crate::MeridianFlipConfig) -> bool {
@@ -200,10 +195,9 @@ impl TriggerManager {
             }
             // Stamp the active flip trigger's method + threshold so (a) the
             // MountTrackingLost evaluator's defer-to-OnTrackingLimitHit
-            // heuristic actually sees the configured method (it previously
-            // stayed None in production and the deferral never engaged) and
-            // (b) the exposure instruction's pre-frame meridian gate can
-            // predict when the flip will fire.
+            // heuristic sees the configured method and (b) the exposure
+            // instruction's pre-frame meridian gate can predict when the flip
+            // will fire.
             if let TriggerType::MeridianFlip { config } = &trigger.trigger_type {
                 if meridian_method.is_none() {
                     meridian_method = Some(config.trigger_method);
@@ -400,28 +394,15 @@ impl TriggerManager {
             .with_cooldown(600), // 10 minute cooldown (same as temperature shift)
         );
 
-        // Humidity threshold:
-        //
-        // Architecture-unification 2026-06-05 (Subsystem 2 step 2 — duplicate
-        // humidity gate reconciliation). The standard humidity trigger USED to
-        // be auto-added here with a HARDCODED `max_percent: 85.0`. That created
-        // a second, divergent humidity gate: the Dart `WeatherThresholdEvaluator`
-        // already evaluates humidity against the operator-configured
-        // `WeatherSettings.maxHumidityPercent` and folds the result into the
-        // pushed weather verdict, which the `WeatherUnsafe` trigger consumes. The
-        // hardcoded 85% standard trigger ignored that setting, so the same
-        // humidity reading could be judged differently by the two gates (e.g. an
-        // operator who set 70% still got no abort until 85%, or one who set 90%
-        // got a spurious abort at 85%).
-        //
-        // The humidity ceiling now has exactly ONE definition: the Dart
+        // Humidity threshold: the ceiling has exactly ONE definition — the Dart
         // `maxHumidityPercent` → `WeatherThresholdEvaluator` → pushed verdict →
-        // `WeatherUnsafe` (which already maps to `RecoveryCause::WeatherUnsafe`,
-        // the same recovery this standard trigger used). The `HumidityThreshold`
-        // trigger TYPE is retained for operators who explicitly add a per-sequence
-        // humidity recovery node with their own threshold + recovery action, but
-        // it is no longer silently auto-added with a conflicting hardcoded value.
-        // See `weather_threshold_evaluator.dart` and the parity test.
+        // `WeatherUnsafe` trigger, which maps to `RecoveryCause::WeatherUnsafe`.
+        // No standard humidity trigger is auto-added here: a hardcoded
+        // `max_percent` would be a second, divergent gate that judges the same
+        // reading differently from the operator's setting. The `HumidityThreshold`
+        // trigger TYPE remains available for an explicitly added per-sequence node
+        // with its own threshold and recovery action. See
+        // `weather_threshold_evaluator.dart` and the parity test.
 
         // plate-solve drift trigger. Default 30 px is a pragmatic
         // mid-range value: small enough to catch real drift before it becomes
@@ -452,19 +433,18 @@ impl TriggerManager {
             .with_cooldown(0), // Cadence is exposure-count-driven; no time-based cooldown.
         );
 
-        // Trust-patch §3: standard `AutofocusInterval` trigger so periodic
-        // refocus happens in sequences that lack an explicit Autofocus node
-        // between bursts. Wired symmetrically with `DitherInterval` so
-        // disabling either is straightforward.
+        // Standard `AutofocusInterval` trigger so periodic refocus happens in
+        // sequences that lack an explicit Autofocus node between bursts. Wired
+        // symmetrically with `DitherInterval` so disabling either is
+        // straightforward.
         //
         // Default cadence `default_autofocus_interval_frames()` (25 frames)
         // matches typical "AF every ~30 min" for 60-90 s subs. Users override
         // via UI/profile JSON. Recovery is `Autofocus` so the trigger-monitor
         // dispatch reaches `execute_autofocus` with the live device IDs.
         //
-        // No time-based cooldown — the cadence is already exposure-count
-        // driven and a duplicate cooldown would mask the user's setting
-        // ("errors are a feature").
+        // No time-based cooldown: the cadence is already exposure-count driven,
+        // and a duplicate cooldown would mask the user's setting.
         self.add_trigger(
             Trigger::new(
                 "autofocus_interval",

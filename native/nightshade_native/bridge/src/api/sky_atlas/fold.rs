@@ -1,6 +1,6 @@
 use super::*;
 
-// --- action "fold" --------------------------------------------------------
+// action "fold"
 
 /// One plate-solved frame to fold: its path, integration weight, exposure, and
 /// the full CD + SIP astrometry it was solved with.
@@ -177,7 +177,7 @@ pub(crate) fn fold_impl(args: FoldArgs) -> Result<FoldResult, String> {
     })
 }
 
-// --- action "finalize" ----------------------------------------------------
+// action "finalize"
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]

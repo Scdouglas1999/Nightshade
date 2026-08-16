@@ -76,9 +76,7 @@ impl AscomFilterWheel {
         self.device.get_int_array_property("FocusOffsets")
     }
 
-    // ========================================================================
-    // Batch Property Queries
-    // ========================================================================
+    // Batch property queries
 
     /// Get complete filter wheel status in a single batch operation
     pub fn get_full_status(&self) -> FilterWheelFullStatus {

@@ -65,9 +65,7 @@ impl IndiWeather {
         &self.device_name
     }
 
-    // =========================================================================
     // Connection
-    // =========================================================================
 
     /// Connect to the weather device
     pub async fn connect(&self) -> IndiResult<()> {
@@ -87,9 +85,7 @@ impl IndiWeather {
         client.is_device_connected(&self.device_name).await
     }
 
-    // =========================================================================
-    // Weather Measurements
-    // =========================================================================
+    // Weather measurements
 
     /// Age of the last `WEATHER_PARAMETERS` update in milliseconds, if known.
     pub async fn parameters_age_ms(&self) -> Option<u64> {
@@ -242,9 +238,7 @@ impl IndiWeather {
             .await
     }
 
-    // =========================================================================
-    // Overall Status
-    // =========================================================================
+    // Overall status
 
     /// Get overall weather status from WEATHER_STATUS light property
     ///
@@ -312,9 +306,7 @@ impl IndiWeather {
         }
     }
 
-    // =========================================================================
-    // Alert States
-    // =========================================================================
+    // Alert states
 
     /// Check if there's a rain alert
     pub async fn has_rain_alert(&self) -> bool {
@@ -323,7 +315,7 @@ impl IndiWeather {
             .get_light_state(&self.device_name, "WEATHER_STATUS", "WEATHER_RAIN")
             .await
             .map(|s| s == 3)
-            // Why: see module-level §4.3 policy — parameter not published → no alert (observability only).
+            // Why: see the module's `unwrap_or(false)` policy — parameter not published → no alert (observability only).
             .unwrap_or(false)
     }
 
@@ -334,7 +326,7 @@ impl IndiWeather {
             .get_light_state(&self.device_name, "WEATHER_STATUS", "WEATHER_WIND")
             .await
             .map(|s| s == 3)
-            // Why: see module-level §4.3 policy — parameter not published → no alert (observability only).
+            // Why: see the module's `unwrap_or(false)` policy — parameter not published → no alert (observability only).
             .unwrap_or(false)
     }
 
@@ -345,7 +337,7 @@ impl IndiWeather {
             .get_light_state(&self.device_name, "WEATHER_STATUS", "WEATHER_CLOUDS")
             .await
             .map(|s| s == 3)
-            // Why: see module-level §4.3 policy — parameter not published → no alert (observability only).
+            // Why: see the module's `unwrap_or(false)` policy — parameter not published → no alert (observability only).
             .unwrap_or(false)
     }
 
@@ -356,13 +348,11 @@ impl IndiWeather {
             .get_light_state(&self.device_name, "WEATHER_STATUS", "WEATHER_HUMIDITY")
             .await
             .map(|s| s == 3)
-            // Why: see module-level §4.3 policy — parameter not published → no alert (observability only).
+            // Why: see the module's `unwrap_or(false)` policy — parameter not published → no alert (observability only).
             .unwrap_or(false)
     }
 
-    // =========================================================================
-    // Sensor Availability
-    // =========================================================================
+    // Sensor availability
 
     /// Check if WEATHER_STATUS property is available (device reports weather states)
     pub async fn has_weather_status(&self) -> bool {

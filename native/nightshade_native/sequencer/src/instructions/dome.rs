@@ -5,9 +5,7 @@
 
 use super::*;
 
-// =============================================================================
-// DOME INSTRUCTIONS
-// =============================================================================
+// Dome instructions
 
 /// Maximum time to wait for a dome shutter to reach a commanded state.
 /// Dome shutters are slow (30–90 s is typical on ASCOM/Alpaca observatory
@@ -35,19 +33,18 @@ pub enum DomeShutterWaitOutcome {
 /// Poll the dome shutter status until it reaches `target` ("Open" or
 /// "Closed"), or fail closed on timeout / a reported Error.
 ///
-/// dome open/close/park were previously fire-and-forget — the command
-/// returned and the sequence moved on (slewing/exposing) while the shutter
-/// was still moving, or never opened/closed at all. The cover/calibrator
-/// nodes already poll for their target state; domes now do too.
+/// A fire-and-forget open/close lets the sequence slew and expose while the
+/// shutter is still moving, or never moved at all, so domes poll for their
+/// target state the way the cover/calibrator nodes do.
 ///
-/// Robustness: some domes (e.g. INDI roll-offs without `DOME_SHUTTER`
-/// switches) cannot report shutter state and the bridge returns
-/// Unknown/"Error" for them. We must not fail those — so if EVERY poll comes
-/// back Unknown/"Error" (the device never reports a real state), we degrade
-/// LOUDLY (warn + event) and return [`DomeShutterWaitOutcome::Unconfirmed`]
-/// rather than blocking a working roll-off roof OR claiming a clean success.
-/// If the dome ever reports a real state but never reaches `target` within the
-/// timeout, that is a genuine failure and we fail closed (`Err`).
+/// Some domes (e.g. INDI roll-offs without `DOME_SHUTTER` switches) cannot
+/// report shutter state and the bridge returns Unknown/"Error" for them. When
+/// EVERY poll comes back Unknown/"Error" (the device never reports a real
+/// state), this degrades LOUDLY (warn + event) and returns
+/// [`DomeShutterWaitOutcome::Unconfirmed`] rather than blocking a working
+/// roll-off roof or claiming a clean success. A dome that reports a real state
+/// but never reaches `target` within the timeout is a genuine failure and
+/// fails closed (`Err`).
 pub(crate) async fn wait_for_dome_shutter_state(
     ctx: &InstructionContext,
     dome_id: &str,
@@ -160,9 +157,8 @@ pub async fn execute_open_dome(
         // Operators must ensure dome park state is compatible with opening.
     }
 
-    // Wait for the shutter to actually reach Open before declaring success —
-    // previously this returned immediately while the shutter was still
-    // moving, so the next instruction could slew/expose against a closed roof.
+    // Wait for the shutter to actually reach Open before declaring success,
+    // or the next instruction slews and exposes against a closed roof.
     let open_outcome =
         match wait_for_dome_shutter_state(ctx, &dome_id, "Open", progress_callback).await {
             Ok(outcome) => outcome,

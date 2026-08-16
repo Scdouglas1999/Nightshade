@@ -1,9 +1,5 @@
 use super::*;
 
-// =============================================================================
-// Shared helpers
-// =============================================================================
-
 /// Read an optional calibration master by path. Empty / `None` → `Ok(None)`.
 pub(crate) fn load_optional_master(
     path: &Option<String>,
@@ -407,7 +403,7 @@ pub(crate) fn reference_wcs_from_fits(path: &str) -> Option<WcsInfo> {
         .get_float("CRPIX2")
         .unwrap_or_else(|| naxis2 / 2.0 + 0.5);
 
-    // --- Prefer an explicit CD matrix. ---
+    // Prefer an explicit CD matrix.
     if let (Some(cd1_1), Some(cd2_2)) = (header.get_float("CD1_1"), header.get_float("CD2_2")) {
         return Some(WcsInfo {
             crval1,
@@ -421,7 +417,7 @@ pub(crate) fn reference_wcs_from_fits(path: &str) -> Option<WcsInfo> {
         });
     }
 
-    // --- Fall back to CDELT + CROTA2 (older WCS convention). ---
+    // Fall back to CDELT + CROTA2 (older WCS convention).
     let cdelt1 = header.get_float("CDELT1")?;
     let cdelt2 = header.get_float("CDELT2")?;
     let crota2 = header.get_float("CROTA2").unwrap_or(0.0).to_radians();

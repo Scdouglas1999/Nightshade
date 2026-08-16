@@ -160,7 +160,7 @@ pub fn resolve_variable(
         });
     }
     match name {
-        // -------------------- Target --------------------------------
+        // Target
         // `${target.name}` is in the DEFAULT save-path template
         // (`${target.name}_${filter}_${frame:04}.fits`), so making it
         // unresolvable aborted frame 1 of any run with no TargetHeader in
@@ -225,7 +225,7 @@ pub fn resolve_variable(
             calculate_azimuth(ctx),
             "azimuth requires target RA/Dec and observer location",
         ),
-        // -------------------- Filter --------------------------------
+        // Filter
         // A rig with no filter wheel (OSC / DSLR) has no filter, and that is
         // NORMAL — not an error. `${filter}` appears in the DEFAULT save-path
         // template (`${target.name}_${filter}_${frame:04}.fits`), so making it
@@ -254,7 +254,7 @@ pub fn resolve_variable(
                 .or_else(|| ctx.current_filter_index.map(i64::from)),
             "filter position is unknown (no recent filter change)",
         ),
-        // -------------------- Frame counters ------------------------
+        // Frame counters
         "frame" => int_or_unresolvable(
             name,
             frame.frame.map(i64::from),
@@ -265,7 +265,7 @@ pub fn resolve_variable(
             frame.frame_total.map(i64::from),
             "frame total is only set inside an exposure burst",
         ),
-        // -------------------- Session -------------------------------
+        // Session
         "session.id" => Ok(VariableValue::Str(ctx.session_id.clone())),
         "session.date" => {
             let dt = frame.session_start.unwrap_or_else(now_utc);
@@ -277,7 +277,7 @@ pub fn resolve_variable(
                 dt.format("%Y-%m-%dT%H:%M:%SZ").to_string(),
             ))
         }
-        // -------------------- Time ----------------------------------
+        // Time
         "time.now" => Ok(VariableValue::Str(
             frame
                 .now_override
@@ -301,7 +301,7 @@ pub fn resolve_variable(
                 .format("%Y-%m-%d")
                 .to_string(),
         )),
-        // -------------------- Moon ----------------------------------
+        // Moon
         "moon.phase" => float_or_unresolvable(
             name,
             frame
@@ -314,7 +314,7 @@ pub fn resolve_variable(
             ctx.calculate_moon_separation(),
             "moon separation requires target RA/Dec",
         ),
-        // -------------------- Weather -------------------------------
+        // Weather
         "weather.temp_c" => float_or_unresolvable(
             name,
             frame.weather_temp_c,
@@ -330,7 +330,7 @@ pub fn resolve_variable(
             frame.sqm,
             "no SQM reading available (configure a sky-brightness provider)",
         ),
-        // -------------------- Observer ------------------------------
+        // Observer
         "observer.name" => str_or_unresolvable(
             name,
             ctx.observer_name.as_deref(),
@@ -341,7 +341,7 @@ pub fn resolve_variable(
         "observer.elevation" => {
             float_or_unresolvable(name, ctx.site_elevation_m, "observer elevation is unset")
         }
-        // -------------------- Equipment -----------------------------
+        // Equipment
         "equipment.camera" => {
             let camera = match (ctx.camera_make.as_deref(), ctx.camera_model.as_deref()) {
                 (Some(make), Some(model)) => Some(format!("{make} {model}")),
@@ -370,7 +370,7 @@ pub fn resolve_variable(
             ctx.telescope_aperture_mm,
             "telescope aperture is unset in equipment profile",
         ),
-        // -------------------- Exposure ------------------------------
+        // Exposure
         "exposure.duration" => float_or_unresolvable(
             name,
             frame.exposure_duration_secs,
@@ -490,7 +490,7 @@ fn apply_format_spec(
         return Ok(default_render(value));
     }
 
-    // ---- integer zero-pad: "04", "06", ... -----------------------
+    // Integer zero-pad: "04", "06", ...
     if let Some(width_str) = spec.strip_prefix('0') {
         // The remainder must be all ASCII digits, e.g. `0` (width 0),
         // `04`, `06`. Reject malformed specs like `0x4`.
@@ -510,7 +510,7 @@ fn apply_format_spec(
         }
     }
 
-    // ---- fixed-point: ".1f", ".0f", ".2f", ... -------------------
+    // fixed-point: ".1f", ".0f", ".2f", ...
     if let Some(rest) = spec.strip_prefix('.') {
         if let Some(digits) = rest.strip_suffix('f') {
             if digits.chars().all(|c| c.is_ascii_digit()) && !digits.is_empty() {
@@ -669,7 +669,7 @@ mod tests {
     use crate::node::context::ExecutionContext;
 
     fn ctx_with_target() -> ExecutionContext {
-        let mut ctx = ExecutionContext::new("root".to_string());
+        let mut ctx = ExecutionContext::new_for_test("root".to_string());
         ctx.target_name = Some("M42".to_string());
         ctx.target_id = Some("tgt-42".to_string());
         ctx.target_ra = Some(5.59);
@@ -885,7 +885,7 @@ mod tests {
         // (never UnknownVariable) when we throw an empty context+frame at
         // it. This catches the "added entry to catalog but forgot the
         // resolver arm" bug.
-        let ctx = ExecutionContext::new("root".to_string());
+        let ctx = ExecutionContext::new_for_test("root".to_string());
         let frame = EvaluationFrame::empty();
         for entry in variable_catalog() {
             let err = resolve_variable(entry.name, 0, &ctx, &frame).err();
@@ -928,13 +928,13 @@ mod tests {
     }
 }
 /// A rig with no filter wheel must still render the default save-path
-/// template. `${filter}` used to be Unresolvable, which aborted frame 1 of
-/// every sequence on an OSC/DSLR rig ("Save-path template render failed …
-/// no filter set"). The label matches the non-template filename path in
-/// `instructions.rs` and is deliberately NOT "L".
+/// template: an Unresolvable `${filter}` aborts frame 1 of every sequence on
+/// an OSC/DSLR rig ("Save-path template render failed … no filter set"). The
+/// label matches the non-template filename path in `instructions.rs` and is
+/// deliberately NOT "L".
 #[test]
 fn filter_falls_back_to_nofilter_label_when_unset() {
-    let mut ctx = ExecutionContext::new("root".to_string());
+    let mut ctx = ExecutionContext::new_for_test("root".to_string());
     ctx.target_name = Some("M31".to_string());
     ctx.current_filter = None;
     let frame = EvaluationFrame {
@@ -951,7 +951,7 @@ fn filter_falls_back_to_nofilter_label_when_unset() {
 
 #[test]
 fn filter_uses_the_real_name_when_set() {
-    let mut ctx = ExecutionContext::new("root".to_string());
+    let mut ctx = ExecutionContext::new_for_test("root".to_string());
     ctx.target_name = Some("M31".to_string());
     ctx.current_filter = Some("Ha".to_string());
     let frame = EvaluationFrame {
@@ -964,13 +964,13 @@ fn filter_uses_the_real_name_when_set() {
 }
 
 /// A calibration / untargeted run must still render the default save-path
-/// template. `${target.name}` used to be Unresolvable, which aborted frame 1 of
-/// every sequence with no TargetHeader ("Save-path template render failed …
-/// no active target"). The label matches the non-template filename path in
+/// template: an Unresolvable `${target.name}` aborts frame 1 of every sequence
+/// with no TargetHeader ("Save-path template render failed … no active
+/// target"). The label matches the non-template filename path in
 /// `instructions.rs`.
 #[test]
 fn target_name_falls_back_to_untargeted_label_when_unset() {
-    let mut ctx = ExecutionContext::new("root".to_string());
+    let mut ctx = ExecutionContext::new_for_test("root".to_string());
     ctx.target_name = None;
     ctx.current_filter = Some("Ha".to_string());
     let frame = EvaluationFrame {
@@ -987,7 +987,7 @@ fn target_name_falls_back_to_untargeted_label_when_unset() {
 /// The real target name must still win when a TargetHeader is in scope.
 #[test]
 fn target_name_uses_the_real_name_when_set() {
-    let mut ctx = ExecutionContext::new("root".to_string());
+    let mut ctx = ExecutionContext::new_for_test("root".to_string());
     ctx.target_name = Some("M31".to_string());
     ctx.current_filter = None;
     let frame = EvaluationFrame {

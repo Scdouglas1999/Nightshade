@@ -6,16 +6,11 @@ static COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// A scratch directory that deletes itself when the test ends.
 ///
-/// These used to be bare `PathBuf`s that nothing ever removed, so every run
-/// of this module left its FITS trees behind in `/tmp`. Enough accumulated
-/// runs filled a 16 GB tmpfs, and the bridge suite then reported EIGHT
-/// failures that had nothing to do with the code under test — a harness
-/// inventing its own failures is worse than no harness, because the next
-/// person debugs the wrong thing.
-///
-/// `Drop` rather than a cleanup call at the end of each test: the leak was
-/// worst exactly when a test FAILED, and drop still runs while a panic
-/// unwinds.
+/// Every test here writes a FITS tree under `/tmp`; left behind, enough runs
+/// fill the tmpfs and the suite starts failing for reasons unrelated to the code
+/// under test. Cleanup runs from `Drop` rather than at the end of each test,
+/// because the leak is worst exactly when a test fails and drop still runs while
+/// a panic unwinds.
 struct TempDir(std::path::PathBuf);
 
 impl std::ops::Deref for TempDir {

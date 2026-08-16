@@ -1,8 +1,7 @@
 //! Math helpers for three-point polar alignment.
 //!
-//! Extracted from the original monolithic `polar_align.rs` so the
-//! state machine and the celestial-mechanics formulas can be tested
-//! independently. No behavior change.
+//! Separate from the state machine so the celestial-mechanics formulas can
+//! be tested independently.
 
 /// Calculate centre of rotation from 3 points using 3D plane fitting.
 ///
@@ -156,12 +155,9 @@ fn unit_to_radec(v: (f64, f64, f64)) -> (f64, f64) {
 /// therefore the same rigid rotation that moved the axis (exact in the
 /// small-angle limit, and convergent: the displayed error reaches zero exactly
 /// when the live axis reaches the pole). Applying it to the measured initial
-/// axis yields the LIVE axis.
-///
-/// previously the adjustment loop recomputed the error from the FIXED
-/// initial axis every frame, so the displayed error vector never responded to
-/// the user's adjustments — they were aligning blind. Returns the live axis
-/// (RA, Dec) in degrees.
+/// axis yields the LIVE axis, which is what makes the displayed error respond
+/// to the bolts instead of leaving the operator aligning blind. Returns the
+/// live axis (RA, Dec) in degrees.
 pub fn rotate_axis_by_star_motion(
     axis: (f64, f64),
     star_initial: (f64, f64),

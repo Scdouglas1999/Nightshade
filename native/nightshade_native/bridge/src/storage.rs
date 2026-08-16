@@ -100,9 +100,7 @@ impl ProfileStorage {
     }
 }
 
-// =============================================================================
-// Settings Storage
-// =============================================================================
+// Settings storage
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ObserverLocation {
@@ -175,9 +173,7 @@ impl SettingsStorage {
     }
 }
 
-// =============================================================================
-// Plate Solver Settings Storage
-// =============================================================================
+// Plate solver settings storage
 
 /// Persisted plate-solver UX configuration: user-overridden executable +
 /// catalog paths and the active solver preference. Lives in its own

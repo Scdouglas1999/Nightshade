@@ -22,7 +22,7 @@ pub enum AlpacaError {
     #[error("Parse error: {0}")]
     ParseError(String),
 
-    // Why: §5.3 — surface the exact JSON pixel that failed to parse instead of
+    // Why: surface the exact JSON pixel that failed to parse instead of
     // silently zero-filling. `offset` is the linear pixel index into the array,
     // `found` is the JSON token (e.g., `"NaN"`, `null`) we couldn't coerce.
     #[error("Image array pixel parse failure at offset {offset}: {reason} (found: {found})")]
@@ -32,10 +32,10 @@ pub enum AlpacaError {
         reason: String,
     },
 
-    // Why: §5.3 — color (rank 3) image arrays carry a channel dimension that
-    // the legacy `download_image_data_typed` flattened away. Until the typed
-    // multi-plane consumer lands (W2-DRV-IBYTES), surface the situation
-    // explicitly rather than silently dropping data.
+    // Why: color (rank 3) image arrays carry a channel dimension that
+    // `download_image_data_typed` flattens away. Until a typed multi-plane
+    // consumer exists, surface the situation explicitly rather than silently
+    // dropping data.
     #[error(
         "Color image array (rank 3, {width}x{height}x{planes}) requires multi-plane consumer; \
          use `download_image_array_full_typed` instead"
@@ -46,7 +46,7 @@ pub enum AlpacaError {
         planes: u32,
     },
 
-    // Why: §5.3 — when the JSON `Type` field is unknown or the (Rank, Type)
+    // Why: when the JSON `Type` field is unknown or the (Rank, Type)
     // pair has no parser, we must reject the frame instead of guessing.
     #[error("Unsupported image array (rank={rank}, type={image_type}): {reason}")]
     UnsupportedImageArray {
@@ -55,7 +55,7 @@ pub enum AlpacaError {
         reason: String,
     },
 
-    // Why §5.13: the Alpaca v3 `application/imagebytes` payload begins with a
+    // Why: the Alpaca v3 `application/imagebytes` payload begins with a
     // 44-byte fixed header. Anything shorter than the field we're trying to
     // read is wire truncation, never a recoverable condition — fail closed.
     #[error(
@@ -67,13 +67,13 @@ pub enum AlpacaError {
         got: usize,
     },
 
-    // Why §5.13: the wire-side `transmission element type` is constrained to
+    // Why: the wire-side `transmission element type` is constrained to
     // the ASCOM `ImageArrayElementTypes` enum; an unknown value means we have
     // no way to interpret payload bytes safely.
     #[error("Alpaca ImageBytes unsupported transmission element type {code}")]
     UnsupportedTransmissionType { code: i32 },
 
-    // Why §5.13: dimensions and rank must agree; a rank-2 frame with a non-zero
+    // Why: dimensions and rank must agree; a rank-2 frame with a non-zero
     // `dimension 3`, or a dim that doesn't match the requested NumX/NumY, is
     // either a server bug or wire corruption.
     #[error(

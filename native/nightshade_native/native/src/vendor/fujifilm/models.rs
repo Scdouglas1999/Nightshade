@@ -2,9 +2,7 @@
 
 use super::*;
 
-// =============================================================================
-// SHUTTER SPEED MAPPING
-// =============================================================================
+// Shutter speed mapping
 
 /// Shutter speed code to seconds mapping
 pub(crate) struct ShutterSpeedEntry {
@@ -118,9 +116,7 @@ pub(crate) fn find_shutter_code(seconds: f64) -> c_long {
     best_code
 }
 
-// =============================================================================
-// LIVE VIEW QUALITY
-// =============================================================================
+// Live view quality
 
 /// Live view quality setting
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -145,9 +141,7 @@ impl LiveViewQuality {
     }
 }
 
-// =============================================================================
-// CAMERA MODEL DATABASE
-// =============================================================================
+// Camera model database
 
 /// Fujifilm camera model information
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

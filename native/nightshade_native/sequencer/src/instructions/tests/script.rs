@@ -6,11 +6,9 @@ use super::*;
 
 /// A Run Script node created from the palette carries no `timeout_secs`
 /// (the Dart `ScriptNode.timeoutSecs` is a nullable field with no default)
-/// while the editor displays 300. Refusing to run in that state made every
-/// freshly added Run Script node dead on arrival: "Script timeout_secs is
-/// required in fail-closed mode", script never spawned.
-///
-/// Fails WITHOUT the fix.
+/// while the editor displays 300, so refusing to run in that state makes
+/// every freshly added Run Script node dead on arrival: "Script timeout_secs
+/// is required in fail-closed mode", script never spawned.
 #[cfg(target_os = "linux")]
 #[tokio::test]
 async fn script_without_timeout_runs_under_the_default_timeout() {
@@ -27,7 +25,7 @@ async fn script_without_timeout_runs_under_the_default_timeout() {
     };
 
     let ctx = script_ctx().await;
-    let ec = crate::node::context::ExecutionContext::new("test-node".to_string());
+    let ec = crate::node::context::ExecutionContext::new_for_test("test-node".to_string());
     let result = execute_script(&cfg, &ctx, &ec, &empty_frame()).await;
 
     let ran =
@@ -65,7 +63,7 @@ async fn script_timeout_returns_failure_and_kills_child() {
     };
 
     let ctx = script_ctx().await;
-    let ec = crate::node::context::ExecutionContext::new("test-node".to_string());
+    let ec = crate::node::context::ExecutionContext::new_for_test("test-node".to_string());
     let frame = empty_frame();
 
     let result = execute_script(&cfg, &ctx, &ec, &frame).await;
@@ -102,11 +100,10 @@ async fn script_timeout_returns_failure_and_kills_child() {
     );
 }
 
-/// SEQ-001: a script that backgrounds work (`some_cmd &`) and then times out
-/// must leave NO descendant running. `kill_on_drop` reaps only the direct
-/// child; the process-group teardown must take the backgrounded grandchild
-/// with it. This fails on the pre-fix code (grandchild survives) and passes
-/// once the child is spawned in its own group and the group is SIGKILLed.
+/// A script that backgrounds work (`some_cmd &`) and then times out must
+/// leave NO descendant running. `kill_on_drop` reaps only the direct child, so
+/// the child is spawned in its own process group and the group is SIGKILLed,
+/// taking the backgrounded grandchild with it.
 #[cfg(target_os = "linux")]
 #[tokio::test]
 async fn script_timeout_kills_backgrounded_grandchild() {
@@ -126,7 +123,7 @@ async fn script_timeout_kills_backgrounded_grandchild() {
     };
 
     let ctx = script_ctx().await;
-    let ec = crate::node::context::ExecutionContext::new("test-node".to_string());
+    let ec = crate::node::context::ExecutionContext::new_for_test("test-node".to_string());
     let frame = empty_frame();
 
     let result = execute_script(&cfg, &ctx, &ec, &frame).await;
@@ -165,7 +162,7 @@ async fn script_timeout_kills_backgrounded_grandchild() {
 #[cfg(target_os = "linux")]
 #[tokio::test]
 async fn script_success_surfaces_stdout_stderr_exit_code() {
-    // Regression on the success path: stdout/stderr/exit_code unchanged.
+    // The success path must surface stdout/stderr/exit_code.
     let cfg = ScriptConfig {
         script_path: "/bin/sh".to_string(),
         arguments: vec![
@@ -175,7 +172,7 @@ async fn script_success_surfaces_stdout_stderr_exit_code() {
         timeout_secs: Some(10),
     };
     let ctx = script_ctx().await;
-    let ec = crate::node::context::ExecutionContext::new("test-node".to_string());
+    let ec = crate::node::context::ExecutionContext::new_for_test("test-node".to_string());
     let frame = empty_frame();
 
     let result = execute_script(&cfg, &ctx, &ec, &frame).await;

@@ -130,7 +130,7 @@ impl ScriptedDeviceOps {
 
 #[async_trait]
 impl DeviceOps for ScriptedDeviceOps {
-    // === scripted, recorded methods ===
+    // Scripted, recorded methods
 
     async fn device_is_connected(&self, device_id: &str) -> DeviceResult<bool> {
         self.record(format!("device_is_connected:{device_id}"));
@@ -229,7 +229,7 @@ impl DeviceOps for ScriptedDeviceOps {
         }
     }
 
-    // === delegating methods (kept minimal; only those a scenario might hit) ===
+    // Delegating methods (kept minimal; only those a scenario might hit)
 
     async fn mount_slew_to_coordinates(&self, id: &str, ra: f64, dec: f64) -> DeviceResult<()> {
         self.inner.mount_slew_to_coordinates(id, ra, dec).await
@@ -417,12 +417,10 @@ async fn manager_with_state() -> (Arc<RwLock<TriggerManager>>, Arc<RwLock<Trigge
     (Arc::new(RwLock::new(manager)), state)
 }
 
-// =============================================================================
 // SCENARIO 1 — USB/comms DISCONNECT during an exposure -> recovery promotes ->
 // reconnect -> sequence RESUMES (recovery attempt returns Succeeded, which the
 // executor driver turns into `Recovering -> Running`, re-running the failed
 // node). This is the W1 disconnect-resume fix.
-// =============================================================================
 
 #[tokio::test]
 async fn scenario1_usb_disconnect_during_exposure_reconnects_and_resumes() {
@@ -472,16 +470,16 @@ async fn scenario1_usb_disconnect_during_exposure_reconnects_and_resumes() {
 
 #[tokio::test]
 async fn scenario1b_disconnect_with_no_device_ids_is_unrecoverable_not_retried() {
-    // Edge of the same scenario: if the cause is DeviceDisconnected but no device
-    // ids were captured, the attempt must FAIL (not silently "succeed" and resume
-    // into a half-connected rig). Errors are a feature.
+    // Edge of the same scenario: a DeviceDisconnected cause with no captured
+    // device ids must FAIL rather than "succeed" and resume into a
+    // half-connected rig.
     //
-    // It must fail TERMINALLY, not retryably. With no ids there is nothing to
+    // It must fail TERMINALLY, not retryably: with no ids there is nothing to
     // reconnect and nothing to poll, so every subsequent attempt returns this
-    // identical answer; a `Failed` here buys nine more of them spread over the
-    // shipped 90-minute budget. Live rig 2026-08-09: a run started with no
-    // camera assigned sat at `recovering / Device disconnected, progress 0.0`
-    // with no frames written.
+    // identical answer and a `Failed` here buys nine more of them spread over
+    // the shipped 90-minute budget — a run started with no camera assigned
+    // otherwise sits at `recovering / Device disconnected, progress 0.0` with
+    // no frames written.
     let ops_concrete = Arc::new(ScriptedDeviceOps::new());
     let ops: SharedDeviceOps = ops_concrete.clone();
     let (manager, _state) = manager_with_state().await;
@@ -500,17 +498,15 @@ async fn scenario1b_disconnect_with_no_device_ids_is_unrecoverable_not_retried()
         "no device ids -> nothing to reconnect -> must end the loop now, not \
          schedule another identical attempt; got {outcome:?}"
     );
-    // Specifically NOT the retryable variant — that is the regression.
+    // Specifically NOT the retryable variant.
     assert!(
         !matches!(outcome, AttemptOutcome::Failed { .. }),
         "a retryable Failed here re-enters the wait timer and burns the budget"
     );
 }
 
-// =============================================================================
 // SCENARIO 2 — WEATHER UNSAFE (device safety OR pushed Dart verdict) -> the run
 // PAUSES and the mount PARKS + cover/dome CLOSE (ParkAndAbort safe-state).
-// =============================================================================
 
 #[tokio::test]
 async fn scenario2_weather_unsafe_trigger_fires_from_hardware_and_from_verdict() {
@@ -569,8 +565,9 @@ async fn scenario2_park_and_abort_safe_state_sweep_parks_then_closes_in_order() 
     )
     .await;
 
-    assert!(outcome.fully_safe(), "all safe-state steps must succeed");
     assert!(outcome.park.as_ref().unwrap().success);
+    assert!(outcome.cover_close_error.is_none());
+    assert!(outcome.dome_close_error.is_none());
 
     let park_idx = ops_concrete.index_of("mount_park:mount-1").unwrap();
     let cover_idx = ops_concrete.index_of("cover_close:cover-1").unwrap();
@@ -602,10 +599,9 @@ async fn scenario2_park_failure_still_closes_cover_and_dome() {
     .await;
 
     assert!(
-        !outcome.fully_safe(),
-        "a failed park must report not-fully-safe (errors are a feature)"
+        !outcome.park.as_ref().unwrap().success,
+        "a failed park must be reported as a failed park"
     );
-    assert!(!outcome.park.as_ref().unwrap().success);
     assert!(outcome.park.as_ref().unwrap().last_error.is_some());
     // The roof still closed despite the stuck mount.
     assert!(ops_concrete.index_of("cover_close:cover-1").is_some());
@@ -661,10 +657,8 @@ async fn scenario2_weather_recovery_gate_holds_while_dart_verdict_unsafe() {
     );
 }
 
-// =============================================================================
 // SCENARIO 3 — pushed verdict Some(true) that goes STALE -> stays paused
 // fail-closed + emits the stale warning, never auto-resumes.
-// =============================================================================
 
 #[tokio::test]
 async fn scenario3_stale_unsafe_verdict_stays_paused_and_warns_never_resumes() {
@@ -740,12 +734,10 @@ async fn scenario3_stale_unsafe_verdict_stays_paused_and_warns_never_resumes() {
     );
 }
 
-// =============================================================================
 // SCENARIO 4 — DAWN / end-of-night -> the DawnApproaching trigger fires and the
 // park path runs. End-of-night scheduling lives partly on the Dart side, but the
 // trigger that fires the in-sequencer park IS in the sequencer and is asserted
 // here, together with the park device-call it drives.
-// =============================================================================
 
 #[tokio::test]
 async fn scenario4_dawn_approaching_fires_and_parks() {
@@ -798,7 +790,12 @@ async fn scenario4_dawn_approaching_fires_and_parks() {
         0.0,
     )
     .await;
-    assert!(outcome.fully_safe(), "end-of-night park sweep must succeed");
+    assert!(
+        outcome.park.as_ref().is_some_and(|p| p.success),
+        "end-of-night park sweep must park the mount"
+    );
+    assert!(outcome.cover_close_error.is_none());
+    assert!(outcome.dome_close_error.is_none());
     assert!(ops_concrete.index_of("mount_park:mount-1").is_some());
 }
 
@@ -914,9 +911,11 @@ async fn scenario6_disconnect_that_never_recovers_keeps_failing_then_parks_safe(
     )
     .await;
     assert!(
-        safe.fully_safe(),
-        "recovery exhaustion must leave the rig SAFE (parked + closed), not aborted unsafe"
+        safe.park.as_ref().is_some_and(|p| p.success),
+        "recovery exhaustion must leave the mount parked, not aborted unsafe"
     );
+    assert!(safe.cover_close_error.is_none());
+    assert!(safe.dome_close_error.is_none());
     let park_idx = ops_concrete.index_of("mount_park:mount-1").unwrap();
     let cover_idx = ops_concrete.index_of("cover_close:cover-1").unwrap();
     let dome_idx = ops_concrete.index_of("dome_close:dome-1").unwrap();
@@ -953,9 +952,11 @@ async fn scenario6b_guide_star_exhaustion_then_safe_state_parks_and_closes() {
     )
     .await;
     assert!(
-        safe.fully_safe(),
-        "guide-star exhaustion must end in a SAFE parked+closed state"
+        safe.park.as_ref().is_some_and(|p| p.success),
+        "guide-star exhaustion must end with the mount parked"
     );
+    assert!(safe.cover_close_error.is_none());
+    assert!(safe.dome_close_error.is_none());
 }
 
 #[tokio::test]
@@ -978,7 +979,7 @@ async fn scenario6c_exhaustion_with_stuck_mount_still_closes_roof_and_reports_un
     .await;
 
     assert!(
-        !safe.fully_safe(),
+        !safe.park.as_ref().unwrap().success,
         "a stuck mount during give-up must be reported (not silently 'safe')"
     );
     // Roof still closed despite the stuck mount.
@@ -989,10 +990,10 @@ async fn scenario6c_exhaustion_with_stuck_mount_still_closes_roof_and_reports_un
 }
 
 // =============================================================================
-// SCENARIO 7 — v4 BLOCKER #1/#2 INTEGRATION: drive the FULL recovery-escalation
+// SCENARIO 7 — recovery-escalation INTEGRATION: drive the FULL escalation
 // branch (`apply_recovery_escalation`, the seam factored out of the inline
 // recovery-driver closure) to a `PauseForOperator` escalation and assert the
-// SAFETY behaviour the senior review pinned:
+// SAFETY behaviour:
 //
 //   #2 (ATTENDED, operator_present == true): tracking MUST be re-enabled
 //      (`mount_set_tracking:mount-1:true`) BEFORE the run flips to Paused —
@@ -1051,7 +1052,7 @@ fn escalation_fixture(operator_present: bool) -> EscalationFixture {
 
 #[tokio::test]
 async fn scenario7_attended_escalation_restores_tracking_before_pausing() {
-    // BLOCKER #2 — drive the ATTENDED escalation branch end to end. The branch
+    // Drive the ATTENDED escalation branch end to end. The branch
     // MUST command `mount_set_tracking(true)` BEFORE it flips the run to Paused
     // and emits `StateChanged(Paused)`. We record the Paused state-change event
     // into the SAME ordered log the device ops write to (via a listener task), so
@@ -1160,7 +1161,7 @@ async fn scenario7_attended_escalation_restores_tracking_before_pausing() {
 
 #[tokio::test]
 async fn scenario7b_unattended_escalation_safe_abandons_no_resumable_paused() {
-    // BLOCKER #1 — drive the UNATTENDED escalation (the SAFE default,
+    // Drive the UNATTENDED escalation (the SAFE default,
     // operator_present == false). It must NOT flip to a passive Paused freeze;
     // it must run the safe-state sweep (park -> close cover -> close dome) and
     // END the run as Failed, with the node tree cancelled. A resumable Paused
@@ -1249,7 +1250,7 @@ async fn scenario7b_unattended_escalation_safe_abandons_no_resumable_paused() {
     );
 }
 
-/// B19 end-to-end (state replay): a loaded sequence whose mount reports
+/// End-to-end (state replay): a loaded sequence whose mount reports
 /// `mount_is_tracking == Ok(false)` for the first several trigger polls — the
 /// headless / still-parked / not-yet-slewed case — must NOT raise
 /// `MountTrackingLost`, and must therefore never self-cancel ~1.5 s after start.

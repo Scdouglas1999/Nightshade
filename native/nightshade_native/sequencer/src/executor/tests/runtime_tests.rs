@@ -15,11 +15,11 @@ fn test_executor_state_transitions() {
     });
 }
 
-/// Regression: a finished run left the executor parked in a terminal state
-/// and nothing ever returned it to `Idle`, so the second sequence of a night
-/// was refused with "Cannot start: executor is Completed" — one run per app
-/// launch, and the desktop Start button showed nothing at all (the native
-/// refusal was rolled back by an immediate stop).
+/// A finished run that leaves the executor parked in a terminal state, with
+/// nothing to return it to `Idle`, refuses the second sequence of a night with
+/// "Cannot start: executor is Completed" — one run per app launch, and the
+/// desktop Start button shows nothing at all, because the native refusal is
+/// rolled back by an immediate stop.
 ///
 /// The assertion is on the error KIND, not on success: `start()` still bails
 /// out later for want of a loaded sequence, which is exactly what this
@@ -103,11 +103,11 @@ fn test_location_configuration() {
     assert_eq!(executor.longitude, Some(-122.6));
 }
 
-/// SCI-39: an unset observing site reaches the executor as `Some(0, 0)`
-/// (that is what the persisted settings hold and what the bridge seeds).
-/// Accepting it as a real site put the rig on Null Island: the daylight
-/// gate refused every light frame of an Australian night quoting a
-/// Greenwich Sun altitude, and the altitude limits gated on the wrong sky.
+/// An unset observing site reaches the executor as `Some(0, 0)` (that is what
+/// the persisted settings hold and what the bridge seeds). Accepting it as a
+/// real site puts the rig on Null Island: the daylight gate refuses every
+/// light frame of an Australian night quoting a Greenwich Sun altitude, and
+/// the altitude limits gate on the wrong sky.
 #[test]
 fn null_island_is_an_unset_site_not_a_site_at_0n_0e() {
     let mut executor = SequenceExecutor::new();
@@ -155,19 +155,18 @@ fn safety_check_interval_is_clamped_and_defaulted() {
     assert_eq!(effective_safety_check_interval_secs(9999), 3600);
 }
 
-/// Architecture-unification 2026-06-05 (Subsystem 2 step 1 — CROSS-LANGUAGE
-/// FAIL-MODE PARITY). This is one half of the pinned truth table; the Dart
-/// half is `weather_fail_mode_parity_test.dart`. BOTH must encode the
-/// identical rows:
+/// One half of the pinned cross-language fail-mode truth table; the Dart half
+/// is `weather_fail_mode_parity_test.dart`. BOTH must encode the identical
+/// rows:
 ///
 ///   FailClosed -> Unsafe  (Rust: weather_safe=false; Dart verdict: Some(true))
 ///   FailOpen   -> Safe    (Rust: weather_safe=true;  Dart verdict: None/abstain)
 ///   WarnOnly   -> Preserve(Rust: weather_safe unchanged; Dart verdict: None/abstain)
 ///
 /// The single shared definition is `safety_fail_mode_no_data_resolution`
-/// (consumed by the executor safety poll). The Dart side mirrors it as
-/// `noDataFailModeResolution`. If you change a row here, change it in the
-/// Dart test too or the two implementations have silently drifted.
+/// (consumed by the executor safety poll), mirrored in Dart as
+/// `noDataFailModeResolution`. A row changed here must be changed in the Dart
+/// test too, or the two implementations have silently drifted.
 #[test]
 fn safety_fail_mode_no_data_resolution_truth_table() {
     assert_eq!(
@@ -187,7 +186,7 @@ fn safety_fail_mode_no_data_resolution_truth_table() {
     );
 }
 
-/// B19 regression: `MountTrackingLost` must be edge-triggered, not
+/// `MountTrackingLost` must be edge-triggered, not
 /// level-triggered. The trigger monitor arms `mount_tracking_expected` at
 /// startup before the mount has begun tracking, so a not-yet-tracking poll
 /// (`previously_tracking` is `None`, or the mount is still parked) must NOT
@@ -197,7 +196,7 @@ fn safety_fail_mode_no_data_resolution_truth_table() {
 #[test]
 fn mount_tracking_loss_is_edge_triggered_not_level_triggered() {
     // First poll: expected armed, mount reports not tracking, no prior
-    // reading. This is the exact B19 condition — must NOT flag a loss.
+    // reading. This is the not-yet-tracking condition — must NOT flag a loss.
     assert!(
         !mount_tracking_just_lost(true, false, None, false),
         "a not-yet-tracking mount on the first poll must not be 'lost'"
@@ -593,14 +592,6 @@ fn terminate_with_sets_is_cancelled_before_returning_triggers() {
     assert_eq!(returned[1].0, "trig_b");
 }
 
-/// Regression: the in-flight latch must be set for the whole trigger
-/// recovery action and cleared on EVERY exit path, including the
-/// `return terminate_with(...)` early exits that unwind past the guard.
-///
-/// A leaked `true` would make every subsequent run pay the full
-/// `TRIGGER_ACTION_QUIESCE_MAX_SECS` wait before finishing; a missing
-/// `true` reopens the original defect (the run resolving while a meridian
-/// flip retry ladder is still sleeping, orphaning the recovery).
 /// A failed autofocus is judged on what the frames measure, not on the
 /// fact that the sweep failed. Slightly-soft frames stack and deconvolve
 /// fine; donuts are wasted disk.
@@ -781,8 +772,8 @@ fn trigger_action_in_flight_guard_sets_and_clears_on_every_exit() {
     fn early_return(flag: &Arc<AtomicBool>) -> &'static str {
         let _guard = TriggerActionInFlightGuard::new(flag);
         // The branch keeps this a *real* early return (not a tail
-        // expression), which is the shape being regression-tested; it also
-        // proves the guard had already latched at the return point.
+        // expression), which is the shape under test; it also proves the
+        // guard has already latched at the return point.
         if flag.load(Ordering::Acquire) {
             return "terminated";
         }
@@ -809,12 +800,11 @@ fn trigger_action_in_flight_guard_sets_and_clears_on_every_exit() {
     );
 }
 
-/// Regression: the quiesce budget must comfortably exceed the shipped
-/// default meridian retry ladder (30 s + 60 s + 120 s of waiting plus four
-/// flip attempts). If someone shrinks it below the ladder, a perfectly
-/// normal retry sequence would be abandoned by the timeout instead of
-/// being awaited — reintroducing the orphaned-retry defect through the
-/// back door.
+/// The quiesce budget must comfortably exceed the shipped default meridian
+/// retry ladder (30 s + 60 s + 120 s of waiting plus four flip attempts).
+/// Shrinking it below the ladder abandons a perfectly normal retry sequence
+/// to the timeout instead of awaiting it — the orphaned-retry defect through
+/// the back door.
 #[test]
 fn trigger_action_quiesce_budget_covers_the_default_retry_ladder() {
     let default_retry_wait_secs: u64 = 30 + 60 + 120;
@@ -829,8 +819,8 @@ fn trigger_action_quiesce_budget_covers_the_default_retry_ladder() {
 
 /// `update_dither_config` must write through the shared
 /// `runtime_config` Arc so the next dither uses the new pixel count.
-/// This was the original audit-flagged silent-fallback site (the
-/// previous implementation `let _`'d the parameters).
+/// A `let _` on the parameters here is a silent fallback: the call is
+/// accepted and nothing changes.
 #[tokio::test]
 async fn update_dither_config_writes_through_runtime_config() {
     let mut executor = SequenceExecutor::new();
@@ -991,12 +981,12 @@ async fn a_mid_run_location_change_reaches_the_altitude_dawn_and_meridian_inputs
     );
 }
 
-/// R1: no production device call in the trigger monitor was bounded. A
-/// driver that accepts a call and never answers — a documented hazard on
-/// this project's ASCOM path — parked the monitor's loop forever. That is
-/// not an exit, so the `select!` that joins the monitor never saw it: the
-/// execution branch kept exposing with weather, altitude, drift,
-/// tracking-loss, dome and meridian protection all silently gone.
+/// Every production device call in the trigger monitor is bounded. A driver
+/// that accepts a call and never answers — a documented ASCOM hazard — parks
+/// the monitor's loop forever, and parking is not an exit, so the `select!`
+/// that joins the monitor never notices: the execution branch keeps exposing
+/// with weather, altitude, drift, tracking-loss, dome and meridian protection
+/// all silently gone.
 ///
 /// A stalled poll is a poll FAILURE, which is a verdict the trigger state
 /// already has a field for and the evaluators already know how to read.
@@ -1111,12 +1101,11 @@ async fn the_stall_watchdog_holds_off_while_a_trigger_action_is_in_flight() {
         .expect("once the action is done, a monitor that still never beats is dead");
 }
 
-/// Remediation 2026-06-09 (finding #2): the W1 daylight gate's max Sun
-/// altitude was NEVER populated from Dart — there was no setter, so the
-/// field held the derive-default and the native gate blocked only above the
-/// geometric horizon (0°), opening a twilight gap vs the Dart -12° gate.
-/// `update_max_sun_altitude` must now write the Dart value through
-/// `runtime_config` AND patch the live trigger state so the gate honours it.
+/// The daylight gate's max Sun altitude must be populated from Dart. With no
+/// setter the field holds the derive-default and the native gate blocks only
+/// above the geometric horizon (0°), opening a twilight gap against the Dart
+/// -12° gate. `update_max_sun_altitude` writes the Dart value through
+/// `runtime_config` AND patches the live trigger state so the gate honours it.
 #[tokio::test]
 async fn update_max_sun_altitude_writes_through_runtime_config_and_trigger_state() {
     let mut executor = SequenceExecutor::new();
@@ -1165,9 +1154,9 @@ async fn update_max_sun_altitude_writes_through_runtime_config_and_trigger_state
     }
 }
 
-/// Remediation 2026-06-09 (finding #2): the native default must equal the
-/// Dart `SchedulerConfig.maxSunAltitudeDegrees` default (-12°, nautical
-/// darkness) so an un-pushed native gate is no weaker than the Dart W1 gate.
+/// The native default must equal the Dart
+/// `SchedulerConfig.maxSunAltitudeDegrees` default (-12°, nautical darkness)
+/// so an un-pushed native gate is no weaker than the Dart one.
 #[test]
 fn default_max_sun_altitude_matches_dart_nautical_darkness() {
     assert_eq!(
@@ -1215,25 +1204,18 @@ fn checkpoint_manager_is_arc_shared() {
     );
 }
 
-// -----------------------------------------------------------------
 // calculate_totals must recognise SmartExposure.
-// -----------------------------------------------------------------
 
-/// WF-STOP-N1 — the meridian flip drives the camera too, and firing it on top
-/// of an in-flight light destroys that light.
+/// The meridian flip drives the camera too, and firing it on top of an
+/// in-flight light destroys that light: the flip's plate solve restarts the
+/// same sensor mid-exposure, and the burst then downloads the SOLVE frame and
+/// saves it as the light — a frame a fraction of its requested length, filed
+/// under the target as accepted, while the node card still reads the
+/// requested duration.
 ///
-/// The waveF drive caught it to the millisecond: the burst opened frame 1's
-/// 15 s shutter at `04:09:10.792627`, the flip trigger fired at
-/// `04:09:10.793593`, and its plate-solve restarted the same sensor at
-/// `04:09:11.795844` with a 5.0 s exposure. The burst then downloaded the SOLVE
-/// frame and saved it as `New Target frame 1 (5.0s)` — a light frame a third of
-/// its requested length, filed under the target as accepted, while the node
-/// card read `Frame 1/4 (15.0s)`.
-///
-/// The claim protocol that already serialised autofocus against the capture
-/// loop is the fix; only autofocus was on the list, on the reasoning that the
-/// flip "already runs after the capture loop's pre-frame gate". That gate holds
-/// the NEXT frame. It cannot hold the one already exposing.
+/// So every camera-driving trigger action takes the capture loop's claim, not
+/// just autofocus. The capture loop's pre-frame gate holds the NEXT frame; it
+/// cannot hold the one already exposing.
 #[tokio::test]
 async fn every_camera_driving_trigger_action_waits_for_the_frame_in_flight() {
     // The list itself is the contract: an action that exposes and is missing
@@ -1504,10 +1486,9 @@ async fn non_camera_actions_take_no_claim() {
 }
 
 /// The guard's coverage is only real while it is the ONLY way the trigger
-/// dispatch hands the camera back. The previous version of this fix was a
-/// hand-placed `clear_camera_busy()` per arm plus a comment claiming every
-/// exit was covered; one arm was not, and nothing caught it because the claim
-/// was a paragraph rather than a check.
+/// dispatch hands the camera back: a hand-placed `clear_camera_busy()` per
+/// arm plus a comment claiming every exit is covered is a claim rather than a
+/// check, and one arm goes uncovered.
 ///
 /// So check it: a bare release inside the dispatch is a release that some
 /// future early exit will route around.

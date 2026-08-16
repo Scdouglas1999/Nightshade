@@ -45,7 +45,7 @@ pub fn init_com() -> Result<(), String> {
 pub fn uninit_com() {
     // SAFETY: `CoUninitialize` takes no arguments and reverses a prior successful
     // `CoInitializeEx` on the same thread. Caller invariant: must be invoked on the
-    // STA worker thread that previously called `init_com`.
+    // STA worker thread that called `init_com`.
     unsafe {
         CoUninitialize();
     }
@@ -274,14 +274,10 @@ unsafe fn get_driver_description(parent_key: &HKEY, prog_id: &str) -> Option<Str
 /// - Health monitoring for detecting disconnected devices
 /// - RAII cleanup via Drop trait
 pub struct AscomDeviceConnection {
-    // Private on purpose. The device wrappers (camera, switch,
-    // cover_calibrator) used to reach in here and hand-roll their own
-    // `Invoke` for signatures the typed helpers do not cover — and every one
-    // of those hand-rolled calls passed `None` for `pExcepInfo`, throwing away
-    // the driver's own account of the failure. They now go through
-    // `invoke_with_retry`, which owns the `EXCEPINFO`. Keeping the field
-    // unreachable outside this file is what stops that regressing: the only
-    // way to call the driver is the way that keeps its explanation.
+    // Private on purpose: every driver call goes through
+    // `invoke_with_retry`, which owns the `EXCEPINFO`. A hand-rolled `Invoke`
+    // passes `None` for `pExcepInfo` and throws away the driver's own account
+    // of the failure, so the field stays unreachable outside this file.
     dispatch: IDispatch,
     connected: bool,
     /// Health monitor for tracking device responsiveness
@@ -294,17 +290,15 @@ pub struct AscomDeviceConnection {
 ///
 /// COM reports a refused call twice over: an HRESULT, and — when that HRESULT
 /// is `DISP_E_EXCEPTION` — an `EXCEPINFO` the driver fills with a human
-/// sentence, the component that raised it, and the underlying error code. Only
-/// the HRESULT used to reach the operator, and `DISP_E_EXCEPTION` means nothing
-/// more than "an exception occurred", so every driver-refused property write
-/// arrived as the unactionable `Exception occurred. (0x80020009)`.
+/// sentence, the component that raised it, and the underlying error code. The
+/// `EXCEPINFO` fields must reach the operator, because `DISP_E_EXCEPTION`
+/// alone means nothing more than `Exception occurred. (0x80020009)`.
 ///
-/// Measured against the Pegasus NYX101 on 2026-08-09: enabling tracking on the
-/// parked mount returned exactly that HRESULT, while the same call read through
-/// a raw `IDispatch::Invoke` probe carried
+/// Enabling tracking on a parked Pegasus NYX101 returns exactly that bare
+/// HRESULT, while the `EXCEPINFO` for the same call carries
 /// `bstrSource = ASCOM.PegasusAstroUnityServer`,
 /// `bstrDescription = "Object reference not set to an instance of an object."`,
-/// `scode = 0x80004003`. The app had the sentence available and threw it away.
+/// `scode = 0x80004003`.
 pub(super) struct InvokeError {
     /// HRESULT-level failure reported by `IDispatch::Invoke` itself.
     hresult: windows::core::Error,
@@ -400,10 +394,9 @@ impl AscomDeviceConnection {
         self.health.reset(); // Reset health state on new connection
 
         // A failed write is already conclusive; only a *silent* write needs
-        // verifying. Mark the object down first so that every early return
-        // below leaves `self.connected` telling the truth — this matters on a
-        // reconnect, where the field still holds `true` from the last
-        // successful session.
+        // verifying. Mark the object down first so every early return below
+        // leaves `self.connected` accurate — on a reconnect the field still
+        // holds `true` from the last successful session.
         self.connected = false;
         if let Err(e) = self.set_bool_property("Connected", true) {
             self.health.mark_failed();
@@ -457,18 +450,14 @@ impl AscomDeviceConnection {
 
     /// Invoke an ASCOM IDispatch member, retrying transient driver exceptions.
     ///
-    /// The `EXCEPINFO` is owned here rather than accepted as a parameter. It
-    /// used to be optional, and every property read and write passed `None`,
-    /// so a driver that refused an operation had its explanation discarded at
-    /// the call site and the operator was shown a bare HRESULT. Making it
-    /// unconditional means no caller can drop the driver's account again.
+    /// The `EXCEPINFO` is owned here rather than accepted as a parameter, so
+    /// no caller can pass `None` and drop the driver's account of a refusal.
     ///
     /// Visible to the whole `windows` module tree, not just this file: the
-    /// device wrappers (`camera`, `switch`, `cover_calibrator`) hand-rolled
-    /// their own `dispatch.Invoke` for signatures the typed helpers do not
-    /// cover, and each of those hand-rolled calls passed `None` for
-    /// `pExcepInfo` too. Routing them here is what makes "the driver's
-    /// explanation always survives" true of the crate rather than of one file.
+    /// device wrappers (`camera`, `switch`, `cover_calibrator`) need it for
+    /// signatures the typed helpers do not cover, and routing them here is what
+    /// makes "the driver's explanation always survives" true of the crate
+    /// rather than of one file.
     ///
     /// # Safety
     /// `params` and every pointer it contains, plus `pvarresult` when present,
@@ -487,7 +476,7 @@ impl AscomDeviceConnection {
         for attempt in 1..=MAX_ATTEMPTS {
             // Fresh per attempt: a failing driver allocates new BSTRs into this
             // structure every time, and reusing one buffer across attempts
-            // would overwrite the previous attempt's pointers without freeing
+            // would overwrite the prior iteration's pointers without freeing
             // them. The guard's `Drop` runs at the end of each iteration.
             let mut excep_info = OwnedExcepInfo::new();
 
@@ -1035,10 +1024,8 @@ impl AscomDeviceConnection {
     }
 }
 
-// ============================================================================
 // AscomConnectionBackend trait — mockall seam for unit-testing per-device
 // wrappers without a live Windows COM driver.
-// ============================================================================
 
 // Why: per-device modules (camera.rs, switch.rs, cover_calibrator.rs, …) call
 // into `AscomDeviceConnection` for every COM operation. To unit-test those
@@ -1135,33 +1122,12 @@ unsafe impl Send for AscomDeviceConnection {}
 // is funneled through a channel onto the apartment thread.
 unsafe impl Sync for AscomDeviceConnection {}
 
-/// Regression cover for the driver's own explanation surviving a failed
-/// `IDispatch::Invoke`.
+/// Cover for the driver's own explanation surviving a failed `IDispatch::Invoke`.
 ///
-/// Reproduced on the live rig 2026-08-09. Enabling tracking on the parked
-/// Pegasus NYX101 through the appliance produced:
-///
-/// ```text
-/// POST /api/mount/tracking {"enabled":true}
-///  -> "Failed to set ASCOM mount ascom:ASCOM.PegasusAstroNYX101.Telescope
-///      tracking=true: SDK error: Failed to set property Tracking:
-///      Exception occurred. (0x80020009)"
-/// ```
-///
-/// while a raw `IDispatch::Invoke` probe issued against the same driver, with
-/// an `EXCEPINFO` supplied, read back:
-///
-/// ```text
-/// hr=0x80020009 | scode=0x80004003
-///   bstrSource      = ASCOM.PegasusAstroUnityServer
-///   bstrDescription = Object reference not set to an instance of an object.
-/// ```
-///
-/// The sentence existed; the app declined to ask for it. These tests stand a
-/// Rust `IDispatch` in for the driver so the whole path — the public
-/// property accessors, `invoke_with_retry`, `OwnedExcepInfo::describe`, and
-/// the `String` a caller finally shows an operator — runs for real, with no
-/// COM apartment and no hardware.
+/// These tests stand a Rust `IDispatch` in for the driver so the whole path —
+/// the public property accessors, `invoke_with_retry`,
+/// `OwnedExcepInfo::describe`, and the `String` a caller finally shows an
+/// operator — runs for real, with no COM apartment and no hardware.
 ///
 /// The stand-in and its constructors are `pub(super)` so the sibling device
 /// wrappers (`camera`, `switch`, `cover_calibrator`) can drive their own
@@ -1330,8 +1296,8 @@ pub(super) mod excepinfo_recovery_tests {
             err.contains("0x80004003"),
             "the driver's own error code was dropped: {err}"
         );
-        // "Exception occurred. (0x80020009)" is the text the operator used to
-        // get INSTEAD of everything above. It must not be the whole message.
+        // The message must not collapse to the bare
+        // "Exception occurred. (0x80020009)" the HRESULT alone would give.
         assert!(
             !err.contains("Exception occurred"),
             "fell back to the bare HRESULT: {err}"

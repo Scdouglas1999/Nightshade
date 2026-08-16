@@ -1,12 +1,8 @@
 //! Behaviour-tree node definitions and execution.
 //!
-//! ## Architecture (post-refactor)
+//! ## Architecture
 //!
-//! Pre-refactor, `node.rs` was a 2985-line file containing a 32-variant
-//! `match` arm (~780 lines) for instruction dispatch, the full container
-//! logic, the manual 22-field clone for parallel execution, and a string-
-//! parsing progress pipeline. This file is now a small module entry that
-//! re-exports the new structure:
+//! This file is a small module entry that re-exports the structure:
 //!
 //! ```text
 //! node/
@@ -19,8 +15,8 @@
 //!                               recovery, sequential
 //! ```
 //!
-//! See `docs/architecture/instruction-nodes.md` for the migration playbook
-//! for new instruction authors.
+//! See `docs/architecture/instruction-nodes.md` for the playbook for new
+//! instruction authors.
 
 // These are `pub(crate)` so submodules of `node` can address each other
 // through `crate::node::*` paths (the cleanest way to write
@@ -63,20 +59,20 @@ mod tests {
 
     #[test]
     fn test_execution_context_creation() {
-        let ctx = ExecutionContext::new("test_node".to_string());
+        let ctx = ExecutionContext::new_for_test("test_node".to_string());
         assert_eq!(ctx.node_id, "test_node");
         assert!(ctx.target_ra.is_none());
         assert!(ctx.target_dec.is_none());
         assert!(ctx.camera_id.is_none());
     }
 
-    /// Trust-patch §7: ExecutionContext exposes SkipToNode plumbing via
+    /// ExecutionContext exposes SkipToNode plumbing via
     /// `set_skip_to_node_request` / `skip_to_node_target` /
     /// `clear_skip_to_node_request`. The slot must round-trip and the
     /// clear must take effect.
     #[test]
     fn trust_patch_7_skip_to_node_request_roundtrip() {
-        let ctx = ExecutionContext::new("root".to_string());
+        let ctx = ExecutionContext::new_for_test("root".to_string());
         assert!(ctx.skip_to_node_target().is_none());
         ctx.set_skip_to_node_request("target_node".to_string());
         assert_eq!(ctx.skip_to_node_target().as_deref(), Some("target_node"));
@@ -84,7 +80,7 @@ mod tests {
         assert!(ctx.skip_to_node_target().is_none());
     }
 
-    /// Trust-patch §7: `Node::contains_node` (default impl on the trait)
+    /// `Node::contains_node` (default impl on the trait)
     /// reports whether the subtree rooted at `self` contains `node_id`.
     #[test]
     fn trust_patch_7_contains_node_walks_subtree() {
@@ -117,7 +113,7 @@ mod tests {
 
     #[test]
     fn test_execution_context_with_target() {
-        let ctx = ExecutionContext::new("test_node".to_string()).with_target(
+        let ctx = ExecutionContext::new_for_test("test_node".to_string()).with_target(
             "M31".to_string(),
             10.68,
             41.27,
@@ -132,7 +128,7 @@ mod tests {
 
     #[test]
     fn test_execution_context_cancellation() {
-        let ctx = ExecutionContext::new("test_node".to_string());
+        let ctx = ExecutionContext::new_for_test("test_node".to_string());
         assert!(!ctx.is_cancelled.load(Ordering::Relaxed));
         ctx.is_cancelled.store(true, Ordering::Relaxed);
         assert!(ctx.is_cancelled.load(Ordering::Relaxed));
@@ -140,7 +136,7 @@ mod tests {
 
     #[test]
     fn test_execution_context_pause() {
-        let ctx = ExecutionContext::new("test_node".to_string());
+        let ctx = ExecutionContext::new_for_test("test_node".to_string());
         assert!(!ctx.is_paused.load(Ordering::Relaxed));
         ctx.is_paused.store(true, Ordering::Relaxed);
         assert!(ctx.is_paused.load(Ordering::Relaxed));
@@ -170,7 +166,7 @@ mod tests {
     async fn p1_7_resume_short_circuits_completed_node() {
         // Baseline: an un-marked loop DOES run (advances to the count).
         let mut fresh = RuntimeNode::from_definition(count_loop_def("loop1", 3));
-        let mut ctx = ExecutionContext::new("loop1".to_string());
+        let mut ctx = ExecutionContext::new_for_test("loop1".to_string());
         assert_eq!(fresh.execute(&mut ctx).await, NodeStatus::Success);
         assert_eq!(
             fresh.current_iteration, 3,
@@ -181,7 +177,7 @@ mod tests {
         let mut resumed = RuntimeNode::from_definition(count_loop_def("loop1", 3));
         resumed.mark_completed(&"loop1".to_string());
         assert_eq!(resumed.status, NodeStatus::Success);
-        let mut ctx2 = ExecutionContext::new("loop1".to_string());
+        let mut ctx2 = ExecutionContext::new_for_test("loop1".to_string());
         assert_eq!(resumed.execute(&mut ctx2).await, NodeStatus::Success);
         assert_eq!(
             resumed.current_iteration, 0,
@@ -314,7 +310,7 @@ mod tests {
                 children: vec![],
             })));
 
-            let mut ctx = ExecutionContext::new("recovery".to_string());
+            let mut ctx = ExecutionContext::new_for_test("recovery".to_string());
             let result =
                 logic::recovery::execute_custom_branch_children(&mut recovery_node, &mut ctx).await;
 
@@ -341,7 +337,7 @@ mod tests {
                 children: vec![],
             });
 
-            let mut ctx = ExecutionContext::new("recovery".to_string());
+            let mut ctx = ExecutionContext::new_for_test("recovery".to_string());
             let result =
                 logic::recovery::execute_custom_branch_children(&mut recovery_node, &mut ctx).await;
 
@@ -357,7 +353,7 @@ mod tests {
             .unwrap();
 
         rt.block_on(async {
-            let ctx = ExecutionContext::new("test_node".to_string());
+            let ctx = ExecutionContext::new_for_test("test_node".to_string());
             ctx.request_skip_to_next_target();
 
             let result =
@@ -388,7 +384,7 @@ mod tests {
                 enabled: true,
                 children: vec![],
             });
-            let mut ctx = ExecutionContext::new("target".to_string());
+            let mut ctx = ExecutionContext::new_for_test("target".to_string());
             ctx.is_cancelled.store(true, Ordering::Relaxed);
 
             let result = node.execute(&mut ctx).await;
@@ -396,11 +392,9 @@ mod tests {
         });
     }
 
-    // §1.1 — concurrent writes to trigger state must never drop on
-    // contention with a reading monitor. This used to be a node.rs concern
-    // because `try_write` was called from a sync progress callback; the
-    // current code uses `write().await` so the contract
-    // is the same regardless of which file holds the callback.
+    // Concurrent writes to trigger state must never drop on contention with a
+    // reading monitor: the write goes through `write().await`, so the contract
+    // holds whichever file owns the progress callback.
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn trigger_state_writes_are_never_dropped_under_monitor_contention() {
         use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering as AtomicOrdering};

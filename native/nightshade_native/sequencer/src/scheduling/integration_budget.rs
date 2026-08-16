@@ -352,12 +352,11 @@ impl BudgetRegistry {
     /// `TargetHeader::enter` round assigns a fresh run id rather than
     /// inheriting one from an unrelated prior session checkpoint.
     pub async fn seed_carry_over(&self, target_id: &str, per_filter_secs: HashMap<String, f64>) {
-        // Sanitize: drop non-finite or negative entries up front so the
-        // total never accumulates NaN / -inf from a malformed Dart
-        // payload. The Dart side already validates; this is the
-        // defence-in-depth layer ("errors are a feature" — but for the
-        // bridge boundary we coerce to a clean state rather than abort
-        // sequence start over a single garbage entry).
+        // Sanitize: drop non-finite or negative entries up front so the total
+        // never accumulates NaN / -inf from a malformed Dart payload. The Dart
+        // side already validates; this is defence in depth at the bridge
+        // boundary, coercing to a clean state rather than aborting sequence start
+        // over a single garbage entry.
         let mut cleaned: HashMap<String, f64> = HashMap::new();
         let mut total = 0.0_f64;
         for (k, v) in per_filter_secs.into_iter() {
@@ -630,7 +629,7 @@ mod tests {
         assert_eq!(s.completed_by_filter.get("L").copied(), Some(180.0));
     }
 
-    // ----- session-handoff carry-over seeding -----
+    // session-handoff carry-over seeding
 
     #[tokio::test]
     async fn seed_carry_over_populates_per_filter_totals() {
@@ -706,7 +705,7 @@ mod tests {
         assert!((s.completed_total_secs - 15_000.0).abs() < f64::EPSILON);
     }
 
-    // ----- Count-based completion ("N accepted frames per filter") -----
+    // Count-based completion ("N accepted frames per filter")
 
     fn count_budget(entries: &[(&str, u32, f64)]) -> IntegrationBudget {
         IntegrationBudget {

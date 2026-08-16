@@ -1,39 +1,27 @@
 //! Structured error type for the internal device-dispatch + device-manager
 //! ops layer.
 //!
-//! # Why this exists
-//!
-//! The FFI boundary (`crate::api::*`) is properly typed: every public function
-//! returns `Result<_, NightshadeError>`. But the *internal* device plumbing in
-//! `crate::dispatch::*` and `crate::device_manager::ops::*` historically leaned
-//! on `Result<_, String>`. A bare `String` flattens the structured context that
+//! The FFI boundary (`crate::api::*`) is typed: every public function returns
+//! `Result<_, NightshadeError>`. `DeviceOpError` carries the same structure
+//! through the internal device plumbing in `crate::dispatch::*` and
+//! `crate::device_manager::ops::*`, where a bare `String` would flatten what
 //! callers need for programmatic recovery — *which* device failed, *what
-//! category* of failure it was (not-connected vs. invalid-parameter vs.
-//! timeout vs. unsupported), and whether retrying could plausibly help.
+//! category* of failure it was (not-connected vs. invalid-parameter vs. timeout
+//! vs. unsupported), and whether retrying could plausibly help.
 //!
-//! `DeviceOpError` restores that structure *behind* the FFI edge. It is mapped
-//! to `NightshadeError` at the `api/` layer via `From<DeviceOpError>`, so the
-//! FFI surface and the messages Dart sees are **unchanged** — this is a
-//! behavior-preserving refactor. The win is purely internal: the dispatch and
-//! ops layers now classify their failures instead of stringly-typing them.
+//! What Dart sees is fixed by two rules:
 //!
-//! # Behavior preservation
-//!
-//! Today the `api/` layer wraps every ops error as
-//! `NightshadeError::OperationFailed(string)`. To preserve that exactly:
-//!
-//! * Every `DeviceOpError` variant's `Display` reproduces the *exact* string
-//!   the corresponding `format!`/`.to_string()` produced before this refactor.
+//! * Every `DeviceOpError` variant's `Display` is the wire string, so the
+//!   message text is a contract, not an implementation detail.
 //! * `From<DeviceOpError> for NightshadeError` maps to
-//!   `NightshadeError::OperationFailed(self.to_string())` — byte-for-byte the
-//!   same `NightshadeError` value the api layer used to construct.
+//!   `NightshadeError::OperationFailed(self.to_string())`, except for the
+//!   variants forwarded structurally (see the FFI edge mapping below).
 //!
-//! Both directions of `String` conversion are provided so that sub-helpers
-//! which still return `Result<_, String>` (the Alpaca trait methods, the
-//! `sim_gate` connection gates, INDI client errors) keep flowing through `?`
-//! unchanged: `From<String>` lands in [`DeviceOpError::Message`], and
-//! `From<DeviceOpError> for String` lets any remaining `String`-typed caller
-//! compile.
+//! Both directions of `String` conversion exist so sub-helpers that return
+//! `Result<_, String>` (the Alpaca trait methods, the `sim_gate` connection
+//! gates, INDI client errors) keep flowing through `?`: `From<String>` lands in
+//! [`DeviceOpError::Message`], and `From<DeviceOpError> for String` lets a
+//! `String`-typed caller compile.
 
 use crate::error::NightshadeError;
 use thiserror::Error;
@@ -156,11 +144,10 @@ impl DeviceOpError {
 
     /// Classify a bare driver/SDK error string (the common
     /// `.map_err(|e| e.to_string())` site) as a [`DeviceOpError::Hardware`]
-    /// without a device id. The id is frequently already embedded in the
-    /// driver's own message, and these sites previously discarded it entirely
-    /// (they produced a bare `String`), so attaching `None` preserves the
-    /// exact wording while still marking the failure category as hardware
-    /// (and therefore retryable) for programmatic recovery.
+    /// without a device id. The id is usually already inside the driver's own
+    /// message, so `None` keeps the wording exact while still marking the
+    /// failure category as hardware, and therefore retryable, for programmatic
+    /// recovery.
     pub(crate) fn driver(detail: impl std::fmt::Display) -> Self {
         DeviceOpError::Hardware {
             device_id: None,
@@ -168,13 +155,8 @@ impl DeviceOpError {
         }
     }
 
-    /// The device id this failure is scoped to, when known. Lets callers do
-    /// programmatic recovery (reconnect *this* device) without parsing strings.
-    ///
-    /// Part of the structured-recovery API this refactor exists to enable.
-    /// Not yet consumed by a caller (the FFI edge currently maps straight to
-    /// `NightshadeError::OperationFailed`), but kept as the typed accessor so
-    /// follow-up retry/reconnect logic does not have to re-parse messages.
+    /// The device id this failure is scoped to, when known: the typed accessor
+    /// retry and reconnect logic uses instead of re-parsing messages.
     #[allow(dead_code)]
     pub(crate) fn device_id(&self) -> Option<&str> {
         match self {
@@ -190,7 +172,7 @@ impl DeviceOpError {
 
     /// Whether retrying the same operation could plausibly succeed.
     ///
-    /// Mirrors `NightshadeError::is_recoverable`'s philosophy: not-connected
+    /// Mirrors `NightshadeError::is_recoverable`'s classification: not-connected
     /// and hardware/communication failures may be transient (the device can be
     /// reconnected or the SDK call re-issued), whereas invalid parameters,
     /// unsupported operations, and malformed ids will fail identically on
@@ -284,28 +266,19 @@ impl From<nightshade_indi::IndiError> for DeviceOpError {
     }
 }
 
-/// FFI edge mapping. The api layer historically wrapped every ops error as
-/// `NightshadeError::OperationFailed(string)`; reproducing that exactly (via
-/// `Display`) keeps the error that reaches Dart byte-for-byte identical.
-///
-/// Two variants are now forwarded structurally instead. The headless API maps
-/// the bridge error enum to an HTTP status (`_httpStatusForBackendError`:
-/// notConnected -> 409, deviceNotFound -> 404, ... orElse -> 500). While
-/// everything collapsed into `OperationFailed`, that mapper could never fire,
-/// so asking any equipment endpoint about a device that simply is not connected
-/// answered `500 internal_error` — verified on the rig: `GET
-/// /api/equipment/mount/status` for a disconnected mount returned 500. A 5xx
-/// reads as a server fault, which is exactly the class this codebase elsewhere
-/// refuses to return on device preconditions because it invites the client to
-/// auto-retry straight back into the serial bus.
+/// FFI edge mapping. Most variants render through `Display` into
+/// `NightshadeError::OperationFailed`; not-connected and device-not-found are
+/// forwarded structurally, because the headless API maps the bridge error enum
+/// to an HTTP status (`_httpStatusForBackendError`: notConnected -> 409,
+/// deviceNotFound -> 404, ... orElse -> 500). Collapsed into `OperationFailed`
+/// they answer 500 `internal_error`, and a 5xx on a device precondition invites
+/// the client to auto-retry straight back into the serial bus.
 ///
 /// Message compatibility: `DeviceNotFound` renders identically in both enums
-/// (`"Device not found: {id}"`), so that arm is byte-for-byte unchanged. The
-/// not-connected arm becomes `"Device not connected: {id}"`, which still
-/// contains the `not connected` substring the Dart classifiers key on
-/// (`NightshadeError.fromString`, `nightshade_exception.dart`) and additionally
-/// names the device. Every other variant keeps the legacy `OperationFailed`
-/// string.
+/// (`"Device not found: {id}"`). The not-connected arm reads `"Device not
+/// connected: {id}"`, which keeps the `not connected` substring the Dart
+/// classifiers key on (`NightshadeError.fromString`,
+/// `nightshade_exception.dart`) and additionally names the device.
 impl From<DeviceOpError> for NightshadeError {
     fn from(e: DeviceOpError) -> Self {
         match e {
@@ -317,22 +290,13 @@ impl From<DeviceOpError> for NightshadeError {
             }
             // The HTTP layer already knows what to do with these categories
             // (`_httpStatusForBackendError` maps `notSupported` -> 501 and
-            // `invalidParameter`/`invalidDeviceId` -> 400). Collapsing them into
-            // `OperationFailed` is what made those requests answer a generic
-            // 500 `internal_error`. Observed on the live rig against a real
-            // ZWO ASI1600MM-Cool:
-            //   POST /api/camera/readoutMode {"modeIndex":0} on a camera whose
-            //     own capabilities report `readoutModes: []` ->
-            //     500 {"error":"internal_error","message":"Operation not supported"}
-            //     — the driver had already classified it as unsupported.
-            //   POST /api/camera/expose {"binX":9} ->
-            //     500 {"error":"internal_error","message":"... Invalid parameter:
-            //     ZWO binning must be symmetric and between 1x1 and 4x4, got 9x9"}
-            //     — the driver had already classified it as a bad parameter.
-            // Both invite retry-on-5xx clients to retry a request that cannot
-            // ever succeed. `Hardware` and `Message` stay `OperationFailed`:
-            // they are genuine 500s and re-shaping them would change wording
-            // that Dart string classifiers key on for no status-code gain.
+            // `invalidParameter`/`invalidDeviceId` -> 400), and the driver has
+            // already classified the failure — an unsupported readout mode or a
+            // 9x9 binning request cannot succeed on retry, so answering 500
+            // would invite a retry-on-5xx client to reissue it forever.
+            // `Hardware` and `Message` stay `OperationFailed`: they are genuine
+            // 500s, and re-shaping them would change wording that Dart string
+            // classifiers key on for no status-code gain.
             DeviceOpError::Unsupported { detail } => NightshadeError::NotSupported {
                 device_id: String::new(),
                 operation: detail,
@@ -347,8 +311,8 @@ impl From<DeviceOpError> for NightshadeError {
     }
 }
 
-/// Keep any remaining `Result<_, String>` caller compiling while the migration
-/// is partial: a `DeviceOpError` renders to the same string it always did.
+/// Lets a `Result<_, String>` caller keep compiling: a `DeviceOpError` renders
+/// to its `Display` wire string.
 impl From<DeviceOpError> for String {
     fn from(e: DeviceOpError) -> Self {
         e.to_string()

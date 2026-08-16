@@ -2,10 +2,6 @@
 
 use super::*;
 
-// =============================================================================
-// SVBony Camera Implementation
-// =============================================================================
-
 /// SVBony camera native driver
 #[derive(Debug)]
 pub struct SvbonyCamera {
@@ -273,16 +269,17 @@ impl NativeDevice for SvbonyCamera {
         // Set capabilities
         self.capabilities = CameraCapabilities {
             // Cooling is reported by SVB_CAMERA_PROPERTY_EX.bSupportControlTemp —
-            // there is no IsCoolerCam field in SVB_CAMERA_PROPERTY (the old
-            // prop.is_cooler_cam read uninitialized stack → always false, so cooled
-            // SV405CC/SV605MC/CC never got regulation). Matches svbony_base.cpp.
+            // there is no IsCoolerCam field in SVB_CAMERA_PROPERTY; reading a
+            // `prop.is_cooler_cam` there returns uninitialized stack (always
+            // false), leaving cooled SV405CC/SV605MC/CC unregulated. Matches
+            // svbony_base.cpp.
             can_cool: prop_ex.b_support_control_temp != 0,
             can_set_gain: true,
             can_set_offset: true,
             can_set_binning: max_bin > 1,
             can_subframe: true,
-            // SVBony cameras are CMOS with no mechanical shutter and the SDK exposes
-            // no such field (the old prop.mechanical_shutter read uninitialized stack).
+            // SVBony cameras are CMOS with no mechanical shutter, and SVB_CAMERA_PROPERTY
+            // exposes no such field to read.
             has_shutter: false,
             has_guider_port: prop_ex.b_support_pulse_guide != 0,
             max_bin_x: max_bin,
@@ -326,8 +323,8 @@ impl NativeDevice for SvbonyCamera {
             ))
         })?;
         // SVB_CAMERA_PROPERTY carries no pixel size; query it separately (µm).
-        // The old prop.pixel_size read uninitialized stack. Failure → 0.0
-        // (unknown); the reference (svbony_base.cpp:760) queries the same way.
+        // Failure → 0.0 (unknown); the reference (svbony_base.cpp:760) queries the
+        // same way.
         let pixel_size_um = {
             let mut px: f32 = 0.0;
             // SAFETY: svbony_mutex held; `self.camera_id` valid; `&mut px` is a valid f32 out-pointer.

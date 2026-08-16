@@ -5,15 +5,12 @@
 
 use super::*;
 
-// =============================================================================
-// EXPOSURE INSTRUCTION
-// =============================================================================
+// Exposure instruction
 
-/// Per-frame save-path renderer. added interpolation to the
-/// `ExposureConfig.save_to` template; the renderer is built once in the
-/// expose-instruction wrapper (which has ExecutionContext access) and
-/// invoked per-frame so the same engine can resolve `${frame:04}` and
-/// `${exposure.duration:.0f}`.
+/// Per-frame save-path renderer for the `ExposureConfig.save_to` template.
+/// Built once in the expose-instruction wrapper (which has ExecutionContext
+/// access) and invoked per frame, so the same engine resolves `${frame:04}`
+/// and `${exposure.duration:.0f}`.
 ///
 /// Returns `Ok((dir, filename))` where:
 /// * `dir` is the directory portion (absolute, with any user-specified
@@ -137,7 +134,7 @@ pub async fn execute_exposure_with_renderer(
     // `(frame, total, recorded_secs)`. The third argument is the seconds the
     // frame is RECORDED as — the camera's own report, bounded (see
     // [`recorded_exposure_secs`]) — not the node's planned duration. Every
-    // integration total downstream rides on it (WF-STOP-N2).
+    // integration total downstream rides on it.
     progress_callback: impl Fn(u32, u32, f64),
 ) -> InstructionResult {
     let camera_id = match ctx.camera_id() {
@@ -145,17 +142,16 @@ pub async fn execute_exposure_with_renderer(
         Err(e) => return e,
     };
 
-    // W1 native daylight gate (structural). Only an actual LIGHT frame
-    // requires darkness; calibration frames remain exempt even below a
-    // TargetHeader and with an unparked mount.
+    // Native daylight gate. Only an actual LIGHT frame requires darkness;
+    // calibration frames stay exempt even below a TargetHeader and with an
+    // unparked mount.
     //
     // The gate keys off the FRAME TYPE, never off the presence of a
-    // TargetHeader. It used to also require `ctx.target_ra`/`target_dec`,
-    // which meant a bare "Take Exposures" outside any target group wrote
-    // LIGHT frames in full daylight while the identical node nested under a
-    // target was refused — a safety gate the operator disabled by forgetting
-    // an unrelated node. Whether the rig is pointed at the sky is answered by
-    // the mount park state below, which is the real discriminator.
+    // TargetHeader or of `ctx.target_ra`/`target_dec` — keying off those
+    // refuses a target-nested node while letting a bare "Take Exposures"
+    // write LIGHT frames in full daylight. Whether the rig is pointed at the
+    // sky is answered by the mount park state below, which is the real
+    // discriminator.
     if frame_type_requires_darkness(&config.frame_type) {
         let on_sky = match &ctx.mount_id {
             // No mount configured: there is no rig to point at the sky, so this
@@ -200,9 +196,8 @@ pub async fn execute_exposure_with_renderer(
         return InstructionResult::failure(error);
     }
 
-    // log "(no filter set)" instead of substituting a filter
-    // name like "unfiltered". The substituted token used to look like a
-    // valid filter in operator logs.
+    // log "(no filter set)" rather than substituting a filter name like
+    // "unfiltered", which reads as a real filter in operator logs.
     tracing::info!(
         "Starting {} {} x {:.1}s exposures",
         config.count,
@@ -391,10 +386,9 @@ pub async fn execute_exposure_with_renderer(
         );
 
         // The instant the shutter opens. FITS DATE-OBS means START of
-        // observation, and this used to be stamped with `Utc::now()` at
-        // header-build time -- i.e. after readout -- so every sequenced frame
-        // was late by its own exposure time. Capturing it here, immediately
-        // before the exposure call, is the only place that is actually true.
+        // observation, so it is captured here, immediately before the exposure
+        // call — stamping it at header-build time (after readout) makes every
+        // frame late by its own exposure time.
         let exposure_started_at = chrono::Utc::now();
 
         // Take the camera before exposing, waiting if a trigger-fired
@@ -836,7 +830,7 @@ pub async fn execute_exposure_with_renderer(
                 )
                 .await
             {
-                // Trust-patch §4: a FITS save failure is data loss — the
+                // A FITS save failure is data loss — the
                 // exposure is already complete and the image bytes are in
                 // RAM, so a failed write means that frame is gone. The
                 // previous warn-and-continue was the audit-flagged silent
@@ -876,14 +870,11 @@ pub async fn execute_exposure_with_renderer(
             //
             // This emission is also what makes the app RECORD the frame: Dart's
             // `_registerSequenceFrame` listens for `FrameAccepted` and writes the
-            // `captured_images` row. It used to sit behind `if was_graded`, and
-            // grading is off by default, so an entire automated night produced
-            // FITS files on disk and ZERO database rows — no Analytics session
-            // stats, no gallery entries, and the schema's `producing_node_id` /
-            // `producing_run_id` columns never populated. Verified against the
-            // desktop database: 12 sequencer frames on disk, 0 rows, and the same
-            // for an earlier campaign's frames. The grader DECISION stays gated
-            // inside `emit_grade_progress`.
+            // `captured_images` row, populating `producing_node_id` /
+            // `producing_run_id`. Behind a `was_graded` check — grading is off by
+            // default — a whole automated night produces FITS files on disk and no
+            // database rows, so no Analytics stats and no gallery entries. The
+            // grader DECISION stays gated inside `emit_grade_progress`.
             emit_grade_progress(
                 ctx,
                 grade,

@@ -81,10 +81,8 @@ pub fn is_available() -> bool {
 // Re-export Windows-specific types when on Windows
 #[cfg(windows)]
 pub use windows::{
-    get_timeout_config,
     // COM initialization
     init_com,
-    set_timeout_config,
     uninit_com,
     // Device types
     AscomCamera,
@@ -137,8 +135,6 @@ pub use windows::{
     // Batch status types - Switch
     SwitchChannelState,
     SwitchFullStatus,
-    // Configuration types
-    TimeoutConfig,
     // Batch status types - Observing Conditions
     WeatherStatus,
     WindStatus,

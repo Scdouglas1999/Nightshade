@@ -313,9 +313,7 @@ impl AscomMount {
         self.device.call_method_int_double("MoveAxis", axis, rate)
     }
 
-    // ========================================================================
-    // Batch Property Queries
-    // ========================================================================
+    // Batch property queries
 
     /// Get mount position in a single batch operation
     /// Returns current RA/Dec/Alt/Az coordinates

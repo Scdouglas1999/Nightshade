@@ -57,9 +57,9 @@ pub enum Phd2State {
     /// string so callers can log or surface it instead of being lied to with
     /// a synthesised `Connected`.
     ///
-    /// Why: PHD2 has historically added states (e.g. `GuidingPaused`,
-    /// `StarFound`); silently mapping the unknown to `Connected` masked real
-    /// guiding regressions until a session-end review.
+    /// Why: PHD2 adds states over time (e.g. `GuidingPaused`, `StarFound`),
+    /// and mapping an unknown one to `Connected` hides a guiding regression
+    /// until the session-end review.
     Unknown(String),
 }
 
@@ -1057,9 +1057,7 @@ impl Phd2Client {
         Ok(resp.result.unwrap_or(serde_json::Value::Null))
     }
 
-    // ========================================================================
-    // PHD2 Commands
-    // ========================================================================
+    // PHD2 commands
 
     /// Get PHD2 application state
     pub fn get_app_state(&mut self) -> Result<Phd2State, String> {
@@ -1073,9 +1071,8 @@ impl Phd2Client {
     /// Get connected equipment
     pub fn get_connected(&mut self) -> Result<bool, String> {
         let result = self.send_request("get_connected", None)?;
-        // previously `.as_bool().unwrap_or(false)` silently
-        // reported "not connected" whenever PHD2 returned a non-bool (e.g.
-        // protocol corruption, schema drift). Propagate the type mismatch.
+        // A non-bool here is protocol corruption or schema drift, not "not
+        // connected": propagate the type mismatch.
         result
             .as_bool()
             .ok_or_else(|| format!("get_connected: expected bool, got {}", result))
@@ -1288,11 +1285,10 @@ impl Phd2Client {
         let params = serde_json::json!({ "size": size });
         let result = self.send_request("get_star_image", Some(params))?;
 
-        // `frame`, `width`, and `height` are REQUIRED fields
-        // per the PHD2 `get_star_image` schema. A missing/non-integer value
-        // means the response is malformed (or PHD2 changed schema); previously
-        // we silently produced a 0x0 image with frame=0, which downstream star
-        // analysis would happily process and report bogus results.
+        // `frame`, `width` and `height` are required by the PHD2
+        // `get_star_image` schema, so a missing or non-integer value is a
+        // malformed response. Yielding a 0x0 image with frame=0 instead would
+        // feed downstream star analysis data it happily reports on.
         let frame = result
             .get("frame")
             .and_then(|v| v.as_u64())
@@ -1315,7 +1311,7 @@ impl Phd2Client {
         // when no star is locked (returned `null` / absent), so treating
         // "no star_pos" as `(0.0, 0.0)` is the documented fallback. A
         // present-but-malformed array, however, is a protocol violation
-        // and must surface — `.unwrap_or(0.0)` previously hid that.
+        // and must surface.
         let star_pos = result.get("star_pos").and_then(|v| v.as_array());
         let (star_x, star_y) = match star_pos {
             Some(arr) => {
@@ -1378,9 +1374,7 @@ impl Phd2Client {
         Ok((x, y))
     }
 
-    // ========================================================================
-    // PHD2 Brain API - Algorithm Parameters
-    // ========================================================================
+    // PHD2 Brain API - algorithm parameters
 
     /// Get available algorithm parameter names for an axis
     /// axis: "ra" or "dec" (also accepts "x" or "y")
@@ -1522,10 +1516,9 @@ impl Phd2Client {
     /// Get current profile name
     pub fn get_profile(&mut self) -> Result<String, String> {
         let result = self.send_request("get_profile", None)?;
-        // the previous `unwrap_or("Unknown")` papered over
-        // schema drift (the field used to be `name`; new builds may rename it).
-        // Surface the absence so we notice during dev rather than always
-        // displaying "Unknown" in the UI.
+        // Surface the absence rather than displaying "Unknown": the field is
+        // `name` today and new PHD2 builds may rename it, which is schema drift
+        // worth noticing.
         let profile = result
             .get("name")
             .and_then(|v| v.as_str())
@@ -1552,11 +1545,10 @@ fn parse_phd2_event(msg: &Phd2EventMessage) -> Option<Phd2Event> {
         "GuideStep" => {
             let extra = &msg.extra;
 
-            // Why: RA/Dec distance are the LOAD-BEARING
-            // values of every guide frame. Defaulting them to 0.0 used to
-            // mark every malformed/dropped event as "perfect guiding" and
-            // poisoned the rolling RMS. If either is missing or non-numeric
-            // we now drop the whole frame and log so we can detect drift.
+            // Why: RA/Dec distance are the load-bearing values of every guide
+            // frame, and a 0.0 default reads as perfect guiding and poisons the
+            // rolling RMS. If either is missing or non-numeric, drop the whole
+            // frame and log it.
             let ra_distance = match extra.get("RADistanceRaw").and_then(|v| v.as_f64()) {
                 Some(v) => v,
                 None => {
@@ -1987,7 +1979,7 @@ mod tests {
         assert_eq!(normalize_phd2_tcp_host("192.168.1.5"), "192.168.1.5");
     }
 
-    /// §6.23: documented PHD2 app states map deterministically and
+    /// Documented PHD2 app states map deterministically and
     /// unambiguously. Two of them (`Stopped`, `Selected`) collapse to
     /// `Connected` per PHD2's protocol semantics; the rest are 1:1.
     #[test]
@@ -2001,9 +1993,8 @@ mod tests {
         assert_eq!(parse_phd2_app_state("LostLock"), Phd2State::LostLock);
     }
 
-    /// §6.23: unknown PHD2 state names must surface as `Unknown(raw)` so the
-    /// raw string is preserved end-to-end (logs, telemetry, UI). Previously
-    /// we silently mapped them to `Connected`, hiding e.g. `GuidingPaused`.
+    /// Unknown PHD2 state names must surface as `Unknown(raw)` so the raw
+    /// string is preserved end-to-end (logs, telemetry, UI).
     #[test]
     fn unknown_phd2_state_preserves_raw_string() {
         for sample in &["GuidingPaused", "StarFound", "", "TotallyMadeUpState"] {

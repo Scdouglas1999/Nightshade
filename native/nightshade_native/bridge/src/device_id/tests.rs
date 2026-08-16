@@ -24,8 +24,8 @@ fn test_parse_alpaca() {
     );
 }
 
-/// Regression: broken `splitn`/`rsplitn` parsers produced doubled ports or
-/// failed to parse device numbers for canonical Alpaca discovery IDs.
+/// Canonical Alpaca discovery IDs must round-trip with a single port and a
+/// parsed device number — the shape a mis-split parser gets wrong.
 #[test]
 fn test_parse_alpaca_canonical_discovery_ids() {
     let cases = [
@@ -126,9 +126,7 @@ fn test_invalid_alpaca_bad_port() {
     assert!(ParsedDeviceId::parse("alpaca:http://host:notaport:camera:0").is_err());
 }
 
-// =========================================================================
-// §5.1 / §5.2 — Multi-segment native ID round-trip tests
-// =========================================================================
+// Multi-segment native ID round-trip tests
 //
 // Every observed `format!("native:...")` site in `discovery.rs` and
 // the per-vendor modules is exercised here. If a vendor agent adds a
@@ -295,8 +293,8 @@ fn native_touptek_4part_brand_form() {
 
 #[test]
 fn native_touptek_3part_is_rejected() {
-    // §5.2: 3-part Touptek must NOT silently fall through — the
-    // bridge dispatch needs the brand segment.
+    // A 3-part Touptek must not silently fall through — the bridge dispatch
+    // needs the brand segment.
     let err = ParsedDeviceId::parse("native:touptek:0").unwrap_err();
     let msg = format!("{}", err);
     assert!(
@@ -318,9 +316,7 @@ fn native_playerone_3part() {
 
 #[test]
 fn native_player_one_underscore_form() {
-    // `bridge/src/devices.rs` historically dispatches on
-    // `player_one`. Both are accepted while the discovery /
-    // dispatch alignment is in flight.
+    // Dispatch keys on `player_one`; both spellings round-trip.
     assert_native_roundtrip("native:player_one:0", "player_one");
 }
 
@@ -407,7 +403,7 @@ fn native_builtin_guider_3part() {
 
 #[test]
 fn native_unknown_vendor_is_rejected() {
-    // CRITICAL §5.1: unknown vendors do NOT silently fall through.
+    // Unknown vendors must not silently fall through.
     let err = ParsedDeviceId::parse("native:notarealvendor:0").unwrap_err();
     let msg = format!("{}", err);
     assert!(
@@ -447,9 +443,7 @@ fn native_supported_vendors_constant_is_exhaustive() {
     }
 }
 
-// =========================================================================
-// Cache Tests
-// =========================================================================
+// Cache tests
 
 #[test]
 fn test_cached_parse_returns_same_result() {

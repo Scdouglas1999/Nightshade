@@ -46,7 +46,7 @@ pub(crate) async fn calibrate_mount_response(
 
 /// Pure construction of the calibration model from the two measured axis-response
 /// vectors. Validates non-singularity, derives the inter-axis angle, and carries
-/// the measured Dec backlash. Extracted from [`calibrate_mount_response`] so the
+/// the measured Dec backlash. Separate from [`calibrate_mount_response`] so the
 /// calibration math (angles/rates/orthogonality/backlash plumbing) is unit
 /// testable without driving a mount.
 pub(crate) fn build_calibration(

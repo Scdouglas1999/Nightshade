@@ -36,7 +36,7 @@ mod tests {
     /// RAW16 ceilings must be the left-justified container full scale, not the
     /// ADC range.
     ///
-    /// `(1 << MaxBitDepth) - 1` — what this used to publish — is the ADC range.
+    /// `(1 << MaxBitDepth) - 1` is the ADC range, not the container full scale.
     /// Measured on an SV305 (12-bit): once the SVBony SDK started delivering
     /// RAW16, every pixel value became a multiple of 16 and the saturation level
     /// moved from 4096 to 65536 ADU. See [`container_max_adu`] for the citation.
@@ -90,7 +90,7 @@ mod tests {
     /// An unpopulated / out-of-range `MaxBitDepth` must fall back to the
     /// container ceiling, never to 0 — a 0 ceiling would tell every
     /// percent-of-full-scale consumer the camera cannot produce any signal, and
-    /// the old `(1 << bit_depth.min(31)) - 1` returned 2147483647 for 31.
+    /// a `(1 << bit_depth.min(31)) - 1` returns 2147483647 for 31.
     #[test]
     fn raw16_unknown_bit_depth_falls_back_to_container() {
         assert_eq!(container_max_adu(SvbImgType::Raw16, 0), 65535);
@@ -100,8 +100,8 @@ mod tests {
 
     /// The ceiling must agree with the pipeline's own saturation threshold
     /// (`nightshade_imaging::fits` uses 65024, documented as "4064 << 4").
-    /// That threshold is unreachable under the old 4095 ceiling, which is what
-    /// made flat calibration impossible on ZWO before the same fix landed there.
+    /// A ceiling below that threshold can never reach saturation, which makes
+    /// flat calibration impossible.
     #[test]
     fn raw16_container_max_adu_agrees_with_pipeline_saturation_threshold() {
         const PIPELINE_SATURATION_THRESHOLD: u32 = 65024;
@@ -110,11 +110,11 @@ mod tests {
             PIPELINE_SATURATION_THRESHOLD < twelve_bit_ceiling,
             "12-bit ceiling {twelve_bit_ceiling} is below the pipeline saturation threshold"
         );
-        // The formula this replaced published the ADC range, which can never
-        // reach the threshold — so saturation was undetectable on an SV305-class
-        // sensor and a 50% flat target sat below the camera's own bias floor.
-        let old_adc_range_formula = |bits: u32| (1u32 << bits) - 1;
-        assert!(old_adc_range_formula(12) < PIPELINE_SATURATION_THRESHOLD);
+        // Publishing the ADC range instead would put the ceiling below the
+        // threshold: saturation undetectable on an SV305-class sensor, and a 50%
+        // flat target below the camera's own bias floor.
+        let adc_range_formula = |bits: u32| (1u32 << bits) - 1;
+        assert!(adc_range_formula(12) < PIPELINE_SATURATION_THRESHOLD);
     }
 
     #[tokio::test]

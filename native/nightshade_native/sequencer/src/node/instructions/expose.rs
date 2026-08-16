@@ -239,7 +239,7 @@ impl InstructionNode for ExposeInstruction {
                         // as, not the seconds it was asked for: an adaptive or
                         // truncated frame really did expose for something else,
                         // and every integration total downstream sums this
-                        // (WF-STOP-N2).
+                        //.
                         let mut upd = ProgressUpdate::instruction_progress(
                             node_id.to_string(),
                             "Exposure",
@@ -411,10 +411,9 @@ pub(crate) fn build_save_path_renderer(
         .unwrap_or_else(|| "${target.name}_${filter}_${frame:04}.fits".to_string());
 
     // With no base path the only complete destination is an absolute template.
-    // Anything else has nowhere to write, and this used to return `None` — the
-    // burst then ran to completion, counted every frame, and dropped all of
-    // them. Refuse instead: a run that cannot keep its data must not claim it
-    // succeeded.
+    // Anything else has nowhere to write, so the burst is refused rather than
+    // run to completion counting frames it drops: a run that cannot keep its
+    // data must not claim it succeeded.
     if base_path.is_none() && !std::path::Path::new(&effective_template).is_absolute() {
         return Err(format!(
             "Exposure has no save location: the sequencer save path is not set and the node's \
@@ -724,7 +723,7 @@ fn compute_hfr_median(values: &[f64]) -> Option<f64> {
 }
 
 /// Evaluate per-exposure triggers (HFR, guiding-RMS, drift) and dispatch
-/// their actions. Mirrors the pre-refactor `RuntimeNode::check_exposure_triggers`.
+/// their actions.
 async fn check_exposure_triggers(
     node_id: &str,
     config: &ExposureConfig,
@@ -890,23 +889,22 @@ async fn check_exposure_triggers(
 mod tests {
     use super::*;
 
-    // §1.2 — Verify the HFR median computation is a true median, not the
-    // exponentially-weighted moving average the previous code computed.
+    // Verify the HFR median computation is a true median, not an
+    // exponentially-weighted moving average.
     #[test]
     fn hfr_median_returns_true_central_value() {
         let values = [1.5, 1.6, 1.7, 1.8, 5.0];
         let median = compute_hfr_median(&values).expect("expected Some median for non-empty input");
-        // The previous EMA implementation returned ~3.2 for this input
+        // An EMA returns ~3.2 for this input
         // ((((1.5 + 1.6) / 2 + 1.7) / 2 + 1.8) / 2 + 5.0) / 2 ≈ 3.181), so
-        // this assertion pins the new behaviour and guards against a
-        // regression back to the EMA formula.
+        // this assertion pins the median and rejects the EMA formula.
         assert!(
             (median - 1.7).abs() < f64::EPSILON,
             "expected 1.7, got {median}"
         );
     }
 
-    // §1.2 — Verify NaN and non-positive values are filtered before the
+    // Verify NaN and non-positive values are filtered before the
     // median is computed; sorting with `partial_cmp` requires no NaNs in
     // the slice.
     #[test]
@@ -929,7 +927,6 @@ mod tests {
         );
     }
 
-    // -----------------------------------------------------------------
     // budget x grading coordination.
     //
     // The `expose` instruction credits the active target's integration
@@ -940,7 +937,6 @@ mod tests {
     // We test the coordination by directly exercising BudgetRegistry +
     // an atomic counter — the same primitives `execute()` uses — so the
     // test is independent of the camera / FITS-save machinery.
-    // -----------------------------------------------------------------
 
     /// Helper: simulate the per-burst credit logic from `execute()`.
     /// Returns the actual seconds credited.
@@ -1064,14 +1060,12 @@ mod tests {
         });
     }
 
-    // -----------------------------------------------------------------
     // adaptive-exposure emission tests.
     //
     // We cannot exercise the full `execute()` path without a camera /
     // device-ops stub, but the emission helper is a pure function over
     // `ExecutionContext` + decision; we can install a recording progress
     // callback and assert the structured event lands in it.
-    // -----------------------------------------------------------------
 
     #[test]
     fn emit_adaptive_exposure_records_structured_detail() {
@@ -1080,7 +1074,7 @@ mod tests {
 
         let captured: Arc<Mutex<Vec<ProgressUpdate>>> = Arc::new(Mutex::new(Vec::new()));
         let captured_clone = captured.clone();
-        let mut ctx = ExecutionContext::new("node-1".to_string());
+        let mut ctx = ExecutionContext::new_for_test("node-1".to_string());
         ctx.progress_callback = Some(Arc::new(move |u: ProgressUpdate| {
             captured_clone.lock().unwrap().push(u);
         }));
@@ -1121,7 +1115,7 @@ mod tests {
 
         let captured: Arc<Mutex<Vec<ProgressUpdate>>> = Arc::new(Mutex::new(Vec::new()));
         let captured_clone = captured.clone();
-        let mut ctx = ExecutionContext::new("node-1".to_string());
+        let mut ctx = ExecutionContext::new_for_test("node-1".to_string());
         ctx.progress_callback = Some(Arc::new(move |u: ProgressUpdate| {
             captured_clone.lock().unwrap().push(u);
         }));
@@ -1155,13 +1149,12 @@ mod tests {
         }
     }
 
-    /// A burst with nowhere to write must FAIL. The pre-fix path built no
-    /// renderer, hit the "no save location" warn branch, counted every frame
-    /// as completed and returned Success — a full night reported 100% with
-    /// zero files on disk.
+    /// A burst with nowhere to write must FAIL rather than build no renderer,
+    /// take the "no save location" warn branch and count every frame as
+    /// completed — a full night reported 100% with zero files on disk.
     #[tokio::test]
     async fn exposure_with_no_save_location_fails_instead_of_discarding_frames() {
-        let mut ctx = ExecutionContext::new("expose-nosave".to_string());
+        let mut ctx = ExecutionContext::new_for_test("expose-nosave".to_string());
         ctx.camera_id = Some("sim_camera_1".to_string());
         ctx.save_path = None;
 
@@ -1189,7 +1182,7 @@ mod tests {
     #[tokio::test]
     async fn exposure_with_an_absolute_save_to_runs_without_a_base_path() {
         let dir = std::env::temp_dir().join(format!("ns-expose-abs-{}", uuid::Uuid::new_v4()));
-        let mut ctx = ExecutionContext::new("expose-abs".to_string());
+        let mut ctx = ExecutionContext::new_for_test("expose-abs".to_string());
         ctx.camera_id = Some("sim_camera_1".to_string());
         ctx.save_path = None;
 
@@ -1217,17 +1210,16 @@ mod tests {
         );
     }
 
-    /// Q3: two `Parallel` branches exposing on the SAME camera must not
-    /// overlap. `execute_parallel` clones the context per branch, so the
-    /// serialisation has to live on shared (Arc'd) state — this test drives
-    /// exactly that clone. Pre-fix the two 0.4s bursts ran concurrently and
-    /// the pair finished in ~0.4s.
+    /// Two `Parallel` branches exposing on the SAME camera must not overlap.
+    /// `execute_parallel` clones the context per branch, so the serialisation
+    /// has to live on shared (Arc'd) state — this test drives exactly that clone
+    /// and the two 0.4 s bursts must not finish in ~0.4 s together.
     #[tokio::test]
     async fn two_branches_on_one_camera_serialise_their_exposures() {
         let dir = std::env::temp_dir().join(format!("ns-expose-lock-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).expect("temp dir");
 
-        let mut ctx_a = ExecutionContext::new("expose-a".to_string());
+        let mut ctx_a = ExecutionContext::new_for_test("expose-a".to_string());
         ctx_a.camera_id = Some("sim_camera_1".to_string());
         ctx_a.save_path = Some(dir.clone());
         let mut ctx_b = ctx_a.clone();
@@ -1273,7 +1265,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("ns-expose-par-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).expect("temp dir");
 
-        let mut ctx_a = ExecutionContext::new("expose-a".to_string());
+        let mut ctx_a = ExecutionContext::new_for_test("expose-a".to_string());
         ctx_a.camera_id = Some("sim_camera_1".to_string());
         ctx_a.save_path = Some(dir.clone());
         let mut ctx_b = ctx_a.clone();
@@ -1334,7 +1326,7 @@ mod tests {
 
         let captured: Arc<Mutex<Vec<ProgressUpdate>>> = Arc::new(Mutex::new(Vec::new()));
         let captured_clone = captured.clone();
-        let mut ctx = ExecutionContext::new("node-1".to_string());
+        let mut ctx = ExecutionContext::new_for_test("node-1".to_string());
         ctx.progress_callback = Some(Arc::new(move |u: ProgressUpdate| {
             captured_clone.lock().unwrap().push(u);
         }));
@@ -1383,10 +1375,10 @@ mod tests {
 mod calibration_label_tests {
     use super::calibration_target_label;
 
-    /// Regression: a darks/bias sequence with no TargetHeader used to abort on
-    /// frame 1 with "Variable `${target.name}` cannot be resolved: no active
-    /// target", because the default filename template requires a target that a
-    /// calibration frame cannot have.
+    /// A darks/bias sequence with no TargetHeader must not abort on frame 1 with
+    /// "Variable `${target.name}` cannot be resolved: no active target": the
+    /// default filename template requires a target that a calibration frame
+    /// cannot have, so those frames get a stand-in target name.
     #[test]
     fn calibration_frames_get_a_stand_in_target_name() {
         assert_eq!(calibration_target_label("dark").as_deref(), Some("Dark"));

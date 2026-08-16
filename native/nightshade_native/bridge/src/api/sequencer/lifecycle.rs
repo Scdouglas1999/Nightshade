@@ -61,15 +61,15 @@ pub async fn api_sequencer_load(definition: SequenceDefinitionApi) -> Result<(),
 /// pushed one yet.
 ///
 /// The executor's `latitude`/`longitude` is what every frame's `OBJCTALT` /
-/// `AIRMASS` cards AND the `captured_images.mount_altitude` column are derived
-/// from, and until now the only writer was Dart's `sequencerUpdateLocation`.
-/// A run started before that push landed produced frames whose FITS header had
-/// AIRMASS — the writer has its own fallback to app settings, see
+/// `AIRMASS` cards and the `captured_images.mount_altitude` column are derived
+/// from. Without this seed a run that starts before Dart's
+/// `sequencerUpdateLocation` push lands writes frames whose FITS header carries
+/// AIRMASS — the writer falls back to app settings, see
 /// `sequencer_ops::context_altitude_pointing` — while the database row for the
-/// same frame had a NULL altitude, because the row is stamped from the
-/// sequencer's context and nothing folds the writer's fallback back into it.
-/// The AAVSO exporter reads the row, so it submitted `na` in the AMASS column
-/// for frames whose own header knew the answer.
+/// same frame has a NULL altitude, because the row is stamped from the
+/// sequencer's context and nothing folds the writer's fallback back into it. The
+/// AAVSO exporter reads the row, and submits `na` in the AMASS column for frames
+/// whose own header knows the answer.
 ///
 /// Fills in rather than overwrites: a location explicitly pushed for this run
 /// stays authoritative.
@@ -197,8 +197,8 @@ pub async fn api_sequencer_skip() -> Result<(), NightshadeError> {
     Ok(())
 }
 
-/// trust-patch §7: jump execution to a specific node id,
-/// marking preceding siblings as Skipped. Honoured on the next container's
+/// Jump execution to a specific node id, marking preceding siblings as
+/// Skipped. Honoured on the next container's
 /// tree-walk step; the currently-running instruction (e.g. an exposure burst)
 /// completes before the jump takes effect. Returns an error if the executor
 /// is not running (caller should gate the UI button on execution state).
@@ -269,9 +269,7 @@ pub async fn api_sequencer_get_state() -> SequencerState {
     SequencerState::from(progress)
 }
 
-// =============================================================================
-// SEQUENCER CHECKPOINT / CRASH RECOVERY
-// =============================================================================
+// Sequencer checkpoint / crash recovery
 
 /// Checkpoint info returned to Dart
 #[derive(Debug, Clone)]
@@ -331,12 +329,10 @@ pub async fn api_sequencer_resume_from_checkpoint() -> Result<(), NightshadeErro
 /// Standalone meridian flip — runs the canonical [`MeridianFlipExecutor`]
 /// OUTSIDE any running sequence.
 ///
-/// Why this exists: the Dart-side standalone meridian monitor previously
-/// could only alert (the flip engine was reachable solely through the
-/// sequencer's trigger path), so an attended non-sequencer session got a
-/// notification while the mount tracked into the pier. This API gives that
-/// monitor a real flip with the exact same engine, timeouts, altitude
-/// check, re-center and refocus semantics as the in-sequence path.
+/// This is what the Dart-side standalone meridian monitor calls to flip an
+/// attended non-sequencer session instead of only alerting while the mount
+/// tracks into the pier. It runs the same engine with the same timeouts,
+/// altitude check, re-center and refocus semantics as the in-sequence path.
 ///
 /// Refuses while the sequence executor is Running/Paused/Stopping/
 /// Recovering — two engines commanding one mount is how pier crashes

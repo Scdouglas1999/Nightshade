@@ -721,8 +721,8 @@ fn measure_residual_source(
     // Major-axis position angle from the second-moment covariance: the angle that
     // diagonalizes [[Ixx, Ixy],[Ixy, Iyy]]. `0.5·atan2(2·Ixy, Ixx − Iyy)` gives the
     // major-axis direction in radians; wrap into [0, 180) since an axis has no
-    // orientation sense. This is a measured shape attribute (a streak's trail
-    // direction), replacing the fabricated value the Dart layer previously surfaced.
+    // orientation sense. This is a measured shape attribute: a streak's trail
+    // direction.
     let position_angle = position_angle_deg(mxx, myy, mxy);
 
     let flux = sum_w; // background-subtracted footprint flux

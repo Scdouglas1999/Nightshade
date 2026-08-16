@@ -182,10 +182,9 @@ impl AlpacaClient {
     /// Get the pooled HTTP client for issuing requests with custom per-request
     /// timeouts.
     ///
-    /// Why: §5.12 — image-download paths previously built a fresh
-    /// `reqwest::Client` per frame, forcing a TLS handshake + new TCP session
-    /// every shot. Callers should reuse this pooled client and override only
-    /// the per-request timeout via `RequestBuilder::timeout(...)`.
+    /// Callers reuse this pooled client and override only the per-request
+    /// timeout via `RequestBuilder::timeout(...)`; a fresh `reqwest::Client`
+    /// per frame costs a TLS handshake and a new TCP session every shot.
     pub fn http_client(&self) -> Result<&Client, AlpacaError> {
         self.standard_http_client()
     }
@@ -194,7 +193,7 @@ impl AlpacaClient {
     ///
     /// Why: exposed `pub(crate)` so the camera image-download path can build
     /// the same canonical URL when issuing a request directly against the
-    /// pooled HTTP client (§5.12).
+    /// pooled HTTP client.
     pub(crate) fn build_url(&self, endpoint: &str) -> String {
         format!(
             "{}/api/{}/{}/{}/{}",

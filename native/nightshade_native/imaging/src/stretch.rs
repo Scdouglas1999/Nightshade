@@ -328,7 +328,7 @@ pub fn auto_stretch_rgb_with_mode(
     }
 }
 
-/// Robust statistics extracted from a normalized [0,1] sample.
+/// Robust statistics derived from a normalized [0,1] sample.
 #[derive(Debug, Clone, Copy)]
 struct RobustStats {
     median: f64,
@@ -547,8 +547,8 @@ mod tests {
 
     #[test]
     fn mad_clip_finds_background_mode_not_bright_stars() {
-        // Why: This is the audit's regression test. Background mode at
-        // ~10% of full scale, bright saturated stars at 100%. A
+        // Why: background mode at ~10% of full scale, bright saturated
+        // stars at 100%. A
         // percentile-based clip (0.999) would put the highlight at 1.0
         // and the shadow at the 0.1th percentile of the background — far
         // *below* the actual sky median. A MAD-based STF anchors the
@@ -575,7 +575,7 @@ mod tests {
             (params.shadows - expected_shadow).abs()
         );
 
-        // Critical regression check: the shadow clip must NOT sit at the
+        // The shadow clip must NOT sit at the
         // 0.001 percentile (which on this distribution would land near 0).
         // It should be well above zero — it's clipping the sky, not the
         // dark tail.
@@ -737,12 +737,11 @@ mod tests {
         }
     }
 
-    /// IMG-regression: the color-capture path now calls
-    /// `auto_stretch_rgb_with_mode` + `apply_stretch_rgb_per_channel`
-    /// (i.e. the real MAD-based STF) instead of the old
+    /// The color-capture path calls `auto_stretch_rgb_with_mode` +
+    /// `apply_stretch_rgb_per_channel` — the real MAD-based STF — rather than a
     /// `shadows = median - 0.1, highlights = median + 0.3, midtones = 0.5`
-    /// heuristic. This test pins the output of the new pipeline for a known
-    /// RGB fixture so any future regression flips a hash.
+    /// heuristic. Pins the pipeline's output for a known RGB fixture so any
+    /// drift flips a hash.
     #[test]
     fn color_capture_pipeline_uses_real_stf_unlinked() {
         // Why: small deterministic 4x4 RGB16 frame with three channels at
@@ -775,14 +774,12 @@ mod tests {
             rgb[10 * 3 + c] = 65535;
         }
 
-        // Run the same pipeline the FFI capture path now uses.
+        // Run the same pipeline the FFI capture path uses.
         let (r_params, g_params, b_params) =
             auto_stretch_rgb_with_mode(&rgb, width, height, RgbStretchMode::Unlinked);
 
         // The Unlinked STF must produce three *different* parameter sets
-        // because the channel backgrounds differ. This is the load-bearing
-        // assertion vs. the old heuristic, which collapsed all three to a
-        // single (median-0.1, median+0.3, 0.5) triple.
+        // because the channel backgrounds differ.
         assert!(
             (r_params.shadows - g_params.shadows).abs() > 1e-6,
             "R and G shadows must differ in Unlinked mode: R={} G={}",
@@ -796,18 +793,14 @@ mod tests {
             b_params.shadows
         );
 
-        // The STF highlights should sit at 1.0 (PixInsight default — see
-        // `stf_from_stats`). The old heuristic produced `median + 0.3`,
-        // which on this fixture is ~0.32 (R), ~0.42 (G), ~0.54 (B) —
-        // visibly wrong. Pin the correct value.
+        // STF highlights sit at 1.0, the PixInsight default (see
+        // `stf_from_stats`).
         assert!((r_params.highlights - 1.0).abs() < 1e-9);
         assert!((g_params.highlights - 1.0).abs() < 1e-9);
         assert!((b_params.highlights - 1.0).abs() < 1e-9);
 
         // STF midtones must be < 0.5 to lift the dim sky background toward
-        // the target (0.25). The old heuristic always returned 0.5 (no
-        // midtone correction), so any output < 0.5 here proves we are on
-        // the new path.
+        // the target (0.25); 0.5 is no midtone correction at all.
         assert!(
             r_params.midtones < 0.5 && r_params.midtones > 0.0,
             "R midtone {} should lift background",
@@ -826,11 +819,8 @@ mod tests {
 
         // Apply the per-channel stretch and verify the output buffer is
         // exactly pixel_count * 3 bytes (interleaved RGB8). Each background
-        // pixel must end up near 0.25 * 255 = ~64 — the target post-stretch
-        // background level. The old heuristic would have produced near-
-        // black backgrounds on the R channel (because median - 0.1 clips
-        // to 0 and median + 0.3 caps below saturation) and near-white on
-        // bright stars.
+        // pixel must end up near 0.25 * 255 = ~64, the target post-stretch
+        // background level, rather than at either extreme.
         let display =
             apply_stretch_rgb_per_channel(&rgb, width, height, &r_params, &g_params, &b_params);
         assert_eq!(display.len(), pixel_count * 3);
@@ -863,11 +853,9 @@ mod tests {
     fn apply_stretch_rgb_per_channel_identity_passes_through() {
         // Why: defends the "fallback to identity on degenerate STF"
         // contract. When `auto_stretch_rgb_with_mode` returns
-        // `StretchParams::default()` for a channel (MAD = 0), the
-        // per-channel apply path must emit the input value unchanged
-        // (modulo the u16->u8 quantization). Without this guarantee, the
-        // documented IMG-fallback ("never to the old heuristic") would
-        // collapse to all-black on constant input.
+        // `StretchParams::default()` for a channel (MAD = 0), the per-channel
+        // apply path must emit the input value unchanged (modulo the u16->u8
+        // quantization); anything else turns constant input all-black.
         let width: u32 = 2;
         let height: u32 = 1;
         let rgb: Vec<u16> = vec![0, 32768, 65535, 16384, 16384, 16384];

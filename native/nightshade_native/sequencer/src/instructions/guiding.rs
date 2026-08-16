@@ -5,9 +5,7 @@
 
 use super::*;
 
-// =============================================================================
-// GUIDING START/STOP INSTRUCTIONS
-// =============================================================================
+// Guiding START/STOP instructions
 
 pub(crate) struct GuiderStartupCleanupGuard {
     device_ops: SharedDeviceOps,
@@ -290,9 +288,9 @@ pub async fn execute_start_guiding(
     }
 }
 
-/// P3-7: pure validation function over a `GuidingCalibration` snapshot.
-/// Extracted from `execute_start_guiding` so it can be unit-tested without
-/// spinning up a full device stack.
+/// Pure validation function over a `GuidingCalibration` snapshot. Kept out of
+/// `execute_start_guiding` so it can be unit-tested without spinning up a full
+/// device stack.
 ///
 /// Returns `Err(reason)` with a user-facing message if calibration looks
 /// broken; `Ok(())` if it should proceed.

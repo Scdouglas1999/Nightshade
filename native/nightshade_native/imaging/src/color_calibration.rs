@@ -45,7 +45,7 @@
 //! `flux` vs `B−V` situation here. The reported [`ColorCalibration::residual`]
 //! is the robust RMS (MAD-scaled) of the per-channel fit residuals.
 //!
-//! ## Honest limits
+//! ## Limitations
 //!
 //! * `white_ref_bv` defaults (at the call site) to ≈ 0.65, the `B − V` of a G2V
 //!   star (the Sun) — the conventional "white" reference for daylight-balanced
@@ -73,8 +73,8 @@ use rayon::prelude::*;
 /// Below this the per-channel colour-vs-flux line is too weakly constrained to
 /// produce a trustworthy white balance, so [`solve_color_calibration`] returns
 /// [`ColorCalError::TooFewStars`] rather than emitting a confidently-wrong
-/// scale. This is a defensible sanity floor (see the module "Honest limits"),
-/// not a corpus-tuned value.
+/// scale. This is a sanity floor (see the module "Limitations"), not a
+/// corpus-tuned value.
 pub const MIN_MATCHED_STARS: usize = 8;
 
 /// One matched catalogue star, ready for the photometric solve.
@@ -336,7 +336,7 @@ fn fit_channel(points: &[(f64, f64)]) -> Option<ChannelFit> {
         return None;
     }
 
-    // --- Step 1: Theil–Sen slope (median of pairwise slopes). ---
+    // Step 1: Theil–Sen slope (median of pairwise slopes).
     let mut slopes: Vec<f64> = Vec::with_capacity(points.len() * points.len() / 2);
     for i in 0..points.len() {
         for j in (i + 1)..points.len() {
@@ -352,11 +352,11 @@ fn fit_channel(points: &[(f64, f64)]) -> Option<ChannelFit> {
     }
     let b0 = median(&mut slopes);
 
-    // --- Step 2: median intercept paired with the Theil–Sen slope. ---
+    // Step 2: median intercept paired with the Theil–Sen slope.
     let mut intercepts: Vec<f64> = points.iter().map(|&(x, y)| y - b0 * x).collect();
     let a0 = median(&mut intercepts);
 
-    // --- Step 3: one Tukey-biweight IRLS refinement. ---
+    // Step 3: one Tukey-biweight IRLS refinement.
     let (a, b) = irls_refine(points, a0, b0);
 
     // Robust RMS of the residuals about the final line.
@@ -613,7 +613,7 @@ mod tests {
         assert_eq!(cal.matched, 40);
         assert!(cal.residual.is_finite() && cal.residual >= 0.0);
 
-        // SLOPE-SENSITIVE CHECK (finding 5): neutrality at the reference colour
+        // SLOPE-SENSITIVE CHECK: neutrality at the reference colour
         // alone is satisfied by ANY solve that merely passes through the right value
         // there — even one with a wildly wrong slope — so the assertion above does
         // not actually constrain the recovered colour dependence. We pin it directly
@@ -870,7 +870,7 @@ mod tests {
             assert!(rel < 0.02, "channel {c} not neutral (rel {rel})");
         }
 
-        // Slope-sensitive check across all four channels (finding 5): pin the
+        // Slope-sensitive check across all four channels: pin the
         // recovered per-channel slope directly (see the 3-channel test for why a
         // second-colour neutrality check is the wrong instrument here).
         for (c, &b_planted) in b.iter().enumerate() {
@@ -889,10 +889,10 @@ mod tests {
 
     #[test]
     fn solver_recovers_per_channel_slopes_not_just_reference_value() {
-        // Finding 5, direct form: assert the recovered per-channel SLOPES match the
-        // planted ones. The neutralization tests above are now slope-sensitive via
-        // the second-colour check, but this test pins the slope directly through
-        // the module's own fitter so a regression is unambiguous about *what* broke.
+        // Assert the recovered per-channel SLOPES match the planted ones. The
+        // neutralization tests above are slope-sensitive via the second-colour
+        // check; this one pins the slope directly through the module's own
+        // fitter so a failure is unambiguous about *what* broke.
         // We plant three channels with deliberately different, non-zero slopes and
         // an off-centre reference colour, then refit each channel's (B−V, log-flux)
         // points exactly as solve_color_calibration does and compare b_fit to the

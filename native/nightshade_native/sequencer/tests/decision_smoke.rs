@@ -106,8 +106,8 @@ async fn manual_intervention_decisions_emit_from_command_helpers() {
     assert!(received.summary.contains("pause"));
 }
 
-/// Wave L refutation L4: the origin mechanism must be pinned at the
-/// PRODUCER, not only at the renderer. A scheduler-origin stop is a system
+/// The origin mechanism must be pinned at the PRODUCER, not only at the
+/// renderer. A scheduler-origin stop is a system
 /// event; an operator stop (None origin) is a manual intervention that the
 /// logging toggle can never silence; any other named origin (a rollback) is
 /// a gated system event.

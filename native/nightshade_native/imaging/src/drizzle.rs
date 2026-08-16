@@ -80,7 +80,7 @@
 //! DeepSkyStacker and PixInsight's `DrizzleIntegration` in CFA mode, and it
 //! avoids the chroma smearing a demosaic-then-drizzle pipeline introduces.
 //!
-//! ## Honest limits
+//! ## Limitations
 //!
 //! - The `Square` drop is axis-aligned in output space; under a transform with
 //!   significant **rotation** the true drop is a rotated square and the
@@ -99,9 +99,7 @@ use crate::registration::TransformModel;
 use crate::{BayerColor, BayerPattern, ImageData};
 use rayon::prelude::*;
 
-// =============================================================================
 // Public configuration types
-// =============================================================================
 
 /// The shape of the "drop" footprint a single input pixel deposits onto the
 /// output grid.
@@ -257,9 +255,7 @@ pub enum DrizzleError {
     BadParams,
 }
 
-// =============================================================================
 // Public entry points
-// =============================================================================
 
 /// Drizzle a population of frames onto a `scale`× output grid.
 ///
@@ -289,8 +285,8 @@ pub fn drizzle_integrate(
     }
 
     // All frames must agree on channel count, and every buffer length must match
-    // its declared geometry. We refuse to guess (the integration would silently
-    // mis-index otherwise).
+    // its declared geometry; guessing would make the integration silently
+    // mis-index.
     let channels = frames[0].channels;
     if channels == 0 {
         return Err(DrizzleError::DimMismatch);
@@ -417,9 +413,7 @@ pub fn bayer_drizzle_integrate(
     Ok(DrizzleOutput { master, coverage })
 }
 
-// =============================================================================
 // Core deposition
-// =============================================================================
 
 /// Output grid dimensions: `ceil(ref · scale)`, floored to at least 1 cell so a
 /// degenerate-but-valid 1×1 reference still produces an output.
@@ -747,9 +741,7 @@ fn erf(x: f64) -> f64 {
     sign * y
 }
 
-// =============================================================================
 // Tests
-// =============================================================================
 
 #[cfg(test)]
 mod tests {
@@ -779,9 +771,7 @@ mod tests {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // (1) Identity / scale=1 / pixfrac=1 ⇒ output ≈ input (flux-conserving).
-    // -------------------------------------------------------------------------
+    // (1) identity / scale=1 / pixfrac=1 ⇒ output ≈ input (flux-conserving).
 
     #[test]
     fn identity_scale1_pixfrac1_reproduces_input() {
@@ -829,10 +819,10 @@ mod tests {
 
     #[test]
     fn rotation_90_deg_deposits_into_correct_cell() {
-        // Regression (#10): under a 90° rotation, source pixel (0,0) maps to
-        // reference (N-1, 0) and its flux must be deposited into output cell
-        // (N-1, 0). The old code added +0.5 before the transform, which the
-        // rotation sent onto the wrong axis, depositing into cell (N-2, 0).
+        // Under a 90° rotation, source pixel (0,0) maps to reference (N-1, 0)
+        // and its flux must be deposited into output cell (N-1, 0). A half-pixel
+        // offset applied before the transform lands it one cell along the
+        // rotated axis instead.
         let n = 4usize;
         let w = n as u32;
         let mut pixels = vec![0.0f64; n * n];
@@ -863,16 +853,16 @@ mod tests {
         let m = out.master.as_f32().unwrap();
 
         let target = n - 1; // row 0, col N-1  -> flat index N-1
-        let wrong = n - 2; // the cell the old off-by-one deposited into
+        let neighbour = n - 2; // the next cell along the rotated axis
         assert!(
             (m[target] as f64 - 100.0).abs() < 1e-3,
             "flux must land in cell {target}, got {}",
             m[target]
         );
         assert!(
-            (m[wrong] as f64).abs() < 1e-3,
-            "cell {wrong} must be empty (old bug deposited flux here), got {}",
-            m[wrong]
+            (m[neighbour] as f64).abs() < 1e-3,
+            "cell {neighbour} must be empty, got {}",
+            m[neighbour]
         );
     }
 
@@ -891,10 +881,8 @@ mod tests {
         );
     }
 
-    // -------------------------------------------------------------------------
     // (2) Dithered, under-sampled point source: drizzle at scale=2 localises the
-    //     peak better than a plain upsampled average.
-    // -------------------------------------------------------------------------
+    // peak better than a plain upsampled average.
 
     /// 1-D integral of a Gaussian PSF (mean `mu`, σ `sigma`) over `[lo, hi]`,
     /// using the same `erf` as the production Gaussian kernel. Used to render a
@@ -1110,9 +1098,7 @@ mod tests {
         assert!(cov[peak_idx] > 0.0, "peak cell must have positive coverage");
     }
 
-    // -------------------------------------------------------------------------
     // (3) Bayer drizzle reconstructs the correct RGB from a known CFA pattern.
-    // -------------------------------------------------------------------------
 
     #[test]
     fn bayer_drizzle_reconstructs_known_rgb() {
@@ -1254,9 +1240,7 @@ mod tests {
         assert_eq!(rgb[c10 * 3 + 2], 0.0, "B(1,0) must be a hole");
     }
 
-    // -------------------------------------------------------------------------
     // RGB (3-channel) drizzle sanity: per-channel flux is preserved.
-    // -------------------------------------------------------------------------
 
     #[test]
     fn rgb_identity_drizzle_preserves_each_channel() {
@@ -1344,7 +1328,7 @@ mod tests {
 
     #[test]
     fn non_finite_sample_is_excluded_not_treated_as_zero() {
-        // Finding 6 regression: a non-finite (NaN/Inf) sample must NOT bias the
+        // A non-finite (NaN/Inf) sample must NOT bias the
         // overlap-weighted mean toward zero. Two equal-weight, fully-overlapping
         // mono drops with values {100, NaN}: the resolved master must be the mean
         // of the *finite* samples (100), not (100+0)/2 = 50.
@@ -1482,9 +1466,7 @@ mod tests {
         assert!((erf(2.0) - 0.995_322_27).abs() < 1e-6);
     }
 
-    // -------------------------------------------------------------------------
-    // (4) Error paths.
-    // -------------------------------------------------------------------------
+    // (4) error paths.
 
     #[test]
     fn no_frames_errors() {

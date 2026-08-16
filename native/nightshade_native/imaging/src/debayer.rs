@@ -789,11 +789,11 @@ mod tests {
 
     #[test]
     fn vng_border_green_phase_picks_correct_axis() {
-        // Regression (#18): a green border pixel in a *blue* row (RGGB (0,1))
-        // has blue neighbours horizontally and red vertically. The old border
-        // handler assumed the red-row phase for every green pixel, swapping
-        // red/blue on the blue-row greens. A 4x4 image is entirely within the
-        // 2-pixel VNG border, so every pixel exercises `process_border_pixel`.
+        // A green border pixel in a *blue* row (RGGB (0,1)) has blue
+        // neighbours horizontally and red vertically, so the border handler
+        // must pick the phase from the row, not assume the red-row phase. A
+        // 4x4 image is entirely within the 2-pixel VNG border, so every pixel
+        // exercises `process_border_pixel`.
         // With uniform per-colour values (R=1000, G=500, B=100) the recovered
         // channels must equal the true colours regardless of stencil size.
         let pixels = patterned_raw(BayerPattern::RGGB, 4, 4);

@@ -1,8 +1,6 @@
 use super::*;
 
-// =============================================================================
 // Simulated mount motion (guide pulses + tracking drift)
-// =============================================================================
 
 /// Sensor displacement, in pixels, produced by one second of guide pulse.
 ///

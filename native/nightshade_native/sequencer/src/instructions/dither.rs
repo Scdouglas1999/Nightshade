@@ -5,9 +5,7 @@
 
 use super::*;
 
-// =============================================================================
-// DITHER INSTRUCTION
-// =============================================================================
+// Dither instruction
 
 /// Execute dither
 pub async fn execute_dither(
@@ -66,13 +64,11 @@ pub async fn execute_dither(
                     );
                 }
 
-                // previously we collapsed grid-mode to RA-only
-                // when `dec_offset.abs() < 0.01`, a magic threshold that
-                // surreptitiously changed user-requested 2D grid behaviour
-                // into 1D dithering for any cell whose Dec component happened
-                // to round near zero. Grid mode now passes the user's
-                // explicit `ra_only` flag through unchanged so the next grid
-                // cell's RA *and* Dec offsets are honoured by the guider.
+                // Grid mode passes the user's explicit `ra_only` flag through
+                // unchanged, so the next grid cell's RA *and* Dec offsets reach the
+                // guider. Collapsing to RA-only when `dec_offset.abs() < 0.01` turns a
+                // requested 2D grid into 1D dithering for any cell whose Dec component
+                // happens to round near zero.
                 (magnitude, config.ra_only)
             } else {
                 tracing::warn!(

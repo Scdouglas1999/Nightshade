@@ -183,7 +183,7 @@ impl DitherBarrier {
             .unwrap_or(0)
     }
 
-    // --- PRIMARY side -------------------------------------------------------
+    // Primary side
 
     /// PRIMARY: announce that a dither is about to happen. Returns immediately;
     /// after this the secondary will not start a new exposure until
@@ -257,7 +257,7 @@ impl DitherBarrier {
         self.resume_secondary.notify_waiters();
     }
 
-    // --- SECONDARY side -----------------------------------------------------
+    // Secondary side
 
     /// SECONDARY: block until it is safe to start a new exposure (no dither
     /// pending). Also returns early if `cancel` flips true.
@@ -310,7 +310,6 @@ impl DitherBarrier {
     }
 }
 
-// ===========================================================================
 // Process-wide active-barrier slot.
 //
 // The bridge's secondary-rig manager installs a barrier here when a secondary
@@ -319,7 +318,6 @@ impl DitherBarrier {
 // secondary loop. Mirrors the `crate::broadcast` single-slot pattern: only one
 // secondary rig can be active at a time (one mount, one barrier). `None` =
 // single-rig (the common case) and every dither is a plain pass-through.
-// ===========================================================================
 
 fn barrier_slot() -> &'static parking_lot::Mutex<Option<Arc<DitherBarrier>>> {
     static SLOT: std::sync::OnceLock<parking_lot::Mutex<Option<Arc<DitherBarrier>>>> =

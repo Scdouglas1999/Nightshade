@@ -70,12 +70,12 @@ tokio::task_local! {
 /// True when the instruction running right now is a re-execution of one whose
 /// failure has already been published to the operator.
 ///
-/// One failed node used to produce one error entry PER ATTEMPT: a sequence
-/// whose Open Dome node failed with "No dome connected" (a message
+/// Publishing per attempt makes one failed node produce one error entry per
+/// try: a node that fails with "No dome connected" (a message
 /// [`crate::instructions::is_device_disconnected_message`] classifies as a
-/// disconnect) ran the node six times, and the session report listed the same
-/// sentence six times with six identical Critical toasts, so the error count
-/// never matched the number of failed nodes.
+/// disconnect) runs six times, and the session report lists the same sentence
+/// six times with six identical Critical toasts, so the error count never
+/// matches the number of failed nodes.
 pub(crate) fn is_disconnect_retry_attempt() -> bool {
     DISCONNECT_RETRY_ATTEMPT
         .try_with(|attempt| *attempt > 0)
@@ -286,7 +286,7 @@ pub trait Node: Send + Sync {
     /// stopped instead of restarting at iteration 1.
     fn restore_loop_iterations(&mut self, _map: &std::collections::HashMap<NodeId, u32>) {}
 
-    /// Trust-patch §7: does this subtree contain `node_id`?
+    /// Does this subtree contain `node_id`?
     fn contains_node(&self, node_id: &NodeId) -> bool {
         if self.id() == node_id {
             return true;
@@ -526,7 +526,7 @@ mod disconnect_recovery_tests {
     /// the node retries the failed instruction.
     #[tokio::test]
     async fn wait_resolves_recovered_when_driver_pauses_then_resumes() {
-        let ctx = ExecutionContext::new("n".to_string());
+        let ctx = ExecutionContext::new_for_test("n".to_string());
         let is_paused = ctx.is_paused.clone();
         let resume_notify = ctx.resume_notify.clone();
 
@@ -553,7 +553,7 @@ mod disconnect_recovery_tests {
     /// wait resolves to Cancelled so the node unwinds.
     #[tokio::test]
     async fn wait_resolves_cancelled_when_driver_gives_up() {
-        let ctx = ExecutionContext::new("n".to_string());
+        let ctx = ExecutionContext::new_for_test("n".to_string());
         let is_paused = ctx.is_paused.clone();
         let is_cancelled = ctx.is_cancelled.clone();
         let resume_notify = ctx.resume_notify.clone();
@@ -580,7 +580,7 @@ mod disconnect_recovery_tests {
     /// Cancelled immediately without waiting for a driver to engage.
     #[tokio::test]
     async fn wait_resolves_cancelled_when_already_cancelled() {
-        let ctx = ExecutionContext::new("n".to_string());
+        let ctx = ExecutionContext::new_for_test("n".to_string());
         ctx.is_cancelled.store(true, Ordering::Relaxed);
         let outcome =
             wait_for_disconnect_recovery(&ctx, ctx.recovery_generation.load(Ordering::Acquire))
@@ -593,7 +593,7 @@ mod disconnect_recovery_tests {
     /// the retry wrapper relies on to detect a promoted disconnect.
     #[tokio::test]
     async fn pending_flag_is_shared_with_instruction_context() {
-        let ctx = ExecutionContext::new("n".to_string());
+        let ctx = ExecutionContext::new_for_test("n".to_string());
         let inst = ctx.to_instruction_context("test-node").await;
         // Writing through the InstructionContext side is visible on the
         // ExecutionContext side (same Arc allocation).
@@ -684,12 +684,12 @@ mod resume_short_circuit_tests {
         })
     }
 
-    /// a node whose status was restored to `Success` on resume must
+    /// A node whose status was restored to `Success` on resume must
     /// short-circuit out of `execute` WITHOUT dispatching its instruction. We
     /// prove "did not dispatch" by giving the node a 9999s Delay: if the
     /// short-circuit holds, `execute` returns immediately; if the restored
-    /// Success were overwritten with Running and dispatched (the original bug),
-    /// the Delay would run for ~9999s and the tight timeout would elapse.
+    /// Success were overwritten with Running and dispatched, the Delay would
+    /// run for ~9999s and the tight timeout would elapse.
     #[tokio::test]
     async fn resume_skips_already_success_node() {
         let mut node = delay_node("done-step", 9999.0);
@@ -697,7 +697,7 @@ mod resume_short_circuit_tests {
         node.mark_completed(&"done-step".to_string());
         assert_eq!(node.status, NodeStatus::Success);
 
-        let mut ctx = ExecutionContext::new("done-step".to_string());
+        let mut ctx = ExecutionContext::new_for_test("done-step".to_string());
 
         let status = tokio::time::timeout(Duration::from_secs(2), node.execute(&mut ctx))
             .await
@@ -723,7 +723,7 @@ mod resume_short_circuit_tests {
         let mut node = delay_node("fresh-step", 0.0);
         assert_eq!(node.status, NodeStatus::Pending);
 
-        let mut ctx = ExecutionContext::new("fresh-step".to_string());
+        let mut ctx = ExecutionContext::new_for_test("fresh-step".to_string());
         let status = node.execute(&mut ctx).await;
         assert_eq!(status, NodeStatus::Success);
     }
@@ -747,19 +747,18 @@ mod resume_short_circuit_tests {
         node.mark_completed(&"par".to_string());
         assert_eq!(node.status, NodeStatus::Success);
 
-        let mut ctx = ExecutionContext::new("par".to_string());
+        let mut ctx = ExecutionContext::new_for_test("par".to_string());
         let status = tokio::time::timeout(Duration::from_secs(2), node.execute(&mut ctx))
             .await
             .expect("a resumed Success container must not re-spawn its branches");
         assert_eq!(status, NodeStatus::Success);
     }
 
-    /// a Count loop resumed mid-run (current_iteration restored from a
-    /// checkpoint) must continue from where it stopped, NOT restart at 0 and
-    /// re-image every completed iteration. Loop(count=3) restored to iteration
-    /// 2 must run exactly ONE more iteration (the 3rd), so the child executes
-    /// exactly once. Without the fix the loop restarts at 0 and the child runs
-    /// three times.
+    /// A Count loop resumed mid-run (current_iteration restored from a
+    /// checkpoint) continues from where it stopped rather than restarting at 0 and
+    /// re-imaging every completed iteration. Loop(count=3) restored to iteration 2
+    /// runs exactly ONE more iteration (the 3rd), so the child executes exactly
+    /// once.
     #[tokio::test]
     async fn resume_loop_continues_from_restored_iteration() {
         let executed = Arc::new(AtomicUsize::new(0));
@@ -791,7 +790,7 @@ mod resume_short_circuit_tests {
             condition_value: None,
             horizon_profile: None,
         };
-        let mut ctx = ExecutionContext::new("loop".to_string());
+        let mut ctx = ExecutionContext::new_for_test("loop".to_string());
         let status = execute_loop(&mut node, cfg, &mut ctx).await;
 
         assert_eq!(status, NodeStatus::Success);
@@ -830,7 +829,7 @@ mod resume_short_circuit_tests {
             condition_value: None,
             horizon_profile: None,
         };
-        let mut ctx = ExecutionContext::new("loop".to_string());
+        let mut ctx = ExecutionContext::new_for_test("loop".to_string());
         let status = execute_loop(&mut node, cfg, &mut ctx).await;
 
         assert_eq!(status, NodeStatus::Success);
@@ -848,14 +847,13 @@ mod disconnect_recovery_race_tests {
     use std::sync::atomic::Ordering as AtomicOrdering;
 
     fn ctx() -> ExecutionContext {
-        ExecutionContext::new("node-under-test".to_string())
+        ExecutionContext::new_for_test("node-under-test".to_string())
     }
 
-    /// The bug: a recovery that COMPLETES before the failed instruction starts
-    /// watching leaves `is_paused` already cleared, so the old level-triggered
-    /// check waited out its 10s and returned `NoDriver` — killing the run on a
-    /// SUCCESSFUL recovery. The generation counter makes completion observable
-    /// after the fact.
+    /// A recovery that COMPLETES before the failed instruction starts watching
+    /// leaves `is_paused` already cleared, so a level-triggered check waits out
+    /// its 10 s and returns `NoDriver`, killing the run on a SUCCESSFUL recovery.
+    /// The generation counter makes completion observable after the fact.
     #[tokio::test]
     async fn already_completed_recovery_reads_as_recovered() {
         let context = ctx();

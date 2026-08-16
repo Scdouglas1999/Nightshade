@@ -46,10 +46,8 @@ use crate::ascom_wrapper::switch::AscomSwitchWrapper;
 use crate::ascom_wrapper::weather::AscomObservingConditionsWrapper;
 use crate::dispatch::device_common_metadata::DeviceCommonMetadata;
 
-// =========================================================================
 // Native-error wrappers (camera, mount, focuser, filter wheel) — convert
 // NativeError → String at the trait boundary via Display.
-// =========================================================================
 
 impl DeviceCommonMetadata for AscomCameraWrapper {
     async fn interface_version(&self) -> Result<i32, String> {
@@ -127,9 +125,7 @@ impl DeviceCommonMetadata for AscomFilterWheelWrapper {
     }
 }
 
-// =========================================================================
 // String-error wrappers (switch, dome, cover calibrator) — direct passthrough.
-// =========================================================================
 
 impl DeviceCommonMetadata for AscomSwitchWrapper {
     async fn interface_version(&self) -> Result<i32, String> {

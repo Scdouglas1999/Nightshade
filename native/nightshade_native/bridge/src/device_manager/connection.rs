@@ -231,10 +231,10 @@ impl DeviceManager {
     /// backend that owns its own out-of-band transport — PHD2 talks JSON-RPC
     /// over its own TCP socket, opened by `api_phd2_connect`, not by any driver
     /// in `dispatch/` — has nothing for `connect_device` to dispatch to, so it
-    /// records the already-live connection here instead. Without this it stayed
-    /// invisible to `is_device_connected` / `get_connected_device_infos` and the
-    /// app told the user "no guider connected" while the sequencer guided
-    /// through it.
+    /// records the already-live connection here instead. A backend that skips
+    /// this is invisible to `is_device_connected` /
+    /// `get_connected_device_infos`, so the app reports "no guider connected"
+    /// while the sequencer is guiding through it.
     ///
     /// `auto_reconnect` is always false: `reconnection_loop` reconnects through
     /// `connect_device_internal`, which cannot re-open a transport it does not
@@ -364,9 +364,9 @@ impl DeviceManager {
         // never overwrite the user's `Disconnected` with `Connected` and
         // never publish a misleading event.
         //
-        // Errors are a feature: if the dispatch happened to
-        // succeed we deliberately discard that success so the user sees their
-        // disconnect honored. The reconnection_loop already special-cases
+        // A dispatch that happened to succeed has its success discarded, so
+        // the user sees their disconnect honored. The reconnection_loop
+        // already special-cases
         // `RECONNECT_CANCELED_MSG` to suppress the "attempt failed" event.
         //
         // One result is never converted: an identity conflict trips this very
@@ -410,14 +410,11 @@ impl DeviceManager {
         // so the next list tells the truth instead of continuing to offer
         // hardware that is gone.
         //
-        // Reproduced on the live rig 2026-08-09. `GET /api/devices` listed
-        // `native:zwo:0 | ZWO ASI178MM`; the connect answered "ZWO camera ID 0
-        // is no longer present in the SDK enumeration"; the list went on
-        // offering it. The discovery cache holds for 60 s
-        // (`DISCOVERY_CACHE_TTL`), so a client that retries — or an unattended
-        // rig auto-connecting at dusk — keeps failing against a list nobody has
-        // refreshed. A manual rescan cleared it and the very next connect
-        // succeeded, which is the manual form of exactly this call.
+        // The discovery cache holds for 60 s (`DISCOVERY_CACHE_TTL`), so
+        // without this a client that retries — or an unattended rig
+        // auto-connecting at dusk — keeps failing against a list nobody has
+        // refreshed. This is the automatic form of the manual rescan that
+        // otherwise clears it.
         if let Err(e) = &result {
             if Self::is_stale_enumeration_error(e) {
                 tracing::warn!(
@@ -718,9 +715,9 @@ impl DeviceManager {
     ///
     /// * Validates the device id has the `sim_` prefix (the established
     ///   convention used by every `device_id.starts_with("sim_")` branch in
-    ///   `bridge::api::devices`). An unrecognized id returns `Err` —
-    ///   silent fallbacks would let typoed sim ids appear "connected" without
-    ///   any backing state. Errors are a feature.
+    ///   `bridge::api::devices`). An unrecognized id returns `Err`: a silent
+    ///   fallback would let a typoed sim id appear "connected" with no
+    ///   backing state.
     /// * Dispatches by `DeviceInfo.device_type`. Device types without a
     ///   `simulation.rs` singleton (Guider) return
     ///   `Err` so we never claim "connected"
@@ -941,11 +938,10 @@ impl DeviceManager {
         // so a subsequent reconnect attempted to talk through a stale client.
         if crate::api::connection::is_phd2_device_id(&device_info.id) {
             if let Err(e) = crate::api::phd2::api_phd2_disconnect().await {
-                // Errors are a feature: log loudly so we never hide a stuck
-                // PHD2 client. We continue with the generic cleanup below
-                // either way — the device is already being released and we
-                // don't want a PHD2-side error to block disconnecting the
-                // rest of the device record.
+                // Log loudly so a stuck PHD2 client is never hidden, but
+                // continue with the generic cleanup either way: the device is
+                // already being released and a PHD2-side error must not block
+                // disconnecting the rest of the device record.
                 tracing::warn!(
                     "PHD2 disconnect via generic route failed for {}: {}",
                     device_info.id,

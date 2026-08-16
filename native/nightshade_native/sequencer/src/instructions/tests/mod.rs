@@ -11,15 +11,12 @@ use super::*;
 /// without this they race (one test's held gate breaks another's admit).
 static AF_GATE_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-// -------------------------------------------------------------------
 // P3-7: post-start calibration quality validation
-// -------------------------------------------------------------------
 
 fn _cfg() -> StartGuidingConfig {
     StartGuidingConfig::default()
 }
 
-// =====================================================================
 // DOME / ROTATOR MOVE-AND-VERIFY GUARDS (cluster: dome-rotator)
 //
 // These prove that the dome park/open/close and rotator move
@@ -27,7 +24,6 @@ fn _cfg() -> StartGuidingConfig {
 // arrival before reporting success) and that a park failing to close
 // the shutter surfaces a hard error rather than reporting "parked".
 // A failed roof MUST return Failure, never Success.
-// =====================================================================
 
 // `DeviceOps`, `DeviceResult`, `GuidingStatus`, `NullDeviceOps`, `ImageData`
 // are already in scope via the module-level `use crate::*`
@@ -44,13 +40,13 @@ use std::sync::Mutex;
 /// than fire-and-forgetting.
 struct ScriptedDomeRotatorOps {
     inner: Arc<NullDeviceOps>,
-    // --- rotator ---
+    // Rotator
     /// Sequence of angles `rotator_get_angle` returns, one per poll. The
     /// last entry repeats once the script is exhausted.
     rotator_angles: Mutex<Vec<f64>>,
     rotator_get_angle_calls: AtomicU32,
     rotator_move_to_calls: AtomicU32,
-    // --- dome ---
+    // Dome
     /// Sequence of shutter statuses `dome_get_shutter_status` returns,
     /// one per poll; the last entry repeats once exhausted.
     dome_shutter_states: Mutex<Vec<String>>,
@@ -73,14 +69,14 @@ struct ScriptedDomeRotatorOps {
     /// node — which is what a retry-collapse test has to pin down before
     /// its "one error entry" assertion means anything.
     active_dome_id_calls: AtomicU32,
-    // --- centering ---
+    // Centering
     mount_slewing_states: Mutex<Vec<bool>>,
     mount_slew_state_calls: AtomicU32,
     /// How many times the mount was actually commanded to move. A gate that
     /// only changes the returned message while still driving the mount is
     /// indistinguishable from a real gate without this.
     mount_slew_calls: AtomicU32,
-    // --- camera ---
+    // Camera
     camera_exposure_calls: AtomicU32,
     camera_abort_calls: AtomicU32,
     hang_camera_exposure: bool,
@@ -93,7 +89,7 @@ struct ScriptedDomeRotatorOps {
     /// Raised by the first exposure only; see
     /// [`ScriptedDomeRotatorOps::pausing_after_first_exposure`].
     pause_flag_after_first_exposure: Option<Arc<AtomicBool>>,
-    // --- autofocus cleanup ---
+    // Autofocus cleanup
     focuser_moves: Mutex<Vec<i32>>,
     focuser_halt_calls: AtomicU32,
     filter_position: AtomicI32,
@@ -111,7 +107,7 @@ struct ScriptedDomeRotatorOps {
     /// answering `mount_parked`.
     mount_is_parked_error: Option<String>,
     mount_unpark_calls: AtomicU32,
-    // --- per-frame capture truth -----------------------------------
+    // per-frame capture truth
     /// Every `FrameContext` this ops layer was handed by `save_fits`, in
     /// order. This is the FITS writer's own input — recording it is the
     /// only way to assert the frame EVENT was stamped from the same struct
@@ -327,7 +323,7 @@ impl ScriptedDomeRotatorOps {
 
 #[async_trait]
 impl DeviceOps for ScriptedDomeRotatorOps {
-    // --- rotator (verified-move surface) ---
+    // Rotator (verified-move surface)
     async fn rotator_move_to(&self, _id: &str, _angle: f64) -> DeviceResult<()> {
         self.rotator_move_to_calls.fetch_add(1, Ordering::SeqCst);
         Ok(())
@@ -337,7 +333,7 @@ impl DeviceOps for ScriptedDomeRotatorOps {
         Ok(Self::next_scripted(&self.rotator_angles))
     }
 
-    // --- dome (verified-close surface) ---
+    // Dome (verified-close surface)
     async fn dome_close(&self, id: &str) -> DeviceResult<()> {
         self.dome_close_calls.fetch_add(1, Ordering::SeqCst);
         if let Some(err) = &self.dome_close_error {
@@ -355,7 +351,7 @@ impl DeviceOps for ScriptedDomeRotatorOps {
         Ok(Self::next_scripted(&self.dome_shutter_states))
     }
 
-    // === delegating methods ===
+    // Delegating methods
     async fn mount_slew_to_coordinates(&self, id: &str, ra: f64, dec: f64) -> DeviceResult<()> {
         self.mount_slew_calls.fetch_add(1, Ordering::SeqCst);
         self.inner.mount_slew_to_coordinates(id, ra, dec).await
@@ -659,7 +655,7 @@ impl DeviceOps for ScriptedDomeRotatorOps {
 /// Build an InstructionContext wired to the given scripted ops with a
 /// dome + rotator attached.
 async fn ctx_with_ops(ops: Arc<ScriptedDomeRotatorOps>) -> InstructionContext {
-    let mut ec = crate::node::context::ExecutionContext::new("test-node".to_string());
+    let mut ec = crate::node::context::ExecutionContext::new_for_test("test-node".to_string());
     ec.device_ops = ops;
     ec.camera_id = Some("camera-1".to_string());
     ec.focuser_id = Some("focuser-1".to_string());
@@ -669,22 +665,20 @@ async fn ctx_with_ops(ops: Arc<ScriptedDomeRotatorOps>) -> InstructionContext {
     ec.to_instruction_context("test-node").await
 }
 
-// =====================================================================
-// W1 native daylight gate (cluster: w1-daylight)
+// Native daylight gate
 //
-// The W1 "no daylight imaging" invariant was previously enforced ONLY in
-// scheduler_engine.dart, so a raw sequence started via api_sequencer_start
-// (including a mosaic) could slew + expose LIGHT frames in full daylight —
-// the native executor had no Sun gate. These tests pin the structural
-// native gate added to execute_slew / execute_exposure.
+// The "no daylight imaging" invariant is enforced structurally in
+// execute_slew / execute_exposure, not only in scheduler_engine.dart: a raw
+// sequence started via api_sequencer_start (a mosaic included) would
+// otherwise slew and expose LIGHT frames in full daylight. These tests pin
+// the native gate.
 //
 // Determinism: the Sun's real altitude depends on wall-clock + location,
-// which we cannot pin here without a MockClock on the instruction layer.
-// Instead we compute the live Sun altitude for a fixed observer and then
+// which cannot be pinned here without a MockClock on the instruction layer.
+// Instead these compute the live Sun altitude for a fixed observer and then
 // drive the CONFIGURED threshold relative to it — `sun_alt - delta` is
 // guaranteed "Sun up" (above max) and `sun_alt + delta` is guaranteed
 // "Sun down" (below max), regardless of the date/time the test runs.
-// =====================================================================
 
 /// Fixed observer for the gate tests — a mid-northern-latitude site so the
 /// Sun-altitude math is well-conditioned (away from the polar edge cases).
@@ -704,10 +698,10 @@ fn is_daylight_block(result: &InstructionResult) -> bool {
             .is_some_and(|m| m.contains("Daylight gate"))
 }
 
-// --- execute_slew gate ---
+// execute_slew gate
 
 async fn slew_ctx(max_sun_alt: f64) -> InstructionContext {
-    let mut ec = crate::node::context::ExecutionContext::new("test-node".to_string());
+    let mut ec = crate::node::context::ExecutionContext::new_for_test("test-node".to_string());
     ec.device_ops = Arc::new(NullDeviceOps);
     ec.mount_id = Some("mount-1".to_string());
     ec.latitude = Some(TEST_LAT);
@@ -724,7 +718,7 @@ async fn slew_ctx(max_sun_alt: f64) -> InstructionContext {
     ec.to_instruction_context("test-node").await
 }
 
-// --- unset-target pointing gate ---
+// unset-target pointing gate
 //
 // A TargetHeader dragged in from the palette carries RA 0h / Dec +0° until
 // the operator picks a target. Dart's TargetCoordinatesUnsetRule blocks
@@ -753,7 +747,7 @@ async fn pointing_ctx(
     target: (f64, f64),
 ) -> InstructionContext {
     let max_sun_alt = live_sun_alt() + 5.0;
-    let mut ec = crate::node::context::ExecutionContext::new("test-node".to_string());
+    let mut ec = crate::node::context::ExecutionContext::new_for_test("test-node".to_string());
     ec.device_ops = ops;
     ec.mount_id = Some("mount-1".to_string());
     ec.camera_id = Some("cam-1".to_string());
@@ -769,14 +763,14 @@ async fn pointing_ctx(
     ec.to_instruction_context("test-node").await
 }
 
-// --- execute_exposure gate ---
+// execute_exposure gate
 
 async fn expose_ctx(
     ops: Arc<dyn DeviceOps>,
     target: Option<(f64, f64)>,
     max_sun_alt: f64,
 ) -> InstructionContext {
-    let mut ec = crate::node::context::ExecutionContext::new("test-node".to_string());
+    let mut ec = crate::node::context::ExecutionContext::new_for_test("test-node".to_string());
     ec.device_ops = ops;
     ec.camera_id = Some("cam-1".to_string());
     ec.mount_id = Some("mount-1".to_string());
@@ -824,7 +818,7 @@ async fn saving_expose_ctx(
     save_path: std::path::PathBuf,
     event_tx: tokio::sync::broadcast::Sender<crate::executor::ExecutorEvent>,
 ) -> InstructionContext {
-    let mut ec = crate::node::context::ExecutionContext::new("expose-node".to_string());
+    let mut ec = crate::node::context::ExecutionContext::new_for_test("expose-node".to_string());
     ec.device_ops = ops;
     ec.camera_id = Some("cam-1".to_string());
     ec.mount_id = Some("mount-1".to_string());
@@ -847,7 +841,7 @@ async fn expose_node_execution_ctx(
     ops: Arc<dyn DeviceOps>,
     save_path: std::path::PathBuf,
 ) -> crate::node::context::ExecutionContext {
-    let mut ec = crate::node::context::ExecutionContext::new("expose-node".to_string());
+    let mut ec = crate::node::context::ExecutionContext::new_for_test("expose-node".to_string());
     ec.device_ops = ops;
     ec.camera_id = Some("cam-1".to_string());
     ec.focuser_id = Some("foc-1".to_string());
@@ -891,7 +885,7 @@ async fn direct_capture_ctx(
     ops: Arc<dyn DeviceOps>,
     save_path: std::path::PathBuf,
 ) -> InstructionContext {
-    let mut ec = crate::node::context::ExecutionContext::new("direct".to_string());
+    let mut ec = crate::node::context::ExecutionContext::new_for_test("direct".to_string());
     ec.device_ops = ops;
     ec.camera_id = Some("cam-1".to_string());
     ec.focuser_id = Some("foc-1".to_string());
@@ -938,15 +932,13 @@ fn drain_frame_captures(
     out
 }
 
-// -------------------------------------------------------------------
-// CONC-001: a script that outruns its timeout must (a) return the
+// A script that outruns its timeout must (a) return the
 // exact "Script timed out ..." failure and (b) leave no live child
 // process behind (kill_on_drop reaps it).
-// -------------------------------------------------------------------
 
 #[cfg(target_os = "linux")]
 async fn script_ctx() -> InstructionContext {
-    crate::node::context::ExecutionContext::new("test-node".to_string())
+    crate::node::context::ExecutionContext::new_for_test("test-node".to_string())
         .to_instruction_context("test-node")
         .await
 }

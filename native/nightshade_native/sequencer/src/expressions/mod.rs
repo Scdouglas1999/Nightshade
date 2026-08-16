@@ -12,8 +12,8 @@
 //!   * Fixed-point precision: `${target.alt:.1f}` → `"42.7"`.
 //! * `$${` — literal `${`. The doubled `$` escapes interpolation.
 //!
-//! Unknown variables throw an `InterpolationError`. There is no silent
-//! fallback — errors are a feature.
+//! Unknown variables throw an `InterpolationError`; there is no silent
+//! fallback.
 //!
 //! ## Integration
 //!

@@ -323,8 +323,8 @@ pub fn calibrate_frame(
 /// channel `i % channels`. Flat-field normalisation must be done per channel:
 /// a colour (interleaved RGB) flat with different per-channel levels would
 /// otherwise be normalised by one global mean, injecting a colour cast into
-/// otherwise-uniform light. For `channels == 1` this is a single global mean,
-/// identical to the previous behaviour.
+/// otherwise-uniform light. For `channels == 1` this collapses to a single
+/// global mean.
 fn per_channel_means(values: &[f64], channels: usize) -> Vec<f64> {
     let channels = channels.max(1);
     let mut sums = vec![0.0f64; channels];
@@ -345,9 +345,7 @@ fn per_channel_means(values: &[f64], channels: usize) -> Vec<f64> {
         .collect()
 }
 
-// =============================================================================
 // U8 pixel operations
-// =============================================================================
 
 fn subtract_u8(light: &[u8], dark: &[u8]) -> Vec<u8> {
     light
@@ -386,9 +384,7 @@ fn divide_flat_u8(light: &[u8], flat: &[u8], channels: usize) -> Vec<u8> {
         .collect()
 }
 
-// =============================================================================
 // U16 pixel operations
-// =============================================================================
 
 fn subtract_u16(light: &[u8], dark: &[u8]) -> Vec<u8> {
     let light_pixels: Vec<u16> = light
@@ -449,9 +445,7 @@ fn divide_flat_u16(light: &[u8], flat: &[u8], channels: usize) -> Vec<u8> {
     result.iter().flat_map(|&v| v.to_le_bytes()).collect()
 }
 
-// =============================================================================
 // U32 pixel operations
-// =============================================================================
 
 fn subtract_u32(light: &[u8], dark: &[u8]) -> Vec<u8> {
     let light_pixels: Vec<u32> = light
@@ -512,9 +506,7 @@ fn divide_flat_u32(light: &[u8], flat: &[u8], channels: usize) -> Vec<u8> {
     result.iter().flat_map(|&v| v.to_le_bytes()).collect()
 }
 
-// =============================================================================
 // F32 pixel operations
-// =============================================================================
 
 fn subtract_f32(light: &[u8], dark: &[u8]) -> Vec<u8> {
     let light_pixels: Vec<f32> = light
@@ -588,9 +580,7 @@ fn divide_flat_f32(light: &[u8], flat: &[u8], channels: usize) -> Vec<u8> {
     result.iter().flat_map(|&v| v.to_le_bytes()).collect()
 }
 
-// =============================================================================
 // F64 pixel operations
-// =============================================================================
 
 fn subtract_f64(light: &[u8], dark: &[u8]) -> Vec<u8> {
     let light_pixels: Vec<f64> = light
@@ -750,7 +740,7 @@ mod tests {
 
     #[test]
     fn test_divide_flat_per_channel_no_color_cast() {
-        // Regression (#4): an interleaved RGB flat with different per-channel
+        // An interleaved RGB flat with different per-channel
         // levels but no spatial variation must not tint uniform RGB light. A
         // single global mean would scale the three channels differently and
         // inject a colour cast; per-channel means leave uniform light unchanged.
@@ -827,10 +817,10 @@ mod tests {
 
     #[test]
     fn test_calibrate_frame_bias_dark_pedestal_cancels() {
-        // Regression: with bias + dark (no flat) the bias pedestal must cancel,
-        // so the result equals (light - bias) - (dark - bias) = light - dark.
-        // The previous code skipped subtracting bias from the light whenever a
-        // dark was present, leaving `light - (dark - bias) = signal + bias`.
+        // With bias + dark (no flat) the bias pedestal must cancel, so the
+        // result equals (light - bias) - (dark - bias) = light - dark. Skipping
+        // the bias subtraction on the light whenever a dark is present leaves
+        // `light - (dark - bias) = signal + bias`.
         let light = make_u16_image(2, 2, &[1000, 2000, 3000, 4000]);
         let dark = make_u16_image(2, 2, &[100, 100, 100, 100]); // thermal + bias
         let bias = make_u16_image(2, 2, &[50, 50, 50, 50]);

@@ -645,25 +645,17 @@ pub fn correct_frame_u16(light: &mut ImageData, map: &DefectMap) -> Result<(), D
 /// [`ImageData`] (which stores its pixels as `Vec<u8>` for FFI / disk
 /// round-tripping).
 ///
-/// # Parameters
-/// * `pixels` — `width * height * channels` u16 samples, row-major,
-///   channel-interleaved. For a monochrome camera `channels = 1` and the
-///   layout reduces to `[y * width + x]`.
-/// * `width` / `height` / `channels` — dimensions of the frame; these must
-///   match `pixels.len()` exactly or an error is returned (a silent
-///   fallback would let a downstream bug corrupt the saved image).
-/// * `map` — the defect map whose dimensions MUST match `width × height`.
-/// * `method` — replacement method (median / mean / gaussian-weighted mean).
-/// * `kernel` — kernel diameter (3, 5, or 7). Wider kernels are slower but
-///   handle defective clusters better; 3×3 falls back to 5×5 internally
-///   when 8+ of the 9 neighbours are also defective.
+/// `pixels` is `width * height * channels` u16 samples, row-major and
+/// channel-interleaved; the dimensions must match `pixels.len()` exactly and
+/// `map` must match `width × height`, or the call errors rather than let a
+/// downstream bug corrupt the saved image. `kernel` is a diameter of 3, 5 or 7
+/// — wider is slower but handles defective clusters better, and 3×3 falls back
+/// to 5×5 internally when 8+ of the 9 neighbours are also defective.
 ///
-/// # Returns
-/// `Ok(corrected_count)` — the number of pixels actually rewritten. This
-/// is the same as `map.defective_count()` in the common case, but smaller
-/// when a defective pixel had zero healthy neighbours in its expanded
-/// kernel (we leave the original value rather than zeroing — a black hole
-/// would amplify under stretch).
+/// Returns the number of pixels actually rewritten, which is
+/// `map.defective_count()` except where a defective pixel had no healthy
+/// neighbour even in the expanded kernel: those keep their original value,
+/// because a zeroed pixel amplifies under stretch.
 pub fn correct_u16_slice(
     pixels: &mut [u16],
     width: u32,

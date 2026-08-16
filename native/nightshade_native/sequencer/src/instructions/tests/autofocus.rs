@@ -26,7 +26,7 @@ async fn node_admission_waits_for_inflight_run_then_times_out_on_stuck_gate() {
     let _serial = AF_GATE_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
 
     // Scenario 1: a trigger-fired run holds the gate; the node waiter must
-    // NOT resolve while it is held (the old fail-fast aborted the run here).
+    // block while it is held rather than fail the run.
     let inflight = try_admit_autofocus_run().expect("first run must admit");
     let waiter =
         tokio::spawn(async { admit_autofocus_run_waiting(Duration::from_secs(600)).await });

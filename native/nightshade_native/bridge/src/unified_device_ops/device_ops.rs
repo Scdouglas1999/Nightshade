@@ -2,9 +2,7 @@ use super::*;
 
 #[async_trait]
 impl DeviceOps for UnifiedDeviceOps {
-    // =========================================================================
-    // CONNECTION / RECOVERY
-    // =========================================================================
+    // Connection / recovery
     //
     // These two overrides are what make device-disconnect recovery actually
     // work on the live path. Without them the trait defaults
@@ -28,9 +26,7 @@ impl DeviceOps for UnifiedDeviceOps {
         get_device_manager().connect_device(device_id).await
     }
 
-    // =========================================================================
-    // MOUNT OPERATIONS
-    // =========================================================================
+    // Mount operations
 
     async fn mount_slew_to_coordinates(
         &self,
@@ -237,9 +233,7 @@ impl DeviceOps for UnifiedDeviceOps {
             .map_err(|e| format!("Set tracking failed: {}", e))
     }
 
-    // =========================================================================
-    // CAMERA OPERATIONS
-    // =========================================================================
+    // Camera operations
 
     async fn camera_start_exposure(
         &self,
@@ -340,8 +334,8 @@ impl DeviceOps for UnifiedDeviceOps {
 
         // Start the exposure. gain/offset are Option<i32>; None means "use the
         // camera's current value, don't change it" and is threaded through to
-        // each driver branch so the setter is genuinely skipped (rather than
-        // the old `unwrap_or(0)` which silently commanded gain/offset 0).
+        // each driver branch so the setter is genuinely skipped — an
+        // `unwrap_or(0)` here would silently command gain/offset 0.
         mgr.camera_start_exposure_configured(
             camera_id,
             duration_secs,
@@ -785,9 +779,7 @@ impl DeviceOps for UnifiedDeviceOps {
         Ok(connected_camera_label(camera_id).await)
     }
 
-    // =========================================================================
-    // FOCUSER OPERATIONS
-    // =========================================================================
+    // Focuser operations
 
     async fn focuser_move_to(&self, focuser_id: &str, position: i32) -> DeviceResult<()> {
         tracing::info!("Moving focuser {} to position {}", focuser_id, position);
@@ -844,9 +836,7 @@ impl DeviceOps for UnifiedDeviceOps {
             .map_err(|e| format!("Halt failed: {}", e))
     }
 
-    // =========================================================================
-    // FILTER WHEEL OPERATIONS
-    // =========================================================================
+    // Filter wheel operations
 
     async fn filterwheel_set_position(&self, fw_id: &str, position: i32) -> DeviceResult<()> {
         // Get current position for the event
@@ -925,9 +915,7 @@ impl DeviceOps for UnifiedDeviceOps {
         Ok(position)
     }
 
-    // =========================================================================
-    // ROTATOR OPERATIONS
-    // =========================================================================
+    // Rotator operations
 
     async fn rotator_move_to(&self, rotator_id: &str, angle: f64) -> DeviceResult<()> {
         tracing::info!("Moving rotator {} to {}°", rotator_id, angle);
@@ -980,9 +968,7 @@ impl DeviceOps for UnifiedDeviceOps {
             .map_err(|e| format!("Halt failed: {}", e))
     }
 
-    // =========================================================================
-    // GUIDING / PHD2 OPERATIONS
-    // =========================================================================
+    // Guiding / PHD2 operations
 
     async fn guider_dither(
         &self,
@@ -1071,9 +1057,7 @@ impl DeviceOps for UnifiedDeviceOps {
             .map_err(|e| format!("Stop guiding failed: {}", e))
     }
 
-    // =========================================================================
-    // PLATE SOLVING
-    // =========================================================================
+    // Plate solving
 
     async fn plate_solve(
         &self,
@@ -1154,11 +1138,10 @@ impl DeviceOps for UnifiedDeviceOps {
         // either way send the field scale.
         //
         // The 5.0° search radius is the Nightshade default for a near solve
-        // and matches the plate-solve UI slider default. It used to be taken
-        // from `hint_scale`, which is arcsec/pixel: a caller passing a real
-        // scale would have set a 1.3° search radius, and one caller was
-        // passing its solve TIMEOUT through that slot (30 → a 30° radius).
-        // Degrees of search and arcsec of sampling are not interchangeable.
+        // and matches the plate-solve UI slider default. It is a literal, not
+        // `hint_scale`: degrees of search radius and arcsec/pixel of sampling
+        // are not interchangeable, and feeding either a field scale or a solve
+        // timeout through this slot silently sets an absurd radius.
         const SEARCH_RADIUS_DEG: f64 = 5.0;
         let result = if let (Some(ra), Some(dec)) = (hint_ra, hint_dec) {
             crate::api::plate_solve::plate_solve_near_scaled(
@@ -1189,9 +1172,7 @@ impl DeviceOps for UnifiedDeviceOps {
             .map_err(|e| format!("Plate solve failed: {}", e))
     }
 
-    // =========================================================================
-    // IMAGE SAVING
-    // =========================================================================
+    // Image saving
 
     async fn save_fits(
         &self,
@@ -1240,9 +1221,7 @@ impl DeviceOps for UnifiedDeviceOps {
         .map_err(|e| format!("Save FITS failed: {}", e))
     }
 
-    // =========================================================================
-    // NOTIFICATIONS
-    // =========================================================================
+    // Notifications
 
     async fn send_notification(
         &self,
@@ -1305,9 +1284,7 @@ impl DeviceOps for UnifiedDeviceOps {
         Ok(())
     }
 
-    // =========================================================================
-    // DOME OPERATIONS
-    // =========================================================================
+    // Dome operations
 
     /// The sequencer's dome/cover role slots are never populated (see
     /// `DeviceOps::active_dome_id`), so answer with whatever is connected —
@@ -1368,9 +1345,7 @@ impl DeviceOps for UnifiedDeviceOps {
         })
     }
 
-    // =========================================================================
-    // UTILITY
-    // =========================================================================
+    // Utility
 
     fn calculate_altitude(&self, ra_hours: f64, dec_degrees: f64, lat: f64, lon: f64) -> f64 {
         // Calculate Local Sidereal Time
@@ -1439,8 +1414,8 @@ impl DeviceOps for UnifiedDeviceOps {
         }
     }
 
-    /// Trust-patch §2: feed HumidityThreshold triggers from the configured
-    /// weather device. See the trait rustdoc for Ok(None) vs Err semantics.
+    /// Feed HumidityThreshold triggers from the configured weather device.
+    /// See the trait rustdoc for `Ok(None)` vs `Err` semantics.
     async fn weather_get_humidity(&self, weather_id: Option<&str>) -> DeviceResult<Option<f64>> {
         let device_id = match weather_id {
             Some(id) => id.to_string(),
@@ -1462,9 +1437,7 @@ impl DeviceOps for UnifiedDeviceOps {
         }
     }
 
-    // =========================================================================
-    // IMAGE ANALYSIS
-    // =========================================================================
+    // Image analysis
 
     async fn calculate_image_hfr(&self, image_data: &ImageData) -> DeviceResult<Option<f64>> {
         use nightshade_imaging::{detect_stars, StarDetectionConfig};
@@ -1535,9 +1508,7 @@ impl DeviceOps for UnifiedDeviceOps {
         Ok(frame_eccentricity(&stars))
     }
 
-    // =========================================================================
-    // COVER CALIBRATOR (FLAT PANEL) OPERATIONS
-    // =========================================================================
+    // Cover calibrator (flat panel) operations
 
     async fn cover_calibrator_open_cover(&self, device_id: &str) -> DeviceResult<()> {
         api_cover_calibrator_open_cover(device_id.to_string())

@@ -5,9 +5,7 @@ use crate::load_vendor_sdk;
 use crate::vendor::sdk_loader::vendor_library_candidates;
 use std::path::PathBuf;
 
-// =============================================================================
-// ZWO EFW FILTER WHEEL SDK
-// =============================================================================
+// EFW filter wheel SDK
 
 /// EFW Info structure from SDK
 #[repr(C)]
@@ -130,9 +128,7 @@ pub(crate) fn check_efw_error(code: c_int) -> Result<(), NativeError> {
     }
 }
 
-// =============================================================================
-// ZWO FILTER WHEEL IMPLEMENTATION
-// =============================================================================
+// Filter wheel implementation
 
 /// ZWO EFW Filter Wheel implementation
 #[derive(Debug)]
@@ -505,18 +501,8 @@ impl NativeFilterWheel for ZwoFilterWheel {
 }
 
 impl ZwoFilterWheel {
-    /// Move filter wheel to position and wait for completion with timeout.
-    ///
-    /// This is a convenience method that combines `move_to_position` with waiting for
-    /// the move to complete, with timeout protection.
-    ///
-    /// # Arguments
-    /// * `position` - Target filter slot (0-indexed)
-    /// * `config` - Timeout configuration
-    ///
-    /// # Returns
-    /// * `Ok(())` - Move completed successfully
-    /// * `Err(NativeError::MoveTimeout)` - Move did not complete within timeout
+    /// `move_to_position` to the 0-indexed slot, then wait for the wheel to
+    /// settle under the config's filter-wheel timeout.
     pub async fn move_to_position_with_timeout(
         &mut self,
         position: i32,
@@ -530,9 +516,7 @@ impl ZwoFilterWheel {
     }
 }
 
-// =============================================================================
-// ZWO FILTER WHEEL DISCOVERY
-// =============================================================================
+// Filter wheel discovery
 
 /// ZWO filter wheel discovery info
 pub struct ZwoFilterWheelDiscoveryInfo {

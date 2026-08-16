@@ -2,10 +2,6 @@
 
 use super::*;
 
-// =============================================================================
-// FUJIFILM CAMERA IMPLEMENTATION
-// =============================================================================
-
 /// Wrapper for camera handle to implement Send/Sync
 /// SAFETY: The SDK mutex ensures exclusive access, making it safe to send between threads
 pub(crate) struct HandleWrapper(pub(crate) XsdkHandle);
@@ -225,9 +221,7 @@ impl FujifilmCamera {
         Ok(())
     }
 
-    // =========================================================================
-    // FOCUS CONTROL
-    // =========================================================================
+    // Focus control
 
     /// Query focus capabilities from the lens
     ///
@@ -320,16 +314,11 @@ impl FujifilmCamera {
         Ok(pos as i32)
     }
 
-    /// Set the focus position
+    /// Move the focus motor to `position`, which must lie in the
+    /// `[focus_min, focus_max]` range `query_focus_capabilities` reported.
     ///
-    /// Moves the focus motor to the specified position. The position must be within
-    /// the range [focus_min, focus_max] as reported by `query_focus_capabilities`.
-    ///
-    /// Note: This method uses blocking sleep (std::thread::sleep) for the motor
-    /// settling delay to avoid raw pointer issues across await points.
-    ///
-    /// # Arguments
-    /// * `position` - Target focus position (must be in range [focus_min, focus_max])
+    /// The motor settling delay uses a blocking `std::thread::sleep` so no raw
+    /// pointer is held across an await point.
     pub async fn set_focus_position(&mut self, position: i32) -> Result<(), NativeError> {
         if !self.connected {
             return Err(NativeError::NotConnected);
@@ -388,25 +377,13 @@ impl FujifilmCamera {
         (self.focus_min, self.focus_max)
     }
 
-    // =========================================================================
-    // LIVE VIEW METHODS
-    // =========================================================================
+    // Live view
 
-    /// Start live view streaming
+    /// Start live view streaming at `quality`; frames are then read as JPEG data
+    /// through `read_live_view_frame()`.
     ///
-    /// Live view frames can be retrieved via `read_live_view_frame()`.
-    /// The frames are JPEG data at the configured quality/size.
-    ///
-    /// Note: This method uses blocking sleep (std::thread::sleep) between SDK calls
-    /// to avoid raw pointer issues across await points.
-    ///
-    /// # Arguments
-    ///
-    /// * `quality` - The live view quality setting (Fine, Normal, or Basic)
-    ///
-    /// # Returns
-    ///
-    /// `Ok(())` if live view started successfully, or an error if it failed.
+    /// The waits between SDK calls use a blocking `std::thread::sleep` so no raw
+    /// pointer is held across an await point.
     pub async fn start_live_view(&mut self, quality: LiveViewQuality) -> Result<(), NativeError> {
         if !self.connected {
             return Err(NativeError::NotConnected);
@@ -475,17 +452,10 @@ impl FujifilmCamera {
         Ok(())
     }
 
-    /// Read a live view frame from the camera
+    /// Raw JPEG data for the current live view frame; call repeatedly to stream.
     ///
-    /// Returns the raw JPEG data of the current live view frame.
-    /// This should be called repeatedly to get streaming frames.
-    ///
-    /// Note: This method copies packed struct fields to local variables before
-    /// using them to avoid undefined behavior with misaligned reads.
-    ///
-    /// # Returns
-    ///
-    /// `Ok(Vec<u8>)` containing JPEG data, or an error if no frame is available.
+    /// Packed struct fields are copied to locals before use, because reading them
+    /// in place would be a misaligned reference.
     pub async fn read_live_view_frame(&self) -> Result<Vec<u8>, NativeError> {
         if !self.connected {
             return Err(NativeError::NotConnected);

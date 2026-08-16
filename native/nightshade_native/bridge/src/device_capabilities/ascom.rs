@@ -312,10 +312,10 @@ pub(crate) async fn get_ascom_capabilities(
 
             let caps = focuser.get_capabilities();
             // Live state must be read while the probe still owns the connection.
-            // Leaving these at `Default::default()` (the previous behaviour) made
-            // this endpoint report `isMoving: false`, `position: null` and
-            // `temperature: null` even while the focuser was demonstrably moving —
-            // observed on the rig as three consecutive samples reading
+            // Leaving these at `Default::default()` makes this endpoint report
+            // `isMoving: false`, `position: null` and `temperature: null` even
+            // while the focuser is demonstrably moving — observed on the rig as
+            // three consecutive samples reading
             // `isMoving: false` while `/api/equipment/focuser/status` reported
             // `moving: true` and a position stepping 46560 -> 44880 -> 43240.
             let live = focuser.get_full_status();
@@ -404,13 +404,13 @@ pub(crate) async fn get_ascom_capabilities(
         // 0-position wheel and the user reconfigures the driver. Better than
         // failing the entire equipment-profile load on one bad accessor.
         //
-        // That resilience is kept deliberately (this is the cold-probe taken
-        // during profile load / first discovery, where aborting is worse), but
-        // the failure is no longer SILENT: a reported 0-position wheel is
-        // indistinguishable from a real empty one, and it makes the scheduler
-        // reject every filtered target ("required filter not in wheel"). The
-        // live-wrapper branch above propagates instead, because that one runs
-        // during normal operation where a retry is the right answer.
+        // This is the cold probe taken during profile load / first discovery,
+        // where aborting the whole load is worse — but the failure must be
+        // logged, because a reported 0-position wheel is indistinguishable from
+        // a real empty one and makes the scheduler reject every filtered target
+        // ("required filter not in wheel"). The live-wrapper branch above
+        // propagates instead, because that one runs during normal operation
+        // where a retry is the right answer.
         let names = match fw.names() {
             Ok(n) => n,
             Err(e) => {

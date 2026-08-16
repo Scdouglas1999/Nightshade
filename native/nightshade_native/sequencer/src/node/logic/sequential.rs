@@ -2,7 +2,7 @@
 //!
 //! Used by every container/logic node (TargetHeader, Loop, Conditional,
 //! Recovery) for the "execute children in order" pass. Includes the
-//! trust-patch §7 SkipToNode propagation logic.
+//! SkipToNode propagation logic.
 
 use crate::node::context::ExecutionContext;
 use crate::node::progress::ProgressUpdate;
@@ -14,9 +14,8 @@ use crate::NodeStatus;
 ///
 /// Returns Cancelled / Skipped / Failure on the first child that produces
 /// one (short-circuiting); returns Success only when every child finished
-/// Success or Skipped. Trust-patch §7 SkipToNode logic: when a SkipToNode
-/// request is active, children whose subtree does not contain the target
-/// are marked Skipped.
+/// Success or Skipped. When a SkipToNode request is active, children whose
+/// subtree does not contain the target are marked Skipped.
 pub async fn execute_children_sequential(
     node: &mut RuntimeNode,
     context: &mut ExecutionContext,
@@ -44,11 +43,10 @@ pub async fn execute_children_sequential(
             tracing::debug!("Execution cancelled before child {}", i);
             return NodeStatus::Cancelled;
         }
-        // honor an operator Pause / recovery freeze at the
-        // instruction boundary. Previously `is_paused` was consulted nowhere
-        // in the node tree, so a Pause showed "Paused" in the UI while the rig
-        // kept slewing/exposing. Block here until resumed; unwind if the
-        // sequence is cancelled while paused.
+        // Honour an operator Pause / recovery freeze at the instruction
+        // boundary: block here until resumed, and unwind if the sequence is
+        // cancelled while paused. Without this the UI shows "Paused" while the
+        // rig keeps slewing and exposing.
         if !context.wait_while_paused().await {
             tracing::debug!("Execution cancelled while paused before child {}", i);
             return NodeStatus::Cancelled;
@@ -61,7 +59,7 @@ pub async fn execute_children_sequential(
             return NodeStatus::Skipped;
         }
 
-        // Trust-patch §7: if a SkipToNode request is active, mark this child
+        // If a SkipToNode request is active, mark this child
         // as Skipped unless its subtree contains the target. When the child
         // IS the target (or contains it), the request stays pending so
         // deeper recursion can keep skipping siblings; we only clear it when

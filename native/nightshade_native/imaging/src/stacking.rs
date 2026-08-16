@@ -121,7 +121,7 @@ impl Default for LiveStackConfig {
 /// here — rather than inside the stacker — means the stacker has no notion of
 /// Bayer patterns or file/path concerns.
 ///
-/// Errors (never silently coerced — this project treats errors as a feature):
+/// Errors, never silently coerced:
 /// - the input is not single-channel (a real CFA frame is one plane);
 /// - the input is not [`PixelType::U16`] (CFA data is integer ADU);
 /// - the U16 unpacking fails (corrupt/short buffer).
@@ -729,9 +729,7 @@ impl LiveStacker {
     }
 }
 
-// =============================================================================
-// Star Matching
-// =============================================================================
+// Star matching
 
 /// A matched star pair: reference star index, frame star index, distance
 #[derive(Debug, Clone)]
@@ -834,9 +832,7 @@ fn match_stars(
     matches
 }
 
-// =============================================================================
-// Affine Transform Computation
-// =============================================================================
+// Affine transform computation
 
 /// Compute the best-fit affine transform (translation + rotation) from matched star pairs.
 ///
@@ -1041,8 +1037,8 @@ fn consensus_inliers(matches: &[StarMatch], ref_centroid: (f64, f64)) -> Option<
 /// under 100px and the flux gate is loose, so the matcher can pair a star with
 /// a neighbour tens of pixels away. A handful of such pairs drags the Procrustes
 /// fit far enough to inflate the RMS past the rejection ceiling: two frames of
-/// the same 40-star field differing by a rigid 2.2px translation measured
-/// 10.34px and were refused, when the correct fit is sub-pixel.
+/// the same 40-star field differing by a rigid 2.2px translation measure
+/// 10.34px and are refused, when the correct fit is sub-pixel.
 ///
 /// Two stages, in this order, because they fail on opposite inputs:
 ///
@@ -1151,9 +1147,7 @@ fn compute_alignment_residual(matches: &[StarMatch], transform: &AffineTransform
     (sum_sq / matches.len() as f64).sqrt()
 }
 
-// =============================================================================
-// Frame Alignment (Pixel Resampling)
-// =============================================================================
+// Frame alignment (pixel resampling)
 
 /// Apply the inverse affine transform to resample frame pixels onto the reference grid.
 ///
@@ -1199,7 +1193,7 @@ fn apply_transform_bilinear(
                 // Require the base pixel (ix, iy) in range. The +1 neighbours
                 // only contribute when the fractional offset is non-zero, so a
                 // sample landing exactly on the last row/column (dx==0/dy==0)
-                // must not be dropped — the old `ix+1 >= width` test discarded
+                // must not be dropped: an `ix+1 >= width` test would discard
                 // the entire last row and column even under the identity
                 // transform. Clamp the +1 index to the edge; its weight is 0
                 // when the corresponding offset is 0 (exact on-grid), and it
@@ -1239,9 +1233,7 @@ fn apply_transform_bilinear(
     result
 }
 
-// =============================================================================
-// Utility Functions
-// =============================================================================
+// Utility functions
 
 /// Extract U16 image data as f64 values
 fn extract_u16_as_f64(image: &ImageData) -> Vec<f64> {
@@ -1252,9 +1244,7 @@ fn extract_u16_as_f64(image: &ImageData) -> Vec<f64> {
         .collect()
 }
 
-// =============================================================================
-// Master Frame Combination (bias / dark / flat)
-// =============================================================================
+// Master frame combination (bias / dark / flat)
 //
 // Why this lives next to LiveStacker: both consume a population of frames and
 // produce a single combined frame using rejection statistics. LiveStacker is
@@ -1356,12 +1346,11 @@ pub struct MasterFrame {
 /// Peak size of the decoded `f64` working set, across all frames, for one band
 /// of rows.
 ///
-/// Why bands: the combiner used to decode *every* frame to `f64` up front —
-/// `frames.len() × pixels × 8` bytes, which is 5.8 GB for 30 darks off a 24 MP
-/// sensor, on top of the caller's own `u16` copies. Nothing about the
-/// per-column statistics needs more than the rows currently being combined, so
-/// the frames are decoded a band at a time and the residency becomes a
-/// constant instead of a multiple of the sensor.
+/// Why bands: per-column statistics need no more than the rows currently being
+/// combined, so frames are decoded a band at a time and peak residency is this
+/// constant instead of a multiple of the sensor. Decoding every frame to `f64`
+/// up front costs `frames.len() × pixels × 8` bytes — 5.8 GB for 30 darks off a
+/// 24 MP sensor, on top of the caller's own `u16` copies.
 const BAND_BUDGET_BYTES: usize = 32 * 1024 * 1024;
 
 /// Combine a stack of calibration frames into a single master frame.
@@ -1405,7 +1394,7 @@ fn combine_master_frames_banded(
     output_type: MasterOutputType,
     band_rows: usize,
 ) -> Result<MasterFrame, String> {
-    // --- validation --------------------------------------------------------
+    // Validation
     if frames.is_empty() {
         return Err(format!(
             "combine_master_frames: cannot build {} master from zero frames",
@@ -1484,7 +1473,7 @@ fn combine_master_frames_banded(
         }
     }
 
-    // --- per-pixel combine, one band of rows at a time ---------------------
+    // Per-pixel combine, one band of rows at a time
     // The statistics themselves live in `integration::integrate_columns`: it is
     // the same population-wide rejector, row-parallel with a reused scratch
     // column instead of a heap allocation per output pixel.
@@ -1543,11 +1532,11 @@ fn combine_master_frames_banded(
         row += rows;
     }
 
-    // --- compute mean BEFORE normalisation --------------------------------
+    // Compute mean BEFORE normalisation
     let input_sum: f64 = combined.par_iter().sum();
     let input_mean = input_sum / combined.len() as f64;
 
-    // --- normalise flats only ---------------------------------------------
+    // Normalise flats only
     let (final_pixels, output_mean) = match kind {
         MasterFrameKind::Flat => {
             if !input_mean.is_finite() || input_mean <= 0.0 {
@@ -1571,7 +1560,7 @@ fn combine_master_frames_banded(
         MasterFrameKind::Bias | MasterFrameKind::Dark => (combined, input_mean),
     };
 
-    // --- materialise the output ImageData ---------------------------------
+    // Materialise the output ImageData
     let image = match output_type {
         MasterOutputType::U16 => {
             let u16_data: Vec<u16> = final_pixels
@@ -1627,16 +1616,15 @@ fn decode_band_f64(image: &ImageData, start: usize, count: usize, out: &mut Vec<
 mod master_parity_tests {
     //! Golden parity for the master-frame combiner.
     //!
-    //! [`combine_master_frames`] used to own a per-pixel combiner
-    //! (`combine_pixel` / `median_in_place` / `sigma_clip_in_place`) that
-    //! allocated a `Vec<f64>` for every output pixel. It now delegates to
+    //! [`combine_master_frames`] delegates to
     //! [`crate::integration::integrate_columns`]. `reference_combine` below is
-    //! the deleted implementation, kept verbatim as the golden: every case
-    //! these tests exercise must come out bit-for-bit identical.
+    //! the superseded per-pixel combiner, kept verbatim as the golden: every
+    //! case these tests exercise must come out bit-for-bit identical.
 
     use super::*;
 
-    /// The pre-merge `combine_master_frames`, transcribed unchanged.
+    /// The superseded per-pixel `combine_master_frames`, transcribed
+    /// unchanged.
     fn reference_combine(
         frames: &[ImageData],
         kind: MasterFrameKind,
@@ -1960,11 +1948,11 @@ mod master_parity_tests {
         );
     }
 
-    /// The one intentional divergence from the pre-merge combiner: a
-    /// non-finite sample is dropped rather than propagated. A single NaN in one
-    /// flat used to poison that pixel of the master for every light it divided.
+    /// The one intentional divergence from the golden: a non-finite sample is
+    /// dropped rather than propagated, because one NaN in a flat corrupts that
+    /// pixel of the master for every light it divides.
     #[test]
-    fn a_nan_in_one_frame_no_longer_poisons_the_master_pixel() {
+    fn a_nan_in_one_frame_does_not_poison_the_master_pixel() {
         let frames = [
             ImageData::from_f32(1, 1, 1, &[1.0]),
             ImageData::from_f32(1, 1, 1, &[f32::NAN]),
@@ -2329,9 +2317,7 @@ mod tests {
         );
     }
 
-    // =========================================================================
-    // IMG-Master frame combination tests
-    // =========================================================================
+    // Master frame combination tests
 
     /// Build a synthetic U16 image filled with a constant value (single channel).
     fn constant_u16_image(width: u32, height: u32, value: u16) -> ImageData {
@@ -2608,20 +2594,16 @@ mod tests {
         assert!(r2.is_err(), "sigma-clip kappa<=0 must fail");
     }
 
-    // =========================================================================
-    // IMG-avg_matched_pairs / avg_alignment_residual divisor
-    // =========================================================================
+    // avg_matched_pairs / avg_alignment_residual divisor
     //
-    // Verifies that the per-aligned-frame averages divide by the count of
-    // *non-reference* frames, not the full stacked_frame_count. The
-    // reference frame contributes 0 to both metrics by construction, so the
-    // pre-fix divisor of `stacked_frame_count` (which includes it) diluted
+    // The per-aligned-frame averages divide by the count of *non-reference*
+    // frames, not the full stacked_frame_count. The reference frame contributes
+    // 0 to both metrics by construction, so a divisor that includes it scales
     // the averages by (N-1)/N.
 
-    /// Update stats using the same arithmetic the fixed accumulator path uses,
-    /// so the test directly exercises the divisor formula introduced for
-    /// IMG-without spinning up a full LiveStacker (which requires
-    /// successful star detection on each frame).
+    /// Update stats using the same arithmetic the accumulator path uses, so
+    /// the test exercises the divisor formula without spinning up a full
+    /// LiveStacker (which requires successful star detection on each frame).
     fn step_stats(stats: &mut StackingStats, matches_len: usize, residual: f64) {
         stats.stacked_frame_count += 1;
         let aligned_count = stats.stacked_frame_count.saturating_sub(1).max(1) as f64;
@@ -2634,10 +2616,10 @@ mod tests {
 
     #[test]
     fn avg_metrics_exclude_reference_frame_contribution() {
-        // Simulate 5 stacked frames: 1 reference (no metrics), 4 aligned
-        // each with matched_pairs=10 and residual=0.5. The post-fix average
-        // must be exactly 10.0 and 0.5 — pre-fix this was diluted to 8.0
-        // and 0.4 because the reference was counted in the divisor.
+        // Simulate 5 stacked frames: 1 reference (no metrics), 4 aligned each
+        // with matched_pairs=10 and residual=0.5. The average must be exactly
+        // 10.0 and 0.5; counting the reference in the divisor dilutes it to 8.0
+        // and 0.4.
         // reference frame initialised but not measured
         let mut stats = StackingStats {
             stacked_frame_count: 1,
@@ -2662,13 +2644,11 @@ mod tests {
     }
 
     #[test]
-    fn pre_fix_divisor_formula_would_yield_8_and_0_4() {
-        // Reference test: prove the bug claim by re-deriving the buggy
-        // formula and confirming it produces 8.0 / 0.4 for the same inputs.
-        // This locks in WHY the fix is correct: with the old divisor of
-        // `stacked_frame_count` (including the reference), the average gets
-        // multiplied by (N-1)/N. For 5 frames that's 4/5 = 0.8, so
-        // 10 * 0.8 = 8.0 and 0.5 * 0.8 = 0.4.
+    fn divisor_including_the_reference_would_yield_8_and_0_4() {
+        // Re-derive the rejected formula on the same inputs: a divisor of
+        // `stacked_frame_count` (which includes the reference) multiplies the
+        // average by (N-1)/N. For 5 frames that is 4/5 = 0.8, so 10 * 0.8 = 8.0
+        // and 0.5 * 0.8 = 0.4.
         let mut buggy_count: u32 = 1;
         let mut buggy_avg_matches = 0.0_f64;
         let mut buggy_avg_residual = 0.0_f64;
@@ -2704,9 +2684,7 @@ mod tests {
         );
     }
 
-    // =========================================================================
-    // OSC / colour stacking (component C1)
-    // =========================================================================
+    // OSC / colour stacking
 
     /// Translate a star field by a (whole-pixel) offset so the mono and RGB
     /// "second frame" share an identical geometric shift.
@@ -2714,7 +2692,7 @@ mod tests {
         field.iter().map(|&(x, y, b)| (x + dx, y + dy, b)).collect()
     }
 
-    /// Regression (#14): a geometrically-inconsistent fit must be rejected on
+    /// A geometrically-inconsistent fit must be rejected on
     /// its RMS residual rather than silently folded into the stack.
     #[test]
     fn add_frame_rejects_high_alignment_residual() {
@@ -2823,15 +2801,13 @@ mod tests {
         );
     }
 
-    /// (1) Regression: the mono two-frame stack is unchanged by this work.
+    /// The mono two-frame stack is pinned byte-for-byte.
     ///
     /// We build a reference + a frame shifted by a known integer offset, stack
     /// them, and assert the result matches a captured golden vector taken at a
-    /// fixed set of probe pixels. Because the mono path is supposed to be
-    /// byte-for-byte identical to the pre-OSC engine, any drift in alignment,
-    /// accumulation, or the new `detection_plane` borrow-through would trip
-    /// this. The golden values are the engine's own output recorded once and
-    /// frozen here.
+    /// fixed set of probe pixels. Any drift in alignment, accumulation, or the
+    /// `detection_plane` borrow-through trips this. The golden values are the
+    /// engine's own output recorded once and frozen here.
     #[test]
     fn mono_stacking_unchanged_regression() {
         let field = osc_test_field();
@@ -2887,7 +2863,7 @@ mod tests {
 
         let config = osc_test_config();
 
-        // --- mono pipeline transform ---
+        // Mono pipeline transform
         let mono_ref = make_test_image(512, 512, &field);
         let mono_frame = make_test_image(512, 512, &shifted_field);
         let mono_ref_stars = detect_stars(&mono_ref, &config.star_detection);
@@ -2906,7 +2882,7 @@ mod tests {
         );
         let mono_tf = compute_affine_transform(&mono_matches, (0.0, 0.0));
 
-        // --- color pipeline transform (via luminance proxy) ---
+        // Color pipeline transform (via luminance proxy)
         let gains = ChannelGains {
             r: 1.0,
             g: 1.0,
@@ -3181,13 +3157,13 @@ mod tests {
         }
     }
 
-    /// The reported defect, in the small: two views of the same star field
-    /// differing by a rigid translation, where the 50px match radius let the
-    /// greedy matcher pair a few stars with the wrong neighbour.
+    /// Two views of the same star field differing by a rigid translation,
+    /// where the 50px match radius lets the greedy matcher pair a few stars
+    /// with the wrong neighbour.
     ///
     /// A plain least-squares fit over every pair is dragged far enough by those
     /// few to report a residual metres away from the truth — that is how a pure
-    /// 2.2px translation of a 40-star field measured 10.34px and was refused by
+    /// 2.2px translation of a 40-star field measures 10.34px and is refused by
     /// a 10.00px ceiling. Fitting with outlier rejection must recover the true
     /// sub-pixel transform.
     #[test]

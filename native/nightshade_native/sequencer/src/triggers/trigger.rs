@@ -12,10 +12,10 @@ use std::time::{Duration, Instant};
 /// `Trigger::new` so a stored sequence with an oversized window does not
 /// allocate without bounds at runtime.
 ///
-/// returns `(clamped_type, Option<TriggerClampWarning>)` so
-/// `Trigger::new` can capture the clamping diagnostic and the executor can
-/// later surface it as a user-visible `ExecutorEvent::Error`. Previously the
-/// only signal was a `tracing::warn!` which the user never saw.
+/// Returns `(clamped_type, Option<TriggerClampWarning>)` so `Trigger::new`
+/// can capture the clamping diagnostic and the executor can surface it as a
+/// user-visible `ExecutorEvent::Error` rather than a log line the operator
+/// never sees.
 fn clamp_focus_drift_window(
     trigger_type: TriggerType,
 ) -> (TriggerType, Option<TriggerClampWarning>) {
@@ -27,7 +27,7 @@ fn clamp_focus_drift_window(
     {
         if *window_size > FOCUS_DRIFT_WINDOW_MAX {
             tracing::warn!(
-                "FocusDrift trigger window_size {} exceeds maximum {}; clamping (trust-patch §6). \
+                "FocusDrift trigger window_size {} exceeds maximum {}; clamping. \
                  Reduce window_size in the trigger configuration to silence this warning.",
                 window_size,
                 FOCUS_DRIFT_WINDOW_MAX
@@ -74,7 +74,7 @@ pub struct Trigger {
     pub last_hfr_seq: Option<u64>,
     /// Rolling window of HFR values for FocusDrift detection.
     /// Stores recent HFR measurements to detect monotonic upward trends.
-    /// Trust-patch §6: switched from `Vec<f64>` to `VecDeque<f64>` so the
+    /// Switched from `Vec<f64>` to `VecDeque<f64>` so the
     /// per-tick trim uses O(1) `pop_front` instead of O(n) `remove(0)`. The
     /// window is bounded by `FOCUS_DRIFT_WINDOW_MAX` (enforced at trigger
     /// creation time) so worst-case allocation is fixed.
@@ -119,13 +119,11 @@ pub struct TriggerClampWarning {
 impl Trigger {
     /// Create a new trigger.
     ///
-    /// Trust-patch §6: when `trigger_type` is `FocusDrift`, the configured
-    /// `window_size` is silently clamped to `FOCUS_DRIFT_WINDOW_MAX`. A
-    /// warning is emitted via `tracing::warn!` so a misconfigured sequence
-    /// is loudly visible in the logs ("errors are a feature").
-    /// Callers that want to reject invalid windows up front should use
-    /// [`Trigger::new_focus_drift_checked`] instead, which returns an
-    /// `Err(String)` for sizes exceeding the cap.
+    /// When `trigger_type` is `FocusDrift`, the configured `window_size` is
+    /// clamped to `FOCUS_DRIFT_WINDOW_MAX` and a `tracing::warn!` records it, so
+    /// a misconfigured sequence is visible in the logs. Callers that want to
+    /// reject invalid windows up front use [`Trigger::new_focus_drift_checked`]
+    /// instead, which returns an `Err(String)` for sizes exceeding the cap.
     pub fn new(
         id: impl Into<String>,
         name: impl Into<String>,
@@ -154,8 +152,7 @@ impl Trigger {
     /// above `FOCUS_DRIFT_WINDOW_MAX` instead of clamping silently. This is
     /// the preferred entry point when loading a user-provided sequence: a
     /// clear error message lets the UI surface the misconfiguration rather
-    /// than silently truncating the user's value ("errors are a
-    /// feature; silent fallbacks hide bugs for months").
+    /// than silently truncating the user's value.
     pub fn new_focus_drift_checked(
         id: impl Into<String>,
         name: impl Into<String>,
@@ -166,7 +163,7 @@ impl Trigger {
     ) -> Result<Self, String> {
         if window_size > FOCUS_DRIFT_WINDOW_MAX {
             return Err(format!(
-                "FocusDrift window_size {} exceeds maximum {} (trust-patch §6). \
+                "FocusDrift window_size {} exceeds maximum {}. \
                  Reduce window_size in the trigger configuration.",
                 window_size, FOCUS_DRIFT_WINDOW_MAX
             ));
@@ -356,7 +353,7 @@ impl Trigger {
                                 // the "no wait, flip immediately" semantics.
                                 let wait_secs = (config.tracking_limit_wait_minutes * 60.0) as i64;
                                 if elapsed_secs < wait_secs {
-                                    // Why §1.21: emit "n/a" when HA is unmeasured so the log
+                                    // Why: emit "n/a" when HA is unmeasured so the log
                                     // never advertises the 0.0 sentinel as if it were real data.
                                     tracing::trace!(
                                         "Tracking limit hit: waiting {}/{}s before flip (HA={}h)",
@@ -374,7 +371,7 @@ impl Trigger {
                                     );
                                     return false;
                                 }
-                                // Why §1.21: see HA formatting note above — preserve "n/a"
+                                // Why: see the HA formatting note above — preserve "n/a"
                                 // distinction at info level too.
                                 tracing::info!(
                                     "Tracking limit wait elapsed ({:.1} min), triggering meridian flip (HA={}h)",
@@ -390,7 +387,7 @@ impl Trigger {
                                 return false;
                             }
                         } else {
-                            // Why §1.21: HA may be `None` if the mount has not yet reported
+                            // Why: HA may be `None` if the mount has not yet reported
                             // coordinates this poll cycle — log "n/a" rather than masking
                             // missing data as 0.0.
                             tracing::info!(
@@ -463,11 +460,10 @@ impl Trigger {
                 let hardware_unsafe = !state.weather_safe;
                 let verdict_unsafe = state.weather_verdict_unsafe == Some(true);
                 if hardware_unsafe || verdict_unsafe {
-                    // Name the deciding input. This trigger's action is
-                    // ParkAndAbort, so firing ends the night — and the operator
-                    // previously got only "Sequence cancelled", with the cause
-                    // reconstructable solely by reading Rust source. Logged at
-                    // warn on the aborting edge, so it cannot flood a healthy run.
+                    // Name the deciding input: this trigger's action is ParkAndAbort, so
+                    // firing ends the night and "Sequence cancelled" alone leaves the cause
+                    // readable only in the source. Logged at warn on the aborting edge, so
+                    // it cannot flood a healthy run.
                     tracing::warn!(
                         "WeatherUnsafe: hardware safety monitor {}, Dart weather verdict {} \
                          (weather_safe={}, weather_verdict_unsafe={:?})",
@@ -585,9 +581,8 @@ impl Trigger {
                     None => return false,
                 };
 
-                // Trust-patch §6: O(1) push to the back of the VecDeque
-                // (previously O(n) `Vec::remove(0)` for the head-drop in the
-                // trim loop below).
+                // O(1) push to the back of the VecDeque, which the head-drop in the
+                // trim loop below also relies on.
                 self.focus_drift_hfr_window.push_back(current);
 
                 // `.max(2)` guards against a misconfigured window of 0 or 1 —
@@ -597,7 +592,7 @@ impl Trigger {
                 // time, so the allocation here is bounded.
                 let max_size = (*window_size).clamp(2, FOCUS_DRIFT_WINDOW_MAX);
                 while self.focus_drift_hfr_window.len() > max_size {
-                    // Trust-patch §6: O(1) head-drop replaces the
+                    // O(1) head-drop replaces the
                     // O(n) `Vec::remove(0)` shift.
                     self.focus_drift_hfr_window.pop_front();
                 }
@@ -695,10 +690,9 @@ impl Trigger {
                     return false;
                 }
                 // A missing duration is treated as "unknown" rather than
-                // "any" — firing on an unknown-length opening would lead
+                // "any": firing on an unknown-length opening would lead
                 // the recovery layer to slew into a hole that closes
-                // before settle. "errors are a feature": no
-                // duration => don't fire.
+                // before settle.
                 let Some(duration) = state.predicted_cloud_opening_duration_secs else {
                     return false;
                 };

@@ -215,8 +215,8 @@ pub(super) fn collect_required_devices(
 /// is futile by construction — refuse at Start instead.
 ///
 /// Reproduced against the Linux appliance (release bundle, headless, no
-/// devices connected) on 2026-08-09. Each of these answered
-/// `POST /api/sequencer/start -> 200 {"status":"started"}` and then died
+/// devices connected). Each of these answers
+/// `POST /api/sequencer/start -> 200 {"status":"started"}` and then dies
 /// mid-run at `{"state":"failed","message":"Cancelled: Target"}`, with the
 /// real reason visible only in the log:
 ///
@@ -231,7 +231,7 @@ pub(super) fn collect_required_devices(
 /// ERROR Move Rotator failed: No rotator connected
 /// ```
 ///
-/// Only `TakeExposure` was gated, so only `TakeExposure` was refused up front.
+/// Gating only `TakeExposure` refuses only `TakeExposure` up front.
 pub(super) fn validate_required_devices(
     required: &std::collections::BTreeMap<RequiredDevice, DeviceRequirement>,
     assigned: impl Fn(RequiredDevice) -> Option<String>,
@@ -360,11 +360,10 @@ pub(super) fn unreachable_instructions_message(names: &[String]) -> String {
     )
 }
 
-/// Confirm the run can actually keep the frames it is about to capture.
-///
-/// A missing or unwritable save path used to be discovered one frame at a time
-/// and only in the log: the burst "succeeded", the run reported 100%, and
-/// nothing reached disk. Fail here instead, before the mount moves.
+/// Confirm the run can actually keep the frames it is about to capture,
+/// before the mount moves. A missing or unwritable save path discovered one
+/// frame at a time reaches only the log: the burst "succeeds", the run reports
+/// 100%, and nothing reaches disk.
 pub(super) fn validate_capture_save_path(
     save_path: Option<&std::path::Path>,
 ) -> Result<(), String> {

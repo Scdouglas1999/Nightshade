@@ -51,6 +51,10 @@ mod api;
 // platform-independent and lives here so it compiles and is regression-tested
 // on every platform; the Windows-only `ascom_wrapper` worker calls into it.
 mod ascom_exposure_apply;
+// the ASCOM SensorType → Bayer-order mapping is shared by the Windows-only COM
+// worker and the platform-independent Alpaca download path, so it lives here
+// and is regression-tested on every platform.
+mod ascom_sensor_type;
 #[cfg(windows)]
 mod ascom_wrapper;
 mod builtin_guider;
@@ -143,15 +147,9 @@ static LOG_GUARD: OnceLock<tracing_appender::non_blocking::WorkerGuard> = OnceLo
 /// Prevents double-init when `init_native_internal` recurses on log directory failure.
 static TRACING_INITIALIZED: AtomicBool = AtomicBool::new(false);
 
-/// Initialize the global runtime, returning a Result.
-///
-/// This function NEVER panics. If runtime creation fails after all fallback attempts,
-/// it sets a static error state and returns an error. Subsequent calls will immediately
-/// return the cached error without retrying (to avoid repeated resource exhaustion).
-///
-/// # Returns
-/// - `Ok(&'static Runtime)` if the runtime was successfully created or already exists
-/// - `Err(NightshadeError)` if runtime creation failed permanently
+/// Initialize the global runtime, never panicking. If creation fails after all
+/// fallback attempts the error is cached in a static and every later call returns
+/// it without retrying, so a resource exhaustion is not hammered.
 pub(crate) fn ensure_runtime() -> Result<&'static Runtime, NightshadeError> {
     // Construct lazily and atomically. The construction MUST happen inside
     // `OnceLock::get_or_init` so that losing threads block on the closure
@@ -268,15 +266,11 @@ fn init_panic_handler() {
     }
 }
 
-/// Initialize the native bridge with logging
-/// Must be called once at app startup
+/// Initialize the native bridge with logging. Called once at app startup, with
+/// `log_directory` naming where log files go (`None` logs to console only).
 ///
-/// This function wraps all initialization in panic catching to ensure that even
-/// if initialization fails catastrophically, we return an error rather than
-/// crashing the Flutter app.
-///
-/// # Arguments
-/// * `log_directory` - Optional path to store log files. If None, logs only to console.
+/// All initialization runs under panic catching, so a catastrophic failure
+/// returns an error instead of crashing the Flutter app.
 #[flutter_rust_bridge::frb(sync)]
 pub fn init_native_with_logging(log_directory: Option<String>) -> Result<(), NightshadeError> {
     // Install panic handler first - this must happen before any other code
@@ -527,25 +521,11 @@ pub fn get_native_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
-// =============================================================================
-// FFI BOUNDARY PANIC SAFETY
-// =============================================================================
+// FFI boundary panic safety
 
-/// Wraps a synchronous operation with panic catching for FFI safety.
-///
-/// This function catches any panics that occur during execution and converts
-/// them to `NightshadeError::Internal` instead of propagating the panic across
-/// the FFI boundary, which would cause undefined behavior.
-///
-/// # Example
-/// ```ignore
-/// pub fn risky_operation() -> Result<i32, NightshadeError> {
-///     catch_panic_sync(|| {
-///         // potentially panicking code
-///         Ok(42)
-///     })
-/// }
-/// ```
+/// Run a synchronous operation with panic catching: a panic becomes
+/// `NightshadeError::Internal` rather than unwinding across the FFI boundary,
+/// which would be undefined behavior.
 pub(crate) fn catch_panic_sync<F, T>(f: F) -> Result<T, NightshadeError>
 where
     F: FnOnce() -> Result<T, NightshadeError> + panic::UnwindSafe,
@@ -563,21 +543,9 @@ where
     }
 }
 
-/// Wraps an async operation with panic catching for FFI safety.
-///
-/// This function catches any panics that occur during future execution and
-/// converts them to `NightshadeError::Internal`. The async block is wrapped
-/// in `AssertUnwindSafe` to allow catching panics from async code.
-///
-/// # Example
-/// ```ignore
-/// pub async fn risky_async_operation() -> Result<i32, NightshadeError> {
-///     catch_panic_async(async {
-///         // potentially panicking async code
-///         Ok(42)
-///     }).await
-/// }
-/// ```
+/// Run a future with panic catching: a panic during polling becomes
+/// `NightshadeError::Internal` rather than unwinding across the FFI boundary.
+/// The future is wrapped in `AssertUnwindSafe` so async code can be caught.
 pub(crate) async fn catch_panic_async<F, T>(f: F) -> Result<T, NightshadeError>
 where
     F: std::future::Future<Output = Result<T, NightshadeError>>,
@@ -613,35 +581,15 @@ fn extract_panic_message(payload: &Box<dyn std::any::Any + Send>) -> String {
     }
 }
 
-/// Get the global runtime, returning a Result instead of panicking.
-///
-/// This is an alias for `ensure_runtime()` for backwards compatibility and clarity.
-/// It will never panic - if the runtime cannot be created, it returns an error.
-///
-/// # Returns
-/// - `Ok(&'static Runtime)` if the runtime is available
-/// - `Err(NightshadeError::RuntimeInitFailed)` if runtime creation failed
+/// The global runtime, or `NightshadeError::RuntimeInitFailed` if it cannot be
+/// created. An alias for [`ensure_runtime`]; it never panics.
 pub(crate) fn get_runtime() -> Result<&'static Runtime, NightshadeError> {
     ensure_runtime()
 }
 
-/// Executes an async operation on the global runtime with panic safety.
-///
-/// This is the recommended way to execute async code from synchronous FFI entry points.
-/// It handles:
-/// - Runtime initialization failure
-/// - Panics in async code
-/// - Proper error conversion
-///
-/// # Example
-/// ```ignore
-/// pub fn sync_wrapper() -> Result<String, NightshadeError> {
-///     run_async_safe(async {
-///         // async code here
-///         Ok("result".to_string())
-///     })
-/// }
-/// ```
+/// Execute a future on the global runtime from a synchronous FFI entry point,
+/// converting runtime-initialization failure and any panic in the async code
+/// into a `NightshadeError`.
 pub fn run_async_safe<F, T>(future: F) -> Result<T, NightshadeError>
 where
     F: std::future::Future<Output = Result<T, NightshadeError>> + Send + 'static,

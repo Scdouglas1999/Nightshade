@@ -5,9 +5,7 @@
 
 use super::*;
 
-// =============================================================================
-// AUTOFOCUS INSTRUCTION
-// =============================================================================
+// Autofocus instruction
 
 /// Process-wide hardware admission for autofocus. Every entry path ultimately
 /// calls this module (standalone bridge, sequence node, recovery, meridian
@@ -641,10 +639,9 @@ pub(crate) async fn execute_autofocus_once(
             Binning::Four => (4, 4),
         };
 
-        // minimum star count is now `config.min_star_count`
-        // (default 10 from `default_af_min_star_count`); previously a hardcoded
-        // local const. A user with a fast/dim setup can lower it without
-        // patching the binary.
+        // The minimum star count is `config.min_star_count` (default 10 from
+        // `default_af_min_star_count`), so a user with a fast or dim setup can
+        // lower it without patching the binary.
         let min_star_count: u32 = config.min_star_count.max(1);
         // 1.0 px² is the noise floor: a V-curve with smaller HFR variance is
         // indistinguishable from flat noise and the fit would extrapolate to

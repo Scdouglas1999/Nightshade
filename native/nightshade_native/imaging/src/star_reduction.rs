@@ -47,7 +47,7 @@
 //!    bytes** — no float round-trip, no off-by-one — so the background is
 //!    provably untouched. `strength = 0` is the identity transform.
 //!
-//! ## Honest limits
+//! ## Limitations
 //!
 //! The geometric constants here — the core-radius multiple of HFR
 //! ([`HFR_CORE_MULTIPLE`]), the feather width ([`DEFAULT_FEATHER_PX`]), the
@@ -94,7 +94,7 @@ const DEFAULT_FEATHER_PX: f64 = 3.0;
 ///
 /// Very tight stars (HFR ≈ 1) would otherwise get a sub-pixel core that the
 /// erosion / residual operators cannot act on. One pixel guarantees the
-/// operators have a neighbourhood to work with. Defensible default.
+/// operators have a neighbourhood to work with.
 const MIN_CORE_RADIUS_PX: f64 = 1.0;
 
 /// Structuring-element radius (px) for the grayscale erosion / local-min
@@ -103,8 +103,8 @@ const MIN_CORE_RADIUS_PX: f64 = 1.0;
 /// The erosion local-minimum is taken over a disk of this radius. Two pixels
 /// shrinks a star by a couple of pixels per pass without obliterating compact
 /// structure; it matches the small structuring element a practitioner would
-/// pick in *MorphologicalTransformation* for a gentle reduction. Defensible
-/// default, not corpus-tuned.
+/// pick in *MorphologicalTransformation* for a gentle reduction. It is a
+/// default, not a corpus-tuned value.
 const EROSION_RADIUS_PX: i32 = 2;
 
 /// Radius (px) of the local-minimum window used to estimate the star-free
@@ -177,7 +177,7 @@ pub enum StarReduceError {
 /// soft star mask, leaving the background byte-identical to the input.
 ///
 /// Supports `U16` and `F32` `ImageData` (mono or multi-channel; each channel is
-/// processed independently — see the module-level "Honest limits" note on
+/// processed independently — see the module-level "Limitations" note on
 /// colour). Returns a new [`ImageData`] of the same dimensions and pixel type;
 /// the input is never mutated.
 ///
@@ -233,8 +233,8 @@ pub fn reduce_stars(
     // rather than using channel 0. Detecting on channel 0 (R for interleaved RGB)
     // would miss a star that is bright in green/blue but faint in red — it would
     // fall below the detector's SNR/area gate and never enter the mask, leaving it
-    // at FULL size in every channel (the worst-case visible failure this module
-    // otherwise works hard to avoid — finding 9). The max keeps a star that is
+    // at FULL size in every channel — the worst-case visible failure this
+    // module otherwise works hard to avoid. The max keeps a star that is
     // bright in any single channel, which is the detectability-preserving choice.
     let detect_plane = luminance_plane_for_detection(image).ok_or(StarReduceError::EmptyImage)?;
 
@@ -305,7 +305,7 @@ fn mask_detection_config() -> StarDetectionConfig {
 /// the **per-pixel maximum over channels**, not channel 0: a star can be bright in
 /// one channel (a blue or Hα-bright star) yet faint in another, and detecting on a
 /// single channel would drop it below the detector's gate and leave it at full
-/// size everywhere (finding 9). The max keeps any star that is bright in *any*
+/// size everywhere. The max keeps any star that is bright in *any*
 /// channel, which is exactly the detectability the mask needs (star *positions*
 /// coincide across channels, so a max-plane detection masks them in all channels).
 /// Returns `None` only if even channel 0 cannot be extracted (empty/unsupported).
@@ -868,7 +868,7 @@ mod tests {
             "erosion must shrink the star footprint: in={foot_in} out={foot_out}"
         );
 
-        // QUANTITATIVE bound (finding 8): the bare `peak_out < peak_in` /
+        // QUANTITATIVE bound: the bare `peak_out < peak_in` /
         // `foot_out < foot_in` checks pass for ANY non-zero reduction, so a
         // regression that all-but-disabled erosion (radius collapsed to 0, strength
         // mis-wired) would still pass. Pin the center-min reduction analytically.
@@ -896,7 +896,7 @@ mod tests {
 
     #[test]
     fn erosion_strength_meaningfully_changes_the_result() {
-        // Finding 8: lock in that `strength` actually drives the erosion outcome
+        // Lock in that `strength` actually drives the erosion outcome
         // (it scales the blend toward the eroded plane), not merely that it is
         // accepted. A gentle (0.3) and an aggressive (0.9) erosion must produce
         // measurably different centre excess AND footprints; if strength were
@@ -1121,7 +1121,7 @@ mod tests {
 
     #[test]
     fn star_bright_only_in_a_non_red_channel_is_still_reduced() {
-        // Finding 9: an RGB star that is bright in GREEN/BLUE but FAINT in red
+        // An RGB star that is bright in GREEN/BLUE but FAINT in red
         // (channel 0) must still be detected and reduced. Detecting on channel 0
         // alone would miss it — it would stay at full size in every channel, the
         // worst-case visible failure. The max-across-channels detection plane keeps

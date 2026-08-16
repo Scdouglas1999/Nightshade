@@ -1,8 +1,6 @@
 use super::*;
 
-// =============================================================================
-// Named convenience wrappers (the task-brief surface)
-// =============================================================================
+// Named convenience wrappers over the api_sky_atlas actions
 
 /// Fold a single plate-solved capture into the atlas. A thin convenience over the
 /// `"fold"` action for the common one-frame case — the same JSON shape minus the

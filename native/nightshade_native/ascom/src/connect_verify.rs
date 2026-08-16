@@ -3,8 +3,8 @@
 //! Setting `Connected = true` on an ASCOM driver and getting no COM exception
 //! is **not** evidence that a device is there. ASCOM registers *drivers*, not
 //! *hardware*, so a driver for a device the operator does not own is a normal
-//! entry in every device list. Measured on a real rig on 2026-08-09:
-//! `ASCOM.ASIMount.Telescope`, with no ASI mount in the building, accepted
+//! entry in every device list. Measured on real hardware:
+//! `ASCOM.ASIMount.Telescope`, with no ASI mount present, accepted
 //! `Connected = true` in 54 ms without complaint and then reported
 //! `Connected = False`, `Slewing = True`, `SiderealTime = -1` and RA/Dec/Alt/Az
 //! all zero — for the full 20 s the probe watched, and after a clean
@@ -25,37 +25,21 @@ use std::time::Duration;
 /// How long to wait for a driver to actually report `Connected = true` after
 /// accepting the request.
 ///
-/// **The two ways to be wrong here are not equally costly.** Believing a
-/// phantom costs the entire night, silently — that is the bug this module
-/// exists to stop. But rejecting a slow-but-genuine device is a *new* failure
-/// mode introduced by the check, and for an unattended run it also costs the
-/// night. So the budget is set by how long real hardware may reasonably take,
-/// not by how long an operator is willing to watch a spinner.
+/// The budget is set by how long real hardware may take, not by how long an
+/// operator will watch a spinner: the loop returns the instant the driver says
+/// `true`, so a healthy device pays only its own latency and the full budget
+/// is spent only on a device that is not coming up.
 ///
-/// Waiting long is close to free: the loop returns the instant the driver says
-/// `true`, so a healthy device pays only its own latency (every device on the
-/// reference rig read back `true` on the first poll). The budget is only ever
-/// spent in full on a device that is genuinely not coming up, where the
-/// alternative outcome is an all-night hang.
-///
-/// **There is a hard ceiling, and it is not operator patience — it is the
-/// transport.** Every ASCOM device in the bridge is driven through a worker
-/// thread whose `connect` reply is awaited under `Timeouts::connection()`
-/// (`nightshade_bridge::timeout_ops`), currently 30 s. If `connect()` takes
-/// longer than that, the caller has already given up: the oneshot receiver is
-/// dropped, the operator is shown `"<device> connect timed out after 30s"`,
-/// and the message this module works so hard to compose is thrown away
-/// unread. Measured on the reference rig 2026-08-09 with a 30 s budget, the
-/// phantom `ASCOM.ASIMount.Telescope` was rejected at **30.064 s** — past the
-/// transport's deadline on every single attempt, so the diagnostic never once
-/// reached a user.
-///
-/// So the budget must leave room for the whole of `connect()`: the
-/// `Connected = true` write, the polling, and the cleanup write on the way
-/// out. 20 s leaves ~10 s of that headroom while still standing 60x above the
-/// slowest real device measured (315 ms, ASI178MM through the production
-/// `connect()`), and `bridge::timeout_ops` carries a test that fails if either
-/// side of this relationship drifts.
+/// The ceiling is the transport. Every ASCOM device in the bridge is driven
+/// through a worker thread whose `connect` reply is awaited under
+/// `Timeouts::connection()` (`nightshade_bridge::timeout_ops`), currently 30 s;
+/// a budget that outlasts it means the caller has already given up and the
+/// diagnostic this module composes is never read. The budget must therefore
+/// cover the whole of `connect()`: the `Connected = true` write, the polling,
+/// and the cleanup write on the way out. 20 s leaves ~10 s of that headroom
+/// while still standing 60x above the slowest measured real device (315 ms,
+/// ASI178MM through the production `connect()`), and `bridge::timeout_ops`
+/// carries a test that fails if either side of this relationship drifts.
 pub const CONNECT_VERIFY_TIMEOUT: Duration = Duration::from_secs(20);
 
 /// Headroom that must remain between [`CONNECT_VERIFY_TIMEOUT`] and the

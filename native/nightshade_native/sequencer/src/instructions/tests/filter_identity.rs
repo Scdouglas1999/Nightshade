@@ -6,12 +6,10 @@ use super::*;
 
 /// The wheel is parked on slot 1 ("R" in the double's name table) and the
 /// node names no filter. The frame is taken THROUGH R, so R is what the
-/// FITS FILTER card, the FILTPOS card and the filename must all say.
-///
-/// Before the fix the sequence context had no filter identity at all
-/// unless a Change Filter node had run, so `FrameContext.filter_name` was
-/// None (no FILTER card at all — verified against a live capture) and the
-/// save-path template rendered the synthetic `nofilter` label.
+/// FITS FILTER card, the FILTPOS card and the filename must all say —
+/// without a filter identity on the sequence context there is no FILTER card
+/// at all and the save-path template renders the synthetic `nofilter`
+/// label.
 #[tokio::test]
 async fn burst_records_the_filter_the_wheel_is_parked_on() {
     let scratch = scratch_dir("wheel-filter");
@@ -141,12 +139,10 @@ async fn burst_filename_uses_the_filter_the_node_configured() {
 /// The Flat Wizard's final flat burst: `execute_exposure` called directly,
 /// with no node and no save-path renderer, and a config whose `filter` is
 /// whatever the wizard was configured with — commonly nothing, because the
-/// operator shot flats through the filter already on the wheel.
-///
-/// The wheel-report fallback used to live in the TakeExposure node, so this
-/// path produced `Flat_nofilter_0001.fits` with NO FILTER card. Flats with
-/// no FILTER card cannot be matched to the lights they were shot for by any
-/// calibration tool, which is the whole point of taking them.
+/// operator shot flats through the filter already on the wheel. The wheel
+/// report is what supplies the identity here: flats with no FILTER card
+/// cannot be matched to the lights they were shot for by any calibration
+/// tool, which is the whole point of taking them.
 #[tokio::test]
 async fn flat_wizard_burst_records_the_filter_the_wheel_is_parked_on() {
     let scratch = scratch_dir("direct-wheel-filter");
@@ -236,12 +232,12 @@ async fn flat_wizard_flats_are_named_by_the_save_path_renderer() {
 }
 
 /// A direct burst that names its filter but carries no slot, run after
-/// something else established a different filter. Name and slot used to be
-/// resolved independently (`config.filter.or(ctx.current_filter)` next to
-/// `config.filter_index.or(ctx.current_filter_index)`), so the frame was
-/// stamped with this burst's NAME and the previous burst's SLOT — one frame
-/// described by two different filters, and the disagreement is silent
-/// because each field is individually plausible.
+/// something else established a different filter. Name and slot must be
+/// resolved together: resolving them independently
+/// (`config.filter.or(ctx.current_filter)` beside
+/// `config.filter_index.or(ctx.current_filter_index)`) stamps the frame with
+/// this burst's NAME and the previous burst's SLOT, and the disagreement is
+/// silent because each field is individually plausible.
 #[tokio::test]
 async fn direct_burst_never_pairs_its_filter_name_with_a_stale_slot() {
     let scratch = scratch_dir("direct-stale-slot");
@@ -275,10 +271,9 @@ async fn direct_burst_never_pairs_its_filter_name_with_a_stale_slot() {
     );
 }
 
-/// A burst that addresses the wheel BY NAME never learns the slot it
-/// landed on, so the frame used to carry the correct filter name next to
-/// whatever slot number the previous burst had left in the run context —
-/// the same frame described by two different filters.
+/// A burst that addresses the wheel BY NAME never learns the slot it landed
+/// on, so it must not inherit the previous burst's slot — that describes one
+/// frame with two different filters.
 #[tokio::test]
 async fn name_addressed_burst_does_not_inherit_the_previous_bursts_slot() {
     let scratch = scratch_dir("stale-filter-slot");

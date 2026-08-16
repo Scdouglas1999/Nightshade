@@ -89,9 +89,7 @@ pub(crate) fn heartbeat_events_for_poll(
 }
 
 impl DeviceManager {
-    // =========================================================================
-    // Heartbeat Monitoring
-    // =========================================================================
+    // Heartbeat monitoring
 
     /// Configuration for heartbeat monitoring per device type
     /// Uses optimized presets for each device type based on operational characteristics
@@ -201,10 +199,9 @@ impl DeviceManager {
     /// surrounding loop in `run_heartbeat_loop` escalates to a Disconnected
     /// event after `failure_threshold` consecutive misses.
     ///
-    /// Errors (Err) are reserved for unrecognized device ids / unsupported
-    /// device types — those indicate a programming bug, not a transient
-    /// outage, so we surface them loudly instead of silently treating them
-    /// as `false` ("errors are a feature").
+    /// `Err` is reserved for unrecognized device ids and unsupported device
+    /// types: those are a programming bug rather than a transient outage, so
+    /// they surface loudly instead of collapsing into `false`.
     async fn perform_simulator_health_check(
         device_id: &str,
         device_type: &DeviceType,
@@ -853,11 +850,9 @@ mod heartbeat_event_tests {
         assert_eq!(events, vec![HeartbeatEventKind::DisconnectedAndError]);
     }
 
-    // -------------------------------------------------------------------------
     // Non-escalating heartbeat policy (used by safety-monitor liveness):
     // crossing the threshold must NEVER disconnect. It latches a single
     // Degraded "stale" status and keeps the device connected + monitored.
-    // -------------------------------------------------------------------------
 
     /// At the threshold, a non-escalating device emits a Degraded (the
     /// healthy->degraded transition) and NEVER a DisconnectedAndError.

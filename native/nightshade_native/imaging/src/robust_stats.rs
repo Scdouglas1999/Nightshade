@@ -1,14 +1,9 @@
 //! The crate's order statistics, in one place.
 //!
-//! Eight modules used to carry their own median and five their own percentile.
-//! The medians agreed; the percentiles did **not**, and nothing named the
-//! difference. [`stretch`](crate::stretch) indexes `(n·q)` while
-//! [`sky_atlas`](crate::sky_atlas) indexes `round((n−1)·q)` and
-//! [`master_accumulation`](crate::master_accumulation) interpolates between
-//! ranks — three answers for the same question, chosen by whichever file the
-//! call happened to land in.
-//!
-//! So each convention gets a name here, and a call site picks one on purpose:
+//! Percentiles disagree by convention: indexing `(n·q)`, indexing
+//! `round((n−1)·q)` and interpolating between ranks are three answers to the
+//! same question. Each convention is named here so a call site picks one on
+//! purpose rather than inheriting whichever its file happened to define:
 //!
 //! * [`percentile_nearest_rank`] — the crate default. `round((n−1)·q)`, so
 //!   `q = 0` is the minimum and `q = 1` the maximum.
@@ -21,9 +16,9 @@
 //! At `q = 0.5` all three agree, so the choice only shows up in the tails.
 //!
 //! Ordering is [`f64::total_cmp`] throughout: `partial_cmp` reports `Equal` for
-//! NaN, which is not a total order, so a NaN in the input could previously
-//! leave the slice unsorted and the "median" arbitrary. `total_cmp` sinks NaN
-//! to the end deterministically. For NaN-free input the two agree.
+//! NaN, which is not a total order, so a single NaN leaves the slice unsorted
+//! and the "median" arbitrary. `total_cmp` sinks NaN to the end
+//! deterministically. For NaN-free input the two agree.
 //!
 //! Every function answers `0.0` for an empty input rather than panicking;
 //! callers that care guard first.

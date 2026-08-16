@@ -242,11 +242,15 @@ mod guard_tests {
     /// Generated FFI glue is not hand-written capture code.
     const GENERATED: &[&str] = &["bridge/src/frb_generated.rs"];
     /// `NullDeviceOps` fabricates HFR and star positions, but it is a test
-    /// double that a release artifact cannot install: its only entry point
-    /// (`api_sequencer_set_simulation_mode`) refuses with NotSupported unless
-    /// `cfg!(debug_assertions)`, and no HTTP route exposes it.
-    /// `release_gate_still_guards_null_device_ops` below fails if that stops
-    /// being true, so this exemption cannot rot into a live path unnoticed.
+    /// double a release artifact cannot install. It has two entry points and
+    /// both are closed: `api_sequencer_set_simulation_mode` refuses with
+    /// NotSupported unless `cfg!(debug_assertions)` and no HTTP route exposes
+    /// it, and `ExecutionContext::new_for_test` is `#[cfg(test)]` so it does
+    /// not exist in a release build. `ExecutionContext::new` takes the device
+    /// handle as an argument precisely so there is no third way in by default.
+    /// `release_gate_still_guards_null_device_ops` below fails if the runtime
+    /// gate stops being true, so this exemption cannot rot into a live path
+    /// unnoticed.
     const RELEASE_GATED_TEST_DOUBLE: &[&str] = &["sequencer/src/device_ops.rs"];
 
     fn workspace_root() -> PathBuf {
@@ -374,15 +378,14 @@ mod guard_tests {
 
     /// An exemption must name one file, not a file NAME.
     ///
-    /// The guard above is only as strong as its allowlist. While exemptions
-    /// were matched on the basename, `sim_frame.rs`, `sim_sky.rs`,
-    /// `sim_capture.rs` and `device_ops.rs` were exempt in EVERY crate and
-    /// directory — so a new `bridge/src/device_ops.rs` painting random stars
-    /// would have been skipped by the one test written to catch exactly that.
-    /// Verified against the real guard: a probe file containing
-    /// `rand::thread_rng()` / `gen_range(` placed at `bridge/src/api/…` was
-    /// reported by file:line, while the same probe at
-    /// `bridge/src/api/nested/sim_frame.rs` was silently waved through.
+    /// The guard above is only as strong as its allowlist. Matching exemptions
+    /// on the basename makes `sim_frame.rs`, `sim_sky.rs`, `sim_capture.rs` and
+    /// `device_ops.rs` exempt in EVERY crate and directory — so a new
+    /// `bridge/src/device_ops.rs` painting random stars is skipped by the one
+    /// test written to catch exactly that. Verified against the real guard: a
+    /// probe file containing `rand::thread_rng()` / `gen_range(` placed at
+    /// `bridge/src/api/…` is reported by file:line, while the same probe at
+    /// `bridge/src/api/nested/sim_frame.rs` is silently waved through.
     ///
     /// Both halves are asserted here: every allowlisted path must exist (so a
     /// rename cannot quietly widen the guard into a no-op) and a same-named

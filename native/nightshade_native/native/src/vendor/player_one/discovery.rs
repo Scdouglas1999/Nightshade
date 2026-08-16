@@ -2,10 +2,6 @@
 
 use super::*;
 
-// =============================================================================
-// PLAYER ONE CAMERA DISCOVERY
-// =============================================================================
-
 /// Player One camera discovery info
 pub struct PlayerOneCameraInfo {
     pub camera_id: i32,

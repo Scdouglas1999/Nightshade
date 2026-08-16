@@ -1,9 +1,5 @@
 use super::*;
 
-// =============================================================================
-// Camera Control (Simulator implementation)
-// =============================================================================
-
 /// Simulated camera state
 pub(crate) static SIM_CAMERA: OnceLock<Arc<RwLock<SimulatedCamera>>> = OnceLock::new();
 
@@ -106,18 +102,11 @@ pub(crate) fn reset_sim_frame_seed(seed: u64) {
 
 /// Where the simulated camera is in its exposure cycle.
 ///
-/// The simulator used to report every exposure complete the instant it was
-/// asked, which is not a harmless shortcut:
-///   * nothing paced the built-in guider's capture loop, so guiding against the
-///     simulator ran at ~40 frames/sec and pinned nine CPU cores (897%) running
-///     star detection on 1920x1080 frames — with the guide exposure set to 1s;
-///   * a 60-second simulated light frame finished in zero seconds, so exposure
-///     progress, remaining-time estimates and any "still integrating" UI state
-///     could not be exercised without hardware, and a bug in them would ship
-///     unseen.
-///
-/// Real cameras pace their callers by simply not being finished yet; the
-/// simulator has to do the same to be worth testing against.
+/// Real cameras pace their callers by simply not being finished yet, so the
+/// simulator holds an exposure for its requested duration too. Completing
+/// instantly leaves nothing to pace the built-in guider's capture loop and
+/// makes exposure progress, remaining-time estimates and "still integrating"
+/// UI state impossible to exercise without hardware.
 ///
 /// `Aborted` is distinct from `Idle` on purpose. Both release a caller polling
 /// for completion, but only `Idle` follows a frame that was actually read out —
@@ -260,12 +249,9 @@ pub(crate) fn sim_cooler_last_tick() -> &'static Arc<RwLock<Option<std::time::In
 
 /// Advance the simulated sensor temperature toward its setpoint.
 ///
-/// The singleton used to accept `set_cooler(enabled, target)` and then report
-/// 20.0 °C at 0% power forever, so a `CoolCamera` node could NEVER succeed
-/// against the simulator — every realistic sequence died on its first node with
-/// "Camera did not reach target -5.0°C within 6s (last 20.0°C, 0% power)", and
-/// the dashboard's Sensor/Cooler readouts were frozen. Called on every simulated
-/// status read, which is what makes the ramp observable.
+/// Called on every simulated status read, which is what makes the ramp
+/// observable: without it the sensor sits at ambient at 0% power forever and a
+/// `CoolCamera` node can never reach its setpoint against the simulator.
 pub(crate) async fn advance_sim_cooler() {
     let now = std::time::Instant::now();
     let elapsed = {
