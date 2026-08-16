@@ -63,7 +63,7 @@ try {
     Write-Host "  Build: $buildNumber" -ForegroundColor Gray
     Write-Host "  Channel: $channel" -ForegroundColor Gray
 
-    # SEC-001: OTA is fail-closed. Two distinct keys are involved:
+    # OTA is fail-closed. Two distinct keys are involved:
     #   * NIGHTSHADE_UPDATE_PRIVATE_KEY signs THIS manifest (below).
     #   * NIGHTSHADE_UPDATE_PUBLIC_KEY must be embedded in the SHIPPED app
     #     binary at build time (see scripts/package_windows.ps1) for that

@@ -264,7 +264,7 @@ Invoke-Step "Build Rust updater (release)" {
 
 Invoke-Step "Build Flutter Windows app (release)" {
     Push-Location $desktopDir
-    # SEC-001: embed the trusted OTA update public key from the environment.
+    # Embed the trusted OTA update public key from the environment.
     # Sourced from NIGHTSHADE_UPDATE_PUBLIC_KEY so it is EMPTY by default,
     # which deliberately disables OTA auto-update (the runtime refuses to
     # stage an update it cannot authenticate to the vendor key). Provision
